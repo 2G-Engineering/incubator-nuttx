@@ -537,6 +537,10 @@ hex "MX35 manufacturers ID"
 		for the Macronix MX35 serial FLASH.  If, for example, you are using a Winbond
 		W25N01GV serial FLASH, the correct manufacturer ID would be 0xEF.
 
+config MX35_DEBUG
+	bool "Enable driver debug features"
+	default n
+
 endif # MTD_MX35
 
 config MTD_S25FL1

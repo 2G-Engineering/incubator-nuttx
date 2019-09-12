@@ -235,12 +235,16 @@ static void mx35_readbuffer(FAR struct mx35_dev_s *priv, uint32_t address,
 static bool mx35_read_page(FAR struct mx35_dev_s *priv, uint32_t position);
 static ssize_t mx35_read(FAR struct mtd_dev_s *dev, off_t offset, size_t nbytes,
                          FAR uint8_t *buffer);
+static ssize_t mx35_bread(FAR struct mtd_dev_s *dev, off_t startblock, size_t nblocks,
+                          FAR uint8_t *buffer);
 
 static void mx35_write_to_cache(FAR struct mx35_dev_s *priv, uint32_t address,
                                 const uint8_t *buffer, size_t length);
 static bool mx35_execute_write(FAR struct mx35_dev_s *priv, uint32_t position);
 static ssize_t mx35_write(FAR struct mtd_dev_s *dev, off_t offset, size_t nbytes,
                           FAR const uint8_t *buffer);
+static ssize_t mx35_bwrite(FAR struct mtd_dev_s *dev, off_t startblock, size_t nblocks,
+                           FAR const uint8_t *buffer);
 
 static int mx35_ioctl(FAR struct mtd_dev_s *dev, int cmd, unsigned long arg);
 static inline void mx35_eccstatusread(struct mx35_dev_s *priv);
@@ -657,6 +661,21 @@ static ssize_t mx35_read(FAR struct mtd_dev_s *dev, off_t offset, size_t nbytes,
 }
 
 /************************************************************************************
+ * Name: mx35_bread
+ ************************************************************************************/
+
+static ssize_t mx35_bread(FAR struct mtd_dev_s *dev, off_t startblock, size_t nblocks,
+                          FAR uint8_t *buffer)
+{
+  FAR struct mx35_dev_s *priv = (FAR struct mx35_dev_s *)dev;
+
+  off_t offset = (startblock << priv->pageshift);
+  size_t nbytes = (nblocks << priv->pageshift);
+
+  return mx35_read(dev, offset, nbytes, buffer) >> priv->pageshift;
+}
+
+/************************************************************************************
  * Name: mx35_write_to_cache
  ************************************************************************************/
 
@@ -726,6 +745,8 @@ static ssize_t mx35_write(FAR struct mtd_dev_s *dev, off_t offset, size_t nbytes
 
   mx35_lock(priv->dev);
 
+  mx35info("offset: %08lx nbytes: %d\n", (long)offset, (int)nbytes);
+
   /* Wait all operations complete */
 
   mx35_waitstatus(priv, MX35_SR_OIP, false);
@@ -750,7 +771,23 @@ static ssize_t mx35_write(FAR struct mtd_dev_s *dev, off_t offset, size_t nbytes
 
   mx35_unlock(priv->dev);
 
+  mx35info("return nbytes: %d\n", (int)(nbytes - bytesleft));
   return nbytes - bytesleft;
+}
+
+/************************************************************************************
+ * Name: mx35_bwrite
+ ************************************************************************************/
+
+static ssize_t mx35_bwrite(FAR struct mtd_dev_s *dev, off_t startblock, size_t nblocks,
+                           FAR const uint8_t *buffer)
+{
+    FAR struct mx35_dev_s *priv = (FAR struct mx35_dev_s *)dev;
+
+    off_t offset = (startblock << priv->pageshift);
+    size_t nbytes = (nblocks << priv->pageshift);
+
+    return mx35_write(dev, offset, nbytes, buffer) >> priv->pageshift;
 }
 
 /************************************************************************************
@@ -912,7 +949,9 @@ FAR struct mtd_dev_s *mx35_initialize(FAR struct spi_dev_s *dev)
 
       priv->mtd.erase  = mx35_erase;
       priv->mtd.read   = mx35_read;
+      priv->mtd.bread  = mx35_bread;
       priv->mtd.write  = mx35_write;
+      priv->mtd.bwrite = mx35_bwrite;
       priv->mtd.ioctl  = mx35_ioctl;
       priv->mtd.name   = "mx35";
       priv->dev        = dev;
