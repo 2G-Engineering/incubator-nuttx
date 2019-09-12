@@ -943,7 +943,7 @@ static int littlefs_bind(FAR struct inode *driver, FAR const void *data,
   fs->cfg.block_size      = fs->geo.erasesize;
   fs->cfg.block_count     = fs->geo.neraseblocks;
   fs->cfg.block_cycles    = CONFIG_LITTLEFS2_BLOCK_CYCLES;
-  fs->cfg.cache_size      = fs->geo.erasesize;
+  fs->cfg.cache_size      = fs->geo.blocksize;
   fs->cfg.lookahead_size  = 32 * ((fs->cfg.block_count + 31) / 32);
 
   if (fs->cfg.lookahead_size > 32 * fs->cfg.read_size)
