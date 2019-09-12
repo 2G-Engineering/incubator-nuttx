@@ -95,6 +95,8 @@
 #define MX35_MX35LF1GE4AB_CAPACITY     0x12  /* 1 Gb */
 #define MX35_MX35LF2GE4AB_CAPACITY     0x22  /* 2 Gb */
 
+#define W25N01GV_CAPACITY              0xAA  /* 1 Gb */
+
 /* Chip Geometries ******************************************************************/
 
 /* MX35LF1GE4AB capacity is 1 G-bit */
@@ -323,7 +325,7 @@ static int mx35_readid(struct mx35_dev_s *priv)
     {
       /* Okay.. is it a FLASH capacity that we understand? */
 
-      if (capacity == MX35_MX35LF1GE4AB_CAPACITY)
+      if (capacity == MX35_MX35LF1GE4AB_CAPACITY || capacity == W25N01GV_CAPACITY)
         {
           /* Save the FLASH geometry */
 

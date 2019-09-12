@@ -529,6 +529,14 @@ config MX35_SPIFREQUENCY
 	---help---
 		SPI frequency for MX35 is 104 MHz.
 
+config MX35_MANUFACTURER
+hex "MX35 manufacturers ID"
+	default 0xC2
+	---help---
+		Various manufacturers may have produced the parts.  0xC2 is the manufacturer ID
+		for the Macronix MX35 serial FLASH.  If, for example, you are using a Winbond
+		W25N01GV serial FLASH, the correct manufacturer ID would be 0xEF.
+
 endif # MTD_MX35
 
 config MTD_S25FL1
