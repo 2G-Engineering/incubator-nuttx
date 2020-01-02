@@ -89,6 +89,7 @@ source fs/binfs/Kconfig
 source fs/procfs/Kconfig
 source fs/spiffs/Kconfig
 source fs/littlefs/Kconfig
+source fs/littlefs2/Kconfig
 source fs/unionfs/Kconfig
 source fs/userfs/Kconfig
 source fs/hostfs/Kconfig
