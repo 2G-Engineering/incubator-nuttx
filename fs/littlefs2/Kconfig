@@ -1,0 +1,28 @@
+config FS_LITTLEFS2
+    bool "LITTLEFS v2 File System"
+    default n
+    select FS_READABLE
+    select FS_WRITABLE
+    depends on !DISABLE_MOUNTPOINT
+    depends on EXPERIMENTAL
+    ---help---
+        Build the LITTLEFS v2 file system. https://github.com/ARMmbed/littlefs.
+
+config LITTLEFS2_ALLOW_MIGRATION
+    bool "Allow LITTLEFS v1 to v2 migration"
+    default n
+    depends on FS_LITTLEFS2
+    ---help---
+        Includes code which allows in-place upgrade from LittleFS v1 to
+        LittleFS v2
+        
+config LITTLEFS2_BLOCK_CYCLES
+    int "Number of erase cycles permitted per block"
+    default -1
+    depends on FS_LITTLEFS2
+    ---help---
+        The number of erase cycles per block that the storage device is
+        rated for.  After a block is erased this many times, the block will
+        be marked as spent and data will be moved to a different block.
+        If set to -1, block wear-leveling will be disabled.
+        

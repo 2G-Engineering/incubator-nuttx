@@ -292,6 +292,9 @@ struct fs_dirent_s
 #ifdef CONFIG_FS_LITTLEFS
       FAR void              *littlefs;
 #endif
+#ifdef CONFIG_FS_LITTLEFS2
+      FAR void              *littlefs2;
+#endif
 #ifdef CONFIG_FS_UNIONFS
       struct fs_unionfsdir_s unionfs;
 #endif
