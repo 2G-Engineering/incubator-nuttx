@@ -75,13 +75,15 @@
  */
 
 #if defined(CONFIG_FS_FAT) || defined(CONFIG_FS_ROMFS) || \
-    defined(CONFIG_FS_SMARTFS) || defined(CONFIG_FS_LITTLEFS)
+    defined(CONFIG_FS_SMARTFS) || defined(CONFIG_FS_LITTLEFS) || \
+    defined(CONFIG_FS_LITTLEFS2 )
 #  define BDFS_SUPPORT 1
 #endif
 
 /* These file systems require MTD drivers */
 
-#if defined(CONFIG_FS_SPIFFS) || defined(CONFIG_FS_LITTLEFS)
+#if defined(CONFIG_FS_SPIFFS) || defined(CONFIG_FS_LITTLEFS) || \
+    defined(CONFIG_FS_LITTLEFS2)
 #  define MDFS_SUPPORT 1
 #endif
 
@@ -123,6 +125,9 @@ extern const struct mountpt_operations smartfs_operations;
 #ifdef CONFIG_FS_LITTLEFS
 extern const struct mountpt_operations littlefs_operations;
 #endif
+#ifdef CONFIG_FS_LITTLEFS2
+extern const struct mountpt_operations littlefs2_operations;
+#endif
 
 static const struct fsmap_t g_bdfsmap[] =
 {
@@ -137,6 +142,9 @@ static const struct fsmap_t g_bdfsmap[] =
 #endif
 #ifdef CONFIG_FS_LITTLEFS
     { "littlefs", &littlefs_operations },
+#endif
+#ifdef CONFIG_FS_LITTLEFS2
+    { "littlefs2", &littlefs2_operations },
 #endif
     { NULL,   NULL },
 };
@@ -154,6 +162,9 @@ extern const struct mountpt_operations spiffs_operations;
 #ifdef CONFIG_FS_LITTLEFS
 extern const struct mountpt_operations littlefs_operations;
 #endif
+#ifdef CONFIG_FS_LITTLEFS2
+extern const struct mountpt_operations littlefs2_operations;
+#endif
 
 static const struct fsmap_t g_mdfsmap[] =
 {
@@ -165,6 +176,9 @@ static const struct fsmap_t g_mdfsmap[] =
 #endif
 #ifdef CONFIG_FS_LITTLEFS
     { "littlefs", &littlefs_operations },
+#endif
+#ifdef CONFIG_FS_LITTLEFS2
+    { "littlefs2", &littlefs2_operations },
 #endif
     { NULL,   NULL },
 };
