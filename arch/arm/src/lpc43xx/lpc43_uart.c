@@ -1,7 +1,7 @@
 /****************************************************************************
  * arch/arm/src/lpc43xx/lpc43_uart.c
  *
- *   Copyright (C) 2012, 2017 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2012, 2017, 2019 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -159,11 +159,11 @@ void up_lowputc(char ch)
 #ifdef HAVE_SERIAL_CONSOLE
   /* Wait for the transmitter to be available */
 
-  while ((getreg32(CONSOLE_BASE+LPC43_UART_LSR_OFFSET) & UART_LSR_THRE) == 0);
+  while ((getreg32(CONSOLE_BASE + LPC43_UART_LSR_OFFSET) & UART_LSR_THRE) == 0);
 
   /* Send the character */
 
-  putreg32((uint32_t)ch, CONSOLE_BASE+LPC43_UART_THR_OFFSET);
+  putreg32((uint32_t)ch, CONSOLE_BASE + LPC43_UART_THR_OFFSET);
 #endif
 }
 
@@ -175,7 +175,9 @@ void up_lowputc(char ch)
  *   console.  Its purpose is to get the console output available as soon
  *   as possible.
  *
- *   The USART0/2/3 and UART1 peripherals are configured using the following registers:
+ *   The USART0/2/3 and UART1 peripherals are configured using the following
+ *   registers:
+ *
  *   1. Baud rate: In the LCR register, set bit DLAB = 1. This enables access
  *      to registers DLL and DLM for setting the baud rate. Also, if needed,
  *      set the fractional baud rate in the fractional divider
@@ -456,7 +458,6 @@ void lpc43_usart2_setup(void)
   regval  = getreg32(LPC43_CCU2_APB2_USART2_CFG);
   regval |= CCU_CLK_CFG_RUN;
   putreg32(regval, LPC43_CCU2_APB2_USART2_CFG);
-
 
   /* Configure I/O pins.  NOTE that multiple pin configuration options must
    * be disambiguated by defining the pin configuration in the board.h

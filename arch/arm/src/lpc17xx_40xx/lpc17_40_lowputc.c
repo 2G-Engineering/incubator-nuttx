@@ -1,7 +1,7 @@
 /****************************************************************************
  * arch/arm/src/lpc17xx_40xx/lpc17_40_lowputc.c
  *
- *   Copyright (C) 2010-2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2010-2013, 2019 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -275,11 +275,11 @@ void up_lowputc(char ch)
 #if defined HAVE_UART && defined HAVE_CONSOLE
   /* Wait for the transmitter to be available */
 
-  while ((getreg32(CONSOLE_BASE+LPC17_40_UART_LSR_OFFSET) & UART_LSR_THRE) == 0);
+  while ((getreg32(CONSOLE_BASE + LPC17_40_UART_LSR_OFFSET) & UART_LSR_THRE) == 0);
 
   /* Send the character */
 
-  putreg32((uint32_t)ch, CONSOLE_BASE+LPC17_40_UART_THR_OFFSET);
+  putreg32((uint32_t)ch, CONSOLE_BASE + LPC17_40_UART_THR_OFFSET);
 #endif
 }
 

@@ -1,7 +1,7 @@
 /****************************************************************************
  * arch/arm/src/lpc17xx_40xx/lpc17_40_serial.c
  *
- *   Copyright (C) 2010-2013, 2017-2018 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2010-2013, 2017-2019 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -562,7 +562,6 @@ static inline void up_enablebreaks(struct up_dev_s *priv, bool enable)
 
 void up_setbaud(uintptr_t uartbase, uint32_t basefreq, uint32_t baud)
 {
-
   uint32_t lcr;      /* Line control register value */
   uint32_t dl;       /* Best DLM/DLL full value */
   uint32_t mul;      /* Best FDR MULVALL value */
@@ -679,11 +678,11 @@ void up_setbaud(uintptr_t uartbase, uint32_t basefreq, uint32_t baud)
 #  ifdef LPC176x
 static inline uint32_t lpc17_40_uartcclkdiv(uint32_t baud)
 {
-/*
- * If we're using the fractional divider, assume that the full PCLK speed
- * will be acceptable.
- */
-    return SYSCON_PCLKSEL_CCLK;
+  /* If we're using the fractional divider, assume that the full PCLK speed
+   * will be acceptable.
+   */
+
+  return SYSCON_PCLKSEL_CCLK;
 }
 #  endif
 #else
@@ -872,6 +871,7 @@ static inline void lpc17_40_uart1config(void)
 #endif
 
   /* Step 3: Configure RS-485 control register */
+
 #ifdef CONFIG_LPC17_40_UART1_RS485
   regval  = getreg32(LPC17_40_UART1_RS485CTRL);
   regval |= UART_RS485CTRL_DCTRL;
@@ -976,8 +976,8 @@ static inline void lpc17_40_uart3config(void)
  *     BAUD = PCLK / (16 * DL), or
  *     DL   = PCLK / BAUD / 16
  *
- *
  ************************************************************************************/
+
 #ifndef CONFIG_LPC17_40_UART_USE_FRACTIONAL_DIVIDER
 #  ifdef LPC176x
 static inline uint32_t lpc17_40_uartdl(uint32_t baud, uint8_t divcode)
@@ -1038,11 +1038,13 @@ static int up_setup(struct uart_dev_s *dev)
 
   /* Clear fifos */
 
-  up_serialout(priv, LPC17_40_UART_FCR_OFFSET, (UART_FCR_RXRST | UART_FCR_TXRST));
+  up_serialout(priv, LPC17_40_UART_FCR_OFFSET,
+               (UART_FCR_RXRST | UART_FCR_TXRST));
 
   /* Set trigger */
 
-  up_serialout(priv, LPC17_40_UART_FCR_OFFSET, (UART_FCR_FIFOEN | UART_FCR_RXTRIGGER_8));
+  up_serialout(priv, LPC17_40_UART_FCR_OFFSET,
+               (UART_FCR_FIFOEN | UART_FCR_RXTRIGGER_8));
 
   /* Set up the IER */
 
@@ -1089,6 +1091,7 @@ static int up_setup(struct uart_dev_s *dev)
   up_serialout(priv, LPC17_40_UART_LCR_OFFSET, (lcr | UART_LCR_DLAB));
 
   /* Set the BAUD divisor */
+
 #ifdef CONFIG_LPC17_40_UART_USE_FRACTIONAL_DIVIDER
   up_setbaud(priv->uartbase, LPC17_40_CCLK / priv->cclkdiv, priv->baud);
 #else
@@ -1100,6 +1103,7 @@ static int up_setup(struct uart_dev_s *dev)
   up_serialout(priv, LPC17_40_UART_DLM_OFFSET, dl >> 8);
   up_serialout(priv, LPC17_40_UART_DLL_OFFSET, dl & 0xff);
 #endif
+
   /* Clear DLAB */
 
   up_serialout(priv, LPC17_40_UART_LCR_OFFSET, lcr);
@@ -1294,7 +1298,8 @@ static int up_interrupt(int irq, void *context, void *arg)
             }
         }
     }
-    return OK;
+
+  return OK;
 }
 
 /****************************************************************************
@@ -1394,6 +1399,7 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
         /* TODO: Re-calculate the optimal CCLK divisor for the new baud and
          * and reset the divider in the CLKSEL0/1 register.
          */
+
 #  ifdef CONFIG_LPC17_40_UART_USE_FRACTIONAL_DIVIDER
         up_setbaud(priv->uartbase, LPC17_40_CCLK / priv->cclkdiv, priv->baud);
 #  else
@@ -1401,6 +1407,7 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
         priv->cclkdiv = lpc17_40_uartcclkdiv(priv->baud);
 #    endif
         /* DLAB open latch */
+
         /* REVISIT:  Shouldn't we just call up_setup() to do all of the following? */
 
         lcr = getreg32(priv->uartbase + LPC17_40_UART_LCR_OFFSET);
@@ -1585,6 +1592,7 @@ static bool up_txempty(struct uart_dev_s *dev)
  *   very early in the boot sequence.
  *
  ****************************************************************************/
+
 #ifdef USE_EARLYSERIALINIT
 void up_earlyserialinit(void)
 {
@@ -1653,19 +1661,19 @@ void up_earlyserialinit(void)
 void up_serialinit(void)
 {
 #ifdef CONSOLE_DEV
-  (void)uart_register("/dev/console", &CONSOLE_DEV);
+  uart_register("/dev/console", &CONSOLE_DEV);
 #endif
 #ifdef TTYS0_DEV
-  (void)uart_register("/dev/ttyS0", &TTYS0_DEV);
+  uart_register("/dev/ttyS0", &TTYS0_DEV);
 #endif
 #ifdef TTYS1_DEV
-  (void)uart_register("/dev/ttyS1", &TTYS1_DEV);
+  uart_register("/dev/ttyS1", &TTYS1_DEV);
 #endif
 #ifdef TTYS2_DEV
-  (void)uart_register("/dev/ttyS2", &TTYS2_DEV);
+  uart_register("/dev/ttyS2", &TTYS2_DEV);
 #endif
 #ifdef TTYS3_DEV
-  (void)uart_register("/dev/ttyS3", &TTYS3_DEV);
+  uart_register("/dev/ttyS3", &TTYS3_DEV);
 #endif
 }
 
