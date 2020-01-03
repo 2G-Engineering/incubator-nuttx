@@ -44,6 +44,7 @@
 #include "up_arch.h"
 #include "nvic.h"
 #include "lpc17_40_pm.h"
+#include "hardware/lpc17_40_syscon.h"
 
 /****************************************************************************
  * Pre-processor Definitions
