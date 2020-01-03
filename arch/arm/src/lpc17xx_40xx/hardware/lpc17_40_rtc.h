@@ -166,6 +166,7 @@
                                               /* Bits 2-3: Internal test mode controls */
 #define RTC_CCR_CCALEN              (1 << 4)  /* Bit 4:  Calibration counter enable */
                                               /* Bits 5-31: Reserved */
+#define RTC_CCR_MASK                (0x13)
 /* Counter Increment Interrupt Register */
 
 #define RTC_CIIR_IMSEC              (1 << 0)  /* Bit 0:  Second interrupt */
@@ -175,19 +176,20 @@
 #define RTC_CIIR_IMDOW              (1 << 4)  /* Bit 4:  Day of Week value interrupt */
 #define RTC_CIIR_IMDOY              (1 << 5)  /* Bit 5:  Day of Year interrupt */
 #define RTC_CIIR_IMMON              (1 << 6)  /* Bit 6:  Month interrupt */
-#define RTC_CIIR_IMYEAR             (1 << 7)  /* Bit 7:  Yearinterrupt */
+#define RTC_CIIR_IMYEAR             (1 << 7)  /* Bit 7:  Year interrupt */
                                               /* Bits 8-31: Reserved */
 /* Alarm Mask Register */
 
 #define RTC_AMR_SEC                 (1 << 0)  /* Bit 0:  Second not compared for alarm */
 #define RTC_AMR_MIN                 (1 << 1)  /* Bit 1:  Minutes not compared for alarm */
 #define RTC_AMR_HOUR                (1 << 2)  /* Bit 2:  Hour not compared for alarm */
-#define RTC_AMR_DOM                 (1 << 3)  /* Bit 3:  Day of Monthnot compared for alarm */
+#define RTC_AMR_DOM                 (1 << 3)  /* Bit 3:  Day of Month not compared for alarm */
 #define RTC_AMR_DOW                 (1 << 4)  /* Bit 4:  Day of Week not compared for alarm */
 #define RTC_AMR_DOY                 (1 << 5)  /* Bit 5:  Day of Year not compared for alarm */
 #define RTC_AMR_MON                 (1 << 6)  /* Bit 6:  Month not compared for alarm */
 #define RTC_AMR_YEAR                (1 << 7)  /* Bit 7:  Year not compared for alarm */
                                               /* Bits 8-31: Reserved */
+#define RTC_AMR_MASK                (0xff)
 
 /* RTC Auxiliary Control Register */
                                               /* Bits 0-3: Reserved */
