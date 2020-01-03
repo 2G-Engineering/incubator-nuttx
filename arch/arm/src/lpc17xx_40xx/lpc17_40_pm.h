@@ -73,50 +73,50 @@ extern "C"
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32_pmstop
+ * Name: lpc17_40_pmpowerdown
  *
  * Description:
- *   Enter STOP mode.
+ *   Enter Power Down mode.
  *
  * Input Parameters:
- *   lpds - true: To further reduce power consumption in Stop mode, put the
- *          internal voltage regulator in low-power mode using the LPDS bit
- *          of the Power control register (PWR_CR).
+ *   sleeponexit - true:  SLEEPONEXIT bit is set when the WFI instruction is
+ *                        executed, the MCU enters Sleep mode as soon as it
+ *                        exits the lowest priority ISR.
+ *               - false: SLEEPONEXIT bit is cleared, the MCU enters Sleep mode
+ *                        as soon as WFI or WFE instruction is executed.
  *
  * Returned Value:
- *   Zero means that the STOP was successfully entered and the system has
- *   been re-awakened.  The internal voltage regulator is back to its
- *   original state.  Otherwise, STOP mode did not occur and a negated
- *   errno value is returned to indicate the cause of the failure.
- *
- ****************************************************************************/
-
-int stm32_pmstop(bool lpds);
-
-/****************************************************************************
- * Name: stm32_pmstandby
- *
- * Description:
- *   Enter STANDBY mode.
- *
- * Input Parameters:
  *   None
  *
+ ****************************************************************************/
+
+void lpc17_40_pmpowerdown(bool sleeponexit);
+
+/****************************************************************************
+ * Name: lpc17_40_pmdeepsleep
+ *
+ * Description:
+ *   Enter Deep Sleep mode.
+ *
+ * Input Parameters:
+ *   sleeponexit - true:  SLEEPONEXIT bit is set when the WFI instruction is
+ *                        executed, the MCU enters Sleep mode as soon as it
+ *                        exits the lowest priority ISR.
+ *               - false: SLEEPONEXIT bit is cleared, the MCU enters Sleep mode
+ *                        as soon as WFI or WFE instruction is executed.
+ *
  * Returned Value:
- *   On success, this function will not return (STANDBY mode can only be
- *   terminated with a reset event).  Otherwise, STANDBY mode did not occur
- *   and a negated errno value is returned to indicate the cause of the
- *   failure.
+ *   None
  *
  ****************************************************************************/
 
-int stm32_pmstandby(void);
+void lpc17_40_pmdeepsleep(bool sleeponexit);
 
 /****************************************************************************
- * Name: stm32_pmsleep
+ * Name: lpc17_40_pmsleep
  *
  * Description:
- *   Enter SLEEP mode.
+ *   Enter Sleep mode.
  *
  * Input Parameters:
  *   sleeponexit - true:  SLEEPONEXIT bit is set when the WFI instruction is
@@ -129,7 +129,7 @@ int stm32_pmstandby(void);
  *
  ****************************************************************************/
 
-void stm32_pmsleep(bool sleeponexit);
+void lpc17_40_pmsleep(bool sleeponexit);
 
 #undef EXTERN
 #ifdef __cplusplus
