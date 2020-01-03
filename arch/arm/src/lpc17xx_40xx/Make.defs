@@ -171,6 +171,9 @@ endif
 
 ifeq ($(CONFIG_LPC17_40_RTC),y)
 CHIP_CSRCS += lpc176x_rtc.c
+ifeq ($(CONFIG_RTC_DRIVER),y)
+CHIP_CSRCS += lpc17_40_rtc_lowerhalf.c
+endif
 endif
 
 ifeq ($(CONFIG_LPC17_40_PWM1),y)
