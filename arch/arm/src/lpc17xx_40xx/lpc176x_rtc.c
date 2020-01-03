@@ -165,8 +165,6 @@ static void rtc_dumptime(FAR struct tm *tp, FAR const char *msg)
 
 static int rtc_setup(void)
 {
-  uint32_t regval;
-
   /* Clear all registers to be default */
 
   putreg32((uint32_t)0x00, LPC17_40_RTC_ILR);
@@ -175,14 +173,7 @@ static int rtc_setup(void)
   putreg32((uint32_t)0xff, LPC17_40_RTC_AMR);
   putreg32((uint32_t)0x00, LPC17_40_RTC_CALIB);
 
-  /* Enable power to the RTC module */
-
-  regval  = getreg32(LPC17_40_SYSCON_PCONP);
-  regval |= SYSCON_PCONP_PCRTC;
-  putreg32(regval, LPC17_40_SYSCON_PCONP);
-
   /* Enable counters */
-
   putreg32(RTC_CCR_CLKEN, LPC17_40_RTC_CCR);
   return OK;
 }
@@ -229,7 +220,20 @@ static int rtc_resume(void)
 #ifdef CONFIG_RTC_ALARM
 static int rtc_interrupt(int irq, void *context, FAR void *arg)
 {
-#warning "Missing logic"
+  uint32_t status = getreg32(LPC17_40_RTC_ILR);
+
+  /* Clear pending status */
+
+  putreg32(status | RTC_ILR_RTCALF | RTC_ILR_RTCCIF, LPC17_40_RTC_ILR);
+
+  if ((status & RTC_ILR_RTCALF) != 0 && g_alarmcb != NULL)
+    {
+      /* Perform the alarm callback */
+
+      g_alarmcb();
+      g_alarmcb = NULL;
+    }
+
   return OK;
 }
 #endif
@@ -256,8 +260,17 @@ static int rtc_interrupt(int irq, void *context, FAR void *arg)
 int up_rtc_initialize(void)
 {
   int ret;
+  uint32_t regval;
 
   rtc_dumpregs("On reset");
+
+
+  /* Enable power to the RTC module */
+
+  regval  = getreg32(LPC17_40_SYSCON_PCONP);
+  regval |= SYSCON_PCONP_PCRTC;
+  putreg32(regval, LPC17_40_SYSCON_PCONP);
+
 
   /* Attach the RTC interrupt handler */
 
@@ -269,20 +282,18 @@ int up_rtc_initialize(void)
     }
 #endif /* CONFIG_RTC_ALARM */
 
-  /* Perform the one-time setup of the RTC */
+  /* Perform the one-time setup of the RTC if we haven't already done so*/
+  regval = getreg32(RTC_MAGIC_REG);
+  if (regval != RTC_MAGIC && regval != RTC_MAGIC_TIME_SET)
+    {
+      rtcinfo("Initializing RTC\n");
 
-  ret = rtc_setup();
+      ret = rtc_setup();
 
-  /* Configure RTC interrupt to catch alarm interrupts. All RTC interrupts are
-   * connected to the EXTI controller.  To enable the RTC Alarm interrupt, the
-   * following sequence is required:
-   *
-   * 1. Configure and enable the EXTI Line 17 in interrupt mode and select the
-   *    rising edge sensitivity.
-   * 2. Configure and enable the RTC_Alarm IRQ channel in the NVIC.
-   * 3. Configure the RTC to generate RTC alarms (Alarm A or Alarm B).
-   */
+      /* Remember that the RTC has been configured */
 
+      putreg32(RTC_MAGIC, RTC_MAGIC_REG);
+    }
   g_rtc_enabled = true;
   rtc_dumpregs("After Initialization");
   return OK;
@@ -313,27 +324,34 @@ int up_rtc_initialize(void)
 
 int up_rtc_getdatetime(FAR struct tm *tp)
 {
-  rtc_dumpregs("Reading Time");
+  uint32_t seconds = 0xFF;
 
-  /* Convert the RTC time to fields in struct tm format.
-   * All of the ranges of values correspond between struct tm and the time
-   * register.
+  /* Verify the seconds value didn't change during read.  If it did,
+   * read the whole time again to ensure consistency.
    */
+  while (seconds != (getreg32(LPC17_40_RTC_SEC) & RTC_SEC_MASK))
+    {
+      rtc_dumpregs("Reading Time");
 
-  tp->tm_sec  = ((getreg32(LPC17_40_RTC_SEC) & RTC_SEC_MASK));
-  tp->tm_min  = ((getreg32(LPC17_40_RTC_MIN) & RTC_MIN_MASK));
-  tp->tm_hour = ((getreg32(LPC17_40_RTC_HOUR) & RTC_HOUR_MASK));
+      /* Convert the RTC time to fields in struct tm format.
+       * All of the ranges of values correspond between struct tm and the time
+       * register.
+       */
+      seconds = ((getreg32(LPC17_40_RTC_SEC) & RTC_SEC_MASK));
+      tp->tm_sec  = seconds;
+      tp->tm_min  = ((getreg32(LPC17_40_RTC_MIN) & RTC_MIN_MASK));
+      tp->tm_hour = ((getreg32(LPC17_40_RTC_HOUR) & RTC_HOUR_MASK));
 
-  /* Now convert the RTC date to fields in struct tm format:
-   * Days: 1-31 match in both cases.
-   * Month: LPC is 1-12, struct tm is 0-11.
-   * Years: LPC is 0-4095, struct tm is years since 1900.
-   */
+      /* Now convert the RTC date to fields in struct tm format:
+       * Days: 1-31 match in both cases.
+       * Month: RTC is 1-12, struct tm is 0-11.
+       * Years: RTC is 0-4095, struct tm is years since 1900.
+       */
 
-  tp->tm_mday = ((getreg32(LPC17_40_RTC_DOM) & RTC_DOM_MASK));
-  tp->tm_mon  = ((getreg32(LPC17_40_RTC_MONTH) & RTC_MONTH_MASK)) - 1;
-  tp->tm_year = ((getreg32(LPC17_40_RTC_YEAR) & RTC_YEAR_MASK)-1900);
-
+      tp->tm_mday = ((getreg32(LPC17_40_RTC_DOM) & RTC_DOM_MASK));
+      tp->tm_mon  = ((getreg32(LPC17_40_RTC_MONTH) & RTC_MONTH_MASK)) - 1;
+      tp->tm_year = ((getreg32(LPC17_40_RTC_YEAR) & RTC_YEAR_MASK)-1900);
+    }
   rtc_dumptime(tp, "Returning");
   return OK;
 }
@@ -356,32 +374,69 @@ int up_rtc_getdatetime(FAR struct tm *tp)
 int up_rtc_settime(FAR const struct timespec *tp)
 {
   FAR struct tm newtime;
+
+  /* Break out the time values (note that the time is set only to units of seconds) */
+  gmtime_r(&tp->tv_sec, &newtime);
+  rtc_dumptime(&newtime, "Setting time");
+
+  /* Then write the broken out values to the RTC */
+  return lpc17_40_rtc_setdatetime(&newtime);
+}
+
+
+/************************************************************************************
+ * Name: lpc17_40_rtc_setdatetime
+ *
+ * Description:
+ *   Set the RTC to the provided time.
+ *
+ * Input Parameters:
+ *   tp - the time to use
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno on failure
+ *
+ ************************************************************************************/
+
+int lpc17_40_rtc_setdatetime(FAR const struct tm *tp)
+{
   uint32_t regval;
+
+  rtc_dumpregs("Setting Time");
 
   /* Disable the RTC counter while setting time */
   regval  = getreg32(LPC17_40_RTC_CCR);
   regval &= ~RTC_CCR_CLKEN & RTC_CCR_MASK;
   putreg32(regval, LPC17_40_RTC_CCR);
 
-  /* Break out the time values (note that the time is set only to units of seconds) */
+  /* Convert the time from struct tm format to RTC time registers
+   * All of the ranges of values correspond between struct tm and the time
+   * register.
+   */
 
-  gmtime_r(&tp->tv_sec, &newtime);
-  rtc_dumptime(&newtime, "Setting time");
+  putreg32(((tp->tm_sec) & RTC_SEC_MASK), LPC17_40_RTC_SEC);
+  putreg32(((tp->tm_min) & RTC_MIN_MASK), LPC17_40_RTC_MIN);
+  putreg32(((tp->tm_hour) & RTC_HOUR_MASK), LPC17_40_RTC_HOUR);
 
-  /* Then write the broken out values to the RTC */
-
-  putreg32(((newtime.tm_sec) & RTC_SEC_MASK), LPC17_40_RTC_SEC);
-  putreg32(((newtime.tm_min) & RTC_MIN_MASK), LPC17_40_RTC_MIN);
-  putreg32(((newtime.tm_hour) & RTC_HOUR_MASK), LPC17_40_RTC_HOUR);
-  putreg32(((newtime.tm_mday) & RTC_DOM_MASK), LPC17_40_RTC_DOM);
-  putreg32((((newtime.tm_mon)+1) & RTC_MONTH_MASK), LPC17_40_RTC_MONTH);
-  putreg32((((newtime.tm_year)+1900) & RTC_YEAR_MASK), LPC17_40_RTC_YEAR);
+  /* Now convert the struct tm format fields to RTC date register format:
+   * Days: 1-31 match in both cases.
+   * Month: RTC is 1-12, struct tm is 0-11.
+   * Years: RTC is 0-4095, struct tm is years since 1900.
+   */
+  putreg32(((tp->tm_mday) & RTC_DOM_MASK), LPC17_40_RTC_DOM);
+  putreg32((((tp->tm_mon)+1) & RTC_MONTH_MASK), LPC17_40_RTC_MONTH);
+  putreg32((((tp->tm_year)+1900) & RTC_YEAR_MASK), LPC17_40_RTC_YEAR);
 
   /* Resume counting after time has been set. */
   regval  = getreg32(LPC17_40_RTC_CCR);
   regval |= RTC_CCR_CLKEN;
   putreg32(regval, LPC17_40_RTC_CCR);
 
+  /* Make sure that magic value is in the general purpose register */
+
+  putreg32(RTC_MAGIC_TIME_SET, RTC_MAGIC_REG);
+
+  rtc_dumptime(tp, "Returning");
   return OK;
 }
 
@@ -389,7 +444,7 @@ int up_rtc_settime(FAR const struct timespec *tp)
  * Name: lpc17_40_rtc_setalarm
  *
  * Description:
- *   Set up an alarm.  Up to two alarms can be supported (ALARM A and ALARM B).
+ *   Set up an alarm.  A single alarm is supported.
  *
  * Input Parameters:
  *   tp - the time to set the alarm
@@ -401,10 +456,9 @@ int up_rtc_settime(FAR const struct timespec *tp)
  ************************************************************************************/
 
 #ifdef CONFIG_RTC_ALARM
-int lpc17_40_rtc_setalarm(FAR const struct timespec *tp, alarmcb_t callback)
+int lpc17_40_rtc_setalarm(FAR const struct tm *tp, alarmcb_t callback)
 {
   int ret = -EBUSY;
-  FAR struct tm newtime;
   uint32_t regval;
 
   /* Is there already something waiting on the ALARM? */
@@ -415,22 +469,19 @@ int lpc17_40_rtc_setalarm(FAR const struct timespec *tp, alarmcb_t callback)
 
       g_alarmcb = callback;
 
-      /* Break out the time values (note that the time is set only to units of seconds) */
-
-      gmtime_r(&tp->tv_sec, &newtime);
-      rtc_dumptime(&newtime, "Setting alarm");
+      rtc_dumptime(&tp, "Setting alarm");
 
       /* Disable the alarm while setting up */
       putreg32(RTC_AMR_MASK, LPC17_40_RTC_AMR);
 
       /* Then write the broken out values to the RTC alarm registers */
 
-      putreg32(((newtime.tm_sec) & RTC_SEC_MASK), LPC17_40_RTC_ALSEC);
-      putreg32(((newtime.tm_min) & RTC_MIN_MASK), LPC17_40_RTC_ALMIN);
-      putreg32(((newtime.tm_hour) & RTC_HOUR_MASK), LPC17_40_RTC_ALHOUR);
-      putreg32(((newtime.tm_mday) & RTC_DOM_MASK), LPC17_40_RTC_ALDOM);
-      putreg32((((newtime.tm_mon)+1) & RTC_MONTH_MASK), LPC17_40_RTC_ALMON);
-      putreg32((((newtime.tm_year)+1900) & RTC_YEAR_MASK), LPC17_40_RTC_ALYEAR);
+      putreg32(((tp->tm_sec) & RTC_SEC_MASK), LPC17_40_RTC_ALSEC);
+      putreg32(((tp->tm_min) & RTC_MIN_MASK), LPC17_40_RTC_ALMIN);
+      putreg32(((tp->tm_hour) & RTC_HOUR_MASK), LPC17_40_RTC_ALHOUR);
+      putreg32(((tp->tm_mday) & RTC_DOM_MASK), LPC17_40_RTC_ALDOM);
+      putreg32((((tp->tm_mon)+1) & RTC_MONTH_MASK), LPC17_40_RTC_ALMON);
+      putreg32((((tp->tm_year)+1900) & RTC_YEAR_MASK), LPC17_40_RTC_ALYEAR);
 
       /* Enable alarm mask bits for the fields we set. */
       regval = ~(RTC_AMR_SEC | RTC_AMR_MIN | RTC_AMR_HOUR | RTC_AMR_DOM |
@@ -442,5 +493,78 @@ int lpc17_40_rtc_setalarm(FAR const struct timespec *tp, alarmcb_t callback)
   return ret;
 }
 #endif
+
+/************************************************************************************
+ * Name: lpc17_40_rtc_cancelalarm
+ *
+ * Description:
+ *   Cancel a pending alarm
+ *
+ * Input Parameters:
+ *   none
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno on failure
+ *
+ ************************************************************************************/
+
+#ifdef CONFIG_RTC_ALARM
+int lpc17_40_rtc_cancelalarm(void)
+{
+  irqstate_t flags;
+  int ret = -ENODATA;
+
+  flags = enter_critical_section();
+
+  if (g_alarmcb != NULL)
+    {
+      /* Cancel the global callback function */
+
+      g_alarmcb = NULL;
+
+      /* Disable the alarm */
+
+      putreg32(RTC_AMR_MASK, LPC17_40_RTC_AMR);
+
+      ret = OK;
+    }
+
+  leave_critical_section(flags);
+
+  return ret;
+}
+#endif
+
+
+/****************************************************************************
+ * Name: lpc17_40_rtc_rdalarm
+ *
+ * Description:
+ *   Query an alarm configured in hardware.
+ *
+ * Input Parameters:
+ *  time - Current alarm setting.
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno on failure
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_RTC_ALARM
+int lpc17_40_rtc_rdalarm(FAR struct tm *time)
+{
+
+  /* Read the alarm registers and place into the provided time value */
+  time->tm_sec  = ((getreg32(LPC17_40_RTC_ALSEC) & RTC_SEC_MASK));
+  time->tm_min  = ((getreg32(LPC17_40_RTC_ALMIN) & RTC_MIN_MASK));
+  time->tm_hour = ((getreg32(LPC17_40_RTC_ALHOUR) & RTC_HOUR_MASK));
+  time->tm_mday = ((getreg32(LPC17_40_RTC_ALDOM) & RTC_DOM_MASK));
+  time->tm_mon  = ((getreg32(LPC17_40_RTC_ALMON) & RTC_MONTH_MASK)) - 1;
+  time->tm_year = ((getreg32(LPC17_40_RTC_ALYEAR) & RTC_YEAR_MASK)-1900);
+
+  return OK;
+}
+#endif
+
 
 #endif /* CONFIG_RTC */
