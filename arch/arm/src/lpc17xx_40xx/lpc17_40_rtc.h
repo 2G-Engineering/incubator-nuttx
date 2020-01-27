@@ -68,6 +68,23 @@ typedef void (*alarmcb_t)(void);
  ************************************************************************************/
 
 /************************************************************************************
+ * Name: lpc17_40_rtc_irqinitialize
+ *
+ * Description:
+ *   Initialize IRQs for RTC, not possible during up_rtc_initialize because
+ *   up_irqinitialize is called later.
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno on failure
+ *
+ ************************************************************************************/
+
+int lpc17_40_rtc_irqinitialize(void);
+
+/************************************************************************************
  * Name: lpc17_40_rtc_setalarm
  *
  * Description:

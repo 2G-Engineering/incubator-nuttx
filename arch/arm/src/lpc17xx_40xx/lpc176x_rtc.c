@@ -133,7 +133,7 @@ static void rtc_dumpregs(FAR const char *msg)
  ************************************************************************************/
 
 #ifdef CONFIG_DEBUG_RTC_INFO
-static void rtc_dumptime(FAR struct tm *tp, FAR const char *msg)
+static void rtc_dumptime(FAR const struct tm *tp, FAR const char *msg)
 {
   rtcinfo("%s:\n", msg);
   rtcinfo("  tm_sec: %08x\n", tp->tm_sec);
@@ -198,6 +198,7 @@ static int rtc_resume(void)
   /* Clear the RTC alarm flags */
 
 #ifdef CONFIG_RTC_ALARM
+    putreg32(RTC_AMR_MASK, LPC17_40_RTC_AMR);
 #endif
   return OK;
 }
@@ -225,7 +226,6 @@ static int rtc_interrupt(int irq, void *context, FAR void *arg)
   /* Clear pending status */
 
   putreg32(status | RTC_ILR_RTCALF | RTC_ILR_RTCCIF, LPC17_40_RTC_ILR);
-
   if ((status & RTC_ILR_RTCALF) != 0 && g_alarmcb != NULL)
     {
       /* Perform the alarm callback */
@@ -271,17 +271,6 @@ int up_rtc_initialize(void)
   regval |= SYSCON_PCONP_PCRTC;
   putreg32(regval, LPC17_40_SYSCON_PCONP);
 
-
-  /* Attach the RTC interrupt handler */
-
-#ifdef CONFIG_RTC_ALARM
-  ret = irq_attach(LPC17_40_IRQ_RTC, rtc_interrupt, NULL);
-  if (ret == OK)
-    {
-      up_enable_irq(LPC17_40_IRQ_RTC);
-    }
-#endif /* CONFIG_RTC_ALARM */
-
   /* Perform the one-time setup of the RTC if we haven't already done so*/
   regval = getreg32(RTC_MAGIC_REG);
   if (regval != RTC_MAGIC && regval != RTC_MAGIC_TIME_SET)
@@ -296,6 +285,37 @@ int up_rtc_initialize(void)
     }
   g_rtc_enabled = true;
   rtc_dumpregs("After Initialization");
+  return OK;
+}
+
+/************************************************************************************
+ * Name: lpc17_40_rtc_irqinitialize
+ *
+ * Description:
+ *   Initialize IRQs for RTC, not possible during up_rtc_initialize because
+ *   up_irqinitialize is called later.
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno on failure
+ *
+ ************************************************************************************/
+
+int lpc17_40_rtc_irqinitialize(void)
+{
+    int ret;
+  /* Attach the RTC interrupt handler */
+
+#ifdef CONFIG_RTC_ALARM
+  ret = irq_attach(LPC17_40_IRQ_RTC, rtc_interrupt, NULL);
+  if (ret == OK)
+    {
+      up_enable_irq(LPC17_40_IRQ_RTC);
+    }
+#endif /* CONFIG_RTC_ALARM */
+
   return OK;
 }
 
@@ -350,7 +370,7 @@ int up_rtc_getdatetime(FAR struct tm *tp)
 
       tp->tm_mday = ((getreg32(LPC17_40_RTC_DOM) & RTC_DOM_MASK));
       tp->tm_mon  = ((getreg32(LPC17_40_RTC_MONTH) & RTC_MONTH_MASK)) - 1;
-      tp->tm_year = ((getreg32(LPC17_40_RTC_YEAR) & RTC_YEAR_MASK)-1900);
+      tp->tm_year = ((getreg32(LPC17_40_RTC_YEAR) & RTC_YEAR_MASK) - 1900);
     }
   rtc_dumptime(tp, "Returning");
   return OK;
@@ -424,8 +444,8 @@ int lpc17_40_rtc_setdatetime(FAR const struct tm *tp)
    * Years: RTC is 0-4095, struct tm is years since 1900.
    */
   putreg32(((tp->tm_mday) & RTC_DOM_MASK), LPC17_40_RTC_DOM);
-  putreg32((((tp->tm_mon)+1) & RTC_MONTH_MASK), LPC17_40_RTC_MONTH);
-  putreg32((((tp->tm_year)+1900) & RTC_YEAR_MASK), LPC17_40_RTC_YEAR);
+  putreg32((((tp->tm_mon) + 1) & RTC_MONTH_MASK), LPC17_40_RTC_MONTH);
+  putreg32((((tp->tm_year) + 1900) & RTC_YEAR_MASK), LPC17_40_RTC_YEAR);
 
   /* Resume counting after time has been set. */
   regval  = getreg32(LPC17_40_RTC_CCR);
@@ -469,7 +489,7 @@ int lpc17_40_rtc_setalarm(FAR const struct tm *tp, alarmcb_t callback)
 
       g_alarmcb = callback;
 
-      rtc_dumptime(&tp, "Setting alarm");
+      rtc_dumptime(tp, "Setting alarm");
 
       /* Disable the alarm while setting up */
       putreg32(RTC_AMR_MASK, LPC17_40_RTC_AMR);
@@ -480,13 +500,16 @@ int lpc17_40_rtc_setalarm(FAR const struct tm *tp, alarmcb_t callback)
       putreg32(((tp->tm_min) & RTC_MIN_MASK), LPC17_40_RTC_ALMIN);
       putreg32(((tp->tm_hour) & RTC_HOUR_MASK), LPC17_40_RTC_ALHOUR);
       putreg32(((tp->tm_mday) & RTC_DOM_MASK), LPC17_40_RTC_ALDOM);
-      putreg32((((tp->tm_mon)+1) & RTC_MONTH_MASK), LPC17_40_RTC_ALMON);
-      putreg32((((tp->tm_year)+1900) & RTC_YEAR_MASK), LPC17_40_RTC_ALYEAR);
+      putreg32((((tp->tm_mon) + 1) & RTC_MONTH_MASK), LPC17_40_RTC_ALMON);
+      putreg32((((tp->tm_year) + 1900) & RTC_YEAR_MASK), LPC17_40_RTC_ALYEAR);
 
-      /* Enable alarm mask bits for the fields we set. */
-      regval = ~(RTC_AMR_SEC | RTC_AMR_MIN | RTC_AMR_HOUR | RTC_AMR_DOM |
-          RTC_AMR_MON | RTC_AMR_YEAR);
-      putreg32(regval & RTC_AMR_MASK, LPC17_40_RTC_AMR);
+      /* Clear alarm mask bits for the fields we just set.  Make sure the
+       * mask bits are set for any RTC fields we want to ignore.
+       */
+      regval = RTC_AMR_MASK & ~(RTC_AMR_SEC | RTC_AMR_MIN | RTC_AMR_HOUR |
+               RTC_AMR_DOM | RTC_AMR_MON | RTC_AMR_YEAR);
+      rtcinfo("RTC AMR: %08x\n", regval);
+      putreg32(regval, LPC17_40_RTC_AMR);
 
       ret = OK;
     }
@@ -560,7 +583,7 @@ int lpc17_40_rtc_rdalarm(FAR struct tm *time)
   time->tm_hour = ((getreg32(LPC17_40_RTC_ALHOUR) & RTC_HOUR_MASK));
   time->tm_mday = ((getreg32(LPC17_40_RTC_ALDOM) & RTC_DOM_MASK));
   time->tm_mon  = ((getreg32(LPC17_40_RTC_ALMON) & RTC_MONTH_MASK)) - 1;
-  time->tm_year = ((getreg32(LPC17_40_RTC_ALYEAR) & RTC_YEAR_MASK)-1900);
+  time->tm_year = ((getreg32(LPC17_40_RTC_ALYEAR) & RTC_YEAR_MASK) - 1900);
 
   return OK;
 }
