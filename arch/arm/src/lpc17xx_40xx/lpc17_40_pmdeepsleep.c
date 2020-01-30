@@ -66,7 +66,11 @@
  * Name: lpc17_40_pmdeepsleep
  *
  * Description:
- *   Enter Deep Sleep mode.
+ *   Enter deep sleep mode.  Note: PLL0 is is automatically disabled, but not
+ *   disconnected from the CPU, when deep sleep mode is entered.  This will
+ *   usually cause the CPU to lock up shortly after waking up.  The safest way
+ *   to handle this is probably to disconnect PLL0 immediately before entering
+ *   deep sleep mode.
  *
  * Input Parameters:
  *   sleeponexit - true:  SLEEPONEXIT bit is set when the WFI instruction is
