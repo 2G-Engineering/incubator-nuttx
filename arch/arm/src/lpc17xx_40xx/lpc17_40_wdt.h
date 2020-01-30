@@ -59,4 +59,25 @@
  * Public Functions
  ************************************************************************************/
 
+/****************************************************************************
+ * Name: lpc17_40_wdtinitialize
+ *
+ * Description:
+ *   Initialize the watchdog timer.  The watchdog timer is initialized and
+ *   registers as 'devpath'.  The initial state of the watchdog timer is
+ *   disabled.
+ *
+ * Input Parameters:
+ *   devpath - The full path to the watchdog.  This should be of the form
+ *     /dev/watchdog0
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_LPC17_40_WDT
+void lpc17_40_wdtinitialize(FAR const char *devpath);
+#endif
+
 #endif /* __ARCH_ARM_SRC_LPC17XX_40XX_LPC17_40_WDT_H */
