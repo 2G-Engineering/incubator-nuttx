@@ -191,3 +191,7 @@ endif
 ifeq ($(CONFIG_MTD_PROGMEM),y)
 CHIP_CSRCS += lpc17_40_progmem.c
 endif
+
+ifeq ($(CONFIG_LPC17_40_WDT),y)
+CHIP_CSRCS += lpc17_40_wdt.c
+endif
