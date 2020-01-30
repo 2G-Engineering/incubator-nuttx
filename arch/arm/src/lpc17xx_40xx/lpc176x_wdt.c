@@ -68,8 +68,7 @@
 #define LPC17_40_MAX_WDT_TC      0xFFFFFF /* 24-bit counter max value */
 #define LPC17_40_MIN_WDT_TC      0xFF     /* 8-bit counter min value */
 #define LPC17_40_MAX_WDT_WINDOW  0xFFFFFF /* 24-bit max value */
-#define WDT_MAXTIMEOUT           17180    /* Max timeout value in miliseconds */
-#define WDT_MAXTIMEOUT           17180    /* Max timeout value in miliseconds */
+#define WDT_MAXTIMEOUT           4294967    /* Max timeout value in miliseconds */
 
 /* Configuration ************************************************************/
 
@@ -281,14 +280,23 @@ static int lpc17_40_keepalive(FAR struct watchdog_lowerhalf_s *lower)
 {
   FAR struct lpc17_40_lowerhalf_wwdt_s *priv =
     (FAR struct lpc17_40_lowerhalf_wwdt_s *)lower;
+  irqstate_t flags;
 
   wdinfo("Entry\n");
   DEBUGASSERT(priv);
 
-  /* Feed the watchdog */
 
+  /* If we are interrupted during the feed process
+   * and we write to any other watchdog registers,
+   * the watchdog will trigger a reset.
+   */
+  flags = enter_critical_section();
+
+  /* Feed the watchdog */
   putreg32(0xAA, LPC17_40_WDT_FEED);
   putreg32(0x55, LPC17_40_WDT_FEED);
+
+  leave_critical_section(flags);
 
   return OK;
 }
