@@ -63,11 +63,11 @@
  ****************************************************************************/
 /* Clocking *****************************************************************/
 
-#define WDT_FREQ                 1000000  /* Watchdog clock is IRC 4MHz, but
-                                            * it has fixed divider by 4 */
-#define LPC17_40_MAX_WDT_TC      0xFFFFFF /* 24-bit counter max value */
-#define LPC17_40_MIN_WDT_TC      0xFF     /* 8-bit counter min value */
-#define LPC17_40_MAX_WDT_WINDOW  0xFFFFFF /* 24-bit max value */
+#define WDT_FREQ                 1000000    /* Watchdog clock is IRC 4MHz, but
+                                             * it has fixed divider by 4 */
+#define LPC17_40_MAX_WDT_TC      0xFFFFFFFF /* 32-bit counter max value */
+#define LPC17_40_MIN_WDT_TC      0xFF       /* 8-bit counter min value */
+#define LPC17_40_MAX_WDT_WINDOW  0xFFFFFF   /* 24-bit max value */
 #define WDT_MAXTIMEOUT           4294967    /* Max timeout value in miliseconds */
 
 /* Configuration ************************************************************/
@@ -557,9 +557,13 @@ void lpc17_40_wdtinitialize(FAR const char *devpath)
 
   priv->ops = &g_wdgops;
 
-  /* Set watchdog mode register  to zero */
+  /* Set watchdog mode register to zero */
 
   putreg32(0, LPC17_40_WDT_MOD);
+
+  /* Ensure the clock source is set to the IRC oscillator */
+
+  putreg32(0, LPC17_40_WDT_CLKSEL);
 
   /* Attach our watchdog interrupt handler (But don't enable it yet) */
 
