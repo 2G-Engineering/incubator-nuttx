@@ -111,8 +111,5 @@ int stm32_usbpullup(FAR struct usbdev_s *dev, bool enable)
 
 void stm32_usbsuspend(FAR struct usbdev_s *dev, bool resume)
 {
-    syslog(LOG_INFO,"USB: Resume = ");
-    syslog(LOG_INFO,(char*)&resume);
-    syslog(LOG_INFO,"\n");
   uinfo("resume: %d\n", resume);
 }

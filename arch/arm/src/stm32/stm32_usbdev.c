@@ -3917,7 +3917,6 @@ int usbdev_unregister(struct usbdevclass_driver_s *driver)
   stm32_reset(priv);
 
   /* Unbind the class driver */
-
   CLASS_UNBIND(driver, &priv->usbdev);
 
   /* Disable USB controller interrupts (but keep them attached) */
