@@ -86,7 +86,7 @@
 #define MAX_IRQBUTTON  BUTTON_USER
 #define NUM_IRQBUTTONS 1
 
-#define GPIO_BTN_USER  (GPIO_INPUT|GPIO_FLOAT|GPIO_EXTI|GPIO_PORTC|GPIO_PIN13)
+#define GPIO_BTN_USER  (GPIO_INPUT|GPIO_FLOAT|GPIO_EXTI|GPIO_PORTB|GPIO_PIN9)
 
 /* PWM definitions **********************************************************/
 /* The Nucleo F303CC has no real on-board PWM devices, but the board can be
