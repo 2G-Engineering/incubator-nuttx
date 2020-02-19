@@ -97,7 +97,7 @@ volatile bool g_rtc_enabled = false;
  * Name: rtc_dumpregs
  *
  * Description:
- *    Disable RTC write protection
+ *    Print RTC registers
  *
  * Input Parameters:
  *   None
@@ -111,8 +111,22 @@ volatile bool g_rtc_enabled = false;
 static void rtc_dumpregs(FAR const char *msg)
 {
   rtcinfo("%s:\n", msg);
-  rtcinfo("  DOM : %08x\n", (getreg32(LPC17_40_RTC_DOM) & RTC_DOM_MASK));
-  rtcinfo("  DOW : %08x\n", (getreg32(LPC17_40_RTC_DOW) & RTC_DOW_MASK));
+  rtcinfo("   SEC : %08x\n\n", (getreg32(LPC17_40_RTC_SEC) & RTC_SEC_MASK));
+  rtcinfo("   MIN : %08x\n", (getreg32(LPC17_40_RTC_MIN) & RTC_MIN_MASK));
+  rtcinfo("  HOUR : %08x\n", (getreg32(LPC17_40_RTC_HOUR) & RTC_HOUR_MASK));
+  rtcinfo("   DOM : %08x\n", (getreg32(LPC17_40_RTC_DOM) & RTC_DOM_MASK));
+  rtcinfo("   DOW : %08x\n", (getreg32(LPC17_40_RTC_DOW) & RTC_DOW_MASK));
+  rtcinfo(" MONTH : %08x\n", (getreg32(LPC17_40_RTC_MONTH) & RTC_MONTH_MASK));
+  rtcinfo("  YEAR : %08x\n", (getreg32(LPC17_40_RTC_YEAR) & RTC_YEAR_MASK));
+
+  rtcinfo(" ALSEC : %08x\n", (getreg32(LPC17_40_RTC_ALSEC) & RTC_ALSEC_MASK));
+  rtcinfo(" ALMIN : %08x\n", (getreg32(LPC17_40_RTC_ALMIN) & RTC_ALMIN_MASK));
+  rtcinfo("ALHOUR : %08x\n", (getreg32(LPC17_40_RTC_ALHOUR) & RTC_ALHOUR_MASK));
+  rtcinfo(" ALDOM : %08x\n", (getreg32(LPC17_40_RTC_ALDOM) & RTC_ALDOM_MASK));
+  rtcinfo(" ALDOW : %08x\n", (getreg32(LPC17_40_RTC_ALDOW) & RTC_ALDOW_MASK));
+  rtcinfo(" ALMON : %08x\n", (getreg32(LPC17_40_RTC_ALMON) & RTC_ALMON_MASK));
+  rtcinfo("ALYEAR : %08x\n", (getreg32(LPC17_40_RTC_ALYEAR) & RTC_ALYEAR_MASK));
+
 }
 #else
 #  define rtc_dumpregs(msg)
@@ -510,6 +524,8 @@ int lpc17_40_rtc_setalarm(FAR const struct tm *tp, alarmcb_t callback)
                RTC_AMR_DOM | RTC_AMR_MON | RTC_AMR_YEAR);
       rtcinfo("RTC AMR: %08x\n", regval);
       putreg32(regval, LPC17_40_RTC_AMR);
+
+      rtc_dumpregs("Alarm set");
 
       ret = OK;
     }
