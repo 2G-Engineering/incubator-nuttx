@@ -73,8 +73,15 @@ ifeq ($(CONFIG_PCA9635PW),y)
   LEDDEPATH = --dep-path leds
   LEDVPATH = :leds
 endif
+
 ifeq ($(CONFIG_NCP5623C),y)
   CSRCS += ncp5623c.c
+  LEDDEPATH = --dep-path leds
+  LEDVPATH = :leds
+endif
+
+ifeq ($(CONFIG_HT16K33),y)
+  CSRCS += ht16k33.c
   LEDDEPATH = --dep-path leds
   LEDVPATH = :leds
 endif
