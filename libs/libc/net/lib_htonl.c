@@ -66,3 +66,23 @@ uint32_t ntohl(uint32_t nl)
   return htonl(nl);
 #endif
 }
+
+uint64_t htonll(uint64_t hll)
+{
+#ifdef CONFIG_ENDIAN_BIG
+  return hll;
+#else
+  uint32_t high_part = htonl((uint32_t)(hll >> 32));
+  uint32_t low_part = htonl((uint32_t)(hll & 0xFFFFFFFFLL));
+  return (((uint64_t)low_part) << 32) | high_part;
+#endif
+}
+
+uint64_t ntohll(uint64_t nll)
+{
+#ifdef CONFIG_ENDIAN_BIG
+  return nll;
+#else
+  return htonl(nll);
+#endif
+}

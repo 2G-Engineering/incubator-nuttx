@@ -74,7 +74,8 @@ void board_button_initialize(void)
    * also configured for the pin.
    */
 
-  stm32_configgpio(GPIO_BTN_USER);
+    stm32_configgpio(GPIO_BTN_USER);
+    stm32_configgpio(GPIO_PULLDOWN);
 }
 
 /****************************************************************************
