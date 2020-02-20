@@ -96,4 +96,12 @@ config NCP5623C
 		Enable support for the onsemi NCP5623C LED driver which can be
 		utilized to drive up to 3 LED's.
 
+config HT16K33
+	bool "HT16K33 I2C LED Driver"
+	default n
+	select I2C
+	---help---
+		Enable support for the Holtek HT16K33 LED driver which can be
+		utilized to drive up to 16x8 LEDs.
+
 endmenu # LED Support
