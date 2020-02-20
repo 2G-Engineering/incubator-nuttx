@@ -1,8 +1,8 @@
 /****************************************************************************
  * include/nuttx/leds/ht16k33.h
  *
- *   Copyright (C) 2015 DS-Automotion GmbH. All rights reserved.
- *   Author: Alexander Entinger <a.entinger@ds-automotion.com>
+ *   Copyright (C) 2020 2G Engineering. All rights reserved.
+ *   Author: Joshua Lange <jlange@2g-eng.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -56,7 +56,12 @@
 
 /* I2C definitions */
 
-#define I2C_BUS_FREQ_HZ            (1000000)
+#define I2C_BUS_FREQ_HZ            (400000)
+
+/* HT16K33 register bitmasks */
+
+#define HT16K33_REG_ADDR_MASK   (0xF0)
+#define HT16K33_REG_DATA_MASK   (0x0F)
 
 /* HT16K33 register addresses */
 
@@ -68,6 +73,9 @@
 #define HT16K33_RIS             (0xa0) /* ROW/INT set */
 #define HT16K33_DIM             (0xe0) /* Dimming set */
 
+/* HT16K33 register values */
+
+#define HT16K33_DISP_RAM_SIZE   (0x0f) /* Number of bytes in display RAM */
 
 #define HT16K33_SS_STANDBY      (0x00) /* Standby mode */
 #define HT16K33_SS_NORMAL       (0x01) /* Normal operation mode */
@@ -91,7 +99,7 @@
 #define PWMIOC_SETLED_BRIGHTNESS   _PWMIOC(1) /* Arg: uint8_t between 0 and 15 */
 #define PWMIOC_SETLED_ONOFF        _PWMIOC(2) /* Arg: bool: true for on, false for off */
 #define PWMIOC_SETLED_STANDBY      _PWMIOC(3) /* Arg: bool: true for standby, false for run */
-#define PWMIOC_SETLED_BLINK        _PWMIOC(4) /* Arg: uint8_t blink rate*/
+#define PWMIOC_SETLED_BLINK        _PWMIOC(4) /* Arg: uint8_t blink rate */
 
 /****************************************************************************
  * Public Types
