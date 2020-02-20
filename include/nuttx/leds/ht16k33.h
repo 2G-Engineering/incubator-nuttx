@@ -133,7 +133,7 @@ extern "C"
  * Input Parameters:
  *   devpath - The full path to the driver to register. E.g., "/dev/leddrv0".
  *   i2c     - An instance of the I2C interface to use to communicate
- *             with the LM92.
+ *             with the HT16K33.
  *   ht16k33_i2c_addr
  *           - The I2C address of the HT16K33.
  *

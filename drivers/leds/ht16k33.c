@@ -180,7 +180,7 @@ static int ht16k33_i2c_write_reg(FAR struct ht16k33_dev_s *priv,
  *
  * Description:
  *   Update the display setup register, which controls global LED enable
- *   and global blink settings.
+ *   and blink settings.
  *
  ****************************************************************************/
 
@@ -213,7 +213,7 @@ static int ht16k33_update_blink_onoff(FAR struct ht16k33_dev_s *priv)
  *   Enables or disables all LEDs at once.
  *
  * Input Parameters:
- *   priv       - Reference to an instance of the ht16k33 device
+ *   priv       - Reference to an instance of the HT16K33 device
  *   on         - If true, all LEDs will be enabled.  If false, all
  *                LEDs will be disabled.
  *
@@ -237,7 +237,7 @@ static int ht16k33_set_led_onoff(FAR struct ht16k33_dev_s *priv,
  *   Set the blink rate for all LEDs
  *
  * Input Parameters:
- *   priv       - Reference to an instance of the ht16k33 device
+ *   priv       - Reference to an instance of the HT16K33 device
  *   blinkrate  - one of HT16K33_DISP_BLINKOFF, HT16K33_DISP_BLINK2HZ,
  *                HT16K33_DISP_BLINK1HZ, or HT16K33_DISP_BLINK05HZ
  *
@@ -261,7 +261,7 @@ static int ht16k33_set_led_blink_rate(FAR struct ht16k33_dev_s *priv,
  *   Set the brightness for all LEDs
  *
  * Input Parameters:
- *   priv       - Reference to an instance of the ht16k33 device
+ *   priv       - Reference to an instance of the HT16K33 device
  *   brightness - Brightness in the range [0, 15]
  *
  * Returned Value:
@@ -296,7 +296,7 @@ static int ht16k33_set_led_brightness(FAR struct ht16k33_dev_s *priv,
  *   Sets the standby state of the HT16K33 device.
  *
  * Input Parameters:
- *   priv       - Reference to an instance of the ht16k33 device
+ *   priv       - Reference to an instance of the HT16K33 device
  *   standby    - if true, device will enter standby.  If false,
  *                device will enter normal operation mode.
  *
@@ -337,7 +337,7 @@ static int ht16k33_set_standby(FAR struct ht16k33_dev_s *priv,
  * Name: ht16k33_open
  *
  * Description:
- *   This function is called whenever a HT16K33 device is opened.
+ *   This function is called whenever an HT16K33 device is opened.
  *
  ****************************************************************************/
 
@@ -390,7 +390,7 @@ static int ht16k33_open(FAR struct file *filep)
  * Name: ht16k33_close
  *
  * Description:
- *   This function is called whenever a HT16K33 device is closed.
+ *   This function is called whenever an HT16K33 device is closed.
  *
  ****************************************************************************/
 
@@ -425,7 +425,7 @@ static int ht16k33_close(FAR struct file *filep)
  * Name: ht16k33_close
  *
  * Description:
- *   This function is called whenever an ioctl call to a HT16K33 is performed.
+ *   This function is called whenever an ioctl call to an HT16K33 is performed.
  *
  ****************************************************************************/
 
@@ -526,7 +526,7 @@ static ssize_t ht16k33_write(FAR struct file *filep, FAR const char *buffer,
       return -1;
     }
 
-  /* Write to display RAM, always restarting from address 0 */
+  /* Write to display RAM, always starting from address 0 */
 
   written = ht16k33_i2c_write_data(priv, HT16K33_DDAP, 0, buffer, buflen);
 
@@ -546,7 +546,7 @@ static ssize_t ht16k33_write(FAR struct file *filep, FAR const char *buffer,
  * Input Parameters:
  *   devpath - The full path to the driver to register. E.g., "/dev/leddrv0".
  *   i2c     - An instance of the I2C interface to use to communicate
- *             with the LM92.
+ *             with the HT16K33.
  *   ht16k33_i2c_addr
  *           - The I2C address of the HT16K33.
  *
