@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/lpc17xx_40xx/lpc178xx_40xx_wdt.c
+ * arch/arm/src/lpc17xx_40xx/lpc178x_40xx_wdt.c
  *
  *   Copyright (C) 2012, 2017 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
