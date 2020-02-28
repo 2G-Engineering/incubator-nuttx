@@ -119,13 +119,15 @@ static int ht16k33_i2c_write_data(FAR struct ht16k33_dev_s *priv,
   int ret;
 
   /* Can't send more data than our device's RAM size */
+
   if (data_len > HT16K33_DISP_RAM_SIZE)
     {
       data_len = HT16K33_DISP_RAM_SIZE;
     }
 
   /* Assemble the message comprised of reg_addr and reg_val, plus
-   * the additional data we want to send. */
+   * the additional data we want to send.
+   */
 
   uint8_t const BUFFER_SIZE = HT16K33_DISP_RAM_SIZE + 1;
   uint8_t buffer[BUFFER_SIZE];
@@ -146,8 +148,9 @@ static int ht16k33_i2c_write_data(FAR struct ht16k33_dev_s *priv,
 
   /* Write the register address followed by the data (no RESTART) */
 
-  ledinfo("i2c addr: 0x%02X reg addr: 0x%02X value: 0x%02X (%d bytes additional)\n",
-          priv->i2c_addr, reg_addr, reg_val, data_size);
+  ledinfo("i2c addr: 0x%02X reg addr: 0x%02X value: 0x%02X "
+          "(%d bytes additional)\n", priv->i2c_addr, reg_addr,
+          reg_val, data_size);
 
   ret = i2c_write(priv->i2c, &config, buffer, BUFFER_SIZE);
   if (ret < 0)
@@ -158,7 +161,6 @@ static int ht16k33_i2c_write_data(FAR struct ht16k33_dev_s *priv,
 
   return data_len;
 }
-
 
 /****************************************************************************
  * Name: ht16k33_i2c_write_reg
@@ -325,7 +327,8 @@ static int ht16k33_set_standby(FAR struct ht16k33_dev_s *priv,
   else
     {
       /* Allow 25ms (~2 frame intervals) for the internal
-       * oscillator to change state */
+       * oscillator to change state
+       */
 
       nxsig_usleep(25 * USEC_PER_MSEC);
     }
@@ -366,6 +369,7 @@ static int ht16k33_open(FAR struct file *filep)
     }
 
   /* Set LEDs to full brightness */
+
   ret = ht16k33_set_led_brightness(priv, HT16K33_DIM_MAX);
   if (ret < 0)
     {
@@ -374,6 +378,7 @@ static int ht16k33_open(FAR struct file *filep)
     }
 
   /* Enable LEDs & set blink to off */
+
   priv->blink = HT16K33_DISP_BLINKOFF;
   priv->on = true;
   ret = ht16k33_update_blink_onoff(priv);
@@ -425,7 +430,8 @@ static int ht16k33_close(FAR struct file *filep)
  * Name: ht16k33_close
  *
  * Description:
- *   This function is called whenever an ioctl call to an HT16K33 is performed.
+ *   This function is called whenever an ioctl call to an HT16K33 is
+ *   performed.
  *
  ****************************************************************************/
 
@@ -443,7 +449,6 @@ static int ht16k33_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
     case PWMIOC_SETLED_BRIGHTNESS:
       {
-
         /* Set the brightness of the led */
 
         ret = ht16k33_set_led_brightness(priv, (uint8_t) arg);
@@ -454,7 +459,6 @@ static int ht16k33_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
     case PWMIOC_SETLED_ONOFF:
       {
-
         ret = ht16k33_set_led_onoff(priv, (bool) arg);
       }
       break;
@@ -463,18 +467,17 @@ static int ht16k33_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
     case PWMIOC_SETLED_STANDBY:
       {
-
         ret = ht16k33_set_standby(priv, (bool) arg);
       }
       break;
 
       /* Set the global blink rate for the LEDs.
        * Arg: one of HT16K33_DISP_BLINKOFF, HT16K33_DISP_BLINK2HZ,
-       * HT16K33_DISP_BLINK1HZ, HT16K33_DISP_BLINK05HZ */
+       * HT16K33_DISP_BLINK1HZ, HT16K33_DISP_BLINK05HZ
+       */
 
     case PWMIOC_SETLED_BLINK:
       {
-
         ret = ht16k33_set_led_blink_rate(priv, (uint8_t)arg);
       }
       break;
@@ -496,10 +499,13 @@ static int ht16k33_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
  * Name: ht16k33_read
  ****************************************************************************/
 
-static ssize_t ht16k33_read(FAR struct file *filep, FAR char *buffer, size_t buflen)
+static ssize_t ht16k33_read(FAR struct file *filep, FAR char *buffer,
+                            size_t buflen)
 {
-    /* Revisit: This device can also read switches;
-     * read could return switch data */
+  /* Revisit: This device can also read switches;
+   * read could return switch data
+   */
+
   return -ENOSYS;
 }
 
