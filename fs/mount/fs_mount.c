@@ -555,4 +555,3 @@ errout:
 }
 
 #endif /* CONFIG_FS_READABLE */
-
