@@ -473,7 +473,9 @@ void tcp_timer(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn,
 #ifdef CONFIG_NET_TCP_WRITE_BUFFERS
                           /* Increment the un-ACKed sequence number */
 
+#if 0
                           conn->sndseq_max++;
+#endif
 #endif
                           /* Update for the next probe */
 
