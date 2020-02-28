@@ -1088,7 +1088,6 @@ config IMXRT_OCRAM_HEAP
 
 config IMXRT_DTCM_HEAP
 	bool "Add DTCM to heap"
-	depends on IMXRT_DTCM > 0
 	---help---
 		Select to add the entire DTCM to the heap
 
