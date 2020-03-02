@@ -483,7 +483,7 @@ static int lpc17_40_settimeout(FAR struct watchdog_lowerhalf_s *lower,
    * the lower limit of the watchdog reset time.
    */
 
-  lpc17_40_setwindow(LPC17_40_MAX_WDT_WINDOW);
+  lpc17_40_setwindow(LPC17_40_MAX_WWDT_WINDOW);
 
   /* Set the warning interrupt register value */
 
