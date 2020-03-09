@@ -1659,10 +1659,6 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
 
         cfsetispeed(termiosp, priv->baud);
 
-        /* Note that since we only support 8/9 bit modes and
-         * there is no way to report 9-bit mode, we always claim 8.
-         */
-
         termiosp->c_cflag =
           ((priv->parity != 0) ? PARENB : 0) |
           ((priv->parity == 1) ? PARODD : 0) |
@@ -1673,7 +1669,33 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
 #ifdef CONFIG_SERIAL_IFLOWCONTROL
           ((priv->iflow) ? CRTS_IFLOW : 0) |
 #endif
-          CS8;
+          0;
+
+        /* Return number of bits */
+
+        switch (priv->bits)
+          {
+          case 5:
+            termiosp->c_cflag |= CS5;
+            break;
+
+          case 6:
+            termiosp->c_cflag |= CS6;
+            break;
+
+          case 7:
+            termiosp->c_cflag |= CS7;
+            break;
+
+          default:
+          case 8:
+            termiosp->c_cflag |= CS8;
+            break;
+
+          case 9:
+            termiosp->c_cflag |= CS8 /* CS9 */;
+            break;
+          }
 
         /* TODO: CCTS_IFLOW, CCTS_OFLOW */
       }
@@ -1691,7 +1713,8 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
 
         /* Perform some sanity checks before accepting any changes */
 
-        if (((termiosp->c_cflag & CSIZE) != CS8)
+        if ((((termiosp->c_cflag & CSIZE) != CS8) &&
+            ((termiosp->c_cflag & CSIZE) != CS7))
 #ifdef CONFIG_SERIAL_OFLOWCONTROL
             || ((termiosp->c_cflag & CCTS_OFLOW) && (priv->cts_gpio == 0))
 #endif
@@ -1721,10 +1744,26 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
         priv->iflow = (termiosp->c_cflag & CRTS_IFLOW) != 0;
 #endif
 
-        /* Note that since there is no way to request 9-bit mode
-         * and no way to support 5/6/7-bit modes, we ignore them
-         * all here.
-         */
+        /* Decode number of bits */
+
+        switch (termiosp->c_cflag & CSIZE)
+          {
+          case CS7:
+            priv->bits = 7;
+            break;
+
+          case CS8:
+            priv->bits = 8;
+            break;
+#if 0
+          case CS9:
+            priv->bits = 9;
+            break;
+#endif
+          default:
+            ret = -EINVAL;
+            break;
+          }
 
         /* Note that only cfgetispeed is used because we have knowledge
          * that only one speed is supported.
