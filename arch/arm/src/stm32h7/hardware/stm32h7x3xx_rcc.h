@@ -263,18 +263,19 @@
 #  define RCC_CFGR_MCO1_HSI             (0 << RCC_CFGR_MCO1_SHIFT) /* 000: HSI clock selected */
 #  define RCC_CFGR_MCO1_LSE             (1 << RCC_CFGR_MCO1_SHIFT) /* 001: LSE oscillator selected */
 #  define RCC_CFGR_MCO1_HSE             (2 << RCC_CFGR_MCO1_SHIFT) /* 010: HSE oscillator clock selected */
-#  define RCC_CFGR_MCO1_PLL             (3 << RCC_CFGR_MCO1_SHIFT) /* 011: PLL clock selected */
+#  define RCC_CFGR_MCO1_PLL1Q           (3 << RCC_CFGR_MCO1_SHIFT) /* 011: PLL clock selected */
 #  define RCC_CFGR_MCO1_HSI48           (4 << RCC_CFGR_MCO1_SHIFT) /* 100: HSI48 clock selected */
 #define RCC_CFGR_MCO2PRE_SHIFT          (25) /* Bits 25-28: MCO2 prescaler */
 #define RCC_CFGR_MCO2PRE_MASK           (0xf << RCC_CFGR_MCO2PRE_SHIFT)
 #  define RCC_CFGR_MCO2PRE(x)           (((uint32_t)(x)) << RCC_CFGR_MCO2PRE_SHIFT)
 #define RCC_CFGR_MCO2_SHIFT             (29) /* Bits 29-31: Microcontroller Clock Output 2 */
-#define RCC_CFGR_MCO2_MASK              (7 << RCC_CFGR_MCO1_SHIFT)
-#  define RCC_CFGR_MCO2_HSI             (0 << RCC_CFGR_MCO1_SHIFT) /* 000: HSI clock selected */
-#  define RCC_CFGR_MCO2_LSE             (1 << RCC_CFGR_MCO1_SHIFT) /* 001: LSE oscillator selected */
-#  define RCC_CFGR_MCO2_HSE             (2 << RCC_CFGR_MCO1_SHIFT) /* 010: HSE oscillator clock selected */
-#  define RCC_CFGR_MCO2_PLL             (3 << RCC_CFGR_MCO1_SHIFT) /* 011: PLL clock selected */
-#  define RCC_CFGR_MCO2_HSI48           (4 << RCC_CFGR_MCO1_SHIFT) /* 100: HSI48 clock selected */
+#define RCC_CFGR_MCO2_MASK              (7 << RCC_CFGR_MCO2_SHIFT)
+#  define RCC_CFGR_MCO2_SYS             (0 << RCC_CFGR_MCO2_SHIFT) /* 000: HSI clock selected */
+#  define RCC_CFGR_MCO2_PLL2P           (1 << RCC_CFGR_MCO2_SHIFT) /* 001: PLL2 peripheral clock selected */
+#  define RCC_CFGR_MCO2_HSE             (2 << RCC_CFGR_MCO2_SHIFT) /* 010: HSE oscillator clock selected */
+#  define RCC_CFGR_MCO2_PLL1P           (3 << RCC_CFGR_MCO2_SHIFT) /* 011: PLL1 peripheral clock selected */
+#  define RCC_CFGR_MCO2_CSI             (4 << RCC_CFGR_MCO2_SHIFT) /* 100: CSI clock selected */
+#  define RCC_CFGR_MCO2_LSI             (5 << RCC_CFGR_MCO2_SHIFT) /* 101: LSI clock selected */
 
 /* Bit definitions for RCC_D1CFGR */
 
@@ -828,7 +829,25 @@
 
 /* TODO: D3 Autonomous mode register */
 
-/* TODO: RCC Reset Status register */
+/* RCC Reset Status register */
+
+                                                    /* Bits 0-15: Reserved */
+#define RCC_RSR_RMVF                    (1 << 16)   /* Bit 16: Remove reset flag */
+#define RCC_RSR_CPURSTF                 (1 << 17)   /* Bit 17: CPU reset flag */
+                                                    /* Bit 18: Reserved */
+#define RCC_RSR_D1RSTF                  (1 << 19)   /* Bit 19: D1 domain power switch reset flag */
+#define RCC_RSR_D2RSTF                  (1 << 20)   /* Bit 20: D2 domain power switch reset flag */
+#define RCC_RSR_BORRSTF                 (1 << 21)   /* Bit 21: BOR reset flag */
+#define RCC_RSR_PINRSTF                 (1 << 22)   /* Bit 22: Pin reset flag */
+#define RCC_RSR_PORRSTF                 (1 << 23)   /* Bit 23: POR/PDR reset flag */
+#define RCC_RSR_SFTRSTF                 (1 << 24)   /* Bit 24: System reset from CPU flag */
+                                                    /* Bit 25: Reserved */
+#define RCC_RSR_IWDG1RSTF               (1 << 26)   /* Bit 26: Independent watchdog reset flag */
+                                                    /* Bit 27: Reserved */
+#define RCC_RSR_WWDG1RSTF               (1 << 28)   /* Bit 28: Window watchdog reset flag */
+                                                    /* Bit 29: Reserved */
+#define RCC_RSR_LPWRRSTF                (1 << 30)   /* Bit 30: Reset due to illegal D1 DStandby or CPU Cstop flag */
+                                                    /* Bit 31: Reserved */
 
 /* AHB3 Peripheral Clock enable register */
 

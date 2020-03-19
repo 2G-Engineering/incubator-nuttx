@@ -470,11 +470,14 @@ OpenOCD for the ESP32
   this:
 
     esptool.py --chip esp32 elf2image --flash_mode dio --flash_size 4MB -o nuttx.bin nuttx
-    esptool.py --chip esp32 --port COMx write_flash 0x1000 bootloader.bin 0x4000 partition_table.bin 0x10000 nuttx.bin
+    esptool.py --chip esp32 --port COMx write_flash 0x1000 bootloader.bin 0x8000 partition_table.bin 0x10000 nuttx.bin
 
   The first step converts an ELF image into an ESP32-compatible binary
   image format, and the second step flashes it (along with bootloader image and
   partition table binary.)
+  The offset for the partition table may vary, depending on ESP-IDF
+  configuration, CONFIG_PARTITION_TABLE_OFFSET, which is by default 0x8000
+  as of writing this.
 
   To put the ESP32 into serial flashing mode, it needs to be reset with IO0 held
   low.  On the Core boards this can be accomplished by holding the button marked
@@ -487,6 +490,11 @@ OpenOCD for the ESP32
   ---------------------------------------
   See https://github.com/espressif/esp-idf/tree/master/components/bootloader
   and https://github.com/espressif/esp-idf/tree/master/components/partition_table .
+
+  The secondary boot loader by default programs a RTC watchdog timer.
+  As NuttX doesn't know the timer, it reboots every ~9 seconds. You can
+  disable the timer by tweaking sdkconfig CONFIG_BOOTLOADER_WDT_ENABLE
+  and rebuild the boot loader.
 
   Running from IRAM with OpenOCD
   ------------------------------

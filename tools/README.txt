@@ -26,6 +26,25 @@ Config.mk
   Subsequent logic within the configuration-specific Make.defs file may then
   override these default definitions as necessary.
 
+checkpatch.sh
+-------------
+  checkpatch.sh is a bash script that make use of nxstyle and codespell tools
+  to format patches and files conform to NuttX coding standard. For example,
+  it has been used in NuttX github action PR check build.
+
+  $ tools/checkpatch.sh -h
+  USAGE: ./tools/checkpatch.sh [options] [list|-]
+
+  Options:
+  -h
+  -c spell check with codespell(install with: pip install codespell)
+  -r range check only (coupled with -p or -g)
+  -p <patch list> (default)
+  -g <commit list>
+  -f <file list>
+  -  read standard input mainly used by git pre-commit hook as below:
+     git diff --cached | ./tools/checkpatch.sh -
+
 configure.sh
 configure.bat
 configure.c, cfgparser.c, and cfgparser.h
@@ -921,7 +940,7 @@ sethost.sh
 
     $ ./sethost.sh -h
 
-    USAGE: ./sethost.sh [-l|m|c|u|g|n] [<config>]
+    USAGE: ./sethost.sh [-l|m|c|u|g|n]
            ./sethost.sh -h
 
     Where:
@@ -929,7 +948,6 @@ sethost.sh
          Ubuntu under Windows 10 (u), MSYS/MSYS2 (g)
          or Windows native (n).  Default Linux
       -h will show this help test and terminate
-      <config> selects configuration file.  Default: .config
 
 simhostroute.sh
 ---------------

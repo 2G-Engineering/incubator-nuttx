@@ -852,7 +852,7 @@ static void tiva_receive(struct tiva_driver_s *priv)
 #ifdef CONFIG_NET_IPv6
       if (ETHBUF->type == HTONS(ETHTYPE_IP6))
         {
-          ninfo("Iv6 frame\n");
+          ninfo("IPv6 frame\n");
           NETDEV_RXIPV6(&priv->ld_dev);
 
           /* Give the IPv6 packet to the network layer */
@@ -940,7 +940,7 @@ static void tiva_txdone(struct tiva_driver_s *priv)
   /* Verify that the Tx FIFO is not in use.  The NEWTX bit initiates an
    * Ethernet transmission once the packet has been placed in the TX FIFO.
    * This bit is cleared once the transmission has been completed.  Since
-   * we get here because of of TXEMP which indicates that the packet was
+   * we get here because of TXEMP which indicates that the packet was
    * transmitted and that the TX FIFO is empty, NEWTX should always be zero
    * at this point.
    */
