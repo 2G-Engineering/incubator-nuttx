@@ -36,7 +36,7 @@
 include $(TOPDIR)/.config
 include $(TOPDIR)/tools/Config.mk
 include ${TOPDIR}/arch/z80/src/ez80/Toolchain.defs
-include $(TOPDIR)/tools/zds/zds_Config.mk
+include $(TOPDIR)/tools/zds/Config.mk
 
 # CFLAGS
 
@@ -63,7 +63,7 @@ AFLAGS = $(ARCHASMCPUFLAGS) $(ARCHASMINCLUDES) $(ARCHASMLIST) $(ARCHASMWARNINGS)
 # Compiler definitions
 
 ARCHCPUFLAGS = -chartype:S -promote -cpu:$(ARCHCPU) -NOgenprintf -NOmodsect \
-               -asmsw:" $(ARCHASMCPUFLAGS) $(EARCHASMINCLUDES) $(ARCHASMWARNINGS) $(ARCHOPTIMIZATION)"
+               -asmsw:" $(ARCHASMCPUFLAGS) $(EARCHASMINCLUDES) $(ARCHASMWARNINGS) $(ARCHASMOPTIMIZATION)"
 ARCHLIST = -keeplst -NOlist -NOlistinc -keepasm
 ARCHPICFLAGS =
 ARCHWARNINGS = -warn
