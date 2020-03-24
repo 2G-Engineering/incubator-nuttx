@@ -134,8 +134,13 @@ const struct peripheral_clock_config_s g_peripheral_clockconfig0[] =
     .clksrc  = CLK_SRC_SIRC_DIV2,
   },
   {
-    .clkname = LPSPI1_CLK,
-#ifdef CONFIG_S32K1XX_LPSPI1
+    .clkname    = FlexCAN0_CLK,
+    .clkgate    = true,
+    .clksrc     = CLK_SRC_SOSC,
+    .frac       = MULTIPLY_BY_ONE,
+    .divider    = 1,
+  },
+  {
     .clkgate = true,
 #else
     .clkgate = false,

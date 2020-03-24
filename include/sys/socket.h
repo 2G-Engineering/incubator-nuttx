@@ -62,6 +62,7 @@
 #define PF_NETLINK    16         /* Netlink IPC socket */
 #define PF_ROUTE      PF_NETLINK /* 4.4BSD Compatibility*/
 #define PF_PACKET     17         /* Low level packet interface */
+#define PF_CAN        29         /* Controller Area Network (SocketCAN) */
 #define PF_BLUETOOTH  31         /* Bluetooth sockets */
 #define PF_IEEE802154 36         /* Low level IEEE 802.15.4 radio frame interface */
 #define PF_PKTRADIO   64         /* Low level packet radio interface */
@@ -78,6 +79,7 @@
 #define AF_NETLINK     PF_NETLINK
 #define AF_ROUTE       PF_ROUTE
 #define AF_PACKET      PF_PACKET
+#define AF_CAN         PF_CAN
 #define AF_BLUETOOTH   PF_BLUETOOTH
 #define AF_IEEE802154  PF_IEEE802154
 #define AF_PKTRADIO    PF_PKTRADIO
@@ -129,7 +131,7 @@
 
 /* Protocol levels supported by get/setsockopt(): */
 
-#define SOL_SOCKET      0 /* Only socket-level options supported */
+#define SOL_SOCKET       0 /* Only socket-level options supported */
 
 /* Socket-level options */
 
@@ -200,6 +202,15 @@
                             * return: int
                             */
 
+/* The options are unsupported but included for compatibility
+ * and portability
+ */
+
+#define SO_TIMESTAMP    29
+#define SO_SNDBUFFORCE  32
+#define SO_RCVBUFFORCE  33
+#define SO_RXQ_OVFL     40
+
 /* Protocol-level socket operations. */
 
 #define SOL_IP          1 /* See options in include/netinet/ip.h */
@@ -210,6 +221,7 @@
 #define SOL_L2CAP       6 /* See options in include/netpacket/bluetooth.h */
 #define SOL_SCO         7 /* See options in include/netpacket/bluetooth.h */
 #define SOL_RFCOMM      8 /* See options in include/netpacket/bluetooth.h */
+#define SOL_CAN_RAW     9 /* See options in include/netpacket/can.h */
 
 /* Protocol-level socket options may begin with this value */
 
@@ -254,14 +266,14 @@
  * Type Definitions
  ****************************************************************************/
 
- /* sockaddr_storage structure. This structure must be (1) large enough to
-  * accommodate all supported protocol-specific address structures, and (2)
-  * aligned at an appropriate boundary so that pointers to it can be cast
-  * as pointers to protocol-specific address structures and used to access
-  * the fields of those structures without alignment problems.
-  *
-  * REVISIT: sizeof(struct sockaddr_storge) should be 128 bytes.
-  */
+/* sockaddr_storage structure. This structure must be (1) large enough to
+ * accommodate all supported protocol-specific address structures, and (2)
+ * aligned at an appropriate boundary so that pointers to it can be cast
+ * as pointers to protocol-specific address structures and used to access
+ * the fields of those structures without alignment problems.
+ *
+ * REVISIT: sizeof(struct sockaddr_storge) should be 128 bytes.
+ */
 
 #ifdef CONFIG_NET_IPv6
 struct sockaddr_storage
@@ -324,7 +336,9 @@ static inline FAR struct cmsghdr *__cmsg_nxthdr(FAR void *__ctl,
 {
   FAR struct cmsghdr *__ptr;
 
-  __ptr = (FAR struct cmsghdr *)(((FAR char *)__cmsg) + CMSG_ALIGN(__cmsg->cmsg_len));
+  __ptr = (FAR struct cmsghdr *)
+          (((FAR char *)__cmsg) + CMSG_ALIGN(__cmsg->cmsg_len));
+
   if ((unsigned long)((FAR char *)(__ptr + 1) - (FAR char *)__ctl) > __size)
     {
       return (FAR struct cmsghdr *)NULL;

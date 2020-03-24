@@ -54,6 +54,7 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
 /* Configuration ************************************************************/
 
 /* I/O buffer allocation logic supports a throttle value for read-ahead
@@ -219,6 +220,9 @@ enum iob_user_e
 #endif
 #ifdef CONFIG_WIRELESS_BLUETOOTH
   IOBUSER_WIRELESS_BLUETOOTH,
+#endif
+#if defined(CONFIG_NET_CAN)
+  IOBUSER_NET_CAN_READAHEAD,
 #endif
   IOBUSER_GLOBAL,
   IOBUSER_NENTRIES /* MUST BE LAST ENTRY */

@@ -1,7 +1,7 @@
 /****************************************************************************
- * net/devif/devif_pktsend.c
+ * net/can/can_notifier.c
  *
- *   Copyright (C) 2014 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2018 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,75 +39,45 @@
 
 #include <nuttx/config.h>
 
-#include <string.h>
+#include <sys/types.h>
 #include <assert.h>
-#include <debug.h>
 
-#include <nuttx/net/netdev.h>
+#include <nuttx/wqueue.h>
 
-#if defined(CONFIG_NET_PKT) || defined(CONFIG_NET_CAN)
+#include "can/can.h"
 
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/****************************************************************************
- * Private Type Declarations
- ****************************************************************************/
-
-/****************************************************************************
- * Private Function Prototypes
- ****************************************************************************/
-
-/****************************************************************************
- * Public Constant Data
- ****************************************************************************/
-
-/****************************************************************************
- * Public Data
- ****************************************************************************/
-
-/****************************************************************************
- * Private Constant Data
- ****************************************************************************/
-
-/****************************************************************************
- * Private Data
- ****************************************************************************/
+#ifdef CONFIG_NET_CAN_NOTIFIER
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Name: devif_pkt_send
+ * Name: can_readahead_signal
  *
  * Description:
- *   Called from socket logic in order to send a raw packet in response to
- *   an xmit or poll request from the network interface driver.
+ *   Read-ahead data has been buffered.  Signal all threads waiting for
+ *   read-ahead data to become available.
  *
- *   This is almost identical to calling devif_send() except that the data to
- *   be sent is copied into dev->d_buf (vs. dev->d_appdata), since there is
- *   no header on the data.
+ *   When read-ahead data becomes available, *all* of the workers waiting
+ *   for read-ahead data will be executed.  If there are multiple workers
+ *   waiting for read-ahead data then only the first to execute will get the
+ *   data.  Others will need to call can_readahead_notifier_setup() once
+ *   again.
  *
- * Assumptions:
- *   Called with the network locked.
+ * Input Parameters:
+ *   conn  - The CAN connection where read-ahead data was just buffered.
+ *
+ * Returned Value:
+ *   None.
  *
  ****************************************************************************/
 
-void devif_pkt_send(FAR struct net_driver_s *dev, FAR const void *buf,
-                    unsigned int len)
+void can_readahead_signal(FAR struct can_conn_s *conn)
 {
-  DEBUGASSERT(dev && len > 0 && len < NETDEV_PKTSIZE(dev));
+  /* This is just a simple wrapper around work_notifier_signal(). */
 
-  /* Copy the data into the device packet buffer */
-
-  memcpy(dev->d_buf, buf, len);
-
-  /* Set the number of bytes to send */
-
-  dev->d_len    = len;
-  dev->d_sndlen = len;
+  work_notifier_signal(WORK_CAN_READAHEAD, conn);
 }
 
-#endif /* CONFIG_NET_PKT */
+#endif /* CONFIG_NET_TCP_NOTIFIER */
