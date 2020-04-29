@@ -224,9 +224,14 @@ volatile spinlock_t g_cpu_paused[CONFIG_SMP_NCPUS] SP_SECTION;
 int  up_setjmp(xcpt_reg_t *jb);
 void up_longjmp(xcpt_reg_t *jb, int val) noreturn_function;
 
+/* up_hostmemory.c **********************************************************/
+
+void *host_alloc_heap(size_t sz);
+
 /* up_hosttime.c ************************************************************/
 
 uint64_t host_gettime(bool rtc);
+void host_sleep(uint64_t nsec);
 void host_sleepuntil(uint64_t nsec);
 
 /* up_simsmp.c **************************************************************/
@@ -287,8 +292,8 @@ int up_x11cmap(unsigned short first, unsigned short len,
 /* up_touchscreen.c *********************************************************/
 
 #ifdef CONFIG_SIM_TOUCHSCREEN
-int  sim_tsc_initialize(int minor);
-void sim_tsc_uninitialize(void);
+int sim_tsc_initialize(int minor);
+int sim_tsc_uninitialize(void);
 #endif
 
 /* up_eventloop.c ***********************************************************/

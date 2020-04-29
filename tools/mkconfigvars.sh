@@ -32,7 +32,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 
-USAGE="USAGE: $0 [-d|h] [-v <major.minor>]"
+USAGE="USAGE: $0 [-d|h] [-v <major.minor.patch>]"
 ADVICE="Try '$0 -h' for more information"
 
 unset VERSION
@@ -52,8 +52,8 @@ while [ ! -z "$1" ]; do
     echo $USAGE
     echo ""
     echo "Where:"
-    echo "  -v <major.minor>"
-    echo "     The NuttX version number expressed as a major and minor number separated"
+    echo "  -v <major.minor.patch>"
+    echo "     The NuttX version number expressed as a major, minor and patch number separated"
     echo "     by a period"
     echo "  -d"
     echo "     Enable script debug"
@@ -115,7 +115,7 @@ else
   if [ -x ${KCONFIG2HTML2} ]; then
     KCONFIG2HTML=${KCONFIG2HTML2}
   else
-    make -C ${KCONFIG2MAKEDIR} -f ${KCONFIG2MAKEFILE} ${KCONFIG2HTML_TARGET} || \
+    make -C ${KCONFIG2MAKEDIR} -f ${KCONFIG2MAKEFILE} ${KCONFIG2HTML_TARGET} 1>/dev/null || \
       { echo "ERROR: make ${KCONFIG2HTML1} failed" ; exit 1 ; }
   fi
 fi

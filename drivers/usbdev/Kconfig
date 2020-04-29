@@ -571,8 +571,6 @@ endif # CDCACM
 menuconfig USBMSC
 	bool "USB Mass storage class device"
 	default n
-	select FS_READABLE
-	select FS_WRITABLE
 	---help---
 		References:
 		"Universal Serial Bus Mass Storage Class, Specification Overview,"
@@ -720,7 +718,7 @@ config USBMSC_SCSI_PRIO
 
 config USBMSC_SCSI_STACKSIZE
 	int "USBMSC SCSI daemon stack size"
-	default 2048
+	default DEFAULT_TASK_STACKSIZE
 	---help---
 		Stack size used with the SCSI kernel thread.  The default value
 		is not tuned.

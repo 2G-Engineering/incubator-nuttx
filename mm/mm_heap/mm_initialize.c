@@ -175,6 +175,10 @@ void mm_initialize(FAR struct mm_heap_s *heap, FAR void *heapstart,
   heap->mm_nregions = 0;
 #endif
 
+  /* Initialize mm_delaylist */
+
+  heap->mm_delaylist = NULL;
+
   /* Initialize the node array */
 
   memset(heap->mm_nodelist, 0, sizeof(struct mm_freenode_s) * MM_NNODES);

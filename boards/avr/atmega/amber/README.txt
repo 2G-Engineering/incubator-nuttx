@@ -228,9 +228,9 @@ Linux:
   After configuring NuttX, make sure that CONFIG_AVR_LINUXGCC_TOOLCHAIN=y is set in your
   .config file.
 
-Mac OS X:
+macOS:
 
-  For Mac OS X, the CrossPack for AVR toolchain is available from:
+  For macOS, the CrossPack for AVR toolchain is available from:
 
     http://www.obdev.at/products/crosspack/index.html
 
@@ -345,7 +345,7 @@ Build Notes:
      cd avr-lib-1.7.1
 
   3. Configure avr-lib.  Assuming that WinAVR is installed at the following
-     loction:
+     location:
 
      export PATH=/cygdrive/c/WinAVR/bin:$PATH
      ./configure --build=`./config.guess` --host=avr

@@ -412,8 +412,6 @@ SDCard support:
 
     CONFIG_FS_FAT=y
 
-    CONFIG_FS_WRITABLE=y
-
     CONFIG_MMCSD=y
     CONFIG_MMCSD_NSLOTS=1
     CONFIG_MMCSD_SPI=y
@@ -483,7 +481,7 @@ Nokia 5110 LCD Display support:
   nsh> ?
   help usage:  help [-v] [<cmd>]
 
-    [           dd          free        mb          sh          usleep
+    [           dd          free        mb          source      usleep
     ?           echo        help        mh          sleep       xd
     cat         exec        hexdump     mw          test
     cd          exit        kill        pwd         true

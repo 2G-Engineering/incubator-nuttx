@@ -1,35 +1,20 @@
 /********************************************************************************
  * tools/nxstyle.c
  *
- *   Copyright (C) 2015, 2018-2020 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN  ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ********************************************************************************/
 
@@ -191,8 +176,23 @@ static const struct file_section_s g_section_info[] =
   },
   {
     " * Public Function Prototypes\n",  /* Index: PUBLIC_FUNCTION_PROTOTYPES */
-    C_HEADER
+    C_SOURCE | C_HEADER
   }
+};
+
+static const char *g_white_prefix[] =
+{
+  "Elf",     /* Ref:  include/elf.h, include/elf32.h, include/elf64.h */
+  "PRIx",    /* Ref:  intttypes.h */
+  "SYS_",    /* Ref:  include/sys/syscall.h */
+  "STUB_",   /* Ref:  syscall/syscall_lookup.h, syscall/sycall_stublookup.c */
+  "b8",      /* Ref:  include/fixedmath.h */
+  "b16",     /* Ref:  include/fixedmath.h */
+  "b32",     /* Ref:  include/fixedmath.h */
+  "ub8",     /* Ref:  include/fixedmath.h */
+  "ub16",    /* Ref:  include/fixedmath.h */
+  "ub32",    /* Ref:  include/fixedmath.h */
+  NULL
 };
 
 /********************************************************************************
@@ -487,6 +487,32 @@ static bool check_section_header(const char *line, int lineno)
               ERROR("Invalid section for this file type", lineno, 3);
             }
 
+          return true;
+        }
+    }
+
+  return false;
+}
+
+/********************************************************************************
+ * Name:  white_prefix
+ *
+ * Description:
+ *   Return true if the identifier string begins with a white-listed prefix
+ *
+ ********************************************************************************/
+
+static bool white_prefix(const char *ident, int lineno)
+{
+  const char **pptr;
+  const char *str;
+
+  for (pptr = g_white_prefix;
+       (str = *pptr) != NULL;
+       pptr++)
+    {
+      if (strncmp(ident, str, strlen(str)) == 0)
+        {
           return true;
         }
     }
@@ -1373,6 +1399,7 @@ int main(int argc, char **argv, char **envp)
                    *   IGMPv2      as an IGMP version number
                    *   [0-9]p[0-9] as a decimal point
                    *   d[0-9]      as a divisor
+                   *   MHz         for frequencies
                    */
 
                    if (!have_lower && islower(line[n]))
@@ -1413,8 +1440,8 @@ int main(int argc, char **argv, char **envp)
                              }
                            break;
 
-                         /* Sequences containing 'p' or 'd' must have been
-                          * preceded by upper case characters.
+                         /* Sequences containing 'p', 'd', or 'z' must have
+                          * been preceded by upper case characters.
                           */
 
                          case 'p':
@@ -1433,6 +1460,16 @@ int main(int argc, char **argv, char **envp)
                              }
                              break;
 
+                         case 'z':
+                           if (!have_upper || n < 2 ||
+                               line[n - 1] != 'H' ||
+                               line[n - 2] != 'M')
+                             {
+                               have_lower = true;
+                             }
+                             break;
+                           break;
+
                          default:
                            have_lower = true;
                            break;
@@ -1447,26 +1484,9 @@ int main(int argc, char **argv, char **envp)
 
               if (have_upper && have_lower)
                 {
-                  /* REVISIT:  Although pre-processor definitions are
-                   * supposed to be all upper-case, there are exceptions
-                   * such as using 'p' for a decimal point or 'MHz'.
-                   * Those will be reported here, but probably should be
-                   * considered false alarms.
-                   */
+                  /* Ignore symbols that begin with white-listed prefixes */
 
-                  /* Ignore inttype.h strings beginning with PRIx and
-                   * system calls beginning with SYS_
-                   */
-
-                  if ((strncmp(&line[ident_index], "PRIx", 4) == 0) ||
-                      (strncmp(&line[ident_index], "SYS_", 4) == 0))
-                    {
-                      /* No error */
-                    }
-
-                  /* Ignore ELF stuff like Elf32_Ehdr. */
-
-                  else if ((strncmp(&line[ident_index], "Elf", 3) == 0))
+                  if (white_prefix(&line[ident_index], lineno))
                     {
                       /* No error */
                     }
@@ -1701,7 +1721,9 @@ int main(int argc, char **argv, char **envp)
                   {
                     if (n > indent)
                       {
-                        /* REVISIT: dnest is always > 0 here if bfunctions == false */
+                        /* REVISIT: dnest is always > 0 here if bfunctions ==
+                         * false.
+                         */
 
                         if (dnest == 0 || !bfunctions || lineno == rbrace_lineno)
                           {
@@ -1868,7 +1890,9 @@ int main(int argc, char **argv, char **envp)
                           }
                       }
 
-                    /* The right brace should not be preceded with a a blank line */
+                    /* The right brace should not be preceded with a a blank
+                     * line.
+                     */
 
                     if (lineno == blank_lineno + 1)
                       {
@@ -2011,6 +2035,19 @@ int main(int argc, char **argv, char **envp)
                   else if (line[n + 1] == '=')
                     {
                       check_spaces_leftright(line, lineno, n, n + 1);
+                      n++;
+                    }
+
+                  /* Scientific notation with a negative exponent (eg. 10e-10)
+                   * REVISIT: This fails for cases where the variable name
+                   *          ends with 'e' preceded by a digit:
+                   *          a = abc1e-10;
+                   *          a = ABC1E-10;
+                   */
+
+                  else if ((line[n - 1] == 'e' || line[n - 1] == 'E') &&
+                           isdigit(line[n + 1]) && isdigit(line[n - 2]))
+                    {
                       n++;
                     }
                   else
@@ -2334,29 +2371,72 @@ int main(int argc, char **argv, char **envp)
 
       /* Loop terminates when NUL or newline character found */
 
-      if (line[n] == '\n')
+      if (line[n] == '\n' || line[n] == '\0')
         {
+          /* If the parse terminated on the NULL, then back up to the last
+           * character (which should be the newline).
+           */
+
+          int m = n;
+          if (line[m] == '\0' && m > 0)
+            {
+              m--;
+            }
+
           /* Check for space at the end of the line.  Except for carriage
            * returns which we have already reported (one time) above.
            */
 
-          if (n > 1 && isspace((int)line[n - 1]) && line[n - 1] != '\r')
+          if (m > 1 && isspace((int)line[m - 1]) &&
+              line[m - 1] != '\n' && line[m - 1] != '\r')
             {
-               ERROR("Dangling whitespace at the end of line", lineno, n);
+               ERROR("Dangling whitespace at the end of line", lineno, m);
             }
 
-          /* Check for long lines */
+          /* The line width is determined by the location of the final
+           * asterisk in block comments.  The closing line of the block
+           * comment will exceed that by one one character, the '/'
+           * following the final asterisk.
+           */
 
-          if (n > g_maxline)
+          else if (m > g_maxline)
+            {
+              bool bslash;
+              int a;
+
+              for (bslash = false, a = m;
+                   a > 2 && strchr("\n\r/", line[a]) != NULL;
+                   a--)
+                {
+                  if (line[a] == '/')
+                    {
+                      bslash = true;
+                    }
+                }
+
+              if (bslash && line[a] == '*')
+                {
+                  m = a + 1;
+                }
+            }
+
+          /* Check for long lines
+           *
+           * REVISIT:  Long line checks suppressed on right hand comments
+           * for now.  This just prevents a large number of difficult-to-
+           * fix complaints that we would have otherwise.
+           */
+
+          if (m > g_maxline && !rhcomment)
             {
               if (g_file_type == C_SOURCE)
                 {
-                  ERROR("Long line found", lineno, n);
+                  ERROR("Long line found", lineno, m);
                 }
               else if (g_file_type == C_HEADER)
 
                 {
-                  WARN("Long line found", lineno, n);
+                  WARN("Long line found", lineno, m);
                 }
             }
         }

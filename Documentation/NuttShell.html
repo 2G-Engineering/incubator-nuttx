@@ -646,7 +646,7 @@
   <tr align="center" bgcolor="#e4e4e4">
     <td>
       <h1><big><font color="#3c34ec"><i>NuttShell (NSH)</i></font></big></h1>
-      <p>Last Updated:  November 3, 2019</p>
+      <p>Last Updated:  March 21, 2020</p>
     </td>
   </tr>
 </table>
@@ -3736,7 +3736,7 @@ nsh&gt;
   </tr>
   <tr>
     <td><b><code>df</code></b></td>
-    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code> &amp;&amp; <code>CONFIG_FS_READABLE</code><sup>3</sup></td>
+    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code></code></td>
     <td><code>CONFIG_NSH_DISABLE_DF</code></td>
   </tr>
   <tr>
@@ -3785,7 +3785,7 @@ nsh&gt;
     <td><code>CONFIG_NSH_DISABLE_GET</code></td>
   </tr>
   <tr>
-    <td><b><code>help</code></b><sup>5</sup></td>
+    <td><b><code>help</code></b><sup>3</sup></td>
     <td><br></td>
     <td><code>CONFIG_NSH_DISABLE_HELP</code></td>
   </tr>
@@ -3860,7 +3860,7 @@ nsh&gt;
   </tr>
   <tr>
     <td><b><code>mkdir</code></b></td>
-    <td>(((!<code>CONFIG_DISABLE_MOUNTPOINT</code> &amp;&amp; <code>CONFIG_FS_WRITABLE</code>) || !<code>CONFIG_DISABLE_PSEUDOFS_OPERATIONS</code>)</td>
+    <td>(!<code>CONFIG_DISABLE_MOUNTPOINT</code> || !<code>CONFIG_DISABLE_PSEUDOFS_OPERATIONS</code>)</td>
     <td><code>CONFIG_NSH_DISABLE_MKDIR</code></td>
   </tr>
   <tr>
@@ -3875,17 +3875,17 @@ nsh&gt;
   </tr>
   <tr>
     <td><b><code>mkrd</code></b></td>
-    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code> &amp;&amp; <code>CONFIG_FS_WRITABLE</code><sup>4</sup></td>
+    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code></code></td>
     <td><code>CONFIG_NSH_DISABLE_MKRD</code></td>
   </tr>
   <tr>
     <td><b><code>mount</code></b></td>
-    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code> &amp;&amp; <code>CONFIG_FS_READABLE</code><sup>3</sup></td>
+    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code></code></td>
     <td><code>CONFIG_NSH_DISABLE_MOUNT</code></td>
   </tr>
   <tr>
     <td><b><code>mv</code></b></td>
-    <td>(!<code>CONFIG_DISABLE_MOUNTPOINT</code> &amp;&amp; <code>CONFIG_FS_WRITABLE</code>) || !<code>CONFIG_DISABLE_PSEUDOFS_OPERATIONS</code><sup>4</sup></td>
+    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code> || !<code>CONFIG_DISABLE_PSEUDOFS_OPERATIONS</code></td>
     <td><code>CONFIG_NSH_DISABLE_MV</code></td>
   </tr>
   <tr>
@@ -3900,7 +3900,7 @@ nsh&gt;
   </tr>
   <tr>
     <td><b><code>passwd</code></b></td>
-    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code> &amp;&amp; <code>CONFIG_FS_WRITABLE</code> &amp;&amp; <code>CONFIG_NSH_LOGIN_PASSWD</code>sup>4</sup></td>
+    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code> &amp;&amp; <code>CONFIG_NSH_LOGIN_PASSWD</code></td>
     <td><code>CONFIG_NSH_DISABLE_PASSWD</code></td>
   </tr>
   <tr>
@@ -3941,12 +3941,12 @@ nsh&gt;
   </tr>
   <tr>
     <td><b><code>rm</code></b></td>
-    <td>(!<code>CONFIG_DISABLE_MOUNTPOINT</code> &amp;&amp; <code>CONFIG_FS_WRITABLE</code>) || !<code>CONFIG_DISABLE_PSEUDOFS_OPERATIONS</code><sup>4</sup></td>
+    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code> || !<code>CONFIG_DISABLE_PSEUDOFS_OPERATIONS</code></td>
     <td><code>CONFIG_NSH_DISABLE_RM</code></td>
   </tr>
   <tr>
     <td><b><code>rmdir</code></b></td>
-    <td>(!<code>CONFIG_DISABLE_MOUNTPOINT</code> &amp;&amp; <code>CONFIG_FS_WRITABLE</code>) || !<code>CONFIG_DISABLE_PSEUDOFS_OPERATIONS</code><sup>4</sup></td>
+    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code> || !<code>CONFIG_DISABLE_PSEUDOFS_OPERATIONS</code></td>
     <td><code>CONFIG_NSH_DISABLE_RMDIR</code></td>
   </tr>
   <tr>
@@ -3970,11 +3970,6 @@ nsh&gt;
     <td><code>CONFIG_NSH_DISABLE_SET</code></td>
   </tr>
   <tr>
-    <td><b><code>sh</code></b></td>
-    <td><code>CONFIG_NFILE_STREAMS &gt; 0 &amp;&amp; !<code>CONFIG_NSH_DISABLESCRIPT</code></td>
-    <td><code>CONFIG_NSH_DISABLE_SH</code></td>
-  </tr>
-  <tr>
     <td><b><code>shutdown</code></b></td>
     <td><code>CONFIG_BOARDCTL_POWEROFF || CONFIG_BOARD_RESET</code></td>
     <td><code>CONFIG_NSH_DISABLE_SHUTDOWN</code></td>
@@ -3983,6 +3978,11 @@ nsh&gt;
     <td><b><code>sleep</code></b></td>
     <td>&nbsp;</td>
     <td><code>CONFIG_NSH_DISABLE_SLEEP</code></td>
+  </tr>
+  <tr>
+    <td><b><code>source</code></b></td>
+    <td><code>CONFIG_NFILE_STREAMS &gt; 0 &amp;&amp; !<code>CONFIG_NSH_DISABLESCRIPT</code></td>
+    <td><code>CONFIG_NSH_DISABLE_SOURCE</code></td>
   </tr>
   <tr>
     <td><b><code>telnetd</code></b></td>
@@ -4006,7 +4006,7 @@ nsh&gt;
   </tr>
   <tr>
     <td><b><code>umount</code></b></td>
-    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code> &amp;&amp; <code>CONFIG_FS_READABLE</code><sup>3</sup></td>
+    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code></code></td>
     <td><code>CONFIG_NSH_DISABLE_UMOUNT</code></td>
   </tr>
   <tr>
@@ -4031,12 +4031,12 @@ nsh&gt;
   </tr>
   <tr>
     <td><b><code>useradd</code></b></td>
-    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code> &amp;&amp; <code>CONFIG_FS_WRITABLE</code> &amp;&amp; <code>CONFIG_NSH_LOGIN_PASSWD</code>sup>4</sup></td>
+    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code> &amp;&amp; <code>CONFIG_NSH_LOGIN_PASSWD</code></td>
     <td><code>CONFIG_NSH_DISABLE_USERADD</code></td>
   </tr>
   <tr>
     <td><b><code>userdel</code></b></td>
-    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code> &amp;&amp; <code>CONFIG_FS_WRITABLE</code> &amp;&amp; <code>CONFIG_NSH_LOGIN_PASSWD</code>sup>4</sup></td>
+    <td>!<code>CONFIG_DISABLE_MOUNTPOINT</code> &amp;&amp; <code>CONFIG_NSH_LOGIN_PASSWD</code></td>
     <td><code>CONFIG_NSH_DISABLE_USERDEL</code></td>
   </tr>
   <tr>
@@ -4062,13 +4062,6 @@ nsh&gt;
   Special TFTP server start-up options will probably be required to permit
   creation of files for the correct operation of the <code>put</code> command.</small><br>
   <sup>3</sup><small>
-  <code>CONFIG_FS_READABLE</code> is not a user configuration but is set automatically
-  if any readable file system is selected.  At present, this is either <code>CONFIG_FS_FAT</code>
-  or <code>CONFIG_FS_ROMFS</code>.</small><br>
-  <sup>4</sup><small>
-  <code>CONFIG_FS_WRITABLE</code> is not a user configuration but is set automatically
-  if any writable file system is selected.  At present, this is only <code>CONFIG_FS_FAT</code>.</small><br>
-  <sup>5</sup><small>
   Verbose help output can be suppressed by defining <code>CONFIG_NSH_HELP_TERSE</code>.
   In that case, the help command is still available but will be slightly smaller.
   </small>

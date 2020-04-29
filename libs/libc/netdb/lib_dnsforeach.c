@@ -81,7 +81,7 @@ static FAR char *find_spaces(FAR char *ptr)
  * Name: dns_foreach_nameserver
  *
  * Description:
- *   Traverse each nameserver entry in the resolv.conf file and perform the
+ *   Traverse each nameserver entry in the resolv.conf file and perform
  *   the provided callback.
  *
  ****************************************************************************/
@@ -101,14 +101,14 @@ int dns_foreach_nameserver(dns_callback_t callback, FAR void *arg)
 
   /* Open the resolver configuration file */
 
-  stream = fopen(CONFIG_NETDB_RESOLVCONF_PATH, "rb");
+  stream = fopen(CONFIG_NETDB_RESOLVCONF_PATH, "r");
   if (stream == NULL)
     {
-      int errcode = get_errno();
+      ret = -errno;
       nerr("ERROR: Failed to open %s: %d\n",
-        CONFIG_NETDB_RESOLVCONF_PATH, errcode);
-      DEBUGASSERT(errcode > 0);
-      return -errcode;
+        CONFIG_NETDB_RESOLVCONF_PATH, ret);
+      DEBUGASSERT(ret < 0);
+      return ret;
     }
 
   keylen = strlen(NETDB_DNS_KEYWORD);
@@ -166,7 +166,7 @@ int dns_foreach_nameserver(dns_callback_t callback, FAR void *arg)
 
               /* Get the port number following the right bracket */
 
-              if (*ptr == ':')
+              if (*ptr++ == ':')
                 {
                   FAR char *portstr;
                   int tmp;
@@ -174,7 +174,7 @@ int dns_foreach_nameserver(dns_callback_t callback, FAR void *arg)
                   /* Isolate the port string */
 
                   portstr = ptr;
-                  ptr     = find_spaces(addrstr);
+                  ptr     = find_spaces(ptr);
                   *ptr    = '\0';
 
                   /* Get the port number */
@@ -230,6 +230,7 @@ int dns_foreach_nameserver(dns_callback_t callback, FAR void *arg)
 #ifdef CONFIG_NET_IPv6
             }
 #endif
+
           if (ret != OK)
             {
               fclose(stream);
@@ -246,19 +247,30 @@ int dns_foreach_nameserver(dns_callback_t callback, FAR void *arg)
 
 int dns_foreach_nameserver(dns_callback_t callback, FAR void *arg)
 {
+  FAR struct sockaddr *addr;
   int ret = OK;
+  int i;
 
-  if (g_dns_address)
+  dns_semtake();
+  for (i = 0; i < g_dns_nservers; i++)
     {
 #ifdef CONFIG_NET_IPv4
       /* Check for an IPv4 address */
 
-      if (g_dns_server.addr.sa_family == AF_INET)
+      if (g_dns_servers[i].addr.sa_family == AF_INET)
         {
+          struct sockaddr_in copy;
+
+          /* Operate on copy of server address, in case it changes. */
+
+          memcpy(&copy, &g_dns_servers[i].ipv4, sizeof(struct sockaddr_in));
+          addr = (FAR struct sockaddr *)&copy;
+
           /* Perform the callback */
 
-          ret = callback(arg, (FAR struct sockaddr *)&g_dns_server.ipv4,
-                         sizeof(struct sockaddr_in));
+          dns_semgive();
+          ret = callback(arg, addr, sizeof(struct sockaddr_in));
+          dns_semtake();
         }
       else
 #endif
@@ -266,22 +278,36 @@ int dns_foreach_nameserver(dns_callback_t callback, FAR void *arg)
 #ifdef CONFIG_NET_IPv6
       /* Check for an IPv6 address */
 
-      if (g_dns_server.addr.sa_family == AF_INET6)
+      if (g_dns_servers[i].addr.sa_family == AF_INET6)
         {
+          struct sockaddr_in6 copy;
+
+          /* Operate on copy of server address, in case it changes. */
+
+          memcpy(&copy, &g_dns_servers[i].ipv6, sizeof(struct sockaddr_in6));
+          addr = (FAR struct sockaddr *)&copy;
+
           /* Perform the callback */
 
-          ret = callback(arg, (FAR struct sockaddr *)&g_dns_server.ipv6,
-                         sizeof(struct sockaddr_in6));
+          dns_semgive();
+          ret = callback(arg, addr, sizeof(struct sockaddr_in6));
+          dns_semtake();
         }
       else
 #endif
         {
           nerr("ERROR: Unsupported family: %d\n",
-                g_dns_server.addr.sa_family);
+                g_dns_servers[i].addr.sa_family);
           ret = -ENOSYS;
+        }
+
+      if (ret != OK)
+        {
+          break;
         }
     }
 
+  dns_semgive();
   return ret;
 }
 

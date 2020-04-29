@@ -37,9 +37,9 @@
 -include $(TOPDIR)/Make.defs
 
 ARCH_SRCDIR = $(TOPDIR)/arch/$(CONFIG_ARCH)/src
-CPPFLAGS += -I$(ARCH_SRCDIR)/chip -I$(TOPDIR)/sched $(EXTRADEFINES)
-CFLAGS += -I$(ARCH_SRCDIR)/chip -I$(TOPDIR)/sched $(EXTRADEFINES)
-CXXFLAGS += -I$(ARCH_SRCDIR)/chip -I$(TOPDIR)/sched $(EXTRADEFINES)
+CPPFLAGS += -I$(ARCH_SRCDIR)/chip -I$(TOPDIR)/sched $(EXTRAFLAGS)
+CFLAGS += -I$(ARCH_SRCDIR)/chip -I$(TOPDIR)/sched $(EXTRAFLAGS)
+CXXFLAGS += -I$(ARCH_SRCDIR)/chip -I$(TOPDIR)/sched $(EXTRAFLAGS)
 
 # Determine which objects are required in the link.The
 # up_head object normally draws in all that is needed, but
@@ -76,6 +76,12 @@ DEPPATH = $(patsubst %,--dep-path %,$(subst :, ,$(VPATH)))
 
 HOSTSRCS = up_hosttime.c
 
+ifeq ($(CONFIG_LIBC_MODLIB),y)
+  HOSTSRCS += up_hostmemory.c
+else ifeq ($(CONFIG_BINFMT_LOADABLE),y)
+  HOSTSRCS += up_hostmemory.c
+endif
+
 ifeq ($(CONFIG_STACK_COLORATION),y)
   CSRCS += up_checkstack.c
 endif
@@ -88,6 +94,10 @@ ifeq ($(CONFIG_SMP),y)
   CSRCS += up_smpsignal.c up_cpuidlestack.c
   REQUIREDOBJS += up_smpsignal$(OBJEXT)
   HOSTCFLAGS += -DCONFIG_SMP=1 -DCONFIG_SMP_NCPUS=$(CONFIG_SMP_NCPUS)
+  HOSTCFLAGS += -DCONFIG_USEC_PER_TICK=$(CONFIG_USEC_PER_TICK)
+ifeq ($(CONFIG_SIM_WALLTIME),y)
+  HOSTCFLAGS += -DCONFIG_SIM_WALLTIME=1
+endif
   HOSTSRCS += up_simsmp.c
   STDLIBS += -lpthread
 endif
@@ -175,6 +185,7 @@ else # HOSTOS != Cygwin
 endif # HOSTOS != Cygwin
 else ifeq ($(CONFIG_SIM_NETDEV_VPNKIT),y)
   CSRCS += up_netdriver.c
+  HOSTCFLAGS += -DCONFIG_SIM_NETDEV_VPNKIT_PATH=\"$(CONFIG_SIM_NETDEV_VPNKIT_PATH)\"
   HOSTSRCS += up_vpnkit.c
   VPATH += :sim/vpnkit
   HOSTSRCS += protocol.c negotiate.c
@@ -189,6 +200,7 @@ endif
 ifeq ($(CONFIG_FS_HOSTFS),y)
 ifneq ($(CONFIG_FS_HOSTFS_RPMSG),y)
   HOSTSRCS += up_hostfs.c
+  HOSTCFLAGS += -DCONFIG_NAME_MAX=$(CONFIG_NAME_MAX)
 
 up_hostfs.c: hostfs.h
 
@@ -260,7 +272,7 @@ libarch$(LIBEXT): $(NUTTXOBJS)
 # that are not hardware-related.
 
 board/libboard$(LIBEXT):
-	$(Q) $(MAKE) -C board TOPDIR="$(TOPDIR)" libboard$(LIBEXT) EXTRADEFINES=$(EXTRADEFINES)
+	$(Q) $(MAKE) -C board TOPDIR="$(TOPDIR)" libboard$(LIBEXT) EXTRAFLAGS="$(EXTRAFLAGS)"
 
 # A partially linked object containing only NuttX code (no interface to host OS)
 # Change the names of most symbols that conflict with libc symbols.
