@@ -1,7 +1,8 @@
 /****************************************************************************
  * libs/libc/netdb/lib_dnsinit.c
  *
- *   Copyright (C) 2007, 2009, 2012, 2014-2017 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007, 2009, 2012, 2014-2017 Gregory Nutt.
+ *   All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,7 +54,7 @@
  * Private Data
  ****************************************************************************/
 
-/* Protects g_seqno, DNS cache and notify */
+/* Protects DNS cache, nameserver list and notify list. */
 
 static sem_t g_dns_sem = SEM_INITIALIZER(1);
 
@@ -93,48 +94,54 @@ static const uint16_t g_ipv6_hostaddr[8] =
 bool dns_initialize(void)
 {
 #ifndef CONFIG_NETDB_RESOLVCONF
-  /* Has the DNS server IP address been assigned? */
+  int nservers;
 
-  if (!g_dns_address)
+  dns_semtake();
+  nservers = g_dns_nservers;
+  dns_semgive();
+
+  /* Has at least one DNS server IP address been assigned? */
+
+  if (nservers == 0)
     {
 #if defined(CONFIG_NETDB_DNSSERVER_IPv4)
-       struct sockaddr_in addr4;
-       int ret;
+      struct sockaddr_in addr4;
+      int ret;
 
-       /* No, configure the default IPv4 DNS server address */
+      /* No, configure the default IPv4 DNS server address */
 
-       addr4.sin_family      = AF_INET;
-       addr4.sin_port        = HTONS(DNS_DEFAULT_PORT);
-       addr4.sin_addr.s_addr = HTONL(CONFIG_NETDB_DNSSERVER_IPv4ADDR);
+      addr4.sin_family      = AF_INET;
+      addr4.sin_port        = HTONS(DNS_DEFAULT_PORT);
+      addr4.sin_addr.s_addr = HTONL(CONFIG_NETDB_DNSSERVER_IPv4ADDR);
 
-       ret = dns_add_nameserver((FAR struct sockaddr *)&addr4,
-                                sizeof(struct sockaddr_in));
-       if (ret < 0)
-         {
-           return false;
-         }
+      ret = dns_add_nameserver((FAR struct sockaddr *)&addr4,
+                               sizeof(struct sockaddr_in));
+      if (ret < 0)
+        {
+          return false;
+        }
 
 #elif defined(CONFIG_NETDB_DNSSERVER_IPv6)
-       struct sockaddr_in6 addr6;
-       int ret;
+      struct sockaddr_in6 addr6;
+      int ret;
 
-       /* No, configure the default IPv6 DNS server address */
+      /* No, configure the default IPv6 DNS server address */
 
-       addr6.sin6_family = AF_INET6;
-       addr6.sin6_port   = HTONS(DNS_DEFAULT_PORT);
-       memcpy(addr6.sin6_addr.s6_addr, g_ipv6_hostaddr, 16);
+      addr6.sin6_family = AF_INET6;
+      addr6.sin6_port   = HTONS(DNS_DEFAULT_PORT);
+      memcpy(addr6.sin6_addr.s6_addr, g_ipv6_hostaddr, 16);
 
-       ret = dns_add_nameserver((FAR struct sockaddr *)&addr6,
-                                sizeof(struct sockaddr_in6));
-       if (ret < 0)
-         {
-           return false;
-         }
+      ret = dns_add_nameserver((FAR struct sockaddr *)&addr6,
+                               sizeof(struct sockaddr_in6));
+      if (ret < 0)
+        {
+          return false;
+        }
 
 #else
-       /* Then we are not ready to perform DNS queries */
+      /* Then we are not ready to perform DNS queries */
 
-       return false;
+      return false;
 #endif
     }
 #endif /* !CONFIG_NETDB_RESOLVCONF */
@@ -146,7 +153,7 @@ bool dns_initialize(void)
  * Name: dns_semtake
  *
  * Description:
- *   Take the DNS semaphore, ignoring errors do to the receipt of signals.
+ *   Take the DNS semaphore, ignoring errors due to the receipt of signals.
  *
  ****************************************************************************/
 
@@ -157,12 +164,12 @@ void dns_semtake(void)
 
   do
     {
-       ret = _SEM_WAIT(&g_dns_sem);
-       if (ret < 0)
-         {
-           errcode = _SEM_ERRNO(ret);
-           DEBUGASSERT(errcode == EINTR || errcode == ECANCELED);
-         }
+      ret = _SEM_WAIT(&g_dns_sem);
+      if (ret < 0)
+        {
+          errcode = _SEM_ERRNO(ret);
+          DEBUGASSERT(errcode == EINTR || errcode == ECANCELED);
+        }
     }
   while (ret < 0 && errcode == EINTR);
 }

@@ -53,7 +53,48 @@
 /************************************************************************************
  * Pre-processor Definitions
  ************************************************************************************/
+
+/* Generalized definitions for ADC  *************************************************/
+
+#if defined(HAVE_IP_ADC_V1)
+#  define STM32_ADC_DMAREG_OFFSET      STM32_ADC_CR2_OFFSET
+#  define ADC_DMAREG_DMA               ADC_CR2_DMA
+#  define STM32_ADC_EXTREG_OFFSET      STM32_ADC_CR2_OFFSET
+#  define ADC_EXTREG_EXTSEL_MASK       ADC_CR2_EXTSEL_MASK
+#  define STM32_ADC_JEXTREG_OFFSET     STM32_ADC_CR2_OFFSET
+#  define ADC_JEXTREG_JEXTSEL_MASK     ADC_CR2_JEXTSEL_MASK
+#  define STM32_ADC_ISR_OFFSET         STM32_ADC_SR_OFFSET
+#  define STM32_ADC_IER_OFFSET         STM32_ADC_CR1_OFFSET
+#  ifdef HAVE_BASIC_ADC
+#    define ADC_EXTREG_EXTEN_MASK      ADC_CR2_EXTTRIG
+#    define ADC_EXTREG_EXTEN_NONE      0
+#    define ADC_EXTREG_EXTEN_DEFAULT   ADC_CR2_EXTTRIG
+#    define ADC_JEXTREG_JEXTEN_MASK    ADC_CR2_JEXTTRIG
+#    define ADC_JEXTREG_JEXTEN_NONE    0
+#    define ADC_JEXTREG_JEXTEN_DEFAULT ADC_CR2_JEXTTRIG
+#  else
+#    define ADC_EXTREG_EXTEN_MASK      ADC_CR2_EXTEN_MASK
+#    define ADC_EXTREG_EXTEN_NONE      ADC_CR2_EXTEN_NONE
+#    define ADC_EXTREG_EXTEN_DEFAULT   ADC_CR2_EXTEN_RISING
+#    define ADC_JEXTREG_JEXTEN_MASK    ADC_CR2_JEXTEN_MASK
+#    define ADC_JEXTREG_JEXTEN_NONE    ADC_CR2_JEXTEN_NONE
+#    define ADC_JEXTREG_JEXTEN_DEFAULT ADC_CR2_JEXTEN_RISING
+#  endif
+#elif defined(HAVE_IP_ADC_V2)
+#  define STM32_ADC_DMAREG_OFFSET      STM32_ADC_CFGR1_OFFSET
+#  define ADC_DMAREG_DMA               ADC_CFGR1_DMAEN
+#  define STM32_ADC_EXTREG_OFFSET      STM32_ADC_CFGR1_OFFSET
+#  define ADC_EXTREG_EXTSEL_MASK       ADC_CFGR1_EXTSEL_MASK
+#  define ADC_EXTREG_EXTEN_MASK        ADC_CFGR1_EXTEN_MASK
+#  define ADC_EXTREG_EXTEN_DEFAULT     ADC_CFGR1_EXTEN_RISING
+#  define STM32_ADC_JEXTREG_OFFSET     STM32_ADC_JSQR_OFFSET
+#  define ADC_JEXTREG_JEXTSEL_MASK     ADC_JSQR_JEXTSEL_MASK
+#  define ADC_JEXTREG_JEXTEN_MASK      ADC_JSQR_JEXTEN_MASK
+#  define ADC_JEXTREG_JEXTEN_DEFAULT   ADC_JSQR_JEXTEN_RISING
+#endif
+
 /* Configuration ********************************************************************/
+
 /* Timer devices may be used for different purposes.  One special purpose is to
  * control periodic ADC sampling.  If CONFIG_STM32_TIMn is defined then
  * CONFIG_STM32_TIMn_ADC must also be defined to indicate that timer "n" is intended
@@ -1303,7 +1344,7 @@
 #  define ADC2_JEXTSEL_HRTTRG4 ADC12_JSQR_JEXTSEL_HRT1TRG4
 #endif
 
-/* EXTSEL configuration *****************************************************/
+/* EXTSEL configuration *************************************************************/
 
 #if defined(CONFIG_STM32_TIM1_ADC1)
 #  if CONFIG_STM32_ADC1_TIMTRIG == 0
@@ -1839,7 +1880,7 @@
 #  endif
 #endif
 
-/* JEXTSEL configuration ****************************************************/
+/* JEXTSEL configuration ************************************************************/
 
 /* TODO: ADC1 JEXTSEL trigger */
 
@@ -1869,7 +1910,7 @@
 
 #undef ADC4_JEXTSEL_VALUE
 
-/* ADC interrupts ***********************************************************/
+/* ADC interrupts *******************************************************************/
 
 #if defined(HAVE_IP_ADC_V1)
 #  define ADC_ISR_EOC                  ADC_SR_EOC
@@ -1905,33 +1946,33 @@
 #define ADC_IER_ALLINTS (ADC_IER_EOC | ADC_IER_AWD | ADC_IER_JEOC | \
                          ADC_IER_JEOS | ADC_IER_OVR)
 
-/* Low-level ops helpers ****************************************************/
+/* Low-level ops helpers ************************************************************/
 
-#define ADC_INT_ACK(adc, source)                     \
+#define STM32_ADC_INT_ACK(adc, source)              \
         (adc)->llops->int_ack(adc, source)
-#define ADC_INT_GET(adc)                             \
+#define STM32_ADC_INT_GET(adc)                      \
         (adc)->llops->int_get(adc)
-#define ADC_INT_ENABLE(adc, source)                  \
+#define STM32_ADC_INT_ENABLE(adc, source)           \
         (adc)->llops->int_en(adc, source)
-#define ADC_INT_DISABLE(adc, source)                 \
+#define STM32_ADC_INT_DISABLE(adc, source)          \
         (adc)->llops->int_dis(adc, source)
-#define ADC_REGDATA_GET(adc)                         \
+#define STM32_ADC_REGDATA_GET(adc)                  \
         (adc)->llops->val_get(adc)
-#define ADC_REGBUF_REGISTER(adc, buffer, len)        \
+#define STM32_ADC_REGBUF_REGISTER(adc, buffer, len) \
         (adc)->llops->regbuf_reg(adc, buffer, len)
-#define ADC_REG_STARTCONV(adc, state)                \
+#define STM32_ADC_REG_STARTCONV(adc, state)         \
         (adc)->llops->reg_startconv(adc, state)
-#define ADC_OFFSET_SET(adc, ch, i, o)                \
+#define STM32_ADC_OFFSET_SET(adc, ch, i, o)         \
         (adc)->llops->offset_set(adc, ch, i, o)
-#define ADC_INJ_STARTCONV(adc, state)                \
+#define STM32_ADC_INJ_STARTCONV(adc, state)         \
         (adc)->llops->inj_startconv(adc, state)
-#define ADC_INJDATA_GET(adc, chan)                   \
+#define STM32_ADC_INJDATA_GET(adc, chan)            \
         (adc)->llops->inj_get(adc, chan)
-#define ADC_SAMPLETIME_SET(adc, time_samples)        \
+#define STM32_ADC_SAMPLETIME_SET(adc, time_samples) \
         (adc)->llops->stime_set(adc, time_samples)
-#define ADC_SAMPLETIME_WRITE(adc)                    \
+#define STM32_ADC_SAMPLETIME_WRITE(adc)             \
         (adc)->llops->stime_write(adc)
-#define ADC_DUMP_REGS(adc)                           \
+#define STM32_ADC_DUMP_REGS(adc)                    \
         (adc)->llops->dump_regs(adc)
 
 /************************************************************************************
@@ -2099,7 +2140,7 @@ extern "C"
 #define EXTERN extern
 #endif
 
-/****************************************************************************
+/************************************************************************************
  * Name: stm32_adcinitialize
  *
  * Description:
@@ -2113,7 +2154,7 @@ extern "C"
  * Returned Value:
  *   Valid ADC device structure reference on success; a NULL on failure
  *
- ****************************************************************************/
+ ************************************************************************************/
 
 struct adc_dev_s;
 struct adc_dev_s *stm32_adcinitialize(int intf, FAR const uint8_t *chanlist,

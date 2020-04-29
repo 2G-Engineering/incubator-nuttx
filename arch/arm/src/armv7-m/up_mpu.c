@@ -1,41 +1,26 @@
-/****************************************************************************
+/*****************************************************************************
  * arch/arm/src/armv7-m/up_mpu.c
  *
- *   Copyright (C) 2011, 2013 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- ****************************************************************************/
+ *****************************************************************************/
 
-/****************************************************************************
+/*****************************************************************************
  * Included Files
- ****************************************************************************/
+ *****************************************************************************/
 
 #include <nuttx/config.h>
 
@@ -45,18 +30,19 @@
 #include "mpu.h"
 #include "up_internal.h"
 
-/****************************************************************************
+/*****************************************************************************
  * Pre-processor Definitions
- ****************************************************************************/
-/* Configuration ************************************************************/
+ *****************************************************************************/
+
+/* Configuration *************************************************************/
 
 #ifndef CONFIG_ARM_MPU_NREGIONS
 #  define CONFIG_ARM_MPU_NREGIONS 8
 #endif
 
-/****************************************************************************
+/*****************************************************************************
  * Private Data
- ****************************************************************************/
+ *****************************************************************************/
 
 /* These sets represent the set of disabled memory sub-regions.  A bit set
  * corresponds to a disabled sub-region; the LS bit corresponds to the first
@@ -86,11 +72,11 @@ static const uint8_t g_ls_regionmask[9] =
 
 static uint8_t g_region;
 
-/****************************************************************************
+/*****************************************************************************
  * Private Functions
- ****************************************************************************/
+ *****************************************************************************/
 
-/****************************************************************************
+/*****************************************************************************
  * Name: mpu_subregion_ms
  *
  * Description:
@@ -102,7 +88,7 @@ static uint8_t g_region;
  *   l2size has the same properties as the return value from
  *   mpu_log2regionceil()
  *
- ****************************************************************************/
+ *****************************************************************************/
 
 static inline uint32_t mpu_subregion_ms(size_t size, uint8_t l2size)
 {
@@ -121,7 +107,7 @@ static inline uint32_t mpu_subregion_ms(size_t size, uint8_t l2size)
 
   if (l2size < 32)
     {
-      mask  = ((1 << l2size)-1) >> 3; /* Shifted mask */
+      mask  = ((1 << l2size) - 1) >> 3; /* Shifted mask */
     }
 
   /* The 4Gb region size is a special case */
@@ -132,15 +118,15 @@ static inline uint32_t mpu_subregion_ms(size_t size, uint8_t l2size)
        * input.
        */
 
-      mask = 0x1fffffff;         /* Shifted mask */
+      mask = 0x1fffffff;          /* Shifted mask */
     }
 
-  asize = (size + mask) & ~mask; /* Adjusted size */
-  nsrs  = asize >> (l2size-3);   /* Number of subregions */
+  asize = (size + mask) & ~mask;  /* Adjusted size */
+  nsrs  = asize >> (l2size - 3);  /* Number of subregions */
   return g_ms_regionmask[nsrs];
 }
 
-/****************************************************************************
+/*****************************************************************************
  * Name: mpu_subregion_ls
  *
  * Description:
@@ -153,7 +139,7 @@ static inline uint32_t mpu_subregion_ms(size_t size, uint8_t l2size)
  *   l2size has the same properties as the return value from
  *   mpu_log2regionceil()
  *
- ****************************************************************************/
+ *****************************************************************************/
 
 static inline uint32_t mpu_subregion_ls(size_t offset, uint8_t l2size)
 {
@@ -183,19 +169,19 @@ static inline uint32_t mpu_subregion_ls(size_t offset, uint8_t l2size)
        * input.
        */
 
-      mask = 0x1fffffff;           /* Shifted mask */
+      mask = 0x1fffffff;              /* Shifted mask */
     }
 
-  aoffset = offset & ~mask;        /* Adjusted offset */
-  nsrs    = aoffset >> (l2size-3); /* Number of subregions */
+  aoffset = offset & ~mask;           /* Adjusted offset */
+  nsrs    = aoffset >> (l2size - 3);  /* Number of subregions */
   return g_ls_regionmask[nsrs];
 }
 
-/****************************************************************************
+/*****************************************************************************
  * Public Functions
- ****************************************************************************/
+ *****************************************************************************/
 
-/****************************************************************************
+/*****************************************************************************
  * Name: mpu_allocregion
  *
  * Description:
@@ -206,7 +192,7 @@ static inline uint32_t mpu_subregion_ls(size_t offset, uint8_t l2size)
  *   - Regions are only allocated early in initialization, so no special
  *     protection against re-entrancy is required;
  *
- ****************************************************************************/
+ *****************************************************************************/
 
 unsigned int mpu_allocregion(void)
 {
@@ -214,7 +200,7 @@ unsigned int mpu_allocregion(void)
   return (unsigned int)g_region++;
 }
 
-/****************************************************************************
+/*****************************************************************************
  * Name: mpu_log2regionceil
  *
  * Description:
@@ -223,7 +209,7 @@ unsigned int mpu_allocregion(void)
  *
  *   size <= (1 << l2size)
  *
- ****************************************************************************/
+ *****************************************************************************/
 
 uint8_t mpu_log2regionceil(size_t size)
 {
@@ -235,7 +221,7 @@ uint8_t mpu_log2regionceil(size_t size)
   return l2size;
 }
 
-/****************************************************************************
+/*****************************************************************************
  * Name: mpu_log2regionfloor
  *
  * Description:
@@ -244,7 +230,7 @@ uint8_t mpu_log2regionceil(size_t size)
  *
  *   size >= (1 << l2size)
  *
- ****************************************************************************/
+ *****************************************************************************/
 
 uint8_t mpu_log2regionfloor(size_t size)
 {
@@ -258,7 +244,7 @@ uint8_t mpu_log2regionfloor(size_t size)
   return l2size;
 }
 
-/****************************************************************************
+/*****************************************************************************
  * Name: mpu_subregion
  *
  * Description:
@@ -270,7 +256,7 @@ uint8_t mpu_log2regionfloor(size_t size)
  *   l2size has the same properties as the return value from
  *   mpu_log2regionceil()
  *
- ****************************************************************************/
+ *****************************************************************************/
 
 uint32_t mpu_subregion(uintptr_t base, size_t size, uint8_t l2size)
 {
@@ -313,4 +299,90 @@ uint32_t mpu_subregion(uintptr_t base, size_t size, uint8_t l2size)
 
   ret |= mpu_subregion_ls(offset, l2size);
   return ret;
+}
+
+/*****************************************************************************
+ * Name: mpu_control
+ *
+ * Description:
+ *   Configure and enable (or disable) the MPU
+ *
+ *****************************************************************************/
+
+void mpu_control(bool enable, bool hfnmiena, bool privdefena)
+{
+  uint32_t regval = 0;
+
+  if (enable)
+    {
+      regval |= MPU_CTRL_ENABLE; /* Enable the MPU */
+
+      if (hfnmiena)
+        {
+           regval |= MPU_CTRL_HFNMIENA; /* Enable MPU during hard fault, NMI, and FAULTMAS */
+        }
+
+      if (privdefena)
+        {
+          regval |= MPU_CTRL_PRIVDEFENA; /* Enable privileged access to default memory map */
+        }
+    }
+
+  putreg32(regval, MPU_CTRL);
+}
+
+/*****************************************************************************
+ * Name: mpu_configure_region
+ *
+ * Description:
+ *   Configure a region for privileged, strongly ordered memory
+ *
+ *****************************************************************************/
+
+void mpu_configure_region(uintptr_t base, size_t size,
+                                        uint32_t flags)
+{
+  unsigned int region = mpu_allocregion();
+  uint32_t     regval;
+  uint8_t      l2size;
+  uint8_t      subregions;
+  uintptr_t    alignedbase;
+
+  /* Ensure the base address alignment
+   *
+   * ARMv7-M Architecture Reference Manual
+   * B3.5.8 MPU Region Base Address Register, MPU_RBAR
+   * "Software must ensure that the value written to the ADDR field
+   * aligns with the size of the selected region."
+   */
+
+  alignedbase  = base & MPU_RBAR_ADDR_MASK;
+  l2size       = mpu_log2regionceil(size + base - alignedbase);
+  alignedbase &= ~((1 << l2size) - 1);
+  l2size       = mpu_log2regionceil(size + base - alignedbase);
+
+  DEBUGASSERT(alignedbase + (1 << l2size) >= base + size);
+  DEBUGASSERT(l2size == 5 || alignedbase + (1 << (l2size - 1)) < base + size);
+  DEBUGASSERT((alignedbase & MPU_RBAR_ADDR_MASK) == alignedbase);
+  DEBUGASSERT((alignedbase & ((1 << l2size) - 1)) == 0);
+
+  /* Select the region */
+
+  putreg32(region, MPU_RNR);
+
+  /* Select the region base address */
+
+  putreg32(alignedbase | region | MPU_RBAR_VALID, MPU_RBAR);
+
+  /* Select the region size and the sub-region map */
+
+  subregions = mpu_subregion(base, size, l2size);
+
+  /* The configure the region */
+
+  regval = MPU_RASR_ENABLE                              | /* Enable region  */
+           MPU_RASR_SIZE_LOG2((uint32_t)l2size)         | /* Region size    */
+           ((uint32_t)subregions << MPU_RASR_SRD_SHIFT) | /* Sub-regions    */
+           flags;
+  putreg32(regval, MPU_RASR);
 }

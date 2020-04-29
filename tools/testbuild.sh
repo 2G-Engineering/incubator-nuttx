@@ -39,24 +39,35 @@ progname=$0
 fail=0
 APPSDIR=$WD/../apps
 MAKE_FLAGS=-k
+EXTRA_FLAGS=
 MAKE=make
 unset testfile
 unset HOPTION
 unset JOPTION
+PRINTLISTONLY=0
+GITCLEAN=0
 
 function showusage {
   echo ""
-  echo "USAGE: $progname [-l|m|c|u|g|n] [-si|-sl>] [-d] [-x] [-j <ncpus>] [-a <appsdir>] [-t <topdir>] <testlist-file>"
+  echo "USAGE: $progname [-l|m|c|u|g|n] [-d] [-e <extraflags>] [-x] [-j <ncpus>] [-a <appsdir>] [-t <topdir>] [-p] [-G] <testlist-file>"
   echo "       $progname -h"
   echo ""
   echo "Where:"
   echo "  -l|m|c|u|g|n selects Linux (l), macOS (m), Cygwin (c),"
   echo "     Ubuntu under Windows 10 (u), MSYS/MSYS2 (g) or Windows native (n).  Default Linux"
   echo "  -d enables script debug output"
+  echo "  -e pass extra c/c++ flags such as -Wno-cpp via make command line"
   echo "  -x exit on build failures"
   echo "  -j <ncpus> passed on to make.  Default:  No -j make option."
   echo "  -a <appsdir> provides the relative path to the apps/ directory.  Default ../apps"
   echo "  -t <topdir> provides the absolute path to top nuttx/ directory.  Default $PWD/../nuttx"
+  echo "  -p only print the list of configs without running any builds"
+  echo "  -G Use \"git clean -xfdq\" instead of \"make distclean\" to clean the tree."
+  echo "     This option may speed up the builds. However, note that:"
+  echo "       * This assumes that your trees are git based."
+  echo "       * This assumes that only nuttx and apps repos need to be cleaned."
+  echo "       * If the tree has files not managed by git, they will be removed"
+  echo "         as well."
   echo "  -h will show this help test and terminate"
   echo "  <testlist-file> selects the list of configurations to test.  No default"
   echo ""
@@ -76,6 +87,10 @@ while [ ! -z "$1" ]; do
   -d )
     set -x
     ;;
+  -e )
+    shift
+    EXTRA_FLAGS="EXTRAFLAGS=$1"
+    ;;
   -x )
     MAKE_FLAGS='--silent --no-print-directory'
     set -e
@@ -92,13 +107,19 @@ while [ ! -z "$1" ]; do
     shift
     nuttx="$1"
     ;;
+  -p )
+    PRINTLISTONLY=1
+    ;;
+  -G )
+    GITCLEAN=1
+    ;;
   -h )
     showusage
     ;;
   * )
     testfile="$1"
     shift
-    break;
+    break
     ;;
   esac
   shift
@@ -131,25 +152,46 @@ fi
 
 export APPSDIR
 
-testlist=`grep -v "^-" $testfile || true`
+testlist=`grep -v -E "^(-|#)" $testfile || true`
 blacklist=`grep "^-" $testfile || true`
 
 cd $nuttx || { echo "ERROR: failed to CD to $nuttx"; exit 1; }
 
 function makefunc {
-  ${MAKE} $@
-  ret=$?
-  if [ $ret != 0 ]; then
-    fail=$ret
+  if ! ${MAKE} ${MAKE_FLAGS} "${EXTRA_FLAGS}" $@ 1>/dev/null; then
+    fail=1
   fi
 }
 
 # Clean up after the last build
 
 function distclean {
+  echo "  Cleaning..."
   if [ -f .config ]; then
-    echo "  Cleaning..."
-    makefunc ${JOPTION} ${MAKE_FLAGS} distclean 1>/dev/null
+    if [ ${GITCLEAN} -eq 1 ]; then
+      git -C $nuttx clean -xfdq
+      git -C $APPSDIR clean -xfdq
+    else
+      makefunc ${JOPTION} distclean
+
+      # Remove .version manually because this file is shipped with
+      # the release package and then distclean has to keep it
+
+      rm -f .version
+
+      # Ensure nuttx and apps directory in clean state even with --ignored
+
+      if [ -d $nuttx/.git ] || [ -d $APPSDIR/.git ]; then
+        if [[ -n $(git -C $nuttx status --ignored -s) ]]; then
+          git -C $nuttx status --ignored
+          fail=1
+        fi
+        if [[ -n $(git -C $APPSDIR status --ignored -s) ]]; then
+          git -C $APPSDIR status --ignored
+          fail=1
+        fi
+      fi
+    fi
   fi
 }
 
@@ -157,7 +199,9 @@ function distclean {
 
 function configure {
   echo "  Configuring..."
-  ./tools/configure.sh ${HOPTION} $config
+  if ! ./tools/configure.sh ${HOPTION} $config; then
+    fail=1
+  fi
 
   if [ "X$toolchain" != "X" ]; then
     setting=`grep _TOOLCHAIN_ $nuttx/.config | grep -v CONFIG_ARCH_TOOLCHAIN_* | grep =y`
@@ -179,9 +223,7 @@ function configure {
       sed -i -e "\$aCONFIG_ARCH_SIZET_LONG=y" $nuttx/.config
     fi
 
-
-    echo "  Refreshing..."
-    makefunc ${MAKE_FLAGS} olddefconfig 1>/dev/null
+    makefunc olddefconfig
   fi
 }
 
@@ -189,8 +231,26 @@ function configure {
 
 function build {
   echo "  Building NuttX..."
-  echo "------------------------------------------------------------------------------------"
-  makefunc ${JOPTION} ${MAKE_FLAGS} 1>/dev/null
+  makefunc ${JOPTION}
+
+  # Ensure defconfig in the canonical form
+
+  if ! ./tools/refresh.sh --silent $config; then
+    fail=1
+  fi
+
+  # Ensure nuttx and apps directory in clean state
+
+  if [ -d $nuttx/.git ] || [ -d $APPSDIR/.git ]; then
+    if [[ -n $(git -C $nuttx status -s) ]]; then
+      git -C $nuttx status
+      fail=1
+    fi
+    if [[ -n $(git -C $APPSDIR status -s) ]]; then
+      git -C $APPSDIR status
+      fail=1
+    fi
+  fi
 }
 
 # Coordinate the steps for the next build test
@@ -198,11 +258,14 @@ function build {
 function dotest {
   echo "===================================================================================="
   config=`echo $1 | cut -d',' -f1`
-  re=\\b${config/\//:}\\b
-  if [[ $blacklist =~ $re ]]; then
+  re="-${config/\//:}[[:space:]]"
+  if [[ "${blacklist} " =~ $re ]]; then
     echo "Skipping: $1"
   else
     echo "Configuration/Tool: $1"
+    if [ ${PRINTLISTONLY} -eq 1 ]; then
+      return
+    fi
 
     # Parse the next line
 
@@ -259,7 +322,7 @@ for line in $testlist; do
     for i in ${list}; do
       dotest $i${line/$dir/}
     done
-  elif [ "X$firstch" != "X#" ]; then
+  else
     dotest $line
   fi
 done

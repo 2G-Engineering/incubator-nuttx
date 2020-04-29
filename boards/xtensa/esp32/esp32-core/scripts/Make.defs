@@ -35,6 +35,7 @@
 
 include ${TOPDIR}/.config
 include ${TOPDIR}/tools/Config.mk
+include ${TOPDIR}/boards/xtensa/esp32/esp32-core/scripts/Config.mk
 include ${TOPDIR}/arch/xtensa/src/lx6/Toolchain.defs
 
 LDSCRIPT1 = $(TOPDIR)/boards/$(CONFIG_ARCH)/$(CONFIG_ARCH_CHIP)/$(CONFIG_ARCH_BOARD)/scripts/esp32_out.ld
@@ -84,18 +85,18 @@ ifneq ($(CONFIG_DEBUG_NOOPT),y)
   ARCHOPTIMIZATION += $(MAXOPTIMIZATION) -fno-strict-aliasing -fno-strength-reduce -fomit-frame-pointer
 endif
 
-ARCHCFLAGS = -fno-builtin -ffunction-sections -fdata-sections -fstrict-volatile-bitfields -mlongcalls -MMD -MP
+ARCHCFLAGS = -fno-builtin -ffunction-sections -fdata-sections -fstrict-volatile-bitfields -mlongcalls
 ARCHCXXFLAGS = $(ARCHCFLAGS) -fno-exceptions -fcheck-new -fno-rtti
 ARCHWARNINGS = -Wall -Wstrict-prototypes -Wshadow -Wundef
 ARCHWARNINGSXX = -Wall -Wshadow -Wundef
 ARCHDEFINES =
 ARCHPICFLAGS = -fpic
 
-CFLAGS = $(ARCHCFLAGS) $(ARCHWARNINGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRADEFINES) -pipe
+CFLAGS = $(ARCHCFLAGS) $(ARCHWARNINGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS) -pipe
 CPICFLAGS = $(ARCHPICFLAGS) $(CFLAGS)
-CXXFLAGS = $(ARCHCXXFLAGS) $(ARCHWARNINGSXX) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHXXINCLUDES) $(ARCHDEFINES) $(EXTRADEFINES) -pipe
+CXXFLAGS = $(ARCHCXXFLAGS) $(ARCHWARNINGSXX) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHXXINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS) -pipe
 CXXPICFLAGS = $(ARCHPICFLAGS) $(CXXFLAGS)
-CPPFLAGS = $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRADEFINES)
+CPPFLAGS = $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
 AFLAGS = $(CFLAGS) -D__ASSEMBLY__
 
 NXFLATLDFLAGS1 = -r -d -warn-common

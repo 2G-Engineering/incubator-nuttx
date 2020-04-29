@@ -142,8 +142,8 @@ static inline void rcc_reset(void)
   putreg32(regval, STM32_RCC_CR);
 
 #if defined(CONFIG_STM32H7_AXI_SRAM_CORRUPTION_WAR)
-  /* Errata 2.2.9 Enable workaround for Reading from AXI SRAM may lead to data
-   * read corruption. See ES0392 Rev 6.
+  /* Errata 2.2.9 Enable workaround for Reading from AXI SRAM may lead to
+   * data read corruption. See ES0392 Rev 6.
    */
 
   putreg32(AXI_TARG_READ_ISS_OVERRIDE, STM32_AXI_TARG7_FN_MOD);
@@ -298,6 +298,12 @@ static inline void rcc_enableahb3(void)
   regval |= RCC_AHB3ENR_SDMMC1EN;
 #endif
 
+#ifdef CONFIG_STM32H7_FMC
+  /* Flexible static memory controller module clock enable */
+
+  regval |= RCC_AHB3ENR_FMCEN;
+#endif
+
   /* TODO: ... */
 
   putreg32(regval, STM32_RCC_AHB3ENR);   /* Enable peripherals */
@@ -343,10 +349,10 @@ static inline void rcc_enableahb4(void)
 #if STM32H7_NGPIO > 4
              | RCC_AHB4ENR_GPIOEEN
 #endif
-#if STM32H7_NGPIO > 5
+#if (STM32H7_NGPIO > 5) && (defined(CONFIG_STM32H7_HAVE_GPIOF))
              | RCC_AHB4ENR_GPIOFEN
 #endif
-#if STM32H7_NGPIO > 6
+#if (STM32H7_NGPIO > 6) && (defined(CONFIG_STM32H7_HAVE_GPIOG))
              | RCC_AHB4ENR_GPIOGEN
 #endif
 #if STM32H7_NGPIO > 7
@@ -775,16 +781,16 @@ static void stm32_stdclockconfig(void)
         }
 #endif
 
-      /* Ww must write the lower byte of the PWR_CR3 register is written once
-       * after POR and it shall be written before changing VOS level or ck_sys
-       * clock frequency. No limitation applies to the upper bytes.
+      /* We must write the lower byte of the PWR_CR3 register is written once
+       * after POR and it shall be written before changing VOS level or
+       * ck_sys clock frequency. No limitation applies to the upper bytes.
        *
        * Programming data corresponding to an invalid combination of
        * LDOEN and BYPASS bits will be ignored: data will not be written,
        * the written-once mechanism will lock the register and any further
        * write access will be ignored. The default supply configuration will
-       * be kept and the ACTVOSRDY bit in PWR control status register 1 (PWR_CSR1)
-       * will go on indicating invalid voltage levels.
+       * be kept and the ACTVOSRDY bit in PWR control status register 1
+       * (PWR_CSR1) will go on indicating invalid voltage levels.
        *
        * N.B. The system shall be power cycled before writing a new value.
        */
@@ -808,7 +814,7 @@ static void stm32_stdclockconfig(void)
 
       /* Over-drive is needed if
        *  - Voltage output scale 1 mode is selected and SYSCLK frequency is
-       *    over 400 Mhz.
+       *    over 400 MHz.
        */
 
       if ((STM32_PWR_VOS_SCALE == PWR_D3CR_VOS_SCALE_1) &&
@@ -820,7 +826,7 @@ static void stm32_stdclockconfig(void)
           regval |= RCC_APB4ENR_SYSCFGEN;
           putreg32(regval, STM32_RCC_APB4ENR);
 
-          /* Enable Overdrive to extend the clock frequency up to 480 Mhz. */
+          /* Enable Overdrive to extend the clock frequency up to 480 MHz. */
 
           regval = getreg32(STM32_SYSCFG_PWRCR);
           regval |= SYSCFG_PWRCR_ODEN;

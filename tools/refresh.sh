@@ -34,10 +34,11 @@
 
 WD=`test -d ${0%/*} && cd ${0%/*}; pwd`
 
-USAGE="USAGE: $0 [options] <board>:<config>"
+USAGE="USAGE: $0 [options] <board>:<config>+"
 ADVICE="Try '$0 --help' for more information"
 
 unset CONFIGS
+diff=0
 debug=n
 defaults=n
 prompt=y
@@ -47,7 +48,6 @@ while [ ! -z "$1" ]; do
   case $1 in
   --debug )
     debug=y
-    set -x
     ;;
   --silent )
     defaults=y
@@ -90,7 +90,7 @@ while [ ! -z "$1" ]; do
     exit 0
     ;;
   * )
-    CONFIGS=$1
+    CONFIGS=$*
     break
     ;;
   esac
@@ -125,7 +125,7 @@ else
   if [ -x ${CMPCONFIG2} ]; then
     CMPCONFIG=${CMPCONFIG2}
   else
-    make -C ${CMPCONFIGMAKEDIR} -f ${CMPCONFIGMAKEFILE} ${CMPCONFIG_TARGET} || \
+    make -C ${CMPCONFIGMAKEDIR} -f ${CMPCONFIGMAKEFILE} ${CMPCONFIG_TARGET} 1>/dev/null || \
       { echo "ERROR: make ${CMPCONFIG1} failed" ; exit 1 ; }
   fi
 fi
@@ -155,7 +155,7 @@ if [ "X${CONFIGS}" == "Xall" ]; then
 fi
 
 for CONFIG in ${CONFIGS}; do
-  echo "Refresh ${CONFIG}"
+  echo "  Normalize ${CONFIG}"
 
   # Set up the environment
 
@@ -235,61 +235,71 @@ for CONFIG in ${CONFIGS}; do
     # Then run oldconfig or oldefconfig
 
     if [ "X${defaults}" == "Xy" ]; then
-      if [ "X${debug}" = "Xy" ]; then
+      if [ "X${debug}" == "Xy" ]; then
         make olddefconfig V=1
       else
-        make olddefconfig 1>/dev/null 2>&1
+        make olddefconfig 1>/dev/null
       fi
     else
-      if [ "X${debug}" = "Xy" ]; then
+      if [ "X${debug}" == "Xy" ]; then
         make oldconfig V=1
       else
-        make oldconfig
+        make oldconfig 1>/dev/null
       fi
     fi
   fi
 
   # Run savedefconfig to create the new defconfig file
 
-  if [ "X${debug}" = "Xy" ]; then
+  if [ "X${debug}" == "Xy" ]; then
     make savedefconfig V=1
   else
-    make savedefconfig 1>/dev/null 2>&1
+    make savedefconfig 1>/dev/null
   fi
 
-  # Save the refreshed configuration
+  # Show differences
 
-  if [ "X${prompt}" == "Xy" ]; then
+  if ! $CMPCONFIG $DEFCONFIG defconfig; then
 
-    # Show differences
+    # Save the refreshed configuration
 
-    $CMPCONFIG $DEFCONFIG defconfig
+    if [ "X${prompt}" == "Xy" ]; then
 
-    read -p "Save the new configuration (y/n)?" -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]
-    then
+      read -p "Save the new configuration (y/n)?" -n 1 -r
+      echo
+      if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "Saving the new configuration file"
+        mv defconfig $DEFCONFIG || \
+            { echo "ERROR: Failed to move defconfig to $DEFCONFIG"; exit 1; }
+        chmod 644 $DEFCONFIG
+      fi
+    else
       echo "Saving the new configuration file"
       mv defconfig $DEFCONFIG || \
           { echo "ERROR: Failed to move defconfig to $DEFCONFIG"; exit 1; }
       chmod 644 $DEFCONFIG
     fi
-  else
-    echo "Saving the new configuration file"
-    mv defconfig $DEFCONFIG || \
-        { echo "ERROR: Failed to move defconfig to $DEFCONFIG"; exit 1; }
-    chmod 644 $DEFCONFIG
+
+    diff=1
   fi
 
   # Restore any previous .config and Make.defs files
-
-  if [ -e SAVEconfig ]; then
-    mv SAVEconfig .config || \
-      { echo "ERROR: Failed to move SAVEconfig to .config"; exit 1; }
-  fi
 
   if [ -e SAVEMake.defs ]; then
     mv SAVEMake.defs Make.defs || \
       { echo "ERROR: Failed to move SAVEMake.defs to Make.defs"; exit 1; }
   fi
+
+  if [ -e SAVEconfig ]; then
+    mv SAVEconfig .config || \
+      { echo "ERROR: Failed to move SAVEconfig to .config"; exit 1; }
+
+    if [ "X${debug}" == "Xy" ]; then
+      ./tools/sethost.sh V=1
+    else
+      ./tools/sethost.sh 1>/dev/null
+    fi
+  fi
 done
+
+exit $diff

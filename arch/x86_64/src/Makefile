@@ -25,9 +25,9 @@ ifeq ($(CONFIG_ARCH_INTEL64),y)
 ARCH_SUBDIR = intel64
 endif
 
-CPPFLAGS += $(EXTRADEFINES)
-CFLAGS += $(EXTRADEFINES)
-CXXFLAGS += $(EXTRADEFINES)
+CPPFLAGS += $(EXTRAFLAGS)
+CFLAGS += $(EXTRAFLAGS)
+CXXFLAGS += $(EXTRAFLAGS)
 
 ifeq ($(CONFIG_WINDOWS_NATIVE),y)
   ARCH_SRCDIR = $(TOPDIR)\arch\$(CONFIG_ARCH)\src
@@ -133,12 +133,12 @@ $(UBIN): $(UOBJS)
 	$(call ARCHIVE, $@, $(UOBJS))
 
 board/libboard$(LIBEXT):
-	$(Q) $(MAKE) -C board TOPDIR="$(TOPDIR)" libboard$(LIBEXT) EXTRADEFINES=$(EXTRADEFINES)
+	$(Q) $(MAKE) -C board TOPDIR="$(TOPDIR)" libboard$(LIBEXT) EXTRAFLAGS="$(EXTRAFLAGS)"
 
 nuttx$(EXEEXT): board/libboard$(LIBEXT)
 	@echo "LD: nuttx$(EXEEXT)"
 	$(Q) $(LD) $(LDFLAGS) $(LIBPATHS) -o $(NUTTX) $(EXTRA_OBJS) \
-		$(LDSTARTGROUP) $(LIBGCC) --whole-archive  $(LDLIBS) $(EXTRA_LIBS) $(LDENDGROUP)
+		$(LDSTARTGROUP) $(LIBGCC) --whole-archive --no-relax  $(LDLIBS) $(EXTRA_LIBS) $(LDENDGROUP)
 ifneq ($(CONFIG_WINDOWS_NATIVE),y)
 	$(Q) $(NM) $(NUTTX) | \
 	grep -v '\(compiled\)\|\(\$(OBJEXT)$$\)\|\( [aUw] \)\|\(\.\.ng$$\)\|\(LASH[RL]DI\)' | \

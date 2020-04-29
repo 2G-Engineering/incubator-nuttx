@@ -33,7 +33,7 @@
  *
  ****************************************************************************************/
 
-/* This file should never be included directed but, rather, only indirectly through
+/* This file should never be included directly but, rather, only indirectly through
  * nuttx/irq.h
  */
 
@@ -47,10 +47,6 @@
 #include <nuttx/config.h>
 #include <arch/a1x/chip.h>
 
-/****************************************************************************************
- * Pre-processor Definitions
- ****************************************************************************************/
-
 /* Chip-Specific External interrupts */
 
 #if defined(CONFIG_ARCH_CHIP_A10)
@@ -58,6 +54,10 @@
 #else
 #  error Unrecognized A1X chip
 #endif
+
+/****************************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************************/
 
 /****************************************************************************************
  * Public Types

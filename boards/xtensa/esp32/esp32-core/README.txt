@@ -1,7 +1,7 @@
-README for the Expressif ESP32 Core board (V2)
+README for the Espressif ESP32 Core board (V2)
 ==============================================
 
-  The ESP32 is a dual-core system from Expressif with two Harvard
+  The ESP32 is a dual-core system from Espressif with two Harvard
   architecture Xtensa LX6 CPUs. All embedded memory, external memory and
   peripherals are located on the data bus and/or the instruction bus of
   these CPUs. With some minor exceptions, the address mapping of two CPUs
@@ -173,7 +173,7 @@ Memory Map
   IRAM for PRO cpu:  0x40080000 0x400a0000  RX  iram0_0_seg
     - Interrupt Vectors
     - Low level handlers
-    - Xtensa/Expressif libraries
+    - Xtensa/Espressif libraries
   RTC fast memory:   0x400c0000 0x400c2000  RWX rtc_iram_seg (PRO_CPU only)
     - .rtc.text (unused?)
   FLASH:             0x400d0018 0x40400018  RX  iram0_2_seg  (actually FLASH)
@@ -288,6 +288,42 @@ OpenOCD for the ESP32
     - The "find interface/ftdi/tumpa.cfg".  This means that you will
       need to specify the interface configuration file on the OpenOCD
       command line.
+
+  NOTE: Another OpenOCD configuration file is available in the NuttX
+  source tree at
+  nuttx/boards/xtensa/esp32/esp32-core/scripts/esp32-ft232h.cfg .
+  It has been tested with:
+
+    - ESP32-DevKitC V4
+
+      https://docs.espressif.com/projects/esp-idf/en/latest/esp32/hw-reference/esp32/get-started-devkitc.html
+
+    - Akizukidenshi's FT232HL, a FT232H based JTAG adapter
+
+      http://akizukidenshi.com/catalog/g/gK-06503/
+
+      With JP3 and JP4 closed, and connected to ESP32 as:
+
+        ---------------- -------
+        ESP32-DevKitC V4 FT232HL
+        ---------------- -------
+        J2       J3      J2
+        -------- ------- -------
+        IO13             AD0     (TCK)
+        IO12             AD1     (TDI)
+                 IO15    AD2     (TDO)
+        IO14             AD3     (TMS)
+        GND              GND
+        -------- ------- -------
+
+    - The following version of OpenOCD from ESP-IDF (macOS version)
+
+      % openocd --version
+      Open On-Chip Debugger  v0.10.0-esp32-20191114 (2019-11-14-14:19)
+      Licensed under GNU GPL v2
+      For bug reports, read
+              http://openocd.org/doc/doxygen/bugs.html
+      %
 
   General OpenOCD build instructions
   ----------------------------------
@@ -716,7 +752,7 @@ Things to Do
   1. There is no support for an interrupt stack yet.
 
   2. There is no clock initialization logic in place.  This depends on logic in
-     Expressif libriaries.  The board comes up using that basic 40 Mhz crystal
+     Espressif libraries.  The board comes up using that basic 40 MHz crystal
      for clocking.  Getting to 80 MHz will require clocking initialization in
      esp32_clockconfig.c.
 

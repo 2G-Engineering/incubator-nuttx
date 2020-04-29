@@ -144,10 +144,10 @@ struct telnet_dev_s
   sem_t             td_exclsem;   /* Enforces mutually exclusive access */
   sem_t             td_iosem;     /* I/O thread will notify that data is available */
   uint8_t           td_state;     /* (See telnet_state_e) */
-  uint8_t           td_pending;   /* Number of valid, pending bytes in the rxbuffer */
   uint8_t           td_offset;    /* Offset to the valid, pending bytes in the rxbuffer */
   uint8_t           td_crefs;     /* The number of open references to the session */
   uint8_t           td_minor;     /* Minor device number */
+  uint16_t          td_pending;   /* Number of valid, pending bytes in the rxbuffer */
 #ifdef CONFIG_TELNET_SUPPORT_NAWS
   uint16_t          td_rows;      /* Number of NAWS rows */
   uint16_t          td_cols;      /* Number of NAWS cols */
@@ -295,7 +295,9 @@ static void telnet_check_ctrlchar(FAR struct telnet_dev_s *priv,
   for (; priv->td_pid >= 0 && len > 0; buffer++, len--)
     {
 #ifdef CONFIG_TTY_SIGINT
-      /* Is this the special character that will generate the SIGINT signal? */
+      /* Is this the special character that will generate the SIGINT
+       * signal?
+       */
 
       if (*buffer == CONFIG_TTY_SIGINT_CHAR)
         {
@@ -309,7 +311,9 @@ static void telnet_check_ctrlchar(FAR struct telnet_dev_s *priv,
 #endif
 
 #ifdef CONFIG_TTY_SIGSTP
-      /* Is this the special character that will generate the SIGSTP signal? */
+      /* Is this the special character that will generate the SIGSTP
+       * signal?
+       */
 
       if (*buffer == CONFIG_TTY_SIGSTP_CHAR)
         {
@@ -459,7 +463,9 @@ static ssize_t telnet_receive(FAR struct telnet_dev_s *priv,
 #ifdef CONFIG_TELNET_CHARACTER_MODE
             if (ch == TELNET_SGA || ch == TELNET_ECHO)
               {
-                /* If it received 'ECHO' or 'Suppress Go Ahead', then do nothing */
+                /* If it received 'ECHO' or 'Suppress Go Ahead', then do
+                 * nothing.
+                 */
               }
             else
               {
@@ -587,7 +593,9 @@ static bool telnet_putchar(FAR struct telnet_dev_s *priv, uint8_t ch,
   register int index;
   bool ret = false;
 
-  /* Ignore carriage returns (we will put these in automatically as necessary) */
+  /* Ignore carriage returns (we will put these in automatically as
+   * necessary).
+   */
 
   if (ch != TELNET_CR)
     {
@@ -819,7 +827,8 @@ static ssize_t telnet_read(FAR struct file *filep, FAR char *buffer,
 {
   FAR struct inode *inode = filep->f_inode;
   FAR struct telnet_dev_s *priv = inode->i_private;
-  ssize_t ret = 0;
+  ssize_t nread = 0;
+  int ret;
 
   ninfo("len: %d\n", len);
 
@@ -848,33 +857,44 @@ static ssize_t telnet_read(FAR struct file *filep, FAR char *buffer,
               return -EAGAIN;
             }
 
-          /* Wait for new data (or error) */
+          /* Wait for new data, interrupt, or thread cancellation */
 
-          nxsem_wait_uninterruptible(&priv->td_iosem);
+          ret = nxsem_wait(&priv->td_iosem);
+          if (ret < 0)
+            {
+              nerr("ERROR: nxsem_wait failed: %d\n", ret);
+              return (ssize_t)ret;
+            }
+
           continue;
         }
 
       /* Take exclusive access to data buffer */
 
-      nxsem_wait(&priv->td_exclsem);
+      ret = nxsem_wait(&priv->td_exclsem);
+      if (ret < 0)
+        {
+          nerr("ERROR: nxsem_wait failed: %d\n", ret);
+          return (ssize_t)ret;
+        }
 
       /* Process the buffered telnet data */
 
       src = &priv->td_rxbuffer[priv->td_offset];
-      ret = telnet_receive(priv, src, priv->td_pending, buffer, len);
+      nread = telnet_receive(priv, src, priv->td_pending, buffer, len);
 
       nxsem_post(&priv->td_exclsem);
     }
-  while (ret == 0);
+  while (nread == 0);
 
   /* Returned Value:
    *
-   * ret > 0:  The number of characters copied into the user buffer by
-   *           telnet_receive().
-   * ret <= 0: Loss of connection or error events reported by recv().
+   * nread > 0:  The number of characters copied into the user buffer by
+   *             telnet_receive().
+   * nread <= 0: Loss of connection or error events reported by recv().
    */
 
-  return ret;
+  return nread;
 }
 
 /****************************************************************************
@@ -1154,7 +1174,9 @@ static int telnet_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   switch (cmd)
     {
 #ifdef HAVE_SIGNALS
-      /* Make the given terminal the controlling terminal of the calling process */
+      /* Make the given terminal the controlling terminal of the calling
+       * process.
+       */
 
     case TIOCSCTTY:
       {
