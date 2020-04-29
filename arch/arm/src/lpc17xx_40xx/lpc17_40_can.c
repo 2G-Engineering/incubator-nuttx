@@ -1218,6 +1218,7 @@ static bool lpc17can_txempty(FAR struct can_dev_s *dev)
 {
   FAR struct up_dev_s *priv = (FAR struct up_dev_s *)dev->cd_priv;
   uint32_t regval = can_getreg(priv, LPC17_40_CAN_GSR_OFFSET);
+  can_getreg(priv, LPC17_40_CAN_ICR_OFFSET);
   return ((regval & CAN_GSR_TBS) != 0);
 }
 
