@@ -204,6 +204,50 @@ config PCF8574_INT_POLLDELAY
 
 endif # IOEXPANDER_PCF8574
 
+config IOEXPANDER_MCP23SXX
+	bool "MCP23SXX SPI IO expander"
+	default n
+	depends on SPI
+	---help---
+		Enable support for the Microchip MCP23SXX IO Expander
+
+if IOEXPANDER_MCP23SXX
+
+config MCP23SXX_MULTIPLE
+	bool "Multiple MCP23SXX Devices"
+	default n
+	---help---
+		Can be defined to support multiple MCP23SXX devices on board.
+
+config MCP23SXX_INT_ENABLE
+	bool "Enable MCP23SXX Interrupt Support"
+	default n
+	select IOEXPANDER_INT_ENABLE
+	---help---
+		Enable driver interrupt functionality
+
+config MCP23SXX_INT_NCALLBACKS
+	int "Max number of interrupt callbacks"
+	default 4
+	depends on MCP23SXX_INT_ENABLE
+	---help---
+		This is the maximum number of interrupt callbacks supported
+
+config MCP23SXX_SHADOW_MODE
+	bool "Use Shadow Mode instead of Read-Modify-Write Operations"
+	default n
+	---help---
+		This setting enables a mode where the output and pin
+		configuration registers are held in RAM.
+		With this for example we do not need to read back the
+		output-register every time we want to change one pin.
+		We do instead change the bit in the internal register
+		and then just write this register to the IO-Expander.
+		This reduces bus traffic and eliminates the problem of
+		EMC-caused toggling of output pins.
+
+endif # IOEXPANDER_MCP23SXX
+
 config IOEXPANDER_INT_ENABLE
 	bool
 	default n
