@@ -131,7 +131,19 @@ static const struct ioexpander_ops_s g_mcp23sxx_ops =
 
 static int mcp23sxx_lock(FAR struct mcp23sxx_dev_s *mcp)
 {
-  return nxsem_wait_uninterruptible(&mcp->exclsem);
+  int ret;
+
+
+  ret =  nxsem_wait_uninterruptible(&mcp->exclsem);
+
+  if (ret == OK)
+    {
+      SPI_SETMODE(mcp->spi, SPIDEV_MODE0);
+      SPI_SETBITS(mcp->spi, 8);
+      SPI_HWFEATURES(mcp->spi, 0);
+      SPI_SETFREQUENCY(mcp->spi, mcp->config->frequency);
+    }
+  return ret;
 }
 
 #define mcp23sxx_unlock(p) nxsem_post(&(p)->exclsem)
@@ -147,21 +159,17 @@ static int mcp23sxx_lock(FAR struct mcp23sxx_dev_s *mcp)
 static inline int mcp23sxx_write(FAR struct mcp23sxx_dev_s *mcp,
                                 FAR const uint8_t *wbuffer, int wbuflen)
 {
-  struct spi_msg_s msg;
-  int ret;
 
-  /* Setup for the transfer */
+  mcp23sxx_lock(mcp);
+  SPI_SELECT(mcp->spi, SPIDEV_EXPANDER(mcp->index), true);
 
-  msg.frequency = mcp->config->frequency;
-  msg.addr      = mcp->config->address;
-  msg.flags     = 0;
-  msg.buffer    = (FAR uint8_t *)wbuffer;  /* Override const */
-  msg.length    = wbuflen;
+  SPI_SNDBLOCK(mcp->spi, wbuffer, wbuflen);
 
-  /* Then perform the transfer. */
+  SPI_SELECT(mcp->spi, SPIDEV_EXPANDER(mcp->index), false);
 
-  ret = SPI_TRANSFER(mcp->spi, &msg, 1);
-  return (ret >= 0) ? OK : ret;
+  mcp23sxx_unlock(mcp);
+
+  return OK;
 }
 
 /****************************************************************************
@@ -176,16 +184,17 @@ static inline int mcp23sxx_writeread(FAR struct mcp23sxx_dev_s *mcp,
                                     FAR const uint8_t *wbuffer, int wbuflen,
                                     FAR uint8_t *rbuffer, int rbuflen)
 {
-  struct spi_config_s config;
 
-  /* Set up the configuration and perform the write-read operation */
+    mcp23sxx_lock(mcp);
+    SPI_SELECT(mcp->spi, SPIDEV_EXPANDER(mcp->index), true);
 
-  config.frequency = mcp->config->frequency;
-  config.address   = mcp->config->address;
-  config.addrlen   = 7;
+    SPI_EXCHANGE(mcp->spi, wbuffer, rbuffer, rbuflen);
 
-  return spi_writeread(mcp->spi, &config, wbuffer,
-                       wbuflen, rbuffer, rbuflen);
+    SPI_SELECT(mcp->spi, SPIDEV_EXPANDER(mcp->index), false);
+
+    mcp23sxx_unlock(mcp);
+
+    return OK;
 }
 
 /****************************************************************************
@@ -202,7 +211,21 @@ static int mcp23sxx_setbit(FAR struct mcp23sxx_dev_s *mcp, uint8_t addr,
   uint8_t buf[2];
   int ret;
 
-  if (pin >= MCP23SXX_GPIO_NPINS)
+  if (pin >= mcp->config->pincount)
+    {
+      return -ENXIO;
+    }
+
+  /* Increment the address if necessary */
+
+  if (pin >= 8)
+    {
+      addr += 1;
+  }
+
+  /* Bounds check */
+
+  if (addr >= MCP23SXX_NUMREGS)
     {
       return -ENXIO;
     }
@@ -266,7 +289,7 @@ static int mcp23sxx_getbit(FAR struct mcp23sxx_dev_s *mcp, uint8_t addr,
   uint8_t buf;
   int ret;
 
-  if (pin >= MCP23SXX_GPIO_NPINS)
+  if (pin >= mcp->config->pincount)
     {
       return -ENXIO;
     }
@@ -317,7 +340,7 @@ static int mcp23sxx_direction(FAR struct ioexpander_dev_s *dev, uint8_t pin,
       return ret;
     }
 
-  ret = mcp23sxx_setbit(mcp, MCP23SXX_REG_CONFIG, pin,
+  ret = mcp23sxx_setbit(mcp, MCP23SXX_IODIRA, pin,
                        (direction == IOEXPANDER_DIRECTION_IN));
   mcp23sxx_unlock(mcp);
   return ret;
@@ -360,7 +383,7 @@ static int mcp23sxx_option(FAR struct ioexpander_dev_s *dev, uint8_t pin,
           return ret;
         }
 
-      ret = mcp23sxx_setbit(mcp, MCP23SXX_REG_POLINV, pin, ival);
+      ret = mcp23sxx_setbit(mcp, MCP23SXX_IPOLA, pin, ival);
       mcp23sxx_unlock(mcp);
     }
 
@@ -398,7 +421,7 @@ static int mcp23sxx_writepin(FAR struct ioexpander_dev_s *dev, uint8_t pin,
       return ret;
     }
 
-  ret = mcp23sxx_setbit(mcp, MCP23SXX_REG_OUTPUT, pin, value);
+  ret = mcp23sxx_setbit(mcp, MCP23SXX_GPIOA, pin, value);
   mcp23sxx_unlock(mcp);
   return ret;
 }
@@ -436,7 +459,7 @@ static int mcp23sxx_readpin(FAR struct ioexpander_dev_s *dev, uint8_t pin,
       return ret;
     }
 
-  ret = mcp23sxx_getbit(mcp, MCP23SXX_REG_INPUT, pin, value);
+  ret = mcp23sxx_getbit(mcp, MCP23SXX_GPIOA, pin, value);
   mcp23sxx_unlock(mcp);
   return ret;
 }
@@ -472,7 +495,7 @@ static int mcp23sxx_readbuf(FAR struct ioexpander_dev_s *dev, uint8_t pin,
       return ret;
     }
 
-  ret = mcp23sxx_getbit(mcp, MCP23SXX_REG_OUTPUT, pin, value);
+  ret = mcp23sxx_getbit(mcp, MCP23SXX_GPIOA, pin, value);
   mcp23sxx_unlock(mcp);
   return ret;
 }
@@ -516,7 +539,7 @@ static int mcp23sxx_getmultibits(FAR struct mcp23sxx_dev_s *mcp, uint8_t addr,
     {
       index = 0;
       pin   = pins[i];
-      if (pin >= MCP23SXX_GPIO_NPINS)
+      if (pin >= mcp->config->pincount)
         {
           return -ENXIO;
         }
@@ -549,7 +572,7 @@ static int mcp23sxx_multiwritepin(FAR struct ioexpander_dev_s *dev,
                                  int count)
 {
   FAR struct mcp23sxx_dev_s *mcp = (FAR struct mcp23sxx_dev_s *)dev;
-  uint8_t addr = MCP23SXX_REG_OUTPUT;
+  uint8_t addr = MCP23SXX_GPIOA;
   uint8_t buf[3];
   int ret;
   int i;
@@ -589,7 +612,7 @@ static int mcp23sxx_multiwritepin(FAR struct ioexpander_dev_s *dev,
     {
       index = 1;
       pin = pins[i];
-      if (pin >= MCP23SXX_GPIO_NPINS)
+      if (pin >= mcp->config->pincount)
         {
           mcp23sxx_unlock(mcp);
           return -ENXIO;
@@ -652,7 +675,7 @@ static int mcp23sxx_multireadpin(FAR struct ioexpander_dev_s *dev,
       return ret;
     }
 
-  ret = mcp23sxx_getmultibits(mcp, MCP23SXX_REG_INPUT,
+  ret = mcp23sxx_getmultibits(mcp, MCP23SXX_GPIOA,
                              pins, values, count);
   mcp23sxx_unlock(mcp);
   return ret;
@@ -690,7 +713,7 @@ static int mcp23sxx_multireadbuf(FAR struct ioexpander_dev_s *dev,
       return ret;
     }
 
-  ret = mcp23sxx_getmultibits(mcp, MCP23SXX_REG_OUTPUT,
+  ret = mcp23sxx_getmultibits(mcp, MCP23SXX_GPIOA,
                              pins, values, count);
   mcp23sxx_unlock(mcp);
   return ret;
@@ -805,7 +828,7 @@ static int mcp23sxx_detach(FAR struct ioexpander_dev_s *dev, FAR void *handle)
 static void mcp23sxx_irqworker(void *arg)
 {
   FAR struct mcp23sxx_dev_s *mcp = (FAR struct mcp23sxx_dev_s *)arg;
-  uint8_t addr = MCP23SXX_REG_INPUT;
+  uint8_t addr = MCP23SXX_GPIOA;
   uint8_t buf[2];
   ioe_pinset_t pinset;
   int ret;
@@ -911,7 +934,8 @@ FAR struct ioexpander_dev_s *mcp23sxx_initialize
   FAR struct mcp23sxx_dev_s *mcpdev;
 
   DEBUGASSERT(spidev != NULL && config != NULL &&
-                config->set_nreset_pin != NULL);
+                config->set_nreset_pin != NULL &&
+                config->pincount == 16);
 
   config->set_nreset_pin(true);
 
@@ -932,10 +956,20 @@ FAR struct ioexpander_dev_s *mcp23sxx_initialize
   mcpdev->flink = g_mcp23sxxlist;
   g_mcp23sxxlist = mcpdev;
 
+  if (mcpdev->flink)
+    {
+      mcpdev->index = mcpdev->flink->index + 1;
+    }
+  else
+    {
+      mcpdev->index = 0;
+    }
+
 #else
   /* Use the one-and-only MCP23SXX driver instance */
 
   mcpdev = &g_mcp23sxx;
+  mcpdev->index = 0;
 #endif
 
   /* Initialize the device state structure */

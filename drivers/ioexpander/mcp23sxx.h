@@ -75,80 +75,82 @@
 
 /* MCP23SXX Resources ********************************************************/
 
-#define MCP23SXX_GPIO_NPINS 8
-
 #ifndef CONFIG_SPI
 #error "CONFIG_SPI is required by mcp23sxx"
 #endif
 
-#define MCP23SXX_MAXDEVS             4
+#define MCP23SXX_MAXDEVS             8
 
 
 /* MCP23SXX Registers ********************************************************/
 
-/* POR of the MCP23S17 sets BANK0 for the address scheme */
-#define USE_BANK0
+/* POR of the MCP23SXX sets BANK0 for the address scheme */
+#define MCP23SXX_USE_BANK0
 
-#ifdef USE_BANK0
-    #define MCP23S17_IODIRA      0x00
-    #define MCP23S17_IODIRB      0x01
-    #define MCP23S17_IPOLA       0x02
-    #define MCP23S17_IPOLB       0x03
-    #define MCP23S17_GPINTENA    0x04
-    #define MCP23S17_GPINTENB    0x05
-    #define MCP23S17_DEFVALA     0x06
-    #define MCP23S17_DEFVALB     0x07
-    #define MCP23S17_INTCONA     0x08
-    #define MCP23S17_INTCONB     0x09
-    #define MCP23S17_IOCONA      0x0A
-    #define MCP23S17_IOCONB      0x0B
-    #define MCP23S17_GPPUA       0x0C
-    #define MCP23S17_GPPUB       0x0D
-    #define MCP23S17_INTFA       0x0E
-    #define MCP23S17_INTFB       0x0F
-    #define MCP23S17_INTCAPA     0x10
-    #define MCP23S17_INTCAPB     0x11
-    #define MCP23S17_GPIOA       0x12
-    #define MCP23S17_GPIOB       0x13
-    #define MCP23S17_OLATA       0x14
-    #define MCP23S17_OLATB       0x15
-#elif defined(USE_BANK1)
-    #define IODIRA      0x00
-    #define IPOLA       0x01
-    #define GPINTENA    0x02
-    #define DEFVALA     0x03
-    #define INTCONA     0x04
-    #define MCP23S17_IOCONA      0x05
-    #define MCP23S17_GPPUA       0x06
-    #define MCP23S17_INTFA       0x07
-    #define MCP23S17_INTCAPA     0x08
-    #define MCP23S17_GPIOA       0x09
-    #define MCP23S17_OLATA       0x0A
-    #define MCP23S17_IODIRB      0x10
-    #define MCP23S17_IPOLB       0x11
-    #define MCP23S17_GPINTENB    0x12
-    #define MCP23S17_DEFVALB     0x13
-    #define MCP23S17_INTCONB     0x14
-    #define MCP23S17_IOCONB      0x15
-    #define MCP23S17_GPPUB       0x16
-    #define MCP23S17_INTFB       0x17
-    #define MCP23S17_INTCAPB     0x18
-    #define MCP23S17_GPIOB       0x19
-    #define MCP23S17_OLATB       0x1A
+#ifdef MCP23SXX_USE_BANK0
+    #define MCP23SXX_IODIRA      (0x00)
+    #define MCP23SXX_IODIRB      (0x01)
+    #define MCP23SXX_IPOLA       (0x02)
+    #define MCP23SXX_IPOLB       (0x03)
+    #define MCP23SXX_GPINTENA    (0x04)
+    #define MCP23SXX_GPINTENB    (0x05)
+    #define MCP23SXX_DEFVALA     (0x06)
+    #define MCP23SXX_DEFVALB     (0x07)
+    #define MCP23SXX_INTCONA     (0x08)
+    #define MCP23SXX_INTCONB     (0x09)
+    #define MCP23SXX_IOCONA      (0x0A)
+    #define MCP23SXX_IOCONB      (0x0B)
+    #define MCP23SXX_GPPUA       (0x0C)
+    #define MCP23SXX_GPPUB       (0x0D)
+    #define MCP23SXX_INTFA       (0x0E)
+    #define MCP23SXX_INTFB       (0x0F)
+    #define MCP23SXX_INTCAPA     (0x10)
+    #define MCP23SXX_INTCAPB     (0x11)
+    #define MCP23SXX_GPIOA       (0x12)
+    #define MCP23SXX_GPIOB       (0x13)
+    #define MCP23SXX_OLATA       (0x14)
+    #define MCP23SXX_OLATB       (0x15)
+
+    #define MCP23SXX_NUMREGS     (0x16)
+#elif defined(MCP23SXX_USE_BANK1)
+    #define MCP23SXX_IODIRA      (0x00)
+    #define MCP23SXX_IPOLA       (0x01)
+    #define MCP23SXX_GPINTENA    (0x02)
+    #define MCP23SXX_DEFVALA     (0x03)
+    #define MCP23SXX_INTCONA     (0x04)
+    #define MCP23SXX_IOCONA      (0x05)
+    #define MCP23SXX_GPPUA       (0x06)
+    #define MCP23SXX_INTFA       (0x07)
+    #define MCP23SXX_INTCAPA     (0x08)
+    #define MCP23SXX_GPIOA       (0x09)
+    #define MCP23SXX_OLATA       (0x0A)
+    #define MCP23SXX_IODIRB      (0x10)
+    #define MCP23SXX_IPOLB       (0x11)
+    #define MCP23SXX_GPINTENB    (0x12)
+    #define MCP23SXX_DEFVALB     (0x13)
+    #define MCP23SXX_INTCONB     (0x14)
+    #define MCP23SXX_IOCONB      (0x15)
+    #define MCP23SXX_GPPUB       (0x16)
+    #define MCP23SXX_INTFB       (0x17)
+    #define MCP23SXX_INTCAPB     (0x18)
+    #define MCP23SXX_GPIOB       (0x19)
+    #define MCP23SXX_OLATB       (0x1A)
+
+    #define MCP23SXX_NUMREGS     (0x1B)
 #endif
 
-#define MCP23S17_IOCON_INTPOL    (1 << 1)
-#define MCP23S17_IOCON_ODR       (1 << 2)
-#define MCP23S17_IOCON_HAEN      (1 << 3)
-#define MCP23S17_IOCON_DISSLW    (1 << 4)
-#define MCP23S17_IOCON_SEQOP     (1 << 5)
-#define MCP23S17_IOCON_MIRROR    (1 << 6)
-#define MCP23S17_IOCON_BANK      (1 << 7)
+#define MCP23SXX_IOCON_INTPOL    (1 << 1)
+#define MCP23SXX_IOCON_ODR       (1 << 2)
+#define MCP23SXX_IOCON_HAEN      (1 << 3)
+#define MCP23SXX_IOCON_DISSLW    (1 << 4)
+#define MCP23SXX_IOCON_SEQOP     (1 << 5)
+#define MCP23SXX_IOCON_MIRROR    (1 << 6)
+#define MCP23SXX_IOCON_BANK      (1 << 7)
 
-#define MCP23S17_CONST_ADDR 0b01000000
-#define MCP23S17_READ       0b1
-#define MCP23S17_WRITE      0b0
-#define MCP23S17_ADDR_MASK  0b00001110
+#define MCP23SXX_CONST_ADDR      (0b01000000)
+#define MCP23SXX_READ            (0b1)
+#define MCP23SXX_WRITE           (0b0)
+#define MCP23SXX_ADDR_MASK       (0b00001110)
 
 
 /****************************************************************************
@@ -174,12 +176,13 @@ struct mcp23sxx_dev_s
   struct ioexpander_dev_s      dev;     /* Nested structure to allow casting
                                          * as public gpio expander. */
 #ifdef CONFIG_MCP23SXX_SHADOW_MODE
-  uint8_t sreg[8];                      /* Shadowed registers of the MCP23SXX */
+  uint8_t                      sreg[MCP23SXX_NUMREGS]; /* Shadowed registers of the MCP23SXX */
+  uint16_t                     index;   /* Device number if multiple */
 #endif
 #ifdef CONFIG_MCP23SXX_MULTIPLE
-  FAR struct mcp23sxx_dev_s    *flink;   /* Supports a singly linked list of drivers */
+  FAR struct mcp23sxx_dev_s    *flink;  /* Supports a singly linked list of drivers */
 #endif
-  FAR struct mcp23sxx_config_s *config;  /* Board configuration data */
+  FAR struct mcp23sxx_config_s *config; /* Board configuration data */
   FAR struct spi_dev_s        *spi;     /* Saved SPI driver instance */
   sem_t                        exclsem; /* Mutual exclusion */
 
