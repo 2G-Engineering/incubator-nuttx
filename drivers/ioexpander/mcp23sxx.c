@@ -246,7 +246,7 @@ static inline int mcp23sxx_read(FAR struct mcp23sxx_dev_s *mcp,
  ****************************************************************************/
 
 static int mcp23sxx_setbit(FAR struct mcp23sxx_dev_s *mcp, uint8_t addr,
-                          uint8_t pin, int bitval)
+                          uint16_t pin, int bitval)
 {
   uint8_t buf[1];
   int ret;
@@ -261,6 +261,7 @@ static int mcp23sxx_setbit(FAR struct mcp23sxx_dev_s *mcp, uint8_t addr,
   if (pin >= 8)
     {
       addr += 1;
+      pin -= 8;
     }
 
   /* Bounds check */
@@ -322,7 +323,7 @@ static int mcp23sxx_setbit(FAR struct mcp23sxx_dev_s *mcp, uint8_t addr,
  ****************************************************************************/
 
 static int mcp23sxx_getbit(FAR struct mcp23sxx_dev_s *mcp, uint8_t addr,
-                          uint8_t pin, FAR bool *val)
+                          uint16_t pin, FAR bool *val)
 {
   uint8_t buf;
   int ret;
@@ -337,6 +338,7 @@ static int mcp23sxx_getbit(FAR struct mcp23sxx_dev_s *mcp, uint8_t addr,
   if (pin >= 8)
     {
       addr += 1;
+      pin -= 8;
     }
 
   /* Bounds check */
@@ -383,7 +385,6 @@ static int mcp23sxx_direction(FAR struct ioexpander_dev_s *dev, uint8_t pin,
 {
   FAR struct mcp23sxx_dev_s *mcp = (FAR struct mcp23sxx_dev_s *)dev;
   int ret;
-  uint8_t reg;
 
   /* Get exclusive access to the MCP23SXX */
 
@@ -393,16 +394,7 @@ static int mcp23sxx_direction(FAR struct ioexpander_dev_s *dev, uint8_t pin,
       return ret;
     }
 
-  if (pin < 8)
-    {
-      reg = MCP23SXX_IODIRA;
-    }
-  else
-    {
-      reg = MCP23SXX_IODIRB;
-    }
-
-  ret = mcp23sxx_setbit(mcp, reg, pin,
+  ret = mcp23sxx_setbit(mcp, MCP23SXX_IODIRA, pin,
                        (direction == IOEXPANDER_DIRECTION_IN));
   gpioinfo("mcp23sxx pin %d set direction: %d\n", pin,
            direction == IOEXPANDER_DIRECTION_IN);
@@ -434,7 +426,6 @@ static int mcp23sxx_option(FAR struct ioexpander_dev_s *dev, uint8_t pin,
 {
   FAR struct mcp23sxx_dev_s *mcp = (FAR struct mcp23sxx_dev_s *)dev;
   int ret = -EINVAL;
-  uint8_t reg;
 
   if (opt == IOEXPANDER_OPTION_INVERT)
     {
@@ -448,16 +439,7 @@ static int mcp23sxx_option(FAR struct ioexpander_dev_s *dev, uint8_t pin,
           return ret;
         }
 
-      if (pin < 8)
-        {
-          reg = MCP23SXX_IPOLA;
-        }
-      else
-        {
-          reg = MCP23SXX_IPOLB;
-        }
-
-      ret = mcp23sxx_setbit(mcp, reg, pin, ival);
+      ret = mcp23sxx_setbit(mcp, MCP23SXX_IPOLA, pin, ival);
       gpioinfo("mcp23sxx pin %d set invert: %d\n", pin, ival);
       mcp23sxx_unlock(mcp);
     }
@@ -487,7 +469,6 @@ static int mcp23sxx_writepin(FAR struct ioexpander_dev_s *dev, uint8_t pin,
 {
   FAR struct mcp23sxx_dev_s *mcp = (FAR struct mcp23sxx_dev_s *)dev;
   int ret;
-  uint8_t reg;
 
   /* Get exclusive access to the MCP23SXX */
 
@@ -497,16 +478,7 @@ static int mcp23sxx_writepin(FAR struct ioexpander_dev_s *dev, uint8_t pin,
       return ret;
     }
 
-  if (pin < 8)
-    {
-      reg = MCP23SXX_GPIOA;
-    }
-  else
-    {
-      reg = MCP23SXX_GPIOB;
-    }
-
-  ret = mcp23sxx_setbit(mcp, reg, pin, value);
+  ret = mcp23sxx_setbit(mcp, MCP23SXX_GPIOA, pin, value);
   gpioinfo("mcp23sxx pin %d set bit: %d\n", pin, value);
   mcp23sxx_unlock(mcp);
   return ret;
@@ -536,7 +508,6 @@ static int mcp23sxx_readpin(FAR struct ioexpander_dev_s *dev, uint8_t pin,
 {
   FAR struct mcp23sxx_dev_s *mcp = (FAR struct mcp23sxx_dev_s *)dev;
   int ret;
-  uint8_t reg;
 
   /* Get exclusive access to the MCP23SXX */
 
@@ -546,16 +517,7 @@ static int mcp23sxx_readpin(FAR struct ioexpander_dev_s *dev, uint8_t pin,
       return ret;
     }
 
-  if (pin < 8)
-    {
-      reg = MCP23SXX_GPIOA;
-    }
-  else
-    {
-      reg = MCP23SXX_GPIOB;
-    }
-
-  ret = mcp23sxx_getbit(mcp, reg, pin, value);
+  ret = mcp23sxx_getbit(mcp, MCP23SXX_GPIOA, pin, value);
   gpioinfo("mcp23sxx pin %d get bit: %d\n", pin, value);
   mcp23sxx_unlock(mcp);
   return ret;
@@ -583,7 +545,6 @@ static int mcp23sxx_readbuf(FAR struct ioexpander_dev_s *dev, uint8_t pin,
 {
   FAR struct mcp23sxx_dev_s *mcp = (FAR struct mcp23sxx_dev_s *)dev;
   int ret;
-  uint8_t reg;
 
   /* Get exclusive access to the MCP23SXX */
 
@@ -593,16 +554,7 @@ static int mcp23sxx_readbuf(FAR struct ioexpander_dev_s *dev, uint8_t pin,
       return ret;
     }
 
-  if (pin < 8)
-    {
-      reg = MCP23SXX_OLATA;
-    }
-  else
-    {
-      reg = MCP23SXX_OLATB;
-    }
-
-  ret = mcp23sxx_getbit(mcp, reg, pin, value);
+  ret = mcp23sxx_getbit(mcp, MCP23SXX_OLATA, pin, value);
   mcp23sxx_unlock(mcp);
   return ret;
 }
@@ -657,6 +609,7 @@ static int mcp23sxx_getmultibits(FAR struct mcp23sxx_dev_s *mcp,
       else
         {
           index = 1;
+          pin -= 8;
         }
 
       values[i] = (buf[index] >> pin) & 1;
@@ -733,6 +686,7 @@ static int mcp23sxx_multiwritepin(FAR struct ioexpander_dev_s *dev,
           return -ENXIO;
         }
 
+      gpioinfo("mcp23sxx pin bit set %d %d\n", pin, values[i]);
       if (pin < 8)
         {
           index = 0;
@@ -740,6 +694,7 @@ static int mcp23sxx_multiwritepin(FAR struct ioexpander_dev_s *dev,
       else
         {
           index = 1;
+          pin -= 8;
         }
 
       if (values[i])
@@ -760,8 +715,8 @@ static int mcp23sxx_multiwritepin(FAR struct ioexpander_dev_s *dev,
   mcp->sreg[addr] = buf[0];
   mcp->sreg[addr + 1] = buf[1];
 #endif
-  ret = mcp23sxx_write(mcp, addr, buf, 3);
-
+  ret = mcp23sxx_write(mcp, addr, buf, 2);
+  gpioinfo("mcp23sxx multipin set %02x %02x\n", buf[0], buf[1]);
   mcp23sxx_unlock(mcp);
   return ret;
 }
@@ -972,7 +927,7 @@ static void mcp23sxx_irqworker(void *arg)
 #endif
       /* Create a 16-bit pinset */
 
-      pinset = ((unsigned int)buf[0] << 8) | buf[1];
+      pinset = ((unsigned int)buf[1] << 8) | buf[0];
 
       /* Perform pin interrupt callbacks */
 
