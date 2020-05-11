@@ -182,7 +182,7 @@ struct mcp23sxx_dev_s
 #ifdef CONFIG_MCP23SXX_MULTIPLE
   FAR struct mcp23sxx_dev_s    *flink;  /* Supports a singly linked list of drivers */
 #endif
-  FAR struct mcp23sxx_config_s *config; /* Board configuration data */
+  FAR const struct mcp23sxx_config_s *config; /* Board configuration data */
   FAR struct spi_dev_s        *spi;     /* Saved SPI driver instance */
   sem_t                        exclsem; /* Mutual exclusion */
 
