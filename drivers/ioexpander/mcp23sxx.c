@@ -472,10 +472,10 @@ static int mcp23sxx_option(FAR struct ioexpander_dev_s *dev, uint8_t pin,
  *   Set the pin level. Required.
  *
  * Input Parameters:
- *   dev - Device-specific state data
- *   pin - The index of the pin to alter in this call
- *   val - The pin level. Usually TRUE will set the pin high,
- *         except if OPTION_INVERT has been set on this pin.
+ *   dev   - Device-specific state data
+ *   pin   - The index of the pin to alter in this call
+ *   value - The pin level. Usually TRUE will set the pin high,
+ *           except if OPTION_INVERT has been set on this pin.
  *
  * Returned Value:
  *   0 on success, else a negative error code
@@ -522,7 +522,7 @@ static int mcp23sxx_writepin(FAR struct ioexpander_dev_s *dev, uint8_t pin,
  * Input Parameters:
  *   dev    - Device-specific state data
  *   pin    - The index of the pin
- *   valptr - Pointer to a buffer where the pin level is stored.
+ *   value  - Pointer to a buffer where the pin level is stored.
  *            Usually TRUE if the pin is high, except if OPTION_INVERT
  *            has been set on this pin.
  *
@@ -571,7 +571,7 @@ static int mcp23sxx_readpin(FAR struct ioexpander_dev_s *dev, uint8_t pin,
  * Input Parameters:
  *   dev    - Device-specific state data
  *   pin    - The index of the pin
- *   valptr - Pointer to a buffer where the level is stored.
+ *   value  - Pointer to a buffer where the level is stored.
  *
  * Returned Value:
  *   0 on success, else a negative error code
@@ -673,9 +673,10 @@ static int mcp23sxx_getmultibits(FAR struct mcp23sxx_dev_s *mcp,
  *   individual pin accesses. Optional.
  *
  * Input Parameters:
- *   dev - Device-specific state data
- *   pins - The list of pin indexes to alter in this call
- *   val - The list of pin levels.
+ *   dev    - Device-specific state data
+ *   pins   - The list of pin indexes to alter in this call
+ *   values - The list of pin levels.
+ *   count  - The number of pins to write.
  *
  * Returned Value:
  *   0 on success, else a negative error code
@@ -775,7 +776,8 @@ static int mcp23sxx_multiwritepin(FAR struct ioexpander_dev_s *dev,
  * Input Parameters:
  *   dev    - Device-specific state data
  *   pin    - The list of pin indexes to read
- *   valptr - Pointer to a buffer where the pin levels are stored.
+ *   values - List where read pin values will be stored.
+ *   count  - Number of pins to read
  *
  * Returned Value:
  *   0 on success, else a negative error code
