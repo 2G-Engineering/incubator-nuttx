@@ -73,7 +73,7 @@
 
 #undef CONFIG_MCP23SXX_REFCNT
 
-/* MCP23SXX Resources ********************************************************/
+/* MCP23SXX Resources *******************************************************/
 
 #ifndef CONFIG_SPI
 #error "CONFIG_SPI is required by mcp23sxx"
@@ -81,8 +81,7 @@
 
 #define MCP23SXX_MAXDEVS             8
 
-
-/* MCP23SXX Registers ********************************************************/
+/* MCP23SXX Registers *******************************************************/
 
 /* POR of the MCP23SXX sets BANK0 for the address scheme */
 #define MCP23SXX_USE_BANK0
@@ -152,7 +151,6 @@
 #define MCP23SXX_WRITE           (0b0)
 #define MCP23SXX_ADDR_MASK       (0b00001110)
 
-
 /****************************************************************************
  * Public Types
  ****************************************************************************/
@@ -173,18 +171,21 @@ struct mcp23sxx_callback_s
 
 struct mcp23sxx_dev_s
 {
-  struct ioexpander_dev_s      dev;     /* Nested structure to allow casting
+  struct ioexpander_dev_s dev;          /* Nested structure to allow casting
                                          * as public gpio expander. */
 #ifdef CONFIG_MCP23SXX_SHADOW_MODE
-  uint8_t                      sreg[MCP23SXX_NUMREGS]; /* Shadowed registers of the MCP23SXX */
-  uint16_t                     index;   /* Device number if multiple */
+  uint8_t  sreg[MCP23SXX_NUMREGS];      /* Shadowed registers of the MCP23SXX */
+  uint16_t  index;                      /* Device number if multiple */
 #endif
 #ifdef CONFIG_MCP23SXX_MULTIPLE
-  FAR struct mcp23sxx_dev_s    *flink;  /* Supports a singly linked list of drivers */
+  FAR struct mcp23sxx_dev_s *flink;     /* Supports a singly linked list of drivers */
 #endif
-  FAR const struct mcp23sxx_config_s *config; /* Board configuration data */
-  FAR struct spi_dev_s        *spi;     /* Saved SPI driver instance */
-  sem_t                        exclsem; /* Mutual exclusion */
+
+  /* Board configuration data */
+
+  FAR const struct mcp23sxx_config_s *config;
+  FAR struct spi_dev_s *spi;            /* Saved SPI driver instance */
+  sem_t exclsem;                        /* Mutual exclusion */
 
 #ifdef CONFIG_IOEXPANDER_INT_ENABLE
   struct work_s work;                   /* Supports the interrupt handling "bottom half" */

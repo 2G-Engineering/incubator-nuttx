@@ -148,11 +148,13 @@ static int mcp23sxx_lock(FAR struct mcp23sxx_dev_s *mcp)
   if (ret == OK)
     {
       /* Configure the SPI port for this device */
+
       SPI_SETMODE(mcp->spi, SPIDEV_MODE0);
       SPI_SETBITS(mcp->spi, 8);
       SPI_HWFEATURES(mcp->spi, 0);
       SPI_SETFREQUENCY(mcp->spi, mcp->config->frequency);
     }
+
   return ret;
 }
 
@@ -166,11 +168,11 @@ static int mcp23sxx_lock(FAR struct mcp23sxx_dev_s *mcp)
 
 static int mcp23sxx_unlock(FAR struct mcp23sxx_dev_s *mcp)
 {
-   SPI_LOCK(mcp->spi, false);
+  SPI_LOCK(mcp->spi, false);
 
-   int ret = nxsem_post(&mcp->exclsem);
+  int ret = nxsem_post(&mcp->exclsem);
 
-   return ret;
+  return ret;
 }
 
 /****************************************************************************
@@ -189,7 +191,9 @@ static inline int mcp23sxx_write(FAR struct mcp23sxx_dev_s *mcp,
 
   SPI_SELECT(mcp->spi, SPIDEV_EXPANDER(mcp->index), true);
 
-  opcode = MCP23SXX_CONST_ADDR | ((mcp->config->address << 1) & MCP23SXX_ADDR_MASK) | MCP23SXX_WRITE;
+  opcode = MCP23SXX_CONST_ADDR |
+           ((mcp->config->address << 1) & MCP23SXX_ADDR_MASK) |
+           MCP23SXX_WRITE;
 
   SPI_SEND(mcp->spi, opcode);
 
@@ -214,22 +218,23 @@ static inline int mcp23sxx_read(FAR struct mcp23sxx_dev_s *mcp,
                                     FAR const uint8_t reg,
                                     FAR uint8_t *rbuffer, int rbuflen)
 {
+  uint8_t opcode;
 
-    uint8_t opcode;
+  SPI_SELECT(mcp->spi, SPIDEV_EXPANDER(mcp->index), true);
 
-    SPI_SELECT(mcp->spi, SPIDEV_EXPANDER(mcp->index), true);
+  opcode = MCP23SXX_CONST_ADDR |
+           ((mcp->config->address << 1) & MCP23SXX_ADDR_MASK) |
+           MCP23SXX_READ;
 
-    opcode = MCP23SXX_CONST_ADDR | ((mcp->config->address << 1) & MCP23SXX_ADDR_MASK) | MCP23SXX_READ;
+  SPI_SEND(mcp->spi, opcode);
 
-    SPI_SEND(mcp->spi, opcode);
+  SPI_SEND(mcp->spi, reg);
 
-    SPI_SEND(mcp->spi, reg);
+  SPI_RECVBLOCK(mcp->spi, rbuffer, rbuflen);
 
-    SPI_RECVBLOCK(mcp->spi, rbuffer, rbuflen);
+  SPI_SELECT(mcp->spi, SPIDEV_EXPANDER(mcp->index), false);
 
-    SPI_SELECT(mcp->spi, SPIDEV_EXPANDER(mcp->index), false);
-
-    return OK;
+  return OK;
 }
 
 /****************************************************************************
@@ -256,7 +261,7 @@ static int mcp23sxx_setbit(FAR struct mcp23sxx_dev_s *mcp, uint8_t addr,
   if (pin >= 8)
     {
       addr += 1;
-  }
+    }
 
   /* Bounds check */
 
@@ -264,7 +269,6 @@ static int mcp23sxx_setbit(FAR struct mcp23sxx_dev_s *mcp, uint8_t addr,
     {
       return -ENXIO;
     }
-
 
 #ifdef CONFIG_MCP23SXX_SHADOW_MODE
   /* Get the shadowed register value */
@@ -327,12 +331,13 @@ static int mcp23sxx_getbit(FAR struct mcp23sxx_dev_s *mcp, uint8_t addr,
     {
       return -ENXIO;
     }
+
   /* Increment the address if necessary */
 
   if (pin >= 8)
     {
       addr += 1;
-  }
+    }
 
   /* Bounds check */
 
@@ -399,7 +404,8 @@ static int mcp23sxx_direction(FAR struct ioexpander_dev_s *dev, uint8_t pin,
 
   ret = mcp23sxx_setbit(mcp, reg, pin,
                        (direction == IOEXPANDER_DIRECTION_IN));
-  gpioinfo("mcp23sxx pin %d set direction: %d\n", pin, (direction == IOEXPANDER_DIRECTION_IN));
+  gpioinfo("mcp23sxx pin %d set direction: %d\n", pin,
+           direction == IOEXPANDER_DIRECTION_IN);
   mcp23sxx_unlock(mcp);
   return ret;
 }
@@ -611,9 +617,9 @@ static int mcp23sxx_readbuf(FAR struct ioexpander_dev_s *dev, uint8_t pin,
  *
  ****************************************************************************/
 
-static int mcp23sxx_getmultibits(FAR struct mcp23sxx_dev_s *mcp, uint8_t addr,
-                                FAR uint8_t *pins, FAR bool *values,
-                                int count)
+static int mcp23sxx_getmultibits(FAR struct mcp23sxx_dev_s *mcp,
+                                 uint8_t addr, FAR uint8_t *pins,
+                                 FAR bool *values, int count)
 {
   uint8_t buf[2];
   int ret = OK;
@@ -643,6 +649,7 @@ static int mcp23sxx_getmultibits(FAR struct mcp23sxx_dev_s *mcp, uint8_t addr,
         {
           return -ENXIO;
         }
+
       if (pin < 8)
         {
           index = 0;
@@ -913,7 +920,8 @@ static FAR void *mcp23sxx_attach(FAR struct ioexpander_dev_s *dev,
  *
  ****************************************************************************/
 
-static int mcp23sxx_detach(FAR struct ioexpander_dev_s *dev, FAR void *handle)
+static int mcp23sxx_detach(FAR struct ioexpander_dev_s *dev,
+                           FAR void *handle)
 {
   FAR struct mcp23sxx_dev_s *mcp = (FAR struct mcp23sxx_dev_s *)dev;
   FAR struct mcp23sxx_callback_s *cb =
@@ -1043,8 +1051,9 @@ static int mcp23sxx_interrupt(int irq, FAR void *context, FAR void *arg)
  *
  ****************************************************************************/
 
-FAR struct ioexpander_dev_s *mcp23sxx_initialize
-      (FAR struct spi_dev_s *spidev, FAR const struct mcp23sxx_config_s *config)
+FAR struct ioexpander_dev_s *mcp23sxx_initialize(
+                             FAR struct spi_dev_s *spidev,
+                             FAR const struct mcp23sxx_config_s *config)
 {
   FAR struct mcp23sxx_dev_s *mcpdev;
 
