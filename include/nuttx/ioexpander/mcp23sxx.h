@@ -50,7 +50,7 @@ struct mcp23sxx_config_s
   /* Device characterization */
 
   uint8_t pincount; /* Number of GPIO pins on the device (8 or 16) */
-  uint8_t address;     /* SPI device address */
+  uint8_t address;     /* Device address */
   uint32_t frequency;  /* I2C or SPI frequency */
 
   /* Sets the state of the MCP23SXX's nReset pin */
@@ -107,7 +107,7 @@ extern "C"
  ****************************************************************************/
 
 FAR struct ioexpander_dev_s *mcp23sxx_initialize(FAR struct spi_dev_s *dev,
-                                        FAR struct mcp23sxx_config_s *config);
+                                        FAR const struct mcp23sxx_config_s *config);
 
 #ifdef __cplusplus
 }
