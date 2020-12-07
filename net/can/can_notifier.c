@@ -80,4 +80,4 @@ void can_readahead_signal(FAR struct can_conn_s *conn)
   work_notifier_signal(WORK_CAN_READAHEAD, conn);
 }
 
-#endif /* CONFIG_NET_TCP_NOTIFIER */
+#endif /* CONFIG_NET_CAN_NOTIFIER */

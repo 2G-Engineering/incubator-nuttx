@@ -49,6 +49,10 @@
 #include "stm32.h"
 #include "stm32_tiny.h"
 
+#ifdef CONFIG_WL_NRF24L01
+#include "stm32_nrf24l01.h"
+#endif
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -66,7 +70,7 @@
  *         implementation without modification.  The argument has no
  *         meaning to NuttX; the meaning of the argument is a contract
  *         between the board-specific initialization logic and the
- *         matching application logic.  The value cold be such things as a
+ *         matching application logic.  The value could be such things as a
  *         mode enumeration value, a set of DIP switch switch settings, a
  *         pointer to configuration data read from a file or serial FLASH,
  *         or whatever you would like to do with it.  Every implementation
@@ -80,9 +84,9 @@
 
 int board_app_initialize(uintptr_t arg)
 {
-#ifdef CONFIG_PWM
-  int ret;
+  int ret = OK;
 
+#ifdef CONFIG_PWM
   /* Initialize PWM and register the PWM device. */
 
   ret = stm32_pwm_setup();
@@ -93,9 +97,14 @@ int board_app_initialize(uintptr_t arg)
 #endif
 
 #if defined(CONFIG_WL_NRF24L01)
-  syslog(LOG_INFO, "Register the nRF24L01 module");
-  stm32_wlinitialize();
+  /* Initialize the NRF24L01 wireless module */
+
+  ret = board_nrf24l01_initialize(2);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_nrf24l01_initialize failed: %d\n", ret);
+    }
 #endif
 
-  return OK;
+  return ret;
 }

@@ -292,7 +292,9 @@ static int pty_open(FAR struct file *filep)
       sched_lock();
       while (devpair->pp_locked)
         {
-          /* Wait until unlocked.  We will also most certainly suspend here. */
+          /* Wait until unlocked.
+           * We will also most certainly suspend here.
+           */
 
           ret = nxsem_wait(&devpair->pp_slavesem);
           if (ret < 0)
@@ -671,6 +673,10 @@ static ssize_t pty_write(FAR struct file *filep,
                * How would we ripple the O_NONBLOCK characteristic to the
                * contained sink pipe?  file_vfcntl()?  Or FIONSPACE?  See the
                * TODO comment at the top of this file.
+               *
+               * NOTE: The newline is not included in total number of bytes
+               * written.  Otherwise, we would return more than the
+               * requested number of bytes.
                */
 
               nwritten = file_write(&dev->pd_sink, &cr, 1);
@@ -679,10 +685,6 @@ static ssize_t pty_write(FAR struct file *filep,
                   ntotal = nwritten;
                   break;
                 }
-
-              /* Update the count of bytes transferred */
-
-              ntotal++;
             }
 
           /* Transfer the (possibly translated) character..  This will block
@@ -793,7 +795,8 @@ static int pty_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
                do
                  {
-                   DEBUGVERIFY(nxsem_getvalue(&devpair->pp_slavesem, &sval));
+                   DEBUGVERIFY(nxsem_get_value(&devpair->pp_slavesem,
+                                               &sval));
                    if (sval < 0)
                      {
                        nxsem_post(&devpair->pp_slavesem);
@@ -966,7 +969,7 @@ static int pty_poll(FAR struct file *filep, FAR struct pollfd *fds,
       pollp = (FAR struct pty_poll_s *)fds->priv;
     }
 
-  /* POLLIN: Data other than high-priority data may be read without blocking. */
+  /* POLLIN: Data may be read without blocking. */
 
   if ((fds->events & POLLIN) != 0)
     {
@@ -1070,8 +1073,8 @@ static int pty_unlink(FAR struct inode *inode)
  *   minor - The number that qualifies the naming of the created devices.
  *
  * Returned Value:
- *   Zero (OK) is returned on success; a negated errno value is returned on
- *   any failure.
+ *   0 is returned on success; otherwise, the negative error code return
+ *   appropriately.
  *
  ****************************************************************************/
 
@@ -1100,7 +1103,7 @@ int pty_register(int minor)
    * have priority inheritance enabled.
    */
 
-  nxsem_setprotocol(&devpair->pp_slavesem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&devpair->pp_slavesem, SEM_PRIO_NONE);
 
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
   devpair->pp_minor             = minor;
@@ -1116,13 +1119,13 @@ int pty_register(int minor)
    *   pipe_b:  Master sink, slave source (RX, master-to-slave)
    */
 
-  ret = pipe2(pipe_a, CONFIG_PSEUDOTERM_TXBUFSIZE);
+  ret = nx_pipe(pipe_a, CONFIG_PSEUDOTERM_TXBUFSIZE, 0);
   if (ret < 0)
     {
       goto errout_with_devpair;
     }
 
-  ret = pipe2(pipe_b, CONFIG_PSEUDOTERM_RXBUFSIZE);
+  ret = nx_pipe(pipe_b, CONFIG_PSEUDOTERM_RXBUFSIZE, 0);
   if (ret < 0)
     {
       goto errout_with_pipea;

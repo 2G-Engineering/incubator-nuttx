@@ -46,6 +46,7 @@
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/arch.h>
+#include <nuttx/tls.h>
 
 #include "xtensa.h"
 
@@ -53,19 +54,13 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* XTENSA requires at least a 4-byte stack alignment.  For floating point
- * use, however, the stack must be aligned to 8-byte addresses.
- */
+/* XTENSA requires at least a 16-byte stack alignment. */
 
-#ifdef CONFIG_LIBC_FLOATINGPOINT
-#  define STACK_ALIGNMENT   8
-#else
-#  define STACK_ALIGNMENT   4
-#endif
+#define STACK_ALIGNMENT   16
 
 /* Stack alignment macros */
 
-#define STACK_ALIGN_MASK    (STACK_ALIGNMENT-1)
+#define STACK_ALIGN_MASK    (STACK_ALIGNMENT - 1)
 #define STACK_ALIGN_DOWN(a) ((a) & ~STACK_ALIGN_MASK)
 #define STACK_ALIGN_UP(a)   (((a) + STACK_ALIGN_MASK) & ~STACK_ALIGN_MASK)
 
@@ -78,7 +73,7 @@
  *
  * Description:
  *   Setup up stack-related information in the TCB using pre-allocated stack
- *   memory.  This function is called only from task_init() when a task or
+ *   memory.  This function is called only from nxtask_init() when a task or
  *   kernel thread is started (never for pthreads).
  *
  *   The following TCB fields must be initialized:
@@ -106,6 +101,12 @@ int up_use_stack(struct tcb_s *tcb, void *stack, size_t stack_size)
   size_t top_of_stack;
   size_t size_of_stack;
 
+#ifdef CONFIG_TLS_ALIGNED
+  /* Make certain that the user provided stack is properly aligned */
+
+  DEBUGASSERT(((uintptr_t)stack & TLS_STACK_MASK) == 0);
+#endif
+
   /* Is there already a stack allocated? */
 
   if (tcb->stack_alloc_ptr)
@@ -125,20 +126,37 @@ int up_use_stack(struct tcb_s *tcb, void *stack, size_t stack_size)
    * as positive word offsets from sp.
    */
 
-  top_of_stack = (uint32_t)tcb->stack_alloc_ptr + stack_size - 4;
+  top_of_stack = (uint32_t)tcb->stack_alloc_ptr + stack_size - 16;
 
-  /* The XTENSA stack must be aligned at word (4 byte) or double word
-   * (8 byte) boundaries. If necessary top_of_stack must be rounded down to
-   * the next boundary
+  /* The XTENSA stack must be aligned at 16 bytes boundaries. If necessary
+   * top_of_stack must be rounded down to the next boundary.
    */
 
   top_of_stack = STACK_ALIGN_DOWN(top_of_stack);
-  size_of_stack = top_of_stack - (uint32_t)tcb->stack_alloc_ptr + 4;
+  size_of_stack = top_of_stack - (uint32_t)tcb->stack_alloc_ptr + 16;
 
   /* Save the adjusted stack values in the struct tcb_s */
 
   tcb->adj_stack_ptr  = (uint32_t *)top_of_stack;
   tcb->adj_stack_size = size_of_stack;
+
+  /* Initialize the TLS data structure */
+
+  memset(tcb->stack_alloc_ptr, 0, sizeof(struct tls_info_s));
+
+#if defined(CONFIG_STACK_COLORATION)
+  /* If stack debug is enabled, then fill the stack with a
+   * recognizable value that we can use later to test for high
+   * water marks.
+   */
+
+  if (tcb->pid != 0)
+    {
+      up_stack_color((FAR void *)((uintptr_t)tcb->stack_alloc_ptr +
+                     sizeof(struct tls_info_s)),
+                     size_of_stack - sizeof(struct tls_info_s));
+    }
+#endif
 
   return OK;
 }

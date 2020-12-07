@@ -67,6 +67,7 @@ config TIMER_ARCH
 	bool "Timer Arch Implementation"
 	select ARCH_HAVE_TICKLESS
 	select ARCH_HAVE_TIMEKEEPING
+	select SCHED_TICKLESS_LIMIT_MAX_SLEEP if SCHED_TICKLESS
 	---help---
 		Implement timer arch API on top of timer driver interface.
 
@@ -86,6 +87,8 @@ config ALARM_ARCH
 	bool "Alarm Arch Implementation"
 	select ARCH_HAVE_TICKLESS
 	select ARCH_HAVE_TIMEKEEPING
+	select SCHED_TICKLESS_ALARM if SCHED_TICKLESS
+	select SCHED_TICKLESS_LIMIT_MAX_SLEEP if SCHED_TICKLESS
 	---help---
 		Implement alarm arch API on top of oneshot driver interface.
 
@@ -322,6 +325,14 @@ if WATCHDOG_AUTOMONITOR
 config WATCHDOG_AUTOMONITOR_TIMEOUT
 	int "Auto-monitor reset timeout(second)"
 	default 60
+
+config WATCHDOG_AUTOMONITOR_PING_INTERVAL
+	int "Auto-monitor keep a live interval"
+	default WATCHDOG_AUTOMONITOR_TIMEOUT
+	range 1 WATCHDOG_AUTOMONITOR_TIMEOUT
+	---help---
+		If the interval is same as WATCHDOG_AUTOMONITOR_TIMEOUT
+		the default value will change to (WATCHDOG_AUTOMONITOR_TIMEOUT / 2).
 
 choice
 	prompt "Auto-monitor keepalive by"

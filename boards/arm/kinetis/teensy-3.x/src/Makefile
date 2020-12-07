@@ -33,9 +33,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = k20_boot.c k20_spi.c k20_i2c.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)

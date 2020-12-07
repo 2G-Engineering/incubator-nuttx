@@ -50,10 +50,10 @@
 #include <nuttx/spinlock.h>
 #include <nuttx/sched_note.h>
 
-#include "up_arch.h"
+#include "riscv_arch.h"
 #include "sched/sched.h"
 #include "init/init.h"
-#include "up_internal.h"
+#include "riscv_internal.h"
 #include "chip.h"
 
 #ifdef CONFIG_SMP
@@ -143,7 +143,7 @@ void k210_cpu_boot(int cpu)
 
   /* Then transfer control to the IDLE task */
 
-  nx_idle_task(0, NULL);
+  nx_idle_trampoline();
 }
 
 /****************************************************************************

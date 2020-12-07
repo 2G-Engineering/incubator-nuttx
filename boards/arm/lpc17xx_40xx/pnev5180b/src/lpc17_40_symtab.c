@@ -48,7 +48,6 @@ extern void *exit;
 extern void *fflush;
 extern void *fopen;
 extern void *fprintf;
-extern void *get_errno_ptr;
 extern void *getpid;
 extern void *kill;
 extern void *memset;
@@ -61,7 +60,7 @@ extern void *pthread_mutex_init;
 extern void *pthread_mutex_lock;
 extern void *pthread_mutex_unlock;
 extern void *puts;
-extern void *sched_getstreams;
+extern void *nxsched_get_streams;
 extern void *sem_destroy;
 extern void *sem_init;
 extern void *sem_post;
@@ -80,7 +79,6 @@ const struct symtab_s lpc17_40_exports[] =
   {"fflush", &fflush},
   {"fopen", &fopen},
   {"fprintf", &fprintf},
-  {"get_errno_ptr", &get_errno_ptr},
   {"getpid", &getpid},
   {"kill", &kill},
   {"memset", &memset},
@@ -93,7 +91,7 @@ const struct symtab_s lpc17_40_exports[] =
   {"pthread_mutex_lock", &pthread_mutex_lock},
   {"pthread_mutex_unlock", &pthread_mutex_unlock},
   {"puts", &puts},
-  {"sched_getstreams", &sched_getstreams},
+  {"nxsched_get_streams", &nxsched_get_streams},
   {"sem_destroy", &sem_destroy},
   {"sem_init", &sem_init},
   {"sem_post", &sem_post},
@@ -107,4 +105,9 @@ const struct symtab_s lpc17_40_exports[] =
   {"usleep", &usleep},
 };
 
-const int lpc17_40_nexports = sizeof(lpc17_40_exports) / sizeof(struct symtab_s);
+const int lpc17_40_nexports =
+  sizeof(lpc17_40_exports) / sizeof(struct symtab_s);
+
+/*****************************************************************************
+ * Public Functions
+ *****************************************************************************/

@@ -33,27 +33,13 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
 ifeq ($(CONFIG_NET),y)
 
 # Basic networking support
 
-NET_ASRCS   =
-NET_CSRCS   = net_initialize.c
-
-# Socket support
-
-SOCK_ASRCS  =
-SOCK_CSRCS  =
-
-# Support for operations on network devices
-
-NETDEV_ASRCS =
-NETDEV_CSRCS =
-
-VPATH =
-DEPPATH = --dep-path .
+NET_CSRCS = net_initialize.c
 
 include socket/Make.defs
 include inet/Make.defs
@@ -81,6 +67,8 @@ include usrsock/Make.defs
 include utils/Make.defs
 endif
 
+CFLAGS += ${shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)net}
+
 ASRCS = $(SOCK_ASRCS) $(NETDEV_ASRCS) $(NET_ASRCS)
 AOBJS = $(ASRCS:.S=$(OBJEXT))
 
@@ -104,9 +92,13 @@ $(COBJS): %$(OBJEXT): %.c
 $(BIN): $(OBJS)
 	$(call ARCHIVE, $@, $(OBJS))
 
-.depend: Makefile $(SRCS)
+makedepfile: $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds)
+	$(call CATFILE, Make.dep, $^)
+	$(call DELFILE, $^)
+
+.depend: Makefile $(SRCS) $(TOPDIR)$(DELIM).config
 ifeq ($(CONFIG_NET),y)
-	$(Q) $(MKDEP) $(DEPPATH) "$(CC)" -- $(CFLAGS) -- $(SRCS) >Make.dep
+	$(Q) $(MAKE) makedepfile
 endif
 	$(Q) touch $@
 

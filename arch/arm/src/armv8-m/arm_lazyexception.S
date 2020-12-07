@@ -50,7 +50,7 @@
    * nested interrupt, the interrupt stack if no privileged task has run.
    */
 
-#  if defined(CONFIG_BUILD_PROTECTED) && CONFIG_ARCH_INTERRUPTSTACK < 4
+#  if defined(CONFIG_BUILD_PROTECTED) && CONFIG_ARCH_INTERRUPTSTACK < 8
 #    error Interrupt stack must be used with high priority interrupts in kernel mode
 #  endif
 
@@ -88,6 +88,10 @@
 
 #if !defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
 	.macro	setintstack, tmp1, tmp2
+#ifdef CONFIG_ARMV8M_STACKCHECK_HARDWARE
+	ldr		\tmp1, =g_intstackalloc
+	msr		msplim, \tmp1
+#endif
 	ldr		sp, =g_intstackbase
 	.endm
 #endif
@@ -125,16 +129,17 @@ exception_common:
 
 	/* Complete the context save */
 
+	tst		r14, #EXC_RETURN_PROCESS_STACK /* nonzero if context on process stack */
+
 #ifdef CONFIG_BUILD_PROTECTED
 	/* The EXC_RETURN value will be 0xfffffff9 (privileged thread) or 0xfffffff1
 	 * (handler mode) if the stack is on the MSP.  It can only be on the PSP if
 	 * EXC_RETURN is 0xfffffffd (unprivileged thread)
 	 */
 
-	tst		r14, #EXC_RETURN_PROCESS_STACK /* nonzero if context on process stack */
 	beq		1f						/* Branch if context already on the MSP */
 	mrs		r1, psp					/* R1=The process stack pointer (PSP) */
-	mov     sp, r1					/* Set the MSP to the PSP */
+	mov		sp, r1					/* Set the MSP to the PSP */
 
 1:
 #endif
@@ -146,6 +151,18 @@ exception_common:
 
 	mov		r2, sp					/* R2=Copy of the main/process stack pointer */
 	add		r2, #HW_XCPT_SIZE		/* R2=MSP/PSP before the interrupt was taken */
+
+#ifdef CONFIG_ARMV8M_STACKCHECK_HARDWARE
+	mov		r3, #0x0
+
+	ittee		eq
+	mrseq	r1, msplim
+	msreq	msplim, r3
+	mrsne	r1, psplim
+	msrne	psplim, r3
+
+	stmdb	sp!, {r1}
+#endif
 
 #ifdef CONFIG_ARMV8M_USEBASEPRI
 	mrs		r3, basepri				/* R3=Current BASEPRI setting */
@@ -174,7 +191,7 @@ exception_common:
 	stmdb	sp!, {r2-r11}			/* Save the remaining registers plus the SP value */
 #endif
 
-	/* There are two arguments to up_doirq:
+	/* There are two arguments to arm_doirq:
 	 *
 	 *   R0 = The IRQ number
 	 *   R1 = The top of the stack points to the saved state
@@ -205,10 +222,10 @@ exception_common:
 
 #endif
 
-	bl		up_doirq				/* R0=IRQ, R1=register save (msp) */
+	bl		arm_doirq				/* R0=IRQ, R1=register save (msp) */
 	mov		r1, r4					/* Recover R1=main stack pointer */
 
-	/* On return from up_doirq, R0 will hold a pointer to register context
+	/* On return from arm_doirq, R0 will hold a pointer to register context
 	 * array to use for the interrupt return.  If that return value is the same
 	 * as current stack pointer, then things are relatively easy.
 	 */
@@ -227,12 +244,12 @@ exception_common:
 	 * Here:
 	 *   r0 = Address of the register save area
 	 *
-	 * NOTE: It is a requirement that up_restorefpu() preserve the value of
+	 * NOTE: It is a requirement that arm_restorefpu() preserve the value of
 	 * r0!
 	 */
 
 #ifdef CONFIG_ARCH_FPU
-	bl		up_restorefpu			/* Restore the FPU registers */
+	bl		arm_restorefpu			/* Restore the FPU registers */
 #endif
 
 	/* We are returning with a pending context switch.  This case is different
@@ -246,9 +263,12 @@ exception_common:
 	ldr		r1, [r0, #(4*REG_SP)]	/* R1=Value of SP before interrupt */
 	stmdb	r1!, {r4-r11}			/* Store eight registers in HW save area */
 #ifdef CONFIG_BUILD_PROTECTED
-	ldmia	r0, {r2-r11,r14}		/* Recover R4-R11, r14 + 2 temp values */
+	ldmia	r0!, {r2-r11,r14}		/* Recover R4-R11, r14 + 2 temp values */
 #else
-	ldmia	r0, {r2-r11}			/* Recover R4-R11 + 2 temp values */
+	ldmia	r0!, {r2-r11}			/* Recover R4-R11 + 2 temp values */
+#endif
+#ifdef CONFIG_ARMV8M_STACKCHECK_HARDWARE
+	ldmia	r0, {r0}				/* Get psplim/msplim*/
 #endif
 	b		3f						/* Re-join common logic */
 
@@ -274,6 +294,10 @@ exception_common:
 	add		r1, #(4*SW_FPU_REGS)
 #endif
 
+#ifdef CONFIG_ARMV8M_STACKCHECK_HARDWARE
+	ldmia	r1!, {r0}				/* Get psplim/msplim */
+#endif
+
 	/* Set up to return from the exception
 	 *
 	 * Here:
@@ -296,14 +320,23 @@ exception_common:
 	beq		4f						/* Branch if privileged */
 
 	orr		r2, r2, #1				/* Unprivileged mode */
+#ifdef CONFIG_ARMV8M_STACKCHECK_HARDWARE
+	msr		psplim, r0
+#endif
 	msr		psp, r1					/* R1=The process stack pointer */
 	b		5f
 4:
 	bic		r2, r2, #1				/* Privileged mode */
+#ifdef CONFIG_ARMV8M_STACKCHECK_HARDWARE
+	msr		msplim, r0
+#endif
 	msr		msp, r1					/* R1=The main stack pointer */
 5:
 	msr		control, r2				/* Save the updated control register */
 #else
+#ifdef CONFIG_ARMV8M_STACKCHECK_HARDWARE
+	msr		msplim, r0
+#endif
 	msr		msp, r1					/* Recover the return MSP value */
 
 	/* Preload r14 with the special return value first (so that the return
@@ -340,7 +373,7 @@ exception_common:
 	.bss
 	.global	g_intstackalloc
 	.global	g_intstackbase
-	.align	8
+	.balign	8
 g_intstackalloc:
 	.skip	((CONFIG_ARCH_INTERRUPTSTACK + 4) & ~7)
 g_intstackbase:

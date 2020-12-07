@@ -25,6 +25,7 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <unistd.h>
@@ -38,8 +39,8 @@
 #include <nuttx/wireless/bluetooth/bt_uart.h>
 #include <nuttx/power/pm.h>
 
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "chip.h"
 #include "stm32_uart.h"
@@ -776,7 +777,7 @@ static void hciuart_enableints(const struct hciuart_config_s *config,
   cr2 |= (intset & USART_CR3_EIE);
   hciuart_putreg32(config, STM32_USART_CR3_OFFSET, cr2);
 
-  wlinfo("CR1 %08x CR2 %08x\n", cr1, cr2);
+  wlinfo("CR1 %08" PRIx32 " CR2 %08" PRIx32 "\n", cr1, cr2);
 }
 
 /****************************************************************************
@@ -808,7 +809,7 @@ static void hciuart_disableints(const struct hciuart_config_s *config,
   cr2 &= ~(intset & USART_CR3_EIE);
   hciuart_putreg32(config, STM32_USART_CR3_OFFSET, cr2);
 
-  wlinfo("CR1 %08x CR2 %08x\n", cr1, cr2);
+  wlinfo("CR1 %08" PRIx32 " CR2 %08" PRIx32 "\n", cr1, cr2);
 }
 
 /****************************************************************************
@@ -1725,7 +1726,7 @@ static int hciuart_interrupt(int irq, void *context, void *arg)
       /* Get the masked USART status word. */
 
       status = hciuart_getreg32(config, STM32_USART_SR_OFFSET);
-      wlinfo("status %08x\n", status);
+      wlinfo("status %08" PRIx32 "\n", status);
 
       /* USART interrupts:
        *
@@ -2317,7 +2318,7 @@ static ssize_t hciuart_rxdrain(const struct btuart_lowerhalf_s *lower)
   ssize_t nbytes;
   bool rxenable;
 
-  wlinfo("config %p\n");
+  wlinfo("config %p\n", config);
 
   DEBUGASSERT(config != NULL && config->state != NULL);
   state = config->state;
@@ -2592,10 +2593,10 @@ void hciuart_initialize(void)
           /* Initialize signalling semaphores */
 
           nxsem_init(&state->rxwait, 0, 0);
-          nxsem_setprotocol(&state->rxwait, SEM_PRIO_NONE);
+          nxsem_set_protocol(&state->rxwait, SEM_PRIO_NONE);
 
           nxsem_init(&state->txwait, 0, 0);
-          nxsem_setprotocol(&state->txwait, SEM_PRIO_NONE);
+          nxsem_set_protocol(&state->txwait, SEM_PRIO_NONE);
 
           /* Attach and enable the HCI UART IRQ */
 

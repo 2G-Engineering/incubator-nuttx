@@ -196,7 +196,8 @@ static inline void udp_newdata(FAR struct net_driver_s *dev,
 
 static inline void udp_readahead(struct udp_recvfrom_s *pstate)
 {
-  FAR struct udp_conn_s *conn = (FAR struct udp_conn_s *)pstate->ir_sock->s_conn;
+  FAR struct udp_conn_s *conn = (FAR struct udp_conn_s *)
+                                pstate->ir_sock->s_conn;
   FAR struct iob_s *iob;
   int recvlen;
 
@@ -522,7 +523,7 @@ static void udp_recvfrom_initialize(FAR struct socket *psock, FAR void *buf,
    */
 
   nxsem_init(&pstate->ir_sem, 0, 0); /* Doesn't really fail */
-  nxsem_setprotocol(&pstate->ir_sem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&pstate->ir_sem, SEM_PRIO_NONE);
 
   pstate->ir_buflen    = len;
   pstate->ir_buffer    = buf;
@@ -572,8 +573,9 @@ static ssize_t udp_recvfrom_result(int result, struct udp_recvfrom_s *pstate)
       return pstate->ir_result;
     }
 
-  /* If net_timedwait failed, then we were probably reawakened by a signal. In
-   * this case, net_timedwait will have returned negated errno appropriately.
+  /* If net_timedwait failed, then we were probably reawakened by a signal.
+   * In this case, net_timedwait will have returned negated errno
+   * appropriately.
    */
 
   if (result < 0)
@@ -654,9 +656,10 @@ ssize_t psock_udp_recvfrom(FAR struct socket *psock, FAR void *buf,
         }
     }
 
-  /* It is okay to block if we need to.  If there is space to receive anything
-   * more, then we will wait to receive the data.  Otherwise return the number
-   * of bytes read from the read-ahead buffer (already in 'ret').
+  /* It is okay to block if we need to.  If there is space to receive
+   * anything more, then we will wait to receive the data. Otherwise
+   * return the number of bytes read from the read-ahead buffer
+   * (already in 'ret').
    *
    * NOTE: that udp_readahead() may set state.ir_recvlen == -1.
    */
@@ -686,7 +689,7 @@ ssize_t psock_udp_recvfrom(FAR struct socket *psock, FAR void *buf,
            * received.
            */
 
-          ret = net_timedwait(&state. ir_sem, _SO_TIMEOUT(psock->s_rcvtimeo));
+          ret = net_timedwait(&state.ir_sem, _SO_TIMEOUT(psock->s_rcvtimeo));
           if (ret == -ETIMEDOUT)
             {
               ret = -EAGAIN;

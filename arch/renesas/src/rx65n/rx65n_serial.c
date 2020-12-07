@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <semaphore.h>
 #include <string.h>
 #include <errno.h>
 #include <debug.h>
@@ -36,13 +37,13 @@
 #include <nuttx/arch.h>
 #include <nuttx/serial/serial.h>
 #include "rx65n_macrodriver.h"
-#include "rx65n/iodefine.h"
+#include "arch/rx65n/iodefine.h"
 #include "chip.h"
 #include "up_arch.h"
 #include "up_internal.h"
 #include "rx65n_definitions.h"
 #include "rx65n_sci.h"
-#include "rx65n/irq.h"
+#include "arch/rx65n/irq.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -255,19 +256,19 @@
 
 struct up_dev_s
 {
-  uint32_t scibase;   /* Base address of SCI registers */
-  uint32_t baud;      /* Configured baud */
-  volatile  uint8_t scr;       /* Saved SCR value */
-  volatile  uint8_t ssr;       /* Saved SR value */
-  uint8_t xmitirq;   /* Base IRQ associated with xmit IRQ */
-  uint8_t recvirq;   /* Base IRQ associated with receive IRQ */
+  uint32_t scibase;      /* Base address of SCI registers */
+  uint32_t baud;         /* Configured baud */
+  volatile  uint8_t scr; /* Saved SCR value */
+  volatile  uint8_t ssr; /* Saved SR value */
+  uint8_t xmitirq;       /* Base IRQ associated with xmit IRQ */
+  uint8_t recvirq;       /* Base IRQ associated with receive IRQ */
   uint8_t eriirq;
   uint8_t teiirq;
   uint32_t grpibase;
   uint32_t erimask;
   uint32_t teimask;
-  uint8_t parity;    /* 0=none, 1=odd, 2=even */
-  uint8_t bits;      /* Number of bits (7 or 8) */
+  uint8_t parity; /* 0=none, 1=odd, 2=even */
+  uint8_t bits;   /* Number of bits (7 or 8) */
   bool stopbits2; /* true: Configure with 2 stop bits instead of 1 */
 };
 
@@ -283,7 +284,7 @@ static int  up_xmtinterrupt(int irq, void *context, FAR void *arg);
 static int  up_rcvinterrupt(int irq, void *context, FAR void *arg);
 static int  up_eriinterrupt(int irq, void *context, FAR void *arg);
 static int  up_teiinterrupt(int irq, void *context, FAR void *arg);
-static int  up_receive(struct uart_dev_s *dev, uint32_t *status);
+static int  up_receive(struct uart_dev_s *dev, unsigned int *status);
 static void up_rxint(struct uart_dev_s *dev, bool enable);
 static bool up_rxavailable(struct uart_dev_s *dev);
 static void up_send(struct uart_dev_s *dev, int ch);
@@ -1198,7 +1199,9 @@ static int up_eriinterrupt(int irq, void *context, void *arg)
 
       priv->ssr = up_serialin(priv, RX_SCI_SSR_OFFSET);
 
-      /* Clear all read related events (probably already done in up_receive)) */
+      /* Clear all read related events (probably already done in
+       * up_receive))
+       */
 
       priv->ssr &= ~(RX_SCISSR_ORER | RX_SCISSR_FER | RX_SCISSR_PER);
       up_serialout(priv, RX_SCI_SSR_OFFSET, priv->ssr);
@@ -1223,7 +1226,9 @@ static int up_teiinterrupt(int irq, void *context, void *arg)
 
     priv->ssr = up_serialin(priv, RX_SCI_SSR_OFFSET);
 
-      /* Clear all read related events (probably already done in up_receive)) */
+      /* Clear all read related events (probably already done in
+       * up_receive))
+       */
 
      priv->ssr &= ~(RX_SCISSR_TEND);
      up_serialout(priv, RX_SCI_SSR_OFFSET, priv->ssr);
@@ -1268,8 +1273,8 @@ static int  up_xmtinterrupt(int irq, void *context, FAR void *arg)
   DEBUGASSERT((NULL != dev));
 
   /* Handle outgoing, transmit bytes (TDRE: Transmit Data Register Empty)
-   * when TIE is enabled.  TIE is only enabled when the driver is waiting with
-   * buffered data.  Since TDRE is usually true,
+   * when TIE is enabled.  TIE is only enabled when the driver is waiting
+   * with buffered data.  Since TDRE is usually true,
    */
 
   uart_xmitchars(dev);
@@ -1297,8 +1302,8 @@ static int up_receive(struct uart_dev_s *dev, unsigned int *status)
 
   rdr  = up_serialin(priv, RX_SCI_RDR_OFFSET);
 
-  /* Clear all read related status in  real ssr (so that when when rxavailable
-   * is called again, it will return false.
+  /* Clear all read related status in  real ssr (so that when when
+   * rx available is called again, it will return false.
    */
 
   ssr = up_serialin(priv, RX_SCI_SSR_OFFSET);
@@ -1306,7 +1311,7 @@ static int up_receive(struct uart_dev_s *dev, unsigned int *status)
            RX_SCISSR_FER  | RX_SCISSR_PER) ;
   up_serialout(priv, RX_SCI_SSR_OFFSET, ssr);
 
-  /* For status, return the SSR at the time that the interrupt was received */
+  /* For status, return SSR at the time that the interrupt was received */
 
   *status = (uint32_t)priv->ssr << 8 | rdr;
 

@@ -103,8 +103,8 @@
 
 #include <arch/board/board.h>
 
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "sam_gclk.h"
 #include "chip.h"
@@ -783,7 +783,7 @@ static void sam_putreg32(uint32_t regval, uintptr_t regaddr)
   putreg32(regval, regaddr);
 }
 #else
-static inline void sam_putreg32(uint32_t regval, uint32_t regaddr)
+static inline void sam_putreg32(uint32_t regval, uintptr_t regaddr)
 {
   putreg32(regval, regaddr);
 }
@@ -836,7 +836,7 @@ static void sam_putreg16(uint16_t regval, uintptr_t regaddr)
   putreg16(regval, regaddr);
 }
 #else
-static inline void sam_putreg16(uint16_t regval, uint32_t regaddr)
+static inline void sam_putreg16(uint16_t regval, uintptr_t regaddr)
 {
   putreg16(regval, regaddr);
 }
@@ -889,7 +889,7 @@ static void sam_putreg8(uint8_t regval, uintptr_t regaddr)
   putreg8(regval, regaddr);
 }
 #else
-static inline void sam_putreg8(uint8_t regval, uint32_t regaddr)
+static inline void sam_putreg8(uint8_t regval, uintptr_t regaddr)
 {
   putreg8(regval, regaddr);
 }
@@ -2270,7 +2270,9 @@ static void sam_resume(struct sam_usbdev_s *priv)
 
       sam_enableclks();
 
-      /* Restore full power -- whatever that means for this particular board */
+      /* Restore full power -- whatever that means for this particular
+       * board
+       */
 
       sam_usb_suspend((struct usbdev_s *)priv, true);
 
@@ -3469,12 +3471,12 @@ static int sam_usb_interrupt(int irq, void *context, void *arg)
   return OK;
 }
 
-void up_usbuninitialize(void)
+void arm_usbuninitialize(void)
 {
-  uinfo("up_usbuninitialize()\n");
+  uinfo("arm_usbuninitialize()\n");
 }
 
-void up_usbinitialize(void)
+void arm_usbinitialize(void)
 {
   /* For now there is only one USB controller, but we will always refer to
    * it using a pointer to make any future ports to multiple USB controllers
@@ -3513,7 +3515,7 @@ void up_usbinitialize(void)
   return;
 
 errout:
-  up_usbuninitialize();
+  arm_usbuninitialize();
 }
 
 /****************************************************************************
@@ -4120,7 +4122,7 @@ int usbdev_unregister(struct usbdevclass_driver_s *driver)
 
   /* Put the hardware in an inactive state.  Then bring the hardware back up
    * in the initial state.  This is essentially the same state as we were
-   * in when up_usbinitialize() was first called.
+   * in when arm_usbinitialize() was first called.
    */
 
   sam_hw_shutdown(priv);

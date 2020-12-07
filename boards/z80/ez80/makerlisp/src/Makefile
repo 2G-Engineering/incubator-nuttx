@@ -33,9 +33,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = ez80_boot.c ez80_bringup.c
 
 ifeq ($(CONFIG_LIB_BOARDCTL),y)

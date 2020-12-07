@@ -32,7 +32,7 @@
 #include <nuttx/sched.h>
 
 #include "sched/sched.h"
-#include "up_internal.h"
+#include "arm_internal.h"
 
 /****************************************************************************
  * Public Functions
@@ -82,24 +82,25 @@ void up_reprioritize_rtr(struct tcb_s *tcb, uint8_t priority)
       sinfo("TCB=%p PRI=%d\n", tcb, priority);
 
       /* Remove the tcb task from the ready-to-run list.
-       * sched_removereadytorun will return true if we just removed the head
-       * of the ready to run list.
+       * nxsched_remove_readytorun() will return true if we just removed the
+       * head of the ready to run list.
        */
 
-      switch_needed = sched_removereadytorun(tcb);
+      switch_needed = nxsched_remove_readytorun(tcb);
 
       /* Setup up the new task priority */
 
       tcb->sched_priority = (uint8_t)priority;
 
-      /* Return the task to the ready-to-run task list. sched_addreadytorun
-       * will return true if the task was added to the head of ready-to-run
-       * list.  We will need to perform a context switch only if the
-       * EXCLUSIVE or of the two calls is non-zero (i.e., one and only one
-       * the calls changes the head of the ready-to-run list).
+      /* Return the task to the ready-to-run task list.
+       * nxsched_add_readytorun() will return true if the task was added to
+       * the head of ready-to-run list.  We will need to perform a context
+       * switch only if the EXCLUSIVE or of the two calls is non-zero (i.e.,
+       * one and only one the calls changes the head of the ready-to-run
+       * list).
        */
 
-      switch_needed ^= sched_addreadytorun(tcb);
+      switch_needed ^= nxsched_add_readytorun(tcb);
 
       /* Now, perform the context switch if one is needed (i.e. if the head
        * of the ready-to-run list is no longer the same).
@@ -114,12 +115,12 @@ void up_reprioritize_rtr(struct tcb_s *tcb, uint8_t priority)
 
           if (g_pendingtasks.head)
             {
-              sched_mergepending();
+              nxsched_merge_pending();
             }
 
           /* Update scheduler parameters */
 
-          sched_suspend_scheduler(rtcb);
+          nxsched_suspend_scheduler(rtcb);
 
           /* Are we in an interrupt handler? */
 
@@ -129,7 +130,7 @@ void up_reprioritize_rtr(struct tcb_s *tcb, uint8_t priority)
                * Just copy the CURRENT_REGS into the OLD rtcb.
                */
 
-               up_savestate(rtcb->xcp.regs);
+               arm_savestate(rtcb->xcp.regs);
 
               /* Restore the exception context of the rtcb at the (new) head
                * of the ready-to-run task list.
@@ -139,11 +140,11 @@ void up_reprioritize_rtr(struct tcb_s *tcb, uint8_t priority)
 
               /* Update scheduler parameters */
 
-              sched_resume_scheduler(rtcb);
+              nxsched_resume_scheduler(rtcb);
 
               /* Then switch contexts */
 
-              up_restorestate(rtcb->xcp.regs);
+              arm_restorestate(rtcb->xcp.regs);
             }
 
           /* No, then we will need to perform the user context switch */
@@ -154,7 +155,7 @@ void up_reprioritize_rtr(struct tcb_s *tcb, uint8_t priority)
 
               /* Update scheduler parameters */
 
-              sched_resume_scheduler(nexttcb);
+              nxsched_resume_scheduler(nexttcb);
 
               /* Switch context to the context of the task at the head of the
                * ready to run list.

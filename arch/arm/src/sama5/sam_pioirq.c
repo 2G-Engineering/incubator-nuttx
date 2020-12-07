@@ -50,8 +50,8 @@
 #include <arch/irq.h>
 #include <arch/board/board.h>
 
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "hardware/sam_pio.h"
 #include "hardware/sam_pmc.h"
@@ -386,8 +386,10 @@ void sam_pioirq(pio_pinset_t pinset)
 #if defined(SAM_PIO_ISLR_OFFSET)
   uint32_t regval;
 #endif
+#if defined(SAM_PIO_ISLR_OFFSET) || defined(_PIO_INT_AIM)
   uint32_t base = sam_piobase(pinset);
   int      pin  = sam_piopin(pinset);
+#endif
 
 #if defined(SAM_PIO_ISLR_OFFSET)
   /* Enable writing to PIO registers.  The following registers are protected:

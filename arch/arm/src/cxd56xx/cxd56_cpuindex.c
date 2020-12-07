@@ -41,15 +41,10 @@
 #include <stdint.h>
 #include <nuttx/arch.h>
 
-#include "up_arch.h"
+#include "arm_arch.h"
+#include "cxd56_cpuindex.h"
 
 #ifdef CONFIG_SMP
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-#define CXD56_ADSP_PID 0x0e002040  /* APP_DSP Processor ID */
 
 /****************************************************************************
  * Public Functions

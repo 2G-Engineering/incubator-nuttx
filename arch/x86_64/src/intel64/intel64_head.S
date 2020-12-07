@@ -63,8 +63,9 @@
  ****************************************************************************/
     .global     __pmode_entry                   /* The 32bit protected mode entry */
     .global     __nxstart
-    .global     __enable_sse3
+    .global     __enable_sse_avx
     .global     __enable_pcid
+    .global     __revoke_low_memory
     .global     nx_start                        /* nx_start is defined elsewhere */
     .global     up_lowsetup                     /* up_lowsetup is defined elsewhere */
     .global     g_idle_topstack                 /* The end of the idle stack, the start of the heap */
@@ -88,11 +89,11 @@
     .set    HEADER_LENGTH, header_end - header_start
     .set    CHECKSUM, -(MULTIBOOT2_HEADER_MAGIC + MULTIBOOT_ARCHITECTURE_I386 + HEADER_LENGTH)
 
-#ifndef CONFIG_ARCH_EXCLUDE_MULTIBOOT
     .section ".multiboot", "a"
     .align    8
 
 header_start:
+#ifndef CONFIG_ARCH_EXCLUDE_MULTIBOOT
     .long MULTIBOOT2_HEADER_MAGIC
     .long MULTIBOOT_ARCHITECTURE_I386
     .long HEADER_LENGTH
@@ -103,9 +104,41 @@ header_start:
     .short MULTIBOOT_HEADER_TAG_END
     .short 0    // flags, none set
     .long 8     // size, including itself (short + short + long)
+#endif
 header_end:
 
-#endif
+	.code16
+	.section ".realmode", "ax"
+
+    .type   __reset_entry, @function
+__reset_entry:
+    // Load a GDT for protected mode
+    movl $loader_gdt_ptr, %ebx
+	lgdtl (%ebx)
+
+    // enable protected mode in CR0
+	mov %cr0,%eax
+	or $X86_CR0_PE,%al
+	mov %eax,%cr0
+
+    // Long jump into protected mode
+    // Hardcode the address
+	ljmpl $0x8,$0x100000
+
+    // Loader GDT and GDTR
+	.align(16)
+	.global loader_gdt
+loader_gdt:
+	.quad	0
+	.quad	0x00cf9a000000ffff
+	.quad	0x00cf92000000ffff
+
+loader_gdt_ptr:
+	.short	loader_gdt_ptr - loader_gdt - 1
+	.long	loader_gdt
+
+    .size	__reset_entry, . - __reset_entry
+
 
 /****************************************************************************
  * .text
@@ -123,6 +156,11 @@ header_end:
  *
  ****************************************************************************/
 
+start32_0:
+    mov $0x10, %ax
+    mov %ax, %ss
+    mov %ax, %ds
+
     .type   __pmode_entry, @function
 __pmode_entry:
 start32:
@@ -133,8 +171,8 @@ start32:
 
     // Popluate the lower 4GB as non-present
     // for ecx = 0...512 * 4 : Loop and setup the page directories
-    mov     $0x800, %ecx // 512 * 3
-epd_loop: 
+    mov     $0x800, %ecx // 512 * 4
+epd_loop:
     mov     %esi,   %edx
     or      $(X86_PAGE_WR | X86_PAGE_PRESENT), %edx
     mov     %edx, 0(%edi)
@@ -160,7 +198,7 @@ ept_loop:
 
     // for ecx = 0...64 : Loop and setup 64x 2MB page directories
     mov     $64,    %ecx
-pd_loop: 
+pd_loop:
     mov     %eax, 0(%edi)
     add     $(HUGE_PAGE_SIZE), %eax
     add     $(X86_PAGE_ENTRY_SIZE), %edi
@@ -183,7 +221,7 @@ pd_loop:
     mov     %eax,   %cr4
 
     // Load the 4 level page table
-    // Level 1 and 2 were preset at build time in assembly for this loading 
+    // Level 1 and 2 were preset at build time in assembly for this loading
     // process
     // 4KiB page table is used
     // Kernel mapped to 1GB HiMem
@@ -240,24 +278,11 @@ start64:
  *
  ****************************************************************************/
 
-    .section .text, "a"
+    .section .text, "ax"
     .type   __nxstart, @function
 
 __nxstart:
-    /* We are now in high memory, revoke the lower 128MB memory mapping */
-    lea     pd_low, %edi
-    mov     $0,     %eax
-
-    // for ecx = 0...64 : Loop and setup 64x 2MB page directories
-    mov     $64,   %ecx
-npd_loop: 
-    mov     %eax, 0(%edi)
-    add     $(HUGE_PAGE_SIZE), %eax
-    add     $(X86_PAGE_ENTRY_SIZE), %edi
-
-    // end for ecx
-    dec     %ecx
-    jnz     npd_loop
+    /* We are now in high memory, will revoke the lower 128MB memory mapping in lowsetup*/
 
     //clear out bss section
     movabs  $_sbss, %rbx
@@ -289,29 +314,52 @@ hang:
     jmp    hang
     .size    __nxstart, . - __nxstart
 
+    .type   __revoke_low_memory, @function
+__revoke_low_memory:
+
+    /* Revoke the lower 128MB memory mapping */
+    lea     pd_low, %edi
+    lea     pt_low, %esi
+
+    // for ecx = 0...64 : Loop and setup 64x 2MB page directories
+    mov     $64,   %ecx
+npd_loop:
+    mov     %esi,   %edx
+    or      $(X86_PAGE_WR | X86_PAGE_PRESENT), %edx
+    mov     %edx, 0(%edi)
+    add     $(PAGE_SIZE), %esi
+    add     $(X86_PAGE_ENTRY_SIZE), %edi
+
+    // end for ecx
+    dec     %ecx
+    jnz     npd_loop
+
+    ret
+
+    .size    __revoke_low_memory, . - __revoke_low_memory
 
 /****************************************************************************
- * Name: __enable_sse3
+ * Name: __enable_sse_avx
  *
  * Description:
  *   Do low-level initialization SSE related processor setting
  *
  ****************************************************************************/
 
-    .type   __enable_sse3, @function
+    .type   __enable_sse_avx, @function
 
-__enable_sse3:
+__enable_sse_avx:
     // Enable SSE
     mov     %cr0,   %rax
     mov     $(X86_CR0_EM), %rbx
     not     %rbx
     and     %rbx,   %rax
-    or      $(X86_CR0_MP), %rax 
+    or      $(X86_CR0_MP), %rax
     mov     %rax,   %cr0
 
     // Enable Saving XMM context
     mov     %cr4,   %rax
-    or      $(X86_CR4_OSXFSR | X86_CR4_XMMEXCPT),   %rax 
+    or      $(X86_CR4_OSXFSR | X86_CR4_XMMEXCPT),   %rax
     mov     %rax,   %cr4
 
     // Setup MXCSR, masking all SSE precision exception
@@ -319,7 +367,7 @@ __enable_sse3:
 
     ret
 
-    .size    __enable_sse3, . - __enable_sse3
+    .size    __enable_sse_avx, . - __enable_sse_avx
 
 
 /****************************************************************************
@@ -434,7 +482,7 @@ pt_low:
  * do in the system (see up_idle()).
  */
 
-    .section    .bss, "a"
+    .section    .bss
 
     .type    idle_stack, @object
     .comm    idle_stack, CONFIG_IDLETHREAD_STACKSIZE, 32

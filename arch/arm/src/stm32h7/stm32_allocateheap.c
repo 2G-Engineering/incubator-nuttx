@@ -40,6 +40,7 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
@@ -54,8 +55,8 @@
 #include <arch/board/board.h>
 
 #include "mpu.h"
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "hardware/stm32_memorymap.h"
 #include "stm32_mpuinit.h"
@@ -66,7 +67,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* At startup the kernel will invoke up_addregion() so that platform code
+/* At startup the kernel will invoke arm_addregion() so that platform code
  * may register available memories for use as part of system heap.
  * The global configuration option CONFIG_MM_REGIONS defines the maximal
  * number of non-contiguous memory ranges that may be registered with the
@@ -77,7 +78,7 @@
  *
  * - AXI SRAM is a 512kb memory area. This will be automatically registered
  *      with the system heap in up_allocate_heap, all the other memory
- *      regions will be registered in up_addregion().
+ *      regions will be registered in arm_addregion().
  *      So, CONFIG_MM_REGIONS must be at least 1 to use AXI SRAM.
  *
  * - Internal SRAM is available in all members of the STM32 family.
@@ -93,7 +94,7 @@
  *      +1 to CONFIG_MM_REGIONS if you want to use DTCM.
  *
  * - External SDRAM can be connected to the FMC peripherial. Initialization
- *      of FMC is done as up_addregion() will invoke stm32_fmc_init().
+ *      of FMC is done as arm_addregion() will invoke stm32_fmc_init().
  *      Please read the comment in stm32_fmc.c how to initialize FMC
  *      correctly.
  *
@@ -300,6 +301,7 @@ void up_allocate_kheap(FAR void **heap_start, size_t *heap_size)
 }
 #endif
 
+#if (CONFIG_MM_REGIONS > 1)
 /****************************************************************************
  * Name: addregion
  *
@@ -313,7 +315,7 @@ static void addregion (uintptr_t start, uint32_t size, const char *desc)
 {
   /* Display memory ranges to help debugging */
 
-  minfo("%uKb of %s at %p\n", size / 1024, desc, (FAR void *)start);
+  minfo("%" PRIu32 "Kb of %s at %p\n", size / 1024, desc, (FAR void *)start);
 
 #if defined(CONFIG_BUILD_PROTECTED) && defined(CONFIG_MM_KERNEL_HEAP)
 
@@ -333,7 +335,7 @@ static void addregion (uintptr_t start, uint32_t size, const char *desc)
 }
 
 /****************************************************************************
- * Name: up_addregion
+ * Name: arm_addregion
  *
  * Description:
  *   Memory may be added in non-contiguous chunks.  Additional chunks are
@@ -341,11 +343,17 @@ static void addregion (uintptr_t start, uint32_t size, const char *desc)
  *
  ****************************************************************************/
 
-void up_addregion(void)
+void arm_addregion(void)
 {
-  addregion (SRAM123_START, SRAM123_END - SRAM123_START, "SRAM1,2,3");
+  /* At this point there is already one region allocated for "kernel" heap */
 
   unsigned mm_regions = 1;
+
+  if (mm_regions < CONFIG_MM_REGIONS)
+    {
+      addregion (SRAM123_START, SRAM123_END - SRAM123_START, "SRAM1,2,3");
+      mm_regions++;
+    }
 
   if (mm_regions < CONFIG_MM_REGIONS)
     {
@@ -389,3 +397,4 @@ void up_addregion(void)
     }
 #endif
 }
+#endif

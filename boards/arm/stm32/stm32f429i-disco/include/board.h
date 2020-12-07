@@ -458,21 +458,18 @@
 
 #endif /* CONFIG_STM32_LTDC */
 
-/* Configuration specific to high priority interrupts example:
- *   - TIM1 CC1 trigger for ADC if DMA transfer and TIM1 PWM
- *   - ADC DMA transfer on DMA1_CH1
- */
+/* L3GD20 MEMS */
 
-#ifdef CONFIG_STM32F429I_DISCO_HIGHPRI
+#define GPIO_L3GD20_DREADY (GPIO_INPUT|GPIO_FLOAT|GPIO_EXTI|GPIO_PORTA|GPIO_PIN2)
+#define L3GD20_IRQ         (2 + STM32_IRQ_EXTI0)
 
-#if defined(CONFIG_STM32_TIM1_PWM) && defined(CONFIG_STM32_ADC1_DMA)
+#define BOARD_L3GD20_GPIO_DREADY GPIO_L3GD20_DREADY
+#define BOARD_L3GD20_IRQ         L3GD20_IRQ
 
-/* TIM1 - ADC trigger */
+#define GPIO_LIS3DSH_EXT0 \
+  (GPIO_INPUT|GPIO_FLOAT|GPIO_AF0|GPIO_SPEED_50MHz|GPIO_PORTE|GPIO_PIN0)
 
-#define ADC1_EXTSEL_VALUE ADC1_EXTSEL_T1CC1
-
-#endif /* CONFIG_STM32_TIM1_PWM */
-#endif /* CONFIG_STM32F429I_DISCO_HIGHPRI */
+#define BOARD_LIS3DSH_GPIO_EXT0 GPIO_LIS3DSH_EXT0
 
 /* DMA ******************************************************************************/
 

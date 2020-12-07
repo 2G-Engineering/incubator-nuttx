@@ -58,7 +58,7 @@ They are encoded as follows:
     LED_PANIC           The system has crashed  BLINK   BLINK
     LED_IDLE            STM32 is is sleep mode  (Optional, not used)
 
-  * If Nuttx starts correctly, normal state is to have LED1 on and LED2 off.
+  * If NuttX starts correctly, normal state is to have LED1 on and LED2 off.
  ** LED1 is turned off during interrupt.
 *** LED2 is turned on during signal handler.
 
@@ -483,7 +483,7 @@ Where <subdir> is one of the following:
     more information.
 
       CONFIG_HOST_LINUX=y                      : Linux host
-      CONFIG_ARMV7M_TOOLCHAIN_CODESOURCERYL=y  : CodeSourcery toolchain under Linux
+      CONFIG_ARMV7M_TOOLCHAIN_GNU_EABIL=y      : GNU EABI toolchain for Linux
 
     USB debug output can be enabled as by changing the following
     settings in the configuration file:

@@ -57,6 +57,16 @@
 #include "stm32.h"
 #include "olimex-stm32-e407.h"
 
+/* The following are includes from board-common logic */
+
+#ifdef CONFIG_SENSORS_BMP180
+#include "stm32_bmp180.h"
+#endif
+
+#ifdef CONFIG_SENSORS_INA219
+#include "stm32_ina219.h"
+#endif
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -196,8 +206,8 @@ int stm32_bringup(void)
 #endif
 
 #ifdef HAVE_USBHOST
-  /* Initialize USB host operation.  stm32_usbhost_initialize() starts a thread
-   * will monitor for USB connection and disconnection events.
+  /* Initialize USB host operation.  stm32_usbhost_initialize() starts a
+   * thread will monitor for USB connection and disconnection events.
    */
 
   ret = stm32_usbhost_initialize();
@@ -221,7 +231,7 @@ int stm32_bringup(void)
 #ifdef CONFIG_SENSORS_BMP180
   /* Initialize the BMP180 pressure sensor. */
 
-  ret = stm32_bmp180initialize("/dev/press0");
+  ret = board_bmp180_initialize(0, 1);
   if (ret < 0)
     {
       syslog(LOG_ERR, "Failed to initialize BMP180, error %d\n", ret);
@@ -242,7 +252,7 @@ int stm32_bringup(void)
 #ifdef CONFIG_SENSORS_INA219
   /* Configure and initialize the INA219 sensor */
 
-  ret = stm32_ina219initialize("/dev/ina219");
+  ret = board_ina219_initialize(0, 1);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_ina219initialize() failed: %d\n", ret);
@@ -250,7 +260,7 @@ int stm32_bringup(void)
 #endif
 
 #if defined(CONFIG_TIMER)
-  /*Initialize the timer, at this moment it's only Timer 1,2,3*/
+  /* Initialize the timer, at this moment it's only Timer 1,2,3 */
 
   #if defined(CONFIG_STM32_TIM1)
     stm32_timer_driver_setup("/dev/timer1", 1);
@@ -269,7 +279,8 @@ int stm32_bringup(void)
   ret = stm32_mrf24j40_initialize();
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: stm32_mrf24j40_initialize() failed: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: stm32_mrf24j40_initialize() failed:"
+                      " %d\n", ret);
     }
 #endif
 

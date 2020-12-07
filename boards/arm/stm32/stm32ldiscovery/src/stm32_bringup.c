@@ -39,14 +39,21 @@
 
 #include <nuttx/config.h>
 
+#include <sys/types.h>
+#include <sys/mount.h>
 #include <syslog.h>
 
-#include <nuttx/board.h>
 #include <nuttx/input/buttons.h>
+#include <nuttx/leds/userled.h>
+#include <nuttx/board.h>
 
 #include <arch/board/board.h>
 
 #include "stm32ldiscovery.h"
+
+#ifdef CONFIG_SENSORS_QENCODER
+#  include "board_qencoder.h"
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -70,7 +77,34 @@ int stm32_bringup(void)
 {
   int ret = OK;
 
+#ifdef CONFIG_FS_PROCFS
+  /* Mount the procfs file system */
+
+  ret = mount(NULL, "/proc", "procfs", 0, NULL);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to mount procfs at /proc: %d\n", ret);
+    }
+#endif
+
+#if defined(CONFIG_USERLED) && !defined(CONFIG_ARCH_LEDS)
+#ifdef CONFIG_USERLED_LOWER
+  /* Register the LED driver */
+
+  ret = userled_lower_initialize("/dev/userleds");
+  if (ret != OK)
+    {
+      syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n", ret);
+    }
+#else
+  /* Enable USER LED support for some other purpose */
+
+  board_userled_initialize();
+#endif /* CONFIG_USERLED_LOWER */
+#endif /* CONFIG_USERLED && !CONFIG_ARCH_LEDS */
+
 #ifdef CONFIG_BUTTONS
+#ifdef CONFIG_BUTTONS_LOWER
   /* Register the BUTTON driver */
 
   ret = btn_lower_initialize("/dev/buttons");
@@ -78,7 +112,12 @@ int stm32_bringup(void)
     {
       syslog(LOG_ERR, "ERROR: btn_lower_initialize() failed: %d\n", ret);
     }
-#endif
+#else
+  /* Enable BUTTON support for some other purpose */
+
+  board_button_initialize();
+#endif /* CONFIG_BUTTONS_LOWER */
+#endif /* CONFIG_BUTTONS */
 
 #ifdef CONFIG_STM32_LCD
   /* Initialize the SLCD and register the SLCD device as /dev/slcd0 */
@@ -104,7 +143,7 @@ int stm32_bringup(void)
 #ifdef CONFIG_SENSORS_QENCODER
   /* Initialize and register the qencoder driver */
 
-  ret = stm32_qencoder_initialize("/dev/qe0", CONFIG_STM32LDISCO_QETIMER);
+  ret = board_qencoder_initialize(0, CONFIG_STM32LDISCO_QETIMER);
   if (ret != OK)
     {
       syslog(LOG_ERR,

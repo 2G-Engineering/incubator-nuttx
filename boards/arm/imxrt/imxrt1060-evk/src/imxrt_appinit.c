@@ -39,12 +39,16 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-
+#include <syslog.h>
 #include <sys/types.h>
 
 #include <nuttx/board.h>
 
 #include "imxrt1060-evk.h"
+
+#if !defined(CONFIG_ARCH_LEDS) && defined(CONFIG_USERLED_LOWER)
+#  define HAVE_LEDS 0
+#endif
 
 #ifdef CONFIG_LIB_BOARDCTL
 
@@ -65,7 +69,7 @@
  *         implementation without modification.  The argument has no
  *         meaning to NuttX; the meaning of the argument is a contract
  *         between the board-specific initialization logic and the
- *         matching application logic.  The value cold be such things as a
+ *         matching application logic.  The value could be such things as a
  *         mode enumeration value, a set of DIP switch switch settings, a
  *         pointer to configuration data read from a file or serial FLASH,
  *         or whatever you would like to do with it.  Every implementation
@@ -79,6 +83,18 @@
 
 int board_app_initialize(uintptr_t arg)
 {
+#ifdef HAVE_LEDS
+  /* Register the LED driver */
+
+  int ret;
+  ret = userled_lower_initialize(LED_DRIVER_PATH);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n", ret);
+      return ret;
+    }
+#endif
+
 #ifndef CONFIG_BOARD_LATE_INITIALIZE
   /* Perform board initialization */
 

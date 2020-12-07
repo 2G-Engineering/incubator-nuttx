@@ -69,7 +69,9 @@ void up_enable_irq(int irq);
 void up_disable_irq(int irq);
 void  rtc_prd_interrupt(void);
 static uint32_t rtc_dec2bcd(uint8_t value);
+#if defined (CONFIG_RTC_HIRES) || defined (CONFIG_RTC_ALARM) || defined (CONFIG_RTC_DATETIME)
 static int rtc_bcd2dec(uint32_t value);
+#endif
 
 /****************************************************************************
  * Private Data
@@ -91,7 +93,7 @@ struct alm_cbinfo_s
 struct prd_cbinfo_s
 {
   volatile periodiccb_t prd_cb; /* Client callback function */
-  volatile FAR void *prd_arg;     /* Argument to pass with the callback function */
+  volatile FAR void *prd_arg;   /* Argument to pass with the callback function */
 };
 #endif
 
@@ -236,10 +238,12 @@ static uint32_t rtc_dec2bcd(uint8_t value)
  *
  ****************************************************************************/
 
+#if defined (CONFIG_RTC_HIRES) || defined (CONFIG_RTC_ALARM) || defined (CONFIG_RTC_DATETIME)
 static int rtc_bcd2dec(uint32_t value)
 {
   return (int) ((((value & 0xf0) >> 4) * 10) + (value & 0x0f));
 }
+#endif
 
 /****************************************************************************
  * Name: rtc_interrupt
@@ -539,6 +543,142 @@ int up_rtc_gettime(FAR struct timespec *tp)
 }
 #endif
 
+int rx65n_rtc_setdatetime(FAR const struct tm *tp)
+{
+  int i;
+  volatile uint8_t dummy_byte;
+  volatile uint16_t dummy_word;
+
+  /* Break out the time values (note that the time is set only to units of
+   * seconds)
+   */
+
+  /* (void)gmtime_r(&tp->tv_sec, &tp); */
+
+  rtc_dumptime(&tp, "Setting time");
+
+  /* Then write the broken out values to the RTC */
+
+  /* Convert the struct tm format to RTC time register fields.
+   *
+   *   struct tm       TIMR register
+   *   tm_sec    0-61* SEC    (0-59)
+   *   tm_min    0-59  MIN    (0-59)
+   *   tm_hour   0-23  HOUR   (0-23)
+   *
+   *  *To allow for leap seconds.  But these never actuall happen.
+   */
+
+  /* Stop all counters */
+
+  RTC.RCR2.BIT.START = 0U;
+  while (0U != RTC.RCR2.BIT.START)
+    {
+      /* Ensure the clock is stopped while configuring it. */
+    }
+
+  /* Execute RTC software reset */
+
+  RTC.RCR2.BIT.RESET = 1U;
+  while (1U != RTC.RCR2.BIT.RESET)
+    {
+      /* Wait for the reset to complete */
+    }
+
+  RTC.RCR2.BIT.HR24 = 1;
+
+  /* Set time */
+
+  /* Set seconds. (0-59) */
+
+  RTC.RSECCNT.BYTE = rtc_dec2bcd((uint8_t)tp->tm_sec);
+
+  /* WAIT_LOOP */
+
+  for (i = 0; i < RTC_DUMMY_READ; i++)
+    {
+      dummy_byte = RTC.RSECCNT.BYTE;
+    }
+
+  /* Set minutes (0-59) */
+
+  RTC.RMINCNT.BYTE = rtc_dec2bcd((uint8_t) tp->tm_min);
+
+  /* WAIT_LOOP */
+
+  for (i = 0; i < RTC_DUMMY_READ; i++)
+    {
+      dummy_byte = RTC.RMINCNT.BYTE;
+    }
+
+  /* Set hours. (0-23) */
+
+  RTC.RHRCNT.BYTE = rtc_dec2bcd((uint8_t) tp->tm_hour);
+
+  /* WAIT_LOOP */
+
+  for (i = 0; i < RTC_DUMMY_READ; i++)
+    {
+      dummy_byte = RTC.RHRCNT.BYTE;
+    }
+
+  /* Set the date */
+
+  /* Day of the week (0-6, 0=Sunday) */
+
+#if defined(CONFIG_LIBC_LOCALTIME) || defined(CONFIG_TIME_EXTENDED)
+  RTC.RWKCNT.BYTE = rtc_dec2bcd((uint8_t) tp->tm_wday);
+
+  /* WAIT_LOOP */
+
+  for (i = 0; i < RTC_DUMMY_READ; i++)
+    {
+      dummy_byte = RTC.RWKCNT.BYTE;
+    }
+#endif
+
+  /* Day of the month (1-31) */
+
+  RTC.RDAYCNT.BYTE = rtc_dec2bcd((uint8_t) tp->tm_mday);
+
+  /* WAIT_LOOP */
+
+  for (i = 0; i < RTC_DUMMY_READ; i++)
+    {
+      dummy_byte = RTC.RDAYCNT.BYTE;
+    }
+
+  /* Month. (1-12, 1=January) */
+
+  RTC.RMONCNT.BYTE = rtc_dec2bcd((uint8_t) (tp->tm_mon + 1));
+
+  /* WAIT_LOOP */
+
+  for (i = 0; i < RTC_DUMMY_READ; i++)
+    {
+      dummy_byte = RTC.RMONCNT.BYTE;
+    }
+
+  /* Year. (00-99) */
+
+  RTC.RYRCNT.WORD = (uint16_t) (rtc_dec2bcd((uint8_t)
+                               ((tp->tm_year + 1900) % 100)));
+
+  /* WAIT_LOOP */
+
+  for (i = 0; i < RTC_DUMMY_READ; i++)
+    {
+      dummy_word = RTC.RYRCNT.WORD;
+    }
+
+  RTC.RCR2.BIT.START = 1U;
+
+  rtc_dumpregs("New time setting");
+  UNUSED(dummy_word);
+  UNUSED(dummy_byte);
+  return OK;
+}
+
 /****************************************************************************
  * Name: up_rtc_settime
  *
@@ -562,7 +702,9 @@ int up_rtc_settime(FAR const struct timespec *tp)
   volatile uint8_t dummy_byte;
   volatile uint16_t dummy_word;
 
-  /* Break out the time values (note that the time is set only to units of seconds) */
+  /* Break out the time values (note that the time is set only to units of
+   * seconds)
+   */
 
   (void)gmtime_r(&tp->tv_sec, &newtime);
   rtc_dumptime(&newtime, "Setting time");
@@ -636,7 +778,6 @@ int up_rtc_settime(FAR const struct timespec *tp)
 
   /* Day of the week (0-6, 0=Sunday) */
 
-#if defined(CONFIG_LIBC_LOCALTIME) || defined(CONFIG_TIME_EXTENDED)
   RTC.RWKCNT.BYTE = rtc_dec2bcd((uint8_t) newtime.tm_wday);
 
   /* WAIT_LOOP */
@@ -645,7 +786,6 @@ int up_rtc_settime(FAR const struct timespec *tp)
     {
       dummy_byte = RTC.RWKCNT.BYTE;
     }
-#endif
 
   /* Day of the month (1-31) */
 
@@ -708,7 +848,7 @@ int up_rtc_settime(FAR const struct timespec *tp)
 static int rx65n_rtc_getalarmdatetime(FAR struct tm *tp)
 {
   uint8_t bcd_years;
-  DEBUGASSERT(tp != NULL)
+  DEBUGASSERT(tp != NULL);
 
   tp->tm_sec  = rtc_bcd2dec((uint8_t) (RTC.RSECAR.BYTE & 0x7fu));
   tp->tm_min  = rtc_bcd2dec((uint8_t) (RTC.RMINAR.BYTE & 0x7fu));
@@ -1050,7 +1190,7 @@ int rx65n_rtc_cancelperiodic(void)
 
   IEN(RTC, PRD) = 0U;
 
-  /* Clear IR flag of PRD interrupt*/
+  /* Clear IR flag of PRD interrupt */
 
   IR(RTC, PRD) = 0U;
 
@@ -1059,7 +1199,7 @@ int rx65n_rtc_cancelperiodic(void)
   RTC.RCR1.BIT.PIE = 0U;
   while (0U != RTC.RCR1.BIT.PIE)
     {
-      /* Wait for this write to complete.*/
+      /* Wait for this write to complete. */
     }
 
   return OK;
@@ -1071,7 +1211,7 @@ int rx65n_rtc_cancelperiodic(void)
 
 int rx65n_rtc_cancelcarry(void)
 {
-  /* Clear IR flag of CUP interrupt*/
+  /* Clear IR flag of CUP interrupt */
 
   IR(PERIB, INTB176) = 0U;
 
@@ -1217,9 +1357,7 @@ int up_rtc_getdatetime(FAR struct tm *tp)
 
       /* Days since Sunday (0-6) */
 
-#if defined(CONFIG_LIBC_LOCALTIME) || defined(CONFIG_TIME_EXTENDED)
-    tp->tm_wday = (int) (RTC.RWKCNT.BYTE & 0x07u);
-#endif
+      tp->tm_wday = (int) (RTC.RWKCNT.BYTE & 0x07u);
       rtc_dumptime(tp, "Returning");
     }
 

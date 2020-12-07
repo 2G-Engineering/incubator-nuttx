@@ -40,7 +40,6 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
-#include <sys/statfs.h>
 #include <sys/stat.h>
 
 #include <stdint.h>
@@ -116,7 +115,7 @@ const struct procfs_operations uptime_operations =
   uptime_open,       /* open */
   uptime_close,      /* close */
   uptime_read,       /* read */
-  NULL,               /* write */
+  NULL,              /* write */
 
   uptime_dup,        /* dup */
 
@@ -165,7 +164,7 @@ static int uptime_open(FAR struct file *filep, FAR const char *relpath,
 
   /* Allocate a container to hold the file attributes */
 
-  attr = (FAR struct uptime_file_s *)kmm_zalloc(sizeof(struct uptime_file_s));
+  attr = kmm_zalloc(sizeof(struct uptime_file_s));
   if (!attr)
     {
       ferr("ERROR: Failed to allocate file attributes\n");
@@ -241,10 +240,10 @@ static ssize_t uptime_read(FAR struct file *filep, FAR char *buffer,
     {
       /* System time */
 
-      ticktime = clock_systimer() - INITIAL_SYSTEM_TIMER_TICKS;
+      ticktime = clock_systime_ticks() - INITIAL_SYSTEM_TIMER_TICKS;
 
 #if defined(CONFIG_HAVE_DOUBLE) && defined(CONFIG_LIBC_FLOATINGPOINT)
-      /* Convert the system up time to a seconds + hundredths of seconds string */
+      /* Convert the up time to a seconds + hundredths of seconds string */
 
       now       = (double)ticktime / (double)CLOCKS_PER_SEC;
       linesize  = snprintf(attr->line, UPTIME_LINELEN, "%10.2f\n", now);
@@ -256,7 +255,9 @@ static ssize_t uptime_read(FAR struct file *filep, FAR char *buffer,
       remainder = (unsigned int)(ticktime % CLOCKS_PER_SEC);
       csec      = (100 * remainder + (CLOCKS_PER_SEC / 2)) / CLOCKS_PER_SEC;
 
-      /* Make sure that rounding did not force the hundredths of a second above 99 */
+      /* Make sure that rounding did not force the hundredths of
+       * a second above 99
+       */
 
       if (csec > 99)
         {
@@ -267,7 +268,7 @@ static ssize_t uptime_read(FAR struct file *filep, FAR char *buffer,
       /* Convert the seconds + hundredths of seconds to a string */
 
 #ifdef CONFIG_SYSTEM_TIME64
-      linesize = snprintf(attr->line, UPTIME_LINELEN, "%7llu.%02u\n",
+      linesize = snprintf(attr->line, UPTIME_LINELEN, "%7" PRIu64 ".%02u\n",
                           sec, csec);
 #else
       linesize = snprintf(attr->line, UPTIME_LINELEN, "%7lu.%02u\n",
@@ -283,7 +284,7 @@ static ssize_t uptime_read(FAR struct file *filep, FAR char *buffer,
   /* Transfer the system up time to user receive buffer */
 
   offset = filep->f_pos;
-  ret    = procfs_memcpy(attr->line, attr->linesize, buffer, buflen, &offset);
+  ret = procfs_memcpy(attr->line, attr->linesize, buffer, buflen, &offset);
 
   /* Update the file offset */
 
@@ -317,7 +318,7 @@ static int uptime_dup(FAR const struct file *oldp, FAR struct file *newp)
 
   /* Allocate a new container to hold the task and attribute selection */
 
-  newattr = (FAR struct uptime_file_s *)kmm_malloc(sizeof(struct uptime_file_s));
+  newattr = kmm_malloc(sizeof(struct uptime_file_s));
   if (!newattr)
     {
       ferr("ERROR: Failed to allocate file attributes\n");

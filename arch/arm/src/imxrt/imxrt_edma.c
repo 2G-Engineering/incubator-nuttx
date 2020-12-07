@@ -57,8 +57,8 @@
 #include <nuttx/arch.h>
 #include <nuttx/semaphore.h>
 
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 #include "sched/sched.h"
 
 #include "chip.h"
@@ -709,7 +709,7 @@ static int imxrt_error_interrupt(int irq, void *context, FAR void *arg)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_dma_initialize
+ * Name: arm_dma_initialize
  *
  * Description:
  *   Initialize the DMA subsystem
@@ -719,7 +719,7 @@ static int imxrt_error_interrupt(int irq, void *context, FAR void *arg)
  *
  ****************************************************************************/
 
-void weak_function up_dma_initialize(void)
+void weak_function arm_dma_initialize(void)
 {
   uintptr_t regaddr;
   uint32_t regval;
@@ -773,7 +773,7 @@ void weak_function up_dma_initialize(void)
    * hence, should not have priority inheritance enabled.
    */
 
-  nxsem_setprotocol(&g_edma.dsem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&g_edma.dsem, SEM_PRIO_NONE);
 
   /* Initialize the list of free TCDs from the pool of pre-allocated TCDs. */
 

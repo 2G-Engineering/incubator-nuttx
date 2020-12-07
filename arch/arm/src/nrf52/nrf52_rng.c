@@ -51,11 +51,11 @@
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/drivers/drivers.h>
 
-#include "up_arch.h"
+#include "arm_arch.h"
 #include "chip.h"
 #include "hardware/nrf52_utils.h"
 #include "hardware/nrf52_rng.h"
-#include "up_internal.h"
+#include "arm_internal.h"
 
 #if defined(CONFIG_NRF52_RNG)
 #if defined(CONFIG_DEV_RANDOM) || defined(CONFIG_DEV_URANDOM_ARCH)
@@ -144,10 +144,10 @@ static int nrf52_rng_initialize(void)
   memset(&g_rngdev, 0, sizeof(struct rng_dev_s));
 
   nxsem_init(&g_rngdev.rd_sem, 0, 0);
-  nxsem_setprotocol(&g_rngdev.rd_sem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&g_rngdev.rd_sem, SEM_PRIO_NONE);
 
   nxsem_init(&g_rngdev.excl_sem, 0, 1);
-  nxsem_setprotocol(&g_rngdev.excl_sem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&g_rngdev.excl_sem, SEM_PRIO_NONE);
 
   _info("Ready to stop\n");
   nrf52_rng_stop();

@@ -52,11 +52,6 @@
 
 /* Configuration ************************************************************/
 
-/* Define what timer and channel to use as XEN1210 CLK */
-
-#define XEN1210_PWMTIMER   1
-#define XEN1210_PWMCHANNEL 1
-
 /* How many SPI modules does this chip support? */
 
 #if STM32_NSPI < 1
@@ -111,8 +106,8 @@
 #  undef HAVE_USBMONITOR
 #endif
 
-/* Can't support MMC/SD features if mountpoints are disabled or if SDIO support
- * is not enabled.
+/* Can't support MMC/SD features if mountpoints are disabled or if SDIO
+ * support is not enabled.
  */
 
 #if defined(CONFIG_DISABLE_MOUNTPOINT) || !defined(CONFIG_STM32_SDIO)
@@ -236,10 +231,6 @@
 
 #define GPIO_BTN_USER   (GPIO_INPUT|GPIO_FLOAT|GPIO_EXTI|GPIO_PORTA|GPIO_PIN0)
 
-/* ZERO CROSS pin definition */
-
-#define GPIO_ZEROCROSS  (GPIO_INPUT|GPIO_FLOAT|GPIO_EXTI|GPIO_PORTD|GPIO_PIN0)
-
 #define GPIO_CS43L22_RESET  (GPIO_OUTPUT|GPIO_SPEED_50MHz|GPIO_PORTD|GPIO_PIN4)
 
 /* LoRa SX127x */
@@ -251,8 +242,8 @@
 
 /* PWM
  *
- * The STM32F4 Discovery has no real on-board PWM devices, but the board can be
- * configured to output a pulse train using TIM4 CH2 on PD13.
+ * The STM32F4 Discovery has no real on-board PWM devices, but the board can
+ * be configured to output a pulse train using TIM4 CH2 on PD13.
  */
 
 #define STM32F4DISCOVERY_PWMTIMER   4
@@ -277,14 +268,6 @@
 
 #define GPIO_GS2200M_CS   (GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_50MHz|\
                            GPIO_OUTPUT_SET|GPIO_PORTE|GPIO_PIN5)
-
-/* XEN1210 magnetic sensor */
-
-#define GPIO_XEN1210_INT  (GPIO_INPUT|GPIO_FLOAT|GPIO_EXTI|\
-                           GPIO_OPENDRAIN|GPIO_PORTA|GPIO_PIN5)
-
-#define GPIO_CS_XEN1210   (GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_50MHz|\
-                           GPIO_OUTPUT_SET|GPIO_PORTA|GPIO_PIN4)
 
 #define GPIO_ENC28J60_CS    (GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_50MHz|\
                              GPIO_OUTPUT_SET|GPIO_PORTA|GPIO_PIN4)
@@ -329,8 +312,8 @@
  * 7  A0|D/C     | 9 A0|D/C  | P2 PB8 (Arbitrary selection)
  * 9  LED+ (N/C) | -----     | -----
  * 2  5V Vcc     | 1,2 Vcc   | P2 5V
- * 4  DI         | 18 D1/SI  | P1 PA7 (GPIO_SPI1_MOSI == GPIO_SPI1_MOSI_1 (1))
- * 6  SCLK       | 19 D0/SCL | P1 PA5 (GPIO_SPI1_SCK == GPIO_SPI1_SCK_1 (1))
+ * 4  DI         | 18 D1/SI  | P1 PA7 (GPIO_SPI1_MOSI == GPIO_SPI1_MOSI_1(1))
+ * 6  SCLK       | 19 D0/SCL | P1 PA5 (GPIO_SPI1_SCK == GPIO_SPI1_SCK_1(1))
  * 8  LED- (N/C) | -----     | ------
  * 10 GND        | 20 GND    | P2 GND
  * --------------+-----------+----------------------------------------------
@@ -455,7 +438,7 @@ void weak_function stm32_spidev_initialize(void);
  *
  ****************************************************************************/
 
-FAR struct i2s_dev_s *stm32_i2sdev_initialize(int port);
+void weak_function stm32_i2sdev_initialize(void);
 
 /****************************************************************************
  * Name: stm32_bh1750initialize
@@ -468,32 +451,6 @@ FAR struct i2s_dev_s *stm32_i2sdev_initialize(int port);
 
 #ifdef CONFIG_SENSORS_BH1750FVI
 int stm32_bh1750initialize(FAR const char *devpath);
-#endif
-
-/****************************************************************************
- * Name: stm32_bmp180initialize
- *
- * Description:
- *   Called to configure an I2C and to register BMP180 for the
- *   stm32f4discovery board.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_SENSORS_BMP180
-int stm32_bmp180initialize(FAR const char *devpath);
-#endif
-
-/****************************************************************************
- * Name: stm32_lis3dshinitialize
- *
- * Description:
- *   Called to configure SPI 1, and to register LIS3DSH and its external
- *   interrupt for the stm32f4discovery board.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_STM32F4DISCO_LIS3DSH
-int stm32_lis3dshinitialize(FAR const char *devpath);
 #endif
 
 /****************************************************************************
@@ -704,18 +661,6 @@ void weak_function stm32_netinitialize(void);
 #endif
 
 /****************************************************************************
- * Name: stm32_qencoder_initialize
- *
- * Description:
- *   Initialize and register a qencoder
- *
- ****************************************************************************/
-
-#ifdef CONFIG_SENSORS_QENCODER
-int stm32_qencoder_initialize(FAR const char *devpath, int timer);
-#endif
-
-/****************************************************************************
  * Name: stm32_zerocross_initialize
  *
  * Description:
@@ -752,8 +697,8 @@ int stm32_max31855initialize(FAR const char *devpath, int bus,
  * Name: stm32_mlx90614init
  *
  * Description:
- *   Called to configure an I2C and to register MLX90614 for the stm32f103-minimum
- *   board.
+ *   Called to configure an I2C and to register MLX90614 for the
+ *   stm32f103-minimum board.
  *
  ****************************************************************************/
 

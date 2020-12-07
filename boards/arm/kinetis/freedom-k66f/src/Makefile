@@ -34,9 +34,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = k66_boot.c k66_spi.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)

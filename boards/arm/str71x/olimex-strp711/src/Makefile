@@ -33,9 +33,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = str71_spi.c str71_leds.c str71_buttons.c
 ifeq ($(CONFIG_LIB_BOARDCTL),y)
 CSRCS += str71_appinit.c

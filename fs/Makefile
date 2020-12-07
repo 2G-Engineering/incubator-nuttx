@@ -34,15 +34,9 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
-
-ASRCS =
-AOBJS = $(ASRCS:.S=$(OBJEXT))
+include $(TOPDIR)/Make.defs
 
 CSRCS = fs_initialize.c
-
-DEPPATH = --dep-path .
-VPATH = .
 
 include inode/Make.defs
 include vfs/Make.defs
@@ -81,6 +75,9 @@ include littlefs2/Make.defs
 
 endif
 
+CFLAGS += ${shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)fs}
+
+AOBJS = $(ASRCS:.S=$(OBJEXT))
 COBJS = $(CSRCS:.c=$(OBJEXT))
 
 SRCS = $(ASRCS) $(CSRCS)
@@ -102,8 +99,12 @@ $(BIN):	$(OBJS)
 
 context::
 
-.depend: Makefile $(SRCS)
-	$(Q) $(MKDEP) $(DEPPATH) "$(CC)" -- $(CFLAGS) -- $(SRCS) >Make.dep
+makedepfile: $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds)
+	$(call CATFILE, Make.dep, $^)
+	$(call DELFILE, $^)
+
+.depend: Makefile $(SRCS) $(TOPDIR)$(DELIM).config
+	$(Q) $(MAKE) makedepfile
 	$(Q) touch $@
 
 depend: .depend

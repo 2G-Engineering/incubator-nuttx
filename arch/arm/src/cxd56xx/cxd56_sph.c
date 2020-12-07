@@ -50,7 +50,7 @@
 #include <debug.h>
 #include <errno.h>
 
-#include "up_arch.h"
+#include "arm_arch.h"
 #include "chip.h"
 
 #include "hardware/cxd56_sph.h"
@@ -261,6 +261,7 @@ static inline int cxd56_sphdevinit(FAR const char *devname, int num)
     }
 
   nxsem_init(&priv->wait, 0, 0);
+  nxsem_set_protocol(&priv->wait, SEM_PRIO_NONE);
   priv->id = num;
 
   irq_attach(CXD56_IRQ_SPH0 + num, cxd56_sphirqhandler, NULL);
@@ -299,9 +300,13 @@ int cxd56_sphinitialize(FAR const char *devname)
   int ret;
   int i;
 
-  /* No. 0-2 and 15 semaphores are reserved by other system. */
+  /* No. 0-2 and (14)-15 semaphores are reserved by other system. */
 
+#ifdef CONFIG_CXD56_TESTSET
+  for (i = 3; i < 14; i++)
+#else
   for (i = 3; i < 15; i++)
+#endif
     {
       ret = cxd56_sphdevinit(devname, i);
       if (ret != OK)

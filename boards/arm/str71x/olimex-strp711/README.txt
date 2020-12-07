@@ -116,9 +116,9 @@ GNU Toolchain Options
   The NuttX make system has been modified to support the following different
   toolchain options.
 
-  1. The NuttX buildroot Toolchain (see below).
-  2. The CodeSourcery GNU toolchain,
-  3. The devkitARM GNU toolchain, or
+  1. The NuttX buildroot Toolchain (see below),
+  2. The ARM EABI GNU toolchain, or
+  3. The devkitARM GNU toolchain.
 
   All testing has been conducted using the NuttX buildroot toolchain.  To use
   the CodeSourcery or devkitARM GNU toolchain, you simply need to build the
@@ -126,7 +126,7 @@ GNU Toolchain Options
 
      make                         # Will build for the NuttX buildroot toolchain
      make CROSSDEV=arm-eabi-      # Will build for the devkitARM toolchain
-     make CROSSDEV=arm-none-eabi- # Will build for the CodeSourcery toolchain
+     make CROSSDEV=arm-none-eabi- # Will build for the ARM EABI GCC toolchain
      make CROSSDEV=arm-nuttx-elf- # Will build for the NuttX buildroot toolchain
 
   Of course, hard coding this CROSS_COMPILE value in Make.defs file will save
@@ -141,7 +141,7 @@ GNU Toolchain Options
      but you might easily find some new path problems.  If so, check out 'cygpath -w'
 
   2. Windows toolchains cannot follow Cygwin symbolic links.  Many symbolic links
-     are used in Nuttx (e.g., include/arch).  The make system works around these
+     are used in NuttX (e.g., include/arch).  The make system works around these
      problems for the Windows tools by copying directories instead of linking them.
      But this can also cause some confusion for you:  For example, you may edit
      a file in a "linked" directory and find that your changes had no effect.
@@ -171,7 +171,7 @@ NuttX buildroot Toolchain
   If you have no ARM toolchain, one can be downloaded from the NuttX
   Bitbucket download site (https://bitbucket.org/nuttx/buildroot/downloads/).
 
-  1. You must have already configured Nuttx in <some-dir>nuttx.
+  1. You must have already configured NuttX in <some-dir>nuttx.
 
      tools/configure.sh olimex-strp711:<sub-dir>
 

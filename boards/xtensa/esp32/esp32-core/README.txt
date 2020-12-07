@@ -21,6 +21,9 @@ Contents
   o Memory Map
   o Serial Console
   o Buttons and LEDs
+  o Ethernet
+  o 64-bit Timers
+  o Watchdog Timers
   o SMP
   o OpenOCD for the ESP32
   o Executing and Debugging from FLASH and IRAM
@@ -30,26 +33,11 @@ Contents
 STATUS
 ======
 
-  Currently, the NuttX port depends on the bootloader to initialize hardware,
-  including basic (slow) clocking.  That is because the clock configuration
-  logic is only available via an Espressif add-on library.
+  Currently we have support to UART, SPI, I2C, Ethernet, Timers,
+  Watchdog Timers, etc.
 
-  Because of this, all board configurations require these settings:
-
-    CONFIG_EXPERIMENTAL=y
-    CONFIG_DEBUG_FEATURES=y
-    CONFIG_SUPPRESS_CLOCK_CONFIG=y
-
-  Some configurations may also require:
-
-    CONFIG_SUPPRESS_UART_CONFIG=y
-
-  The NuttX fork, TizenRT, has taken the NuttX ESP32 code and developed it
-  further.  Refer to:
-
-    https://github.com/Samsung/TizenRT/tree/master/os/arch/xtensa
-
-  for the current status.
+  Espressif is working to include support to WiFi and Bluetooth, but
+  it will depends on their external libraries to get it up and running.
 
 ESP32 Features
 ==============
@@ -214,6 +202,65 @@ Buttons and LEDs
   ----
   There are several on-board LEDs for that indicate the presence of power
   and USB activity.  None of these are available for use by software.
+
+Ethernet
+========
+
+  ESP32 has a 802.11 hardware MAC, so just connects to external PHY chip.
+  Due to the limited number of GPIOs in ESP32, it's recommended to use RMII to
+  connect to an external PHY chip. Current driver also only supports RMII option.
+
+  The RMII GPIO pins are fixed, but the SMI and functional GPIO pins are optional.
+
+  RMII GPIO pins are as following:
+
+      ESP32 GPIO          PHY Chip GPIO
+        IO25       <-->       RXD[0]
+        IO26       <-->       RXD[1]
+        IO27       <-->       CRS_DV
+        IO0        <-->       REF_CLK
+        IO19       <-->       TXD[0]
+        IO21       <-->       TX_EN
+        IO22       <-->       TXD[1]
+
+  SMI GPIO pins (default option) are as following:
+
+      ESP32 GPIO          PHY Chip GPIO
+        IO18       <-->       MDIO
+        IO23       <-->       MDC
+
+  Functional GPIO pins(default option) are as following:
+
+      ESP32 GPIO          PHY Chip GPIO
+        IO5        <-->      Reset_N
+
+Espressif has an offcial Ethernet development board:
+
+  https://docs.espressif.com/projects/esp-idf/en/latest/esp32/hw-reference/esp32/get-started-ethernet-kit.html
+
+This driver has been tested according to this board and ESP32 core
+board + LAN8720 module. If users have some issue about using this driver,
+please refer the upper official document, specially the issue that GPIO0
+causes failing to bring the ESP32 chip up.
+
+64-bit Timers
+=============
+
+  ESP32 has 4 generic timers of 64 bits (2 from Group 0 and 2 from Group 1). They're
+  acessible as character drivers, the configuration along with a guidance on how
+  to run the example and the description of the application level interface can be found here:
+
+  https://nuttx.apache.org/docs/latest/components/drivers/character/timer.html
+
+Watchdog Timers
+===============
+
+  ESP32 has 3 WDTs. 2 MWDTS from the Timers Module and 1 RWDT from the RTC Module
+  (Currently not supported yet). They're acessible as character drivers,
+  The configuration along with a guidance on how to run the example and the description
+  of the application level interface can be found here:
+
+  https://nuttx.apache.org/docs/latest/components/drivers/character/watchdog.html
 
 SMP
 ===
@@ -745,6 +792,68 @@ NOTES:
     3. 2016-12-24: But when SMP is enabled, there is a consistent, repeatable
        crash in the waitpid() test.  At the time of the crash, there is
        extensive memory corruption and a user exception occurs (cause=28).
+
+  mmcsdspi:
+
+    This config tests the SPI driver by connecting an SD Card reader over SPI.
+    SPI2 is used and kept with the default IOMUX pins, i.e.:
+        CS   --> 15
+        SCK  --> 14
+        MOSI --> 13
+        MISO --> 12
+    Once booted the following command is used to mount a FAT file system:
+        mount -t vfat /dev/mmcsd0 /mnt
+
+  spiflash:
+
+    This config tests the external SPI that comes with an ESP32 module connected
+    through SPI1.
+
+    By default a SmartFS file system is selected.
+    Once booted you can use the following commands to mount the file system:
+        mksmartfs /dev/smart0
+        mount -t smartfs /dev/smart0 /mnt
+
+    Note that mksmartfs is only needed the first time.
+
+  psram:
+
+    This config tests the PSRAM driver over SPIRAM interface.
+    You can use the ramtest command to test the PSRAM memory. We are testing
+    only 64KB on this example (64 * 1024), but you can change this number to
+    2MB or 4MB depending on PSRAM chip used on your board:
+
+        nsh> ramtest -w 0x3F800000 65536
+        RAMTest: Marching ones: 3f800000 65536
+        RAMTest: Marching zeroes: 3f800000 65536
+        RAMTest: Pattern test: 3f800000 65536 55555555 aaaaaaaa
+        RAMTest: Pattern test: 3f800000 65536 66666666 99999999
+        RAMTest: Pattern test: 3f800000 65536 33333333 cccccccc
+        RAMTest: Address-in-address test: 3f800000 65536
+
+  timer:
+
+    This config test the general use purpose timers. It includes the 4 timers,
+    adds driver support, registers the timers as devices and includes the timer
+    example.
+
+    To test it, just run the following:
+
+    `nsh> timer -d /dev/timerx`
+
+    Where x in the timer instance.
+
+  watchdog:
+
+    This config test the watchdog timers. It includes the 2 MWDTS,
+    adds driver support, registers the WDTs as devices and includes the watchdog
+    example.
+
+    To test it, just run the following:
+
+    `nsh> wdog -d /dev/watchdogx`
+
+    Where x in the watchdog instance.
 
 Things to Do
 ============

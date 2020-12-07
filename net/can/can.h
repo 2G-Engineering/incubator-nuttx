@@ -69,7 +69,7 @@ struct can_poll_s
   FAR struct devif_callback_s *cb; /* Needed to teardown the poll */
 };
 
-/* This "connection" structure describes the underlying state of the socket. */
+/* This "connection" structure describes the underlying state of the socket */
 
 struct can_conn_s
 {
@@ -104,6 +104,23 @@ struct can_conn_s
    */
 
   struct can_poll_s pollinfo[4]; /* FIXME make dynamic */
+
+#ifdef CONFIG_NET_CANPROTO_OPTIONS
+  int32_t loopback;
+  int32_t recv_own_msgs;
+#ifdef CONFIG_NET_CAN_CANFD
+  int32_t fd_frames;
+#endif
+  struct can_filter filters[CONFIG_NET_CAN_RAW_FILTER_MAX];
+  int32_t filter_count;
+# ifdef CONFIG_NET_CAN_RAW_TX_DEADLINE
+  int32_t tx_deadline;
+# endif
+#endif
+
+#ifdef CONFIG_NET_TIMESTAMP
+  FAR struct socket *psock; /* Needed to get SO_TIMESTAMP value */
+#endif
 };
 
 /****************************************************************************
@@ -152,8 +169,8 @@ FAR struct can_conn_s *can_alloc(void);
  * Name: can_free()
  *
  * Description:
- *   Free a NetLink connection structure that is no longer in use. This should
- *   be done by the implementation of close().
+ *   Free a NetLink connection structure that is no longer in use. This
+ *   should be done by the implementation of close().
  *
  ****************************************************************************/
 
@@ -247,6 +264,29 @@ ssize_t can_recvfrom(FAR struct socket *psock, FAR void *buf, size_t len,
                      FAR socklen_t *fromlen);
 
 /****************************************************************************
+ * Name: can_recvmsg
+ *
+ * Description:
+ *   recvmsg() receives messages from a socket, and may be used to receive
+ *   data on a socket whether or not it is connection-oriented.
+ *
+ *   If from is not NULL, and the underlying protocol provides the source
+ *   address, this source address is filled in. The argument 'fromlen'
+ *   initialized to the size of the buffer associated with from, and modified
+ *   on return to indicate the actual size of the address stored there.
+ *
+ * Input Parameters:
+ *   psock    A pointer to a NuttX-specific, internal socket structure
+ *   msg      Buffer to receive msg
+ *   flags    Receive flags (ignored)
+ *
+ ****************************************************************************/
+#ifdef CONFIG_NET_CMSG
+ssize_t can_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
+                    int flags);
+#endif
+
+/****************************************************************************
  * Name: can_poll
  *
  * Description:
@@ -290,6 +330,28 @@ ssize_t psock_can_send(FAR struct socket *psock, FAR const void *buf,
                        size_t len);
 
 /****************************************************************************
+ * Name: psock_can_sendmsg
+ *
+ * Description:
+ *   The psock_can_sendmsg() call may be used only when the packet socket is
+ *   in a connected state (so that the intended recipient is known).
+ *
+ * Input Parameters:
+ *   psock    An instance of the internal socket structure.
+ *   msg      msg to send
+ *
+ * Returned Value:
+ *   On success, returns the number of characters sent.  On  error,
+ *   a negated errno value is returned.  See send() for the complete list
+ *   of return values.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_CMSG
+ssize_t psock_can_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg);
+#endif
+
+/****************************************************************************
  * Name: can_readahead_signal
  *
  * Description:
@@ -312,6 +374,69 @@ ssize_t psock_can_send(FAR struct socket *psock, FAR const void *buf,
 
 #ifdef CONFIG_NET_CAN_NOTIFIER
 void can_readahead_signal(FAR struct can_conn_s *conn);
+#endif
+
+/****************************************************************************
+ * Name: can_setsockopt
+ *
+ * Description:
+ *   can_setsockopt() sets the CAN-protocol option specified by the
+ *   'option' argument to the value pointed to by the 'value' argument for
+ *   the socket specified by the 'psock' argument.
+ *
+ *   See <netinet/can.h> for the a complete list of values of CAN protocol
+ *   options.
+ *
+ * Input Parameters:
+ *   psock     Socket structure of socket to operate on
+ *   option    identifies the option to set
+ *   value     Points to the argument value
+ *   value_len The length of the argument value
+ *
+ * Returned Value:
+ *   Returns zero (OK) on success.  On failure, it returns a negated errno
+ *   value to indicate the nature of the error.  See psock_setcockopt() for
+ *   the list of possible error values.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_CANPROTO_OPTIONS
+int can_setsockopt(FAR struct socket *psock, int option,
+                   FAR const void *value, socklen_t value_len);
+#endif
+
+/****************************************************************************
+ * Name: can_getsockopt
+ *
+ * Description:
+ *   can_getsockopt() retrieves the value for the option specified by the
+ *   'option' argument for the socket specified by the 'psock' argument.  If
+ *   the size of the option value is greater than 'value_len', the value
+ *   stored in the object pointed to by the 'value' argument will be silently
+ *   truncated. Otherwise, the length pointed to by the 'value_len' argument
+ *   will be modified to indicate the actual length of the 'value'.
+ *
+ *   See <sys/socket.h> a complete list of values for the socket-level
+ *   'option' argument.  Protocol-specific options are are protocol specific
+ *   header files (such as netpacket/can.h for the case of the CAN protocol).
+ *
+ * Input Parameters:
+ *   psock     Socket structure of the socket to query
+ *   level     Protocol level to set the option
+ *   option    identifies the option to get
+ *   value     Points to the argument value
+ *   value_len The length of the argument value
+ *
+ * Returned Value:
+ *   Returns zero (OK) on success.  On failure, it returns a negated errno
+ *   value to indicate the nature of the error.  See psock_getsockopt() for
+ *   the complete list of appropriate return error codes.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_CANPROTO_OPTIONS
+int can_getsockopt(FAR struct socket *psock, int option,
+                   FAR void *value, FAR socklen_t *value_len);
 #endif
 
 #undef EXTERN

@@ -32,10 +32,10 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-include board$(DELIM)Make.defs
-include src$(DELIM)Make.defs
+include board/Make.defs
+include src/Make.defs
 
 DEPPATH += --dep-path board
 DEPPATH += --dep-path src

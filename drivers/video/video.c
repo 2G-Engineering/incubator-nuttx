@@ -219,6 +219,12 @@ static int video_s_ext_ctrls(FAR struct video_mng_s *priv,
                              FAR struct v4l2_ext_controls *ctrls);
 
 /****************************************************************************
+ * Public Data
+ ****************************************************************************/
+
+static const struct video_devops_s *g_video_devops;
+
+/****************************************************************************
  * Private Data
  ****************************************************************************/
 
@@ -237,6 +243,7 @@ static const struct file_operations g_video_fops =
 };
 
 static bool is_initialized = false;
+static FAR void *video_handler;
 
 /****************************************************************************
  * Public Data
@@ -245,6 +252,7 @@ static bool is_initialized = false;
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
 static int video_lock(FAR sem_t *sem)
 {
   if (sem == NULL)
@@ -448,7 +456,7 @@ static bool is_sem_waited(FAR sem_t *sem)
   int ret;
   int semcount;
 
-  ret = nxsem_getvalue(sem, &semcount);
+  ret = nxsem_get_value(sem, &semcount);
   if ((ret == OK) && (semcount < 0))
     {
       return true;
@@ -483,6 +491,7 @@ static int video_open(FAR struct file *filep)
     {
       priv->open_num++;
     }
+
   video_unlock(&priv->lock_open_num);
 
   return ret;
@@ -507,6 +516,7 @@ static int video_close(FAR struct file *filep)
       cleanup_resources(priv);
       g_video_devops->close();
     }
+
   video_unlock(&priv->lock_open_num);
 
   return ret;
@@ -927,39 +937,39 @@ static int video_takepict_start(FAR struct video_mng_s *vmng,
     }
   else
     {
-    if (capture_num > 0)
+      if (capture_num > 0)
         {
          vmng->still_inf.remaining_capnum = capture_num;
         }
-    else
+      else
         {
          vmng->still_inf.remaining_capnum = VIDEO_REMAINING_CAPNUM_INFINITY;
         }
 
-    /* Control video stream prior to still stream */
+      /* Control video stream prior to still stream */
 
-    flags = enter_critical_section();
+      flags = enter_critical_section();
 
-    next_video_state = estimate_next_video_state(vmng,
-                                               CAUSE_STILL_START);
-    change_video_state(vmng, next_video_state);
+      next_video_state = estimate_next_video_state(vmng,
+                                                   CAUSE_STILL_START);
+      change_video_state(vmng, next_video_state);
 
-    leave_critical_section(flags);
+      leave_critical_section(flags);
 
-    dma_container = video_framebuff_get_dma_container
-                             (&vmng->still_inf.bufinf);
-    if (dma_container)
+      dma_container = video_framebuff_get_dma_container
+                       (&vmng->still_inf.bufinf);
+      if (dma_container)
         {
-         /* Start video stream DMA */
+          /* Start video stream DMA */
 
-         g_video_devops->set_buftype(V4L2_BUF_TYPE_STILL_CAPTURE);
-         g_video_devops->set_buf(dma_container->buf.m.userptr,
-                              dma_container->buf.length);
-         vmng->still_inf.state = VIDEO_STATE_DMA;
+          g_video_devops->set_buftype(V4L2_BUF_TYPE_STILL_CAPTURE);
+          g_video_devops->set_buf(dma_container->buf.m.userptr,
+                                  dma_container->buf.length);
+          vmng->still_inf.state = VIDEO_STATE_DMA;
         }
-    else
+      else
         {
-         vmng->still_inf.state = VIDEO_STATE_STREAMON;
+          vmng->still_inf.state = VIDEO_STATE_STREAMON;
         }
     }
 
@@ -993,6 +1003,7 @@ static int video_takepict_stop(FAR struct video_mng_s *vmng, bool halfpush)
         {
           g_video_devops->cancel_dma();
         }
+
       leave_critical_section(flags);
 
       vmng->still_inf.state = VIDEO_STATE_STREAMOFF;
@@ -1024,8 +1035,14 @@ static int video_queryctrl(FAR struct v4l2_queryctrl *ctrl)
 
   /* Replace to VIDIOC_QUERY_EXT_CTRL format */
 
-  ext_ctrl.ctrl_class = ctrl->ctrl_class;
-  ext_ctrl.id         = ctrl->id;
+  ext_ctrl.ctrl_class     = ctrl->ctrl_class;
+  ext_ctrl.id             = ctrl->id;
+  ext_ctrl.type           = ctrl->type;
+  ext_ctrl.minimum        = ctrl->minimum;
+  ext_ctrl.maximum        = ctrl->maximum;
+  ext_ctrl.step           = ctrl->step;
+  ext_ctrl.default_value  = ctrl->default_value;
+  ext_ctrl.flags          = ctrl->flags;
 
   ret = video_query_ext_ctrl(&ext_ctrl);
 
@@ -1182,7 +1199,7 @@ static int video_g_ext_ctrls(FAR struct video_mng_s *priv,
 static int video_s_ext_ctrls(FAR struct video_mng_s *priv,
                              FAR struct v4l2_ext_controls *ctrls)
 {
-  int ret;
+  int ret = OK;
   int cnt;
   FAR struct v4l2_ext_control *control;
 
@@ -1204,12 +1221,6 @@ static int video_s_ext_ctrls(FAR struct video_mng_s *priv,
           ctrls->error_idx = cnt;
           return ret;
         }
-    }
-
-  ret = g_video_devops->refresh();
-  if (ret < 0)
-    {
-      ctrls->error_idx = cnt;
     }
 
   return ret;
@@ -1431,6 +1442,7 @@ static FAR void *video_register(FAR const char *devpath)
       kmm_free(priv);
       return NULL;
     }
+
   memcpy(priv->devpath, devpath, allocsize);
   priv->devpath[allocsize] = '\0';
 
@@ -1476,9 +1488,9 @@ static int video_unregister(FAR video_mng_t *v_mgr)
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
-static FAR void *video_handler;
 
-int video_initialize(FAR const char *devpath)
+int video_initialize(FAR const char *devpath,
+                     FAR const struct video_devops_s *devops)
 {
   if (is_initialized)
     {
@@ -1486,6 +1498,8 @@ int video_initialize(FAR const char *devpath)
     }
 
   video_handler = video_register(devpath);
+
+  g_video_devops = devops;
 
   is_initialized = true;
 
@@ -1498,7 +1512,10 @@ int video_uninitialize(void)
     {
       return OK;
     }
+
   video_unregister(video_handler);
+
+  g_video_devops = NULL;
 
   is_initialized = false;
 

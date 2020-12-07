@@ -49,8 +49,8 @@
 #include <arch/board/board.h>
 #include <arch/efm32/chip.h>
 
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "efm32_config.h"
 #include "efm32_lowputc.h"
@@ -98,7 +98,7 @@ static inline void efm32_fpuconfig(void);
 #endif
 #ifdef CONFIG_STACK_COLORATION
 static void go_nx_start(void *pv, unsigned int nbytes)
-  __attribute__ ((naked,no_instrument_function,noreturn));
+  __attribute__ ((naked, no_instrument_function, noreturn));
 #endif
 
 /****************************************************************************
@@ -141,7 +141,7 @@ static void go_nx_start(void *pv, unsigned int nbytes)
  *       done, the processor reserves space on the stack for the FP state,
  *       but does not save that state information to the stack.
  *
- *  Software must not change the value of the ASPEN bit or LSPEN bit while either:
+ *  Software must not change the value of the ASPEN bit or LSPEN bit either:
  *   - the CPACR permits access to CP10 and CP11, that give access to the FP
  *     extension, or
  *   - the CONTROL.FPCA bit is set to 1
@@ -175,7 +175,7 @@ static inline void efm32_fpuconfig(void)
   /* Enable full access to CP10 and CP11 */
 
   regval = getreg32(NVIC_CPACR);
-  regval |= ((3 << (2*10)) | (3 << (2*11)));
+  regval |= ((3 << (2 * 10)) | (3 << (2 * 11)));
   putreg32(regval, NVIC_CPACR);
 }
 
@@ -205,7 +205,7 @@ static inline void efm32_fpuconfig(void)
   /* Enable full access to CP10 and CP11 */
 
   regval = getreg32(NVIC_CPACR);
-  regval |= ((3 << (2*10)) | (3 << (2*11)));
+  regval |= ((3 << (2 * 10)) | (3 << (2 * 11)));
   putreg32(regval, NVIC_CPACR);
 }
 
@@ -312,7 +312,7 @@ void __start(void)
 
   /* Perform early serial initialization */
 
-  up_earlyserialinit();
+  arm_earlyserialinit();
   showprogress('D');
 
   /* For the case of the separate user-/kernel-space build, perform whatever

@@ -55,8 +55,8 @@
 
 #include <arch/board/board.h>
 
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 #include "hardware/stm32_ltdc.h"
 #include "hardware/stm32_dma2d.h"
 #include "stm32_rcc.h"
@@ -1634,7 +1634,7 @@ static void stm32_ltdc_irqconfig(void)
    */
 
   nxsem_init(g_interrupt.sem, 0, 0);
-  nxsem_setprotocol(g_interrupt.sem, SEM_PRIO_NONE);
+  nxsem_set_protocol(g_interrupt.sem, SEM_PRIO_NONE);
 
   /* Attach LTDC interrupt vector */
 

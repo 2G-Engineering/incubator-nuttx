@@ -93,11 +93,13 @@ static void up_stackdump(uint16_t sp, uint16_t stack_base)
 
   for (stack = sp; stack < stack_base; stack += 16)
     {
-      uint8_t *ptr = (uint8_t*)stack;
+      uint8_t *ptr = (uint8_t *)stack;
+
       _alert("%04x: %02x %02x %02x %02x %02x %02x %02x %02x"
             "   %02x %02x %02x %02x %02x %02x %02x %02x\n",
-             stack, ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7],
-             ptr[8], ptr[9], ptr[10], ptr[11], ptr[12], ptr[13], ptr[14], ptr[15]);
+             stack, ptr[0], ptr[1], ptr[2], ptr[3], ptr[4],
+             ptr[5], ptr[6], ptr[7], ptr[8], ptr[9], ptr[10],
+             ptr[11], ptr[12], ptr[13], ptr[14], ptr[15]);
     }
 }
 #else
@@ -130,23 +132,22 @@ static inline void up_registerdump(void)
   _alert("SP:%02x%02x FRAME:%02x%02x TMP:%02x%02x Z:%02x%02x XY:%02x\n",
          regs[REG_SPH],  regs[REG_SPL],  regs[REG_FRAMEH], regs[REG_FRAMEL],
          regs[REG_TMPL], regs[REG_TMPH], regs[REG_ZL],     regs[REG_ZH],
-         regs[REG_XY],   regs[REG_XY+1]);
+         regs[REG_XY],   regs[REG_XY + 1]);
 
 #if CONFIG_HCS12_MSOFTREGS > 2
 #  error "Need to save more registers"
 #elif CONFIG_HCS12_MSOFTREGS == 2
   _alert("SOFTREGS: %02x%02x :%02x%02x\n",
-        regs[REG_SOFTREG1], regs[REG_SOFTREG1+1],
-        regs[REG_SOFTREG2], regs[REG_SOFTREG2+1]);
+        regs[REG_SOFTREG1], regs[REG_SOFTREG1 + 1],
+        regs[REG_SOFTREG2], regs[REG_SOFTREG2 + 1]);
 #elif CONFIG_HCS12_MSOFTREGS == 1
   _alert("SOFTREGS: %02x%02x\n",
-        regs[REG_SOFTREG1], regs[REG_SOFTREG1+1]);
+        regs[REG_SOFTREG1], regs[REG_SOFTREG1 + 1]);
 #endif
 
 #ifndef CONFIG_HCS12_NONBANKED
-      _alert("PPAGE: %02x\n", regs[REG_PPAGE]);
+  _alert("PPAGE: %02x\n", regs[REG_PPAGE]);
 #endif
-    }
 }
 #else
 # define up_registerdump()
@@ -160,14 +161,13 @@ static inline void up_registerdump(void)
 static int usbtrace_syslog(FAR const char *fmt, ...)
 {
   va_list ap;
-  int ret;
 
-  /* Let nx_vsyslog do the real work */
+  /* Let vsyslog do the real work */
 
   va_start(ap, fmt);
-  ret = nx_vsyslog(LOG_EMERG, fmt, &ap);
+  vsyslog(LOG_EMERG, fmt, ap);
   va_end(ap);
-  return ret;
+  return OK;
 }
 
 static int assert_tracecallback(FAR struct usbtrace_s *trace, FAR void *arg)
@@ -185,7 +185,7 @@ static int assert_tracecallback(FAR struct usbtrace_s *trace, FAR void *arg)
 static void up_dumpstate(void)
 {
   struct tcb_s *rtcb = running_task();
-  uint16_t sp = up_getsp();
+  uint16_t sp = hc_getsp();
   uint16_t ustackbase;
   uint16_t ustacksize;
 #if CONFIG_ARCH_INTERRUPTSTACK > 3
@@ -199,16 +199,8 @@ static void up_dumpstate(void)
 
   /* Get the limits on the user stack memory */
 
-  if (rtcb->pid == 0) /* Check for CPU0 IDLE thread */
-    {
-      ustackbase = g_idle_topstack - 4;
-      ustacksize = CONFIG_IDLETHREAD_STACKSIZE;
-    }
-  else
-    {
-      ustackbase = (uint16_t)rtcb->adj_stack_ptr;
-      ustacksize = (uint16_t)rtcb->adj_stack_size;
-    }
+  ustackbase = (uint16_t)rtcb->adj_stack_ptr;
+  ustacksize = (uint16_t)rtcb->adj_stack_size;
 
   /* Get the limits on the interrupt stack memory */
 
@@ -285,8 +277,7 @@ static void up_dumpstate(void)
  * Name: _up_assert
  ****************************************************************************/
 
-static void _up_assert(int errorcode) noreturn_function;
-static void _up_assert(int errorcode)
+static void _up_assert(void)
 {
   /* Flush any buffered SYSLOG data */
 
@@ -296,26 +287,25 @@ static void _up_assert(int errorcode)
 
   if (g_current_regs || (running_task())->flink == NULL)
     {
-       up_irq_save();
-        for (;;)
-          {
+      up_irq_save();
+      for (; ; )
+        {
 #if CONFIG_BOARD_RESET_ON_ASSERT >= 1
-            board_reset(CONFIG_BOARD_ASSERT_RESET_VALUE);
+          board_reset(CONFIG_BOARD_ASSERT_RESET_VALUE);
 #endif
 #ifdef CONFIG_ARCH_LEDS
-            board_autoled_on(LED_PANIC);
-            up_mdelay(250);
-            board_autoled_off(LED_PANIC);
-            up_mdelay(250);
+          board_autoled_on(LED_PANIC);
+          up_mdelay(250);
+          board_autoled_off(LED_PANIC);
+          up_mdelay(250);
 #endif
-          }
+        }
     }
   else
     {
 #if CONFIG_BOARD_RESET_ON_ASSERT >= 2
       board_reset(CONFIG_BOARD_ASSERT_RESET_VALUE);
 #endif
-      exit(errorcode);
     }
 }
 
@@ -327,7 +317,7 @@ static void _up_assert(int errorcode)
  * Name: up_assert
  ****************************************************************************/
 
-void up_assert(const uint8_t *filename, int lineno)
+void up_assert(const char *filename, int lineno)
 {
 #if CONFIG_TASK_NAME_SIZE > 0 && defined(CONFIG_DEBUG_ALERT)
   struct tcb_s *rtcb = running_task();
@@ -354,8 +344,8 @@ void up_assert(const uint8_t *filename, int lineno)
   syslog_flush();
 
 #ifdef CONFIG_BOARD_CRASHDUMP
-  board_crashdump(up_getsp(), running_task(), filename, lineno);
+  board_crashdump(hc_getsp(), running_task(), filename, lineno);
 #endif
 
-  _up_assert(EXIT_FAILURE);
+  _up_assert();
 }

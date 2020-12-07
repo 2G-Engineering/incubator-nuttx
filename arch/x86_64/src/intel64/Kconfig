@@ -34,11 +34,12 @@ config ARCH_INTEL64_APIC_FREQ_KHZ
 
 endif
 
-config ARCH_INTEL64_HAVE_SSE3
-    bool "SSE3 support"
+config ARCH_INTEL64_HAVE_XSAVE
+    bool "XSAVE support"
     default y
 	---help---
-		Select to enable the use of SSE3 and FPU functions of x86_64
+		Select to enable the use of XSAVE and FPU/SSE/AVX functions
+		of x86_64
 
 config ARCH_INTEL64_HAVE_PCID
     bool "PCID support"
@@ -51,5 +52,13 @@ config ARCH_INTEL64_HAVE_RDRAND
     default y
 	---help---
 		Select to enable the use of RDRAND for /dev/random
+
+config ARCH_INTEL64_DISABLE_INT_INIT
+    bool "Disable Initialization of 8259/APIC/IO-APIC"
+    default n
+	---help---
+		Select to disable all initialization related to interrupt
+		controllers. This is necessary if those are already
+		initialized, i.e. Jailhouse system.
 
 endif

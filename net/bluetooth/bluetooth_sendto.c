@@ -1,35 +1,20 @@
 /****************************************************************************
  * net/bluetooth/bluetooth_sendto.c
  *
- *   Copyright (C) 2018 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ****************************************************************************/
 
@@ -81,7 +66,7 @@ struct bluetooth_sendto_s
   FAR struct socket *is_sock;           /* Points to the parent socket structure */
   FAR struct devif_callback_s *is_cb;   /* Reference to callback instance */
   bt_addr_t is_destaddr;                /* Frame destination address */
-  uint8_t is_channel;                   /* Frame destination channel */
+  uint16_t is_channel;                  /* Frame destination channel */
   sem_t is_sem;                         /* Used to wake up the waiting thread */
   FAR const uint8_t *is_buffer;         /* User buffer of data to send */
   size_t is_buflen;                     /* Number of bytes in the is_buffer */
@@ -108,7 +93,7 @@ static uint16_t bluetooth_sendto_eventhandler(FAR struct net_driver_s *dev,
   int hdrlen;
   int ret;
 
-  DEBUGASSERT(pvpriv != NULL && dev != NULL && pvconn != NULL);
+  DEBUGASSERT(pvpriv != NULL && dev != NULL);
 
   /* Ignore polls from non Bluetooth network drivers */
 
@@ -124,7 +109,7 @@ static uint16_t bluetooth_sendto_eventhandler(FAR struct net_driver_s *dev,
   pstate = (FAR struct bluetooth_sendto_s *)pvpriv;
   radio  = (FAR struct radio_driver_s *)dev;
 
-  ninfo("flags: %04x sent: %d\n", flags, pstate->is_sent);
+  ninfo("flags: %04x sent: %zd\n", flags, pstate->is_sent);
 
   if (pstate != NULL && (flags & BLUETOOTH_POLL) != 0)
     {
@@ -132,6 +117,7 @@ static uint16_t bluetooth_sendto_eventhandler(FAR struct net_driver_s *dev,
 
       BLUETOOTH_ADDRCOPY(&meta.bm_raddr, &pstate->is_destaddr);
       meta.bm_channel = pstate->is_channel;
+      meta.bm_proto = pstate->is_sock->s_proto;
 
       /* Get the Bluetooth MAC header length */
 
@@ -246,10 +232,10 @@ errout:
  ****************************************************************************/
 
 ssize_t psock_bluetooth_sendto(FAR struct socket *psock, FAR const void *buf,
-                                size_t len, int flags,
-                                FAR const struct sockaddr *to, socklen_t tolen)
+                               size_t len, int flags,
+                               FAR const struct sockaddr *to,
+                               socklen_t tolen)
 {
-  FAR struct sockaddr_bt_s *destaddr;
   FAR struct radio_driver_s *radio;
   FAR struct bluetooth_conn_s *conn;
   struct bluetooth_sendto_s state;
@@ -276,10 +262,31 @@ ssize_t psock_bluetooth_sendto(FAR struct socket *psock, FAR const void *buf,
 
   /* Get the device driver that will service this transfer */
 
-  radio = bluetooth_find_device(conn, &conn->bc_laddr);
-  if (radio == NULL)
+  if (psock->s_proto == BTPROTO_L2CAP)
     {
-      return -ENODEV;
+      radio = bluetooth_find_device(conn, &conn->bc_laddr);
+      if (radio == NULL)
+        {
+          return -ENODEV;
+        }
+    }
+  else if (psock->s_proto == BTPROTO_HCI)
+    {
+      /* TODO: should actually look among BT devices */
+
+      radio =
+          (FAR struct radio_driver_s *)netdev_findbyindex(conn->bc_ldev + 1);
+
+      DEBUGASSERT(radio->r_dev.d_lltype == NET_LL_BLUETOOTH);
+
+      if (radio == NULL)
+        {
+          return -ENODEV;
+        }
+    }
+  else
+    {
+      return -EOPNOTSUPP;
     }
 
   /* Perform the send operation */
@@ -296,7 +303,7 @@ ssize_t psock_bluetooth_sendto(FAR struct socket *psock, FAR const void *buf,
    */
 
   nxsem_init(&state.is_sem, 0, 0); /* Doesn't really fail */
-  nxsem_setprotocol(&state.is_sem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&state.is_sem, SEM_PRIO_NONE);
 
   state.is_sock   = psock;          /* Socket descriptor to use */
   state.is_buflen = len;            /* Number of bytes to send */
@@ -304,9 +311,22 @@ ssize_t psock_bluetooth_sendto(FAR struct socket *psock, FAR const void *buf,
 
   /* Copy the destination address */
 
-  destaddr = (FAR struct sockaddr_bt_s *)to;
-  memcpy(&state.is_destaddr, &destaddr->bt_bdaddr,
-         sizeof(bt_addr_t));
+  if (psock->s_proto == BTPROTO_L2CAP)
+    {
+      FAR struct sockaddr_l2 *destaddr = (FAR struct sockaddr_l2 *)to;
+      memcpy(&state.is_destaddr, &destaddr->l2_bdaddr,
+             sizeof(bt_addr_t));
+    }
+  else if (psock->s_proto == BTPROTO_HCI)
+    {
+      FAR struct sockaddr_hci *destaddr = (FAR struct sockaddr_hci *)to;
+      state.is_channel = destaddr->hci_channel;
+    }
+  else
+    {
+      ret = -EOPNOTSUPP;
+      goto err_with_net;
+    }
 
   if (len > 0)
     {
@@ -349,8 +369,9 @@ ssize_t psock_bluetooth_sendto(FAR struct socket *psock, FAR const void *buf,
       return state.is_sent;
     }
 
-  /* If net_lockedwait failed, then we were probably reawakened by a signal. In
-   * this case, net_lockedwait will have returned negated errno appropriately.
+  /* If net_lockedwait failed, then we were probably reawakened by a signal.
+   * In this case, net_lockedwait will have returned negated errno
+   * appropriately.
    */
 
   if (ret < 0)
@@ -361,6 +382,12 @@ ssize_t psock_bluetooth_sendto(FAR struct socket *psock, FAR const void *buf,
   /* Return the number of bytes actually sent */
 
   return state.is_sent;
+
+err_with_net:
+  nxsem_destroy(&state.is_sem);
+  net_unlock();
+
+  return ret;
 }
 
 #endif /* CONFIG_NET_BLUETOOTH */

@@ -82,7 +82,7 @@
  *         implementation without modification.  The argument has no
  *         meaning to NuttX; the meaning of the argument is a contract
  *         between the board-specific initialization logic and the
- *         matching application logic.  The value cold be such things as a
+ *         matching application logic.  The value could be such things as a
  *         mode enumeration value, a set of DIP switch switch settings, a
  *         pointer to configuration data read from a file or serial FLASH,
  *         or whatever you would like to do with it.  Every implementation
@@ -109,6 +109,17 @@ int board_app_initialize(uintptr_t arg)
     {
       syslog(LOG_ERR,
              "ERROR: Failed to create the CDC/ACM serial device: %d (%d)\n",
+             ret, errno);
+      return ret;
+    }
+#endif
+
+#ifdef HAVE_NAND
+  ret = sam_nand_automount(SAM_SMC_CS0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to initialize the NAND: %d (%d)\n",
              ret, errno);
       return ret;
     }
@@ -153,6 +164,18 @@ int board_app_initialize(uintptr_t arg)
       syslog(LOG_ERR,
              "ERROR: Failed to mount the FAT filesystem: %d (%d)\n",
              ret, errno);
+      return ret;
+    }
+#endif
+
+  /* SPI */
+
+#ifdef HAVE_MMCSD_SPI
+  ret = sam_sdinitialize(0, 0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize MMC/SD slot: %d\n",
+             ret);
       return ret;
     }
 #endif

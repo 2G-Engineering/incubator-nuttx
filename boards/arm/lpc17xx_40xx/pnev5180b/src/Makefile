@@ -33,9 +33,8 @@
 #
 ##############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = lpc17_40_boot.c lpc17_40_bringup.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)

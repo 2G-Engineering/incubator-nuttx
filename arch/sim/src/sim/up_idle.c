@@ -59,7 +59,7 @@
  * Name: up_idle
  *
  * Description:
- *   up_idle() is the logic that will be executed when their
+ *   up_idle() is the logic that will be executed when there
  *   is no other ready-to-run task.  This is processor idle
  *   time and will continue until some interrupt occurs to
  *   cause a context switch from the idle task.
@@ -89,13 +89,12 @@ void up_idle(void)
     }
 #endif
 
-#ifdef USE_DEVCONSOLE
   /* Handle UART data availability */
 
-  up_devconloop();
-#endif
+  up_uartloop();
 
-#if defined(CONFIG_SIM_TOUCHSCREEN) || defined(CONFIG_SIM_AJOYSTICK)
+#if defined(CONFIG_SIM_TOUCHSCREEN) || defined(CONFIG_SIM_AJOYSTICK) || \
+    defined(CONFIG_SIM_BUTTONS)
   /* Drive the X11 event loop */
 
   up_x11events();
@@ -109,6 +108,14 @@ void up_idle(void)
 
 #ifdef CONFIG_RPTUN
   up_rptun_loop();
+#endif
+
+#ifdef CONFIG_SIM_HCISOCKET
+  bthcisock_loop();
+#endif
+
+#ifdef CONFIG_SIM_SOUND
+  sim_audio_loop();
 #endif
 
 #ifdef CONFIG_ONESHOT

@@ -112,7 +112,8 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Olimex-STM32-E407 GPIOs ****************************************************/
+/* Olimex-STM32-E407 GPIOs **************************************************/
+
 /* LEDs */
 
 #define GPIO_LED_STATUS   (GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_50MHz|\
@@ -221,7 +222,7 @@
 #ifndef __ASSEMBLY__
 
 /****************************************************************************
- * Public Functions
+ * Public Function Prototypes
  ****************************************************************************/
 
 /****************************************************************************
@@ -290,24 +291,6 @@ int stm32_can_setup(void);
 #endif
 
 /****************************************************************************
- * Name: stm32_bmp180initialize
- *
- * Description:
- *   Initialize and register the BMP180 Pressure Sensor driver.
- *
- * Input parameters:
- *   devpath - The full path to the driver to register. E.g., "/dev/press0"
- *
- * Returned Value:
- *   Zero (OK) on success; a negated errno value on failure.
- *
- ****************************************************************************/
-
-#if defined(CONFIG_I2C) && defined(CONFIG_SENSORS_BMP180)
-int stm32_bmp180initialize(FAR const char *devpath);
-#endif
-
-/****************************************************************************
  * Name: stm32_dac_setup
  *
  * Description:
@@ -323,24 +306,6 @@ int stm32_bmp180initialize(FAR const char *devpath);
 
 #if defined(CONFIG_DAC)
 int stm32_dac_setup(void);
-#endif
-
-/****************************************************************************
- * Name: stm32_ina219initialize
- *
- * Description:
- *   Initialize and register the INA219 voltage/current sensor.
- *
- * Input parameters:
- *   devpath - The full path to the driver to register. E.g., "/dev/ina219"
- *
- * Returned Value:
- *   Zero (OK) on success; a negated errno value on failure.
- *
- ****************************************************************************/
-
-#if defined(CONFIG_I2C) && defined(CONFIG_SENSORS_INA219)
-int stm32_ina219initialize(FAR const char *devpath);
 #endif
 
 /****************************************************************************

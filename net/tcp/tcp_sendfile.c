@@ -46,6 +46,7 @@
 #include <sys/socket.h>
 
 #include <fcntl.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -94,16 +95,16 @@
 
 struct sendfile_s
 {
-  FAR struct socket *snd_sock;    /* Points to the parent socket structure */
+  FAR struct socket *snd_sock;             /* Points to the parent socket structure */
   FAR struct devif_callback_s *snd_datacb; /* Data callback */
   FAR struct devif_callback_s *snd_ackcb;  /* ACK callback */
-  FAR struct file   *snd_file;    /* File structure of the input file */
-  sem_t              snd_sem;     /* Used to wake up the waiting thread */
-  off_t              snd_foffset; /* Input file offset */
-  size_t             snd_flen;    /* File length */
-  ssize_t            snd_sent;    /* The number of bytes sent */
-  uint32_t           snd_isn;     /* Initial sequence number */
-  uint32_t           snd_acked;   /* The number of bytes acked */
+  FAR struct file   *snd_file;             /* File structure of the input file */
+  sem_t              snd_sem;              /* Used to wake up the waiting thread */
+  off_t              snd_foffset;          /* Input file offset */
+  size_t             snd_flen;             /* File length */
+  ssize_t            snd_sent;             /* The number of bytes sent */
+  uint32_t           snd_isn;              /* Initial sequence number */
+  uint32_t           snd_acked;            /* The number of bytes acked */
 };
 
 /****************************************************************************
@@ -151,7 +152,7 @@ static uint16_t ack_eventhandler(FAR struct net_driver_s *dev,
        */
 
       pstate->snd_acked = tcp_getsequence(tcp->ackno) - pstate->snd_isn;
-      ninfo("ACK: acked=%d sent=%d flen=%d\n",
+      ninfo("ACK: acked=%" PRId32 " sent=%zd flen=%zu\n",
             pstate->snd_acked, pstate->snd_sent, pstate->snd_flen);
 
       dev->d_sndlen = 0;
@@ -236,19 +237,6 @@ static uint16_t sendfile_eventhandler(FAR struct net_driver_s *dev,
   FAR struct sendfile_s *pstate = (FAR struct sendfile_s *)pvpriv;
   int ret;
 
-  /* The TCP socket is connected and, hence, should be bound to a device.
-   * Make sure that the polling device is the own that we are bound to.
-   */
-
-  DEBUGASSERT(conn->dev != NULL);
-  if (dev != conn->dev)
-    {
-      return flags;
-    }
-
-  ninfo("flags: %04x acked: %d sent: %d\n",
-        flags, pstate->snd_acked, pstate->snd_sent);
-
   /* Check for a loss of connection */
 
   if ((flags & TCP_DISCONN_EVENTS) != 0)
@@ -275,6 +263,20 @@ static uint16_t sendfile_eventhandler(FAR struct net_driver_s *dev,
       pstate->snd_sent = -ENOTCONN;
       goto end_wait;
     }
+
+  /* The TCP socket is connected and, hence, should be bound to a device.
+   * Make sure that the polling device is the own that we are bound to.
+   */
+
+  DEBUGASSERT(conn);
+  DEBUGASSERT(conn->dev != NULL);
+  if (dev != conn->dev)
+    {
+      return flags;
+    }
+
+  ninfo("flags: %04x acked: %" PRId32 " sent: %zd\n",
+        flags, pstate->snd_acked, pstate->snd_sent);
 
   /* We get here if (1) not all of the data has been ACKed, (2) we have been
    * asked to retransmit data, (3) the connection is still healthy, and (4)
@@ -333,15 +335,16 @@ static uint16_t sendfile_eventhandler(FAR struct net_driver_s *dev,
            */
 
           seqno = pstate->snd_sent + pstate->snd_isn;
-          ninfo("SEND: sndseq %08x->%08x len: %d\n",
-                conn->sndseq, seqno, ret);
+          ninfo("SEND: sndseq %08" PRIx32 "->%08" PRIx32 " len: %d\n",
+                tcp_getsequence(conn->sndseq), seqno, ret);
 
           tcp_setsequence(conn->sndseq, seqno);
 
           /* Update the amount of data sent (but not necessarily ACKed) */
 
           pstate->snd_sent += sndlen;
-          ninfo("pid: %d SEND: acked=%d sent=%d flen=%d\n", getpid(),
+          ninfo("pid: %d SEND: acked=%" PRId32 " sent=%zd flen=%zu\n",
+                getpid(),
                 pstate->snd_acked, pstate->snd_sent, pstate->snd_flen);
         }
       else
@@ -510,7 +513,7 @@ ssize_t tcp_sendfile(FAR struct socket *psock, FAR struct file *infile,
    */
 
   nxsem_init(&state.snd_sem, 0, 0);           /* Doesn't really fail */
-  nxsem_setprotocol(&state.snd_sem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&state.snd_sem, SEM_PRIO_NONE);
 
   state.snd_sock    = psock;                /* Socket descriptor to use */
   state.snd_foffset = offset ? *offset : 0; /* Input file offset */

@@ -56,6 +56,7 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -68,8 +69,8 @@
 #include <nuttx/spi/spi.h>
 #include <nuttx/power/pm.h>
 
-#include "up_internal.h"
-#include "up_arch.h"
+#include "arm_internal.h"
+#include "arm_arch.h"
 
 #include "chip.h"
 #include "stm32.h"
@@ -1000,7 +1001,7 @@ static uint32_t spi_setfrequency(FAR struct spi_dev_s *dev,
        * will be faster.
        */
 
-      spiinfo("Frequency %d->%d\n", frequency, actual);
+      spiinfo("Frequency %" PRId32 "->% " PRId32 "\n", frequency, actual);
 
       priv->frequency = frequency;
       priv->actual    = actual;
@@ -1068,7 +1069,9 @@ static void spi_setmode(FAR struct spi_dev_s *dev, enum spi_mode_e mode)
         spi_modifycr(STM32_SPI_CR1_OFFSET, priv, setbits, clrbits);
         spi_modifycr(STM32_SPI_CR1_OFFSET, priv, SPI_CR1_SPE, 0);
 
-        /* Save the mode so that subsequent re-configurations will be faster */
+        /* Save the mode so that subsequent re-configurations will be
+         * faster.
+         */
 
         priv->mode = mode;
     }
@@ -1095,7 +1098,6 @@ static void spi_setbits(FAR struct spi_dev_s *dev, int nbits)
   FAR struct stm32_spidev_s *priv = (FAR struct stm32_spidev_s *)dev;
   uint16_t setbits;
   uint16_t clrbits;
-  int savbits = nbits;
 
   spiinfo("nbits=%d\n", nbits);
 
@@ -1157,9 +1159,11 @@ static void spi_setbits(FAR struct spi_dev_s *dev, int nbits)
       spi_modifycr(STM32_SPI_CR1_OFFSET, priv, SPI_CR1_SPE, 0);
 #endif
 
-      /* Save the selection so the subsequence re-configurations will be faster */
+      /* Save the selection so that subsequent re-configurations will be
+       * faster.
+       */
 
-      priv->nbits = savbits; /* nbits has been clobbered... save the signed value. */
+      priv->nbits = nbits;
     }
 }
 
@@ -1257,11 +1261,14 @@ static uint32_t spi_send(FAR struct spi_dev_s *dev, uint32_t wd)
   spi_writeword(priv, (uint16_t)(wd & 0xffff));
   ret = (uint32_t)spi_readword(priv);
 
-  /* Check and clear any error flags (Reading from the SR clears the error flags) */
+  /* Check and clear any error flags (Reading from the SR clears the error
+   * flags)
+   */
 
   regval = spi_getreg(priv, STM32_SPI_SR_OFFSET);
 
-  spiinfo("Sent: %04x Return: %04x Status: %02x\n", wd, ret, regval);
+  spiinfo("Sent: %04" PRIx32 " Return: %04" PRIx32
+          " Status: %02" PRIx32 "\n", wd, ret, regval);
   UNUSED(regval);
 
   return ret;
@@ -1403,9 +1410,9 @@ static void spi_exchange(FAR struct spi_dev_s *dev, FAR const void *txbuffer,
 
 #ifdef CONFIG_STM32F0L0G0_DMACAPABLE
   if ((txbuffer &&
-      !stm32_dmacapable((uint32_t)txbuffer, nwords, priv->txccr)) ||
+      !stm32_dmacapable((uintptr_t)txbuffer, nwords, priv->txccr)) ||
       (rxbuffer &&
-      !stm32_dmacapable((uint32_t)rxbuffer, nwords, priv->rxccr)))
+      !stm32_dmacapable((uintptr_t)rxbuffer, nwords, priv->rxccr)))
     {
       /* Unsupported memory region, fall back to non-DMA method. */
 
@@ -1611,7 +1618,7 @@ static int spi_pm_prepare(FAR struct pm_callback_s *cb, int domain,
 
       /* Check if exclusive lock for SPI bus is held. */
 
-      if (nxsem_getvalue(&priv->exclsem, &sval) < 0)
+      if (nxsem_get_value(&priv->exclsem, &sval) < 0)
         {
           DEBUGASSERT(false);
           return -EINVAL;
@@ -1619,7 +1626,9 @@ static int spi_pm_prepare(FAR struct pm_callback_s *cb, int domain,
 
       if (sval <= 0)
         {
-          /* Exclusive lock is held, do not allow entry to deeper PM states. */
+          /* Exclusive lock is held, do not allow entry to deeper PM
+           * states.
+           */
 
           return -EBUSY;
         }
@@ -1725,8 +1734,8 @@ static void spi_bus_initialize(FAR struct stm32_spidev_s *priv)
    * priority inheritance enabled.
    */
 
-  nxsem_setprotocol(&priv->rxsem, SEM_PRIO_NONE);
-  nxsem_setprotocol(&priv->txsem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&priv->rxsem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&priv->txsem, SEM_PRIO_NONE);
 
   /* Get DMA channels.  NOTE: stm32_dmachannel() will always assign the DMA
    * channel.  If the channel is not available, then stm32_dmachannel() will

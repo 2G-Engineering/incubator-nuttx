@@ -54,6 +54,7 @@
 
 #include <arch/irq.h>
 
+#include <nuttx/clock.h>
 #include <nuttx/net/netconfig.h>
 #include <nuttx/net/net.h>
 #include <nuttx/net/netdev.h>
@@ -63,6 +64,8 @@
 #include "devif/devif.h"
 #include "inet/inet.h"
 #include "tcp/tcp.h"
+#include "arp/arp.h"
+#include "icmpv6/icmpv6.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -87,10 +90,6 @@ static dq_queue_t g_free_tcp_connections;
 
 static dq_queue_t g_active_tcp_connections;
 
-/* Last port used by a TCP connection connection. */
-
-static uint16_t g_last_tcp_port;
-
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -100,7 +99,7 @@ static uint16_t g_last_tcp_port;
  *
  * Description:
  *   Given a local port number (in network byte order), find the TCP
- *   connection that listens on this this port.
+ *   connection that listens on this port.
  *
  *   Primary uses: (1) to determine if a port number is available, (2) to
  *   To identify the socket that will accept new connections on a local port.
@@ -151,7 +150,7 @@ static inline FAR struct tcp_conn_s *tcp_ipv4_listener(in_addr_t ipaddr,
  *
  * Description:
  *   Given a local port number (in network byte order), find the TCP
- *   connection that listens on this this port.
+ *   connection that listens on this port.
  *
  *   Primary uses: (1) to determine if a port number is available, (2) to
  *   To identify the socket that will accept new connections on a local port.
@@ -202,7 +201,7 @@ tcp_ipv6_listener(const net_ipv6addr_t ipaddr, uint16_t portno)
  *
  * Description:
  *   Given a local port number (in network byte order), find the TCP
- *   connection that listens on this this port.
+ *   connection that listens on this port.
  *
  *   Primary uses: (1) to determine if a port number is available, (2) to
  *   To identify the socket that will accept new connections on a local port.
@@ -261,12 +260,26 @@ static FAR struct tcp_conn_s *
 static int tcp_selectport(uint8_t domain, FAR const union ip_addr_u *ipaddr,
                           uint16_t portno)
 {
+  static uint16_t g_last_tcp_port;
+
+  /* Generate port base dynamically */
+
+  if (g_last_tcp_port == 0)
+    {
+      g_last_tcp_port = clock_systime_ticks() % 32000;
+
+      if (g_last_tcp_port < 4096)
+        {
+          g_last_tcp_port += 4096;
+        }
+    }
+
   if (portno == 0)
     {
-      /* No local port assigned. Loop until we find a valid listen port number
-       * that is not being used by any other connection. NOTE the following
-       * loop is assumed to terminate but could not if all 32000-4096+1 ports
-       * are in used (unlikely).
+      /* No local port assigned. Loop until we find a valid listen port
+       * number that is not being used by any other connection. NOTE the
+       * following loop is assumed to terminate but could not if all
+       * 32000-4096+1 ports are in used (unlikely).
        */
 
       do
@@ -476,7 +489,7 @@ static inline int tcp_ipv4_bind(FAR struct tcp_conn_s *conn,
       return port;
     }
 
-  /* Save the local address in the connection structure (network byte order). */
+  /* Save the local address in the connection structure (network order). */
 
   conn->lport = htons(port);
   net_ipv4addr_copy(conn->u.ipv4.laddr, addr->sin_addr.s_addr);
@@ -535,15 +548,15 @@ static inline int tcp_ipv6_bind(FAR struct tcp_conn_s *conn,
   /* The port number must be unique for this address binding */
 
   port = tcp_selectport(PF_INET6,
-                        (FAR const union ip_addr_u *)addr->sin6_addr.in6_u.u6_addr16,
-                        ntohs(addr->sin6_port));
+                (FAR const union ip_addr_u *)addr->sin6_addr.in6_u.u6_addr16,
+                ntohs(addr->sin6_port));
   if (port < 0)
     {
       nerr("ERROR: tcp_selectport failed: %d\n", port);
       return port;
     }
 
-  /* Save the local address in the connection structure (network byte order). */
+  /* Save the local address in the connection structure (network order). */
 
   conn->lport = htons(port);
   net_ipv6addr_copy(conn->u.ipv6.laddr, addr->sin6_addr.in6_u.u6_addr16);
@@ -602,8 +615,6 @@ void tcp_initialize(void)
       g_tcp_connections[i].tcpstateflags = TCP_CLOSED;
       dq_addlast(&g_tcp_connections[i].node, &g_free_tcp_connections);
     }
-
-  g_last_tcp_port = 1024;
 }
 
 /****************************************************************************
@@ -637,8 +648,8 @@ FAR struct tcp_conn_s *tcp_alloc(uint8_t domain)
 
   if (!conn)
     {
-      /* As a fall-back, check for connection structures which can be stalled.
-       *
+      /* As a fall-back, check for connection structures which can be
+       * stalled.
        * Search the active connection list for the oldest connection
        * that is about to be closed anyway.
        */
@@ -718,7 +729,7 @@ FAR struct tcp_conn_s *tcp_alloc(uint8_t domain)
       conn->domain        = domain;
 #endif
 #ifdef CONFIG_NET_TCP_KEEPALIVE
-      conn->keeptime      = clock_systimer();
+      conn->keeptime      = clock_systime_ticks();
       conn->keepidle      = 2 * DSEC_PER_HOUR;
       conn->keepintvl     = 2 * DSEC_PER_SEC;
       conn->keepcnt       = 3;
@@ -1116,7 +1127,7 @@ int tcp_connect(FAR struct tcp_conn_s *conn, FAR const struct sockaddr *addr)
     }
 
   /* If the TCP port has not already been bound to a local port, then select
-   * one now.  We assume that the IP address has been bound to a local device,
+   * one now. We assume that the IP address has been bound to a local device,
    * but the port may still be INPORT_ANY.
    */
 
@@ -1228,6 +1239,38 @@ int tcp_connect(FAR struct tcp_conn_s *conn, FAR const struct sockaddr *addr)
       nerr("ERROR: Failed to find network device: %d\n", ret);
       goto errout_with_lock;
     }
+
+#if defined(CONFIG_NET_ARP_SEND) || defined(CONFIG_NET_ICMPv6_NEIGHBOR)
+#ifdef CONFIG_NET_ARP_SEND
+#ifdef CONFIG_NET_ICMPv6_NEIGHBOR
+  if (conn->domain == PF_INET)
+#endif
+    {
+      /* Make sure that the IP address mapping is in the ARP table */
+
+      ret = arp_send(conn->u.ipv4.raddr);
+    }
+#endif /* CONFIG_NET_ARP_SEND */
+
+#ifdef CONFIG_NET_ICMPv6_NEIGHBOR
+#ifdef CONFIG_NET_ARP_SEND
+  else
+#endif
+    {
+      /* Make sure that the IP address mapping is in the Neighbor Table */
+
+      ret = icmpv6_neighbor(conn->u.ipv6.raddr);
+    }
+#endif /* CONFIG_NET_ICMPv6_NEIGHBOR */
+
+  /* Did we successfully get the address mapping? */
+
+  if (ret < 0)
+    {
+      ret = -ENETUNREACH;
+      goto errout_with_lock;
+    }
+#endif /* CONFIG_NET_ARP_SEND || CONFIG_NET_ICMPv6_NEIGHBOR */
 
   /* Initialize and return the connection structure, bind it to the port
    * number.  At this point, we do not know the size of the initial MSS We

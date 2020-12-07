@@ -169,6 +169,43 @@
 #  define CXD56_SP_DRIVER   3
 #endif
 
+/* Mic bias voltage select */
+
+#define  CXD56_MIC_BIAS_20V  1
+#define  CXD56_MIC_BIAS_28V  2
+
+#if defined(CONFIG_CXD56_AUDIO_MICBIAS_20V)
+#  define CXD56_MIC_BIAS  CXD56_MIC_BIAS_20V
+#else
+#  define CXD56_MIC_BIAS  CXD56_MIC_BIAS_28V
+#endif
+
+/* Mic select */
+
+#define CXD56_AUDIO_CFG_MIC CONFIG_CXD56_AUDIO_MIC_CHANNEL_SEL
+
+/* Mic boot wait time */
+
+#if defined(CONFIG_CXD56_AUDIO_MIC_BOOT_WAIT)
+#define CXD56_MIC_BOOT_WAIT  CONFIG_CXD56_AUDIO_MIC_BOOT_WAIT
+#else
+#define CXD56_MIC_BOOT_WAIT  1100
+#endif
+
+/* CIC filter input path */
+
+#define CXD56_AUDIO_CFG_CIC_IN_SEL_NONE   0
+#define CXD56_AUDIO_CFG_CIC_IN_SEL_CXD    1
+#define CXD56_AUDIO_CFG_CIC_IN_SEL_DMICIF 2
+
+#if defined(CONFIG_CXD56_AUDIO_CIC_IN_SEL_CXD)
+#  define CXD56_AUDIO_CFG_CIC_IN  CXD56_AUDIO_CFG_CIC_IN_SEL_CXD
+#elif defined (CONFIG_CXD56_AUDIO_CIC_IN_SEL_DMIC)
+#  define CXD56_AUDIO_CFG_CIC_IN  CXD56_AUDIO_CFG_CIC_IN_SEL_DMICIF
+#else
+#  define CXD56_AUDIO_CFG_CIC_IN  CXD56_AUDIO_CFG_CIC_IN_SEL_NONE
+#endif
+
 /* DMA format */
 
 #define CXD56_DMA_FORMAT_LR 0
@@ -190,6 +227,18 @@
 #  define CONFIG_CXD56_AUDIO_NUM_BUFFERS  4
 #endif
 
+/* Queue helpers */
+
+#define dq_get(q)    (dq_remfirst(q))
+#define dq_put(q,n) (dq_addlast((dq_entry_t*)n,(q)))
+#define dq_put_back(q,n) (dq_addfirst((dq_entry_t*)n,(q)))
+#define dq_clear(q) \
+  do \
+    { \
+      dq_remlast(q); \
+    } \
+  while (!dq_empty(q))
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/
@@ -206,6 +255,7 @@ enum cxd56_devstate_e
 {
   CXD56_DEV_STATE_OFF,
   CXD56_DEV_STATE_PAUSED,
+  CXD56_DEV_STATE_BUFFERING,
   CXD56_DEV_STATE_STARTED,
   CXD56_DEV_STATE_STOPPED
 };
@@ -234,8 +284,14 @@ struct cxd56_dev_s
   pthread_t               threadid;         /* ID of our thread */
   sem_t                   pendsem;          /* Protect pendq */
 
-  struct dq_queue_s       pendingq;         /* Queue of pending buffers to be sent */
-  struct dq_queue_s       runningq;         /* Queue of buffers being played */
+  struct dq_queue_s       up_pendq;         /* Pending buffers from app to process */
+  struct dq_queue_s       up_runq;          /* Buffers from app being played */
+
+#ifdef CONFIG_AUDIO_CXD56_SRC
+  struct dq_queue_s       down_pendq;       /* Pending SRC buffers to be DMA'd */
+  struct dq_queue_s       down_runq;        /* SRC buffers being processed */
+  struct dq_queue_s       down_doneq;       /* Done SRC buffers to be re-used */
+#endif
 
   uint16_t                samplerate;       /* Sample rate */
 #ifndef CONFIG_AUDIO_EXCLUDE_VOLUME
@@ -243,7 +299,8 @@ struct cxd56_dev_s
 #endif  /* CONFIG_AUDIO_EXCLUDE_VOLUME */
   uint8_t                 channels;         /* Number of channels (1..8) */
 
-  /* enum cxd56_audio_samp_fmt_e  format; */ /* Output bits per sample (16 or 24) */
+  uint16_t                mic_gain;         /* Mic gain */
+  uint64_t                mic_boot_start;   /* Mic startup wait time */
 
   uint8_t                 bitwidth;         /* Bits per sample (16 or 24) */
   bool                    muted;            /* True: Output is muted */

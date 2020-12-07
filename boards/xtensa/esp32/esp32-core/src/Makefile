@@ -33,31 +33,61 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-SCRIPTDIR = $(TOPDIR)$(DELIM)boards$(DELIM)$(CONFIG_ARCH)$(DELIM)$(CONFIG_ARCH_CHIP)$(DELIM)$(CONFIG_ARCH_BOARD)$(DELIM)scripts
+SCRIPTDIR = $(BOARD_DIR)$(DELIM)scripts
 
 CONFIGFILE = $(TOPDIR)$(DELIM)include$(DELIM)nuttx$(DELIM)config.h
 
-ASRCS =
 CSRCS = esp32_boot.c esp32_bringup.c
 
 ifeq ($(CONFIG_LIB_BOARDCTL),y)
 CSRCS += esp32_appinit.c
+ifeq ($(CONFIG_BOARDCTL_RESET),y)
+CSRCS += esp32_reset.c
+endif
 endif
 
-SCRIPTIN = $(SCRIPTDIR)$(DELIM)esp32.template
+ifeq ($(CONFIG_ESP32_SPI),y)
+CSRCS += esp32_spi.c
+endif
+
+ifeq ($(CONFIG_MMCSD),y)
+CSRCS += esp32_mmcsd.c
+endif
+
+ifeq ($(CONFIG_ESP32_SPIFLASH),y)
+CSRCS += esp32_spiflash.c
+endif
+
+ifeq ($(CONFIG_TIMER),y)
+ifeq ($(CONFIG_ESP32_TIMER),y)
+CSRCS += esp32_timer.c
+endif
+endif
+
+ifeq ($(CONFIG_USERLED),y)
+  CSRCS += esp32_userleds.c
+endif
+
+ifeq ($(CONFIG_WATCHDOG),y)
+ifeq ($(CONFIG_ESP32_WTD),y)
+CSRCS += esp32_wtd.c
+endif
+endif
+
+SCRIPTIN = $(SCRIPTDIR)$(DELIM)esp32.template.ld
 SCRIPTOUT = $(SCRIPTDIR)$(DELIM)esp32_out.ld
 
-BOARD_CONTEXT = y
-EXTRA_CLEAN =
-EXTRA_DISTCLEAN = $(call DELFILE, $(SCRIPTOUT))
-
-.PHONY = context
+.PHONY = context distclean
 
 include $(TOPDIR)/boards/Board.mk
 
 $(SCRIPTOUT): $(SCRIPTIN) $(CONFIGFILE)
 	$(Q) $(CC) -isystem $(TOPDIR)/include -C -P -x c -E $(SCRIPTIN) -o $@
 
-context: $(SCRIPTOUT)
+context:: $(SCRIPTOUT)
+
+distclean::
+	$(call DELFILE, $(SCRIPTOUT))
+

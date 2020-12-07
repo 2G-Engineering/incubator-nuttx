@@ -1,7 +1,7 @@
 ############################################################################
 # boards/arm/stm32f7/stm32f746g-disco/src/Makefile
 #
-#   Copyright (C) 2015 Gregory Nutt. All rights reserved.
+#   Copyright (C) 2019 Gregory Nutt. All rights reserved.
 #   Author: Gregory Nutt <gnutt@nuttx.org>
 #
 # Redistribution and use in source and binary forms, with or without
@@ -33,9 +33,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = stm32_boot.c stm32_spi.c stm32_bringup.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
@@ -82,6 +81,10 @@ endif
 
 ifeq ($(CONFIG_STM32F7_SDMMC), y)
 CSRCS += stm32_sdmmc.c
+endif
+
+ifeq ($(CONFIG_AUDIO_WM8994), y)
+CSRCS += stm32_wm8994.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

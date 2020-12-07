@@ -55,13 +55,14 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <string.h>
 
 #include "stm32l4_rcc.h"
 #include "stm32l4_waste.h"
 #include "stm32l4_flash.h"
 
-#include "up_arch.h"
+#include "arm_arch.h"
 
 #if !(defined(CONFIG_STM32L4_STM32L4X3) || defined(CONFIG_STM32L4_STM32L4X5) || \
       defined(CONFIG_STM32L4_STM32L4X6) || defined(CONFIG_STM32L4_STM32L4XR))
@@ -132,7 +133,7 @@ static void flash_unlock(void)
 {
   while (getreg32(STM32L4_FLASH_SR) & FLASH_SR_BSY)
     {
-      up_waste();
+      stm32l4_waste();
     }
 
   if (getreg32(STM32L4_FLASH_CR) & FLASH_CR_LOCK)
@@ -196,7 +197,7 @@ static inline void flash_erase(size_t page)
 
   while (getreg32(STM32L4_FLASH_SR) & FLASH_SR_BSY)
     {
-      up_waste();
+      stm32l4_waste();
     }
 
   modifyreg32(STM32L4_FLASH_CR, FLASH_CR_PAGE_ERASE, 0);
@@ -298,12 +299,12 @@ uint32_t stm32l4_flash_user_optbytes(uint32_t clrbits, uint32_t setbits)
 
   regval = getreg32(STM32L4_FLASH_OPTR);
 
-  finfo("Flash option bytes before: 0x%x\n", regval);
+  finfo("Flash option bytes before: 0x%" PRIx32 "\n", regval);
 
   regval = (regval & ~clrbits) | setbits;
   putreg32(regval, STM32L4_FLASH_OPTR);
 
-  finfo("Flash option bytes after:  0x%x\n", regval);
+  finfo("Flash option bytes after:  0x%" PRIx32 "\n", regval);
 
   /* Start Option Bytes programming and wait for completion. */
 
@@ -311,7 +312,7 @@ uint32_t stm32l4_flash_user_optbytes(uint32_t clrbits, uint32_t setbits)
 
   while (getreg32(STM32L4_FLASH_SR) & FLASH_SR_BSY)
     {
-      up_waste();
+      stm32l4_waste();
     }
 
   flash_optbytes_lock();
@@ -530,7 +531,7 @@ ssize_t up_progmem_write(size_t addr, const void *buf, size_t buflen)
 
           while (getreg32(STM32L4_FLASH_SR) & FLASH_SR_BSY)
             {
-              up_waste();
+              stm32l4_waste();
             }
 
           /* Verify */
@@ -581,7 +582,7 @@ out:
 
   if (ret != OK)
     {
-      ferr("flash write error: %d, status: 0x%x\n",
+      ferr("flash write error: %d, status: 0x%" PRIx32 "\n",
            ret, getreg32(STM32L4_FLASH_SR));
 
       modifyreg32(STM32L4_FLASH_SR, 0, FLASH_SR_ALLERRS);

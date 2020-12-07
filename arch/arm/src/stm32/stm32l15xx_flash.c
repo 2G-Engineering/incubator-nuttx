@@ -52,6 +52,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/semaphore.h>
 
+#include <inttypes.h>
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
@@ -60,7 +61,7 @@
 #include "stm32_rcc.h"
 #include "stm32_waste.h"
 
-#include "up_arch.h"
+#include "arm_arch.h"
 
 /* Only for the STM32L15xx family. */
 
@@ -111,7 +112,7 @@ static void stm32_eeprom_unlock(void)
 {
   while (getreg32(STM32_FLASH_SR) & FLASH_SR_BSY)
     {
-      up_waste();
+      stm32_waste();
     }
 
   if (getreg32(STM32_FLASH_PECR) & FLASH_PECR_PELOCK)
@@ -221,7 +222,7 @@ static ssize_t stm32_eeprom_erase_write(size_t addr, const void *buf,
 
       while (getreg32(STM32_FLASH_SR) & FLASH_SR_BSY)
         {
-          up_waste();
+          stm32_waste();
         }
 
       /* Verify */
@@ -472,7 +473,7 @@ ssize_t up_progmem_eraseblock(size_t block)
 
   while (getreg32(STM32_FLASH_SR) & FLASH_SR_BSY)
     {
-      up_waste();
+      stm32_waste();
     }
 
   flash_lock();
@@ -538,7 +539,7 @@ ssize_t up_progmem_write(size_t addr, const void *buf, size_t count)
 
       while (getreg32(STM32_FLASH_SR) & FLASH_SR_BSY)
         {
-          up_waste();
+          stm32_waste();
         }
 
       /* Verify */
@@ -564,7 +565,8 @@ out:
 
   if (ret != OK)
     {
-      ferr("flash write error: %d, status: 0x%x\n", ret, getreg32(STM32_FLASH_SR));
+      ferr("flash write error: %d, status: 0x%" PRIx32 "\n",
+           ret, getreg32(STM32_FLASH_SR));
       modifyreg32(STM32_FLASH_SR, 0, FLASH_SR_ALLERRS);
     }
 

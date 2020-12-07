@@ -59,7 +59,9 @@
 
 #define STM32_BOARD_XTAL        8000000ul
 
-/* PLL source is HSE/1, PLL multipler is 9: PLL frequency is 8MHz (XTAL) x 9 = 72MHz */
+/* PLL source is HSE/1, PLL multipler is 9: PLL frequency is
+ * 8MHz (XTAL) x 9 = 72MHz
+ */
 
 #define STM32_CFGR_PLLSRC       RCC_CFGR_PLLSRC
 #define STM32_CFGR_PLLXTPRE     0
@@ -108,7 +110,8 @@
 
 /* Timer Frequencies, if APBx is set to 1, frequency is same to APBx
  * otherwise frequency is 2xAPBx.
- * Note: TIM1,8 are on APB2, others on APB1 */
+ * Note: TIM1,8 are on APB2, others on APB1
+ */
 
 #define BOARD_TIM1_FREQUENCY    STM32_HCLK_FREQUENCY
 #define BOARD_TIM2_FREQUENCY    STM32_HCLK_FREQUENCY
@@ -160,5 +163,19 @@
 #define LED_SIGNAL        5  /* LED2 on */
 #define LED_ASSERTION     6  /* LED1 + LED2 */
 #define LED_PANIC         7  /* LED1 / LED2 blinking */
+
+/* NRF24L01 Driver **********************************************************/
+
+/* NRF24L01 chip enable:  PB.1 */
+
+#define GPIO_NRF24L01_CE   (GPIO_OUTPUT|GPIO_CNF_OUTPP|GPIO_MODE_50MHz|\
+                         GPIO_OUTPUT_CLEAR|GPIO_PORTB|GPIO_PIN1)
+
+/* NRF24L01 IRQ line:  PA.0 */
+
+#define GPIO_NRF24L01_IRQ  (GPIO_INPUT|GPIO_CNF_INFLOAT|GPIO_PORTA|GPIO_PIN0)
+
+#define BOARD_NRF24L01_GPIO_CE     GPIO_NRF24L01_CE
+#define BOARD_NRF24L01_GPIO_IRQ    GPIO_NRF24L01_IRQ
 
 #endif /* __ARCH_ARM_STM32_STM32_TINY_INCLUDE_BOARD_H */

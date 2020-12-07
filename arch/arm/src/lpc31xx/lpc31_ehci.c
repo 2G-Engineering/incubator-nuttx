@@ -43,7 +43,7 @@
 #include <nuttx/usb/usbhost_devaddr.h>
 #include <nuttx/usb/usbhost_trace.h>
 
-#include "up_arch.h"
+#include "arm_arch.h"
 #include "chip.h"
 #include "lpc31.h"
 #include "lpc31_cgudrvr.h"
@@ -4043,7 +4043,7 @@ static int lpc31_epalloc(FAR struct usbhost_driver_s *drvr,
    */
 
   nxsem_init(&epinfo->iocsem, 0, 0);
-  nxsem_setprotocol(&epinfo->iocsem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&epinfo->iocsem, SEM_PRIO_NONE);
 
   /* Success.. return an opaque reference to the endpoint information
    * structure instance
@@ -5064,7 +5064,7 @@ FAR struct usbhost_connection_s *lpc31_ehci_initialize(int controller)
    * priority inheritance enabled.
    */
 
-  nxsem_setprotocol(&g_ehci.pscsem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&g_ehci.pscsem, SEM_PRIO_NONE);
 
   /* Initialize EP0 */
 
@@ -5108,7 +5108,7 @@ FAR struct usbhost_connection_s *lpc31_ehci_initialize(int controller)
        */
 
       nxsem_init(&rhport->ep0.iocsem, 0, 0);
-      nxsem_setprotocol(&rhport->iocsem, SEM_PRIO_NONE);
+      nxsem_set_protocol(&rhport->iocsem, SEM_PRIO_NONE);
 
       /* Initialize the public port representation */
 

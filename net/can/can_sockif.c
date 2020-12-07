@@ -69,6 +69,10 @@ static ssize_t can_send(FAR struct socket *psock,
 static ssize_t can_sendto(FAR struct socket *psock, FAR const void *buf,
               size_t len, int flags, FAR const struct sockaddr *to,
               socklen_t tolen);
+#ifdef CONFIG_NET_CMSG
+static ssize_t can_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
+                    int flags);
+#endif
 static int can_close(FAR struct socket *psock);
 
 /****************************************************************************
@@ -93,6 +97,10 @@ const struct sock_intf_s g_can_sockif =
   NULL,             /* si_sendfile */
 #endif
   can_recvfrom,     /* si_recvfrom */
+#ifdef CONFIG_NET_CMSG
+  can_recvmsg,      /* si_recvmsg */
+  can_sendmsg,      /* si_sendmsg */
+#endif
   can_close         /* si_close */
 };
 
@@ -105,7 +113,7 @@ const struct sock_intf_s g_can_sockif =
  *
  * Description:
  *   This function is called to perform the actual CAN receive operation
- *   via the device interface layer.
+ *   via the device interface layer. from can_input()
  *
  * Input Parameters:
  *   dev      The structure of the network driver that caused the event
@@ -151,7 +159,8 @@ static uint16_t can_poll_eventhandler(FAR struct net_driver_s *dev,
 #if 0
       /* A poll is a sign that we are free to send data. */
 
-      else if ((flags & CAN_POLL) != 0 && psock_udp_cansend(info->psock) >= 0)
+      else if ((flags & CAN_POLL) != 0 &&
+                 psock_udp_cansend(info->psock) >= 0)
         {
           eventset |= (POLLOUT & info->fds->events);
         }
@@ -199,6 +208,7 @@ static int can_setup(FAR struct socket *psock, int protocol)
 
   switch (protocol)
     {
+      case 0:            /* INET subsystem for netlib_ifup */
       case CAN_RAW:      /* RAW sockets */
       case CAN_BCM:      /* Broadcast Manager */
       case CAN_TP16:     /* VAG Transport Protocol v1.6 */
@@ -227,6 +237,12 @@ static int can_setup(FAR struct socket *psock, int protocol)
 
           return -ENOMEM;
         }
+
+#ifdef CONFIG_NET_TIMESTAMP
+      /* Store psock in conn se we can read the SO_TIMESTAMP value */
+
+      conn->psock = psock;
+#endif
 
       /* Initialize the connection instance */
 
@@ -331,8 +347,6 @@ static int can_bind(FAR struct socket *psock,
 {
   FAR struct sockaddr_can *canaddr;
   FAR struct can_conn_s *conn;
-  char netdev_name[6];
-
   DEBUGASSERT(psock != NULL && psock->s_conn != NULL && addr != NULL &&
               addrlen >= sizeof(struct sockaddr_can));
 
@@ -343,11 +357,13 @@ static int can_bind(FAR struct socket *psock,
 
   /* Bind CAN device to socket */
 
-  /* TODO better support for CONFIG_NETDEV_IFINDEX */
-
-  sprintf(netdev_name, "can%i", canaddr->can_ifindex);
-
-  conn->dev = netdev_findbyname(&netdev_name);
+#ifdef CONFIG_NETDEV_IFINDEX
+  conn->dev = netdev_findbyindex(canaddr->can_ifindex);
+#else
+  char netdev_name[5] = "can0";
+  netdev_name[3] += canaddr->can_ifindex;
+  conn->dev = netdev_findbyname((const char *)&netdev_name);
+#endif
 
   return OK;
 }
@@ -378,28 +394,7 @@ static int can_getsockname(FAR struct socket *psock,
                            FAR struct sockaddr *addr,
                            FAR socklen_t *addrlen)
 {
-  FAR struct sockaddr_can *canaddr;
-
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL && addr != NULL &&
-              addrlen != NULL && *addrlen >= sizeof(struct sockaddr_can));
-
-  /* Return the address information in the address structure */
-
-  canaddr = (FAR struct sockaddr_can *)addr;
-  memset(canaddr, 0, sizeof(struct sockaddr_can));
-
-  canaddr->can_family = AF_CAN;
-
-  if (_SS_ISBOUND(psock->s_flags))
-    {
-      FAR struct can_conn_s *conn;
-
-      conn            = (FAR struct can_conn_s *)psock->s_conn;
-#warning Missing logic
-    }
-
-  *addrlen = sizeof(struct sockaddr_can);
-  return OK;
+  return -EAFNOSUPPORT;
 }
 
 /****************************************************************************
@@ -434,8 +429,7 @@ static int can_getpeername(FAR struct socket *psock,
                            FAR struct sockaddr *addr,
                            FAR socklen_t *addrlen)
 {
-#warning Missing logic
-  return -EOPNOTSUPP;  /* Or maybe return -EAFNOSUPPORT; */
+  return -EOPNOTSUPP;
 }
 
 /****************************************************************************
@@ -466,7 +460,6 @@ static int can_getpeername(FAR struct socket *psock,
 
 static int can_listen(FAR struct socket *psock, int backlog)
 {
-#warning Missing logic
   return -EOPNOTSUPP;
 }
 
@@ -477,7 +470,8 @@ static int can_listen(FAR struct socket *psock, int backlog)
  *   Perform a can connection
  *
  * Input Parameters:
- *   psock   A reference to the socket structure of the socket to be connected
+ *   psock   A reference to the socket structure of the socket
+ *           to be connected
  *   addr    The address of the remote server to connect to
  *   addrlen Length of address buffer
  *
@@ -492,7 +486,6 @@ static int can_connect(FAR struct socket *psock,
                        FAR const struct sockaddr *addr,
                        socklen_t addrlen)
 {
-#warning Missing logic
   return -EOPNOTSUPP;
 }
 
@@ -543,7 +536,6 @@ static int can_connect(FAR struct socket *psock,
 static int can_accept(FAR struct socket *psock, FAR struct sockaddr *addr,
                       FAR socklen_t *addrlen, FAR struct socket *newsock)
 {
-#warning Missing logic
   return -EOPNOTSUPP;
 }
 
@@ -606,8 +598,8 @@ static int can_poll_local(FAR struct socket *psock, FAR struct pollfd *fds,
       info->cb     = cb;
 
       /* Initialize the callback structure.  Save the reference to the info
-       * structure as callback private data so that it will be available during
-       * callback processing.
+       * structure as callback private data so that it will be available
+       * during callback processing.
        */
 
       cb->flags    = NETDEV_DOWN;
@@ -738,7 +730,8 @@ static ssize_t can_send(FAR struct socket *psock, FAR const void *buf,
  *   returned when the socket was not actually connected.
  *
  * Input Parameters:
- *   psock    A reference to the socket structure of the socket to be connected
+ *   psock    A reference to the socket structure of the socket
+ *            to be connected
  *   buf      Data to send
  *   len      Length of data to send
  *   flags    Send flags (ignored)
@@ -759,6 +752,50 @@ static ssize_t can_sendto(FAR struct socket *psock, FAR const void *buf,
   nerr("ERROR: sendto() not supported for raw packet sockets\n");
   return -EAFNOSUPPORT;
 }
+
+/****************************************************************************
+ * Name: can_sendmsg
+ *
+ * Description:
+ *   The can_sendmsg() send a CAN frame to psock
+ *
+ * Input Parameters:
+ *   psock - An instance of the internal socket structure.
+ *   msg   - CAN frame and optional CMSG
+ *   flags - Send flags (ignored)
+ *
+ * Returned Value:
+ *   On success, returns the number of characters sent.  On  error, a negated
+ *   errno value is returned (see send() for the list of appropriate error
+ *   values.
+ *
+ ****************************************************************************/
+#ifdef CONFIG_NET_CMSG
+static ssize_t can_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
+                    int flags)
+{
+  ssize_t ret;
+
+  /* Only SOCK_RAW is supported */
+
+  if (psock->s_type == SOCK_RAW)
+    {
+      /* Raw packet send */
+
+      ret = psock_can_sendmsg(psock, msg);
+    }
+  else
+    {
+      /* EDESTADDRREQ.  Signifies that the socket is not connection-mode and
+       * no peer address is set.
+       */
+
+      ret = -EDESTADDRREQ;
+    }
+
+  return ret;
+}
+#endif
 
 /****************************************************************************
  * Name: can_close

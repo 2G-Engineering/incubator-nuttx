@@ -61,20 +61,26 @@
 #define CAN_J1939    7           /* SAE J1939 */
 #define CAN_NPROTO   8
 
+#define SOL_CAN_BASE 100
+
+#define SOL_CAN_RAW  (SOL_CAN_BASE + CAN_RAW)
+
 /* CAN_RAW socket options */
 
-#define CAN_RAW_FILTER         (__SO_PROTOCOL + 0)     
+#define CAN_RAW_FILTER         (__SO_PROTOCOL + 0)
                                  /* set 0 .. n can_filter(s) */
-#define CAN_RAW_ERR_FILTER     (__SO_PROTOCOL + 1)      
+#define CAN_RAW_ERR_FILTER     (__SO_PROTOCOL + 1)
                                  /* set filter for error frames */
-#define CAN_RAW_LOOPBACK       (__SO_PROTOCOL + 2)      
+#define CAN_RAW_LOOPBACK       (__SO_PROTOCOL + 2)
                                  /* local loopback (default:on) */
-#define CAN_RAW_RECV_OWN_MSGS  (__SO_PROTOCOL + 3)	     
+#define CAN_RAW_RECV_OWN_MSGS  (__SO_PROTOCOL + 3)
                                  /* receive my own msgs (default:off) */
-#define CAN_RAW_FD_FRAMES      (__SO_PROTOCOL + 4)      
+#define CAN_RAW_FD_FRAMES      (__SO_PROTOCOL + 4)
                                  /* allow CAN FD frames (default:off) */
-#define CAN_RAW_JOIN_FILTERS   (__SO_PROTOCOL + 5)     
+#define CAN_RAW_JOIN_FILTERS   (__SO_PROTOCOL + 5)
                                  /* all filters must match to trigger */
+#define CAN_RAW_TX_DEADLINE    (__SO_PROTOCOL + 6)
+                                 /* Abort frame when deadline passed */
 
 /****************************************************************************
  * Public Types
@@ -102,37 +108,37 @@ struct sockaddr_can
   sa_family_t can_family;
   int16_t     can_ifindex;
   union
+  {
+    /* Transport protocol class address information */
+
+    struct
     {
-      /* Transport protocol class address information */
+      canid_t rx_id;
+      canid_t tx_id;
+    } tp;
 
-      struct
-      {
-        canid_t rx_id;
-        canid_t tx_id;
-      } tp;
+    /* J1939 address information */
 
-      /* J1939 address information */
+    struct
+    {
+      /* 8 byte name when using dynamic addressing */
 
-      struct
-      {
-        /* 8 byte name when using dynamic addressing */
+      uint64_t name;
 
-        uint64_t name;
+      /* pgn:
+       *   8 bit: PS in PDU2 case, else 0
+       *   8 bit: PF
+       *   1 bit: DP
+       *   1 bit: reserved
+       */
 
-        /* pgn:
-         *   8 bit: PS in PDU2 case, else 0
-         *   8 bit: PF
-         *   1 bit: DP
-         *   1 bit: reserved
-         */
+      uint32_t pgn;
 
-        uint32_t pgn;
+      /* 1 byte address */
 
-        /* 1 byte address */
-
-        uint8_t addr;
-      } j1939;
-    } can_addr;
+      uint8_t addr;
+    } j1939;
+  } can_addr;
 };
 
 #endif /* __INCLUDE_NETPACKET_CAN_H */

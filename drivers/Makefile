@@ -33,59 +33,51 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
-DELIM ?= $(strip /)
-
-ifeq ($(WINTOOL),y)
-INCDIROPT = -w
-endif
-
-DEPPATH = --dep-path .
-ASRCS =
-CSRCS =
-VPATH = .
+include $(TOPDIR)/Make.defs
 
 # Include support for various drivers.  Each Make.defs file will add its
 # files to the source file list, add its DEPPATH info, and will add
 # the appropriate paths to the VPATH variable
 
-include analog$(DELIM)Make.defs
-include audio$(DELIM)Make.defs
-include bch$(DELIM)Make.defs
-include can$(DELIM)Make.defs
-include crypto$(DELIM)Make.defs
-include i2c$(DELIM)Make.defs
-include i2s$(DELIM)Make.defs
-include input$(DELIM)Make.defs
-include ioexpander$(DELIM)Make.defs
-include lcd$(DELIM)Make.defs
-include leds$(DELIM)Make.defs
-include loop$(DELIM)Make.defs
-include mmcsd$(DELIM)Make.defs
-include modem$(DELIM)Make.defs
-include mtd$(DELIM)Make.defs
-include eeprom$(DELIM)Make.defs
-include net$(DELIM)Make.defs
-include pipes$(DELIM)Make.defs
-include power$(DELIM)Make.defs
-include rptun$(DELIM)Make.defs
-include sensors$(DELIM)Make.defs
-include serial$(DELIM)Make.defs
-include spi$(DELIM)Make.defs
-include syslog$(DELIM)Make.defs
-include timers$(DELIM)Make.defs
-include usbdev$(DELIM)Make.defs
-include usbhost$(DELIM)Make.defs
-include usbmisc$(DELIM)Make.defs
-include usbmonitor$(DELIM)Make.defs
-include video$(DELIM)Make.defs
-include wireless$(DELIM)Make.defs
-include contactless$(DELIM)Make.defs
-include 1wire$(DELIM)Make.defs
-include rf$(DELIM)Make.defs
+include analog/Make.defs
+include audio/Make.defs
+include bch/Make.defs
+include can/Make.defs
+include crypto/Make.defs
+include i2c/Make.defs
+include i2s/Make.defs
+include input/Make.defs
+include ioexpander/Make.defs
+include lcd/Make.defs
+include leds/Make.defs
+include loop/Make.defs
+include mmcsd/Make.defs
+include modem/Make.defs
+include mtd/Make.defs
+include eeprom/Make.defs
+include net/Make.defs
+include note/Make.defs
+include pipes/Make.defs
+include power/Make.defs
+include rptun/Make.defs
+include sensors/Make.defs
+include serial/Make.defs
+include spi/Make.defs
+include syslog/Make.defs
+include timers/Make.defs
+include usbdev/Make.defs
+include usbhost/Make.defs
+include usbmisc/Make.defs
+include usbmonitor/Make.defs
+include video/Make.defs
+include wireless/Make.defs
+include contactless/Make.defs
+include 1wire/Make.defs
+include rf/Make.defs
+include rc/Make.defs
 
 ifeq ($(CONFIG_SPECIFIC_DRIVERS),y)
-include platform$(DELIM)Make.defs
+include platform/Make.defs
 endif
 
 ifeq ($(CONFIG_DEV_SIMPLE_ADDRENV),y)
@@ -128,8 +120,12 @@ $(COBJS): %$(OBJEXT): %.c
 $(BIN): $(OBJS)
 	$(call ARCHIVE, $@, $(OBJS))
 
-.depend: Makefile $(SRCS)
-	$(Q) $(MKDEP) $(DEPPATH) "$(CC)" -- $(CFLAGS) -- $(SRCS) >Make.dep
+makedepfile: $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds)
+	$(call CATFILE, Make.dep, $^)
+	$(call DELFILE, $^)
+
+.depend: Makefile $(SRCS) $(TOPDIR)$(DELIM).config
+	$(Q) $(MAKE) makedepfile
 	$(Q) touch $@
 
 depend: .depend

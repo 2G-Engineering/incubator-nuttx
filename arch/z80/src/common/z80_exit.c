@@ -66,8 +66,8 @@
 static void _up_dumponexit(FAR struct tcb_s *tcb, FAR void *arg)
 {
   FAR struct filelist *filelist;
-#if CONFIG_NFILE_STREAMS > 0
-  FAR struct streamlist *streamlist;
+#ifdef CONFIG_FILE_STREAM
+  FAR struct file_struct *filep;
 #endif
   int i;
 
@@ -85,11 +85,10 @@ static void _up_dumponexit(FAR struct tcb_s *tcb, FAR void *arg)
         }
     }
 
-#if CONFIG_NFILE_STREAMS > 0
-  streamlist = tcb->group->tg_streamlist;
-  for (i = 0; i < CONFIG_NFILE_STREAMS; i++)
+#ifdef CONFIG_FILE_STREAM
+  filep = tcb->group->tg_streamlist->sl_head;
+  for (; filep != NULL; filep = filep->fs_next)
     {
-      struct file_struct *filep = &streamlist->sl_streams[i];
       if (filep->fs_fd >= 0)
         {
 #ifndef CONFIG_STDIO_DISABLE_BUFFERING
@@ -115,7 +114,7 @@ static void _up_dumponexit(FAR struct tcb_s *tcb, FAR void *arg)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: _exit
+ * Name: up_exit
  *
  * Description:
  *   This function causes the currently executing task to cease
@@ -125,7 +124,7 @@ static void _up_dumponexit(FAR struct tcb_s *tcb, FAR void *arg)
  *
  ****************************************************************************/
 
-void _exit(int status)
+void up_exit(int status)
 {
   FAR struct tcb_s *tcb = this_task();
 
@@ -139,12 +138,8 @@ void _exit(int status)
 
 #ifdef CONFIG_DUMP_ON_EXIT
   sinfo("Other tasks:\n");
-  sched_foreach(_up_dumponexit, NULL);
+  nxsched_foreach(_up_dumponexit, NULL);
 #endif
-
-  /* Update scheduler parameters */
-
-  sched_suspend_scheduler(tcb);
 
   /* Destroy the task at the head of the ready to run list. */
 
@@ -166,10 +161,6 @@ void _exit(int status)
 
   group_addrenv(tcb);
 #endif
-
-  /* Reset scheduler parameters */
-
-  sched_resume_scheduler(tcb);
 
   /* Then switch contexts */
 

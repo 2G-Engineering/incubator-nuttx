@@ -105,7 +105,8 @@
 #  undef CONFIG_STM32_SPI2
 #endif
 
-/* GPIOs **************************************************************/
+/* GPIOs ********************************************************************/
+
 /* LEDs */
 
 /* The Blue/Red pills have a different pinout to the Black pill,
@@ -131,20 +132,6 @@
 #define MIN_IRQBUTTON     BUTTON_USER1
 #define MAX_IRQBUTTON     BUTTON_USER2
 #define NUM_IRQBUTTONS    (BUTTON_USER1 - BUTTON_USER2 + 1)
-
-/* ZERO CROSS pin definition */
-
-#define GPIO_ZEROCROSS    (GPIO_INPUT|GPIO_CNF_INFLOAT|GPIO_PORTA|GPIO_PIN0)
-
-/* Pins config to use with HC-SR04 sensor */
-
-#define GPIO_HCSR04_INT   (GPIO_INPUT|GPIO_CNF_INFLOAT|GPIO_PORTA|GPIO_PIN0)
-#define GPIO_HCSR04_TRIG  (GPIO_OUTPUT|GPIO_CNF_OUTPP|GPIO_MODE_50MHz|\
-                           GPIO_OUTPUT_CLEAR|GPIO_PORTA|GPIO_PIN1)
-
-/* Pin for APDS-9960 sensor */
-
-#define GPIO_APDS9960_INT (GPIO_INPUT|GPIO_CNF_INFLOAT|GPIO_PORTA|GPIO_PIN0)
 
 /* SPI chip selects */
 
@@ -189,15 +176,6 @@
 
 /* nRF24 Configuration */
 
-/* NRF24L01 chip enable:  PB.1 */
-
-#define GPIO_NRF24L01_CE  (GPIO_OUTPUT|GPIO_CNF_OUTPP|GPIO_MODE_50MHz|\
-                           GPIO_OUTPUT_CLEAR|GPIO_PORTB|GPIO_PIN1)
-
-/* NRF24L01 IRQ line:  PA.0 */
-
-#define GPIO_NRF24L01_IRQ (GPIO_INPUT|GPIO_CNF_INFLOAT|GPIO_PORTA|GPIO_PIN0)
-
 /* MCP2515 IRQ line: PB.0 */
 
 #define GPIO_MCP2515_IRQ (GPIO_INPUT|GPIO_CNF_INFLOAT|GPIO_PORTB|GPIO_PIN0)
@@ -220,7 +198,7 @@
 #define GPIO_INT1         (GPIO_INPUT|GPIO_CNF_INFLOAT|GPIO_PORTA|GPIO_PIN2)
 
 /****************************************************************************
- * Public Functions
+ * Public Function Prototypes
  ****************************************************************************/
 
 #ifndef __ASSEMBLY__
@@ -258,18 +236,6 @@ int stm32_gpio_initialize(void);
 #endif
 
 /****************************************************************************
- * Name: stm32_zerocross_initialize
- *
- * Description:
- *   Initialize and register the zero cross driver
- *
- ****************************************************************************/
-
-#ifdef CONFIG_SENSORS_ZEROCROSS
-int stm32_zerocross_initialize(void);
-#endif
-
-/****************************************************************************
  * Name: stm32_adc_setup
  *
  * Description:
@@ -282,35 +248,11 @@ int stm32_adc_setup(void);
 #endif
 
 /****************************************************************************
- * Name: stm32_apds9960initialize
- *
- * Description:
- *   Initialize APDS-9960 gesture sensor
- *
- ****************************************************************************/
-
-#ifdef CONFIG_SENSORS_APDS9960
-int stm32_apds9960initialize(FAR const char *devpath);
-#endif
-
-/****************************************************************************
- * Name: stm32_bmp180initialize
- *
- * Description:
- *   Called to configure an I2C and to register BMP180 for the stm32f4discovery
- *   board.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_SENSORS_BMP180
-int stm32_bmp180initialize(FAR const char *devpath);
-#endif
-
-/****************************************************************************
  * Name: stm32_spidev_initialize
  *
  * Description:
- *   Called to configure SPI chip select GPIO pins for the Hy-Mini STM32v board.
+ *   Called to configure SPI chip select GPIO pins for the Hy-Mini STM32v
+ *   board.
  *
  ****************************************************************************/
 
@@ -326,40 +268,6 @@ void stm32_spidev_initialize(void);
 
 #ifdef CONFIG_MMCSD
 int stm32_mmcsd_initialize(int minor);
-#endif
-
-/****************************************************************************
- * Name: nunchuck_initialize
- *
- * Description:
- *   Initialize and register the button joystick driver
- *
- ****************************************************************************/
-
-#ifdef CONFIG_INPUT_NUNCHUCK
-int nunchuck_initialize(FAR char *devname);
-#endif
-
-/****************************************************************************
- * Name: stm32_hcsr04_initialize
- *
- * Description:
- *   Called to initialize the HC-SR04 sensor
- *
- ****************************************************************************/
-
-int stm32_hcsr04_initialize(FAR const char *devname);
-
-/****************************************************************************
- * Name: stm32_lm75initialize
- *
- * Description:
- *   Called to initialize LM75 temperature sensor
- *
- ****************************************************************************/
-
-#ifdef CONFIG_LM75_I2C
-int stm32_lm75initialize(FAR const char *devpath);
 #endif
 
 /****************************************************************************
@@ -383,18 +291,6 @@ int stm32_max6675initialize(FAR const char *devpath);
  ****************************************************************************/
 
 int stm32_w25initialize(int minor);
-
-/****************************************************************************
- * Name: stm32_qencoder_initialize
- *
- * Description:
- *   Initialize and register a qencoder
- *
- ****************************************************************************/
-
-#ifdef CONFIG_SENSORS_QENCODER
-int stm32_qencoder_initialize(FAR const char *devpath, int timer);
-#endif
 
 /****************************************************************************
  * Name: stm32_rgbled_setup
@@ -508,7 +404,8 @@ int stm32_mfrc522initialize(FAR const char *devpath);
  * Name: stm32_tone_setup
  *
  * Description:
- *   Function used to initialize a PWM and Oneshot timers to Audio Tone Generator.
+ *   Function used to initialize a PWM and Oneshot timers to Audio Tone
+ *   Generator.
  *
  ****************************************************************************/
 
@@ -520,8 +417,8 @@ int stm32_tone_setup(void);
  * Name: stm32_veml6070initialize
  *
  * Description:
- *   Called to configure an I2C and to register VEML6070 for the stm32f103-minimum
- *   board.
+ *   Called to configure an I2C and to register VEML6070 for the
+ *   stm32f103-minimum board.
  *
  ****************************************************************************/
 

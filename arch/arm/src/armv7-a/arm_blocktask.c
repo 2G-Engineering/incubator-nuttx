@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/armv7-a/up_blocktask.c
+ * arch/arm/src/armv7-a/arm_blocktask.c
  *
  *   Copyright (C) 2013-2015, 2018 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
@@ -48,7 +48,7 @@
 
 #include "sched/sched.h"
 #include "group/group.h"
-#include "up_internal.h"
+#include "arm_internal.h"
 
 /****************************************************************************
  * Public Functions
@@ -89,11 +89,11 @@ void up_block_task(struct tcb_s *tcb, tstate_t task_state)
    * it should also be true that rtcb == tcb.
    */
 
-  switch_needed = sched_removereadytorun(tcb);
+  switch_needed = nxsched_remove_readytorun(tcb);
 
   /* Add the task to the specified blocked task list */
 
-  sched_addblocked(tcb, (tstate_t)task_state);
+  nxsched_add_blocked(tcb, (tstate_t)task_state);
 
   /* If there are any pending tasks, then add them to the ready-to-run
    * task list now
@@ -101,7 +101,7 @@ void up_block_task(struct tcb_s *tcb, tstate_t task_state)
 
   if (g_pendingtasks.head)
     {
-      switch_needed |= sched_mergepending();
+      switch_needed |= nxsched_merge_pending();
     }
 
   /* Now, perform the context switch if one is needed */
@@ -110,7 +110,7 @@ void up_block_task(struct tcb_s *tcb, tstate_t task_state)
     {
       /* Update scheduler parameters */
 
-      sched_suspend_scheduler(rtcb);
+      nxsched_suspend_scheduler(rtcb);
 
       /* Are we in an interrupt handler? */
 
@@ -120,7 +120,7 @@ void up_block_task(struct tcb_s *tcb, tstate_t task_state)
            * Just copy the CURRENT_REGS into the OLD rtcb.
            */
 
-          up_savestate(rtcb->xcp.regs);
+          arm_savestate(rtcb->xcp.regs);
 
           /* Restore the exception context of the rtcb at the (new) head
            * of the ready-to-run task list.
@@ -130,21 +130,21 @@ void up_block_task(struct tcb_s *tcb, tstate_t task_state)
 
           /* Reset scheduler parameters */
 
-          sched_resume_scheduler(rtcb);
+          nxsched_resume_scheduler(rtcb);
 
           /* Then switch contexts.  Any necessary address environment
            * changes will be made when the interrupt returns.
            */
 
-          up_restorestate(rtcb->xcp.regs);
+          arm_restorestate(rtcb->xcp.regs);
         }
 
       /* Copy the user C context into the TCB at the (old) head of the
-       * ready-to-run Task list. if up_saveusercontext returns a non-zero
+       * ready-to-run Task list. if arm_saveusercontext returns a non-zero
        * value, then this is really the previously running task restarting!
        */
 
-      else if (!up_saveusercontext(rtcb->xcp.regs))
+      else if (!arm_saveusercontext(rtcb->xcp.regs))
         {
           /* Restore the exception context of the rtcb at the (new) head
            * of the ready-to-run task list.
@@ -163,11 +163,11 @@ void up_block_task(struct tcb_s *tcb, tstate_t task_state)
 #endif
           /* Reset scheduler parameters */
 
-          sched_resume_scheduler(rtcb);
+          nxsched_resume_scheduler(rtcb);
 
           /* Then switch contexts */
 
-          up_fullcontextrestore(rtcb->xcp.regs);
+          arm_fullcontextrestore(rtcb->xcp.regs);
         }
     }
 }

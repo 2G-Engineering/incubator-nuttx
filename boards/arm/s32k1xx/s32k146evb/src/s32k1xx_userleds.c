@@ -45,8 +45,8 @@
 
 #include <nuttx/board.h>
 
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "s32k1xx_pin.h"
 #include "s32k146evb.h"
@@ -63,13 +63,14 @@
  * Name: board_userled_initialize
  ****************************************************************************/
 
-void board_userled_initialize(void)
+uint32_t board_userled_initialize(void)
 {
   /* Configure LED GPIOs for output */
 
   s32k1xx_pinconfig(GPIO_LED_R);
   s32k1xx_pinconfig(GPIO_LED_G);
   s32k1xx_pinconfig(GPIO_LED_B);
+  return BOARD_NLEDS;
 }
 
 /****************************************************************************
@@ -104,7 +105,7 @@ void board_userled(int led, bool ledon)
  * Name: board_userled_all
  ****************************************************************************/
 
-void board_userled_all(uint8_t ledset)
+void board_userled_all(uint32_t ledset)
 {
   /* Low illuminates */
 

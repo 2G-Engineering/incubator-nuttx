@@ -1,4 +1,4 @@
-/****************************************************************************************************
+/****************************************************************************
  * arch/arm/src/stm32/hardware/stm32_adc.h
  *
  *   Copyright (C) 2018 Gregory Nutt. All rights reserved.
@@ -31,14 +31,14 @@
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- ****************************************************************************************************/
+ ****************************************************************************/
 
 #ifndef __ARCH_ARM_SRC_STM32_HARDWARE_STM32_ADC_H
 #define __ARCH_ARM_SRC_STM32_HARDWARE_STM32_ADC_H
 
-/****************************************************************************************************
+/****************************************************************************
  * Included Files
- ****************************************************************************************************/
+ ****************************************************************************/
 
 #include <nuttx/config.h>
 
@@ -50,13 +50,14 @@
  *     b) extended version for F2, F4, F7, L1:
  *   2. STM32 ADC IPv2:
  *     a) basic version for F0 and L0
- *     b) extended version for F3 (without F37x), H7, L4, L4+
+ *     b) extended version for F3 (without F37x), G4, H7, L4, L4+
  *
  *   We also distinguish the modified STM32 ADC IPv1 core for the L1 family,
  *   which differs too much to keep it in the same file as ADC IPv1.
  */
 
-#if defined(CONFIG_STM32_HAVE_IP_ADC_V1) && defined(CONFIG_STM32_HAVE_IP_ADC_V2)
+#if defined(CONFIG_STM32_HAVE_IP_ADC_V1) && \
+    defined(CONFIG_STM32_HAVE_IP_ADC_V2)
 #  error Only one STM32 ADC IP version must be selected
 #endif
 

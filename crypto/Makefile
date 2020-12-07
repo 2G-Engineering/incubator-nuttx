@@ -33,10 +33,7 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
-
-CRYPTO_ASRCS =
-CRYPTO_CSRCS =
+include $(TOPDIR)/Make.defs
 
 ifeq ($(CONFIG_CRYPTO),y)
 
@@ -93,9 +90,13 @@ $(COBJS): %$(OBJEXT): %.c
 $(BIN): $(OBJS)
 	$(call ARCHIVE, $@, $(OBJS))
 
-.depend: Makefile $(SRCS)
+makedepfile: $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds)
+	$(call CATFILE, Make.dep, $^)
+	$(call DELFILE, $^)
+
+.depend: Makefile $(SRCS) $(TOPDIR)$(DELIM).config
 ifeq ($(CONFIG_CRYPTO),y)
-	$(Q) $(MKDEP) --dep-path . "$(CC)" -- $(CFLAGS) -- $(SRCS) >Make.dep
+	$(Q) $(MAKE) makedepfile
 endif
 	$(Q) touch $@
 

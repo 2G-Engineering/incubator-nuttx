@@ -47,8 +47,8 @@
 #include <arch/board/board.h>
 
 #include "chip.h"
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "efm32_gpio.h"
 #include "efm32-g8xx-stk.h"
@@ -175,7 +175,7 @@ static int led_pm_prepare(struct pm_callback_s *cb, int domain,
  * Name: board_userled_initialize
  ****************************************************************************/
 
-void board_userled_initialize(void)
+uint32_t board_userled_initialize(void)
 {
   /* Configure LED0-4 GPIOs for output */
 
@@ -183,6 +183,7 @@ void board_userled_initialize(void)
   efm32_configgpio(GPIO_LED1);
   efm32_configgpio(GPIO_LED2);
   efm32_configgpio(GPIO_LED3);
+  return BOARD_NLEDS;
 }
 
 /****************************************************************************
@@ -201,7 +202,7 @@ void board_userled(int led, bool ledon)
  * Name: board_userled_all
  ****************************************************************************/
 
-void board_userled_all(uint8_t ledset)
+void board_userled_all(uint32_t ledset)
 {
   efm32_gpiowrite(GPIO_LED0, (ledset & BOARD_LED0_BIT) != 0);
   efm32_gpiowrite(GPIO_LED1, (ledset & BOARD_LED1_BIT) != 0);

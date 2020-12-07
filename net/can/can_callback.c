@@ -30,9 +30,14 @@
 
 #include <nuttx/net/netconfig.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/mm/iob.h>
 
 #include "devif/devif.h"
 #include "can/can.h"
+
+#ifdef CONFIG_NET_TIMESTAMP
+#include <sys/time.h>
+#endif
 
 /****************************************************************************
  * Private Functions
@@ -77,6 +82,8 @@ can_data_event(FAR struct net_driver_s *dev, FAR struct can_conn_s *conn,
       ninfo("Dropped %d bytes\n", dev->d_len);
 
 #ifdef CONFIG_NET_STATISTICS
+      /* No support CAN net statistics yet */
+
       /* g_netstats.tcp.drop++; */
 
 #endif
@@ -102,7 +109,7 @@ can_data_event(FAR struct net_driver_s *dev, FAR struct can_conn_s *conn,
  *   OK if packet has been processed, otherwise ERROR.
  *
  * Assumptions:
- *   This function is called with the network locked.
+ *   This function can be called from an interrupt.
  *
  ****************************************************************************/
 
@@ -113,9 +120,32 @@ uint16_t can_callback(FAR struct net_driver_s *dev,
 
   if (conn)
     {
-      /* Perform the callback */
+#ifdef CONFIG_NET_TIMESTAMP
+      /* TIMESTAMP sockopt is activated, create timestamp and copy to iob */
 
-      flags = devif_conn_event(dev, conn, flags, conn->list);
+      if (conn->psock->s_timestamp)
+        {
+          struct timespec *ts = (struct timespec *)
+                                                &dev->d_appdata[dev->d_len];
+          struct timeval *tv = (struct timeval *)
+                                                &dev->d_appdata[dev->d_len];
+          dev->d_len += sizeof(struct timeval);
+          clock_systime_timespec(ts);
+          tv->tv_usec = ts->tv_nsec / 1000;
+        }
+#endif
+
+      /* Try to lock the network when successfull send data to the listener */
+
+      if (net_trylock() == OK)
+        {
+          flags = devif_conn_event(dev, conn, flags, conn->list);
+          net_unlock();
+        }
+
+      /* Either we did not get the lock or there is no application listening
+       * If we did not get a lock we store the frame in the read-ahead buffer
+       */
 
       if ((flags & CAN_NEWDATA) != 0)
         {

@@ -58,8 +58,8 @@
 #include <nuttx/semaphore.h>
 
 #include <arch/board/board.h>
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "stm32_adc.h"
 #include "stm32_gpio.h"
@@ -605,19 +605,6 @@ static void tc_notify(FAR struct tc_dev_s *priv)
     }
 #endif
 
-  /* If there are threads waiting for read data, then signal one of them
-   * that the read data is available.
-   */
-
-  if (priv->nwaiters > 0)
-    {
-      /* After posting this semaphore, we need to exit because the
-       * touchscreen is no longer available.
-       */
-
-      nxsem_post(&priv->waitsem);
-    }
-
   /* If there are threads waiting on poll() for touchscreen data to become
    * available, then wake them up now.  NOTE: we wake up all waiting threads
    * because we do not know that they are going to do.  If they all try to
@@ -633,6 +620,19 @@ static void tc_notify(FAR struct tc_dev_s *priv)
           iinfo("Report events: %02x\n", fds->revents);
           nxsem_post(fds->sem);
         }
+    }
+
+  /* If there are threads waiting for read data, then signal one of them
+   * that the read data is available.
+   */
+
+  if (priv->nwaiters > 0)
+    {
+      /* After posting this semaphore, we need to exit because the
+       * touchscreen is no longer available.
+       */
+
+      nxsem_post(&priv->waitsem);
     }
 }
 

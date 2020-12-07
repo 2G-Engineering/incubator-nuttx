@@ -47,8 +47,8 @@
 #include <arch/board/board.h>
 #include <arch/irq.h>
 
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 #include "nvic.h"
 
 #ifdef CONFIG_BUILD_PROTECTED
@@ -63,6 +63,14 @@
 #include "s32k1xx_start.h"
 #if defined(CONFIG_ARCH_USE_MPU) && defined(CONFIG_S32K1XX_ENET)
 #include "hardware/s32k1xx_mpu.h"
+#endif
+
+#ifdef CONFIG_S32K1XX_PROGMEM
+#include "s32k1xx_progmem.h"
+#endif
+
+#ifdef CONFIG_S32K1XX_EEEPROM
+#include "s32k1xx_eeeprom.h"
 #endif
 
 /****************************************************************************
@@ -352,6 +360,14 @@ void __start(void)
   s32k1xx_earlyserialinit();
 #endif
   showprogress('E');
+
+#ifdef CONFIG_S32K1XX_PROGMEM
+  s32k1xx_progmem_init();
+#endif
+
+#ifdef CONFIG_S32K1XX_EEEPROM
+  s32k1xx_eeeprom_init();
+#endif
 
   /* For the case of the separate user-/kernel-space build, perform whatever
    * platform specific initialization of the user memory is required.

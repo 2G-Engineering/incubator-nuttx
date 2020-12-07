@@ -114,13 +114,15 @@ static int dac_open(FAR struct file *filep)
   uint8_t               tmp;
   int                   ret;
 
-  /* If the port is the middle of closing, wait until the close is finished */
+  /* If the port is in the middle of closing, wait until the close is
+   * finished.
+   */
 
   ret = nxsem_wait(&dev->ad_closesem);
   if (ret >= 0)
     {
-      /* Increment the count of references to the device.  If this the first
-       * time that the driver has been opened for this device, then
+      /* Increment the count of references to the device.  If this is the
+       * first time that the driver has been opened for this device, then
        * initialize the device.
        */
 
@@ -133,7 +135,9 @@ static int dac_open(FAR struct file *filep)
         }
       else
         {
-          /* Check if this is the first time that the driver has been opened. */
+          /* Check if this is the first time that the driver has been
+           * opened.
+           */
 
           if (tmp == 1)
             {
@@ -330,11 +334,13 @@ static ssize_t dac_write(FAR struct file *filep, FAR const char *buffer,
           nexttail = 0;
         }
 
-      /* If the XMIT fifo becomes full, then wait for space to become available */
+      /* If the XMIT FIFO becomes full, then wait for space to become
+       * available.
+       */
 
       while (nexttail == fifo->af_head)
         {
-          /* The transmit FIFO is full  -- was non-blocking mode selected? */
+          /* The transmit FIFO is full -- was non-blocking mode selected? */
 
           if (filep->f_oflags & O_NONBLOCK)
             {
@@ -350,7 +356,7 @@ static ssize_t dac_write(FAR struct file *filep, FAR const char *buffer,
               goto return_with_irqdisabled;
             }
 
-          /* If the FIFO was empty when we started, then we will have
+          /* If the FIFO was empty when we started, then we will have to
            * start the XMIT sequence to clear the FIFO.
            */
 
@@ -489,7 +495,7 @@ int dac_txdone(FAR struct dac_dev_s *dev)
         {
           /* Inform any waiting threads that new xmit space is available */
 
-          ret = nxsem_getvalue(&dev->ad_xmit.af_sem, &sval);
+          ret = nxsem_get_value(&dev->ad_xmit.af_sem, &sval);
           if (ret == OK && sval <= 0)
             {
               ret = nxsem_post(&dev->ad_xmit.af_sem);
@@ -499,6 +505,22 @@ int dac_txdone(FAR struct dac_dev_s *dev)
 
   return ret;
 }
+
+/****************************************************************************
+ * Name: dac_register
+ *
+ * Description:
+ *   Register a dac driver.
+ *
+ * Input Parameters:
+ *    path - The full path to the DAC device to be registered.  This could
+ *      be, as an example, "/dev/dac0"
+ *    dev - An instance of the device-specific DAC interface
+ *
+ * Returned Value:
+ *    Zero on success; A negated errno value on failure.
+ *
+ ****************************************************************************/
 
 int dac_register(FAR const char *path, FAR struct dac_dev_s *dev)
 {
@@ -515,9 +537,9 @@ int dac_register(FAR const char *path, FAR struct dac_dev_s *dev)
    * priority inheritance enabled.
    */
 
-  nxsem_setprotocol(&dev->ad_xmit.af_sem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&dev->ad_xmit.af_sem, SEM_PRIO_NONE);
 
   dev->ad_ops->ao_reset(dev);
 
-  return register_driver(path, &dac_fops, 0555, dev);
+  return register_driver(path, &dac_fops, 0222, dev);
 }

@@ -38,8 +38,8 @@
 #include <nuttx/wireless/bluetooth/bt_uart.h>
 #include <nuttx/power/pm.h>
 
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "chip.h"
 #include "tiva_hciuart.h"
@@ -1040,7 +1040,7 @@ static int hciuart_configure(const struct hciuart_config_s *config)
   config->state->im = hciuart_getreg32(config, TIVA_UART_IM_OFFSET);
 
   hciuart_putreg32(config, TIVA_UART_IFLS_OFFSET,
-                   UART_IFLS_TXIFLSEL_18th | UART_IFLS_RXIFLSEL_78th);
+                   UART_IFLS_TXIFLSEL_18TH | UART_IFLS_RXIFLSEL_78TH);
 
   hciuart_putreg32(config, TIVA_UART_IM_OFFSET, UART_IM_RXIM | UART_IM_RTIM);
 
@@ -1585,7 +1585,9 @@ static ssize_t hciuart_write(const struct btuart_lowerhalf_s *lower,
         }
     }
 
-  /* If the Tx buffer is not empty, then exit with the Tx interrupts enabled. */
+  /* If the Tx buffer is not empty, then exit with the Tx interrupts
+   * enabled.
+   */
 
   if (state->txhead != state->txtail)
     {
@@ -1848,10 +1850,10 @@ void hciuart_initialize(void)
           /* Initialize signalling semaphores */
 
           nxsem_init(&state->rxwait, 0, 0);
-          nxsem_setprotocol(&state->rxwait, SEM_PRIO_NONE);
+          nxsem_set_protocol(&state->rxwait, SEM_PRIO_NONE);
 
           nxsem_init(&state->txwait, 0, 0);
-          nxsem_setprotocol(&state->txwait, SEM_PRIO_NONE);
+          nxsem_set_protocol(&state->txwait, SEM_PRIO_NONE);
 
           /* Attach and enable the HCI UART IRQ */
 

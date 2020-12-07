@@ -53,7 +53,6 @@
  ****************************************************************************/
 
 static void up_apic_init(void);
-static void up_ioapic_init(void);
 static void up_idtentry(unsigned int index, uint64_t base, uint16_t sel,
                         uint8_t flags, uint8_t ist);
 static inline void up_idtinit(void);
@@ -176,8 +175,9 @@ static void up_ist_init(void)
   memset(&tss_l, 0, sizeof(tss_l));
   memset(&tss_h, 0, sizeof(tss_h));
 
-  tss_l.limit_low = (((104 - 1) & 0xffff)); /* Segment limit = TSS size - 1 */
-  tss_l.base_low  = ((uintptr_t)ist64 & 0x00ffffff);  /* Low address 1 */
+  tss_l.limit_low = (((104 - 1) & 0xffff));    /* Segment limit = TSS size - 1 */
+
+  tss_l.base_low  = ((uintptr_t)ist64 & 0x00ffffff);          /* Low address 1 */
   tss_l.base_high = (((uintptr_t)ist64 & 0xff000000) >> 24);  /* Low address 2 */
 
   tss_l.P = 1;
@@ -190,7 +190,11 @@ static void up_ist_init(void)
   tss_h = (((uintptr_t)ist64 >> 32) & 0xffffffff);  /* High address */
 
   gdt64[X86_GDT_ISTL_SEL_NUM] = tss_l;
-  gdt64[X86_GDT_ISTH_SEL_NUM] = *((struct gdt_entry_s *)&tss_h);
+
+  /* memcpy used to handle type punning compiler warning */
+
+  memcpy((void *)&gdt64[X86_GDT_ISTH_SEL_NUM],
+      (void *)&tss_h, sizeof(gdt64[0]));
 
   ist64->IST1 = (uintptr_t)g_interrupt_stack_end;
   ist64->IST2 = (uintptr_t)g_isr_stack_end;
@@ -206,6 +210,7 @@ static void up_ist_init(void)
  *
  ****************************************************************************/
 
+#ifndef CONFIG_ARCH_INTEL64_DISABLE_INT_INIT
 static void up_deinit_8259(void)
 {
   /* First do an initialization to for any pending interrupt to vanish */
@@ -242,6 +247,7 @@ static void up_deinit_8259(void)
   outb(X86_PIC_EOI, X86_IO_PORT_PIC1_CMD);
   outb(X86_PIC_EOI, X86_IO_PORT_PIC2_CMD);
 }
+#endif
 
 /****************************************************************************
  * Name: up_init_apic
@@ -257,16 +263,19 @@ static void up_apic_init(void)
   uint32_t icrl;
   uint32_t apic_base;
 
+#ifndef CONFIG_ARCH_INTEL64_DISABLE_INT_INIT
   /* Enable the APIC in X2APIC MODE */
 
   apic_base = read_msr(MSR_IA32_APIC_BASE) & 0xfffff000;
   write_msr(MSR_IA32_APIC_BASE, apic_base | MSR_IA32_APIC_EN |
                                 MSR_IA32_APIC_X2APIC | MSR_IA32_APIC_BSP);
+#endif
 
   /* Enable the APIC and setup an spurious interrupt vector */
 
   write_msr(MSR_X2APIC_SPIV, MSR_X2APIC_SPIV_EN | IRQ_SPURIOUS);
 
+#ifndef CONFIG_ARCH_INTEL64_DISABLE_INT_INIT
   /* Disable the LINT interrupt lines */
 
   write_msr(MSR_X2APIC_LINT0, MSR_X2APIC_MASKED);
@@ -308,13 +317,15 @@ static void up_apic_init(void)
   /* Enable interrupts on the APIC (but not on the processor). */
 
   write_msr(MSR_X2APIC_TPR, 0);
+#endif
 }
 
 /****************************************************************************
  * Name: legacy_pic_irq_handler
  *
  * Description:
- *  This function will capture will legacy 8259 PIC IRQ using virtual wire mode
+ *  This function will capture will legacy 8259 PIC IRQ using virtual wire
+ *  mode
  *
  ****************************************************************************/
 
@@ -332,6 +343,7 @@ static int __attribute__((unused))
  *
  ****************************************************************************/
 
+#ifndef CONFIG_ARCH_INTEL64_DISABLE_INT_INIT
 static void up_ioapic_init(void)
 {
   int i;
@@ -351,6 +363,7 @@ static void up_ioapic_init(void)
 
   return;
 }
+#endif
 
 /****************************************************************************
  * Name: up_idtentry
@@ -372,8 +385,8 @@ static void up_idtentry(unsigned int index, uint64_t base, uint16_t sel,
   entry->sel     = sel;
   entry->zero    = 0;
 
-  /* We must uncomment the OR below when we get to using user-mode. It sets the
-   * interrupt gate's privilege level to 3.
+  /* We must uncomment the OR below when we get to using user-mode. It sets
+   * the interrupt gate's privilege level to 3.
    */
 
   entry->flags  = flags; /* | 0x60 */
@@ -474,17 +487,21 @@ void up_irqinitialize(void)
 
   up_ist_init();
 
+#ifndef CONFIG_ARCH_INTEL64_DISABLE_INT_INIT
   /* Disable 8259 PIC */
 
   up_deinit_8259();
+#endif
 
   /* Initialize the APIC */
 
   up_apic_init();
 
+#ifndef CONFIG_ARCH_INTEL64_DISABLE_INT_INIT
   /* Initialize the IOAPIC */
 
   up_ioapic_init();
+#endif
 
   /* Initialize the IDT */
 
@@ -507,10 +524,12 @@ void up_irqinitialize(void)
 
 void up_disable_irq(int irq)
 {
+#ifndef CONFIG_ARCH_INTEL64_DISABLE_INT_INIT
   if (irq >= IRQ0)
     {
       up_ioapic_mask_pin(irq - IRQ0);
     }
+#endif
 }
 
 /****************************************************************************
@@ -523,10 +542,12 @@ void up_disable_irq(int irq)
 
 void up_enable_irq(int irq)
 {
+#ifndef CONFIG_ARCH_INTEL64_DISABLE_INT_INIT
   if (irq >= IRQ0)
     {
       up_ioapic_unmask_pin(irq - IRQ0);
     }
+#endif
 }
 
 /****************************************************************************

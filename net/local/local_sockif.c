@@ -110,6 +110,10 @@ const struct sock_intf_s g_local_sockif =
   NULL,              /* si_sendfile */
 #endif
   local_recvfrom,    /* si_recvfrom */
+#ifdef CONFIG_NET_CMSG
+  NULL,              /* si_recvmsg */
+  NULL,              /* si_sendmsg */
+#endif
   local_close        /* si_close */
 };
 
@@ -161,7 +165,8 @@ static int local_sockif_alloc(FAR struct socket *psock)
  *   specific socket fields.
  *
  * Input Parameters:
- *   psock    A pointer to a user allocated socket structure to be initialized.
+ *   psock    A pointer to a user allocated socket structure
+ *            to be initialized.
  *   protocol (see sys/socket.h)
  *
  * Returned Value:
@@ -287,7 +292,7 @@ static int local_bind(FAR struct socket *psock,
 
   if (addr->sa_family != AF_LOCAL || addrlen < sizeof(sa_family_t))
     {
-      nerr("ERROR: Invalid address length: %d < %d\n",
+      nerr("ERROR: Invalid address length: %d < %zu\n",
            addrlen, sizeof(sa_family_t));
       return -EBADF;
     }
@@ -385,7 +390,7 @@ static int local_getsockname(FAR struct socket *psock,
         }
       else /* conn->lctype = LOCAL_TYPE_PATHNAME */
         {
-          /* Get the full length of the socket name (including null terminator) */
+          /* Get the full length of the socket name (incl. null terminator) */
 
           int namelen = strlen(conn->lc_path) + 1;
 
@@ -590,7 +595,8 @@ static int local_connect(FAR struct socket *psock,
  * Input Parameters:
  *   psock    Reference to the listening socket structure
  *   addr     Receives the address of the connecting client
- *   addrlen  Input: allocated size of 'addr', Return: returned size of 'addr'
+ *   addrlen  Input: allocated size of 'addr',
+ *            Return: returned size of 'addr'
  *   newsock  Location to return the accepted socket information.
  *
  * Returned Value:
@@ -717,7 +723,7 @@ static ssize_t local_send(FAR struct socket *psock, FAR const void *buf,
  * Name: local_sendto
  *
  * Description:
- *   Implements the sendto() operation for the case of the local, Unix socket.
+ *   Implements the sendto() operation for the case of the local Unix socket.
  *
  * Input Parameters:
  *   psock    A pointer to a NuttX-specific, internal socket structure

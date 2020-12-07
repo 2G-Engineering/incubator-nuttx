@@ -33,9 +33,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = k28_boot.c k28_bringup.c k28_spi.c k28_i2c.c
 
 ifeq ($(CONFIG_LIB_BOARDCTL),y)
@@ -65,6 +64,12 @@ endif
 
 ifeq ($(CONFIG_KINETIS_USBOTG),y)
 CSRCS += k28_usbdev.c
+endif
+
+ifeq ($(CONFIG_KINETIS_USBHS),y)
+ifeq ($(CONFIG_USBHOST),y)
+CSRCS += k28_usbhshost.c
+endif
 endif
 
 include $(TOPDIR)/boards/Board.mk

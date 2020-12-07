@@ -1,35 +1,20 @@
 /****************************************************************************
  * fs/procfs/fs_procfsproc.c
  *
- *   Copyright (C) 2013-2019 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ****************************************************************************/
 
@@ -40,13 +25,13 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
-#include <sys/statfs.h>
 #include <sys/stat.h>
 
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include <string.h>
 #include <fcntl.h>
 #include <assert.h>
@@ -226,7 +211,8 @@ static ssize_t proc_read(FAR struct file *filep, FAR char *buffer,
 static int     proc_dup(FAR const struct file *oldp,
                  FAR struct file *newp);
 
-static int     proc_opendir(const char *relpath, FAR struct fs_dirent_s *dir);
+static int     proc_opendir(const char *relpath,
+                 FAR struct fs_dirent_s *dir);
 static int     proc_closedir(FAR struct fs_dirent_s *dir);
 static int     proc_readdir(FAR struct fs_dirent_s *dir);
 static int     proc_rewinddir(FAR struct fs_dirent_s *dir);
@@ -421,7 +407,12 @@ static FAR const struct proc_node_s *proc_findnode(FAR const char *relpath)
 
   for (i = 0; i < PROC_NNODES; i++)
     {
-      if (strcmp(g_nodeinfo[i]->relpath, relpath) == 0)
+      size_t len = strlen(g_nodeinfo[i]->relpath);
+
+      if (strncmp(g_nodeinfo[i]->relpath, relpath, len) == 0 &&
+          (relpath[len] == '\0' || (relpath[len] == '/' &&
+           relpath[len + 1] == '\0' &&
+           g_nodeinfo[i]->dtype == DTYPE_DIRECTORY)))
         {
           return g_nodeinfo[i];
         }
@@ -484,7 +475,8 @@ static ssize_t proc_status(FAR struct proc_file_s *procfile,
 #endif
   linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%s\n",
                         "Name:", name);
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -500,7 +492,8 @@ static ssize_t proc_status(FAR struct proc_file_s *procfile,
   linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%s\n", "Type:",
                         g_ttypenames[(tcb->flags & TCB_FLAG_TTYPE_MASK) >>
                         TCB_FLAG_TTYPE_SHIFT]);
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -516,14 +509,15 @@ static ssize_t proc_status(FAR struct proc_file_s *procfile,
   DEBUGASSERT(group != NULL);
 
 #ifdef HAVE_GROUPID
-  linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%d\n", "Group:",
-                        group->tg_pgrpid);
+  linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%d\n",
+                        "Group:", group->tg_pgrpid);
 #else
   linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%d\n", "PPID:",
                         group->tg_ppid);
 #endif
 
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -539,15 +533,17 @@ static ssize_t proc_status(FAR struct proc_file_s *procfile,
   if (tcb->task_state >= FIRST_ASSIGNED_STATE &&
       tcb->task_state <= LAST_ASSIGNED_STATE)
     {
-      linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%d\n", "CPU:",
-                            tcb->cpu);
+      linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%d\n",
+                            "CPU:", tcb->cpu);
     }
   else
     {
-      linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s---\n", "CPU:");
+      linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s---\n",
+                            "CPU:");
     }
 
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -561,9 +557,10 @@ static ssize_t proc_status(FAR struct proc_file_s *procfile,
 
   /* Show the thread state */
 
-  linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%s\n", "State:",
-                        g_statenames[tcb->task_state]);
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%s\n",
+                        "State:", g_statenames[tcb->task_state]);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -576,12 +573,14 @@ static ssize_t proc_status(FAR struct proc_file_s *procfile,
 
   /* Show task flags */
 
-  linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%c%c%c\n", "Flags:",
+  linesize   = snprintf(procfile->line, STATUS_LINELEN,
+                        "%-12s%c%c%c\n", "Flags:",
                         tcb->flags & TCB_FLAG_NONCANCELABLE ? 'N' : '-',
                         tcb->flags & TCB_FLAG_CANCEL_PENDING ? 'P' : '-',
                         tcb->flags & TCB_FLAG_EXIT_PROCESSING ? 'P' : '-');
 
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -595,13 +594,15 @@ static ssize_t proc_status(FAR struct proc_file_s *procfile,
   /* Show the thread priority */
 
 #ifdef CONFIG_PRIORITY_INHERITANCE
-  linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%d (%d)\n", "Priority:",
+  linesize   = snprintf(procfile->line, STATUS_LINELEN,
+                        "%-12s%d (%d)\n", "Priority:",
                         tcb->sched_priority, tcb->base_priority);
 #else
-  linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%d\n", "Priority:",
-                        tcb->sched_priority);
+  linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%d\n",
+                        "Priority:", tcb->sched_priority);
 #endif
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -614,10 +615,12 @@ static ssize_t proc_status(FAR struct proc_file_s *procfile,
 
   /* Show the scheduler policy */
 
-  policy     = g_policy[(tcb->flags & TCB_FLAG_POLICY_MASK) >> TCB_FLAG_POLICY_SHIFT];
-  linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%s\n", "Scheduler:",
-                        policy);
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  policy     = g_policy[(tcb->flags & TCB_FLAG_POLICY_MASK) >>
+                        TCB_FLAG_POLICY_SHIFT];
+  linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%s\n",
+                        "Scheduler:", policy);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -628,11 +631,12 @@ static ssize_t proc_status(FAR struct proc_file_s *procfile,
       return totalsize;
     }
 
-  /* Show the signal mask */
+  /* Show the signal mask. Note: sigset_t is uint32_t on NuttX. */
 
-  linesize = snprintf(procfile->line, STATUS_LINELEN, "%-12s%08x\n", "SigMask:",
-                      tcb->sigprocmask);
-  copysize = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  linesize = snprintf(procfile->line, STATUS_LINELEN, "%-12s%08" PRIx32 "\n",
+                      "SigMask:", tcb->sigprocmask);
+  copysize = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                           &offset);
 
   totalsize += copysize;
   return totalsize;
@@ -666,7 +670,8 @@ static ssize_t proc_cmdline(FAR struct proc_file_s *procfile,
 #endif
   linesize   = strlen(name);
   memcpy(procfile->line, name, linesize);
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -765,9 +770,11 @@ static ssize_t proc_loadavg(FAR struct proc_file_s *procfile,
       fracpart = 0;
     }
 
-  linesize = snprintf(procfile->line, STATUS_LINELEN, "%3d.%01d%%",
+  linesize = snprintf(procfile->line, STATUS_LINELEN,
+                      "%3" PRId32 ".%01" PRId32 "%%",
                       intpart, fracpart);
-  copysize = procfs_memcpy(procfile->line, linesize, buffer, buflen, &offset);
+  copysize = procfs_memcpy(procfile->line, linesize, buffer, buflen,
+                           &offset);
 
   return copysize;
 }
@@ -812,7 +819,8 @@ static ssize_t proc_critmon(FAR struct proc_file_s *procfile,
   linesize = snprintf(procfile->line, STATUS_LINELEN, "%lu.%09lu,",
                      (unsigned long)maxtime.tv_sec,
                      (unsigned long)maxtime.tv_nsec);
-  copysize = procfs_memcpy(procfile->line, linesize, buffer, buflen, &offset);
+  copysize = procfs_memcpy(procfile->line, linesize, buffer, buflen,
+                           &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -844,7 +852,8 @@ static ssize_t proc_critmon(FAR struct proc_file_s *procfile,
   linesize = snprintf(procfile->line, STATUS_LINELEN, "%lu.%09lu\n",
                      (unsigned long)maxtime.tv_sec,
                      (unsigned long)maxtime.tv_nsec);
-  copysize = procfs_memcpy(procfile->line, linesize, buffer, buflen, &offset);
+  copysize = procfs_memcpy(procfile->line, linesize, buffer, buflen,
+                           &offset);
 
   totalsize += copysize;
   return totalsize;
@@ -871,7 +880,8 @@ static ssize_t proc_stack(FAR struct proc_file_s *procfile,
 
   linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s0x%p\n",
                         "StackBase:", tcb->adj_stack_ptr);
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -886,7 +896,8 @@ static ssize_t proc_stack(FAR struct proc_file_s *procfile,
 
   linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%ld\n",
                         "StackSize:", (long)tcb->adj_stack_size);
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -902,7 +913,8 @@ static ssize_t proc_stack(FAR struct proc_file_s *procfile,
 
   linesize   = snprintf(procfile->line, STATUS_LINELEN, "%-12s%ld\n",
                         "StackUsed:", (long)up_check_tcbstack(tcb));
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -1042,7 +1054,8 @@ static ssize_t proc_groupstatus(FAR struct proc_file_s *procfile,
     }
 
   linesize   = snprintf(procfile->line, STATUS_LINELEN, "\n");
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -1078,7 +1091,8 @@ static ssize_t proc_groupfd(FAR struct proc_file_s *procfile,
 
   linesize   = snprintf(procfile->line, STATUS_LINELEN, "\n%-3s %-8s %s\n",
                         "FD", "POS", "OFLAGS");
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -1117,9 +1131,11 @@ static ssize_t proc_groupfd(FAR struct proc_file_s *procfile,
     }
 
 #ifdef CONFIG_NET
-  linesize   = snprintf(procfile->line, STATUS_LINELEN, "\n%-3s %-2s %-3s %s\n",
+  linesize   = snprintf(procfile->line, STATUS_LINELEN,
+                        "\n%-3s %-2s %-3s %s\n",
                         "SD", "RF", "TYP", "FLAGS");
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining, &offset);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
 
   totalsize += copysize;
   buffer    += copysize;
@@ -1214,8 +1230,9 @@ static int proc_groupenv_callback(FAR void *arg, FAR const char *pair)
 
   linesize        = snprintf(info->procfile->line, STATUS_LINELEN, "%s=%s\n",
                              name, value);
-  copysize        = procfs_memcpy(info->procfile->line, linesize, info->buffer,
-                                  info->remaining, &info->offset);
+  copysize        = procfs_memcpy(info->procfile->line, linesize,
+                                  info->buffer, info->remaining,
+                                  &info->offset);
 
   info->totalsize += copysize;
   info->buffer    += copysize;
@@ -1328,7 +1345,7 @@ static int proc_open(FAR struct file *filep, FAR const char *relpath,
 
   pid = (pid_t)tmp;
 
-  tcb = sched_gettcb(pid);
+  tcb = nxsched_get_tcb(pid);
   if (tcb == NULL)
     {
       ferr("ERROR: PID %d is no longer valid\n", (int)pid);
@@ -1356,7 +1373,8 @@ static int proc_open(FAR struct file *filep, FAR const char *relpath,
 
   /* Allocate a container to hold the task and node selection */
 
-  procfile = (FAR struct proc_file_s *)kmm_zalloc(sizeof(struct proc_file_s));
+  procfile = (FAR struct proc_file_s *)
+    kmm_zalloc(sizeof(struct proc_file_s));
   if (procfile == NULL)
     {
       ferr("ERROR: Failed to allocate file container\n");
@@ -1414,7 +1432,7 @@ static ssize_t proc_read(FAR struct file *filep, FAR char *buffer,
 
   /* Verify that the thread is still valid */
 
-  tcb = sched_gettcb(procfile->pid);
+  tcb = nxsched_get_tcb(procfile->pid);
   if (tcb == NULL)
     {
       ferr("ERROR: PID %d is not valid\n", (int)procfile->pid);
@@ -1578,7 +1596,7 @@ static int proc_opendir(FAR const char *relpath, FAR struct fs_dirent_s *dir)
 
   pid = (pid_t)tmp;
 
-  tcb = sched_gettcb(pid);
+  tcb = nxsched_get_tcb(pid);
   if (tcb == NULL)
     {
       ferr("ERROR: PID %d is not valid\n", (int)pid);
@@ -1706,7 +1724,7 @@ static int proc_readdir(struct fs_dirent_s *dir)
 
       pid = procdir->pid;
 
-      tcb = sched_gettcb(pid);
+      tcb = nxsched_get_tcb(pid);
       if (tcb == NULL)
         {
           ferr("ERROR: PID %d is no longer valid\n", (int)pid);
@@ -1824,7 +1842,7 @@ static int proc_stat(const char *relpath, struct stat *buf)
 
   pid = (pid_t)tmp;
 
-  tcb = sched_gettcb(pid);
+  tcb = nxsched_get_tcb(pid);
   if (tcb == NULL)
     {
       ferr("ERROR: PID %d is no longer valid\n", (int)pid);

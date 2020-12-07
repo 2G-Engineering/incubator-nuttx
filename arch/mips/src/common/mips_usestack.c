@@ -46,6 +46,7 @@
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/arch.h>
+#include <nuttx/tls.h>
 
 #include "mips_internal.h"
 
@@ -65,17 +66,9 @@
 
 /* Stack alignment macros */
 
-#define STACK_ALIGN_MASK    (STACK_ALIGNMENT-1)
+#define STACK_ALIGN_MASK    (STACK_ALIGNMENT - 1)
 #define STACK_ALIGN_DOWN(a) ((a) & ~STACK_ALIGN_MASK)
 #define STACK_ALIGN_UP(a)   (((a) + STACK_ALIGN_MASK) & ~STACK_ALIGN_MASK)
-
-/****************************************************************************
- * Private Types
- ****************************************************************************/
-
-/****************************************************************************
- * Private Function Prototypes
- ****************************************************************************/
 
 /****************************************************************************
  * Public Functions
@@ -86,7 +79,7 @@
  *
  * Description:
  *   Setup up stack-related information in the TCB using pre-allocated stack
- *   memory.  This function is called only from task_init() when a task or
+ *   memory.  This function is called only from nxtask_init() when a task or
  *   kernel thread is started (never for pthreads).
  *
  *   The following TCB fields must be initialized:
@@ -114,6 +107,12 @@ int up_use_stack(struct tcb_s *tcb, void *stack, size_t stack_size)
   size_t top_of_stack;
   size_t size_of_stack;
 
+#ifdef CONFIG_TLS_ALIGNED
+  /* Make certain that the user provided stack is properly aligned */
+
+  DEBUGASSERT(((uintptr_t)stack & TLS_STACK_MASK) == 0);
+#endif
+
   /* Is there already a stack allocated? */
 
   if (tcb->stack_alloc_ptr)
@@ -126,6 +125,17 @@ int up_use_stack(struct tcb_s *tcb, void *stack, size_t stack_size)
   /* Save the new stack allocation */
 
   tcb->stack_alloc_ptr = stack;
+
+  /* If stack debug is enabled, then fill the stack with a recognizable value
+   * that we can use later to test for high water marks.
+   */
+
+#ifdef CONFIG_STACK_COLORATION
+  if (tcb->pid != 0)
+    {
+      memset(tcb->stack_alloc_ptr, 0xaa, stack_size);
+    }
+#endif
 
   /* MIPS uses a push-down stack:  the stack grows toward loweraddresses in
    * memory.  The stack pointer register, points to the lowest, valid work
@@ -141,12 +151,23 @@ int up_use_stack(struct tcb_s *tcb, void *stack, size_t stack_size)
    */
 
   top_of_stack = STACK_ALIGN_DOWN(top_of_stack);
+
+  /* The size of the stack in bytes is then the difference between
+   * the top and the bottom of the stack (+4 because if the top
+   * is the same as the bottom, then the size is one 32-bit element).
+   * The size need not be aligned.
+   */
+
   size_of_stack = top_of_stack - (uint32_t)tcb->stack_alloc_ptr + 4;
 
   /* Save the adjusted stack values in the struct tcb_s */
 
   tcb->adj_stack_ptr  = (uint32_t *)top_of_stack;
   tcb->adj_stack_size = size_of_stack;
+
+  /* Initialize the TLS data structure */
+
+  memset(tcb->stack_alloc_ptr, 0, sizeof(struct tls_info_s));
 
   return OK;
 }

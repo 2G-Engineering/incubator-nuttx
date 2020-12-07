@@ -159,7 +159,7 @@ Buttons and LEDs
   logic.  APIs are provided to support application control of the LED in
   that case (in include/board.h and src/tm4c_userleds.c).
 
-  If CONFIG_ARCH_LEDS is defined then the usage of the LEDs by Nuttx is
+  If CONFIG_ARCH_LEDS is defined then the usage of the LEDs by NuttX is
   defined in include/board.h and src/tm4c_autoleds.c. The LEDs are used to
   encode OS-related events as follows:
 
@@ -667,13 +667,13 @@ Where <subdir> is one of the following:
        b. Execute 'make menuconfig' in nuttx/ in order to start the
           reconfiguration process.
 
-    2. By default, this configuration uses the CodeSourcery toolchain
+    2. By default, this configuration uses the ARM EABI toolchain
        for Windows and builds under Cygwin (or probably MSYS).  That
        can easily be reconfigured, of course.
 
        CONFIG_HOST_WINDOWS=y                   : Windows
        :CONFIG_WINDOWS_CYGWIN=y                : Cygwin under Windows
-       CONFIG_ARMV7M_TOOLCHAIN_CODESOURCERYW=y : CodeSourcry for Windows (arm-none-eabi-gcc)
+       CONFIG_ARMV7M_TOOLCHAIN_GNU_EABIW=y     : GNU EABI toolchain for Windows
        CONFIG_RAW_BINARY=y                     : Output formats: ELF and raw binary
 
     3. Default stack sizes are large and should really be tuned to reduce

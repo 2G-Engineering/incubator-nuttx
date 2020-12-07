@@ -45,8 +45,8 @@
 
 #include <nuttx/init.h>
 
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "sam_config.h"
 #include "sam_lowputc.h"
@@ -77,7 +77,7 @@
  * Public Data
  ****************************************************************************/
 
-const uint32_t g_idle_topstack = IDLE_STACK;
+const uintptr_t g_idle_topstack = IDLE_STACK;
 
 /****************************************************************************
  * Private Functions
@@ -138,7 +138,9 @@ void __start(void)
 
   sam_clockconfig();
 
-  /* Configure the uart early so that we can get debug output as soon as possible */
+  /* Configure the uart early so that we can get debug output as soon as
+   * possible
+   */
 
   sam_lowsetup();
   showprogress('A');
@@ -146,7 +148,7 @@ void __start(void)
   /* Perform early serial initialization */
 
 #ifdef USE_EARLYSERIALINIT
-  up_earlyserialinit();
+  arm_earlyserialinit();
 #endif
   showprogress('B');
 
@@ -172,7 +174,7 @@ void __start(void)
   showprogress('\n');
   nx_start();
 
-  /* Shoulnd't get here */
+  /* Shouldn't get here */
 
   for (; ; );
 }

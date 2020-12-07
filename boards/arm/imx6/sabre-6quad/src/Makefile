@@ -33,9 +33,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = imx_boardinit.c imx_bringup.c
 
 ifeq ($(CONFIG_LIB_BOARDCTL),y)

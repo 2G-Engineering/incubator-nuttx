@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/sim/src/sim/up_simsmp.c
+ * arch/sim/src/sim/up_smpsignal.c
  *
  *   Copyright (C) 2016 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
@@ -103,7 +103,13 @@ int up_cpu_paused(int cpu)
 
   /* Update scheduler parameters */
 
-  sched_suspend_scheduler(rtcb);
+  nxsched_suspend_scheduler(rtcb);
+
+#ifdef CONFIG_SCHED_INSTRUMENTATION
+  /* Notify that we are paused */
+
+  sched_note_cpu_paused(rtcb);
+#endif
 
   /* Copy the exception context into the TCB at the (old) head of the
    * CPUs assigned task list. if up_setjmp returns a non-zero value, then
@@ -145,9 +151,15 @@ int up_cpu_paused(int cpu)
           rtcb->xcp.sigdeliver = NULL;
         }
 
+#ifdef CONFIG_SCHED_INSTRUMENTATION
+      /* Notify that we have resumed */
+
+      sched_note_cpu_resumed(rtcb);
+#endif
+
       /* Reset scheduler parameters */
 
-      sched_resume_scheduler(rtcb);
+      nxsched_resume_scheduler(rtcb);
 
       /* Then switch contexts */
 
@@ -170,8 +182,25 @@ void up_cpu_started(void)
 #ifdef CONFIG_SCHED_INSTRUMENTATION
   FAR struct tcb_s *tcb = this_task();
 
+  /* Notify that this CPU has started */
+
+  sched_note_cpu_started(tcb);
+
   /* Announce that the IDLE task has started */
 
   sched_note_start(tcb);
 #endif
+}
+
+/****************************************************************************
+ * Name: up_this_task
+ *
+ * Description:
+ *   Return the currrent task tcb.
+ *
+ ****************************************************************************/
+
+struct tcb_s *up_this_task(void)
+{
+  return this_task();
 }

@@ -39,6 +39,9 @@
 
 #include <nuttx/config.h>
 #include <nuttx/board.h>
+#include <nuttx/sensors/wtgahrs2.h>
+#include <nuttx/rc/lirc_dev.h>
+#include <nuttx/rc/dummy.h>
 
 #include "sim.h"
 #include "up_internal.h"
@@ -60,7 +63,7 @@
  *         implementation without modification.  The argument has no
  *         meaning to NuttX; the meaning of the argument is a contract
  *         between the board-specific initialization logic and the
- *         matching application logic.  The value cold be such things as a
+ *         matching application logic.  The value could be such things as a
  *         mode enumeration value, a set of DIP switch switch settings, a
  *         pointer to configuration data read from a file or serial FLASH,
  *         or whatever you would like to do with it.  Every implementation
@@ -81,6 +84,22 @@ int board_app_initialize(uintptr_t arg)
 
 #ifdef CONFIG_RPTUN
   up_rptun_init();
+#endif
+
+#ifdef CONFIG_SIM_WTGAHRS2_UARTN
+#if CONFIG_SIM_WTGAHRS2_UARTN == 0
+  wtgahrs2_initialize(CONFIG_SIM_UART0_NAME, 0);
+#elif CONFIG_SIM_WTGAHRS2_UARTN == 1
+  wtgahrs2_initialize(CONFIG_SIM_UART1_NAME, 1);
+#elif CONFIG_SIM_WTGAHRS2_UARTN == 2
+  wtgahrs2_initialize(CONFIG_SIM_UART2_NAME, 2);
+#elif CONFIG_SIM_WTGAHRS2_UARTN == 3
+  wtgahrs2_initialize(CONFIG_SIM_UART3_NAME, 3);
+#endif
+#endif
+
+#ifdef CONFIG_RC_DUMMY
+  rc_dummy_initialize(0);
 #endif
 
   return 0;

@@ -42,10 +42,10 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
-#include <sys/statfs.h>
 #include <sys/stat.h>
 
 #include <sys/types.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -67,8 +67,8 @@
 #include <arch/chip/pm.h>
 
 #include "chip.h"
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 #include "cxd56_clock.h"
 #include "cxd56_usbdev.h"
 #include "hardware/cxd5602_topreg.h"
@@ -1020,7 +1020,7 @@ static void cxd56_rxdmacomplete(FAR struct cxd56_ep_s *privep)
     }
   else
     {
-      uerr("Descriptor status error %08x\n", status);
+      uerr("Descriptor status error %08" PRIx32 "\n", status);
     }
 
   cxd56_rdrequest(privep);
@@ -2204,9 +2204,9 @@ static void cxd56_usbdevreset(FAR struct cxd56_usbdev_s *priv)
  * Input Parameters:
  *   ep   - the struct usbdev_ep_s instance obtained from allocep()
  *   desc - A struct usb_epdesc_s instance describing the endpoint
- *   last - true if this this last endpoint to be configured.  Some hardware
- *          needs to take special action when all of the endpoints have been
- *          configured.
+ *   last - true if this is the last endpoint to be configured.  Some
+ *          hardware needs to take special action when all of the endpoints
+ *          have been configured.
  *
  ****************************************************************************/
 
@@ -2232,7 +2232,7 @@ static int cxd56_epconfigure(FAR struct usbdev_ep_s *ep,
 
   status = getreg32(CXD56_USB_DEV_STATUS);
 
-  uinfo("config: EP%d %s %d maxpacket=%d (status: %08x)\n", n,
+  uinfo("config: EP%d %s %d maxpacket=%d (status: %08" PRIx32 ")\n", n,
         privep->in ? "IN" : "OUT", eptype, maxpacket, status);
 
   udc = n;
@@ -2242,7 +2242,7 @@ static int cxd56_epconfigure(FAR struct usbdev_ep_s *ep,
   udc |= USB_STATUS_INTF(status) << 11;
   udc |= USB_STATUS_ALT(status) << 15;
   udc |= maxpacket << 19;
-  uinfo("UDC: %08x\n", udc);
+  uinfo("UDC: %08" PRIx32 "\n", udc);
 
   /* This register is write-only (why?) */
 
@@ -3015,7 +3015,7 @@ static int cxd56_vbusinterrupt(int irq, FAR void *context, FAR void *arg)
   cxd56_cableconnected(true);
 
   usbtrace(TRACE_INTENTRY(CXD56_TRACEINTID_VBUS), 0);
-  uinfo("irq=%d context=%08x\n", irq, context);
+  uinfo("irq=%d context=%p\n", irq, context);
 
   /* Toggle vbus interrupts */
 
@@ -3060,7 +3060,7 @@ static int cxd56_vbusninterrupt(int irq, FAR void *context, FAR void *arg)
 
   usbtrace(TRACE_INTENTRY(CXD56_TRACEINTID_VBUSN), 0);
 
-  uinfo("irq=%d context=%08x\n", irq, context);
+  uinfo("irq=%d context=%p\n", irq, context);
 
   /* Toggle vbus interrupts */
 
@@ -3100,14 +3100,14 @@ static int cxd56_vbusninterrupt(int irq, FAR void *context, FAR void *arg)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_usbinitialize
+ * Name: arm_usbinitialize
  *
  * Description:
  *   Initialize USB hardware
  *
  ****************************************************************************/
 
-void up_usbinitialize(void)
+void arm_usbinitialize(void)
 {
   usbtrace(TRACE_DEVINIT, 0);
 
@@ -3155,14 +3155,14 @@ void up_usbinitialize(void)
   return;
 
 errout:
-  up_usbuninitialize();
+  arm_usbuninitialize();
 }
 
 /****************************************************************************
- * Name: up_usbuninitialize
+ * Name: arm_usbuninitialize
  ****************************************************************************/
 
-void up_usbuninitialize(void)
+void arm_usbuninitialize(void)
 {
   FAR struct cxd56_usbdev_s *priv = &g_usbdev;
   irqstate_t flags;

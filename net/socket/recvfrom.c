@@ -1,7 +1,8 @@
 /****************************************************************************
  * net/socket/recvfrom.c
  *
- *   Copyright (C) 2007-2009, 2011-2017, 2019 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007-2009, 2011-2017, 2019 Gregory Nutt. All rights
+ *     reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -90,12 +91,10 @@ ssize_t psock_recvfrom(FAR struct socket *psock, FAR void *buf, size_t len,
 {
   /* Verify that non-NULL pointers were passed */
 
-#ifdef CONFIG_DEBUG_FEATURES
   if (buf == NULL)
     {
       return -EINVAL;
     }
-#endif
 
   if (from != NULL && fromlen != NULL && *fromlen <= 0)
     {
@@ -187,19 +186,20 @@ ssize_t nx_recvfrom(int sockfd, FAR void *buf, size_t len, int flags,
  *   -1 is returned, and errno is set appropriately:
  *
  *   EAGAIN
- *     The socket is marked non-blocking and the receive operation would block,
- *     or a receive timeout had been set and the timeout expired before data
- *     was received.
+ *     The socket is marked non-blocking and the receive operation would
+ *     block, or a receive timeout had been set and the timeout expired
+ *     before data was received.
  *   EBADF
  *     The argument sockfd is an invalid descriptor.
  *   ECONNREFUSED
- *     A remote host refused to allow the network connection (typically because
- *     it is not running the requested service).
+ *     A remote host refused to allow the network connection (typically
+ *     because it is not running the requested service).
  *   EFAULT
- *     The receive buffer pointer(s) point outside the process's address space.
+ *     The receive buffer pointer(s) point outside the process's address
+ *     space.
  *   EINTR
- *     The receive was interrupted by delivery of a signal before any data were
- *     available.
+ *     The receive was interrupted by delivery of a signal before any data
+ *     were available.
  *   EINVAL
  *     Invalid argument passed.
  *   ENOMEM

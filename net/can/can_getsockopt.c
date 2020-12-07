@@ -78,8 +78,7 @@ int can_getsockopt(FAR struct socket *psock, int option,
                    FAR void *value, FAR socklen_t *value_len)
 {
   FAR struct can_conn_s *conn;
-  int ret;
-  int count = 0;
+  int ret = OK;
 
   DEBUGASSERT(psock != NULL && value != NULL && value_len != NULL &&
               psock->s_conn != NULL);
@@ -98,32 +97,118 @@ int can_getsockopt(FAR struct socket *psock, int option,
           {
             ret = -EINVAL;
           }
-
-        if (value_len > CAN_RAW_FILTER_MAX * sizeof(struct can_filter))
+        else if (*value_len > CONFIG_NET_CAN_RAW_FILTER_MAX *
+                   sizeof(struct can_filter))
           {
             ret = -EINVAL;
           }
+        else
+          {
+            int count = conn->filter_count;
 
-        count = *value_len / sizeof(struct can_filter);
+          if (*value_len < count * sizeof(struct can_filter))
+              {
+                count = *value_len / sizeof(struct can_filter);
+              }
+          else
+            {
+              *value_len = count * sizeof(struct can_filter);
+            }
 
-        /* FIXME pass filter to driver */
+            for (int i = 0; i < count; i++)
+              {
+                ((struct can_filter *)value)[i] = conn->filters[i];
+              }
 
+            ret = OK;
+          }
         break;
 
       case CAN_RAW_ERR_FILTER:
         break;
 
       case CAN_RAW_LOOPBACK:
+        if (*value_len < sizeof(conn->loopback))
+          {
+            /* REVISIT: POSIX says that we should truncate the value if it
+             * is larger than value_len.   That just doesn't make sense
+             * to me in this case.
+             */
+
+            ret              = -EINVAL;
+          }
+        else
+          {
+            FAR int32_t *loopback  = (FAR int32_t *)value;
+            *loopback              = conn->loopback;
+            *value_len             = sizeof(conn->loopback);
+            ret                    = OK;
+          }
         break;
 
       case CAN_RAW_RECV_OWN_MSGS:
+        if (*value_len < sizeof(conn->recv_own_msgs))
+          {
+            /* REVISIT: POSIX says that we should truncate the value if it
+             * is larger than value_len.   That just doesn't make sense
+             * to me in this case.
+             */
+
+            ret              = -EINVAL;
+          }
+        else
+          {
+            FAR int32_t *recv_own_msgs = (FAR int32_t *)value;
+            *recv_own_msgs             = conn->recv_own_msgs;
+            *value_len                 = sizeof(conn->recv_own_msgs);
+            ret                        = OK;
+          }
         break;
 
+#ifdef CONFIG_NET_CAN_CANFD
       case CAN_RAW_FD_FRAMES:
+        if (*value_len < sizeof(conn->fd_frames))
+          {
+            /* REVISIT: POSIX says that we should truncate the value if it
+             * is larger than value_len.   That just doesn't make sense
+             * to me in this case.
+             */
+
+            ret              = -EINVAL;
+          }
+        else
+          {
+            FAR int32_t *fd_frames = (FAR int32_t *)value;
+            *fd_frames             = conn->fd_frames;
+            *value_len             = sizeof(conn->fd_frames);
+            ret                    = OK;
+          }
         break;
+#endif
 
       case CAN_RAW_JOIN_FILTERS:
         break;
+
+#ifdef CONFIG_NET_CAN_RAW_TX_DEADLINE
+      case CAN_RAW_TX_DEADLINE:
+        if (*value_len < sizeof(conn->tx_deadline))
+          {
+            /* REVISIT: POSIX says that we should truncate the value if it
+             * is larger than value_len.   That just doesn't make sense
+             * to me in this case.
+             */
+
+            ret              = -EINVAL;
+          }
+        else
+          {
+            FAR int32_t *tx_deadline = (FAR int32_t *)value;
+            *tx_deadline             = conn->tx_deadline;
+            *value_len               = sizeof(conn->tx_deadline);
+            ret                      = OK;
+          }
+        break;
+#endif
 
       default:
         nerr("ERROR: Unrecognized RAW CAN socket option: %d\n", option);

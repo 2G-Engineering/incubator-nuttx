@@ -46,8 +46,8 @@
 #include <arch/board/board.h>
 
 #include "chip.h"
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "lpc4370-link2.h"
 
@@ -79,7 +79,7 @@ static void led_dumppins(FAR const char *msg)
  * Name: board_userled_initialize
  ****************************************************************************/
 
-void board_userled_initialize(void)
+uint32_t board_userled_initialize(void)
 {
   /* Configure LED pin as a GPIO outputs */
 
@@ -91,6 +91,7 @@ void board_userled_initialize(void)
   lpc43_gpio_config(GPIO_LED);
 
   led_dumppins("board_userled_initialize() Exit");
+  return BOARD_NLEDS;
 }
 
 /****************************************************************************
@@ -109,7 +110,7 @@ void board_userled(int led, bool ledon)
  * Name: board_userled_all
  ****************************************************************************/
 
-void board_userled_all(uint8_t ledset)
+void board_userled_all(uint32_t ledset)
 {
   lpc43_gpio_write(GPIO_LED, (ledset & BOARD_LED_BIT) == 0);
 }

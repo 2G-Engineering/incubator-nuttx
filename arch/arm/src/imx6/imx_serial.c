@@ -55,8 +55,8 @@
 #include <nuttx/serial/serial.h>
 
 #include "chip.h"
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "gic.h"
 #include "hardware/imx_uart.h"
@@ -231,7 +231,7 @@ static int  imx_attach(struct uart_dev_s *dev);
 static void imx_detach(struct uart_dev_s *dev);
 static int  imx_interrupt(int irq, void *context, FAR void *arg);
 static int  imx_ioctl(struct file *filep, int cmd, unsigned long arg);
-static int  imx_receive(struct uart_dev_s *dev, uint32_t *status);
+static int  imx_receive(struct uart_dev_s *dev, unsigned int *status);
 static void imx_rxint(struct uart_dev_s *dev, bool enable);
 static bool imx_rxavailable(struct uart_dev_s *dev);
 static void imx_send(struct uart_dev_s *dev, int ch);
@@ -349,7 +349,7 @@ static struct uart_dev_s g_uart2port =
   {
     .size   = CONFIG_UART2_TXBUFSIZE,
     .buffer = g_uart2txbuffer,
-   },
+  },
   .ops      = &g_uart_ops,
   .priv     = &g_uart2priv,
 };
@@ -578,14 +578,15 @@ static void imx_shutdown(struct uart_dev_s *dev)
  * Name: imx_attach
  *
  * Description:
- *   Configure the UART to operation in interrupt driven mode.  This method is
- *   called when the serial port is opened.  Normally, this is just after the
+ *   Configure the UART to operation in interrupt driven mode.  This method
+ *   is called when the serial port is opened.  Normally, this is just after
  *   the setup() method is called, however, the serial console may operate in
  *   a non-interrupt driven mode during the boot phase.
  *
- *   RX and TX interrupts are not enabled when by the attach method (unless the
- *   hardware supports multiple levels of interrupt enabling).  The RX and TX
- *   interrupts are not enabled until the txint() and rxint() methods are called.
+ *   RX and TX interrupts are not enabled when by the attach method (unless
+ *   the hardware supports multiple levels of interrupt enabling).  The RX
+ *   and TX interrupts are not enabled until the txint() and rxint() methods
+ *   are called.
  *
  ****************************************************************************/
 
@@ -746,7 +747,7 @@ static int imx_ioctl(struct file *filep, int cmd, unsigned long arg)
  *
  ****************************************************************************/
 
-static int imx_receive(struct uart_dev_s *dev, uint32_t *status)
+static int imx_receive(struct uart_dev_s *dev, unsigned int *status)
 {
   struct imx_uart_s *priv = (struct imx_uart_s *)dev->priv;
   uint32_t rxd0;
@@ -889,7 +890,7 @@ static bool imx_txempty(struct uart_dev_s *dev)
  * Description:
  *   Performs the low level UART initialization early in
  *   debug so that the serial console will be available
- *   during bootup.  This must be called before up_serialinit.
+ *   during bootup.  This must be called before arm_serialinit.
  *
  ****************************************************************************/
 
@@ -911,7 +912,7 @@ void imx_earlyserialinit(void)
 }
 
 /****************************************************************************
- * Name: up_serialinit
+ * Name: arm_serialinit
  *
  * Description:
  *   Register serial console and serial ports.  This assumes
@@ -919,7 +920,7 @@ void imx_earlyserialinit(void)
  *
  ****************************************************************************/
 
-void up_serialinit(void)
+void arm_serialinit(void)
 {
 #ifdef CONSOLE_DEV
   uart_register("/dev/console", &CONSOLE_DEV);

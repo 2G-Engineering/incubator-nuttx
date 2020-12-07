@@ -54,7 +54,9 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
 /* Configuration ************************************************************/
+
 /* If CONFIG_BUILD_PROTECTED, then CONFIG_NUTTX_USERSPACE must be defined to
  * provide the address where the user-space header can be found in memory.
  */
@@ -73,6 +75,7 @@
 #endif
 
 /* Helper Macros ************************************************************/
+
 /* This macro is used to access the struct userpace_s header that can be
  * found at the beginning of the user-space blob.
  */
@@ -89,9 +92,9 @@
 
 struct mm_heaps_s; /* Forward reference */
 
- /* Every user-space blob starts with a header that provides information about
- * the blob.  The form of that header is provided by struct userspace_s.  An
- * instance of this structure is expected to reside at CONFIG_NUTTX_USERSPACE.
+/* Every user-space blob starts with a header that provides information about
+ * the blob.  The form of that header is provided by struct userspace_s. An
+ * instance of this is expected to reside at CONFIG_NUTTX_USERSPACE.
  */
 
 struct userspace_s
@@ -114,8 +117,7 @@ struct userspace_s
 
   /* Task/thread startup routines */
 
-  CODE void (*task_startup)(main_t entrypt, int argc, FAR char *argv[])
-    noreturn_function;
+  CODE void (*task_startup)(main_t entrypt, int argc, FAR char *argv[]);
 #ifndef CONFIG_DISABLE_PTHREAD
   CODE void (*pthread_startup)(pthread_startroutine_t entrypt,
     pthread_addr_t arg);
@@ -150,26 +152,6 @@ extern "C"
  ****************************************************************************/
 
 /****************************************************************************
- * Name: task_startup
- *
- * Description:
- *   This function is the user-space, task startup function.  It is called
- *   from up_task_start() in user-mode.
- *
- * Input Parameters:
- *   entrypt - The user-space address of the task entry point
- *   argc and argv - Standard arguments for the task entry point
- *
- * Returned Value:
- *   None.  This function does not return.
- *
- ****************************************************************************/
-
-#if defined(CONFIG_BUILD_PROTECTED) && !defined(__KERNEL__)
-void task_startup(main_t entrypt, int argc, FAR char *argv[]) noreturn_function;
-#endif
-
-/****************************************************************************
  * Name: pthread_startup
  *
  * Description:
@@ -185,7 +167,7 @@ void task_startup(main_t entrypt, int argc, FAR char *argv[]) noreturn_function;
  *
  ****************************************************************************/
 
-#if defined(CONFIG_BUILD_PROTECTED) && !defined(__KERNEL__) && !defined(CONFIG_DISABLE_PTHREAD)
+#if !defined(__KERNEL__) && !defined(CONFIG_DISABLE_PTHREAD)
 void pthread_startup(pthread_startroutine_t entrypt, pthread_addr_t arg);
 #endif
 

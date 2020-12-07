@@ -33,24 +33,9 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
-
-# REVISIT: Backslash causes problems in $(COBJS) target
-DELIM := $(strip /)
-
-# CFLAGS
-
-ifneq ($(CONFIG_BUILD_FLAT),y)
-  KDEFINE = ${shell $(DEFINE) "$(CC)" __KERNEL__}
-endif
+include $(TOPDIR)/Make.defs
 
 # Sources and paths
-
-ASRCS  =
-CSRCS  =
-
-DEPPATH = --dep-path .
-VPATH = .
 
 include mm_heap/Make.defs
 include umm_heap/Make.defs
@@ -58,8 +43,11 @@ include kmm_heap/Make.defs
 include mm_gran/Make.defs
 include shm/Make.defs
 include iob/Make.defs
+include circbuf/Make.defs
 
 BINDIR ?= bin
+
+CFLAGS += ${shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)mm}
 
 AOBJS = $(patsubst %.S, $(BINDIR)$(DELIM)%$(OBJEXT), $(ASRCS))
 COBJS = $(patsubst %.c, $(BINDIR)$(DELIM)%$(OBJEXT), $(CSRCS))
@@ -67,7 +55,6 @@ COBJS = $(patsubst %.c, $(BINDIR)$(DELIM)%$(OBJEXT), $(CSRCS))
 SRCS = $(ASRCS) $(CSRCS)
 OBJS = $(AOBJS) $(COBJS)
 
-UBIN = libumm$(LIBEXT)
 KBIN = libkmm$(LIBEXT)
 BIN ?= libmm$(LIBEXT)
 
@@ -80,33 +67,33 @@ $(AOBJS): $(BINDIR)$(DELIM)%$(OBJEXT): %.S
 $(COBJS): $(BINDIR)$(DELIM)%$(OBJEXT): %.c
 	$(call COMPILE, $<, $@)
 
-# Memory manager for the flat build
+# Memory manager for the flat build and
+# the user phase of the two-pass kernel build
 
 $(BIN):	$(OBJS)
 	$(call ARCHIVE, $@, $(OBJS))
-
-# Memory manager for the user phase of the two-pass kernel build
-
-ifneq ($(BIN),$(UBIN))
-$(UBIN):
-	$(Q) $(MAKE) $(UBIN) BIN=$(UBIN) BINDIR=ubin TOPDIR=$(TOPDIR) EXTRAFLAGS="$(EXTRAFLAGS)"
-endif
 
 # Memory manager for the kernel phase of the two-pass kernel build
 
 ifneq ($(BIN),$(KBIN))
 $(KBIN):
-	$(Q) $(MAKE) $(KBIN) BIN=$(KBIN) BINDIR=kbin TOPDIR=$(TOPDIR) EXTRAFLAGS="$(EXTRAFLAGS)"
+	$(Q) $(MAKE) $(KBIN) BIN=$(KBIN) BINDIR=kbin EXTRAFLAGS="$(EXTRAFLAGS)"
 endif
 
 # Dependencies
 
-.depend: Makefile $(SRCS)
-ifeq ($(CONFIG_BUILD_FLAT),y)
-	$(Q) $(MKDEP) --obj-path bin --obj-suffix $(OBJEXT) $(DEPPATH) "$(CC)" -- $(CFLAGS) -- $(SRCS) >bin/Make.dep
-else
-	$(Q) $(MKDEP) --obj-path ubin --obj-suffix $(OBJEXT) $(DEPPATH) "$(CC)" -- $(CFLAGS) -- $(SRCS) >ubin/Make.dep
-	$(Q) $(MKDEP) --obj-path kbin --obj-suffix $(OBJEXT) $(DEPPATH) "$(CC)" -- $(CFLAGS) $(KDEFINE) -- $(SRCS) >kbin/Make.dep
+makedepfile: $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds)
+	$(call CATFILE, bin/Make.dep, $^)
+	$(call DELFILE, $^)
+
+makekdepfile: $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds)
+	$(call CATFILE, kbin/Make.dep, $^)
+	$(call DELFILE, $^)
+
+.depend: Makefile $(SRCS) $(TOPDIR)$(DELIM).config
+	$(Q) $(MAKE) makedepfile OBJPATH="bin"
+ifneq ($(CONFIG_BUILD_FLAT),y)
+	$(Q) $(MAKE) makekdepfile CFLAGS="$(CFLAGS) $(KDEFINE)" OBJPATH="kbin"
 endif
 	$(Q) touch $@
 
@@ -115,25 +102,20 @@ depend: .depend
 # Clean most derived files, retaining the configuration
 
 clean:
-	$(Q) $(MAKE) -C bin  clean TOPDIR=$(TOPDIR)
-	$(Q) $(MAKE) -C ubin clean TOPDIR=$(TOPDIR)
-	$(Q) $(MAKE) -C kbin clean TOPDIR=$(TOPDIR)
+	$(Q) $(MAKE) -C bin  clean
+	$(Q) $(MAKE) -C kbin clean
 	$(call DELFILE, $(BIN))
-	$(call DELFILE, $(UBIN))
 	$(call DELFILE, $(KBIN))
 	$(call CLEAN)
 
 # Deep clean -- removes all traces of the configuration
 
 distclean: clean
-	$(Q) $(MAKE) -C bin  distclean TOPDIR=$(TOPDIR)
-	$(Q) $(MAKE) -C ubin distclean TOPDIR=$(TOPDIR)
-	$(Q) $(MAKE) -C kbin distclean TOPDIR=$(TOPDIR)
+	$(Q) $(MAKE) -C bin  distclean
+	$(Q) $(MAKE) -C kbin distclean
 	$(call DELFILE, bin/Make.dep)
-	$(call DELFILE, ubin/Make.dep)
 	$(call DELFILE, kbin/Make.dep)
 	$(call DELFILE, .depend)
 
 -include bin/Make.dep
--include ubin/Make.dep
 -include kbin/Make.dep

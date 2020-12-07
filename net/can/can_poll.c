@@ -76,8 +76,6 @@ void can_poll(FAR struct net_driver_s *dev, FAR struct can_conn_s *conn)
 
       if (dev->d_sndlen > 0)
         {
-          /* FIXME missing logic */
-
           return;
         }
     }
