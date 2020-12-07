@@ -97,7 +97,25 @@
 #  define CONFIG_LPC17_40_I2C2_FREQUENCY 100000
 #endif
 
+
+/* Default frequency */
+
 #define LPC17_40_I2C1_FREQUENCY 400000
+
+/* I2C state machine states */
+
+#define I2CSTATE_INIT         0x00 /* Initial state of the I2C system */
+#define I2CSTATE_START        0x08 /* A START condition has been transmitted. */
+#define I2CSTATE_REPEATSTART  0x10 /* A repeated START condition has been transmitted. */
+#define I2CSTATE_SLAWACK      0x18 /* SLA+W has been transmitted; ACK has been received  */
+#define I2CSTATE_TDATACK      0x28 /* Data byte in DAT has been transmitted; ACK has been received. */
+#define I2CSTATE_TDATNACK     0x30 /* Data byte in DAT has been transmitted; NACK has been received. */
+#define I2CSTATE_ARBLOST      0x38 /* Arbitration has been lost during SLA+W or DAT transmission */
+#define I2CSTATE_SLARACK      0x40 /* SLA+R has been transmitted; ACK has been received */
+#define I2CSTATE_SLARNACK     0x48 /* SLA+R has been transmitted; NACK has been received */
+#define I2CSTATE_RDATACK      0x50 /* Data byte has been received; ACK has been returned. */
+#define I2CSTATE_RDATANACK    0x58 /* Data byte has been received; NACK has been returned. */
+#define I2CSTATE_TIMEDOUT     0xff /* A timeout has occurred */
 
 /****************************************************************************
  * Private Types
@@ -120,6 +138,7 @@ struct lpc17_40_i2cdev_s
 
   uint16_t         wrcnt;      /* number of bytes sent to tx fifo */
   uint16_t         rdcnt;      /* number of bytes read from rx fifo */
+  uint8_t irqhappened;
 };
 
 /****************************************************************************
@@ -215,6 +234,12 @@ static int lpc17_40_i2c_start(struct lpc17_40_i2cdev_s *priv)
   uint32_t timeout;
   int i;
 
+  /* Initializes the I2C state machine to a known value BEFORE we touch the I2C control registers*/
+  irqstate_t flags = enter_critical_section();
+  priv->state = I2CSTATE_INIT;
+  priv->irqhappened = 0;
+  leave_critical_section(flags);
+
   putreg32(I2C_CONCLR_STAC | I2C_CONCLR_SIC,
            priv->base + LPC17_40_I2C_CONCLR_OFFSET);
   putreg32(I2C_CONSET_STA, priv->base + LPC17_40_I2C_CONSET_OFFSET);
@@ -230,19 +255,30 @@ static int lpc17_40_i2c_start(struct lpc17_40_i2cdev_s *priv)
         }
     }
 
-  /* Calculate the approximate timeout */
+  /* Calculate the approximate timeout
+   * 2 ticks should be sufficient, but use 5 for safety */
 
-  timeout = ((total_len * (9000000 / CONFIG_USEC_PER_TICK)) / freq) + 1;
-
-  /* Initializes the I2C state machine to a known value */
-
-  priv->state = 0x00;
+  timeout = ((total_len * (9000000 / CONFIG_USEC_PER_TICK)) / freq) + 5;
 
   wd_start(priv->timeout, timeout, lpc17_40_i2c_timeout, 1,
            (uint32_t)priv);
   nxsem_wait(&priv->wait);
 
-  return priv->nmsg;
+  /* Return message count if successful, -1 otherwise. */
+  switch (priv->state)
+    {
+      case I2CSTATE_SLAWACK:
+      case I2CSTATE_TDATACK:
+      case I2CSTATE_RDATACK:
+      case I2CSTATE_RDATANACK:
+        return priv->nmsg;
+        break;
+
+      default:
+        i2cinfo("Transfer returns 0x%02x, %d (%d)\n", priv->state, priv->irqhappened, timeout);
+        return -ENXIO;
+        break;
+    }
 }
 
 /****************************************************************************
@@ -260,7 +296,7 @@ static void lpc17_40_i2c_stop(struct lpc17_40_i2cdev_s *priv)
       putreg32(I2C_CONSET_STO | I2C_CONSET_AA,
                priv->base + LPC17_40_I2C_CONSET_OFFSET);
     }
-
+  i2cinfo(LOG_INFO, "Rt: %d\n", wd_gettime(priv->timeout));
   wd_cancel(priv->timeout);
   nxsem_post(&priv->wait);
 }
@@ -278,6 +314,7 @@ static void lpc17_40_i2c_timeout(int argc, uint32_t arg, ...)
   struct lpc17_40_i2cdev_s *priv = (struct lpc17_40_i2cdev_s *)arg;
 
   irqstate_t flags = enter_critical_section();
+  i2cinfo("Timeout Occurred! Watchdog expired.\n");
   priv->state = 0xff;
   nxsem_post(&priv->wait);
   leave_critical_section(flags);
@@ -383,7 +420,7 @@ static int lpc17_40_i2c_interrupt(int irq, FAR void *context, void *arg)
   DEBUGASSERT(priv != NULL);
 
   /* Reference UM10360 19.10.5 */
-
+  priv->irqhappened = 1;
   state = getreg32(priv->base + LPC17_40_I2C_STAT_OFFSET);
   msg  = priv->msgs;
 
@@ -401,8 +438,8 @@ static int lpc17_40_i2c_interrupt(int irq, FAR void *context, void *arg)
 
   switch (state)
     {
-    case 0x08:     /* A START condition has been transmitted. */
-    case 0x10:     /* A Repeated START condition has been transmitted. */
+    case I2CSTATE_START:        /* A START condition has been transmitted. */
+    case I2CSTATE_REPEATSTART:  /* A Repeated START condition has been transmitted. */
       /* Set address */
 
       putreg32(((I2C_M_READ & msg->flags) == I2C_M_READ) ?
@@ -416,12 +453,12 @@ static int lpc17_40_i2c_interrupt(int irq, FAR void *context, void *arg)
 
     /* Write cases */
 
-    case 0x18: /* SLA+W has been transmitted; ACK has been received  */
+    case I2CSTATE_SLAWACK: /* SLA+W has been transmitted; ACK has been received  */
       priv->wrcnt = 0;
       putreg32(msg->buffer[0], priv->base + LPC17_40_I2C_DAT_OFFSET); /* put first byte */
       break;
 
-    case 0x28: /* Data byte in DAT has been transmitted; ACK has been received. */
+    case I2CSTATE_TDATACK: /* Data byte in DAT has been transmitted; ACK has been received. */
       priv->wrcnt++;
 
       if (priv->wrcnt < msg->length)
@@ -436,7 +473,7 @@ static int lpc17_40_i2c_interrupt(int irq, FAR void *context, void *arg)
 
     /* Read cases */
 
-    case 0x40:  /* SLA+R has been transmitted; ACK has been received */
+    case I2CSTATE_SLARACK:  /* SLA+R has been transmitted; ACK has been received */
       priv->rdcnt = 0;
       if (msg->length > 1)
         {
@@ -448,7 +485,7 @@ static int lpc17_40_i2c_interrupt(int irq, FAR void *context, void *arg)
         }
       break;
 
-    case 0x50:  /* Data byte has been received; ACK has been returned. */
+    case I2CSTATE_RDATACK:  /* Data byte has been received; ACK has been returned. */
       priv->rdcnt++;
       msg->buffer[priv->rdcnt - 1] =
         getreg32(priv->base + LPC17_40_I2C_BUFR_OFFSET);
@@ -459,13 +496,14 @@ static int lpc17_40_i2c_interrupt(int irq, FAR void *context, void *arg)
         }
       break;
 
-    case 0x58:  /* Data byte has been received; NACK has been returned. */
+    case I2CSTATE_RDATANACK:  /* Data byte has been received; NACK has been returned. */
       msg->buffer[priv->rdcnt] =
         getreg32(priv->base + LPC17_40_I2C_BUFR_OFFSET);
       lpc17_40_stopnext(priv);
       break;
 
     default:
+      priv->irqhappened = 17;
       lpc17_40_i2c_stop(priv);
       break;
     }
@@ -535,12 +573,12 @@ struct i2c_master_s *lpc17_40_i2cbus_initialize(int port)
       regval  = getreg32(LPC17_40_SYSCON_PCONP);
       regval |= SYSCON_PCONP_PCI2C0;
       putreg32(regval, LPC17_40_SYSCON_PCONP);
-
+#ifdef LPC176x
       regval  = getreg32(LPC17_40_SYSCON_PCLKSEL0);
       regval &= ~SYSCON_PCLKSEL0_I2C0_MASK;
       regval |= (SYSCON_PCLKSEL_CCLK << SYSCON_PCLKSEL0_I2C0_SHIFT);
       putreg32(regval, LPC17_40_SYSCON_PCLKSEL0);
-
+#endif
       /* Pin configuration */
 
       lpc17_40_configgpio(GPIO_I2C0_SCL);
@@ -565,10 +603,12 @@ struct i2c_master_s *lpc17_40_i2cbus_initialize(int port)
       regval |= SYSCON_PCONP_PCI2C1;
       putreg32(regval, LPC17_40_SYSCON_PCONP);
 
+#ifdef LPC176x
       regval  = getreg32(LPC17_40_SYSCON_PCLKSEL1);
       regval &= ~SYSCON_PCLKSEL1_I2C1_MASK;
       regval |= (SYSCON_PCLKSEL_CCLK << SYSCON_PCLKSEL1_I2C1_SHIFT);
       putreg32(regval, LPC17_40_SYSCON_PCLKSEL1);
+#endif
 
       /* Pin configuration */
 
@@ -594,10 +634,12 @@ struct i2c_master_s *lpc17_40_i2cbus_initialize(int port)
       regval |= SYSCON_PCONP_PCI2C2;
       putreg32(regval, LPC17_40_SYSCON_PCONP);
 
+#ifdef LPC176x
       regval  = getreg32(LPC17_40_SYSCON_PCLKSEL1);
       regval &= ~SYSCON_PCLKSEL1_I2C2_MASK;
       regval |= (SYSCON_PCLKSEL_CCLK << SYSCON_PCLKSEL1_I2C2_SHIFT);
       putreg32(regval, LPC17_40_SYSCON_PCLKSEL1);
+#endif
 
       /* Pin configuration */
 
