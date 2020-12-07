@@ -2225,7 +2225,7 @@ static int lpc17_40_eth_ioctl(struct net_driver_s *dev, int cmd,
 #endif /* ifdef CONFIG_NETDEV_PHY_IOCTL */
 
       default:
-        nerr("ERROR: Unrecognized IOCTL command: %d\n", command);
+        nerr("ERROR: Unrecognized IOCTL command: %d\n", cmd);
         ret = -ENOTTY;  /* Special return value for this case */
         break;
     }
@@ -2498,7 +2498,8 @@ static inline int lpc17_40_phyautoneg(uint8_t phyaddr)
     {
       /* For some motive a large delay is necessary for some PHYs */
 
-      up_udelay(5000);
+//      up_udelay(5000);
+      nxsig_usleep(5000);
 
       /* Check if auto-negotiation has completed */
 
@@ -2569,7 +2570,7 @@ static int lpc17_40_phymode(uint8_t phyaddr, uint8_t mode)
 
   /* Then wait for the link to be established */
 
-  for (timeout = MII_BIG_TIMEOUT; timeout > 0; timeout--)
+  for (timeout = 100; timeout > 0; timeout--)
     {
       /* REVISIT:  This should not depend explicit y on the board
        * configuration.  Rather, there should be some additional
@@ -2593,6 +2594,7 @@ static int lpc17_40_phymode(uint8_t phyaddr, uint8_t mode)
           return OK;
         }
 #endif
+      nxsig_usleep(10 * 1000);
     }
 
   nerr("ERROR: Link failed. MSR: %04x\n", phyreg);
