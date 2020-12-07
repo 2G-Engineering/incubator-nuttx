@@ -243,7 +243,11 @@ static void adc_reset(FAR struct adc_dev_s *dev)
 
 #else /* CONFIG_LPC17_40_ADC_BURSTMODE */
 
+#ifdef LPC176x
   clkdiv   = LPC17_40_CCLK / 8 / 65 / priv->sps;
+#else
+  clkdiv   = LPC17_40_CCLK / BOARD_PCLKDIV / 65 / priv->sps;
+#endif
   clkdiv <<= 8;
   clkdiv  &= 0xff00;
   putreg32(ADC_CR_PDN | ADC_CR_BURST | clkdiv | priv->mask, LPC17_40_ADC_CR);
