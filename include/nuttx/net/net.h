@@ -51,7 +51,7 @@
  *
  * This is only important when compiling libraries (libc or libnx) that are
  * used both by the OS (libkc.a and libknx.a) or by the applications
- * (libuc.a and libunx.a).  In that case, the correct interface must be
+ * (libc.a and libnx.a).  In that case, the correct interface must be
  * used for the build context.
  *
  * REVISIT:  In the flat build, the same functions must be used both by
@@ -155,7 +155,9 @@ enum net_lltype_e
   NET_LL_BLUETOOTH,    /* Bluetooth */
   NET_LL_IEEE80211,    /* IEEE 802.11 */
   NET_LL_IEEE802154,   /* IEEE 802.15.4 MAC */
-  NET_LL_PKTRADIO      /* Non-standard packet radio */
+  NET_LL_PKTRADIO,     /* Non-standard packet radio */
+  NET_LL_MBIM,         /* CDC-MBIM USB host driver */
+  NET_LL_CAN           /* CAN bus */
 };
 
 /* This defines a bitmap big enough for one bit for each socket option */
@@ -214,6 +216,12 @@ struct sock_intf_s
   CODE ssize_t    (*si_recvfrom)(FAR struct socket *psock, FAR void *buf,
                     size_t len, int flags, FAR struct sockaddr *from,
                     FAR socklen_t *fromlen);
+#ifdef CONFIG_NET_CMSG
+  CODE ssize_t    (*si_recvmsg)(FAR struct socket *psock,
+    FAR struct msghdr *msg, int flags);
+  CODE ssize_t    (*si_sendmsg)(FAR struct socket *psock,
+    FAR struct msghdr *msg, int flags);
+#endif
   CODE int        (*si_close)(FAR struct socket *psock);
 #ifdef CONFIG_NET_USRSOCK
   CODE int        (*si_ioctl)(FAR struct socket *psock, int cmd,
@@ -255,9 +263,9 @@ struct devif_callback_s;  /* Forward reference */
 struct socket
 {
   int16_t       s_crefs;     /* Reference count on the socket */
-  uint8_t       s_domain;    /* IP domain: PF_INET, PF_INET6, or PF_PACKET */
-  uint8_t       s_type;      /* Protocol type: Only SOCK_STREAM or
-                              * SOCK_DGRAM */
+  uint8_t       s_domain;    /* IP domain */
+  uint8_t       s_type;      /* Protocol type */
+  uint8_t       s_proto;     /* Socket Protocol */
   uint8_t       s_flags;     /* See _SF_* definitions */
 
   /* Socket options */
@@ -269,6 +277,9 @@ struct socket
   socktimeo_t   s_sndtimeo;  /* Send timeout value (in deciseconds) */
 #ifdef CONFIG_NET_SOLINGER
   socktimeo_t   s_linger;    /* Linger timeout value (in deciseconds) */
+#endif
+#ifdef CONFIG_NET_TIMESTAMP
+  int32_t       s_timestamp; /* Socket timestamp enabled/disabled */
 #endif
 #endif
 
@@ -368,6 +379,25 @@ void net_initialize(void);
  ****************************************************************************/
 
 int net_lock(void);
+
+/****************************************************************************
+ * Name: net_trylock
+ *
+ * Description:
+ *   Try to take the network lock only when it is currently not locked.
+ *   Otherwise, it locks the semaphore.  In either
+ *   case, the call returns without blocking.
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; a negated errno value is returned on
+ *   failured (probably -EAGAIN).
+ *
+ ****************************************************************************/
+
+int net_trylock(void);
 
 /****************************************************************************
  * Name: net_unlock
@@ -1228,7 +1258,7 @@ int psock_getpeername(FAR struct socket *psock, FAR struct sockaddr *addr,
                       FAR socklen_t *addrlen);
 
 /****************************************************************************
- * Name: psock_ioctl
+ * Name: psock_ioctl and psock_vioctl
  *
  * Description:
  *   Perform network device specific operations.
@@ -1236,7 +1266,7 @@ int psock_getpeername(FAR struct socket *psock, FAR struct sockaddr *addr,
  * Input Parameters:
  *   psock    A pointer to a NuttX-specific, internal socket structure
  *   cmd      The ioctl command
- *   arg      The argument of the ioctl cmd
+ *   ap      The argument of the ioctl cmd
  *
  * Returned Value:
  *   A non-negative value is returned on success; a negated errno value is
@@ -1258,10 +1288,11 @@ int psock_getpeername(FAR struct socket *psock, FAR struct sockaddr *addr,
  *
  ****************************************************************************/
 
-int psock_ioctl(FAR struct socket *psock, int cmd, unsigned long arg);
+int psock_vioctl(FAR struct socket *psock, int cmd, va_list ap);
+int psock_ioctl(FAR struct socket *psock, int cmd, ...);
 
 /****************************************************************************
- * Name: netdev_ioctl
+ * Name: netdev_vioctl
  *
  * Description:
  *   Perform network device specific operations.
@@ -1269,7 +1300,7 @@ int psock_ioctl(FAR struct socket *psock, int cmd, unsigned long arg);
  * Input Parameters:
  *   sockfd   Socket descriptor of device
  *   cmd      The ioctl command
- *   arg      The argument of the ioctl cmd
+ *   ap       The argument of the ioctl cmd
  *
  * Returned Value:
  *   A non-negative value is returned on success; a negated errno value is
@@ -1291,7 +1322,7 @@ int psock_ioctl(FAR struct socket *psock, int cmd, unsigned long arg);
  *
  ****************************************************************************/
 
-int netdev_ioctl(int sockfd, int cmd, unsigned long arg);
+int netdev_vioctl(int sockfd, int cmd, va_list ap);
 
 /****************************************************************************
  * Name: psock_poll
@@ -1341,14 +1372,11 @@ int net_poll(int sockfd, struct pollfd *fds, bool setup);
  * Name: psock_dup
  *
  * Description:
- *   Clone a socket descriptor to an arbitrary descriptor number.  If file
- *   descriptors are implemented, then this is called by dup() for the case
- *   of socket file descriptors.  If file descriptors are not implemented,
- *   then this function IS dup().
+ *   Clone a socket descriptor to an arbitrary descriptor number.
  *
  * Returned Value:
- *   On success, returns the number of characters sent.  On any error,
- *   a negated errno value is returned:.
+ *   On success, returns the number of new socket.  On any error,
+ *   a negated errno value is returned.
  *
  ****************************************************************************/
 
@@ -1358,14 +1386,11 @@ int psock_dup(FAR struct socket *psock, int minsd);
  * Name: net_dup
  *
  * Description:
- *   Clone a socket descriptor to an arbitrary descriptor number.  If file
- *   descriptors are implemented, then this is called by dup() for the case
- *   of socket file descriptors.  If file descriptors are not implemented,
- *   then this function IS dup().
+ *   Clone a socket descriptor to an arbitrary descriptor number.
  *
  * Returned Value:
- *   On success, returns the number of characters sent.  On any error,
- *   a negated errno value is returned:.
+ *   On success, returns the number of new socket.  On any error,
+ *   a negated errno value is returned.
  *
  ****************************************************************************/
 
@@ -1385,14 +1410,11 @@ int psock_dup2(FAR struct socket *psock1, FAR struct socket *psock2);
  * Name: net_dup2
  *
  * Description:
- *   Clone a socket descriptor to an arbitrary descriptor number.  If file
- *   descriptors are implemented, then this is called by dup2() for the case
- *   of socket file descriptors.  If file descriptors are not implemented,
- *   then this function IS dup2().
+ *   Clone a socket descriptor to an arbitrary descriptor number.
  *
  * Returned Value:
- *   On success, returns the number of characters sent.  On any error,
- *   a negated errno value is returned:.
+ *   Zero (OK) is returned on success; a negated errno value is returned on
+ *   any failure.
  *
  ****************************************************************************/
 

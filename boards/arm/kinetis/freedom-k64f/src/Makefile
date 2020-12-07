@@ -33,9 +33,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = k64_boot.c k64_spi.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
@@ -52,6 +51,10 @@ ifeq ($(CONFIG_LIB_BOARDCTL),y)
 CSRCS += k64_appinit.c k64_bringup.c
 else ifeq ($(CONFIG_BOARD_LATE_INITIALIZE),y)
 CSRCS += k64_bringup.c
+endif
+
+ifeq ($(CONFIG_I2C),y)
+CSRCS += k64_i2c.c
 endif
 
 ifeq ($(CONFIG_KINETIS_SDHC),y)

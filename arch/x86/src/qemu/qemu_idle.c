@@ -62,7 +62,7 @@
  * Name: up_idle
  *
  * Description:
- *   up_idle() is the logic that will be executed when their is no other
+ *   up_idle() is the logic that will be executed when there is no other
  *   ready-to-run task.  This is processor idle time and will continue until
  *   some interrupt occurs to cause a context switch from the idle task.
  *
@@ -82,6 +82,8 @@ void up_idle(void)
 #else
 
   /* Sleep until an interrupt occurs to save power */
+
+  __asm__ __volatile__ ("hlt");
 
 #endif
 }

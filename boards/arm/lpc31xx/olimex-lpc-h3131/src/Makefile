@@ -33,9 +33,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = lpc31_boot.c lpc31_clkinit.c
 
 ifeq ($(CONFIG_LPC31_EXTDRAM),y)

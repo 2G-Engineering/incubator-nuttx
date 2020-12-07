@@ -41,6 +41,7 @@
 #if defined(CONFIG_NET) && defined(CONFIG_NET_USRSOCK)
 
 #include <sys/types.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -689,7 +690,8 @@ usrsockdev_handle_datareq_response(FAR struct usrsockdev_s *dev,
 
       if (conn->resp.datain.iov[iovpos].iov_len < hdr->result)
         {
-          nwarn("%dth buffer not large enough (need: %d, have: %d).\n",
+          nwarn("%dth buffer not large enough "
+                "(need: %" PRId32 ", have: %d).\n",
                 iovpos,
                 hdr->result,
                 conn->resp.datain.iov[iovpos].iov_len);
@@ -747,7 +749,8 @@ static ssize_t usrsockdev_handle_req_response(FAR struct usrsockdev_s *dev,
       break;
 
     default:
-      nwarn("unknown message type: %d, flags: %d, xid: %02x, result: %d\n",
+      nwarn("unknown message type: %d, flags: %d, xid: %02x, "
+            "result: %" PRId32 "\n",
             hdr->head.msgid, hdr->head.flags, hdr->xid, hdr->result);
       return -EINVAL;
     }
@@ -1265,7 +1268,7 @@ void usrsockdev_register(void)
   nxsem_init(&g_usrsockdev.devsem, 0, 1);
   nxsem_init(&g_usrsockdev.req.sem, 0, 1);
   nxsem_init(&g_usrsockdev.req.acksem, 0, 0);
-  nxsem_setprotocol(&g_usrsockdev.req.acksem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&g_usrsockdev.req.acksem, SEM_PRIO_NONE);
 
   register_driver("/dev/usrsock", &g_usrsockdevops, 0666,
                   &g_usrsockdev);

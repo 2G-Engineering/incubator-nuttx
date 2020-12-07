@@ -14,7 +14,7 @@
 #    notice, this list of conditions and the following disclaimer in
 #    the documentation and/or other materials provided with the
 #    distribution.
-# 3. Neither the name Nuttx nor the names of its contributors may be
+# 3. Neither the name NuttX nor the names of its contributors may be
 #    used to endorse or promote products derived from this software
 #    without specific prior written permission.
 #
@@ -34,14 +34,8 @@
 ############################################################################
 
 ifeq ($(CONFIG_NFS),y)
-# Files required for NFS file system support
-
-ASRCS +=
-CSRCS +=
-
 # Files required for NFS RPC
 
-ASRCS +=
 CSRCS += rpc_clnt.c nfs_util.c nfs_vfsops.c
 
 # Include NFS build support

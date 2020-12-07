@@ -53,8 +53,8 @@
 
 #include <arch/board/board.h>
 
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "chip.h"
 #include "xmc4_config.h"
@@ -263,7 +263,7 @@ static int  xmc4_attach(struct uart_dev_s *dev);
 static void xmc4_detach(struct uart_dev_s *dev);
 static int  xmc4_interrupt(int irq, void *context, FAR void *arg);
 static int  xmc4_ioctl(struct file *filep, int cmd, unsigned long arg);
-static int  xmc4_receive(struct uart_dev_s *dev, uint32_t *status);
+static int  xmc4_receive(struct uart_dev_s *dev, unsigned int *status);
 static void xmc4_rxint(struct uart_dev_s *dev, bool enable);
 static bool xmc4_rxavailable(struct uart_dev_s *dev);
 static void xmc4_send(struct uart_dev_s *dev, int ch);
@@ -851,7 +851,7 @@ static int xmc4_ioctl(struct file *filep, int cmd, unsigned long arg)
  *
  ****************************************************************************/
 
-static int xmc4_receive(struct uart_dev_s *dev, uint32_t *status)
+static int xmc4_receive(struct uart_dev_s *dev, unsigned int *status)
 {
   struct xmc4_dev_s *priv = (struct xmc4_dev_s *)dev->priv;
   uint32_t outr;
@@ -1028,17 +1028,15 @@ static bool xmc4_txempty(struct uart_dev_s *dev)
  *   Performs the low level UART initialization early in debug so that the
  *   serial console will be available during bootup.  This must be called
  *   before xmc4_serialinit.  NOTE:  This function depends on GPIO pin
- *   configuration performed in xmc_lowsetup() and main clock iniialization
- *   performed in xmc_clock_configure().
+ *   configuration performed in xmc4_lowsetup() and main clock initialization
+ *   performed in xmc4_clock_configure().
  *
  ****************************************************************************/
 
 #if defined(USE_EARLYSERIALINIT)
 void xmc4_earlyserialinit(void)
 {
-  /* Disable interrupts from all UARTS.  The console is enabled in
-   * pic32mx_consoleinit()
-   */
+  /* Disable interrupts from all UARTS. */
 
   xmc4_restoreuartint(TTYS0_DEV.priv, 0);
 #ifdef TTYS1_DEV
@@ -1057,7 +1055,7 @@ void xmc4_earlyserialinit(void)
   xmc4_restoreuartint(TTYS5_DEV.priv, 0);
 #endif
 
-  /* Configuration whichever one is the console */
+  /* Configuration whichever one is the console. */
 
 #ifdef HAVE_UART_CONSOLE
   CONSOLE_DEV.isconsole = true;
@@ -1067,7 +1065,7 @@ void xmc4_earlyserialinit(void)
 #endif
 
 /****************************************************************************
- * Name: up_serialinit
+ * Name: arm_serialinit
  *
  * Description:
  *   Register serial console and serial ports.  This assumes
@@ -1081,7 +1079,7 @@ void xmc4_earlyserialinit(void)
  *
  ****************************************************************************/
 
-void up_serialinit(void)
+void arm_serialinit(void)
 {
 #ifdef HAVE_UART_CONSOLE
   /* Register the serial console */
@@ -1113,7 +1111,7 @@ void up_serialinit(void)
  * Name: up_putc
  *
  * Description:
- *   Provide priority, low-level access to support OS debug  writes
+ *   Provide priority, low-level access to support OS debug writes.
  *
  ****************************************************************************/
 
@@ -1131,10 +1129,10 @@ int up_putc(int ch)
     {
       /* Add CR */
 
-      up_lowputc('\r');
+      arm_lowputc('\r');
     }
 
-  up_lowputc(ch);
+  arm_lowputc(ch);
   xmc4_restoreuartint(priv, ccr);
 #endif
 
@@ -1160,10 +1158,10 @@ int up_putc(int ch)
     {
       /* Add CR */
 
-      up_lowputc('\r');
+      arm_lowputc('\r');
     }
 
-  up_lowputc(ch);
+  arm_lowputc(ch);
   return ch;
 }
 #endif

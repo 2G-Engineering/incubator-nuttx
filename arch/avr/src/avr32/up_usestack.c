@@ -46,16 +46,9 @@
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/arch.h>
+#include <nuttx/tls.h>
 
 #include "up_internal.h"
-
-/****************************************************************************
- * Private Types
- ****************************************************************************/
-
-/****************************************************************************
- * Private Function Prototypes
- ****************************************************************************/
 
 /****************************************************************************
  * Public Functions
@@ -66,7 +59,7 @@
  *
  * Description:
  *   Setup up stack-related information in the TCB using pre-allocated stack
- *   memory.  This function is called only from task_init() when a task or
+ *   memory.  This function is called only from nxtask_init() when a task or
  *   kernel thread is started (never for pthreads).
  *
  *   The following TCB fields must be initialized:
@@ -94,6 +87,12 @@ int up_use_stack(struct tcb_s *tcb, void *stack, size_t stack_size)
   size_t top_of_stack;
   size_t size_of_stack;
 
+#ifdef CONFIG_TLS_ALIGNED
+  /* Make certain that the user provided stack is properly aligned */
+
+  DEBUGASSERT(((uintptr_t)stack & TLS_STACK_MASK) == 0);
+#endif
+
   /* Is there already a stack allocated? */
 
   if (tcb->stack_alloc_ptr)
@@ -112,7 +111,10 @@ int up_use_stack(struct tcb_s *tcb, void *stack, size_t stack_size)
    */
 
 #ifdef CONFIG_STACK_COLORATION
-   memset(tcb->stack_alloc_ptr, STACK_COLOR, stack_size);
+  if (tcb->pid != 0)
+    {
+      memset(tcb->stack_alloc_ptr, STACK_COLOR, stack_size);
+    }
 #endif
 
   /* The AVR32 uses a push-down stack:  the stack grows
@@ -136,6 +138,10 @@ int up_use_stack(struct tcb_s *tcb, void *stack, size_t stack_size)
 
   tcb->adj_stack_ptr  = (FAR void *)top_of_stack;
   tcb->adj_stack_size = size_of_stack;
+
+  /* Initialize the TLS data structure */
+
+  memset(tcb->stack_alloc_ptr, 0, sizeof(struct tls_info_s));
 
   return OK;
 }

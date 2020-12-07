@@ -60,10 +60,6 @@
 
 /* Configuration */
 
-#ifndef CONFIG_NX_UPDATE
-#  error CONFIG_NX_UPDATE must be set to use VNC
-#endif
-
 #if !defined(CONFIG_VNCSERVER_PROTO3p3) && !defined(CONFIG_VNCSERVER_PROTO3p8)
 #  error No VNC protocol selected
 #endif
@@ -181,25 +177,13 @@
 /* Debug */
 
 #ifdef CONFIG_VNCSERVER_UPDATE_DEBUG
-#  ifdef CONFIG_CPP_HAVE_VARARGS
-#    define upderr(format, ...)    _err(format, ##__VA_ARGS__)
-#    define updinfo(format, ...)   _info(format, ##__VA_ARGS__)
-#    define updinfo(format, ...)   _info(format, ##__VA_ARGS__)
-#  else
-#   define upderr                  _err
-#   define updwarn                 _warn
-#   define updinfo                 _info
-#  endif
+#  define upderr                 _err
+#  define updwarn                _warn
+#  define updinfo                _info
 #else
-#  ifdef CONFIG_CPP_HAVE_VARARGS
-#    define upderr(x...)
-#    define updwarn(x...)
-#    define updinfo(x...)
-#  else
-#    define upderr                 (void)
-#    define updwarn                (void)
-#    define updinfo                (void)
-#  endif
+#  define upderr                 _none
+#  define updwarn                _none
+#  define updinfo                _none
 #endif
 
 /****************************************************************************
@@ -583,7 +567,8 @@ uint32_t vnc_convert_rgb32_888(lfb_color_t rgb);
  *
  ****************************************************************************/
 
-int vnc_colors(FAR struct vnc_session_s *session, FAR struct nxgl_rect_s *rect,
+int vnc_colors(FAR struct vnc_session_s *session,
+               FAR struct nxgl_rect_s *rect,
                unsigned int maxcolors, FAR lfb_color_t *colors);
 
 #undef EXTERN

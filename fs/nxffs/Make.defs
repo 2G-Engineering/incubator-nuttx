@@ -14,7 +14,7 @@
 #    notice, this list of conditions and the following disclaimer in
 #    the documentation and/or other materials provided with the
 #    distribution.
-# 3. Neither the name Nuttx nor the names of its contributors may be
+# 3. Neither the name NuttX nor the names of its contributors may be
 #    used to endorse or promote products derived from this software
 #    without specific prior written permission.
 #
@@ -34,8 +34,6 @@
 ############################################################################
 
 ifeq ($(CONFIG_FS_NXFFS),y)
-
-ASRCS +=
 
 CSRCS += nxffs_block.c nxffs_blockstats.c nxffs_cache.c nxffs_dirent.c
 CSRCS += nxffs_dump.c nxffs_initialize.c nxffs_inode.c nxffs_ioctl.c

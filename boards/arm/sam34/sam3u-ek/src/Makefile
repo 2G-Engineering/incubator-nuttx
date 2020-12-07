@@ -33,9 +33,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = sam_boot.c sam_leds.c sam_buttons.c sam_spi.c sam_usbdev.c
 
 ifeq ($(CONFIG_LCD),y)

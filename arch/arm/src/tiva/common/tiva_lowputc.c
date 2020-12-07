@@ -43,8 +43,8 @@
 #include <arch/board/board.h>
 
 #include "chip.h"
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "tiva_enablepwr.h"
 #include "tiva_enableclks.h"
@@ -223,19 +223,20 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_lowputc
+ * Name: arm_lowputc
  *
  * Description:
  *   Output one byte on the serial console
  *
  ****************************************************************************/
 
-void up_lowputc(char ch)
+void arm_lowputc(char ch)
 {
 #ifdef HAVE_SERIAL_CONSOLE
   /* Wait until the TX FIFO is not full */
 
-  while ((getreg32(TIVA_CONSOLE_BASE + TIVA_UART_FR_OFFSET) & UART_FR_TXFF) != 0);
+  while ((getreg32(TIVA_CONSOLE_BASE + TIVA_UART_FR_OFFSET) &
+         UART_FR_TXFF) != 0);
 
   /* Then send the character */
 

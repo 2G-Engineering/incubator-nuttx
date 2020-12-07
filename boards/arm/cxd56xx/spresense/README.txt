@@ -59,7 +59,7 @@ Configuration sub-directories
     If the connection succeeded, IP address is statically assigned.
 
       nsh> ifconfig
-      eth0    Link encap:Ethernet HWaddr 3c:95:09:00:69:92 at UP
+      wlan0   Link encap:Ethernet HWaddr 3c:95:09:00:69:92 at UP
       inet    addr:10.0.0.2 DRaddr:10.0.0.1 Mask:255.255.255.0
 
     Then, you can run DHCP client (renew command) to obtain IP address as well
@@ -67,10 +67,10 @@ Configuration sub-directories
     GS2200M is disabled. If you enable the internal DHCP client, you can not
     use DNS client on NuttX)
 
-      nsh> renew eth0 &
+      nsh> renew wlan0 &
       renew [6:100]
       nsh> ifconfig
-      eth0    Link encap:Ethernet HWaddr 3c:95:09:00:69:92 at UP
+      wlan0   Link encap:Ethernet HWaddr 3c:95:09:00:69:92 at UP
       inet    addr:192.168.1.101 DRaddr:192.168.1.1 Mask:255.255.255.0
 
     Now, you can run telnetd and webserver on Spresense.
@@ -95,16 +95,20 @@ Configuration sub-directories
     (2) Access Point (AP) mode
 
     To run the module in AP mode, you need to specify SSID to advertise and
-    WEP-key. (NOTE: in AP mode, you can also specify channel number to use)
+    WPA2-PSK passphrase or WEP-key. (NOTE: in AP mode, you can also specify
+    channel number to use. Also, you need to set CONFIG_WL_GS2200M_ENABLE_WEP=y
+    if you want to use WEP instead of WPA2-PSK)
 
+      nsh> gs2200m -a ssid-to-advertise 8-to-63-wpa2-psk-passphrase &
+      or
       nsh> gs2200m -a ssid-to-advertise 10-hex-digits-wep-key &
 
     If the module was initialized in AP mode, you can see a new IP address is
     assigned.
 
       nsh> ifconfig
-      eth0    Link encap:Ethernet HWaddr 3c:95:09:00:69:93 at UP
+      wlan0   Link encap:Ethernet HWaddr 3c:95:09:00:69:93 at UP
       inet    addr:192.168.11.1 DRaddr:192.168.11.1 Mask:255.255.255.0
 
-    Now you can connect your PC to the AP with the above SSID and WEP-key
-    which you specified.
+    Now you can connect your PC to the AP with the above SSID and WPA2-PSK
+    passphrase or WEP-key which you specified.

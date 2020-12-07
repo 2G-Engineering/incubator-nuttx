@@ -47,8 +47,8 @@
 #include <arch/irq.h>
 
 #include "nvic.h"
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "tiva_enablepwr.h"
 #include "tiva_enableclks.h"
@@ -110,7 +110,7 @@ void cc13xx_trim_device(void);
  ****************************************************************************/
 
 #ifdef CONFIG_DEBUG_FEATURES
-#  define showprogress(c) up_lowputc(c)
+#  define showprogress(c) arm_lowputc(c)
 #else
 #  define showprogress(c)
 #endif
@@ -131,7 +131,8 @@ void cc13xx_trim_device(void);
  *       done, the processor reserves space on the stack for the FP state,
  *       but does not save that state information to the stack.
  *
- *  Software must not change the value of the ASPEN bit or LSPEN bit while either:
+ *  Software must not change the value of the ASPEN bit or LSPEN bit while
+ *  either:
  *   - the CPACR permits access to CP10 and CP11, that give access to the FP
  *     extension, or
  *   - the CONTROL.FPCA bit is set to 1
@@ -224,7 +225,9 @@ void __start(void)
 #endif
   uint32_t *dest;
 
-  /* Perform the necessary trim of the device which is not done in boot code. */
+  /* Perform the necessary trim of the device which is not done in boot
+   * code.
+   */
 
   cc13xx_trim_device();
 
@@ -242,7 +245,9 @@ void __start(void)
   tiva_gpio_enablepwr();
   tiva_gpio_enableclk();
 
-  /* Configure the UART so that we can get debug output as soon as possible */
+  /* Configure the UART so that we can get debug output as soon as
+   * possible
+   */
 
   tiva_lowsetup();
   tiva_fpuconfig();
@@ -266,7 +271,7 @@ void __start(void)
 #ifdef USE_EARLYSERIALINIT
   /* Perform early serial initialization */
 
-  up_earlyserialinit();
+  arm_earlyserialinit();
   showprogress('C');
 #endif
 
@@ -296,7 +301,7 @@ void __start(void)
   showprogress('F');
 
 #ifdef CONFIG_TIVA_EEPROM
-  /*Initialize the EEPROM */
+  /* Initialize the EEPROM */
 
   tiva_eeprom_initialize();
   showprogress('G');

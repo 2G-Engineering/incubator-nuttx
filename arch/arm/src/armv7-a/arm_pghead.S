@@ -48,7 +48,7 @@
 #include "mmu.h"
 
 #include "chip.h"
-#include "up_internal.h"
+#include "arm_internal.h"
 
 #ifdef CONFIG_PAGING
 
@@ -198,7 +198,7 @@
 #ifdef CONFIG_DEBUG_FEATURES
 	.macro	showprogress, code
 	mov		r0, #\code
-	bl		up_lowputc
+	bl		arm_lowputc
 	.endm
 #else
 	.macro	showprogress, code
@@ -632,7 +632,7 @@ __start:
 #ifdef CONFIG_BOOT_RUNFROMFLASH
 	/* Get R3 = Value of RAM L1 page table entry */
 
-	ldr		r3, .LCprambase			/* r3=Aligned Nuttx RAM address (physical) */
+	ldr		r3, .LCprambase			/* r3=Aligned NuttX RAM address (physical) */
 	ldr		r1, .LCramflags			/* R1=.bss/.data section MMU flags */
 	add		r3, r3, r1				/* r3=flags + base */
 

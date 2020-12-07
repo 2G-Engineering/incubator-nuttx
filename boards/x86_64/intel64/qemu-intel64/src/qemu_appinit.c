@@ -26,6 +26,7 @@
 #include <nuttx/board.h>
 
 #include "up_internal.h"
+#include "qemu_intel64.h"
 
 /****************************************************************************
  * Public Functions
@@ -44,7 +45,7 @@
  *         implementation without modification.  The argument has no
  *         meaning to NuttX; the meaning of the argument is a contract
  *         between the board-specific initialization logic and the
- *         matching application logic.  The value cold be such things as a
+ *         matching application logic.  The value could be such things as a
  *         mode enumeration value, a set of DIP switch switch settings, a
  *         pointer to configuration data read from a file or serial FLASH,
  *         or whatever you would like to do with it.  Every implementation
@@ -56,9 +57,15 @@
  *
  ****************************************************************************/
 
-#ifdef CONFIG_LIB_BOARDCTL
 int board_app_initialize(uintptr_t arg)
 {
-  return 0;
+#ifdef CONFIG_BOARD_LATE_INITIALIZE
+  /* Board initialization already performed by board_late_initialize() */
+
+  return OK;
+#else
+  /* Perform board-specific initialization */
+
+  return qemu_bringup();
+#endif
 }
-#endif /* CONFIG_LIB_BOARDCTL */

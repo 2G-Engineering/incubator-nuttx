@@ -47,8 +47,8 @@
 #include <arch/board/board.h>
 
 #include "chip.h"
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 #include "lpc31.h"
 
 #include "lpc_h3131.h"
@@ -173,9 +173,11 @@ void board_autoled_off(int led)
  *
  ****************************************************************************/
 
-void board_userled_initialize(void)
+uint32_t board_userled_initialize(void)
 {
   /* All initialization performed in board_autoled_initialize() */
+
+  return BOARD_NLEDS;
 }
 
 void board_userled(int led, bool ledon)
@@ -208,7 +210,7 @@ void board_userled(int led, bool ledon)
     }
 }
 
-void board_userled_all(uint8_t ledset)
+void board_userled_all(uint32_t ledset)
 {
 #ifndef CONFIG_ARCH_LEDS
   board_userled(BOARD_LED1, (ledset & BOARD_LED1_BIT) != 0);

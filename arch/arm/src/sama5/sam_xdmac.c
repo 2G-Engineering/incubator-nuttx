@@ -39,6 +39,7 @@
 
 #include <nuttx/config.h>
 
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
@@ -49,8 +50,8 @@
 #include <nuttx/arch.h>
 #include <nuttx/semaphore.h>
 
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 #include "sched/sched.h"
 
 #include "chip.h"
@@ -1850,7 +1851,7 @@ static int sam_xdmac_interrupt(int irq, void *context, FAR void *arg)
             {
               /* Yes... Terminate the transfer with an error? */
 
-              dmaerr("ERROR: DMA failed: %08x\n", chpending);
+              dmaerr("ERROR: DMA failed: %08" PRIx32 "\n", chpending);
               sam_dmaterminate(xdmach, -EIO);
             }
 
@@ -1867,7 +1868,8 @@ static int sam_xdmac_interrupt(int irq, void *context, FAR void *arg)
 
           else
             {
-              dmaerr("ERROR: Unexpected interrupt: %08x\n", chpending);
+              dmaerr("ERROR: Unexpected interrupt: %08" PRIx32 "\n",
+                     chpending);
               DEBUGPANIC();
             }
 
@@ -1912,7 +1914,7 @@ void sam_dmainitialize(struct sam_xdmac_s *xdmac)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_dma_initialize
+ * Name: arm_dma_initialize
  *
  * Description:
  *   Initialize the DMA subsystem
@@ -1922,7 +1924,7 @@ void sam_dmainitialize(struct sam_xdmac_s *xdmac)
  *
  ****************************************************************************/
 
-void weak_function up_dma_initialize(void)
+void weak_function arm_dma_initialize(void)
 {
 #ifdef CONFIG_SAMA5_XDMAC0
   dmainfo("Initialize XDMAC0\n");
@@ -2325,7 +2327,9 @@ int sam_dmastart(DMA_HANDLE handle, dma_callback_t callback, void *arg)
 
   if (xdmach->llhead)
     {
-      /* Save the callback info.  This will be invoked whent the DMA completes */
+      /* Save the callback info.  This will be invoked whent the DMA
+       * completes
+       */
 
       xdmach->callback = callback;
       xdmach->arg      = arg;

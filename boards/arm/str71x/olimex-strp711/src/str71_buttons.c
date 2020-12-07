@@ -44,8 +44,8 @@
 #include <arch/board/board.h>
 
 #include "chip.h"
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -77,7 +77,7 @@
  ****************************************************************************/
 
 #ifdef CONFIG_ARCH_BUTTONS
-void board_button_initialize(void)
+uint32_t board_button_initialize(void)
 {
   uint16_t reg16;
 
@@ -106,6 +106,8 @@ void board_button_initialize(void)
   reg16  = getreg16(STR71X_GPIO1_PC2);
   reg16 &= ~STR71X_BUTBUTTON_GPIO1;
   putreg16(reg16, STR71X_GPIO1_PC2);
+
+  return 2;
 }
 
 /****************************************************************************

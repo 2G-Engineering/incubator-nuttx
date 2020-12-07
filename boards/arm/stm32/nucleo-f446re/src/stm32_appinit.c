@@ -55,6 +55,10 @@
 
 #include "nucleo-f446re.h"
 
+#ifdef CONFIG_SENSORS_QENCODER
+#include "board_qencoder.h"
+#endif
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -72,7 +76,7 @@
  *         implementation without modification.  The argument has no
  *         meaning to NuttX; the meaning of the argument is a contract
  *         between the board-specific initialization logic and the
- *         matching application logic.  The value cold be such things as a
+ *         matching application logic.  The value could be such things as a
  *         mode enumeration value, a set of DIP switch switch settings, a
  *         pointer to configuration data read from a file or serial FLASH,
  *         or whatever you would like to do with it.  Every implementation
@@ -132,7 +136,7 @@ int board_app_initialize(uintptr_t arg)
 #ifdef CONFIG_SENSORS_QENCODER
   /* Initialize and register the qencoder driver */
 
-  ret = stm32_qencoder_initialize("/dev/qe0", CONFIG_NUCLEO_F401RE_QETIMER);
+  ret = board_qencoder_initialize(0, CONFIG_NUCLEO_F401RE_QETIMER);
   if (ret != OK)
     {
       syslog(LOG_ERR,

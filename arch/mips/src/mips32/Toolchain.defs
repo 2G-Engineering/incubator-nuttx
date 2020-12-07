@@ -108,8 +108,6 @@ endif
 # Each toolchain definition should set:
 #
 #  CROSSDEV         The GNU toolchain triple (command prefix)
-#  ARCROSSDEV       If required, an alternative prefix used when
-#                   invoking ar and nm.
 #  ARCHCPUFLAGS     CPU-specific flags selecting the instruction set
 #                   FPU options, etc.
 #  MAXOPTIMIZATION  The maximum optimization level that results in
@@ -194,9 +192,6 @@ endif
 
 ifeq ($(CONFIG_MIPS32_TOOLCHAIN),MICROCHIPW_XC32)
   CROSSDEV ?= xc32-
-  ifeq ($(CONFIG_WINDOWS_CYGWIN),y)
-    WINTOOL = y
-  endif
 ifeq ($(CONFIG_MIPS32_TOOLCHAIN_MICROCHIP_XC32_LICENSED),y)
   MAXOPTIMIZATION ?= -O2
 endif
@@ -209,9 +204,6 @@ endif
 
 ifeq ($(CONFIG_MIPS32_TOOLCHAIN),MICROCHIPW)
   CROSSDEV ?= pic32-
-  ifeq ($(CONFIG_WINDOWS_CYGWIN),y)
-    WINTOOL = y
-  endif
   MAXOPTIMIZATION ?= -O2
   ARCHCPUFLAGS = -mprocessor=$(MIPS_MPROCESSOR) $(MIPS_MICROMIPS) -mno-float -mlong32 -membedded-data
   ARCHPICFLAGS = -fpic -membedded-pic
@@ -235,9 +227,6 @@ endif
 ifeq ($(CONFIG_MIPS32_TOOLCHAIN),MICROCHIPW_LITE)
   CROSSDEV ?= pic32-
   # CROSSDEV ?= xc32-
-  ifeq ($(CONFIG_WINDOWS_CYGWIN),y)
-    WINTOOL = y
-  endif
   # MAXOPTIMIZATION ?= -O2
   ARCHCPUFLAGS = -mprocessor=$(MIPS_MPROCESSOR) $(MIPS_MICROMIPS) -mno-float -mlong32 -membedded-data
   ARCHPICFLAGS = -fpic -membedded-pic
@@ -261,12 +250,36 @@ endif
 ifeq ($(CONFIG_MIPS32_TOOLCHAIN),PINGUINOW)
   #CROSSDEV ?= mips-
   CROSSDEV ?= p32-
-  ifeq ($(CONFIG_WINDOWS_CYGWIN),y)
-    WINTOOL = y
-  endif
   MAXOPTIMIZATION ?= -O2
   ARCHCPUFLAGS = -mlong32 -membedded-data -msoft-float -march=$(MIPS_MARCH) $(MIPS_MICROMIPS) -EL
   ARCHPICFLAGS = -fpic -membedded-pic
   LDFLAGS += -nostartfiles -nodefaultlibs
   LDSCRIPT = mips-elf-debug.ld
+endif
+
+# Default toolchain
+
+CC = $(CROSSDEV)gcc
+CXX = $(CROSSDEV)g++
+CPP = $(CROSSDEV)gcc -E -P -x c
+LD = $(CROSSDEV)ld
+STRIP = $(CROSSDEV)strip --strip-unneeded
+AR = $(CROSSDEV)ar rcs
+NM = $(CROSSDEV)nm
+OBJCOPY = $(CROSSDEV)objcopy
+OBJDUMP = $(CROSSDEV)objdump
+
+# Add the builtin library
+
+EXTRA_LIBS += -lgcc
+EXTRA_LIBPATHS += -L ${shell dirname "`$(CC) $(ARCHCPUFLAGS) --print-libgcc-file-name`"}
+
+ifneq ($(CONFIG_LIBM),y)
+  EXTRA_LIBS += -lm
+  EXTRA_LIBPATHS += -L ${shell dirname "`$(CC) $(ARCHCPUFLAGS) --print-file-name=libm.a`"}
+endif
+
+ifeq ($(CONFIG_CXX_LIBSUPCXX),y)
+  EXTRA_LIBS += lsupc++
+  EXTRA_LIBPATHS += -L ${shell dirname "`$(CC) $(ARCHCPUFLAGS) --print-file-name=libsupc++.a`"}
 endif

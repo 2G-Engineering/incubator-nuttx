@@ -30,7 +30,7 @@
 #include <nuttx/sched.h>
 
 #include "sched/sched.h"
-#include "up_internal.h"
+#include "arm_internal.h"
 
 /****************************************************************************
  * Public Functions
@@ -59,7 +59,7 @@ void up_release_pending(void)
   sched_lock();
 #endif
 
-  if (sched_mergepending())
+  if (nxsched_merge_pending())
     {
       /* The currently active task has changed!  We will need to switch
        * contexts.
@@ -67,7 +67,7 @@ void up_release_pending(void)
 
       /* Update scheduler parameters */
 
-      sched_suspend_scheduler(rtcb);
+      nxsched_suspend_scheduler(rtcb);
 
       /* Are we operating in interrupt context? */
 
@@ -77,7 +77,7 @@ void up_release_pending(void)
            * CURRENT_REGS into the OLD rtcb.
            */
 
-           up_savestate(rtcb->xcp.regs);
+           arm_savestate(rtcb->xcp.regs);
 
           /* Restore the exception context of the rtcb at the (new) head
            * of the ready-to-run task list.
@@ -87,11 +87,11 @@ void up_release_pending(void)
 
           /* Update scheduler parameters */
 
-          sched_resume_scheduler(rtcb);
+          nxsched_resume_scheduler(rtcb);
 
           /* Then switch contexts */
 
-          up_restorestate(rtcb->xcp.regs);
+          arm_restorestate(rtcb->xcp.regs);
         }
 
       /* No, then we will need to perform the user context switch */
@@ -102,7 +102,7 @@ void up_release_pending(void)
 
           /* Update scheduler parameters */
 
-          sched_resume_scheduler(nexttcb);
+          nxsched_resume_scheduler(nexttcb);
 
           /* Switch context to the context of the task at the head of the
            * ready to run list.

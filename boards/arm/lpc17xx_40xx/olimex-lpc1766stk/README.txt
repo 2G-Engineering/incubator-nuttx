@@ -135,11 +135,11 @@ Olimex LPC1766-STK development board
    LDS176 controller but it is 100% compatible with the Philips PCF8833).
    So how do you tell which controller you have? Some message boards have
    suggested that the LCD display be disassembled and the controller chip
-   measured with a digital caliper – well that’s getting a bit extreme.
+   measured with a digital caliper well that's getting a bit extreme.
 
-  "Here’s what I know. The Olimex boards have both display controllers
-   possible; if the LCD has a GE-12 sticker on it, it’s a Philips PCF8833.
-   If it has a GE-8 sticker, it’s an Epson controller. The older Sparkfun
+  "Here's what I know. The Olimex boards have both display controllers
+   possible; if the LCD has a GE-12 sticker on it, it's a Philips PCF8833.
+   If it has a GE-8 sticker, it's an Epson controller. The older Sparkfun
    6100 displays were Epson, their web site indicates that the newer ones
    are an Epson clone. Sparkfun software examples sometimes refer to the
    Philips controller so the whole issue has become a bit murky. The
@@ -420,7 +420,7 @@ Using OpenOCD and GDB with an FT2232 JTAG emulator
       (gdb) target remote localhost:3333
 
     NOTE:  The name of your GDB program may differ.  For example, with the
-    CodeSourcery toolchain, the ARM GDB would be called arm-none-eabi-gdb.
+    ARM EABI toolchain, the ARM GDB would be called arm-none-eabi-gdb.
 
     After starting GDB, you can load the NuttX ELF file:
 
@@ -780,7 +780,7 @@ Configuration Sub-Directories
 
        CONFIG_HOST_WINDOWS=y                   : Windows
        CONFIG_WINDOWS_CYGWIN=y                 : Cygwin environment on Windows
-       CONFIG_ARMV7M_TOOLCHAIN_CODESOURCERYW=y : CodeSourcery under Windows
+       CONFIG_ARMV7M_TOOLCHAIN_GNU_EABIW=y     : GNU EABI toolchain for Windows
 
     2. The mouse is really useless with no display and no cursor.  So this
        configuration is only suited for low-level testing.  It is also awkward
@@ -888,12 +888,12 @@ Configuration Sub-Directories
 
     NOTES:
 
-    1. Uses the CodeSourcery EABI toolchain under Windows.  But that is
+    1. Uses the ARM EABI toolchain under Windows.  But that is
        easily reconfigured:
 
        CONFIG_HOST_WINDOWS=y                   : Windows
        CONFIG_HOST_WINDOWS_CYGWIN=y            : under Cygwin
-       CONFIG_ARMV7M_TOOLCHAIN_CODESOURCERYW=y : CodeSourcery toolchain
+       CONFIG_ARMV7M_TOOLCHAIN_GNU_EABIW=y     : GNU EABI toolchain for Windows
 
   STATUS:
     2015-06-02.  This configuration was added in an attempt to replace
@@ -927,7 +927,7 @@ Configuration Sub-Directories
     2015-06-02.  Do to issues introduced by recent versions of GCC, NXFLAT
       is not often usable.
 
-      See http://www.nuttx.org/doku.php?id=wiki:vfs:nxflat#toolchain_compatibility_problem
+      See https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=139630111
 
   usbserial:
     This configuration directory exercises the USB serial class

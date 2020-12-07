@@ -33,9 +33,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = stm32_boot.c stm32_bringup.c stm32_spi.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
@@ -62,6 +61,10 @@ endif
 
 ifeq ($(CONFIG_SPORADIC_INSTRUMENTATION),y)
 CSRCS += stm32_sporadic.c
+endif
+
+ifeq ($(CONFIG_STM32F7_FMC),y)
+CSRCS += stm32_extmem.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

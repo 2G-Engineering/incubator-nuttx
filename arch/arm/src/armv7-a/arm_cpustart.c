@@ -45,7 +45,7 @@
 #include <nuttx/sched.h>
 #include <nuttx/sched_note.h>
 
-#include "up_internal.h"
+#include "arm_internal.h"
 #include "cp15_cacheops.h"
 #include "gic.h"
 #include "sched/sched.h"
@@ -117,7 +117,7 @@ int arm_start_handler(int irq, FAR void *context, FAR void *arg)
 
   /* Reset scheduler parameters */
 
-  sched_resume_scheduler(tcb);
+  nxsched_resume_scheduler(tcb);
 
   /* Dump registers so that we can see what is going to happen on return */
 
@@ -128,7 +128,7 @@ int arm_start_handler(int irq, FAR void *context, FAR void *arg)
    * be the CPUs NULL task.
    */
 
-  up_restorestate(tcb->xcp.regs);
+  arm_restorestate(tcb->xcp.regs);
   return OK;
 }
 
@@ -170,10 +170,6 @@ int up_cpu_start(int cpu)
 
   sched_note_cpu_start(this_task(), cpu);
 #endif
-
-  /* Make the content of CPU0 L1 cache has been written to coherent L2 */
-
-  cp15_clean_dcache(CONFIG_RAM_START, CONFIG_RAM_END - 1);
 
   /* Execute SGI1 */
 

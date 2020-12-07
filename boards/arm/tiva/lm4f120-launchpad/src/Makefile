@@ -33,9 +33,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = lm4f_boot.c lm4f_ssi.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)

@@ -35,8 +35,6 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
-
 ifneq ($(RCSRCS)$(RCRAWS),)
 ETCDIR := etctmp
 ETCSRC := $(ETCDIR:%=%.c)
@@ -75,46 +73,20 @@ ifneq ($(CONFIG_ARCH_FAMILY),)
   ARCH_FAMILY = $(patsubst "%",%,$(CONFIG_ARCH_FAMILY))
 endif
 
-ifneq ($(ZDSVERSION),)
-ifeq ($(WINTOOL),y)
-  WSCHEDSRCDIR = ${shell cygpath -w $(SCHEDSRCDIR)}
-  WARCHSRCDIR = ${shell cygpath -w $(ARCHSRCDIR)}
-  USRINCLUDES = -usrinc:'.;$(WSCHEDSRCDIR);$(WARCHSRCDIR)$(DELIM)chip;$(WARCHSRCDIR)$(DELIM)common'
-else
-  USRINCLUDES = -usrinc:".;$(SCHEDSRCDIR);$(ARCHSRCDIR)$(DELIMI)chip;$(ARCHSRCDIR)$(DELIM)common"
-endif
-else
-ifeq ($(WINTOOL),y)
-  CFLAGS += -I "${shell cygpath -w $(SCHEDSRCDIR)}"
-  CFLAGS += -I "${shell cygpath -w $(ARCHSRCDIR)$(DELIM)chip}"
+CFLAGS += ${shell $(INCDIR) "$(CC)" "$(SCHEDSRCDIR)"}
+CFLAGS += ${shell $(INCDIR) "$(CC)" "$(ARCHSRCDIR)$(DELIM)chip"}
 ifneq ($(CONFIG_ARCH_SIM),y)
-  CFLAGS += -I "${shell cygpath -w $(ARCHSRCDIR)$(DELIM)common}"
+  CFLAGS += ${shell $(INCDIR) "$(CC)" "$(ARCHSRCDIR)$(DELIM)common"}
+endif
 ifneq ($(ARCH_FAMILY),)
-  CFLAGS += -I "${shell cygpath -w $(ARCHSRCDIR)$(DELIM)$(ARCH_FAMILY)}"
-endif
-endif
-else
-  CFLAGS += -I$(SCHEDSRCDIR)
-  CFLAGS += -I$(ARCHSRCDIR)$(DELIM)chip
-ifneq ($(CONFIG_ARCH_SIM),y)
-  CFLAGS += -I$(ARCHSRCDIR)$(DELIM)common
-ifneq ($(ARCH_FAMILY),)
-  CFLAGS += -I$(ARCHSRCDIR)$(DELIM)$(ARCH_FAMILY)
-endif
-endif
-endif
-endif
-
-ifneq ($(ZDSVERSION),)
-INCLUDES = $(ARCHSTDINCLUDES) $(USRINCLUDES)
-CFLAGS = $(ARCHWARNINGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(INCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
+  CFLAGS += ${shell $(INCDIR) "$(CC)" "$(ARCHSRCDIR)$(DELIM)$(ARCH_FAMILY)"}
 endif
 
 all: libboard$(LIBEXT)
 
 ifneq ($(ZDSVERSION),)
 $(ASRCS) $(HEAD_ASRC): %$(ASMEXT): %.S
-ifeq ($(WINTOOL),y)
+ifeq ($(CONFIG_CYGWIN_WINTOOL),y)
 	$(Q) $(CPP) $(CPPFLAGS) `cygpath -w $<` -o $@.tmp
 else
 	$(Q) $(CPP) $(CPPFLAGS) $< -o $@.tmp
@@ -133,14 +105,9 @@ $(CXXOBJS) $(LINKOBJS): %$(OBJEXT): %.cxx
 	$(call COMPILEXX, $<, $@)
 
 libboard$(LIBEXT): $(OBJS) $(CXXOBJS)
-ifneq ($(OBJS),)
-	$(call ARCHIVE, $@, $(OBJS))
-endif
-ifneq ($(CXXOBJS),)
-	$(call ARCHIVE, $@, $(CXXOBJS))
-endif
+	$(call ARCHIVE, $@, $(OBJS) $(CXXOBJS))
 
-.depend: Makefile $(SRCS) $(CXXSRCS) $(RCSRCS)
+.depend: Makefile $(SRCS) $(CXXSRCS) $(RCSRCS) $(TOPDIR)$(DELIM).config
 ifneq ($(ZDSVERSION),)
 	$(Q) $(MKDEP) $(DEPPATH) "$(CC)" -- $(CFLAGS) -- $(SRCS) >Make.dep
 else
@@ -156,20 +123,16 @@ endif
 
 depend: .depend
 
-ifneq ($(BOARD_CONTEXT),y)
-context:
-endif
+context::
 
-clean:
+clean::
 	$(call DELFILE, libboard$(LIBEXT))
 	$(call DELFILE, $(ETCSRC))
 	$(call DELDIR, $(ETCDIR))
 	$(call CLEAN)
-	$(EXTRA_CLEAN)
 
-distclean: clean
+distclean:: clean
 	$(call DELFILE, Make.dep)
 	$(call DELFILE, .depend)
-	$(EXTRA_DISTCLEAN)
 
 -include Make.dep

@@ -18,19 +18,6 @@
 #
 ############################################################################
 
-# Setup for the selected toolchain
-
-#
-# The ZiLOG ZDS-II Windows toolchain is the only toolchain available for
-# the ez80.
-#
-
-CONFIG_EZ80_TOOLCHAIN ?= ZDSII
-
-ifeq ($(CONFIG_WINDOWS_CYGWIN),y)
-  WINTOOL = y
-endif
-
 # These are the default directories where the ZDS-II toolchain is installed.
 # NOTE that short 8.3 path names are used in order to avoid spaces.  On my
 # machine I have:
@@ -84,7 +71,7 @@ else
 
   # Escaped versions
 
-  ETOPDIR := ${shell echo "$(WTOPDIR)" | sed -e "s/ /%20/g"}
+  ETOPDIR := ${shell echo $(WTOPDIR) | sed -e "s/ /%20/g"}
   EZDSSTDINCDIR := ${shell echo "$(WZDSSTDINCDIR)" | sed -e "s/ /%20/g"}
   EZDSZILOGINCDIR := ${shell echo "$(WZDSZILOGINCDIR)" | sed -e "s/ /%20/g"}
 endif
@@ -121,7 +108,7 @@ endif
 
 CROSSDEV =
 CC = $(ZDSBINDIR)$(DELIM)ez80cc.exe
-CPP = gcc -E
+CPP = gcc -E -P -x c
 LD = $(ZDSBINDIR)$(DELIM)ez80link.exe
 AS = $(ZDSBINDIR)$(DELIM)ez80asm.exe
 AR = $(ZDSBINDIR)$(DELIM)ez80lib.exe
@@ -132,4 +119,3 @@ ASMEXT = .asm
 OBJEXT = .obj
 LIBEXT = .lib
 EXEEXT = .lod
-HEXEXT = .hex

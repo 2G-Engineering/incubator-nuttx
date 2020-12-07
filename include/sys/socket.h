@@ -48,8 +48,8 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* The socket()domain parameter specifies a communication domain; this selects
- * the protocol family which will be used for communication.
+/* The socket()domain parameter specifies a communication domain; this
+ * selects the protocol family which will be used for communication.
  */
 
 /* Supported Protocol Families */
@@ -62,6 +62,7 @@
 #define PF_NETLINK    16         /* Netlink IPC socket */
 #define PF_ROUTE      PF_NETLINK /* 4.4BSD Compatibility*/
 #define PF_PACKET     17         /* Low level packet interface */
+#define PF_CAN        29         /* Controller Area Network (SocketCAN) */
 #define PF_BLUETOOTH  31         /* Bluetooth sockets */
 #define PF_IEEE802154 36         /* Low level IEEE 802.15.4 radio frame interface */
 #define PF_PKTRADIO   64         /* Low level packet radio interface */
@@ -78,6 +79,7 @@
 #define AF_NETLINK     PF_NETLINK
 #define AF_ROUTE       PF_ROUTE
 #define AF_PACKET      PF_PACKET
+#define AF_CAN         PF_CAN
 #define AF_BLUETOOTH   PF_BLUETOOTH
 #define AF_IEEE802154  PF_IEEE802154
 #define AF_PKTRADIO    PF_PKTRADIO
@@ -86,25 +88,35 @@
  * the communication semantics.
  */
 
-#define SOCK_UNSPEC    0 /* Unspecified socket type */
-#define SOCK_STREAM    1 /* Provides sequenced, reliable, two-way,
-                          * connection-based byte streams. An out-of-band data
-                          * transmission mechanism may be supported.
-                          */
-#define SOCK_DGRAM     2 /* Supports  datagrams (connectionless, unreliable
-                          * messages of a fixed maximum length).
-                          */
-#define SOCK_RAW       3 /* Provides raw network protocol access. */
-#define SOCK_RDM       4 /* Provides a reliable datagram layer that does not
-                          * guarantee ordering.
-                          */
-#define SOCK_SEQPACKET 5 /* Provides a sequenced, reliable, two-way
-                          * connection-based data transmission path for
-                          * datagrams of fixed maximum length; a consumer is
-                          * required to read an entire packet with each read
-                          * system call.
-                          */
-#define SOCK_PACKET    10 /* Obsolete and should not be used in new programs */
+#define SOCK_UNSPEC    0        /* Unspecified socket type */
+#define SOCK_STREAM    1        /* Provides sequenced, reliable, two-way,
+                                 * connection-based byte streams. An out-of-band data
+                                 * transmission mechanism may be supported.
+                                 */
+#define SOCK_DGRAM     2        /* Supports  datagrams (connectionless, unreliable
+                                 * messages of a fixed maximum length).
+                                 */
+#define SOCK_RAW       3        /* Provides raw network protocol access. */
+#define SOCK_RDM       4        /* Provides a reliable datagram layer that does not
+                                 * guarantee ordering.
+                                 */
+#define SOCK_SEQPACKET 5        /* Provides a sequenced, reliable, two-way
+                                 * connection-based data transmission path for
+                                 * datagrams of fixed maximum length; a consumer is
+                                 * required to read an entire packet with each read
+                                 * system call.
+                                 */
+#define SOCK_PACKET   10        /* Obsolete and should not be used in new programs */
+
+#define SOCK_CLOEXEC  02000000  /* Atomically set close-on-exec flag for the new
+                                 * descriptor(s).
+                                 */
+#define SOCK_NONBLOCK 00004000  /* Atomically mark descriptor(s) as non-blocking. */
+
+#define SOCK_MAX (SOCK_PACKET + 1)
+#define SOCK_TYPE_MASK 0xf      /* Mask which covers at least up to SOCK_MASK-1.
+                                 * The remaining bits are used as flags.
+                                 */
 
 /* Bits in the FLAGS argument to `send', `recv', et al. These are the bits
  * recognized by Linux, not all are supported by NuttX.
@@ -129,7 +141,7 @@
 
 /* Protocol levels supported by get/setsockopt(): */
 
-#define SOL_SOCKET      0 /* Only socket-level options supported */
+#define SOL_SOCKET       1 /* Only socket-level options supported */
 
 /* Socket-level options */
 
@@ -199,17 +211,30 @@
 #define SO_TYPE         15 /* Reports the socket type (get only).
                             * return: int
                             */
+#define SO_TIMESTAMP    16 /* Generates a timestamp for each incoming packet
+                            * arg: integer value
+                            */
+
+/* The options are unsupported but included for compatibility
+ * and portability
+ */
+#define SO_SNDBUFFORCE  32
+#define SO_RCVBUFFORCE  33
+#define SO_RXQ_OVFL     40
 
 /* Protocol-level socket operations. */
 
-#define SOL_IP          1 /* See options in include/netinet/ip.h */
-#define SOL_IPV6        2 /* See options in include/netinet/ip6.h */
-#define SOL_TCP         3 /* See options in include/netinet/tcp.h */
-#define SOL_UDP         4 /* See options in include/netinit/udp.h */
-#define SOL_HCI         5 /* See options in include/netpacket/bluetooth.h */
-#define SOL_L2CAP       6 /* See options in include/netpacket/bluetooth.h */
-#define SOL_SCO         7 /* See options in include/netpacket/bluetooth.h */
-#define SOL_RFCOMM      8 /* See options in include/netpacket/bluetooth.h */
+#define SOL_IP          IPPROTO_IP   /* See options in include/netinet/ip.h */
+#define SOL_IPV6        IPPROTO_IPV6 /* See options in include/netinet/ip6.h */
+#define SOL_TCP         IPPROTO_TCP  /* See options in include/netinet/tcp.h */
+#define SOL_UDP         IPPROTO_UDP  /* See options in include/netinit/udp.h */
+
+/* Bluetooth-level operations. */
+
+#define SOL_HCI         0  /* See options in include/netpacket/bluetooth.h */
+#define SOL_L2CAP       6  /* See options in include/netpacket/bluetooth.h */
+#define SOL_SCO         17 /* See options in include/netpacket/bluetooth.h */
+#define SOL_RFCOMM      18 /* See options in include/netpacket/bluetooth.h */
 
 /* Protocol-level socket options may begin with this value */
 
@@ -254,14 +279,14 @@
  * Type Definitions
  ****************************************************************************/
 
- /* sockaddr_storage structure. This structure must be (1) large enough to
-  * accommodate all supported protocol-specific address structures, and (2)
-  * aligned at an appropriate boundary so that pointers to it can be cast
-  * as pointers to protocol-specific address structures and used to access
-  * the fields of those structures without alignment problems.
-  *
-  * REVISIT: sizeof(struct sockaddr_storge) should be 128 bytes.
-  */
+/* sockaddr_storage structure. This structure must be (1) large enough to
+ * accommodate all supported protocol-specific address structures, and (2)
+ * aligned at an appropriate boundary so that pointers to it can be cast
+ * as pointers to protocol-specific address structures and used to access
+ * the fields of those structures without alignment problems.
+ *
+ * REVISIT: sizeof(struct sockaddr_storge) should be 128 bytes.
+ */
 
 #ifdef CONFIG_NET_IPv6
 struct sockaddr_storage
@@ -324,7 +349,8 @@ static inline FAR struct cmsghdr *__cmsg_nxthdr(FAR void *__ctl,
 {
   FAR struct cmsghdr *__ptr;
 
-  __ptr = (FAR struct cmsghdr *)(((FAR char *)__cmsg) + CMSG_ALIGN(__cmsg->cmsg_len));
+  __ptr = (FAR struct cmsghdr *)
+    (((FAR char *)__cmsg) + CMSG_ALIGN(__cmsg->cmsg_len));
   if ((unsigned long)((FAR char *)(__ptr + 1) - (FAR char *)__ctl) > __size)
     {
       return (FAR struct cmsghdr *)NULL;
@@ -357,7 +383,7 @@ int bind(int sockfd, FAR const struct sockaddr *addr, socklen_t addrlen);
 int connect(int sockfd, FAR const struct sockaddr *addr, socklen_t addrlen);
 
 int listen(int sockfd, int backlog);
-int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+int accept(int sockfd, FAR struct sockaddr *addr, FAR socklen_t *addrlen);
 
 ssize_t send(int sockfd, FAR const void *buf, size_t len, int flags);
 ssize_t sendto(int sockfd, FAR const void *buf, size_t len, int flags,

@@ -66,8 +66,8 @@
 
 #include <arch/board/board.h>
 
-#include "up_internal.h"
-#include "up_arch.h"
+#include "arm_internal.h"
+#include "arm_arch.h"
 
 #include "chip.h"
 #include "sam_pinmap.h"
@@ -998,7 +998,7 @@ static int sam_i2c_transfer(FAR struct i2c_master_s *dev,
 
   /* Initiate the message transfer */
 
-  ret = -BUSY;
+  ret = -EBUSY;
 
   /* Initiate the transfer.  The rest will be handled from interrupt logic.
    * Interrupts must be disabled to prevent re-entrance from the interrupt

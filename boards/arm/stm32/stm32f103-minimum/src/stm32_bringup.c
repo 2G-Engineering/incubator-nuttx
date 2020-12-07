@@ -73,14 +73,64 @@
 
 #include "stm32f103_minimum.h"
 
-/* Conditional logic in stm32f103_minimum.h will determine if certain features
- * are supported.  Tests for these features need to be made after including
- * stm32f103_minimum.h.
+/* Conditional logic in stm32f103_minimum.h will determine if certain
+ * features are supported.  Tests for these features need to be made after
+ * including stm32f103_minimum.h.
  */
 
 #ifdef HAVE_RTC_DRIVER
 #  include <nuttx/timers/rtc.h>
 #  include "stm32_rtc.h"
+#endif
+
+/* The following are includes from board-common logic */
+
+#ifdef CONFIG_SENSORS_BMP180
+#include "stm32_bmp180.h"
+#endif
+
+#ifdef CONFIG_LEDS_APA102
+#include "stm32_apa102.h"
+#endif
+
+#ifdef CONFIG_SENSORS_MAX6675
+#include "stm32_max6675.h"
+#endif
+
+#ifdef CONFIG_SENSORS_VEML6070
+#include "stm32_veml6070.h"
+#endif
+
+#ifdef CONFIG_INPUT_NUNCHUCK
+#include "stm32_nunchuck.h"
+#endif
+
+#ifdef CONFIG_AUDIO_TONE
+#include "stm32_tone.h"
+#endif
+
+#ifdef CONFIG_SENSORS_LM75
+#include "stm32_lm75.h"
+#endif
+
+#ifdef CONFIG_WL_NRF24L01
+#include "stm32_nrf24l01.h"
+#endif
+
+#ifdef CONFIG_SENSORS_HCSR04
+#include "stm32_hcsr04.h"
+#endif
+
+#ifdef CONFIG_SENSORS_APDS9960
+#include "stm32_apds9960.h"
+#endif
+
+#ifdef CONFIG_SENSORS_ZEROCROSS
+#include "stm32_zerocross.h"
+#endif
+
+#ifdef CONFIG_SENSORS_QENCODER
+#include "board_qencoder.h"
 #endif
 
 /****************************************************************************
@@ -116,6 +166,10 @@
 #else
 #  define MMCSD_MINOR 0
 #endif
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
 
 /****************************************************************************
  * Public Functions
@@ -173,7 +227,7 @@ int stm32_bringup(void)
 #ifdef CONFIG_SENSORS_ZEROCROSS
   /* Configure the zero-crossing driver */
 
-  ret = stm32_zerocross_initialize();
+  ret = board_zerocross_initialize(0);
   if (ret < 0)
     {
       syslog(LOG_ERR, "Failed to initialize Zero-Cross, error %d\n", ret);
@@ -191,7 +245,9 @@ int stm32_bringup(void)
 #endif
 
 #ifdef CONFIG_SENSORS_BMP180
-  ret = stm32_bmp180initialize("/dev/press0");
+  /* Initialize the BMP180 pressure sensor. */
+
+  ret = board_bmp180_initialize(0, 1);
   if (ret < 0)
     {
       syslog(LOG_ERR, "Failed to initialize BMP180, error %d\n", ret);
@@ -246,7 +302,7 @@ int stm32_bringup(void)
 #ifdef CONFIG_AUDIO_TONE
   /* Configure and initialize the tone generator. */
 
-  ret = stm32_tone_setup();
+  ret = board_tone_initialize(0);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_tone_setup() failed: %d\n", ret);
@@ -256,7 +312,7 @@ int stm32_bringup(void)
 #ifdef CONFIG_LEDS_APA102
   /* Configure and initialize the APA102 LED Strip. */
 
-  ret = stm32_apa102init("/dev/leddrv0");
+  ret = board_apa102_initialize(0, 1);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_apa102init() failed: %d\n", ret);
@@ -266,7 +322,7 @@ int stm32_bringup(void)
 #ifdef CONFIG_LM75_I2C
   /* Configure and initialize the LM75 sensor */
 
-  ret = stm32_lm75initialize("/dev/temp");
+  ret = board_lm75_initialize(0, 1);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_lm75initialize() failed: %d\n", ret);
@@ -286,7 +342,7 @@ int stm32_bringup(void)
 #ifdef CONFIG_SENSORS_HCSR04
   /* Configure and initialize the HC-SR04 distance sensor */
 
-  ret = stm32_hcsr04_initialize("/dev/dist0");
+  ret = board_hcsr04_initialize(0);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_hcsr04_initialize() failed: %d\n", ret);
@@ -294,7 +350,7 @@ int stm32_bringup(void)
 #endif
 
 #ifdef CONFIG_SENSORS_MAX6675
-  ret = stm32_max6675initialize("/dev/temp0");
+  ret = board_max6675_initialize(0, 1);
   if (ret < 0)
     {
       serr("ERROR:  stm32_max6675initialize failed: %d\n", ret);
@@ -340,7 +396,7 @@ int stm32_bringup(void)
 #ifdef CONFIG_INPUT_NUNCHUCK
   /* Register the Nunchuck driver */
 
-  ret = nunchuck_initialize("/dev/nunchuck0");
+  ret = board_nunchuck_initialize(0, 1);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: nunchuck_initialize() failed: %d\n", ret);
@@ -350,7 +406,8 @@ int stm32_bringup(void)
 #ifdef CONFIG_SENSORS_QENCODER
   /* Initialize and register the qencoder driver */
 
-  ret = stm32_qencoder_initialize("/dev/qe0", CONFIG_STM32F103MINIMUM_QETIMER);
+  ret = board_qencoder_initialize(0,
+                                  CONFIG_STM32F103MINIMUM_QETIMER);
   if (ret != OK)
     {
       syslog(LOG_ERR,
@@ -372,7 +429,7 @@ int stm32_bringup(void)
 #ifdef CONFIG_SENSORS_APDS9960
   /* Register the APDS-9960 gesture sensor */
 
-  ret = stm32_apds9960initialize("/dev/gest0");
+  ret = board_apds9960_initialize(0, 1);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_apds9960initialize() failed: %d\n", ret);
@@ -382,7 +439,7 @@ int stm32_bringup(void)
 #ifdef CONFIG_SENSORS_VEML6070
   /* Register the UV-A light sensor */
 
-  ret = stm32_veml6070initialize("/dev/uvlight0");
+  ret = board_veml6070_initialize(0, 1);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_veml6070initialize() failed: %d\n", ret);
@@ -402,7 +459,11 @@ int stm32_bringup(void)
 #if defined(CONFIG_WL_NRF24L01)
   /* Initialize the NRF24L01 wireless module */
 
-  stm32_wlinitialize();
+  ret = board_nrf24l01_initialize(1);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_nrf24l01_initialize failed: %d\n", ret);
+    }
 #endif
 
   return ret;

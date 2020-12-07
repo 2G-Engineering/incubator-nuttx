@@ -263,7 +263,11 @@ static inline void rcc_enableahb2(void)
 
   regval = getreg32(STM32_RCC_AHB2ENR);
 
-  /* TODO: ... */
+#ifdef CONFIG_STM32H7_SDMMC2
+  /* SDMMC clock enable */
+
+  regval |= RCC_AHB2ENR_SDMMC2EN;
+#endif
 
   putreg32(regval, STM32_RCC_AHB2ENR);   /* Enable peripherals */
 }
@@ -484,12 +488,6 @@ static inline void rcc_enableapb2(void)
   /* SPI5 clock enable */
 
   regval |= RCC_APB2ENR_SPI5EN;
-#endif
-
-#ifdef CONFIG_STM32H7_SDMMC2
-  /* SDMMC2 clock enable */
-
-  regval |= RCC_APB2ENR_SDMMC2EN;
 #endif
 
   putreg32(regval, STM32_RCC_APB2ENR);   /* Enable peripherals */
@@ -917,6 +915,15 @@ static void stm32_stdclockconfig(void)
       regval &= ~RCC_D3CCIPR_ADCSEL_MASK;
       regval |= STM32_RCC_D3CCIPR_ADCSEL;
       putreg32(regval, STM32_RCC_D3CCIPR);
+#endif
+
+      /* Configure FDCAN source clock */
+
+#if defined(STM32_RCC_D2CCIP1R_FDCANSEL)
+      regval = getreg32(STM32_RCC_D2CCIP1R);
+      regval &= ~RCC_D2CCIP1R_FDCANSEL_MASK;
+      regval |= STM32_RCC_D2CCIP1R_FDCANSEL;
+      putreg32(regval, STM32_RCC_D2CCIP1R);
 #endif
 
 #if defined(CONFIG_STM32H7_IWDG) || defined(CONFIG_STM32H7_RTC_LSICLOCK)

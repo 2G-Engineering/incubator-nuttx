@@ -26,10 +26,9 @@
 #include <nuttx/arch.h>
 
 #include "svcall.h"
-#include "up_internal.h"
+#include "arm_internal.h"
 
-#if (defined(CONFIG_BUILD_PROTECTED) && defined(__KERNEL__)) || \
-     defined(CONFIG_BUILD_KERNEL)
+#if !defined(CONFIG_BUILD_FLAT) && defined(__KERNEL__)
 
 /****************************************************************************
  * Public Functions
@@ -47,7 +46,7 @@
  *
  *   Normally the user-mode signaling handling stub will also execute
  *   before the ultimate signal handler is called.  See
- *   arch/arm/src/armv8-m/gnu/up_signal_handler.S.  This function is the
+ *   arch/arm/src/armv8-m/gnu/arm_signal_handler.S.  This function is the
  *   user-space, signal handler trampoline function.  It is called from
  *   up_signal_dispatch() in user-mode.
  *
@@ -73,4 +72,4 @@ void up_signal_dispatch(_sa_sigaction_t sighand, int signo,
             (uintptr_t)info, (uintptr_t)ucontext);
 }
 
-#endif /* (CONFIG_BUILD_PROTECTED || CONFIG_BUILD_KERNEL) && !CONFIG_DISABLE_PTHREAD */
+#endif /* !CONFIG_BUILD_FLAT && __KERNEL__ */

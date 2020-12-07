@@ -77,6 +77,10 @@
 
 #define STM32_IRQ_FIRST         (16) /* Vector number of the first external interrupt */
 
+/************************************************************************************
+ * Included Files
+ ************************************************************************************/
+
 #if defined(CONFIG_STM32_STM32L15XX)
 #  include <arch/stm32/stm32l15xxx_irq.h>
 #elif defined(CONFIG_STM32_STM32F10XX)
@@ -91,6 +95,8 @@
 #  include <arch/stm32/stm32f37xxx_irq.h>
 #elif defined(CONFIG_STM32_STM32F4XXX)
 #  include <arch/stm32/stm32f40xxx_irq.h>
+#elif defined(CONFIG_STM32_STM32G4XXX)
+#  include <arch/stm32/stm32g4xxxx_irq.h>
 #else
 #  error "Unsupported STM32 chip"
 #endif
@@ -113,7 +119,7 @@ extern "C"
 #endif
 
 /************************************************************************************
- * Public Functions
+ * Public Function Prototypes
  ************************************************************************************/
 
 #undef EXTERN

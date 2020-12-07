@@ -33,9 +33,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = nrf52_boot.c nrf52_bringup.c
 
 ifeq ($(CONFIG_LIB_BOARDCTL),y)

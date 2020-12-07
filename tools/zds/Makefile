@@ -19,34 +19,7 @@
 ############################################################################
 
 TOPDIR ?= $(CURDIR)/..
--include $(TOPDIR)/Make.defs
-
-# Define HOSTCC on the make command line if it differs from these defaults
-# Define HOSTCFLAGS with -g on the make command line to build debug versions
-
-HOSTOS = ${shell uname -o 2>/dev/null || uname -s 2>/dev/null || echo "Other"}
-
-ifeq ($(HOSTOS),MinGW)
-
-# In the Windows native environment, the MinGW GCC compiler is used
-
-HOSTCC ?= mingw32-gcc.exe
-HOSTCFLAGS ?= -O2 -Wall -Wstrict-prototypes -Wshadow -I.
-HOSTCFLAGS += -DHOST_NATIVE=1
-
-else
-
-# Must be Cygwin or MYS2 on Windows (Can't be Linux, macOS, BSD, ..)
-#
-# GCC or clang is assumed in all other POSIX environments.
-# strtok_r is used in some tools, but does not seem to be available in
-# the MinGW environment.
-
-HOSTCC ?= cc
-HOSTCFLAGS ?= -O2 -Wall -Wstrict-prototypes -Wshadow -I.
-HOSTCFLAGS += -DHAVE_STRTOK_C=1 -DHOST_CYGWIN=1
-
-endif
+include $(TOPDIR)/Make.defs
 
 # Targets
 
@@ -56,7 +29,7 @@ default: all
 
 # Add CFLAGS=-g on the make command line to build debug versions
 
-CFLAGS = -O2 -Wall -Wstrict-prototypes -Wshadow -I.
+CFLAGS = -O2 -Wall -Wstrict-prototypes -Wshadow
 CFLAGS += -DHAVE_STRTOK_C=1
 
 # zdsar - Wrapper for the ZDS-II librarian

@@ -33,8 +33,8 @@
 #
 ############################################################################
 
-include ${TOPDIR}/.config
-include ${TOPDIR}/tools/Config.mk
+include $(TOPDIR)/.config
+include $(TOPDIR)/tools/Config.mk
 
 CROSSDEV		= m32c-nuttx-elf-
 CC			= $(CROSSDEV)gcc
@@ -44,9 +44,6 @@ AR			= $(CROSSDEV)ar rcs
 NM			= $(CROSSDEV)nm
 OBJCOPY			= $(CROSSDEV)objcopy
 OBJDUMP			= $(CROSSDEV)objdump
-
-ARCHCCVERSION		= ${shell $(CC) -v 2>&1 | sed -n '/^gcc version/p' | sed -e 's/^gcc version \([0-9\.]\)/\1/g' -e 's/[-\ ].*//g' -e '1q'}
-ARCHCCMAJOR		= ${shell echo $(ARCHCCVERSION) | cut -d'.' -f1}
 
 ifeq ($(CONFIG_DEBUG_SYMBOLS),y)
   ARCHOPTIMIZATION	= -g
@@ -59,27 +56,14 @@ endif
 ARCHCPUFLAGS		= -mcpu=m16c -fno-builtin
 ARCHPICFLAGS		= -fpic
 ARCHWARNINGS		= -Wall -Wstrict-prototypes -Wshadow -Wundef
-ARCHDEFINES		=
-ARCHINCLUDES		= -I. -isystem $(TOPDIR)/include
-ARCHSCRIPT		= -T$(TOPDIR)/boards/$(CONFIG_ARCH)/$(CONFIG_ARCH_CHIP)/$(CONFIG_ARCH_BOARD)/scripts/skp16c26.ld
+
+ARCHSCRIPT		= -T$(BOARD_DIR)$(DELIM)scripts$(DELIM)skp16c26.ld
 
 CFLAGS			= $(ARCHWARNINGS) $(ARCHOPTIMIZATION) \
 			  $(ARCHCPUFLAGS) $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS) -pipe
 CPPFLAGS		= $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
 AFLAGS			= $(CFLAGS) -D__ASSEMBLY__
 
-ASMEXT			= .S
-OBJEXT			= .o
-LIBEXT			= .a
-EXEEXT			=
-
 ifeq ($(CONFIG_DEBUG_SYMBOLS),y)
   LDFLAGS		+= -g
 endif
-
-MKDEP			= $(TOPDIR)/tools/mkdeps$(HOSTEXEEXT)
-
-HOSTCC			= gcc
-HOSTINCLUDES		= -I.
-HOSTCFLAGS		= -Wall -Wstrict-prototypes -Wshadow -Wundef -g -pipe
-HOSTLDFLAGS		=

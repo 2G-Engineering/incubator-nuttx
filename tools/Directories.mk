@@ -53,7 +53,7 @@
 #   CONFIG_BUILD_KERNEL is selected, then applications are not build at all.
 
 CLEANDIRS :=
-CCLEANDIRS := boards $(APPDIR) graphics
+CCLEANDIRS := boards $(APPDIR) graphics $(ARCH_SRC)
 KERNDEPDIRS :=
 USERDEPDIRS :=
 
@@ -64,17 +64,20 @@ USERDEPDIRS :=
 
 ifeq ($(CONFIG_BUILD_PROTECTED),y)
 USERDEPDIRS += $(APPDIR)
-else
-ifneq ($(CONFIG_BUILD_KERNEL),y)
+else ifneq ($(CONFIG_BUILD_KERNEL),y)
 KERNDEPDIRS += $(APPDIR)
 else
 CLEANDIRS += $(APPDIR)
 endif
-endif
 
 KERNDEPDIRS += sched drivers boards $(ARCH_SRC)
 KERNDEPDIRS += fs binfmt
-CONTEXTDIRS = boards fs $(APPDIR)
+
+ifeq ($(EXTERNALDIR),external)
+  KERNDEPDIRS += external
+endif
+
+CONTEXTDIRS = boards fs $(APPDIR) $(ARCH_SRC)
 CLEANDIRS += pass1
 
 ifeq ($(CONFIG_BUILD_FLAT),y)
@@ -101,12 +104,15 @@ ifeq ($(CONFIG_LIB_SYSCALL),y)
 CONTEXTDIRS += syscall
 USERDEPDIRS += syscall
 else
+ifeq ($(CONFIG_SCHED_INSTRUMENTATION_SYSCALL),y)
+CONTEXTDIRS += syscall
+USERDEPDIRS += syscall
+else
 CLEANDIRS += syscall
 endif
-
-ifeq ($(CONFIG_LIB_ZONEINFO_ROMFS),y)
-CONTEXTDIRS += libs$(DELIM)libc
 endif
+
+CONTEXTDIRS += libs$(DELIM)libc
 
 ifeq ($(CONFIG_NX),y)
 KERNDEPDIRS += graphics

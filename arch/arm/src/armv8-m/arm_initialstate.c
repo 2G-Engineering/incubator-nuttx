@@ -31,8 +31,8 @@
 #include <nuttx/arch.h>
 #include <arch/armv8-m/nvicpri.h>
 
-#include "up_internal.h"
-#include "up_arch.h"
+#include "arm_internal.h"
+#include "arm_arch.h"
 
 #include "psr.h"
 #include "exc_return.h"
@@ -59,6 +59,14 @@ void up_initial_state(struct tcb_s *tcb)
 {
   struct xcptcontext *xcp = &tcb->xcp;
 
+  /* Initialize the idle thread stack */
+
+  if (tcb->pid == 0)
+    {
+      up_use_stack(tcb, (void *)(g_idle_topstack -
+        CONFIG_IDLETHREAD_STACKSIZE), CONFIG_IDLETHREAD_STACKSIZE);
+    }
+
   /* Initialize the initial exception register context structure */
 
   memset(xcp, 0, sizeof(struct xcptcontext));
@@ -71,6 +79,12 @@ void up_initial_state(struct tcb_s *tcb)
   /* Set the stack limit value */
 
   xcp->regs[REG_R10]     = (uint32_t)tcb->stack_alloc_ptr + 64;
+#endif
+
+#ifdef CONFIG_ARMV8M_STACKCHECK_HARDWARE
+  /* Save the stack limit value, will be used in context switch. */
+
+  xcp->regs[REG_SPLIM]   = (uint32_t)tcb->stack_alloc_ptr;
 #endif
 
   /* Save the task entry point (stripping off the thumb bit) */

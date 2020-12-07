@@ -151,7 +151,7 @@ Booting NuttX from an SD card
          Hit any key to stop autoboot: 0
          U-Boot#
 
-    7. Load Nuttx into memory from the U-Boot prompt and run
+    7. Load NuttX into memory from the U-Boot prompt and run
 
          U-Boot# load mmc 0 0x8a000000 nuttx.bin
          U-Boot# go 0x8a000000
@@ -210,7 +210,7 @@ Configurations
        CONFIG_WINDOWS_CYGWIN=y                 : Using Cygwin or other POSIX environment
 
      System Type -> Toolchain:
-       CONFIG_ARMV7A_TOOLCHAIN_CODESOURCERYW=y : CodeSourcery for Windows
+       CONFIG_ARMV7A_TOOLCHAIN_GNU_EABIW=y     : GNU EABI toolchain for Windows
 
   Configuration Sub-directories
   -----------------------------
@@ -241,7 +241,7 @@ Configurations
       2019-01-06:  Work in progress. Till now it is possible to pass arm_boot(), but
         Prefetch abort is met when devnull_register() call is done. Have no idea why.
         I was able to trace down to _inode_search() call. If I put any debug statement
-        like "up_lowputc('0');" right after "desc->node = node;" statement at line 425
+        like "arm_lowputc('0');" right after "desc->node = node;" statement at line 425
         the code does not crash.
       2019-01-09:  The NSH configuration is now functional.
       2019-01-16:  Correct timer interrupts by switching to DMTimer2 (DMTimer1ms is

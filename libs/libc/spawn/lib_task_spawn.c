@@ -42,7 +42,7 @@
 #include <spawn.h>
 #include <nuttx/spawn.h>
 
-#ifdef CONFIG_BUILD_PROTECTED
+#if defined(CONFIG_LIB_SYSCALL) && !defined(CONFIG_BUILD_KERNEL)
 
 /****************************************************************************
  * Public Functions
@@ -76,7 +76,7 @@
 int task_spawn(FAR pid_t *pid, FAR const char *name, main_t entry,
                FAR const posix_spawn_file_actions_t *file_actions,
                FAR const posix_spawnattr_t *attr,
-               FAR char *const argv[], FAR char *const envp[])
+               FAR char * const argv[], FAR char * const envp[])
 {
   struct spawn_syscall_parms_s parms;
 
@@ -91,4 +91,4 @@ int task_spawn(FAR pid_t *pid, FAR const char *name, main_t entry,
   return nx_task_spawn(&parms);
 }
 
-#endif /* CONFIG_BUILD_PROTECTED */
+#endif /* CONFIG_LIB_SYSCALL && !CONFIG_BUILD_KERNEL */

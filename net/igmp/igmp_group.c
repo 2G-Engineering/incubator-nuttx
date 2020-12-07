@@ -46,6 +46,8 @@
 #include <nuttx/config.h>
 #include <nuttx/compiler.h>
 
+#include <inttypes.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <queue.h>
@@ -78,22 +80,12 @@
 #  undef IGMP_GRPDEBUG
 #endif
 
-#ifdef CONFIG_CPP_HAVE_VARARGS
-#  ifdef IGMP_GRPDEBUG
-#    define grperr(format, ...)    nerr(format, ##__VA_ARGS__)
-#    define grpinfo(format, ...)   ninfo(format, ##__VA_ARGS__)
-#  else
-#    define grperr(x...)
-#    define grpinfo(x...)
-#  endif
+#ifdef IGMP_GRPDEBUG
+#  define grperr    nerr
+#  define grpinfo   ninfo
 #else
-#  ifdef IGMP_GRPDEBUG
-#    define grperr    nerr
-#    define grpinfo   ninfo
-#  else
-#    define grperr    (void)
-#    define grpinfo   (void)
-#  endif
+#  define grperr    _none
+#  define grpinfo   _none
 #endif
 
 /****************************************************************************
@@ -116,7 +108,7 @@ FAR struct igmp_group_s *igmp_grpalloc(FAR struct net_driver_s *dev,
 {
   FAR struct igmp_group_s *group;
 
-  ninfo("addr: %08x dev: %p\n", *addr, dev);
+  ninfo("addr: %08" PRIx32 " dev: %p\n", (uint32_t)*addr, dev);
   group = (FAR struct igmp_group_s *)kmm_zalloc(sizeof(struct igmp_group_s));
 
   grpinfo("group: %p\n", group);
@@ -134,12 +126,7 @@ FAR struct igmp_group_s *igmp_grpalloc(FAR struct net_driver_s *dev,
        */
 
       nxsem_init(&group->sem, 0, 0);
-      nxsem_setprotocol(&group->sem, SEM_PRIO_NONE);
-
-      /* Initialize the group timer (but don't start it yet) */
-
-      group->wdog = wd_create();
-      DEBUGASSERT(group->wdog);
+      nxsem_set_protocol(&group->sem, SEM_PRIO_NONE);
 
       /* Save the interface index */
 
@@ -175,7 +162,8 @@ FAR struct igmp_group_s *igmp_grpfind(FAR struct net_driver_s *dev,
        group;
        group = group->next)
     {
-      grpinfo("Compare: %08x vs. %08x\n", group->grpaddr, *addr);
+      grpinfo("Compare: %08" PRIx32 " vs. %08" PRIx32 "\n",
+              (uint32_t)group->grpaddr, (uint32_t)*addr);
       if (net_ipv4addr_cmp(group->grpaddr, *addr))
         {
           grpinfo("Match!\n");
@@ -232,7 +220,7 @@ void igmp_grpfree(FAR struct net_driver_s *dev,
 
   /* Cancel the wdog */
 
-  wd_cancel(group->wdog);
+  wd_cancel(&group->wdog);
 
   /* Remove the group structure from the group list in the device structure */
 
@@ -242,9 +230,9 @@ void igmp_grpfree(FAR struct net_driver_s *dev,
 
   nxsem_destroy(&group->sem);
 
-  /* Destroy the wdog */
+  /* Cancel the watchdog timer */
 
-  wd_delete(group->wdog);
+  wd_cancel(&group->wdog);
 
   /* Then release the group structure resources. */
 

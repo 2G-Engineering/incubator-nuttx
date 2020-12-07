@@ -52,8 +52,7 @@
 // built as separated kernel- and user-space modules, then only the first
 // mode is supported.
 
-#if (defined(CONFIG_BUILD_PROTECTED) && defined(__KERNEL__)) || \
-     defined(CONFIG_BUILD_KERNEL)
+#if !defined(CONFIG_BUILD_FLAT) && defined(__KERNEL__)
 #  include <nuttx/kmalloc.h>
 #  define lib_malloc(s)    kmm_malloc(s)
 #  define lib_zalloc(s)    kmm_zalloc(s)
@@ -77,7 +76,7 @@ typedef CODE void (*__cxa_exitfunc_t)(void *arg);
 // Public Data
 //***************************************************************************
 
-extern "C" FAR void *__dso_handle;
+extern "C" FAR void *__dso_handle weak_data;
 
 //***************************************************************************
 // Public Function Prototypes

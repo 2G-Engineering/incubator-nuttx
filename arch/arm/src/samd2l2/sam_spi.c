@@ -45,8 +45,8 @@
 #include <nuttx/semaphore.h>
 #include <nuttx/spi/spi.h>
 
-#include "up_internal.h"
-#include "up_arch.h"
+#include "arm_internal.h"
+#include "arm_arch.h"
 
 #include "chip.h"
 #include "sam_pinmap.h"
@@ -859,7 +859,9 @@ static uint32_t spi_setfrequency(struct spi_dev_s *dev, uint32_t frequency)
       frequency = maxfreq;
     }
 
-  /* Check if the requested frequency is the same as the frequency selection */
+  /* Check if the requested frequency is the same as the frequency
+   * selection.
+   */
 
   if (priv->frequency == frequency)
     {
@@ -868,7 +870,7 @@ static uint32_t spi_setfrequency(struct spi_dev_s *dev, uint32_t frequency)
       return priv->actual;
     }
 
-  /* For synchronous mode, the BAUAD rate (Fbaud) is generated from the
+  /* For synchronous mode, the BAUD rate (Fbaud) is generated from the
    * source clock frequency (Fref) as follows:
    *
    *   Fbaud = Fref / (2 * (BAUD + 1))
@@ -1017,8 +1019,9 @@ static void spi_setbits(struct spi_dev_s *dev, int nbits)
   struct sam_spidev_s *priv = (struct sam_spidev_s *)dev;
   uint32_t regval;
 
+  DEBUGASSERT(priv != NULL);
   spiinfo("sercom=%d nbits=%d\n", priv->sercom, nbits);
-  DEBUGASSERT(priv && nbits > 7 && nbits < 10);
+  DEBUGASSERT(nbits > 7 && nbits < 10);
 
   /* Has the number of bits changed? */
 
@@ -1036,7 +1039,9 @@ static void spi_setbits(struct spi_dev_s *dev, int nbits)
 
       spi_putreg32(priv, regval, SAM_SPI_CTRLB_OFFSET);
 
-      /* Save the selection so the subsequence re-configurations will be faster */
+      /* Save the selection so that subsequent re-configurations will be
+       * faster.
+       */
 
       priv->nbits = nbits;
     }
@@ -1431,7 +1436,7 @@ static void spi_dma_setup(struct sam_spidev_s *priv)
   /* Initialize the semaphore used to notify when DMA is complete */
 
   nxsem_init(&priv->dmasem, 0, 0);
-  nxsem_setprotocol(&priv->dmasem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&priv->dmasem, SEM_PRIO_NONE);
 }
 #endif
 

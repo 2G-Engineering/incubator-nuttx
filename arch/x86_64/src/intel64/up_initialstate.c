@@ -35,18 +35,6 @@
 #include "sched/sched.h"
 
 /****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/****************************************************************************
- * Private Data
- ****************************************************************************/
-
-/****************************************************************************
- * Private Functions
- ****************************************************************************/
-
-/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -70,6 +58,14 @@ void up_initial_state(struct tcb_s *tcb)
   struct xcptcontext *xcp = &tcb->xcp;
   struct tcb_s *rtcb;
 
+  /* Initialize the idle thread stack */
+
+  if (tcb->pid == 0)
+    {
+      up_use_stack(tcb, (void *)(g_idle_topstack -
+        CONFIG_IDLETHREAD_STACKSIZE), CONFIG_IDLETHREAD_STACKSIZE);
+    }
+
   /* Initialize the initial exception register context structure */
 
   memset(xcp, 0, sizeof(struct xcptcontext));
@@ -85,6 +81,7 @@ void up_initial_state(struct tcb_s *tcb)
   /* set page table to share space with current process */
 
   rtcb = this_task();
+  UNUSED(rtcb);
 
   /* Save the initial stack pointer... the value of the stackpointer before
    * the "interrupt occurs."

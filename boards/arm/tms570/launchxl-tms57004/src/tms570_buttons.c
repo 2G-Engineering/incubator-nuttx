@@ -49,7 +49,7 @@
 #include <nuttx/irq.h>
 #include <arch/board/board.h>
 
-#include "up_arch.h"
+#include "arm_arch.h"
 #include "tms570_gio.h"
 #include "launchxl-tms57004.h"
 
@@ -90,8 +90,8 @@ static int board_button_irqx(gio_pinset_t pinset, int irq,
 {
   irqstate_t flags;
 
-  /* Disable interrupts until we are done.  This guarantees that the following
-   * operations are atomic.
+  /* Disable interrupts until we are done.  This guarantees that the
+   * following operations are atomic.
    */
 
   flags = enter_critical_section();
@@ -141,11 +141,12 @@ static int board_button_irqx(gio_pinset_t pinset, int irq,
  *
  ****************************************************************************/
 
-void board_button_initialize(void)
+uint32_t board_button_initialize(void)
 {
   /* Configure button GIOs */
 
   tms570_configgio(GIO_BUTTON);
+  return NUM_BUTTONS;
 }
 
 /****************************************************************************

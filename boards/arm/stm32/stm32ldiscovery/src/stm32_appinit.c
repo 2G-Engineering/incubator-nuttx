@@ -39,8 +39,6 @@
 
 #include <nuttx/config.h>
 
-#include <syslog.h>
-
 #include <nuttx/board.h>
 #include <arch/board/board.h>
 
@@ -63,7 +61,7 @@
  *         implementation without modification.  The argument has no
  *         meaning to NuttX; the meaning of the argument is a contract
  *         between the board-specific initialization logic and the
- *         matching application logic.  The value cold be such things as a
+ *         matching application logic.  The value could be such things as a
  *         mode enumeration value, a set of DIP switch switch settings, a
  *         pointer to configuration data read from a file or serial FLASH,
  *         or whatever you would like to do with it.  Every implementation
@@ -77,7 +75,11 @@
 
 int board_app_initialize(uintptr_t arg)
 {
+#ifndef CONFIG_BOARD_LATE_INITIALIZE
   /* Perform board initialization here */
 
   return stm32_bringup();
+#else
+  return OK;
+#endif
 }

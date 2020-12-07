@@ -33,68 +33,12 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS		=
-CSRCS		= avr_boot.c
+CSRCS = avr_boot.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
-CSRCS		+= avr_leds.c
+CSRCS += avr_leds.c
 endif
 
-AOBJS		= $(ASRCS:.S=$(OBJEXT))
-COBJS		= $(CSRCS:.c=$(OBJEXT))
-
-SRCS		= $(ASRCS) $(CSRCS)
-OBJS		= $(AOBJS) $(COBJS)
-
-ARCH_SRCDIR	= $(TOPDIR)/arch/$(CONFIG_ARCH)/src
-ifeq ($(CONFIG_ARCH_AVR32),y)
-ARCH_SUBDIR	= avr32
-endif
-ifeq ($(CONFIG_ARCH_AVR),y)
-ARCH_SUBDIR	= avr
-endif
-
-ifeq ($(WINTOOL),y)
-  CFLAGS	+= -I "${shell cygpath -w $(TOPDIR)/sched}"
-  CFLAGS	+= -I "${shell cygpath -w $(ARCH_SRCDIR)/chip}"
-  CFLAGS	+= -I "${shell cygpath -w $(ARCH_SRCDIR)/common}"
-  CFLAGS	+= -I "${shell cygpath -w $(ARCH_SRCDIR)/$(ARCH_SUBDIR)}"
-  CFLAGS	+= -I "${shell cygpath -w $(ARCH_SRCDIR)/$(ARCH_SUBDIR)/atmega2560}"
-else
-  CFLAGS	+= -I "$(TOPDIR)/sched"
-  CFLAGS	+= -I "$(ARCH_SRCDIR)/chip"
-  CFLAGS	+= -I "$(ARCH_SRCDIR)/common"
-  CFLAGS	+= -I "$(ARCH_SRCDIR)/$(ARCH_SUBDIR)"
-  CFLAGS	+= -I "$(ARCH_SRCDIR)/$(ARCH_SUBDIR)/atmega2560"
-endif
-
-all: libboard$(LIBEXT)
-
-$(AOBJS): %$(OBJEXT): %.S
-	$(call ASSEMBLE, $<, $@)
-
-$(COBJS) $(LINKOBJS): %$(OBJEXT): %.c
-	$(call COMPILE, $<, $@)
-
-libboard$(LIBEXT): $(OBJS)
-	$(call ARCHIVE, $@, $(OBJS))
-
-.depend: Makefile $(SRCS)
-	$(Q) $(MKDEP) $(CC) -- $(CFLAGS) -- $(SRCS) >Make.dep
-	$(Q) touch $@
-
-depend: .depend
-
-context:
-
-clean:
-	$(call DELFILE, libboard$(LIBEXT))
-	$(call CLEAN)
-
-distclean: clean
-	$(call DELFILE, Make.dep)
-	$(call DELFILE, .depend)
-
--include Make.dep
+include $(TOPDIR)/boards/Board.mk

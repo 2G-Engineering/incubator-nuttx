@@ -79,8 +79,8 @@
 
 #include <arch/board/board.h>
 
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 #include "tiva_gpio.h"
 #include "tiva_adc.h"
 #include "hardware/tiva_adc.h"
@@ -589,7 +589,9 @@ static int tiva_adc_ioctl(struct adc_dev_s *dev, int cmd, unsigned long arg)
 
           fifo_count = tiva_adc_sse_data(priv->devno, sse, buf);
 
-          /* Verify that the upper-half driver has bound its callback functions */
+          /* Verify that the upper-half driver has bound its callback
+           * functions
+           */
 
           if (priv->cb != NULL)
             {

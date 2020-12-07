@@ -47,8 +47,8 @@
 #include <arch/board/board.h>
 
 #include "chip.h"
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "beaglebone-black.h"
 
@@ -219,9 +219,11 @@ void board_autoled_off(int led)
  *
  ****************************************************************************/
 
-void board_userled_initialize(void)
+uint32_t board_userled_initialize(void)
 {
   /* Initialization already performed in am335x_led_initialize */
+
+  return BOARD_NLEDS;
 }
 
 void board_userled(int led, bool ledon)
@@ -244,7 +246,7 @@ void board_userled(int led, bool ledon)
     }
 }
 
-void board_userled_all(uint8_t ledset)
+void board_userled_all(uint32_t ledset)
 {
   board_userled(USER_LED0, (ledset & USER_LED0) != 0);
   board_userled(USER_LED1, (ledset & USER_LED1) != 0);

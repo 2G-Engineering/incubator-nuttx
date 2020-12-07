@@ -47,8 +47,8 @@
 
 #include <errno.h>
 
-#include "up_internal.h"
-#include "up_arch.h"
+#include "arm_internal.h"
+#include "arm_arch.h"
 
 #include "chip.h"
 #include "cxd56_config.h"
@@ -325,14 +325,14 @@ static int cxd56_uart_clockchange(uint8_t id)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_lowputc
+ * Name: arm_lowputc
  *
  * Description:
  *   Output one byte on the serial console
  *
  ****************************************************************************/
 
-void up_lowputc(char ch)
+void arm_lowputc(char ch)
 {
 #if defined HAVE_UART && defined HAVE_CONSOLE
   /* Wait for the transmitter to be available */
@@ -471,7 +471,7 @@ void cxd56_setbaud(uintptr_t uartbase, uint32_t basefreq, uint32_t baud)
   uint32_t div;
   uint32_t lcr_h;
 
-  irqstate_t flags = enter_critical_section();
+  irqstate_t flags = spin_lock_irqsave();
 
   if (uartbase == CXD56_UART2_BASE)
     {
@@ -483,7 +483,7 @@ void cxd56_setbaud(uintptr_t uartbase, uint32_t basefreq, uint32_t baud)
     }
   else
     {
-      leave_critical_section(flags);
+      spin_unlock_irqrestore(flags);
       return;
     }
 
@@ -510,7 +510,7 @@ void cxd56_setbaud(uintptr_t uartbase, uint32_t basefreq, uint32_t baud)
   putreg32(lcr_h, uartbase + CXD56_UART_LCR_H);
 
 finish:
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(flags);
 }
 
 /****************************************************************************

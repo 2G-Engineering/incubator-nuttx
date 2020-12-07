@@ -45,8 +45,8 @@
 
 #include <nuttx/init.h>
 
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "hardware/kl_sim.h"
 
@@ -80,7 +80,7 @@
  * Public Data
  ****************************************************************************/
 
-const uint32_t g_idle_topstack = IDLE_STACK;
+const uintptr_t g_idle_topstack = IDLE_STACK;
 
 /****************************************************************************
  * Private Functions
@@ -135,6 +135,7 @@ void __start(void)
     {
       *dest++ = 0;
     }
+
   showprogress('B');
 
   /* Move the initialized data section from his temporary holding spot in
@@ -147,12 +148,13 @@ void __start(void)
     {
       *dest++ = *src++;
     }
+
   showprogress('C');
 
   /* Perform early serial initialization */
 
 #ifdef USE_EARLYSERIALINIT
-  up_earlyserialinit();
+  arm_earlyserialinit();
 #endif
   showprogress('D');
 
@@ -179,7 +181,7 @@ void __start(void)
 
   nx_start();
 
-  /* Shoulnd't get here */
+  /* Shouldn't get here */
 
   for (; ; );
 }

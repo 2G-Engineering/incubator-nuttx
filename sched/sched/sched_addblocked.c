@@ -49,7 +49,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: sched_addblocked
+ * Name: nxsched_add_blocked
  *
  * Description:
  *   This function adds a TCB to one of the blocked state task lists as
@@ -68,7 +68,7 @@
  *
  ****************************************************************************/
 
-void sched_addblocked(FAR struct tcb_s *btcb, tstate_t task_state)
+void nxsched_add_blocked(FAR struct tcb_s *btcb, tstate_t task_state)
 {
   FAR dq_queue_t *tasklist;
 
@@ -76,12 +76,6 @@ void sched_addblocked(FAR struct tcb_s *btcb, tstate_t task_state)
 
   DEBUGASSERT(task_state >= FIRST_BLOCKED_STATE &&
               task_state <= LAST_BLOCKED_STATE);
-
-#ifdef CONFIG_SMP
-  /* Lock the tasklists before accessing */
-
-  irqstate_t lock = sched_tasklist_lock();
-#endif
 
   /* Add the TCB to the blocked task list associated with this state. */
 
@@ -93,7 +87,7 @@ void sched_addblocked(FAR struct tcb_s *btcb, tstate_t task_state)
     {
       /* Add the task to a prioritized list */
 
-      sched_addprioritized(btcb, tasklist);
+      nxsched_add_prioritized(btcb, tasklist);
     }
   else
     {
@@ -101,12 +95,6 @@ void sched_addblocked(FAR struct tcb_s *btcb, tstate_t task_state)
 
       dq_addlast((FAR dq_entry_t *)btcb, tasklist);
     }
-
-#ifdef CONFIG_SMP
-  /* Unlock the tasklists */
-
-  sched_tasklist_unlock(lock);
-#endif
 
   /* Make sure the TCB's state corresponds to the list */
 

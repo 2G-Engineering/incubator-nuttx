@@ -34,11 +34,6 @@
 #
 ############################################################################
 
-# Include LED drivers
-
-LEDDEPATH =
-LEDVPATH =
-
 # Include user LED driver
 
 ifeq ($(CONFIG_USERLED),y)
@@ -75,6 +70,12 @@ ifeq ($(CONFIG_PCA9635PW),y)
 endif
 ifeq ($(CONFIG_NCP5623C),y)
   CSRCS += ncp5623c.c
+  LEDDEPATH = --dep-path leds
+  LEDVPATH = :leds
+endif
+
+ifeq ($(CONFIG_WS2812),y)
+  CSRCS += ws2812.c
   LEDDEPATH = --dep-path leds
   LEDVPATH = :leds
 endif

@@ -51,10 +51,10 @@
 #include <nuttx/sched_note.h>
 
 #include "nvic.h"
-#include "up_arch.h"
+#include "arm_arch.h"
 #include "sched/sched.h"
 #include "init/init.h"
-#include "up_internal.h"
+#include "arm_internal.h"
 #include "hardware/sam_pmc.h"
 #include "hardware/sam_rstc.h"
 #include "hardware/sam4cm_ipc.h"
@@ -81,6 +81,10 @@
 
 volatile static spinlock_t g_cpu1_boot;
 extern int arm_pause_handler(int irq, void *c, FAR void *arg);
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
 
 /****************************************************************************
  * Name: cpu1_boot
@@ -134,7 +138,7 @@ static void cpu1_boot(void)
 
   /* Then transfer control to the IDLE task */
 
-  nx_idle_task(0, NULL);
+  nx_idle_trampoline();
 }
 
 /****************************************************************************
@@ -168,7 +172,7 @@ int up_cpu_start(int cpu)
 {
   struct tcb_s *tcb = current_task(cpu);
 
-  DPRINTF("cpu=%d\n",cpu);
+  DPRINTF("cpu=%d\n", cpu);
 
   if (cpu != 1)
     {

@@ -33,9 +33,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = stm32_boot.c stm32_bringup.c
 
 ifeq ($(CONFIG_ADC),y)
@@ -66,6 +65,14 @@ endif
 
 ifeq ($(CONFIG_LIB_BOARDCTL),y)
 CSRCS += stm32_appinitialize.c
+endif
+
+ifeq ($(CONFIG_STM32H7_SDMMC), y)
+CSRCS += stm32_sdmmc.c
+endif
+
+ifeq ($(CONFIG_FAT_DMAMEMORY), y)
+CSRCS += stm32_dma_alloc.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

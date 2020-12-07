@@ -19,10 +19,11 @@
 ############################################################################
 
 # These are the macros that will be used in the NuttX make system to compile
-# and assembly source files and to insert the resulting object files into an
+# and assemble source files and to insert the resulting object files into an
 # archive.  These replace the default definitions at tools/Config.mk
 
 # POSTBUILD -- Perform post build operations
+
 ifdef BLOBDIR
 	BOOTLOADER=${BLOBDIR}/esp32core/bootloader.bin
 	PARTITION_TABLE=${BLOBDIR}/esp32core/partition-table.bin
@@ -55,6 +56,7 @@ define POSTBUILD
 		dd if=$(PARTITION_TABLE) bs=1 seek=$(shell printf "%d" 0x8000) of=flash_image.bin conv=notrunc && \
 		dd if=$(NUTTXNAME).bin bs=1 seek=$(shell printf "%d" 0x10000) of=flash_image.bin conv=notrunc && \
 		echo "Generated: flash_image.bin (it can be run with 'qemu-system-xtensa -nographic -machine esp32 -drive file=flash_image.bin,if=mtd,format=raw')"; \
+		echo "flash_image.bin" >> $(NUTTXNAME).manifest; \
 	fi
 endef
 endif

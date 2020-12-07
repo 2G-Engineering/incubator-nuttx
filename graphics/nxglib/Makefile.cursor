@@ -33,7 +33,9 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
+
+CPPFLAGS += ${shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)graphics$(DELIM)nxglib}
 
 ifeq ($(NXGLIB_BITSPERPIXEL),8)
 NXGLIB_SUFFIX := _8bpp

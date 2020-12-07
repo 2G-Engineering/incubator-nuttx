@@ -683,7 +683,8 @@ static void nrf24l01_worker(FAR void *arg)
            *   - Read payload content
            */
 
-          pipeno = (status & NRF24L01_RX_P_NO_MASK) >> NRF24L01_RX_P_NO_SHIFT;
+          pipeno = (status & NRF24L01_RX_P_NO_MASK) >>
+                   NRF24L01_RX_P_NO_SHIFT;
           if (pipeno >= NRF24L01_PIPE_COUNT) /* 6=invalid 7=fifo empty */
             {
               wlerr("invalid pipe rx: %d\n", (int)pipeno);
@@ -711,7 +712,8 @@ static void nrf24l01_worker(FAR void *arg)
 
           /* Get payload content */
 
-          nrf24l01_access(dev, MODE_READ, NRF24L01_R_RX_PAYLOAD, buf, pktlen);
+          nrf24l01_access(dev, MODE_READ,
+                          NRF24L01_R_RX_PAYLOAD, buf, pktlen);
 
           fifoput(dev, pipeno, buf, pktlen);
           has_data = true;
@@ -860,7 +862,7 @@ static int dosend(FAR struct nrf24l01_dev_s *dev, FAR const uint8_t *data,
 
   /* Wait for IRQ (TX_DS or MAX_RT) - but don't hang on lost IRQ */
 
-  ret = nxsem_tickwait(&dev->sem_tx, clock_systimer(),
+  ret = nxsem_tickwait(&dev->sem_tx, clock_systime_ticks(),
                        MSEC2TICK(NRF24L01_MAX_TX_IRQ_WAIT));
 
   /* Re-acquire the SPI bus */
@@ -1056,7 +1058,7 @@ static ssize_t nrf24l01_read(FAR struct file *filep, FAR char *buffer,
 
       /* Test if data is ready */
 
-      ret = nxsem_getvalue(&dev->sem_rx, &packet_count);
+      ret = nxsem_get_value(&dev->sem_rx, &packet_count);
       if (ret)
         {
           goto errout; /* getvalue failed */
@@ -1201,7 +1203,7 @@ static int nrf24l01_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
       case NRF24L01IOC_GETRETRCFG:  /* Get retransmit params. arg: Pointer
                                      * to nrf24l01_retrcfg_t */
-        ret = -ENOSYS;  /* TODO */
+        ret = -ENOSYS;              /* TODO */
         break;
 
       case NRF24L01IOC_SETPIPESCFG:
@@ -1496,7 +1498,7 @@ int nrf24l01_register(FAR struct spi_dev_s *spi,
 
   nxsem_init(&(dev->devsem), 0, 1);
   nxsem_init(&dev->sem_tx, 0, 0);
-  nxsem_setprotocol(&dev->sem_tx, SEM_PRIO_NONE);
+  nxsem_set_protocol(&dev->sem_tx, SEM_PRIO_NONE);
 
 #ifdef CONFIG_WL_NRF24L01_RXSUPPORT
   if ((rx_fifo = kmm_malloc(CONFIG_WL_NRF24L01_RXFIFO_LEN)) == NULL)
@@ -1509,7 +1511,7 @@ int nrf24l01_register(FAR struct spi_dev_s *spi,
 
   nxsem_init(&(dev->sem_fifo), 0, 1);
   nxsem_init(&(dev->sem_rx), 0, 0);
-  nxsem_setprotocol(&dev->sem_rx, SEM_PRIO_NONE);
+  nxsem_set_protocol(&dev->sem_rx, SEM_PRIO_NONE);
 #endif
 
   /* Configure IRQ pin  (falling edge) */
@@ -1802,7 +1804,8 @@ int nrf24l01_setretransmit(FAR struct nrf24l01_dev_s *dev,
 
   CHECK_ARGS(dev && retrcount <= NRF24L01_MAX_XMIT_RETR);
 
-  val = (retrdelay << NRF24L01_ARD_SHIFT) | (retrcount << NRF24L01_ARC_SHIFT);
+  val = (retrdelay << NRF24L01_ARD_SHIFT) |
+        (retrcount << NRF24L01_ARC_SHIFT);
 
   nrf24l01_lock(dev->spi);
 

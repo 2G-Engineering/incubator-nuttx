@@ -47,17 +47,17 @@
  *
  * Description:
  *   Equivalent to the non-standard fs_dupfd() function except that it
- *   accepts a struct file instance instead of a file descriptor and does
- *   not set the errno variable.
+ *   accepts a struct file instance instead of a file descriptor.
  *
  * Returned Value:
- *   Zero (OK) is returned on success; a negated errno value is returned on
- *   any failure.
+ *   The new file descriptor is returned on success; a negated errno value
+ *   is returned on any failure.
  *
  ****************************************************************************/
 
 int file_dup(FAR struct file *filep, int minfd)
 {
+  FAR struct file *filep2;
   int fd2;
   int ret;
 
@@ -68,40 +68,41 @@ int file_dup(FAR struct file *filep, int minfd)
       return -EBADF;
     }
 
-  /* Increment the reference count on the contained inode */
+  /* Then allocate a new file descriptor for the inode */
 
-  ret = inode_addref(filep->f_inode);
+  fd2 = files_allocate(NULL, 0, 0, minfd);
+  if (fd2 < 0)
+    {
+      return -EMFILE;
+    }
+
+  ret = fs_getfilep(fd2, &filep2);
   if (ret < 0)
     {
+      files_release(fd2);
       return ret;
     }
 
-  /* Then allocate a new file descriptor for the inode */
-
-  fd2 = files_allocate(filep->f_inode, filep->f_oflags, filep->f_pos, minfd);
-  if (fd2 < 0)
+  ret = file_dup2(filep, filep2);
+  if (ret < 0)
     {
-      inode_release(filep->f_inode);
-      return -EMFILE;
+      files_release(fd2);
+      return ret;
     }
 
   return fd2;
 }
 
 /****************************************************************************
- * Name: fs_dupfd OR dup
+ * Name: fs_dupfd
  *
  * Description:
  *   Clone a file descriptor 'fd' to an arbitrary descriptor number (any
- *   value greater than or equal to 'minfd'). If socket descriptors are
- *   implemented, then this is called by dup() for the case of file
- *   descriptors.  If socket descriptors are not implemented, then this
- *   function IS dup().
+ *   value greater than or equal to 'minfd').
  *
  * Returned Value:
- *   fs_dupfd is sometimes an OS internal function and sometimes is a direct
- *   substitute for dup().  So it must return an errno value as though it
- *   were dup().
+ *   The new file descriptor is returned on success; a negated errno value
+ *   is returned on any failure.
  *
  ****************************************************************************/
 
@@ -115,22 +116,12 @@ int fs_dupfd(int fd, int minfd)
   ret = fs_getfilep(fd, &filep);
   if (ret < 0)
     {
-      goto errout;
+      return ret;
     }
 
   DEBUGASSERT(filep != NULL);
 
   /* Let file_dup() do the real work */
 
-  ret = file_dup(filep, minfd);
-  if (ret < 0)
-    {
-      goto errout;
-    }
-
-  return ret;
-
-errout:
-  set_errno(-ret);
-  return ERROR;
+  return file_dup(filep, minfd);
 }

@@ -43,13 +43,14 @@
 
 #include <nuttx/config.h>
 
-#include "up_arch.h"
+#include "arm_arch.h"
 #include "chip.h"
 #include "hardware/tiva_sysctrl.h"
 
 /************************************************************************************
  * Pre-processor Definitions
  ************************************************************************************/
+
 /* Power control is enabled or disabled by setting or clearing a bit (b) in a system
  * control register (a))
  */

@@ -40,7 +40,7 @@
 #include "signal/signal.h"
 #include "svcall.h"
 #include "exc_return.h"
-#include "up_internal.h"
+#include "arm_internal.h"
 
 /****************************************************************************
  * Private Functions
@@ -117,14 +117,14 @@ static void dispatch_syscall(void)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_svcall
+ * Name: arm_svcall
  *
  * Description:
  *   This is SVCall exception handler that performs context switching
  *
  ****************************************************************************/
 
-int up_svcall(int irq, FAR void *context, FAR void *arg)
+int arm_svcall(int irq, FAR void *context, FAR void *arg)
 {
   uint32_t *regs = (uint32_t *)context;
   uint32_t cmd;
@@ -179,7 +179,7 @@ int up_svcall(int irq, FAR void *context, FAR void *arg)
           DEBUGASSERT(regs[REG_R1] != 0);
           memcpy((uint32_t *)regs[REG_R1], regs, XCPTCONTEXT_SIZE);
 #if defined(CONFIG_ARCH_FPU) && defined(CONFIG_ARMV8M_LAZYFPU)
-          up_savefpu((uint32_t *)regs[REG_R1]);
+          arm_savefpu((uint32_t *)regs[REG_R1]);
 #endif
         }
         break;
@@ -229,7 +229,7 @@ int up_svcall(int irq, FAR void *context, FAR void *arg)
           DEBUGASSERT(regs[REG_R1] != 0 && regs[REG_R2] != 0);
           memcpy((uint32_t *)regs[REG_R1], regs, XCPTCONTEXT_SIZE);
 #if defined(CONFIG_ARCH_FPU) && defined(CONFIG_ARMV8M_LAZYFPU)
-          up_savefpu((uint32_t *)regs[REG_R1]);
+          arm_savefpu((uint32_t *)regs[REG_R1]);
 #endif
           CURRENT_REGS = (uint32_t *)regs[REG_R2];
         }
@@ -250,7 +250,7 @@ int up_svcall(int irq, FAR void *context, FAR void *arg)
 #ifdef CONFIG_LIB_SYSCALL
       case SYS_syscall_return:
         {
-          struct tcb_s *rtcb = sched_self();
+          struct tcb_s *rtcb = nxsched_self();
           int index = (int)rtcb->xcp.nsyscalls - 1;
 
           /* Make sure that there is a saved syscall return address. */
@@ -364,7 +364,7 @@ int up_svcall(int irq, FAR void *context, FAR void *arg)
 #ifdef CONFIG_BUILD_PROTECTED
       case SYS_signal_handler:
         {
-          struct tcb_s *rtcb   = sched_self();
+          struct tcb_s *rtcb   = nxsched_self();
 
           /* Remember the caller's return address */
 
@@ -402,7 +402,7 @@ int up_svcall(int irq, FAR void *context, FAR void *arg)
 #ifdef CONFIG_BUILD_PROTECTED
       case SYS_signal_handler_return:
         {
-          struct tcb_s *rtcb   = sched_self();
+          struct tcb_s *rtcb   = nxsched_self();
 
           /* Set up to return to the kernel-mode signal dispatching logic. */
 
@@ -423,7 +423,7 @@ int up_svcall(int irq, FAR void *context, FAR void *arg)
       default:
         {
 #ifdef CONFIG_LIB_SYSCALL
-          FAR struct tcb_s *rtcb = sched_self();
+          FAR struct tcb_s *rtcb = nxsched_self();
           int index = rtcb->xcp.nsyscalls;
 
           /* Verify that the SYS call number is within range */

@@ -29,6 +29,7 @@
 #include <nuttx/board.h>
 #include <nuttx/signal.h>
 #include <arch/io.h>
+#include <inttypes.h>
 #include <syscall.h>
 #include <arch/board/board.h>
 
@@ -136,10 +137,15 @@ uint64_t *isr_handler(uint64_t *regs, uint64_t irq)
 {
 #ifdef CONFIG_SUPPRESS_INTERRUPTS
   board_autoled_on(LED_INIRQ);
-  PANIC(); /* Doesn't return */
-  return regs;               /* To keep the compiler happy */
+
+  /* Doesn't return */
+
+  PANIC();
+
+  /* To keep the compiler happy */
+
+  return regs;
 #else
-  uint64_t *ret;
 
   DEBUGASSERT(g_current_regs == NULL);
   g_current_regs = regs;
@@ -158,7 +164,8 @@ uint64_t *isr_handler(uint64_t *regs, uint64_t irq)
          */
 
         _alert("PANIC:\n");
-        _alert("Exception %lld occurred with error code %lld:\n",
+        _alert("Exception %" PRId64 " occurred "
+               "with error code %" PRId64 ":\n",
                irq, regs[REG_ERRCODE]);
 
         up_registerdump(regs);
@@ -192,8 +199,14 @@ uint64_t *irq_handler(uint64_t *regs, uint64_t irq_no)
 {
 #ifdef CONFIG_SUPPRESS_INTERRUPTS
   board_autoled_on(LED_INIRQ);
-  PANIC(); /* Doesn't return */
-  return regs;               /* To keep the compiler happy */
+
+  /* Doesn't return */
+
+  PANIC();
+
+  /* To keep the compiler happy */
+
+  return regs;
 #else
   uint64_t *ret;
   int irq;

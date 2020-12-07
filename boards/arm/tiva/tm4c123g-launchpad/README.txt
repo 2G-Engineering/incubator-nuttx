@@ -453,7 +453,7 @@ MCP2515 - SPI - CAN
 
   I like CANbus, and having an MCP2515 CAN Bus Module laying around
   gave me the idea to implement it on the TM4C123GXL (Launchpad).
-  Nuttx already had implemented it on the STM32. So a lot of work already
+  NuttX already had implemented it on the STM32. So a lot of work already
   has been done. It uses SPI and with this Launchpad we use SSI.
 
   Here is how I have the MCP2515 Module connected. But you can change
@@ -613,7 +613,7 @@ Where <subdir> is one of the following:
        b. Execute 'make menuconfig' in nuttx/ in order to start the
           reconfiguration process.
 
-    2. By default, this configuration uses the CodeSourcery toolchain
+    2. By default, this configuration uses the ARM EABI toolchain
        for Windows and builds under Cygwin (or probably MSYS).  That
        can easily be reconfigured, of course.
 

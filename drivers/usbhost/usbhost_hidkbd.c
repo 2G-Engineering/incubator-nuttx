@@ -1284,16 +1284,6 @@ static int usbhost_kbdpoll(int argc, char *argv[])
           newstate = (priv->headndx == priv->tailndx);
           if (!newstate)
             {
-              /* Yes.. Is there a thread waiting for keyboard data now? */
-
-              if (priv->waiting)
-                {
-                  /* Yes.. wake it up */
-
-                  usbhost_givesem(&priv->waitsem);
-                  priv->waiting = false;
-                }
-
               /* Did we just transition from no data available to data
                * available?  If so, wake up any threads waiting for the
                * POLLIN event.
@@ -1302,6 +1292,16 @@ static int usbhost_kbdpoll(int argc, char *argv[])
               if (empty)
                 {
                   usbhost_pollnotify(priv);
+                }
+
+              /* Yes.. Is there a thread waiting for keyboard data now? */
+
+              if (priv->waiting)
+                {
+                  /* Yes.. wake it up */
+
+                  usbhost_givesem(&priv->waitsem);
+                  priv->waiting = false;
                 }
             }
 
@@ -1996,7 +1996,7 @@ static FAR struct usbhost_class_s *
            * not have priority inheritance enabled.
            */
 
-          nxsem_setprotocol(&priv->waitsem, SEM_PRIO_NONE);
+          nxsem_set_protocol(&priv->waitsem, SEM_PRIO_NONE);
 
           /* Return the instance of the USB keyboard class driver */
 
@@ -2582,7 +2582,7 @@ int usbhost_kbdinit(void)
    * have priority inheritance enabled.
    */
 
-  nxsem_setprotocol(&g_syncsem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&g_syncsem, SEM_PRIO_NONE);
 
   /* Advertise our availability to support (certain) devices */
 

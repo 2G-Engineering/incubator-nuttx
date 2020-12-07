@@ -73,7 +73,7 @@
  *
  * Description:
  *   Setup up stack-related information in the TCB using pre-allocated stack
- *   memory.  This function is called only from task_init() when a task or
+ *   memory.  This function is called only from nxtask_init() when a task or
  *   kernel thread is started (never for pthreads).
  *
  *   The following TCB fields must be initialized:
@@ -101,7 +101,7 @@ int up_use_stack(FAR struct tcb_s *tcb, FAR void *stack, size_t stack_size)
   uintptr_t adj_stack_addr;
   size_t adj_stack_size;
 
-#ifdef CONFIG_TLS
+#ifdef CONFIG_TLS_ALIGNED
   /* Make certain that the user provided stack is properly aligned */
 
   DEBUGASSERT(((uintptr_t)stack & TLS_STACK_MASK) == 0);
@@ -126,10 +126,22 @@ int up_use_stack(FAR struct tcb_s *tcb, FAR void *stack, size_t stack_size)
   tcb->stack_alloc_ptr = stack;
   tcb->adj_stack_ptr   = (FAR void *)adj_stack_addr;
 
-#ifdef CONFIG_TLS
   /* Initialize the TLS data structure */
 
   memset(stack, 0, sizeof(struct tls_info_s));
+
+#if defined(CONFIG_STACK_COLORATION)
+  /* If stack debug is enabled, then fill the stack with a
+   * recognizable value that we can use later to test for high
+   * water marks.
+   */
+
+  if (tcb->pid != 0)
+    {
+      up_stack_color((FAR void *)((uintptr_t)tcb->stack_alloc_ptr +
+                     sizeof(struct tls_info_s)),
+                     adj_stack_size - sizeof(struct tls_info_s));
+    }
 #endif
 
   return OK;

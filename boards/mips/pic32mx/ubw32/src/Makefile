@@ -33,9 +33,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = pic32_boot.c pic32_leds.c
 
 ifeq ($(CONFIG_ARCH_BUTTONS),y)

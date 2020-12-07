@@ -40,6 +40,7 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
+#include <stdint.h>
 #include <pthread.h>
 #include <sched.h>
 #include <errno.h>
@@ -82,18 +83,18 @@ int pthread_getaffinity_np(pthread_t thread, size_t cpusetsize,
 {
   int ret;
 
-  sinfo("thread ID=%d cpusetsize=%d cpuset=%p\n",
-        (int)thread, (int)cpusetsize, cpusetsize);
-
   DEBUGASSERT(thread > 0 && cpusetsize == sizeof(cpu_set_t) &&
               cpuset != NULL);
 
-  /* Let nxsched_getaffinity do all of the work */
+  sinfo("thread ID=%d cpusetsize=%zu cpuset=%ju\n",
+        (int)thread, cpusetsize, (uintmax_t)*cpuset);
 
-  ret = nxsched_getaffinity((pid_t)thread, cpusetsize, cpuset);
+  /* Let nxsched_get_affinity do all of the work */
+
+  ret = nxsched_get_affinity((pid_t)thread, cpusetsize, cpuset);
   if (ret < 0)
     {
-      /* If nxsched_getaffinity() fails, return the positive errno */
+      /* If nxsched_get_affinity() fails, return the positive errno */
 
       ret = -ret;
     }

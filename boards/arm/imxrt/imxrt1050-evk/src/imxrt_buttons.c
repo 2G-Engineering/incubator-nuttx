@@ -46,7 +46,7 @@
 #include <nuttx/irq.h>
 #include <arch/board/board.h>
 
-#include "up_arch.h"
+#include "arm_arch.h"
 
 #include "imxrt_config.h"
 #include "imxrt_irq.h"
@@ -79,11 +79,12 @@
  *
  ****************************************************************************/
 
-void board_button_initialize(void)
+uint32_t board_button_initialize(void)
 {
   /* Configure the button as input */
 
   imxrt_config_gpio(GPIO_SW8);
+  return 1;
 }
 
 /****************************************************************************

@@ -108,7 +108,7 @@ static int nxposix_spawn_exec(FAR pid_t *pidp, FAR const char *path,
   pid = exec_spawn(path, (FAR char * const *)argv, symtab, nsymbols, attr);
   if (pid < 0)
     {
-      ret = get_errno();
+      ret = -pid;
       serr("ERROR: exec failed: %d\n", ret);
       goto errout;
     }
@@ -312,12 +312,12 @@ static int nxposix_spawn_proxy(int argc, FAR char *argv[])
 int posix_spawnp(FAR pid_t *pid, FAR const char *path,
                  FAR const posix_spawn_file_actions_t *file_actions,
                  FAR const posix_spawnattr_t *attr,
-                 FAR char *const argv[], FAR char *const envp[])
+                 FAR char * const argv[], FAR char * const envp[])
 #else
 int posix_spawn(FAR pid_t *pid, FAR const char *path,
                 FAR const posix_spawn_file_actions_t *file_actions,
                 FAR const posix_spawnattr_t *attr,
-                FAR char *const argv[], FAR char *const envp[])
+                FAR char * const argv[], FAR char * const envp[])
 #endif
 {
   struct sched_param param;
@@ -374,10 +374,10 @@ int posix_spawn(FAR pid_t *pid, FAR const char *path,
 
   /* Get the priority of this (parent) task */
 
-  ret = nxsched_getparam(0, &param);
+  ret = nxsched_get_param(0, &param);
   if (ret < 0)
     {
-      serr("ERROR: nxsched_getparam failed: %d\n", ret);
+      serr("ERROR: nxsched_get_param failed: %d\n", ret);
       spawn_semgive(&g_spawn_parmsem);
       return -ret;
     }

@@ -49,9 +49,9 @@
 #include <nuttx/spinlock.h>
 #include <nuttx/sched_note.h>
 
-#include "up_arch.h"
+#include "arm_arch.h"
 #include "sched/sched.h"
-#include "up_internal.h"
+#include "arm_internal.h"
 #include "hardware/cxd5602_memorymap.h"
 
 #ifdef CONFIG_SMP
@@ -149,6 +149,8 @@ static bool handle_irqreq(int cpu)
 
           spin_unlock(&g_cpu_wait[cpu]);
           handled = true;
+
+          break;
         }
     }
 
@@ -208,11 +210,18 @@ bool up_cpu_pausereq(int cpu)
 
 int up_cpu_paused(int cpu)
 {
+  /* Fistly, check if this IPI is to enable/disable IRQ */
+
+  if (handle_irqreq(cpu))
+    {
+      return OK;
+    }
+
   FAR struct tcb_s *tcb = this_task();
 
   /* Update scheduler parameters */
 
-  sched_suspend_scheduler(tcb);
+  nxsched_suspend_scheduler(tcb);
 
 #ifdef CONFIG_SCHED_INSTRUMENTATION
   /* Notify that we are paused */
@@ -224,7 +233,7 @@ int up_cpu_paused(int cpu)
    * of the assigned task list for this CPU.
    */
 
-  up_savestate(tcb->xcp.regs);
+  arm_savestate(tcb->xcp.regs);
 
   /* Wait for the spinlock to be released */
 
@@ -245,13 +254,13 @@ int up_cpu_paused(int cpu)
 
   /* Reset scheduler parameters */
 
-  sched_resume_scheduler(tcb);
+  nxsched_resume_scheduler(tcb);
 
   /* Then switch contexts.  Any necessary address environment changes
    * will be made when the interrupt returns.
    */
 
-  up_restorestate(tcb->xcp.regs);
+  arm_restorestate(tcb->xcp.regs);
   spin_unlock(&g_cpu_wait[cpu]);
 
   return OK;
@@ -280,13 +289,6 @@ int arm_pause_handler(int irq, void *c, FAR void *arg)
   /* Clear SW_INT for APP_DSP(cpu) */
 
   putreg32(0, CXD56_CPU_P2_INT + (4 * cpu));
-
-  /* Check if this IPI is to enable/disable IRQ */
-
-  if (handle_irqreq(cpu))
-    {
-      return OK;
-    }
 
   /* Check for false alarms.  Such false could occur as a consequence of
    * some deadlock breaking logic that might have already serviced the SG2

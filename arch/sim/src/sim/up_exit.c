@@ -53,7 +53,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: _exit
+ * Name: up_exit
  *
  * Description:
  *   This function causes the currently executing task to cease
@@ -63,15 +63,11 @@
  *
  ****************************************************************************/
 
-void _exit(int status)
+void up_exit(int status)
 {
-  FAR struct tcb_s *tcb = this_task();
+  FAR struct tcb_s *tcb;
 
-  sinfo("TCB=%p exiting\n", tcb);
-
-  /* Update scheduler parameters */
-
-  sched_suspend_scheduler(tcb);
+  sinfo("TCB=%p exiting\n", this_task());
 
   /* Destroy the task at the head of the ready to run list. */
 
@@ -83,10 +79,6 @@ void _exit(int status)
 
   tcb = this_task();
   sinfo("New Active Task TCB=%p\n", tcb);
-
-  /* Reset scheduler parameters */
-
-  sched_resume_scheduler(tcb);
 
   /* The way that we handle signals in the simulation is kind of
    * a kludge.  This would be unsafe in a truly multi-threaded, interrupt
@@ -103,4 +95,8 @@ void _exit(int status)
   /* Then switch contexts */
 
   up_longjmp(tcb->xcp.regs, 1);
+
+  /* The function does not return */
+
+  for (; ; );
 }

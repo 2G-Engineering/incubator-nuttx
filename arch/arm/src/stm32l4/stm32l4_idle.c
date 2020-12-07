@@ -49,7 +49,7 @@
 #include "chip.h"
 #include "stm32l4_pm.h"
 #include "stm32l4_rcc.h"
-#include "up_internal.h"
+#include "arm_internal.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -174,7 +174,7 @@ static void up_idlepm(void)
  * Name: up_idle
  *
  * Description:
- *   up_idle() is the logic that will be executed when their is no other
+ *   up_idle() is the logic that will be executed when there is no other
  *   ready-to-run task.  This is processor idle time and will continue until
  *   some interrupt occurs to cause a context switch from the idle task.
  *

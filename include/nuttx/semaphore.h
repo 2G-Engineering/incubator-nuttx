@@ -50,7 +50,7 @@
  *
  * This is only important when compiling libraries (libc or libnx) that are
  * used both by the OS (libkc.a and libknx.a) or by the applications
- * (libuc.a and libunx.a).  In that case, the correct interface must be
+ * (libc.a and libnx.a).  In that case, the correct interface must be
  * used for the build context.
  *
  * REVISIT:  In the flat build, the same functions must be used both by
@@ -65,10 +65,11 @@
 #  define _SEM_WAIT(s)          nxsem_wait(s)
 #  define _SEM_TRYWAIT(s)       nxsem_trywait(s)
 #  define _SEM_TIMEDWAIT(s,t)   nxsem_timedwait(s,t)
+#  define _SEM_CLOCKWAIT(s,c,t) nxsem_clockwait(s,c,t)
 #  define _SEM_POST(s)          nxsem_post(s)
-#  define _SEM_GETVALUE(s)      nxsem_getvalue(s)
-#  define _SEM_GETPROTOCOL(s,p) nxsem_getprotocol(s,p)
-#  define _SEM_SETPROTOCOL(s,p) nxsem_setprotocol(s,p)
+#  define _SEM_GETVALUE(s)      nxsem_get_value(s)
+#  define _SEM_GETPROTOCOL(s,p) nxsem_get_protocol(s,p)
+#  define _SEM_SETPROTOCOL(s,p) nxsem_set_protocol(s,p)
 #  define _SEM_ERRNO(r)         (-(r))
 #  define _SEM_ERRVAL(r)        (r)
 #else
@@ -77,6 +78,7 @@
 #  define _SEM_WAIT(s)          sem_wait(s)
 #  define _SEM_TRYWAIT(s)       sem_trywait(s)
 #  define _SEM_TIMEDWAIT(s,t)   sem_timedwait(s,t)
+#  define _SEM_CLOCKWAIT(s,c,t) sem_clockwait(s,c,t)
 #  define _SEM_GETVALUE(s,v)    sem_getvalue(s,v)
 #  define _SEM_POST(s)          sem_post(s)
 #  define _SEM_GETPROTOCOL(s,p) sem_getprotocol(s,p)
@@ -278,8 +280,55 @@ int nxsem_trywait(FAR sem_t *sem);
  *
  ****************************************************************************/
 
-struct timespec; /* Forward reference */
 int nxsem_timedwait(FAR sem_t *sem, FAR const struct timespec *abstime);
+
+/****************************************************************************
+ * Name: nxsem_clockwait
+ *
+ * Description:
+ *   This function will lock the semaphore referenced by sem as in the
+ *   sem_wait() function. However, if the semaphore cannot be locked without
+ *   waiting for another process or thread to unlock the semaphore by
+ *   performing a sem_post() function, this wait will be terminated when the
+ *   specified timeout expires.
+ *
+ *   The timeout will expire when the absolute time specified by abstime
+ *   passes, as measured by the clock on which timeouts are based (that is,
+ *   when the value of that clock equals or exceeds abstime), or if the
+ *   absolute time specified by abstime has already been passed at the
+ *   time of the call.
+ *
+ *   This is an internal OS interface.  It is functionally equivalent to
+ *   sem_wait except that:
+ *
+ *   - It is not a cancellation point, and
+ *   - It does not modify the errno value.
+ *
+ * Input Parameters:
+ *   sem     - Semaphore object
+ *   clockid - The timing source to use in the conversion
+ *   abstime - The absolute time to wait until a timeout is declared.
+ *
+ * Returned Value:
+ *   This is an internal OS interface and should not be used by applications.
+ *   It follows the NuttX internal error return policy:  Zero (OK) is
+ *   returned on success.  A negated errno value is returned on failure.
+ *   That may be one of:
+ *
+ *   EINVAL    The sem argument does not refer to a valid semaphore.  Or the
+ *             thread would have blocked, and the abstime parameter specified
+ *             a nanoseconds field value less than zero or greater than or
+ *             equal to 1000 million.
+ *   ETIMEDOUT The semaphore could not be locked before the specified timeout
+ *             expired.
+ *   EDEADLK   A deadlock condition was detected.
+ *   EINTR     A signal interrupted this function.
+ *   ECANCELED May be returned if the thread is canceled while waiting.
+ *
+ ****************************************************************************/
+
+int nxsem_clockwait(FAR sem_t *sem, clockid_t clockid,
+                    FAR const struct timespec *abstime);
 
 /****************************************************************************
  * Name: nxsem_tickwait
@@ -342,7 +391,7 @@ int nxsem_tickwait(FAR sem_t *sem, clock_t start, uint32_t delay);
 int nxsem_post(FAR sem_t *sem);
 
 /****************************************************************************
- * Name:  nxsem_getvalue
+ * Name:  nxsem_get_value
  *
  * Description:
  *   This function updates the location referenced by 'sval' argument to
@@ -352,7 +401,7 @@ int nxsem_post(FAR sem_t *sem);
  *   but may not reflect the actual value of the semaphore when it is
  *   returned to the calling task.
  *
- *   If 'sem' is locked, the value return by nxsem_getvalue() will either be
+ *   If 'sem' is locked, the value return by nxsem_get_value() will either be
  *   zero or a negative number whose absolute value represents the number
  *   of tasks waiting for the semaphore.
  *
@@ -367,7 +416,7 @@ int nxsem_post(FAR sem_t *sem);
  *
  ****************************************************************************/
 
-int nxsem_getvalue(FAR sem_t *sem, FAR int *sval);
+int nxsem_get_value(FAR sem_t *sem, FAR int *sval);
 
 /****************************************************************************
  * Name: nxsem_reset
@@ -392,7 +441,7 @@ int nxsem_getvalue(FAR sem_t *sem, FAR int *sval);
 int nxsem_reset(FAR sem_t *sem, int16_t count);
 
 /****************************************************************************
- * Name: nxsem_getprotocol
+ * Name: nxsem_get_protocol
  *
  * Description:
  *    Return the value of the semaphore protocol attribute.
@@ -410,7 +459,7 @@ int nxsem_reset(FAR sem_t *sem, int16_t count);
  *
  ****************************************************************************/
 
-#define nxsem_getprotocol(s,p) sem_getprotocol(s,p)
+#define nxsem_get_protocol(s,p) sem_getprotocol(s,p)
 
 /****************************************************************************
  * Name: sem_getprotocol
@@ -434,7 +483,7 @@ int nxsem_reset(FAR sem_t *sem, int16_t count);
 int sem_getprotocol(FAR sem_t *sem, FAR int *protocol);
 
 /****************************************************************************
- * Name: nxsem_setprotocol
+ * Name: nxsem_set_protocol
  *
  * Description:
  *    Set semaphore protocol attribute.
@@ -454,7 +503,7 @@ int sem_getprotocol(FAR sem_t *sem, FAR int *protocol);
  *    becomes *permanently* a holder of the semaphore and may have its
  *    priority boosted when any other task tries to acquire the semaphore.
  *
- *    The fix is to call nxsem_setprotocol(SEM_PRIO_NONE) immediately after
+ *    The fix is to call nxsem_set_protocol(SEM_PRIO_NONE) immediately after
  *    the sem_init() call so that there will be no priority inheritance
  *    operations on this semaphore.
  *
@@ -470,7 +519,7 @@ int sem_getprotocol(FAR sem_t *sem, FAR int *protocol);
  *
  ****************************************************************************/
 
-int nxsem_setprotocol(FAR sem_t *sem, int protocol);
+int nxsem_set_protocol(FAR sem_t *sem, int protocol);
 
 /****************************************************************************
  * Name: sem_setprotocol
@@ -566,6 +615,39 @@ int nxsem_wait_uninterruptible(FAR sem_t *sem);
  ****************************************************************************/
 
 int nxsem_timedwait_uninterruptible(FAR sem_t *sem,
+                                    FAR const struct timespec *abstime);
+
+/****************************************************************************
+ * Name: nxsem_clockwait_uninterruptible
+ *
+ * Description:
+ *   This function is wrapped version of nxsem_timedwait(), which is
+ *   uninterruptible and convenient for use.
+ *
+ * Input Parameters:
+ *   sem     - Semaphore object
+ *   clockid - The timing source to use in the conversion
+ *   abstime - The absolute time to wait until a timeout is declared.
+ *
+ * Returned Value:
+ *   EINVAL    The sem argument does not refer to a valid semaphore.  Or the
+ *             thread would have blocked, and the abstime parameter specified
+ *             a nanoseconds field value less than zero or greater than or
+ *             equal to 1000 million.
+ *   ETIMEDOUT The semaphore could not be locked before the specified timeout
+ *             expired.
+ *   EDEADLK   A deadlock condition was detected.
+ *   ECANCELED May be returned if the thread is canceled while waiting.
+ *
+ * NOTE:  It is essential that callers of this function handle the
+ * ECANCELED error.  Correct handling is that the function should return the
+ * error and the error should propagate back up the calling tree to the
+ * cancellation point interface function where the thread termination will
+ * be handled gracefully
+ *
+ ****************************************************************************/
+
+int nxsem_clockwait_uninterruptible(FAR sem_t *sem, clockid_t clockid,
                                     FAR const struct timespec *abstime);
 
 /****************************************************************************

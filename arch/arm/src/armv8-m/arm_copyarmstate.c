@@ -28,7 +28,7 @@
 
 #include <arch/irq.h>
 
-#include "up_internal.h"
+#include "arm_internal.h"
 
 #if defined(CONFIG_ARCH_FPU) && defined(CONFIG_ARMV8M_LAZYFPU)
 
@@ -37,7 +37,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_copyarmstate
+ * Name: arm_copyarmstate
  *
  * Description:
  *    Copy the ARM portion of the register save area (omitting the floating
@@ -45,7 +45,7 @@
  *
  ****************************************************************************/
 
-void up_copyarmstate(uint32_t *dest, uint32_t *src)
+void arm_copyarmstate(uint32_t *dest, uint32_t *src)
 {
   int i;
 
@@ -60,7 +60,7 @@ void up_copyarmstate(uint32_t *dest, uint32_t *src)
        * registers at indices SW_INT_REGS through (SW_INT_REGS+SW_FPU_REGS-1)
        */
 
-      up_savefpu(dest);
+      arm_savefpu(dest);
 
       /* Save the block of ARM registers that were saved by the interrupt
        * handling logic.  Indices: 0 through (SW_INT_REGS-1).

@@ -50,13 +50,15 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Clocking *************************************************************************/
+/* Clocking *****************************************************************/
 
 /* On-board crystal frequency is 8MHz (HSE) */
 
 #define STM32_BOARD_XTAL        8000000ul
 
-/* PLL source is HSE/1, PLL multiplier is 9: PLL frequency is 8MHz (XTAL) x 9 = 72MHz */
+/* PLL source is HSE/1, PLL multiplier is 9: PLL frequency is
+ * 8MHz (XTAL) x 9 = 72MHz
+ */
 
 #define STM32_CFGR_PLLSRC       RCC_CFGR_PLLSRC
 #define STM32_CFGR_PLLXTPRE     0
@@ -105,7 +107,8 @@
 
 /* Timer Frequencies, if APBx is set to 1, frequency is same to APBx
  * otherwise frequency is 2xAPBx.
- * Note: TIM1,8 are on APB2, others on APB1 */
+ * Note: TIM1,8 are on APB2, others on APB1
+ */
 
 #define BOARD_TIM1_FREQUENCY    STM32_HCLK_FREQUENCY
 #define BOARD_TIM2_FREQUENCY    STM32_PCLK1_FREQUENCY
@@ -146,7 +149,7 @@
 #  define SDIO_SDXFR_CLKDIV     (3 << SDIO_CLKCR_CLKDIV_SHIFT)
 #endif
 
-/* BUTTON definitions ***************************************************************/
+/* BUTTON definitions *******************************************************/
 
 #define NUM_BUTTONS       2
 
@@ -155,7 +158,7 @@
 #define BUTTON_USER1_BIT  (1 << BUTTON_USER1)
 #define BUTTON_USER2_BIT  (1 << BUTTON_USER2)
 
-/* LED definitions ******************************************************************/
+/* LED definitions **********************************************************/
 
 /* Define how many LEDs this board has (needed by userleds) */
 
@@ -177,7 +180,8 @@
  * The STM32F103-Minimum has no real on-board PWM devices, but the board can
  * be configured to output a pulse train using TIM3 CH3 on PB0.
  *
- * Note: we don't need redefine GPIO_TIM3_CH3OUT because PB0 is not remap pin.
+ * Note: we don't need redefine GPIO_TIM3_CH3OUT because PB0 is not
+ * remap pin.
  */
 
 /* RGB LED
@@ -193,5 +197,48 @@
 #define RGBLED_GPWMCHANNEL 2
 #define RGBLED_BPWMTIMER   4
 #define RGBLED_BPWMCHANNEL 4
+
+/* Tone Driver **************************************************************/
+
+#define BOARD_TONE_PWM_TIM         2   /* PWM timer for tone generation  */
+#define BOARD_TONE_ONESHOT_TIM     3   /* Oneshot timer for note timings */
+#define BOARD_TONE_ONESHOT_TIM_RES 10  /* Oneshot timer resolution (us)  */
+
+/* NRF24L01 Driver **********************************************************/
+
+/* Chip enable:  PB.1 */
+
+#define GPIO_NRF24L01_CE  (GPIO_OUTPUT|GPIO_CNF_OUTPP|GPIO_MODE_50MHz|\
+                           GPIO_OUTPUT_CLEAR|GPIO_PORTB|GPIO_PIN1)
+
+/* IRQ line:  PA.0 */
+
+#define GPIO_NRF24L01_IRQ (GPIO_INPUT|GPIO_CNF_INFLOAT|GPIO_PORTA|GPIO_PIN0)
+
+#define BOARD_NRF24L01_GPIO_CE     GPIO_NRF24L01_CE
+#define BOARD_NRF24L01_GPIO_IRQ    GPIO_NRF24L01_IRQ
+
+/* HCSR04 driver */
+
+/* Pins config to use with HC-SR04 sensor */
+
+#define GPIO_HCSR04_INT   (GPIO_INPUT|GPIO_CNF_INFLOAT|GPIO_PORTA|GPIO_PIN0)
+#define GPIO_HCSR04_TRIG  (GPIO_OUTPUT|GPIO_CNF_OUTPP|GPIO_MODE_50MHz|\
+                           GPIO_OUTPUT_CLEAR|GPIO_PORTA|GPIO_PIN1)
+
+#define BOARD_HCSR04_GPIO_INT  GPIO_HCSR04_INT
+#define BOARD_HCSR04_GPIO_TRIG GPIO_HCSR04_TRIG
+#define BOARD_HCSR04_FRTIMER   1    /* TIM1 as free running timer */
+
+/* Pin for APDS-9960 sensor */
+
+#define GPIO_APDS9960_INT (GPIO_INPUT|GPIO_CNF_INFLOAT|GPIO_PORTA|GPIO_PIN0)
+
+#define BOARD_APDS9960_GPIO_INT GPIO_APDS9960_INT
+
+/* ZERO CROSS pin definition */
+
+#define BOARD_ZEROCROSS_GPIO \
+  (GPIO_INPUT|GPIO_CNF_INFLOAT|GPIO_PORTA|GPIO_PIN0)
 
 #endif /* __BOARDS_ARM_STM32_STM32F103_MINIMUM_INCLUDE_BOARD_H */

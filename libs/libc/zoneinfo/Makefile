@@ -33,17 +33,7 @@
 #
 ############################################################################
 
--include $(TOPDIR)/.config
--include $(TOPDIR)/Make.defs
-
-ifeq ($(WINTOOL),y)
-INCDIROPT = -w
-endif
-
-# Zoneinfo database
-
-ASRCS =
-CSRCS =
+include $(TOPDIR)/Make.defs
 
 ifeq ($(CONFIG_LIB_ZONEINFO_ROMFS),y)
 CSRCS += tzromfs.c
@@ -59,11 +49,7 @@ ZONEINFO_PATH = $(TOPDIR)/libs/libc/zoneinfo
 TZBIN_PATH = $(ZONEINFO_PATH)/tzbin
 TZCODE_PATH = $(ZONEINFO_PATH)/tzcode
 
-ROOTDEPPATH = --dep-path .
-
 # Common build
-
-VPATH =
 
 all: .built
 .PHONY: romfs register context depend clean distclean
@@ -75,7 +61,7 @@ $(COBJS): %$(OBJEXT): %.c
 	$(call COMPILE, $<, $@)
 
 .built: .tzbuilt romfs $(OBJS)
-	$(call ARCHIVE, ..$(DELIM)$(BIN), $(OBJS))
+	$(call ARCHIVE_ADD, ..$(DELIM)$(BIN), $(OBJS))
 	$(Q) touch .built
 
 # ROMFS file system containing the TZ database
@@ -132,8 +118,12 @@ context: .tzbuilt romfs
 
 # Create dependencies
 
-.depend: Makefile $(SRCS)
-	$(Q) $(MKDEP) $(ROOTDEPPATH) "$(CC)" -- $(CFLAGS) -- $(SRCS) >Make.dep
+makedepfile: $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds)
+	$(call CATFILE, Make.dep, $^)
+	$(call DELFILE, $^)
+
+.depend: Makefile $(SRCS) $(TOPDIR)$(DELIM).config
+	$(Q) $(MAKE) makedepfile
 	$(Q) touch $@
 
 depend: .depend

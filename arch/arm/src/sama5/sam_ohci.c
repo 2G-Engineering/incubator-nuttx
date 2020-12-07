@@ -25,6 +25,7 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -46,8 +47,8 @@
 
 #include <arch/board/board.h> /* May redefine PIO settings */
 
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 
 #include "chip.h"
 #include "sam_periphclks.h"
@@ -1338,7 +1339,7 @@ static inline int sam_reminted(struct sam_ed_s *ed)
 #ifdef CONFIG_USBHOST_TRACE
   usbhost_vtrace1(OHCI_VTRACE1_VIRTED, (uintptr_t)ed);
 #else
-  uinfo("ed: %08x head: %08x next: %08x offset: %d\n",
+  uinfo("ed: %p head: %08" PRIxPTR " next: %08" PRIx32 " offset: %d\n",
         ed, physhead, head ? head->hw.nexted : 0, offset);
 #endif
 
@@ -1353,11 +1354,15 @@ static inline int sam_reminted(struct sam_ed_s *ed)
   DEBUGASSERT(curr != NULL);
   if (curr != NULL)
     {
-      /* Clear all current entries in the interrupt table for this direction */
+      /* Clear all current entries in the interrupt table for this
+       * direction
+       */
 
       sam_setinttab(0, 2, offset);
 
-      /* Remove the ED from the list..  Is this ED the first on in the list? */
+      /* Remove the ED from the list..  Is this ED the first on in the
+       * list?
+       */
 
       if (prev == NULL)
         {
@@ -1378,7 +1383,7 @@ static inline int sam_reminted(struct sam_ed_s *ed)
 #ifdef CONFIG_USBHOST_TRACE
       usbhost_vtrace1(OHCI_VTRACE1_VIRTED, (uintptr_t)ed);
 #else
-      uinfo("ed: %08x head: %08x next: %08x\n",
+      uinfo("ed: %p head: %08" PRIxPTR " next: %08" PRIx32 "\n",
             ed, physhead, head ? head->hw.nexted : 0);
 #endif
 
@@ -2718,7 +2723,7 @@ static int sam_epalloc(struct usbhost_driver_s *drvr,
    * priority inheritance enabled.
    */
 
-  nxsem_setprotocol(&eplist->wdhsem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&eplist->wdhsem, SEM_PRIO_NONE);
 
   /* We must have exclusive access to the ED pool, the bulk list, the
    * periodic list, and the interrupt table.
@@ -3308,7 +3313,7 @@ static int sam_transfer_common(struct sam_rhport_s *rhport,
                   (ed->hw.ctrl  & ED_CONTROL_EN_MASK) >> ED_CONTROL_EN_SHIFT,
                   (uint16_t)buflen);
 #else
-  uinfo("EP%d %s toggle: %d maxpacket: %d buflen: %d\n",
+  uinfo("EP%" PRId32 " %s toggle: %d maxpacket: %" PRId32 " buflen: %zd\n",
         (ed->hw.ctrl  & ED_CONTROL_EN_MASK) >> ED_CONTROL_EN_SHIFT,
         in ? "IN" : "OUT",
         (ed->hw.headp & ED_HEADP_C) != 0 ? 1 : 0,
@@ -4020,7 +4025,7 @@ struct usbhost_connection_s *sam_ohci_initialize(int controller)
    * priority inheritance enabled.
    */
 
-  nxsem_setprotocol(&g_ohci.pscsem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&g_ohci.pscsem, SEM_PRIO_NONE);
 
 #ifndef CONFIG_USBHOST_INT_DISABLE
   g_ohci.ininterval  = MAX_PERINTERVAL;

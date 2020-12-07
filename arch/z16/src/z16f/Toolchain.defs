@@ -18,19 +18,6 @@
 #
 ############################################################################
 
-# Setup for the selected toolchain
-
-#
-# The ZiLOG ZDS-II Windows toolchain is the only toolchain available for
-# the ez80.
-#
-
-CONFIG_Z16F_TOOLCHAIN ?= ZDSII
-
-ifeq ($(CONFIG_WINDOWS_CYGWIN),y)
-  WINTOOL = y
-endif
-
 # These are the default directories where the ZDS-II toolchain is installed.
 # NOTE that short 8.3 path names are used in order to avoid spaces.  On my
 # machine I have:
@@ -49,6 +36,9 @@ ZDSVERSION := 5.0.1
 else ifeq ($(CONFIG_Z16F_ZDSII_V521),y)
 INSTALLROOT = C:/ZiLOG
 ZDSVERSION := 5.2.1
+else ifeq ($(CONFIG_Z16F_ZDSII_V522),y)
+INSTALLROOT = C:/ZiLOG
+ZDSVERSION := 5.2.2
 endif
 
 ifeq ($(CONFIG_WINDOWS_NATIVE),y)
@@ -60,7 +50,6 @@ ifeq ($(CONFIG_WINDOWS_NATIVE),y)
   ZDSSTDLIBDIR = $(INSTALLDIR)\lib\std
   ZDSZILOGLIBDIR = $(INSTALLDIR)\lib\zilog
 else
-  WINTOOL = y
   ZDSINSTALLDIR = $(INSTALLROOT)/ZDSII_ZNEO_$(ZDSVERSION)
   INSTALLDIR = ${shell cygpath -u "$(ZDSINSTALLDIR)"}
   ZDSBINDIR = $(INSTALLDIR)/bin
@@ -105,7 +94,7 @@ endif
 
 CROSSDEV =
 CC = $(ZDSBINDIR)$(DELIM)zneocc.exe
-CPP = gcc -E
+CPP = gcc -E -P -x c
 LD = $(ZDSBINDIR)$(DELIM)zneolink.exe
 AS = $(ZDSBINDIR)$(DELIM)zneoasm.exe
 AR = $(ZDSBINDIR)$(DELIM)zneolib.exe

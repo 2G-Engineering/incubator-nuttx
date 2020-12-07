@@ -64,6 +64,8 @@
 #  include "hardware/stm32f30xxx_gpio.h"
 #elif defined(CONFIG_STM32_STM32F4XXX)
 #  include "hardware/stm32f40xxx_gpio.h"
+#elif defined(CONFIG_STM32_STM32G4XXX)
+#  include "hardware/stm32g4xxxx_gpio.h"
 #else
 #  error "Unrecognized STM32 chip"
 #endif
@@ -96,9 +98,9 @@
 #define GPIO_OUTPUT                   (0)                        /*         0=Output or alternate function */
 #define GPIO_ALT                      (0)
 
-/* If the pin is a GPIO digital output, then this identifies the initial output value.
- * If the pin is an input, this bit is overloaded to provide the qualifier to\
- * distinguish input pull-up and -down:
+/* If the pin is a GPIO digital output, then this identifies the initial
+ * output value.  If the pin is an input, this bit is overloaded to
+ * provide the qualifier to\ distinguish input pull-up and -down:
  *
  * 1111 1100 0000 0000
  * 5432 1098 7654 3210
@@ -124,7 +126,8 @@
 #  define GPIO_CNF_INFLOAT            (1 << GPIO_CNF_SHIFT)      /* Input floating */
 #  define GPIO_CNF_INPULLUD           (2 << GPIO_CNF_SHIFT)      /* Input pull-up/down general bit, since up is composed of two parts */
 #  define GPIO_CNF_INPULLDWN          (2 << GPIO_CNF_SHIFT)      /* Input pull-down */
-#  define GPIO_CNF_INPULLUP          ((2 << GPIO_CNF_SHIFT) | GPIO_OUTPUT_SET) /* Input pull-up */
+#  define GPIO_CNF_INPULLUP          ((2 << GPIO_CNF_SHIFT) \
+                                      | GPIO_OUTPUT_SET)         /* Input pull-up */
 
 #  define GPIO_CNF_OUTPP              (0 << GPIO_CNF_SHIFT)      /* Output push-pull */
 #  define GPIO_CNF_OUTOD              (1 << GPIO_CNF_SHIFT)      /* Output open-drain */
@@ -203,10 +206,10 @@
 
 #elif defined(CONFIG_STM32_STM32L15XX) || defined(CONFIG_STM32_STM32F20XX) || \
       defined(CONFIG_STM32_STM32F30XX) || defined(CONFIG_STM32_STM32F33XX) || \
-      defined(CONFIG_STM32_STM32F37XX) || defined(CONFIG_STM32_STM32F4XXX)
-
-/* Each port bit of the general-purpose I/O (GPIO) ports can be individually configured
- * by software in several modes:
+      defined(CONFIG_STM32_STM32F37XX) || defined(CONFIG_STM32_STM32F4XXX) || \
+      defined(CONFIG_STM32_STM32G4XXX)
+/* Each port bit of the general-purpose I/O (GPIO) ports can be
+ * individually configured by software in several modes:
  *
  *  - Input floating
  *  - Input pull-up
@@ -294,16 +297,21 @@
 #define GPIO_SPEED_SHIFT              (10)                       /* Bits 10-11: GPIO frequency selection */
 #define GPIO_SPEED_MASK               (3 << GPIO_SPEED_SHIFT)
 #if defined(CONFIG_STM32_STM32L15XX)
-#  define GPIO_SPEED_400KHz           (0 << GPIO_SPEED_SHIFT)     /* 400 kHz Very low speed output */
-#  define GPIO_SPEED_2MHz             (1 << GPIO_SPEED_SHIFT)     /* 2 MHz Low speed output */
-#  define GPIO_SPEED_10MHz            (2 << GPIO_SPEED_SHIFT)     /* 10 MHz Medium speed output */
-#  define GPIO_SPEED_40MHz            (3 << GPIO_SPEED_SHIFT)     /* 40 MHz High speed output */
+#  define GPIO_SPEED_400KHz           (0 << GPIO_SPEED_SHIFT)    /* 400 kHz Very low speed output */
+#  define GPIO_SPEED_2MHz             (1 << GPIO_SPEED_SHIFT)    /* 2 MHz Low speed output */
+#  define GPIO_SPEED_10MHz            (2 << GPIO_SPEED_SHIFT)    /* 10 MHz Medium speed output */
+#  define GPIO_SPEED_40MHz            (3 << GPIO_SPEED_SHIFT)    /* 40 MHz High speed output */
+#elif defined(CONFIG_STM32_STM32G4XXX)                           /* With C=50pF, 2.7<VDD<3.6, DS12288 Rev2 Table 59 */
+#  define GPIO_SPEED_5MHz             (0 << GPIO_SPEED_SHIFT)    /* 5 MHz Low speed output */
+#  define GPIO_SPEED_25MHz            (1 << GPIO_SPEED_SHIFT)    /* 25 MHz Medium speed output */
+#  define GPIO_SPEED_50MHz            (2 << GPIO_SPEED_SHIFT)    /* 50 MHz Fast speed output */
+#  define GPIO_SPEED_120MHz           (3 << GPIO_SPEED_SHIFT)    /* 120 MHz High speed output */
 #else
-#  define GPIO_SPEED_2MHz             (0 << GPIO_SPEED_SHIFT)     /* 2 MHz Low speed output */
-#  define GPIO_SPEED_25MHz            (1 << GPIO_SPEED_SHIFT)     /* 25 MHz Medium speed output */
-#  define GPIO_SPEED_50MHz            (2 << GPIO_SPEED_SHIFT)     /* 50 MHz Fast speed output  */
+#  define GPIO_SPEED_2MHz             (0 << GPIO_SPEED_SHIFT)    /* 2 MHz Low speed output */
+#  define GPIO_SPEED_25MHz            (1 << GPIO_SPEED_SHIFT)    /* 25 MHz Medium speed output */
+#  define GPIO_SPEED_50MHz            (2 << GPIO_SPEED_SHIFT)    /* 50 MHz Fast speed output  */
 #ifndef CONFIG_STM32_STM32F30XX
-#  define GPIO_SPEED_100MHz           (3 << GPIO_SPEED_SHIFT)     /* 100 MHz High speed output */
+#  define GPIO_SPEED_100MHz           (3 << GPIO_SPEED_SHIFT)    /* 100 MHz High speed output */
 #endif
 #endif
 
@@ -318,9 +326,9 @@
 #define GPIO_OPENDRAIN                (1 << 9)                   /* Bit9: 1=Open-drain output */
 #define GPIO_PUSHPULL                 (0)                        /* Bit9: 0=Push-pull output */
 
-/* If the pin is a GPIO digital output, then this identifies the initial output value.
- * If the pin is an input, this bit is overloaded to provide the qualifier to
- * distinguish input pull-up and -down:
+/* If the pin is a GPIO digital output, then this identifies the initial
+ * output value.  If the pin is an input, this bit is overloaded to
+ * provide the qualifier to distinguish input pull-up and -down:
  *
  * 1111 1111 1100 0000 0000
  * 9876 5432 1098 7654 3210

@@ -35,9 +35,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = am335x_boot.c am335x_bringup.c am335x_leds.c
 
 ifeq ($(CONFIG_LIB_BOARDCTL),y)

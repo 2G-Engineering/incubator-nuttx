@@ -79,14 +79,11 @@
 
 void up_release_stack(FAR struct tcb_s *dtcb, uint8_t ttype)
 {
-  struct vma_s *ptr;
-  int i;
-
   /* Is there a stack allocated? */
 
   if (dtcb->stack_alloc_ptr)
     {
-#if defined(CONFIG_BUILD_KERNEL) && defined(CONFIG_MM_KERNEL_HEAP)
+#ifdef CONFIG_MM_KERNEL_HEAP
       /* Use the kernel allocator if this is a kernel thread */
 
       if (ttype == TCB_FLAG_TTYPE_KERNEL)

@@ -119,13 +119,15 @@ static int adc_open(FAR struct file *filep)
   uint8_t               tmp;
   int                   ret;
 
-  /* If the port is the middle of closing, wait until the close is finished */
+  /* If the port is the middle of closing, wait until the close is
+   * finished.
+   */
 
   ret = nxsem_wait(&dev->ad_closesem);
   if (ret >= 0)
     {
-      /* Increment the count of references to the device.  If this the first
-       * time that the driver has been opened for this device, then
+      /* Increment the count of references to the device.  If this is the
+       * first time that the driver has been opened for this device, then
        * initialize the device.
        */
 
@@ -138,7 +140,9 @@ static int adc_open(FAR struct file *filep)
         }
       else
         {
-          /* Check if this is the first time that the driver has been opened. */
+          /* Check if this is the first time that the driver has been
+           * opened.
+           */
 
           if (tmp == 1)
             {
@@ -235,7 +239,7 @@ static ssize_t adc_read(FAR struct file *filep, FAR char *buffer,
 
   ainfo("buflen: %d\n", (int)buflen);
 
-  /* Determine size of the messages to return.
+  /* Determine the size of the messages to return.
    *
    * REVISIT:  What if buflen is 8 does that mean 4 messages of size 2?  Or
    * 2 messages of size 4?  What if buflen is 12.  Does that mean 3 at size
@@ -323,7 +327,7 @@ static ssize_t adc_read(FAR struct file *filep, FAR char *buffer,
 
           if (msglen == 1)
             {
-              /* Only one channel, return MS 8-bits of the sample*/
+              /* Only one channel, return MS 8-bits of the sample. */
 
               buffer[nread] = msg->am_data >> 24;
             }
@@ -387,7 +391,7 @@ static ssize_t adc_read(FAR struct file *filep, FAR char *buffer,
         }
       while (dev->ad_recv.af_head != dev->ad_recv.af_tail);
 
-      /* All on the messages have bee transferred.  Return the number of
+      /* All of the messages have been transferred.  Return the number of
        * bytes that were read.
        */
 
@@ -483,6 +487,12 @@ static void adc_notify(FAR struct adc_dev_s *dev)
 {
   FAR struct adc_fifo_s *fifo = &dev->ad_recv;
 
+  /* If there are threads waiting on poll() for data to become available,
+   * then wake them up now.
+   */
+
+  adc_pollnotify(dev, POLLIN);
+
   /* If there are threads waiting for read data, then signal one of them
    * that the read data is available.
    */
@@ -491,12 +501,6 @@ static void adc_notify(FAR struct adc_dev_s *dev)
     {
       nxsem_post(&fifo->af_sem);
     }
-
-  /* If there are threads waiting on poll() for data to become available,
-   * then wake them up now.
-   */
-
-  adc_pollnotify(dev, POLLIN);
 }
 
 /****************************************************************************
@@ -613,7 +617,7 @@ int adc_register(FAR const char *path, FAR struct adc_dev_s *dev)
    * priority inheritance enabled.
    */
 
-  nxsem_setprotocol(&dev->ad_recv.af_sem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&dev->ad_recv.af_sem, SEM_PRIO_NONE);
 
   /* Reset the ADC hardware */
 

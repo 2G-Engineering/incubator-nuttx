@@ -33,9 +33,8 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
+include $(TOPDIR)/Make.defs
 
-ASRCS =
 CSRCS = kl_boardinitialize.c
 
 ifeq ($(CONFIG_LIB_BOARDCTL),y)
@@ -52,10 +51,6 @@ else
 ifeq ($(CONFIG_KL_SPI1),y)
 CSRCS += kl_spi.c
 endif
-endif
-
-ifeq ($(CONFIG_HAVE_CXX),y)
-CSRCS += kl_cxxinitialize.c
 endif
 
 ifeq ($(CONFIG_ARCH_LEDS),y)

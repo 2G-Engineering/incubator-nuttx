@@ -99,7 +99,7 @@ static int nxtask_spawn_exec(FAR pid_t *pidp, FAR const char *name,
 
   sched_lock();
 
-  /* Use the default task priority and stack size if no attributes are provided */
+  /* Use the default priority and stack size if no attributes are provided */
 
   if (attr)
     {
@@ -112,7 +112,7 @@ static int nxtask_spawn_exec(FAR pid_t *pidp, FAR const char *name,
 
       /* Set the default priority to the same priority as this task */
 
-      ret = nxsched_getparam(0, &param);
+      ret = nxsched_get_param(0, &param);
       if (ret < 0)
         {
           ret = -ret;
@@ -176,9 +176,9 @@ errout:
  *      to perform these operations?
  *   A: Good idea, except that existing nxtask_starthook() implementation
  *      cannot be used here unless we get rid of task_create and, instead,
- *      use task_init() and task_activate().  start_taskhook() could then
- *      be called between task_init() and task_activate().  task_restart()
- *      would still be an issue.
+ *      use nxtask_init() and nxtask_activate().  start_taskhook() could then
+ *      be called between nxtask_init() and nxtask_activate().
+ *      task_restart() would still be an issue.
  *
  * Input Parameters:
  *   Standard task start-up parameters
@@ -244,7 +244,7 @@ static int nxtask_spawn_proxy(int argc, FAR char *argv[])
  ****************************************************************************/
 
 /****************************************************************************
- * Name: task_spawn
+ * Name: task_spawn/_task_spawn
  *
  * Description:
  *   The task_spawn() function will create a new, child task, where the
@@ -308,10 +308,17 @@ static int nxtask_spawn_proxy(int argc, FAR char *argv[])
  *
  ****************************************************************************/
 
+#ifdef CONFIG_LIB_SYSCALL
+static int _task_spawn(FAR pid_t *pid, FAR const char *name, main_t entry,
+                       FAR const posix_spawn_file_actions_t *file_actions,
+                       FAR const posix_spawnattr_t *attr,
+                       FAR char * const argv[], FAR char * const envp[])
+#else
 int task_spawn(FAR pid_t *pid, FAR const char *name, main_t entry,
                FAR const posix_spawn_file_actions_t *file_actions,
                FAR const posix_spawnattr_t *attr,
-               FAR char *const argv[], FAR char *const envp[])
+               FAR char * const argv[], FAR char * const envp[])
+#endif
 {
   struct sched_param param;
   pid_t proxy;
@@ -366,10 +373,10 @@ int task_spawn(FAR pid_t *pid, FAR const char *name, main_t entry,
 
   /* Get the priority of this (parent) task */
 
-  ret = nxsched_getparam(0, &param);
+  ret = nxsched_get_param(0, &param);
   if (ret < 0)
     {
-      serr("ERROR: nxsched_getparam failed: %d\n", ret);
+      serr("ERROR: nxsched_get_param failed: %d\n", ret);
       spawn_semgive(&g_spawn_parmsem);
       return -ret;
     }
@@ -441,7 +448,7 @@ errout_with_lock:
  * Name: nx_task_spawn
  *
  * Description:
- *   This function de-marshals parameters and invokes task_spawn().
+ *   This function de-marshals parameters and invokes _task_spawn().
  *
  *   task_spawn() and posix_spawn() are NuttX OS interfaces.  In PROTECTED
  *   and KERNEL build modes, then can be reached from applications only via
@@ -459,13 +466,13 @@ errout_with_lock:
  *
  ****************************************************************************/
 
-#ifdef CONFIG_BUILD_PROTECTED
+#ifdef CONFIG_LIB_SYSCALL
 int nx_task_spawn(FAR const struct spawn_syscall_parms_s *parms)
 {
   DEBUGASSERT(parms != NULL);
-  return task_spawn(parms->pid, parms->name, parms->entry,
-                    parms->file_actions, parms->attr,
-                    parms->argv, parms->envp);
+  return _task_spawn(parms->pid, parms->name, parms->entry,
+                     parms->file_actions, parms->attr,
+                     parms->argv, parms->envp);
 }
 #endif
 

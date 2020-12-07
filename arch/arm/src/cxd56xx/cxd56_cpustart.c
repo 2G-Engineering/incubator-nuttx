@@ -51,10 +51,10 @@
 #include <nuttx/sched_note.h>
 
 #include "nvic.h"
-#include "up_arch.h"
+#include "arm_arch.h"
 #include "sched/sched.h"
 #include "init/init.h"
-#include "up_internal.h"
+#include "arm_internal.h"
 #include "hardware/cxd56_crg.h"
 #include "hardware/cxd5602_memorymap.h"
 
@@ -71,7 +71,7 @@
 #endif
 
 #ifdef CONFIG_DEBUG_FEATURES
-#  define showprogress(c) up_lowputc(c)
+#  define showprogress(c) arm_lowputc(c)
 #else
 #  define showprogress(c)
 #endif
@@ -114,6 +114,10 @@ static void appdsp_boot(void)
   cpu = up_cpu_index();
   DPRINTF("cpu = %d\n", cpu);
 
+  /* Setup NVIC */
+
+  up_irqinitialize();
+
   /* Setup FPU */
 
   fpuconfig();
@@ -137,7 +141,7 @@ static void appdsp_boot(void)
 
   /* Then transfer control to the IDLE task */
 
-  nx_idle_task(0, NULL);
+  nx_idle_trampoline();
 }
 
 /****************************************************************************

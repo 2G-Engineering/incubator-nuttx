@@ -54,9 +54,14 @@
 
 #include "viewtool_stm32f107.h"
 
+#ifdef CONFIG_SENSORS_MPL115A
+#include "stm32_mpl115a.h"
+#endif
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
 /* Configuration ************************************************************/
 
 /* Default MMC/SD SLOT number */
@@ -186,7 +191,7 @@ int stm32_bringup(void)
 #endif
 
 #ifdef CONFIG_SENSORS_MPL115A
-  ret = stm32_mpl115ainitialize("/dev/press");
+  ret = board_mpl115a_initialize(0, 5);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_mpl115ainitialize failed: %d\n", ret);

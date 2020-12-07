@@ -193,7 +193,7 @@ static int onewire_pm_prepare(FAR struct pm_callback_s *cb, int domain,
 
       /* Check if exclusive lock for the bus master is held. */
 
-      if (nxsem_getvalue(&master->devsem.sem, &sval) < 0)
+      if (nxsem_get_value(&master->devsem.sem, &sval) < 0)
         {
           DEBUGASSERT(false);
           return -EINVAL;
@@ -201,7 +201,9 @@ static int onewire_pm_prepare(FAR struct pm_callback_s *cb, int domain,
 
       if (sval <= 0)
         {
-          /* Exclusive lock is held, do not allow entry to deeper PM states. */
+          /* Exclusive lock is held, do not allow entry to deeper PM
+           * states.
+           */
 
           return -EBUSY;
         }

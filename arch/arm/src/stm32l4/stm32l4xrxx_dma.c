@@ -47,6 +47,7 @@
 
 #include <nuttx/config.h>
 
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <debug.h>
@@ -56,9 +57,9 @@
 #include <nuttx/arch.h>
 #include <arch/stm32l4/chip.h>
 
-#include "up_arch.h"
+#include "arm_arch.h"
 
-#include "up_internal.h"
+#include "arm_internal.h"
 #include "sched/sched.h"
 #include "stm32l4_dma.h"
 
@@ -713,7 +714,8 @@ static void stm32l4_dma12_setup(DMA_HANDLE handle, uint32_t paddr,
 
   DEBUGASSERT(dmachan->ctrl == DMA1 || dmachan->ctrl == DMA2);
 
-  dmainfo("paddr: %08x maddr: %08x ntransfers: %d ccr: %08x\n",
+  dmainfo("paddr: %08" PRIx32 " maddr: %08" PRIx32
+          " ntransfers: %zd ccr: %08" PRIx32 "\n",
           paddr, maddr, ntransfers, ccr);
 
 #ifdef CONFIG_STM32L4_DMACAPABLE
@@ -957,7 +959,7 @@ static void stm32l4_dmamux_dump(DMA_MUX dmamux, uint8_t channel,
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_dma_initialize
+ * Name: arm_dma_initialize
  *
  * Description:
  *   Initialize the DMA subsystem (DMA1, DMA2)
@@ -967,7 +969,7 @@ static void stm32l4_dmamux_dump(DMA_MUX dmamux, uint8_t channel,
  *
  ****************************************************************************/
 
-void weak_function up_dma_initialize(void)
+void weak_function arm_dma_initialize(void)
 {
   DMA_CHANNEL dmachan;
   uint8_t controller;

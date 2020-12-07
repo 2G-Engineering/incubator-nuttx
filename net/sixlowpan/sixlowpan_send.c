@@ -103,7 +103,7 @@ static uint16_t send_eventhandler(FAR struct net_driver_s *dev,
 {
   FAR struct sixlowpan_send_s *sinfo = (FAR struct sixlowpan_send_s *)pvpriv;
 
-  ninfo("flags: %04x: %d\n", flags);
+  ninfo("flags: %04x\n", flags);
 
   /* Verify that this is a compatible network driver. */
 
@@ -214,7 +214,7 @@ int sixlowpan_send(FAR struct net_driver_s *dev,
   /* Initialize the send state structure */
 
   nxsem_init(&sinfo.s_waitsem, 0, 0);
-  nxsem_setprotocol(&sinfo.s_waitsem, SEM_PRIO_NONE);
+  nxsem_set_protocol(&sinfo.s_waitsem, SEM_PRIO_NONE);
 
   sinfo.s_result  = -EBUSY;
   sinfo.s_ipv6hdr = ipv6hdr;

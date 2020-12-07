@@ -74,8 +74,8 @@
 #include <arch/irq.h>
 
 #include "chip.h"
-#include "up_arch.h"
-#include "up_internal.h"
+#include "arm_arch.h"
+#include "arm_internal.h"
 #include "nvic.h"
 #include "sched/sched.h"
 #include "init/init.h"
@@ -114,7 +114,7 @@ static void go_nx_start(void *pv, unsigned int nbytes)
  ****************************************************************************/
 
 #ifdef CONFIG_DEBUG_FEATURES
-#  define showprogress(c) up_lowputc(c)
+#  define showprogress(c) arm_lowputc(c)
 #else
 #  define showprogress(c)
 #endif
@@ -275,10 +275,14 @@ void fpuconfig(void)
  *   This is the reset entry point.
  *
  ****************************************************************************/
+#define CPU_ID (CXD56_CPU_BASE + 0x40)
 
 void __start(void)
 {
   uint32_t *dest;
+#ifndef CONFIG_CXD56_SUBCORE
+  uint32_t cpuid;
+#endif
 
   /* Set MSP/PSP to IDLE stack */
 
@@ -288,6 +292,17 @@ void __start(void)
   __asm__ __volatile__("\tmsr psp, %0\n" :
                        : "r" ((uint32_t)&_ebss +
                               CONFIG_IDLETHREAD_STACKSIZE - 4));
+
+#ifndef CONFIG_CXD56_SUBCORE
+  cpuid = getreg32(CPU_ID);
+  if (cpuid != 2)
+    {
+      for (; ; )
+        {
+          __asm__ __volatile__("wfi\n");
+        }
+    }
+#endif
 
   up_irq_disable();
 
@@ -330,7 +345,7 @@ void __start(void)
   /* Perform early serial initialization */
 
 #ifdef USE_EARLYSERIALINIT
-  up_earlyserialinit();
+  arm_earlyserialinit();
 #endif
   showprogress('E');
 
