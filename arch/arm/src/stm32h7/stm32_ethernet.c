@@ -41,6 +41,7 @@
 #include <nuttx/net/mii.h>
 #include <nuttx/net/arp.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/net/phy.h>
 
 #if defined(CONFIG_NET_PKT)
 #  include <nuttx/net/pkt.h>
@@ -3070,11 +3071,10 @@ static int stm32_ioctl(struct net_driver_s *dev, int cmd, unsigned long arg)
 #ifdef CONFIG_ARCH_PHY_INTERRUPT
       case SIOCMIINOTIFY: /* Set up for PHY event notifications */
         {
-          struct mii_iotcl_notify_s *req =
-            (struct mii_iotcl_notify_s *)((uintptr_t)arg);
+          struct mii_ioctl_notify_s *req =
+            (struct mii_ioctl_notify_s *)((uintptr_t)arg);
 
-          ret = phy_notify_subscribe(dev->d_ifname, req->pid, req->signo,
-                                     req->arg);
+          ret = phy_notify_subscribe(dev->d_ifname, req->pid, &req->event);
           if (ret == OK)
             {
               /* Enable PHY link up/down interrupts */
