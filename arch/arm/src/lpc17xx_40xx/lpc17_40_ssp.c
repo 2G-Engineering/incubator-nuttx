@@ -85,15 +85,20 @@
  * 2. SSPCLK must be less than (254*40Khz) = 101.6MHz.
  *
  * If we assume that CCLK less than or equal to 100MHz, we can just
- * use the CCLK undivided to get the SSP_CLOCK.
+ * use the CCLK undivided to get the SSP_CLOCK.  If CCLK is greater than
+ * 100MHz, but less than 200, we can divide CCLK by 2 for the same result.
  */
 
-#  if LPC17_40_CCLK > 100000000
-#    error "CCLK <= 100,000,000 assumed"
+#  if LPC17_40_CCLK > 200000000
+#    error "CCLK <= 200,000,000 assumed"
+#  elif LPC17_40_CCLK > 100000000
+#    define SSP_PCLKSET_DIV    SYSCON_PCLKSEL_CCLK2
+#    define SSP_CLOCK          (LPC17_40_CCLK / 2)
+#  else
+#    define SSP_PCLKSET_DIV    SYSCON_PCLKSEL_CCLK
+#    define SSP_CLOCK          LPC17_40_CCLK
 #  endif
 
-#  define SSP_PCLKSET_DIV    SYSCON_PCLKSEL_CCLK
-#  define SSP_CLOCK          LPC17_40_CCLK
 
 #elif defined(LPC178x_40xx)
 /* All peripherals are clocked by the same peripheral clock in the
