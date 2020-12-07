@@ -119,10 +119,12 @@ static void dac_reset(FAR struct dac_dev_s *dev)
 
   flags = enter_critical_section();
 
+#ifdef LPC176x
   regval  = getreg32(LPC17_40_SYSCON_PCLKSEL0);
   regval &= ~SYSCON_PCLKSEL0_DAC_MASK;
   regval |= (SYSCON_PCLKSEL_CCLK8 << SYSCON_PCLKSEL0_DAC_SHIFT);
   putreg32(regval, LPC17_40_SYSCON_PCLKSEL0);
+#endif
 
   //putreg32(DAC_CTRL_DBLBUFEN, LPC17_40_DAC_CTRL); ?
 
