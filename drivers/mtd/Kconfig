@@ -1100,4 +1100,21 @@ config GD5F_SPIFREQUENCY
 
 endif # MTD_GD5F
 
+config MTD_W25N
+	bool "SPI-based W25N nand FLASH"
+	default n
+	select SPI
+
+if MTD_W25N
+
+config W25N_SPIMODE
+	int "W25N SPI Mode"
+	default 0
+
+config W25N_SPIFREQUENCY
+	int "W25N SPI Frequency"
+	default 20000000
+
+endif # MTD_W25N
+
 endif # MTD
