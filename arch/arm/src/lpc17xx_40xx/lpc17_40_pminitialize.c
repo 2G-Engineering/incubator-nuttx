@@ -41,7 +41,7 @@
 
 #include <nuttx/power/pm.h>
 
-#include "up_internal.h"
+#include "arm_internal.h"
 #include "lpc17_40_pm.h"
 
 #ifdef CONFIG_PM
@@ -68,7 +68,7 @@
  *
  ****************************************************************************/
 
-void up_pminitialize(void)
+void arm_pminitialize(void)
 {
   /* Then initialize the NuttX power management subsystem proper */
 

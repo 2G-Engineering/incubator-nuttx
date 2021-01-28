@@ -52,7 +52,7 @@
 #include <nuttx/timers/watchdog.h>
 #include <arch/board/board.h>
 
-#include "up_arch.h"
+#include "arm_arch.h"
 #include "lpc17_40_wdt.h"
 #include "hardware/lpc17_40_wdt.h"
 
