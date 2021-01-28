@@ -848,10 +848,26 @@ static inline void lpc17_40_uart0config(void)
   putreg32(regval, LPC17_40_SYSCON_PCLKSEL0);
 #endif
 
-  /* Step 3: Configure I/O pins */
+  /* Step 3: Configure RS-485 control register */
+
+#ifdef CONFIG_LPC17_40_UART0_RS485
+  regval  = getreg32(LPC17_40_UART0_RS485CTRL);
+  regval |= UART_RS485CTRL_DCTRL;
+#if (CONFIG_LPC17_40_UART0_RS485_DIR_POLARITY == 1)
+  regval |= UART_RS485CTRL_OINV;
+#endif
+  putreg32(regval, LPC17_40_UART0_RS485CTRL);
+#endif
+
+  /* Step 4: Configure I/O pins */
 
   lpc17_40_configgpio(GPIO_UART0_TXD);
   lpc17_40_configgpio(GPIO_UART0_RXD);
+
+#ifdef CONFIG_LPC17_40_UART0_RS485
+  lpc17_40_configgpio(GPIO_UART0_RS485_DIR);
+#endif
+
   leave_critical_section(flags);
 };
 #endif
@@ -883,7 +899,7 @@ static inline void lpc17_40_uart1config(void)
 #ifdef CONFIG_LPC17_40_UART1_RS485
   regval  = getreg32(LPC17_40_UART1_RS485CTRL);
   regval |= UART_RS485CTRL_DCTRL;
-#if (CONFIG_LPC17_40_RS485_DIR_POLARITY == 1)
+#if (CONFIG_LPC17_40_UART1_RS485_DIR_POLARITY == 1)
   regval |= UART_RS485CTRL_OINV;
 #endif
 #ifdef CONFIG_LPC17_40_UART1_RS485_DIR_DTR
@@ -937,10 +953,26 @@ static inline void lpc17_40_uart2config(void)
   putreg32(regval, LPC17_40_SYSCON_PCLKSEL1);
 #endif
 
-  /* Step 3: Configure I/O pins */
+  /* Step 3: Configure RS-485 control register */
+
+#ifdef CONFIG_LPC17_40_UART2_RS485
+  regval  = getreg32(LPC17_40_UART2_RS485CTRL);
+  regval |= UART_RS485CTRL_DCTRL;
+#if (CONFIG_LPC17_40_UART2_RS485_DIR_POLARITY == 1)
+  regval |= UART_RS485CTRL_OINV;
+#endif
+  putreg32(regval, LPC17_40_UART2_RS485CTRL);
+#endif
+
+  /* Step 4: Configure I/O pins */
 
   lpc17_40_configgpio(GPIO_UART2_TXD);
   lpc17_40_configgpio(GPIO_UART2_RXD);
+
+#ifdef CONFIG_LPC17_40_UART2_RS485
+  lpc17_40_configgpio(GPIO_UART2_RS485_DIR);
+#endif
+
   leave_critical_section(flags);
 };
 #endif
@@ -967,10 +999,26 @@ static inline void lpc17_40_uart3config(void)
   putreg32(regval, LPC17_40_SYSCON_PCLKSEL1);
 #endif
 
-  /* Step 3: Configure I/O pins */
+  /* Step 3: Configure RS-485 control register */
+
+#ifdef CONFIG_LPC17_40_UART3_RS485
+  regval  = getreg32(LPC17_40_UART3_RS485CTRL);
+  regval |= UART_RS485CTRL_DCTRL;
+#if (CONFIG_LPC17_40_UART3_RS485_DIR_POLARITY == 1)
+  regval |= UART_RS485CTRL_OINV;
+#endif
+  putreg32(regval, LPC17_40_UART3_RS485CTRL);
+#endif
+
+  /* Step 4: Configure I/O pins */
 
   lpc17_40_configgpio(GPIO_UART3_TXD);
   lpc17_40_configgpio(GPIO_UART3_RXD);
+
+#ifdef CONFIG_LPC17_40_UART3_RS485
+  lpc17_40_configgpio(GPIO_UART3_RS485_DIR);
+#endif
+
   leave_critical_section(flags);
 };
 #endif
