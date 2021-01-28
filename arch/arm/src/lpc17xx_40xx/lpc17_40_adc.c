@@ -246,7 +246,7 @@ static void adc_reset(FAR struct adc_dev_s *dev)
 #ifdef LPC176x
   clkdiv   = LPC17_40_CCLK / 8 / 65 / priv->sps;
 #else
-  clkdiv   = LPC17_40_CCLK / BOARD_PCLKDIV / 65 / priv->sps;
+  clkdiv   = LPC17_40_CCLK / BOARD_PCLKDIV / 31 / priv->sps;
 #endif
   clkdiv <<= 8;
   clkdiv  &= 0xff00;
