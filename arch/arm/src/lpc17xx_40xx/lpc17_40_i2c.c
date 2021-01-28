@@ -296,7 +296,7 @@ static void lpc17_40_i2c_stop(struct lpc17_40_i2cdev_s *priv)
       putreg32(I2C_CONSET_STO | I2C_CONSET_AA,
                priv->base + LPC17_40_I2C_CONSET_OFFSET);
     }
-  i2cinfo(LOG_INFO, "Rt: %d\n", wd_gettime(priv->timeout));
+  i2cinfo(LOG_INFO, "Rt: %d\n", wd_gettime(&priv->timeout));
   wd_cancel(&priv->timeout);
   nxsem_post(&priv->wait);
 }
