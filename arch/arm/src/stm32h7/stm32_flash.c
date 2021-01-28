@@ -363,7 +363,7 @@ static int stm32h7_israngeerased(size_t startaddress, size_t size)
   size_t bwritten = 0;
 
   if (!stm32h7_flash_bank(startaddress) ||
-      !stm32h7_flash_bank(startaddress + size))
+      !stm32h7_flash_bank(startaddress + size - 1))
     {
       return -EIO;
     }
