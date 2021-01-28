@@ -26,6 +26,7 @@
 
 #include <errno.h>
 #include <debug.h>
+#include <inttypes.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -133,9 +134,9 @@ static int ht16k33_i2c_write_data(FAR struct ht16k33_dev_s *priv,
 
   /* Write the register address followed by the data (no RESTART) */
 
-  ledinfo("i2c addr: 0x%02X reg addr: 0x%02X value: 0x%02X "
+  ledinfo("i2c addr: 0x%02"PRIx32" reg addr: 0x%02"PRIx32" value: 0x%02"PRIx32" "
           "(%d bytes additional)\n", priv->i2c_addr, reg_addr,
-          reg_val, data_size);
+          reg_val, data_len);
 
   ret = i2c_write(priv->i2c, &config, buffer, BUFFER_SIZE);
   if (ret < 0)
