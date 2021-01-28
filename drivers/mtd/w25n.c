@@ -189,6 +189,8 @@ static inline void w25n_unlock(FAR struct spi_dev_s *dev);
 static int w25n_readid(FAR struct w25n_dev_s *priv);
 static bool w25n_waitstatus(FAR struct w25n_dev_s *priv, uint8_t mask,
                             bool successif);
+static bool w25n_waitstatustimeout(FAR struct w25n_dev_s *priv, uint8_t mask,
+                            bool successif, int32_t ustimeout);
 static inline void w25n_writeenable(FAR struct w25n_dev_s *priv);
 static inline void w25n_writedisable(FAR struct w25n_dev_s *priv);
 static bool w25n_sectorerase(FAR struct w25n_dev_s *priv, off_t startsector);
@@ -336,6 +338,41 @@ static bool w25n_waitstatus(FAR struct w25n_dev_s *priv, uint8_t mask, bool succ
       nxsig_usleep(1000);
     }
   while ((status & W25N_SR_OIP) != 0);
+
+  finfo("Complete %02x\n", status);
+
+  return successif ? ((status & mask) != 0) : ((status & mask) == 0);
+}
+
+/************************************************************************************
+ * Name: w25n_waitstatustimeout
+ ************************************************************************************/
+
+static bool w25n_waitstatustimeout(FAR struct w25n_dev_s *priv, uint8_t mask,
+                                   bool successif, int32_t ustimeout)
+{
+  uint8_t status;
+
+  /* Loop as long as the memory is busy with a write cycle */
+
+  do
+    {
+      /* Select this FLASH part */
+
+      SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
+
+      /* Get feature command */
+
+      SPI_SEND(priv->dev, W25N_GET_FEATURE);
+      SPI_SEND(priv->dev, W25N_STATUS);
+      status = SPI_SEND(priv->dev, W25N_DUMMY);
+
+      /* Deselect the FLASH */
+
+      SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
+      ustimeout -= 1000;
+    }
+  while (((status & W25N_SR_OIP) != 0) && (!nxsig_usleep(1000)) && (ustimeout > 0));
 
   finfo("Complete %02x\n", status);
 
@@ -928,7 +965,7 @@ FAR struct mtd_dev_s *w25n_initialize(FAR struct spi_dev_s *dev,
 
       /* Wait reset complete */
 
-      w25n_waitstatus(priv, W25N_SR_OIP, false);
+      w25n_waitstatustimeout(priv, W25N_SR_OIP, false, 50 * USEC_PER_MSEC);
       w25n_unlock(priv->dev);
 
       /* Identify the FLASH chip and get its capacity */

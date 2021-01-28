@@ -219,6 +219,8 @@ static inline void mx35_unlock(FAR struct spi_dev_s *dev);
 static int mx35_readid(FAR struct mx35_dev_s *priv);
 static bool mx35_waitstatus(FAR struct mx35_dev_s *priv, uint8_t mask,
                             bool successif);
+static bool mx35_waitstatustimeout(FAR struct mx35_dev_s *priv, uint8_t mask,
+                                   bool successif, int32_t ustimeout);
 static inline void mx35_writeenable(struct mx35_dev_s *priv);
 static inline void mx35_writedisable(struct mx35_dev_s *priv);
 static inline uint32_t mx35_addresstorow(FAR struct mx35_dev_s *priv,
@@ -381,6 +383,45 @@ static bool mx35_waitstatus(FAR struct mx35_dev_s *priv, uint8_t mask, bool succ
        */
     }
   while (((status & MX35_SR_OIP) != 0) && (!nxsig_usleep(1000)));
+
+  mx35info("Complete\n");
+  return successif ? ((status & mask) != 0) : ((status & mask) == 0);
+}
+
+/************************************************************************************
+ * Name: mx35_waitstatustimeout
+ ************************************************************************************/
+
+static bool mx35_waitstatustimeout(FAR struct mx35_dev_s *priv, uint8_t mask,
+                                   bool successif, int32_t ustimeout)
+{
+  uint8_t status;
+
+  /* Loop as long as the memory is busy with a write cycle or until timeout expires */
+
+  do
+    {
+      /* Select this FLASH part */
+
+      SPI_SELECT(priv->dev, SPIDEV_FLASH(0), true);
+
+      /* Get feature command */
+
+      SPI_SEND(priv->dev, MX35_GET_FEATURE);
+      SPI_SEND(priv->dev, MX35_STATUS);
+      status = SPI_SEND(priv->dev, MX35_DUMMY);
+
+      /* Deselect the FLASH */
+
+      SPI_SELECT(priv->dev, SPIDEV_FLASH(0), false);
+      ustimeout -= 1000;
+
+      /* Given that writing could take up to few tens of milliseconds, and erasing
+       * could take more.  The following short delay in the "busy" case will allow
+       * other peripherals to access the SPI bus.
+       */
+    }
+  while (((status & MX35_SR_OIP) != 0) && (!nxsig_usleep(1000)) && (ustimeout > 0));
 
   mx35info("Complete\n");
   return successif ? ((status & mask) != 0) : ((status & mask) == 0);
@@ -926,9 +967,9 @@ FAR struct mtd_dev_s *mx35_initialize(FAR struct spi_dev_s *dev)
       SPI_SEND(priv->dev, MX35_RESET);
       SPI_SELECT(priv->dev, SPIDEV_FLASH(0), false);
 
-      /* Wait reset complete */
+      /* Wait reset complete or until timeout (max reset time is 100ms per datasheet)*/
 
-      mx35_waitstatus(priv, MX35_SR_OIP, false);
+      mx35_waitstatustimeout(priv, MX35_SR_OIP, false, 150 * USEC_PER_MSEC);
 
       /* Identify the FLASH chip and get its capacity */
 
