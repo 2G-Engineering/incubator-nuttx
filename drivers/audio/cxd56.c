@@ -1,34 +1,20 @@
 /****************************************************************************
  * drivers/audio/cxd56.c
  *
- *   Copyright 2019 Sony Semiconductor Solutions Corporation
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ****************************************************************************/
 
@@ -1301,12 +1287,12 @@ static void _process_audio_with_src(cxd56_dmahandle_t hdl, uint16_t err_code)
           msg.msg_id = AUDIO_MSG_STOP;
           msg.u.data = 0;
           spin_unlock_irqrestore(flags);
-          ret = nxmq_send(dev->mq, (FAR const char *)&msg,
-                          sizeof(msg), CONFIG_CXD56_MSG_PRIO);
+          ret = file_mq_send(&dev->mq, (FAR const char *)&msg,
+                             sizeof(msg), CONFIG_CXD56_MSG_PRIO);
           flags = spin_lock_irqsave();
           if (ret != OK)
             {
-              auderr("ERROR: nxmq_send to stop failed (%d)\n", ret);
+              auderr("ERROR: file_mq_send to stop failed (%d)\n", ret);
             }
         }
     }
@@ -1335,12 +1321,12 @@ static void _process_audio_with_src(cxd56_dmahandle_t hdl, uint16_t err_code)
               msg.msg_id = AUDIO_MSG_STOP;
               msg.u.data = 0;
               spin_unlock_irqrestore(flags);
-              ret = nxmq_send(dev->mq, (FAR const char *)&msg,
-                              sizeof(msg), CONFIG_CXD56_MSG_PRIO);
+              ret = file_mq_send(&dev->mq, (FAR const char *)&msg,
+                                 sizeof(msg), CONFIG_CXD56_MSG_PRIO);
               flags = spin_lock_irqsave();
               if (ret != OK)
                 {
-                  auderr("ERROR: nxmq_send to stop failed (%d)\n", ret);
+                  auderr("ERROR: file_mq_send to stop failed (%d)\n", ret);
                 }
 
               request_buffer = false;
@@ -1348,19 +1334,19 @@ static void _process_audio_with_src(cxd56_dmahandle_t hdl, uint16_t err_code)
         }
     }
 
-  if (request_buffer && dev->mq != NULL)
+  if (request_buffer && dev->mq.f_inode != NULL)
     {
       /* Request more data */
 
       msg.msg_id = AUDIO_MSG_DATA_REQUEST;
       msg.u.data = 0;
       spin_unlock_irqrestore(flags);
-      ret = nxmq_send(dev->mq, (FAR const char *) &msg,
-                          sizeof(msg), CONFIG_CXD56_MSG_PRIO);
+      ret = file_mq_send(&dev->mq, (FAR const char *) &msg,
+                         sizeof(msg), CONFIG_CXD56_MSG_PRIO);
       flags = spin_lock_irqsave();
       if (ret != OK)
         {
-          auderr("ERROR: nxmq_send to request failed (%d)\n", ret);
+          auderr("ERROR: file_mq_send to request failed (%d)\n", ret);
         }
     }
 
@@ -1403,25 +1389,25 @@ static void _process_audio(cxd56_dmahandle_t hdl, uint16_t err_code)
                  dq_count(&dev->up_pendq));
           msg.msg_id = AUDIO_MSG_STOP;
           msg.u.data = 0;
-          ret = nxmq_send(dev->mq, (FAR const char *)&msg,
-                          sizeof(msg), CONFIG_CXD56_MSG_PRIO);
+          ret = file_mq_send(&dev->mq, (FAR const char *)&msg,
+                             sizeof(msg), CONFIG_CXD56_MSG_PRIO);
           if (ret != OK)
             {
-              auderr("ERROR: nxmq_send to stop failed (%d)\n", ret);
+              auderr("ERROR: file_mq_send to stop failed (%d)\n", ret);
             }
         }
     }
-  else if (dev->mq != NULL)
+  else if (dev->mq.f_inode != NULL)
     {
       /* Request more data */
 
       msg.msg_id = AUDIO_MSG_DATA_REQUEST;
       msg.u.data = 0;
-      ret = nxmq_send(dev->mq, (FAR const char *) &msg,
-                      sizeof(msg), CONFIG_CXD56_MSG_PRIO);
+      ret = file_mq_send(&dev->mq, (FAR const char *) &msg,
+                         sizeof(msg), CONFIG_CXD56_MSG_PRIO);
       if (ret != OK)
         {
-          auderr("ERROR: nxmq_send to request failed (%d)\n", ret);
+          auderr("ERROR: file_mq_send to request failed (%d)\n", ret);
         }
     }
 }
@@ -3031,11 +3017,11 @@ static int cxd56_stop(FAR struct audio_lowerhalf_s *lower)
 
   msg.msg_id = AUDIO_MSG_STOP;
   msg.u.data = 0;
-  ret = nxmq_send(priv->mq, (FAR const char *)&msg,
-                  sizeof(msg), CONFIG_CXD56_MSG_PRIO);
+  ret = file_mq_send(&priv->mq, (FAR const char *)&msg,
+                     sizeof(msg), CONFIG_CXD56_MSG_PRIO);
   if (ret != OK)
     {
-      auderr("ERROR: nxmq_send stop message failed (%d)\n", ret);
+      auderr("ERROR: file_mq_send stop message failed (%d)\n", ret);
       return ret;
     }
 
@@ -3392,13 +3378,13 @@ static int cxd56_start_dma(FAR struct cxd56_dev_s *dev)
               msg.u.data = 0;
 
               spin_unlock_irqrestore(flags);
-              ret = nxmq_send(dev->mq, (FAR const char *)&msg,
-                              sizeof(msg), CONFIG_CXD56_MSG_PRIO);
+              ret = file_mq_send(&dev->mq, (FAR const char *)&msg,
+                                 sizeof(msg), CONFIG_CXD56_MSG_PRIO);
               flags = spin_lock_irqsave();
 
               if (ret != OK)
                 {
-                  auderr("ERROR: nxmq_send for stop failed (%d)\n", ret);
+                  auderr("ERROR: file_mq_send for stop failed (%d)\n", ret);
                   goto exit;
                 }
             }
@@ -3443,16 +3429,16 @@ static int cxd56_enqueuebuffer(FAR struct audio_lowerhalf_s *lower,
 
       spin_unlock_irqrestore(flags);
 
-      if (priv->mq != NULL)
+      if (priv->mq.f_inode != NULL)
         {
           msg.msg_id = AUDIO_MSG_ENQUEUE;
           msg.u.data = 0;
 
-          ret = nxmq_send(priv->mq, (FAR const char *) &msg,
-                          sizeof(msg), CONFIG_CXD56_MSG_PRIO);
+          ret = file_mq_send(&priv->mq, (FAR const char *) &msg,
+                             sizeof(msg), CONFIG_CXD56_MSG_PRIO);
           if (ret != OK)
             {
-              auderr("ERROR: nxmq_send to enqueue failed (%d)\n", ret);
+              auderr("ERROR: file_mq_send to enqueue failed (%d)\n", ret);
               return ret;
             }
         }
@@ -3554,7 +3540,8 @@ static void *cxd56_workerthread(pthread_addr_t pvarg)
 
   while (priv->running)
     {
-      size = nxmq_receive(priv->mq, (FAR char *)&msg, sizeof(msg), &prio);
+      size = file_mq_receive(&priv->mq, (FAR char *)&msg,
+                             sizeof(msg), &prio);
 
       /* Handle the case when we return with no message */
 
@@ -3631,9 +3618,8 @@ static void *cxd56_workerthread(pthread_addr_t pvarg)
         }
     }
 
-  mq_close(priv->mq);
-  mq_unlink(priv->mqname);
-  priv->mq = NULL;
+  file_mq_close(&priv->mq);
+  file_mq_unlink(priv->mqname);
 
   /* Send AUDIO_MSG_COMPLETE to the client */
 
@@ -3665,11 +3651,12 @@ static int cxd56_init_worker(FAR struct audio_lowerhalf_s *dev)
   m_attr.mq_curmsgs = 0;
   m_attr.mq_flags   = 0;
 
-  priv->mq = mq_open(priv->mqname, O_RDWR | O_CREAT, 0644, &m_attr);
-  if (priv->mq == NULL)
+  ret = file_mq_open(&priv->mq, priv->mqname,
+                     O_RDWR | O_CREAT, 0644, &m_attr);
+  if (ret < 0)
     {
       auderr("ERROR: Could not allocate message queue.\n");
-      return -ENOMEM;
+      return ret;
     }
 
   /* Join any old worker thread we had created to prevent a memory leak */

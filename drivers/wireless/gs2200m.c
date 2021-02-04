@@ -1,35 +1,20 @@
 /****************************************************************************
  * drivers/wireless/gs2200m.c
  *
- *   Copyright 2019 Sony Home Entertainment & Sound Products Inc.
- *   Author: Masayuki Ishikawa <Masayuki.Ishikawa@jp.sony.com>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ****************************************************************************/
 
@@ -843,19 +828,17 @@ static void _write_data(FAR struct gs2200m_dev_s *dev,
 
 /****************************************************************************
  * Name: _read_data
- * NOTE: See 3.2.2.1 SPI Byte Stuffing for the idle character
+ * NOTE: See 3.2.2.2 SPI Command Response (SPI-DMA)
  ****************************************************************************/
 
 static void _read_data(FAR struct gs2200m_dev_s *dev,
                        FAR uint8_t  *buff,
                        FAR uint16_t len)
 {
-  uint8_t req = 0xf5; /* idle character */
-
   memset(buff, 0, len);
 
   SPI_SELECT(dev->spi, SPIDEV_WIRELESS(0), true);
-  SPI_EXCHANGE(dev->spi, &req, buff, len);
+  SPI_RECVBLOCK(dev->spi, buff, len);
   SPI_SELECT(dev->spi, SPIDEV_WIRELESS(0), false);
 }
 
@@ -880,18 +863,18 @@ retry:
 
   _write_data(dev, hdr, sizeof(hdr));
 
+  /* NOTE: busy wait 30us
+   * workaround to avoid an invalid frame response
+   */
+
+  up_udelay(30);
+
   /* Wait for data ready */
 
   while (!dev->lower->dready(NULL))
     {
       /* TODO: timeout */
     }
-
-  /* NOTE: busy wait 50us
-   * workaround to avoid an invalid frame response
-   */
-
-  up_udelay(50);
 
   /* Read frame response */
 
@@ -986,11 +969,12 @@ retry:
 
   _read_data(dev, res, sizeof(res));
 
-  /* In case of NOK, retry */
+  /* In case of NOK or 0x0, retry */
 
-  if (WR_RESP_NOK == res[1])
+  if (WR_RESP_NOK == res[1] || 0x0 == res[1])
     {
-      wlwarn("*** warning: WR_RESP_NOK received.. retrying. (n=%d) \n", n);
+      wlwarn("*** warning: 0x%x received.. retrying. (n=%d) \n",
+             res[1], n);
       nxsig_usleep(10 * 1000);
 
       if (WR_MAX_RETRY < n)
@@ -1910,8 +1894,8 @@ gs2200m_create_clnt(FAR struct gs2200m_dev_s *dev,
 
   if (r != TYPE_OK || pkt_dat.n == 0)
     {
-      wlinfo("+++ error: r=%d pkt_dat.msg[0]=%s \n",
-             r, pkt_dat.msg[0]);
+      wlerr("+++ error: r=%d pkt_dat.msg[0]=%s \n",
+            r, pkt_dat.msg[0]);
       goto errout;
     }
 
@@ -2180,8 +2164,8 @@ static enum pkt_type_e gs2200m_get_cstatus(FAR struct gs2200m_dev_s *dev,
 
   if (r != TYPE_OK || pkt_dat.n <= 2)
     {
-      wlinfo("+++ error: r=%d pkt_dat.msg[0]=%s \n",
-             r, pkt_dat.msg[0]);
+      wlerr("+++ error: r=%d pkt_dat.msg[0]=%s \n",
+            r, pkt_dat.msg[0]);
 
       goto errout;
     }
@@ -2752,8 +2736,8 @@ static int gs2200m_ioctl_iwreq(FAR struct gs2200m_dev_s *dev,
 
   if (r != TYPE_OK || pkt_dat.n <= 7)
     {
-      wlinfo("+++ error: r=%d pkt_dat.msg[0]=%s \n",
-             r, pkt_dat.msg[0]);
+      wlerr("+++ error: r=%d pkt_dat.msg[0]=%s \n",
+            r, pkt_dat.msg[0]);
 
       goto errout;
     }
@@ -2764,7 +2748,7 @@ static int gs2200m_ioctl_iwreq(FAR struct gs2200m_dev_s *dev,
     {
       if (strstr(pkt_dat.msg[2], "BSSID=") == NULL)
         {
-          wlinfo("+++ error: pkt_dat.msg[2]=%s \n", pkt_dat.msg[2]);
+          wlerr("+++ error: pkt_dat.msg[2]=%s \n", pkt_dat.msg[2]);
           goto errout;
         }
 
@@ -2783,7 +2767,7 @@ static int gs2200m_ioctl_iwreq(FAR struct gs2200m_dev_s *dev,
     {
       if (strstr(pkt_dat.msg[2], "CHANNEL=") == NULL)
         {
-          wlinfo("+++ error: pkt_dat.msg[2]=%s \n", pkt_dat.msg[2]);
+          wlerr("+++ error: pkt_dat.msg[2]=%s \n", pkt_dat.msg[2]);
           goto errout;
         }
 
@@ -2796,7 +2780,7 @@ static int gs2200m_ioctl_iwreq(FAR struct gs2200m_dev_s *dev,
     {
       if (strstr(pkt_dat.msg[3], "RSSI=") == NULL)
         {
-          wlinfo("+++ error: pkt_dat.msg[3]=%s \n", pkt_dat.msg[3]);
+          wlerr("+++ error: pkt_dat.msg[3]=%s \n", pkt_dat.msg[3]);
           goto errout;
         }
 
@@ -3210,8 +3194,8 @@ repeat:
     {
       /* An error event? */
 
-      wlinfo("=== ignore (type=%d msg[0]=%s|) \n",
-             pkt_dat->type, pkt_dat->msg[0]);
+      wlerr("=== ignore (type=%d msg[0]=%s|) \n",
+            pkt_dat->type, pkt_dat->msg[0]);
 
       ignored = true;
       goto errout;

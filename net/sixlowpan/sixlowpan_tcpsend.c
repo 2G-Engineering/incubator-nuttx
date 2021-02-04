@@ -263,6 +263,10 @@ static int sixlowpan_tcp_header(FAR struct tcp_conn_s *conn,
 
       ipv6tcp->tcp.wnd[0] = recvwndo >> 8;
       ipv6tcp->tcp.wnd[1] = recvwndo & 0xff;
+
+      /* Update the Receiver Window */
+
+      conn->rcv_wnd = recvwndo;
     }
 
   /* Calculate TCP checksum. */
@@ -446,14 +450,14 @@ static uint16_t tcp_send_eventhandler(FAR struct net_driver_s *dev,
           sndlen = conn->mss;
         }
 
-      winleft = conn->winsize - sinfo->s_sent + sinfo->s_acked;
+      winleft = conn->snd_wnd - sinfo->s_sent + sinfo->s_acked;
       if (sndlen > winleft)
         {
           sndlen = winleft;
         }
 
-      ninfo("s_buflen=%zu s_sent=%zu mss=%u winsize=%u sndlen=%d\n",
-            sinfo->s_buflen, sinfo->s_sent, conn->mss, conn->winsize,
+      ninfo("s_buflen=%zu s_sent=%zu mss=%u snd_wnd=%u sndlen=%d\n",
+            sinfo->s_buflen, sinfo->s_sent, conn->mss, conn->snd_wnd,
             sndlen);
 
       if (sndlen > 0)

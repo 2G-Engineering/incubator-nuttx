@@ -18,6 +18,7 @@ config ARCH_CHIP_ESP32
 	select ARCH_HAVE_SDRAM
 	select ARCH_HAVE_RESET
 	select ARCH_TOOLCHAIN_GNU
+	select ARCH_VECNOTIRQ
 	select LIBC_ARCH_MEMCPY
 	select LIBC_ARCH_MEMCHR
 	select LIBC_ARCH_MEMCMP
@@ -108,6 +109,13 @@ config XTENSA_BTDEPTH
 	---help---
 		This is the depth of the backtrace.
 
+config XTENSA_INTBACKTRACE
+	bool "Full backtrace from interrupts"
+	default n
+	depends on XTENSA_DUMPBT_ON_ASSERT
+	---help---
+		Add necessary logic to be able to have a full backtrace from an interrupt context.
+
 config XTENSA_USE_SEPARATE_IMEM
 	bool "Use a separate heap for internal memory"
 	default n
@@ -123,8 +131,7 @@ config XTENSA_USE_SEPARATE_IMEM
 config XTENSA_IMEM_REGION_SIZE
 	hex "DRAM region size for internal use"
 	depends on XTENSA_USE_SEPARATE_IMEM
-	range 0x2000 0x28000
-	default 0x28000
+	default 0x18000
 
 config XTENSA_IMEM_PROCFS
 	bool "Internal memory PROCFS support"

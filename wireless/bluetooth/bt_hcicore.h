@@ -50,7 +50,7 @@
 #include <nuttx/config.h>
 
 #include <stdbool.h>
-#include <mqueue.h>
+#include <nuttx/mqueue.h>
 
 #include <nuttx/semaphore.h>
 #include <nuttx/wireless/bluetooth/bt_driver.h>
@@ -118,11 +118,11 @@ struct bt_dev_s
 
   /* Queue for incoming HCI events and ACL data */
 
-  mqd_t rx_queue;
+  struct file rx_queue;
 
   /* Queue for outgoing HCI commands */
 
-  mqd_t tx_queue;
+  struct file tx_queue;
 
   /* Registered HCI driver */
 
@@ -301,6 +301,25 @@ int bt_driver_register(FAR const struct bt_driver_s *btdev);
  ****************************************************************************/
 
 void bt_driver_unregister(FAR const struct bt_driver_s *btdev);
+
+/****************************************************************************
+ * Name: bt_send
+ *
+ * Description:
+ *   Add the provided buffer 'buf' to the head selected buffer list 'list'
+ *
+ * Input Parameters:
+ *   btdev - An instance of the low-level drivers interface structure.
+ *   buf   - The buffer to be sent by the driver
+ *
+ * Returned Value:
+ *   Zero is returned on success; a negated errno value is returned on any
+ *   failure.
+ *
+ ****************************************************************************/
+
+int bt_send(FAR const struct bt_driver_s *btdev,
+            FAR struct bt_buf_s *buf);
 
 #ifdef CONFIG_WIRELESS_BLUETOOTH_HOST
 /****************************************************************************
