@@ -192,7 +192,9 @@ struct tcp_conn_s
   uint16_t rport;         /* The remoteTCP port, in network byte order */
   uint16_t mss;           /* Current maximum segment size for the
                            * connection */
-  uint16_t winsize;       /* Current window size of the connection */
+  uint16_t snd_wnd;       /* Sequence and acknowledgement numbers of last
+                           * window update */
+  uint16_t rcv_wnd;       /* Receiver window available */
 #ifdef CONFIG_NET_TCP_WRITE_BUFFERS
   uint32_t tx_unacked;    /* Number bytes sent but not yet ACKed */
 #else
@@ -270,6 +272,12 @@ struct tcp_conn_s
    */
 
   FAR struct devif_callback_s *connevents;
+
+  /* Receiver callback to indicate that the data has been consumed and that
+   * an ACK should be send.
+   */
+
+  FAR struct devif_callback_s *rcv_ackcb;
 
   /* accept() is called when the TCP logic has created a connection
    *
@@ -1353,7 +1361,6 @@ ssize_t psock_tcp_recvfrom(FAR struct socket *psock, FAR void *buf,
  *
  ****************************************************************************/
 
-struct socket;
 ssize_t psock_tcp_send(FAR struct socket *psock, FAR const void *buf,
                        size_t len, int flags);
 
@@ -1400,7 +1407,7 @@ int tcp_setsockopt(FAR struct socket *psock, int option,
  *   The 'level' argument specifies the protocol level of the option. To
  *   retrieve options at the socket level, specify the level argument as
  *   SOL_SOCKET; to retrieve options at the TCP-protocol level, the level
- *   argument is SOL_CP.
+ *   argument is SOL_TCP.
  *
  *   See <sys/socket.h> a complete list of values for the socket-level
  *   'option' argument.  Protocol-specific options are are protocol specific

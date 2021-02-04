@@ -201,7 +201,6 @@
 #define TIMER_CLK_FREQ                          (80000000 >> 4) /* 80MHz divided by 16 */
 #define SPI_CLK_DIV                             4
 #define TICKS_PER_US_ROM                        26              /* CPU is 80MHz */
-#define TB_CLK_FREQ                             APB_CLK_FREQ
 
 #define DR_REG_DPORT_BASE                       0x3ff00000
 #define DR_REG_UART_BASE                        0x3ff40000
@@ -216,6 +215,7 @@
 #define DR_REG_RTCIO_BASE                       0x3ff48400
 #define DR_REG_SARADC_BASE                      0x3ff48800
 #define DR_REG_IO_MUX_BASE                      0x3ff49000
+#define DR_REG_EFUSE_BASE                       0x3ff5a000
 #define DR_REG_RTCMEM0_BASE                     0x3ff61000
 #define DR_REG_RTCMEM1_BASE                     0x3ff62000
 #define DR_REG_RTCMEM2_BASE                     0x3ff63000
@@ -785,6 +785,9 @@ extern int rom_i2c_writeReg(int block, int block_id, int reg_add,
 
 #define DROM0_PAGES_START           0
 #define DROM0_PAGES_END             64
+
+#define IROM0_PAGES_START           64
+#define IROM0_PAGES_END             256
 
 /* MMU invaild value */
 

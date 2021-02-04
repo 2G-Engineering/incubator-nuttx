@@ -81,12 +81,18 @@ static int nxtask_assign_pid(FAR struct tcb_s *tcb)
   pid_t next_pid;
   int   hash_ndx;
   int   tries;
+  int   ret = ERROR;
 
-  /* Disable pre-emption.  This should provide sufficient protection
-   * for the following operation.
+  /* NOTE:
+   * ERROR means that the g_pidhash[] table is completely full.
+   * We cannot allow another task to be started.
    */
 
-  sched_lock();
+  /* Protect the following operation with a critical section
+   * because g_pidhash is accessed from an interrupt context
+   */
+
+  irqstate_t flags = enter_critical_section();
 
   /* We'll try every allowable pid */
 
@@ -121,17 +127,15 @@ static int nxtask_assign_pid(FAR struct tcb_s *tcb)
 #endif
           tcb->pid = next_pid;
 
-          sched_unlock();
-          return OK;
+          ret = OK;
+          goto out;
         }
     }
 
-  /* If we get here, then the g_pidhash[] table is completely full.
-   * We cannot allow another task to be started.
-   */
+out:
 
-  sched_unlock();
-  return ERROR;
+  leave_critical_section(flags);
+  return ret;
 }
 
 /****************************************************************************
@@ -367,6 +371,16 @@ static int nxthread_setup_scheduler(FAR struct tcb_s *tcb, int priority,
       ttype              &= TCB_FLAG_TTYPE_MASK;
       tcb->flags         &= ~TCB_FLAG_TTYPE_MASK;
       tcb->flags         |= ttype;
+
+      /* Set the appropriate scheduling policy in the TCB */
+
+      tcb->flags         &= ~TCB_FLAG_POLICY_MASK;
+#if CONFIG_RR_INTERVAL > 0
+      tcb->flags         |= TCB_FLAG_SCHED_RR;
+      tcb->timeslice      = MSEC2TICK(CONFIG_RR_INTERVAL);
+#else
+      tcb->flags         |= TCB_FLAG_SCHED_FIFO;
+#endif
 
 #ifdef CONFIG_CANCELLATION_POINTS
       /* Set the deferred cancellation type */

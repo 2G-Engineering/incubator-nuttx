@@ -61,8 +61,6 @@
 
 #  define LED_DRIVER_PATH "/dev/userleds"
 
-#  define BMP280_DRIVER_PATH "/dev/press0"
-
 /* LPSPI3 CS:  GPIO_AD_B1_12 */
 
 #  define IOMUX_LPSPI3_CS (IOMUX_SLEW_FAST | IOMUX_DRIVE_50OHM | \
@@ -78,6 +76,14 @@
                               _IOMUX_PULL_ENABLE)
 #  define GPIO_LPSPI4_CS       (GPIO_OUTPUT | GPIO_OUTPUT_ONE | \
                               GPIO_PORT2 | GPIO_PIN0 | IOMUX_LPSPI4_CS)
+
+/* LCD dispay */
+
+#  define GPIO_LCD_RST        (GPIO_OUTPUT | GPIO_OUTPUT_ONE | \
+                              GPIO_PORT2 | GPIO_PIN18 | IOMUX_LPSPI4_CS)    /* B1_02 */
+
+#  define GPIO_LCD_CD         (GPIO_OUTPUT | GPIO_OUTPUT_ONE | \
+                              GPIO_PORT2 | GPIO_PIN19 | IOMUX_LPSPI4_CS)    /* B1_03 */
 
 /* USB OTG ID Pin： GPIO_AD_B1_02 */
 

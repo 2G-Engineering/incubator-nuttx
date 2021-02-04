@@ -100,6 +100,11 @@ static inline void nrf52_gpio_input(unsigned int port, unsigned int pin)
   /* Configure the pin as an input */
 
   putreg32(1U << pin, offset);
+
+  /* Enable input buffer */
+
+  offset = nrf52_gpio_regget(port, NRF52_GPIO_PIN_CNF_OFFSET(pin));
+  modifyreg32(offset, GPIO_CNF_INPUT, 0);
 }
 
 /****************************************************************************
@@ -114,6 +119,11 @@ static inline void nrf52_gpio_output(nrf52_pinset_t cfgset,
                                      unsigned int port, unsigned int pin)
 {
   uint32_t offset;
+
+  /* Disable input buffer */
+
+  offset = nrf52_gpio_regget(port, NRF52_GPIO_PIN_CNF_OFFSET(pin));
+  modifyreg32(offset, 0, GPIO_CNF_INPUT);
 
   offset = nrf52_gpio_regget(port, NRF52_GPIO_DIRSET_OFFSET);
 
@@ -193,6 +203,59 @@ static inline void nrf52_gpio_sense(nrf52_pinset_t cfgset,
 }
 
 /****************************************************************************
+ * Name: nrf52_gpio_drive
+ *
+ * Description:
+ *   Set DRIVE configuration for a pin
+ *
+ ****************************************************************************/
+
+static inline void nrf52_gpio_drive(nrf52_pinset_t cfgset,
+                                    unsigned int port, unsigned int pin)
+{
+  uint32_t drive;
+  uint32_t regval;
+  uint32_t offset;
+
+  drive = cfgset & GPIO_DRIVE_MASK;
+
+  offset = nrf52_gpio_regget(port, NRF52_GPIO_PIN_CNF_OFFSET(pin));
+  regval = getreg32(offset);
+
+  regval &= ~GPIO_CNF_DRIVE_MASK;
+
+  switch (drive)
+    {
+      case GPIO_DRIVE_S0S1:
+        regval |= GPIO_CNF_DRIVE_S0S1;
+        break;
+      case GPIO_DRIVE_S0H1:
+        regval |= GPIO_CNF_DRIVE_S0H1;
+        break;
+      case GPIO_DRIVE_S0D1:
+        regval |= GPIO_CNF_DRIVE_S0D1;
+        break;
+      case GPIO_DRIVE_H0D1:
+        regval |= GPIO_CNF_DRIVE_H0D1;
+        break;
+      case GPIO_DRIVE_H0H1:
+        regval |= GPIO_CNF_DRIVE_H0H1;
+        break;
+      case GPIO_DRIVE_H0S1:
+        regval |= GPIO_CNF_DRIVE_H0S1;
+        break;
+      case GPIO_DRIVE_D0H1:
+        regval |= GPIO_CNF_DRIVE_D0H1;
+        break;
+      case GPIO_DRIVE_D0S1:
+        regval |= GPIO_CNF_DRIVE_D0S1;
+        break;
+    }
+
+  putreg32(regval, offset);
+}
+
+/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -206,12 +269,17 @@ static inline void nrf52_gpio_sense(nrf52_pinset_t cfgset,
 
 int nrf52_gpio_config(nrf52_pinset_t cfgset)
 {
-  unsigned int port;
+  unsigned int port = 0;
   unsigned int pin;
+  irqstate_t flags;
+  int ret = OK;
 
   /* Verify that this hardware supports the select GPIO port */
 
+#ifdef CONFIG_NRF52_HAVE_PORT1
   port = (cfgset & GPIO_PORT_MASK) >> GPIO_PORT_SHIFT;
+#endif
+
   if (port < NRF52_GPIO_NPORTS)
     {
       /* Get the pin number and select the port configuration register for
@@ -219,6 +287,8 @@ int nrf52_gpio_config(nrf52_pinset_t cfgset)
        */
 
       pin = GPIO_PIN_DECODE(cfgset);
+
+      flags = spin_lock_irqsave();
 
       /* First, configure the port as a generic input so that we have a
        * known starting point and consistent behavior during the re-
@@ -230,6 +300,12 @@ int nrf52_gpio_config(nrf52_pinset_t cfgset)
       /* Set the mode bits */
 
       nrf52_gpio_mode(cfgset, port, pin);
+
+      /* Set the drive bits (needed also for input pins
+       * for some peripherals).
+       */
+
+      nrf52_gpio_drive(cfgset, port, pin);
 
       /* Handle according to pin function */
 
@@ -244,11 +320,17 @@ int nrf52_gpio_config(nrf52_pinset_t cfgset)
           break;
 
         default:
-          return -EINVAL;
+          ret = -EINVAL;
         }
+
+      spin_unlock_irqrestore(flags);
+    }
+  else
+    {
+      ret = -EINVAL;
     }
 
-  return OK;
+  return ret;
 }
 
 /****************************************************************************
@@ -262,13 +344,15 @@ int nrf52_gpio_config(nrf52_pinset_t cfgset)
 int nrf52_gpio_unconfig(nrf52_pinset_t cfgset)
 {
   unsigned int pin;
-  unsigned int port;
+  unsigned int port = 0;
   uint32_t offset;
 
   /* Get port and pin number */
 
   pin  = GPIO_PIN_DECODE(cfgset);
+#ifdef CONFIG_NRF52_HAVE_PORT1
   port = GPIO_PORT_DECODE(cfgset);
+#endif
 
   /* Get address offset */
 
@@ -292,13 +376,15 @@ int nrf52_gpio_unconfig(nrf52_pinset_t cfgset)
 void nrf52_gpio_write(nrf52_pinset_t pinset, bool value)
 {
   unsigned int pin;
-  unsigned int port;
+  unsigned int port = 0;
   uint32_t offset;
 
   /* Get port and pin number */
 
   pin  = GPIO_PIN_DECODE(pinset);
+#ifdef CONFIG_NRF52_HAVE_PORT1
   port = GPIO_PORT_DECODE(pinset);
+#endif
 
   /* Get register address */
 

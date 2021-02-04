@@ -1,34 +1,20 @@
 /****************************************************************************
  * drivers/audio/cxd56_src.c
  *
- *   Copyright 2020 Sony Semiconductor Solutions Corporation
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ****************************************************************************/
 
@@ -91,7 +77,7 @@ struct cxd56_srcdata_s
   struct dq_queue_s *outq;
 
   char mqname[32];
-  mqd_t mq;
+  struct file mq;
   sem_t pendsem;
   pthread_t threadid;
 
@@ -369,7 +355,8 @@ static void *cxd56_src_thread(pthread_addr_t pvarg)
 
   while (g_src.state == CXD56_SRC_RUNNING)
     {
-      size = nxmq_receive(g_src.mq, (FAR char *)&msg, sizeof(msg), &prio);
+      size = file_mq_receive(&g_src.mq, (FAR char *)&msg,
+                             sizeof(msg), &prio);
 
       /* Handle the case when we return with no message */
 
@@ -450,11 +437,12 @@ int cxd56_src_init(FAR struct cxd56_dev_s *dev,
   m_attr.mq_curmsgs = 0;
   m_attr.mq_flags   = 0;
 
-  g_src.mq = mq_open(g_src.mqname, O_RDWR | O_CREAT, 0644, &m_attr);
-  if (g_src.mq == NULL)
+  ret = file_mq_open(&g_src.mq, g_src.mqname,
+                     O_RDWR | O_CREAT, 0644, &m_attr);
+  if (ret < 0)
     {
       auderr("ERROR: Could not allocate SRC message queue.\n");
-      return -ENOMEM;
+      return ret;
     }
 
 #ifdef DUMP_DATA
@@ -562,8 +550,8 @@ int cxd56_src_enqueue(FAR struct ap_buffer_s *apb)
 
   msg.msg_id = AUDIO_MSG_ENQUEUE;
   msg.u.ptr = apb;
-  ret = nxmq_send(g_src.mq, (FAR const char *)&msg,
-                  sizeof(msg), CONFIG_CXD56_MSG_PRIO);
+  ret = file_mq_send(&g_src.mq, (FAR const char *)&msg,
+                     sizeof(msg), CONFIG_CXD56_MSG_PRIO);
   if (ret != OK)
     {
       auderr("ERROR: SRC APB enqueue failed (%d)\n", ret);
@@ -589,8 +577,8 @@ int cxd56_src_stop(void)
 
   msg.msg_id = AUDIO_MSG_STOP;
   msg.u.data = 0;
-  ret = nxmq_send(g_src.mq, (FAR const char *)&msg,
-                  sizeof(msg), CONFIG_CXD56_MSG_PRIO);
+  ret = file_mq_send(&g_src.mq, (FAR const char *)&msg,
+                     sizeof(msg), CONFIG_CXD56_MSG_PRIO);
   if (ret != OK)
     {
       auderr("ERROR: SRC stop failed (%d)\n", ret);

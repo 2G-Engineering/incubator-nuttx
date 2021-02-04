@@ -47,7 +47,7 @@ config ESP32_TIMER
 	bool
 	default n
 
-config ESP32_WTD
+config ESP32_WDT
 	bool
 	default n
 
@@ -57,6 +57,12 @@ config ESP32_BT
 	depends on EXPERIMENTAL
 	---help---
 		No yet implemented
+
+config ESP32_EFUSE
+	bool "EFUSE support"
+	default n
+	---help---
+		Enable ESP32 efuse support.
 
 config ESP32_EMAC
 	bool "Ethernet MAC"
@@ -107,7 +113,6 @@ config ESP32_RMT
 config ESP32_RNG
 	bool "Random Number Generator (RNG)"
 	default n
-	depends on EXPERIMENTAL
 	select ARCH_HAVE_RNG
 	---help---
 		ESP32 supports a RNG that passed on Dieharder test suite.
@@ -211,7 +216,7 @@ config ESP32_TIMER3
 config ESP32_MWDT0
 	bool "Main System Watchdog Timer (Group 0)"
 	default n
-	select ESP32_WTD
+	select ESP32_WDT
 	---help---
 		Includes MWDT0. This watchdog timer is part of the Group 0
 		timer submodule.
@@ -219,10 +224,21 @@ config ESP32_MWDT0
 config ESP32_MWDT1
 	bool "Main System Watchdog Timer (Group 1)"
 	default n
-	select ESP32_WTD
+	select ESP32_WDT
 	---help---
 		Includes MWDT1. This watchdog timer is part of the Group 0
 		timer submodule.
+
+config ESP32_RWDT
+	bool "RTC Watchdog Timer"
+	default n
+	select ESP32_WDT
+	---help---
+		Includes RWDT. This watchdog timer is from the RTC module.
+		When it is selected, if the developer sets it to reset on expiration
+		it will reset Main System and the RTC module. If you don't want
+		to have the RTC module reset, please, use the Timers' Module WDTs.
+		They will only reset Main System.
 
 config ESP32_UART0
 	bool "UART 0"
@@ -248,14 +264,13 @@ config ESP32_UART2
 config ESP32_WIRELESS
 	bool "Wireless"
 	default n
-	depends on EXPERIMENTAL
 	select NET
 	select ARCH_PHY_INTERRUPT
 	select ESP32_RNG
 	select ESP32_RT_TIMER
 	select ESP32_TIMER0
 	---help---
-		No yet implemented
+		Enable Wireless support
 
 config ESP32_I2C0
 	bool "I2C 0"
@@ -270,6 +285,10 @@ config ESP32_I2C1
 	select ESP32_I2C
 	select I2C
 	select I2C_DRIVER
+
+config ESP32_AES_ACCELERATOR
+	bool "AES Accelerator"
+	default n
 
 endmenu # ESP32 Peripheral Selection
 
@@ -571,7 +590,7 @@ config ESP32_SPIRAM_BOOT_INIT
 config ESP32_SPIRAM_IGNORE_NOTFOUND
 	bool "Ignore PSRAM when not found"
 	default "n"
-	depends on ESP_SPIRAM_BOOT_INIT && !BOOT_SDRAM_DATA
+	depends on ESP32_SPIRAM_BOOT_INIT && !BOOT_SDRAM_DATA
 	help
 	    Normally, if psram initialization is enabled during compile time
 	    but not found at runtime, it is seen as an error making the CPU
@@ -749,5 +768,14 @@ config ESP32_PARTITION_MOUNT
 	default "/dev/esp/partition/"
 
 endmenu # ESP32_PARTITION
+
+menu "AES accelerate"
+	depends on ESP32_AES_ACCELERATOR
+
+config ESP32_AES_ACCELERATOR_TEST
+	bool "AES driver test"
+	default n
+
+endmenu # ESP32_AES_ACCELERATOR
 
 endif # ARCH_CHIP_ESP32
