@@ -104,4 +104,13 @@ config WS2812_FREQUENCY
 	default 8000000
 	depends on WS2812
 
+config WS2812_EXCLUSIVE_BUS
+	bool "WS2812 device has exclusive use of the SPI bus"
+	default y
+	depends on WS2812
+	---help---
+		If disabled, the WS2812 device can share a SPI bus with other devices.
+		An external logic gate is required to disconnect the WS2812 from the
+		bus when it is inactive.
+
 endmenu # LED Support

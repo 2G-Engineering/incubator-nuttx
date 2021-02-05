@@ -108,6 +108,7 @@ struct ws2812_dev_s
 
 static inline void ws2812_configspi(FAR struct spi_dev_s *spi);
 static void ws2812_pack(FAR uint8_t *buf, uint32_t rgb);
+static void ws2812_writespi(FAR struct ws2812_dev_s * priv);
 
 /* Character driver methods */
 
@@ -151,11 +152,8 @@ static const struct file_operations g_ws2812fops =
 
 static inline void ws2812_configspi(FAR struct spi_dev_s *spi)
 {
-  /* Configure SPI for the WS2812
-   * There is no CS on this device we just use MOSI and it is exclusive
-   */
+  /* Configure SPI for the WS2812 */
 
-  SPI_LOCK(spi, true);  /* Exclusive use of the bus */
   SPI_SETMODE(spi, SPIDEV_MODE3);
   SPI_SETBITS(spi, 8);
   SPI_HWFEATURES(spi, 0);
@@ -204,6 +202,49 @@ static void ws2812_pack(FAR uint8_t *buf, uint32_t rgb)
           offset++;
         }
     }
+}
+
+/****************************************************************************
+ * Name: ws2812_writespi
+ *
+ * Description:
+ *   This function writes the buffered WS2812 data to the SPI device.
+ *
+ * Input Parameters:
+ *   priv - An instance of the WS2812 device structure.
+ *
+ ****************************************************************************/
+
+static void ws2812_writespi(FAR struct ws2812_dev_s * priv)
+{
+
+#ifndef CONFIG_WS2812_EXCLUSIVE_BUS
+
+  /* If SPI bus is shared then lock, configure, and select it */
+
+  SPI_LOCK(priv->spi, true);
+
+  ws2812_configspi(priv->spi);
+
+  /* Some SPI devices retain their last state after sending data.
+   * Ensure we start in a known state by sending a dummy byte first. */
+
+  SPI_SEND(priv->spi, 0);
+
+  SPI_SELECT(priv->spi, SPIDEV_DISPLAY(0), true);
+#endif
+
+  SPI_SNDBLOCK(priv->spi, priv->tx_buf, TXBUFF_SIZE(priv->nleds));
+
+#ifndef CONFIG_WS2812_EXCLUSIVE_BUS
+
+  /* Unlock bus and de-select */
+
+  SPI_LOCK(priv->spi, false);
+
+  SPI_SELECT(priv->spi, SPIDEV_DISPLAY(0), false);
+#endif
+
 }
 
 /****************************************************************************
@@ -306,7 +347,7 @@ static ssize_t ws2812_write(FAR struct file *filep, FAR const char *buffer,
       written += WS2812_RW_PIXEL_SIZE;
     }
 
-  SPI_SNDBLOCK(priv->spi, priv->tx_buf, TXBUFF_SIZE(priv->nleds));
+  ws2812_writespi(priv);
 
   /* Update LED position and handle case were we wrote the last LED */
 
@@ -461,11 +502,17 @@ int ws2812_leds_register(FAR const char *devpath, FAR struct spi_dev_s *spi,
     }
 
   priv->spi = spi;
+
+#ifdef CONFIG_WS2812_EXCLUSIVE_BUS
+  SPI_LOCK(spi, true);  /* Exclusive use of the bus */
   ws2812_configspi(priv->spi);
+#endif
 
   nxsem_init(&priv->exclsem, 0, 1);
 
-  SPI_SNDBLOCK(priv->spi, priv->tx_buf, TXBUFF_SIZE(priv->nleds));
+  /* Send initial LED states */
+
+  ws2812_writespi(priv);
 
   /* Register the character driver */
 
