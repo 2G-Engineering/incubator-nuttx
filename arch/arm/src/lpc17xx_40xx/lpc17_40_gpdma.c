@@ -546,6 +546,96 @@ int lpc17_40_dmasetup(DMA_HANDLE handle, uint32_t control, uint32_t config,
 }
 
 /****************************************************************************
+ * Name: lpc17_40_dmasetup_scattergather
+ *
+ * Description:
+ *   Configure DMA for multiple transfers.
+ *
+ ****************************************************************************/
+
+int lpc17_40_dmasetup_scattergather(DMA_HANDLE handle, uint32_t config,
+                                    struct lpc17_40_lli_s *lli, uint32_t nlli)
+{
+  struct lpc17_40_dmach_s *dmach = (DMA_HANDLE)handle;
+  uint32_t chbit;
+  uint32_t regval;
+  uint32_t base;
+
+  DEBUGASSERT(dmach && dmach->inuse && nlli > 0);
+
+  chbit = DMACH((uint32_t)dmach->chn);
+  base  = LPC17_40_DMACH_BASE((uint32_t)dmach->chn);
+
+  /* Put the channel in a known state.  Zero disables everything */
+
+  putreg32(0, base + LPC17_40_DMACH_CONTROL_OFFSET);
+  putreg32(0, base + LPC17_40_DMACH_CONFIG_OFFSET);
+
+  /* "Programming a DMA channel
+   *
+   * 1. "Choose a free DMA channel with the priority needed. DMA channel 0
+   *     has the highest priority and DMA channel 7 the lowest priority.
+   */
+
+  regval = getreg32(LPC17_40_DMA_ENBLDCHNS);
+  if ((regval & chbit) != 0)
+    {
+      /* There is an active DMA on this channel! */
+
+      return -EBUSY;
+    }
+
+  /* 2. "Clear any pending interrupts on the channel to be used by writing
+   *     to the DMACIntTCClear and DMACIntErrClear register. The previous
+   *     channel operation might have left interrupt active.
+   */
+
+  putreg32(chbit, LPC17_40_DMA_INTTCCLR);
+  putreg32(chbit, LPC17_40_DMA_INTERRCLR);
+
+  /* 3. "Write the source address into the DMACCxSrcAddr register. */
+
+  putreg32(lli->srcaddr, base + LPC17_40_DMACH_SRCADDR_OFFSET);
+
+  /* 4. "Write the destination address into the DMACCxDestAddr register. */
+
+  putreg32(lli->dstaddr, base + LPC17_40_DMACH_DESTADDR_OFFSET);
+
+  /* 5. "Write the address of the next LLI into the DMACCxLLI register. If
+   *     the transfer comprises of a single packet of data then 0 must be
+   *     written into this register.
+   */
+
+  putreg32(lli->nextlli, base + LPC17_40_DMACH_LLI_OFFSET);
+
+  /* 6. "Write the control information into the DMACCxControl register."
+   *
+   * The caller provides all CONTROL register fields.
+   */
+
+  regval  = lli->control;
+  putreg32(regval, base + LPC17_40_DMACH_CONTROL_OFFSET);
+
+  /* Save the number of transfers to perform for lpc17_40_dmastart */
+
+  dmach->nxfrs = (uint16_t)(lli->control & DMACH_CONTROL_XFRSIZE_MASK);
+
+  /* 7. "Write the channel configuration information into the DMACCxConfig
+   *     register. If the enable bit is set then the DMA channel is
+   *     automatically enabled."
+   *
+   * Only the SRCPER, DSTPER, and XFRTTYPE fields of the CONFIG register
+   * are provided by the caller.  Little endian is assumed.
+   */
+
+  regval = config & (DMACH_CONFIG_SRCPER_MASK | DMACH_CONFIG_DSTPER_MASK |
+                     DMACH_CONFIG_XFRTYPE_MASK);
+  putreg32(regval, base + LPC17_40_DMACH_CONFIG_OFFSET);
+
+  return OK;
+}
+
+/****************************************************************************
  * Name: lpc17_40_dmastart
  *
  * Description:
@@ -586,12 +676,22 @@ int lpc17_40_dmastart(DMA_HANDLE handle, dma_callback_t callback, void *arg)
    * when it is read.
    */
 
-  base    = LPC17_40_DMACH_BASE((uint32_t)dmach->chn);
-  regval  = getreg32(base + LPC17_40_DMACH_CONTROL_OFFSET);
-  regval &= ~DMACH_CONTROL_XFRSIZE_MASK;
-  regval |= (DMACH_CONTROL_I |
-             ((uint32_t)dmach->nxfrs << DMACH_CONTROL_XFRSIZE_SHIFT));
-  putreg32(regval, base + LPC17_40_DMACH_CONTROL_OFFSET);
+  base = LPC17_40_DMACH_BASE((uint32_t)dmach->chn);
+
+  /* Only enable the terminal count interrupt if there are
+   * no additional linked list entries.
+   */
+
+  regval  = getreg32(base + LPC17_40_DMACH_LLI_OFFSET);
+
+  if (regval == 0)
+    {
+      regval  = getreg32(base + LPC17_40_DMACH_CONTROL_OFFSET);
+      regval &= ~DMACH_CONTROL_XFRSIZE_MASK;
+      regval |= (DMACH_CONTROL_I |
+                 ((uint32_t)dmach->nxfrs << DMACH_CONTROL_XFRSIZE_SHIFT));
+      putreg32(regval, base + LPC17_40_DMACH_CONTROL_OFFSET);
+    }
 
   /* Enable the channel and unmask terminal count and error interrupts.
    * According to the user manual, zero masks and one unmasks (hence,
@@ -629,8 +729,8 @@ void lpc17_40_dmastop(DMA_HANDLE handle)
   DEBUGASSERT(dmach && dmach->inuse);
 
   /* Disable this channel and mask any further interrupts from the channel.
-   * this channel.  The channel is disabled by clearning the channel
-   * enable bit. Any outstanding data in the FIFO’s is lost.
+   * this channel.  The channel is disabled by clearing the channel
+   * enable bit. Any outstanding data in the FIFOs is lost.
    */
 
   regaddr = LPC17_40_DMACH_CONFIG((uint32_t)dmach->chn);
@@ -650,6 +750,39 @@ void lpc17_40_dmastop(DMA_HANDLE handle)
 }
 
 /****************************************************************************
+ * Name: lpc17_40_configlli
+ *
+ * Description:
+ *   Set up a Linked List Item (LLI) structure for use with a scatter-gather
+ *   DMA transfer.
+ *
+ *   This function must be called by the user on one or more lpc17_40_lli_s
+ *   structures to populate them before calling
+ *   lpc17_40_dmasetup_scattergather.
+ *
+ ****************************************************************************/
+
+void lpc17_40_configlli(struct lpc17_40_lli_s *lli, void *srcaddr,
+                        void *dstaddr, struct lpc17_40_lli_s *nextlli,
+                        uint32_t control, uint32_t nwords)
+{
+  DEBUGASSERT(lli);
+
+  lli->srcaddr = (uint32_t)srcaddr;
+  lli->dstaddr = (uint32_t)dstaddr;
+  lli->nextlli = (uint32_t)nextlli;
+  lli->control = control | (nwords & DMACH_CONTROL_XFRSIZE_MASK);
+
+  /* Only enable terminal count interrupt if this is the last item */
+
+  if (nextlli == 0) {
+      lli->control |= DMACH_CONTROL_I;
+  }
+
+}
+
+
+/****************************************************************************
  * Name: lpc17_40_dmasample
  *
  * Description:
@@ -657,7 +790,7 @@ void lpc17_40_dmastop(DMA_HANDLE handle)
  *
  ****************************************************************************/
 
-#ifdef CONFIG__DEBUG_DMA_INFO
+#ifdef CONFIG_DEBUG_DMA_INFO
 void lpc17_40_dmasample(DMA_HANDLE handle, struct lpc17_40_dmaregs_s *regs)
 {
   struct lpc17_40_dmach_s *dmach = (DMA_HANDLE)handle;
@@ -699,7 +832,7 @@ void lpc17_40_dmasample(DMA_HANDLE handle, struct lpc17_40_dmaregs_s *regs)
  *
  ****************************************************************************/
 
-#ifdef CONFIG__DEBUG_DMA_INFO
+#ifdef CONFIG_DEBUG_DMA_INFO
 void lpc17_40_dmadump(DMA_HANDLE handle,
                       const struct lpc17_40_dmaregs_s *regs,
                       const char *msg)

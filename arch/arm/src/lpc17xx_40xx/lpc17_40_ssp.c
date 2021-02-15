@@ -59,6 +59,7 @@
 #include "hardware/lpc17_40_syscon.h"
 #include "lpc17_40_gpio.h"
 #include "lpc17_40_ssp.h"
+#include "lpc17_40_gpdma.h"
 
 #if defined(CONFIG_LPC17_40_SSP0) || defined(CONFIG_LPC17_40_SSP1) || \
     defined(CONFIG_LPC17_40_SSP2)
@@ -110,6 +111,18 @@
 
 #endif
 
+
+/* DMA configuration register settings.  Only the SRCPER, DSTPER, and
+ * XFRTTYPE fields of the CONFIG register need be specified.
+ */
+
+#define SSP0_RXDMA_CONFIG     (DMACH_CONFIG_SRCPER_SSP0RX | DMACH_CONFIG_XFRTYPE_P2M)
+#define SSP0_TXDMA_CONFIG     (DMACH_CONFIG_DSTPER_SSP0TX | DMACH_CONFIG_XFRTYPE_M2P)
+#define SSP1_RXDMA_CONFIG     (DMACH_CONFIG_SRCPER_SSP1RX | DMACH_CONFIG_XFRTYPE_P2M)
+#define SSP1_TXDMA_CONFIG     (DMACH_CONFIG_DSTPER_SSP1TX | DMACH_CONFIG_XFRTYPE_M2P)
+#define SSP2_RXDMA_CONFIG     (DMACH_CONFIG_SRCPER_SSP2RX | DMACH_CONFIG_XFRTYPE_P2M)
+#define SSP2_TXDMA_CONFIG     (DMACH_CONFIG_DSTPER_SSP2TX | DMACH_CONFIG_XFRTYPE_M2P)
+
 /****************************************************************************
  * Private Types
  ****************************************************************************/
@@ -128,6 +141,16 @@ struct lpc17_40_sspdev_s
   uint32_t         actual;     /* Actual clock frequency */
   uint8_t          nbits;      /* Width of word in bits (4 to 16) */
   uint8_t          mode;       /* Mode 0,1,2,3 */
+#ifdef CONFIG_LPC17_40_SSP_DMA
+  volatile int     txresult;   /* Result of DMA TX */
+  volatile int     rxresult;   /* Result of DMA RX */
+  uint32_t         dmaconfigtx;/* DMA TX configuration */
+  uint32_t         dmaconfigrx;/* DMA RX configuration */
+  DMA_HANDLE       txdma;      /* Handle for DMA Transmit channel */
+  DMA_HANDLE       rxdma;      /* Handle for DMA Receive channel */
+  sem_t            txsem;      /* Wait for TX DMA to complete */
+  sem_t            rxsem;      /* Wait for RX DMA to complete */
+#endif
 };
 
 /****************************************************************************
@@ -141,6 +164,20 @@ static inline uint32_t ssp_getreg(FAR struct lpc17_40_sspdev_s *priv,
 static inline void ssp_putreg(FAR struct lpc17_40_sspdev_s *priv,
                               uint8_t offset, uint32_t value);
 
+#ifdef CONFIG_LPC17_40_SSP_DMA
+static int         ssp_dmarxwait(FAR struct lpc17_40_sspdev_s *priv);
+static int         ssp_dmatxwait(FAR struct lpc17_40_sspdev_s *priv);
+static inline void ssp_dmarxwakeup(FAR struct lpc17_40_sspdev_s *priv);
+static inline void ssp_dmatxwakeup(FAR struct lpc17_40_sspdev_s *priv);
+static void        ssp_dmarxcallback(DMA_HANDLE handle, void *arg, int status);
+static void        ssp_dmatxcallback(DMA_HANDLE handle, void *arg, int status);
+#ifdef CONFIG_DEBUG_DMA_INFO
+static void        ssp_dmadump(DMA_HANDLE handle, const char * msg);
+#else
+#define            ssp_dmadump(handle, msg);
+#endif
+#endif
+
 /* SPI methods */
 
 static int      ssp_lock(FAR struct spi_dev_s *dev, bool lock);
@@ -149,10 +186,20 @@ static uint32_t ssp_setfrequency(FAR struct spi_dev_s *dev,
 static void     ssp_setmode(FAR struct spi_dev_s *dev, enum spi_mode_e mode);
 static void     ssp_setbits(FAR struct spi_dev_s *dev, int nbits);
 static uint32_t ssp_send(FAR struct spi_dev_s *dev, uint32_t wd);
+
+#ifndef CONFIG_LPC17_40_SSP_DMA
 static void     ssp_sndblock(FAR struct spi_dev_s *dev,
                              FAR const void *buffer, size_t nwords);
 static void     ssp_recvblock(FAR struct spi_dev_s *dev, FAR void *buffer,
                               size_t nwords);
+#endif
+
+#ifdef CONFIG_LPC17_40_SSP_DMA
+static void     ssp_sndblockdma(FAR struct spi_dev_s *dev,
+                                FAR const void *buffer, size_t nwords);
+static void     ssp_recvblockdma(FAR struct spi_dev_s *dev,
+                                 FAR void *buffer, size_t nwords);
+#endif
 
 /* Initialization */
 
@@ -186,8 +233,13 @@ static const struct spi_ops_s g_spi0ops =
   .cmddata           = lpc17_40_ssp0cmddata,  /* Provided externally */
 #endif
   .send              = ssp_send,
+#ifdef CONFIG_LPC17_40_SSP_DMA
+  .sndblock          = ssp_sndblockdma,
+  .recvblock         = ssp_recvblockdma,
+#else
   .sndblock          = ssp_sndblock,
   .recvblock         = ssp_recvblock,
+#endif
 #ifdef CONFIG_SPI_CALLBACK
   .registercallback  = lpc17_40_ssp0register, /* Provided externally */
 #else
@@ -205,6 +257,10 @@ static struct lpc17_40_sspdev_s g_ssp0dev =
 #ifdef CONFIG_LPC17_40_SSP_INTERRUPTS
   .sspirq            = LPC17_40_IRQ_SSP0,
 #endif
+#ifdef CONFIG_LPC17_40_SSP_DMA
+  .dmaconfigtx       = SSP0_TXDMA_CONFIG,
+  .dmaconfigrx       = SSP0_RXDMA_CONFIG,
+#endif
 };
 #endif /* CONFIG_LPC17_40_SSP0 */
 
@@ -221,8 +277,13 @@ static const struct spi_ops_s g_spi1ops =
   .cmddata           = lpc17_40_ssp1cmddata,  /* Provided externally */
 #endif
   .send              = ssp_send,
+#ifdef CONFIG_LPC17_40_SSP_DMA
+  .sndblock          = ssp_sndblockdma,
+  .recvblock         = ssp_recvblockdma,
+#else
   .sndblock          = ssp_sndblock,
   .recvblock         = ssp_recvblock,
+#endif
 #ifdef CONFIG_SPI_CALLBACK
   .registercallback  = lpc17_40_ssp1register, /* Provided externally */
 #else
@@ -240,6 +301,10 @@ static struct lpc17_40_sspdev_s g_ssp1dev =
 #ifdef CONFIG_LPC17_40_SSP_INTERRUPTS
   .sspirq            = LPC17_40_IRQ_SSP1,
 #endif
+#ifdef CONFIG_LPC17_40_SSP_DMA
+  .dmaconfigtx       = SSP1_TXDMA_CONFIG,
+  .dmaconfigrx       = SSP1_RXDMA_CONFIG,
+#endif
 };
 #endif /* CONFIG_LPC17_40_SSP1 */
 
@@ -256,8 +321,13 @@ static const struct spi_ops_s g_spi2ops =
   .cmddata           = lpc17_40_ssp2cmddata,  /* Provided externally */
 #endif
   .send              = ssp_send,
+#ifdef CONFIG_LPC17_40_SSP_DMA
+  .sndblock          = ssp_sndblockdma,
+  .recvblock         = ssp_recvblockdma,
+#else
   .sndblock          = ssp_sndblock,
   .recvblock         = ssp_recvblock,
+#endif
 #ifdef CONFIG_SPI_CALLBACK
   .registercallback  = lpc17_40_ssp2register, /* Provided externally */
 #else
@@ -274,6 +344,10 @@ static struct lpc17_40_sspdev_s g_ssp2dev =
   .sspbase           = LPC17_40_SSP2_BASE,
 #ifdef CONFIG_LPC17_40_SSP_INTERRUPTS
   .sspirq            = LPC17_40_IRQ_SSP2,
+#endif
+#ifdef CONFIG_LPC17_40_SSP_DMA
+  .dmaconfigtx       = SSP2_TXDMA_CONFIG,
+  .dmaconfigrx       = SSP2_RXDMA_CONFIG,
 #endif
 };
 #endif /* CONFIG_LPC17_40_SSP2 */
@@ -599,6 +673,15 @@ static uint32_t ssp_send(FAR struct spi_dev_s *dev, uint32_t wd)
 
   while (!(ssp_getreg(priv, LPC17_40_SSP_SR_OFFSET) & SSP_SR_TNF));
 
+#ifdef CONFIG_LPC17_40_SSP_DMA
+  /* Flush out any bytes in receive buffer */
+
+  while (ssp_getreg(priv, LPC17_40_SSP_SR_OFFSET) & SSP_SR_RNE)
+    {
+      ssp_getreg(priv, LPC17_40_SSP_DR_OFFSET);
+    }
+#endif
+
   /* Write the byte to the TX FIFO */
 
   ssp_putreg(priv, LPC17_40_SSP_DR_OFFSET, wd);
@@ -626,14 +709,14 @@ static uint32_t ssp_send(FAR struct spi_dev_s *dev, uint32_t wd)
  *   nwords - the length of data to send from the buffer in number of words.
  *            The wordsize is determined by the number of bits-per-word
  *            selected for the SPI interface.  If nbits <= 8, the data is
- *            packed into uint8_t's; if nbits >8, the data is packed into
+ *            packed into uint8_t's; if nbits > 8, the data is packed into
  *            uint16_t's
  *
  * Returned Value:
  *   None
  *
  ****************************************************************************/
-
+#ifndef CONFIG_LPC17_40_SSP_DMA
 static void ssp_sndblock(FAR struct spi_dev_s *dev, FAR const void *buffer,
                          size_t nwords)
 {
@@ -706,6 +789,56 @@ static void ssp_sndblock(FAR struct spi_dev_s *dev, FAR const void *buffer,
     }
   while ((sr & SSP_SR_RNE) != 0 || (sr & SSP_SR_TFE) == 0);
 }
+#endif
+
+/****************************************************************************
+ * Name: ssp_sndblockdma
+ *
+ * Description:
+ *   Send a block of data on SPI using DMA
+ *
+ * Input Parameters:
+ *   dev -    Device-specific state data
+ *   buffer - A pointer to the buffer of data to be sent
+ *   nwords - the length of data to send from the buffer in number of words.
+ *            The wordsize is determined by the number of bits-per-word
+ *            selected for the SPI interface.  If nbits <= 8, the data is
+ *            packed into uint8_t's; if nbits > 8, the data is packed into
+ *            uint16_t's
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_LPC17_40_SSP_DMA
+static void ssp_sndblockdma(FAR struct spi_dev_s *dev, FAR const void *buffer,
+                            size_t nwords)
+{
+  FAR struct lpc17_40_sspdev_s *priv = (FAR struct lpc17_40_sspdev_s *)dev;
+  int ret;
+
+  uint32_t control = (DMACH_CONTROL_SBSIZE_1 | DMACH_CONTROL_DBSIZE_1 | \
+                      DMACH_CONTROL_SWIDTH_8BIT | DMACH_CONTROL_SI);
+  control |= (priv->nbits > 8) ? DMACH_CONTROL_DWIDTH_16BIT : \
+                                 DMACH_CONTROL_DWIDTH_8BIT;
+  ssp_dmadump(priv->txdma, "Before tx setup");
+  ret = lpc17_40_dmasetup(priv->txdma, control, priv->dmaconfigtx,
+                          (uint32_t)buffer,
+                          priv->sspbase + LPC17_40_SSP_DR_OFFSET, nwords);
+  ssp_dmadump(priv->txdma, "After tx setup");
+  if (ret == OK)
+    {
+      /* Start the DMA */
+      spiinfo("DMA snd start: %u words\n", nwords);
+      priv->txresult = 0;
+      lpc17_40_dmastart(priv->txdma, ssp_dmatxcallback, priv);
+      ssp_dmadump(priv->txdma, "After tx start");
+      ssp_dmatxwait(priv);
+      spiinfo("DMA snd done: %u\n", priv->txresult);
+    }
+}
+#endif
 
 /****************************************************************************
  * Name: ssp_recvblock
@@ -719,14 +852,14 @@ static void ssp_sndblock(FAR struct spi_dev_s *dev, FAR const void *buffer,
  *   nwords - the length of data that can be received in the buffer in number
  *            of words.  The wordsize is determined by the number of
  *            bits-per-word selected for the SPI interface.  If nbits <= 8,
- *            the data is packed into uint8_t's; if nbits >8, the data is
+ *            the data is packed into uint8_t's; if nbits > 8, the data is
  *            packed into uint16_t's
  *
  * Returned Value:
  *   None
  *
  ****************************************************************************/
-
+#ifndef CONFIG_LPC17_40_SSP_DMA
 static void ssp_recvblock(FAR struct spi_dev_s *dev, FAR void *buffer,
                           size_t nwords)
 {
@@ -785,6 +918,339 @@ static void ssp_recvblock(FAR struct spi_dev_s *dev, FAR void *buffer,
         }
     }
 }
+#endif
+
+/****************************************************************************
+ * Name: ssp_recvblockdma
+ *
+ * Description:
+ *   Revice a block of data from SPI using DMA
+ *
+ * Input Parameters:
+ *   dev -    Device-specific state data
+ *   buffer - A pointer to the buffer in which to receive data
+ *   nwords - the length of data that can be received in the buffer in number
+ *            of words.  The wordsize is determined by the number of
+ *            bits-per-word selected for the SPI interface.  If nbits <= 8,
+ *            the data is packed into uint8_t's; if nbits > 8, the data is
+ *            packed into uint16_t's
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_LPC17_40_SSP_DMA
+
+/* The straightforward way of receiving data via DMA does not seem to work as
+ * expected.  See the scatter-gather based workaround below for an implementation
+ * that seems to function as expected.
+ */
+
+#  if 0
+static void ssp_recvblockdma(FAR struct spi_dev_s *dev, FAR void *buffer,
+                             size_t nwords)
+{
+  FAR struct lpc17_40_sspdev_s *priv = (FAR struct lpc17_40_sspdev_s *)dev;
+  static const uint16_t txdummy = 0xffff;
+  int ret;
+
+  /* Flush out any bytes in receive buffer */
+
+  while (ssp_getreg(priv, LPC17_40_SSP_SR_OFFSET) & SSP_SR_RNE)
+    {
+      ssp_getreg(priv, LPC17_40_SSP_DR_OFFSET);
+    }
+
+  /* Set up SSP RX DMA transfer */
+
+  uint32_t rxcontrol = (DMACH_CONTROL_SBSIZE_4 | DMACH_CONTROL_DBSIZE_4 | \
+                        DMACH_CONTROL_DWIDTH_8BIT | DMACH_CONTROL_DI);
+  rxcontrol |= (priv->nbits > 8) ? DMACH_CONTROL_SWIDTH_16BIT : \
+                                   DMACH_CONTROL_SWIDTH_8BIT;
+
+  ret = lpc17_40_dmasetup(priv->rxdma, rxcontrol, priv->dmaconfigrx,
+                          priv->sspbase + LPC17_40_SSP_DR_OFFSET,
+                          (uint32_t)buffer, nwords);
+  if (ret == OK)
+    {
+
+      /* Set up SSP TX DMA Transfer to send out dummy bytes.
+       * Note that we don't increment the source pointer. */
+      uint32_t txcontrol = (DMACH_CONTROL_SBSIZE_4 | DMACH_CONTROL_DBSIZE_4 | \
+                            DMACH_CONTROL_SWIDTH_8BIT);
+      txcontrol |= (priv->nbits > 8) ? DMACH_CONTROL_DWIDTH_16BIT : \
+                                       DMACH_CONTROL_DWIDTH_8BIT;
+
+      ret = lpc17_40_dmasetup(priv->txdma, txcontrol, priv->dmaconfigtx,
+                              (uint32_t)&txdummy,
+                              priv->sspbase + LPC17_40_SSP_DR_OFFSET,
+                              nwords);
+      if (ret == OK)
+        {
+
+          /* Start the DMA transfer */
+          spiinfo("DMA rcv start: %u words\n", nwords);
+          priv->txresult = 0;
+          priv->rxresult = 0;
+          ssp_dmadump(priv->txdma, "Before rx-tx start");
+          ssp_dmadump(priv->rxdma, "Before rx-rx start");
+          irqstate_t flags = enter_critical_section();
+          lpc17_40_dmastart(priv->rxdma, ssp_dmarxcallback, priv);
+          lpc17_40_dmastart(priv->txdma, ssp_dmatxcallback, priv);
+          leave_critical_section(flags);
+          ssp_dmadump(priv->txdma, "After rx-tx start");
+          ssp_dmadump(priv->rxdma, "After rx-rx start");
+          ssp_dmatxwait(priv);
+          spiinfo("DMA rcv tx done: %i, %i\n", priv->txresult, priv->rxresult);
+          ssp_dmarxwait(priv);
+          spiinfo("DMA rcv rx done: %i, %i\n", priv->rxresult, priv->txresult);
+        }
+    }
+}
+#  else
+static void ssp_recvblockdma(FAR struct spi_dev_s *dev, FAR void *buffer,
+                             size_t nwords)
+{
+  FAR struct lpc17_40_sspdev_s *priv = (FAR struct lpc17_40_sspdev_s *)dev;
+  static const uint16_t txdummy = 0xffff;
+  uint32_t rxdummy = 0;
+  int ret;
+
+  /* revisit: GCC-specific attribute */
+
+  struct lpc17_40_lli_s dma_rx_lli[2] __attribute__((aligned(4)));
+
+  /* Flush out any bytes in receive buffer */
+
+  while (ssp_getreg(priv, LPC17_40_SSP_SR_OFFSET) & SSP_SR_RNE)
+    {
+      ssp_getreg(priv, LPC17_40_SSP_DR_OFFSET);
+      up_putc('%');
+    }
+
+  /* Set up SSP RX DMA transfer */
+
+  uint32_t rxcontrol = (DMACH_CONTROL_SBSIZE_4 | DMACH_CONTROL_DBSIZE_4 | \
+                        DMACH_CONTROL_DWIDTH_8BIT | DMACH_CONTROL_DI);
+  rxcontrol |= (priv->nbits > 8) ? DMACH_CONTROL_SWIDTH_16BIT : \
+                                   DMACH_CONTROL_SWIDTH_8BIT;
+
+/* Despite my best efforts, the DMA seems to consistently insert a garbage byte
+ * before the actual data on receive from the SSP.  We can work around this by
+ * setting up a scatter-gather transfer to skip the first byte before
+ * transferring the data to the desired buffer.
+ */
+
+  /* Set up first transfer to eat garbage byte */
+
+  lpc17_40_configlli(&dma_rx_lli[0],
+                     (uint32_t*)(priv->sspbase + LPC17_40_SSP_DR_OFFSET),
+                     &rxdummy, &dma_rx_lli[1], rxcontrol, 1);
+
+  /* Set up the real transfer */
+
+  lpc17_40_configlli(&dma_rx_lli[1],
+                     (uint32_t*)(priv->sspbase + LPC17_40_SSP_DR_OFFSET),
+                     buffer, 0, rxcontrol, nwords);
+
+  ret = lpc17_40_dmasetup_scattergather(priv->rxdma, priv->dmaconfigrx,
+                                        dma_rx_lli, 2);
+
+  if (ret == OK)
+    {
+
+      /* Set up SSP TX DMA Transfer to send out dummy bytes.
+       * Note that we don't increment the source pointer. */
+      uint32_t txcontrol = (DMACH_CONTROL_SBSIZE_4 | DMACH_CONTROL_DBSIZE_4 | \
+                            DMACH_CONTROL_SWIDTH_8BIT);
+      txcontrol |= (priv->nbits > 8) ? DMACH_CONTROL_DWIDTH_16BIT : \
+                                       DMACH_CONTROL_DWIDTH_8BIT;
+
+      ret = lpc17_40_dmasetup(priv->txdma, txcontrol, priv->dmaconfigtx,
+                              (uint32_t)&txdummy,
+                              priv->sspbase + LPC17_40_SSP_DR_OFFSET,
+                              nwords);
+      if (ret == OK)
+        {
+
+          /* Start the DMA transfer */
+          spiinfo("DMA rcv start: %u words\n", nwords);
+          priv->txresult = 0;
+          priv->rxresult = 0;
+          ssp_dmadump(priv->txdma, "Before rx-tx start");
+          ssp_dmadump(priv->rxdma, "Before rx-rx start");
+          irqstate_t flags = enter_critical_section();
+          lpc17_40_dmastart(priv->rxdma, ssp_dmarxcallback, priv);
+          lpc17_40_dmastart(priv->txdma, ssp_dmatxcallback, priv);
+          leave_critical_section(flags);
+          ssp_dmadump(priv->txdma, "After rx-tx start");
+          ssp_dmadump(priv->rxdma, "After rx-rx start");
+          ssp_dmatxwait(priv);
+          spiinfo("DMA rcv tx done: %i, %i\n", priv->txresult, priv->rxresult);
+          ssp_dmarxwait(priv);
+          spiinfo("DMA rcv rx done: %i, %i\n", priv->rxresult, priv->txresult);
+        }
+    }
+}
+#  endif
+#endif
+
+/************************************************************************************
+ * Name: ssp_dmarxwait
+ *
+ * Description:
+ *   Wait for DMA to complete.
+ *
+ ************************************************************************************/
+
+#ifdef CONFIG_LPC17_40_SSP_DMA
+static int ssp_dmarxwait(FAR struct lpc17_40_sspdev_s *priv)
+{
+  int ret;
+
+  /* Take the semaphore (perhaps waiting).  If the result is zero, then the DMA
+   * must not really have completed???
+   */
+
+  do
+    {
+      ret = nxsem_wait_uninterruptible(&priv->rxsem);
+
+      /* The only expected error is ECANCELED which would occur if the calling
+       * thread were canceled.
+       */
+
+      DEBUGASSERT(ret == OK || ret == -ECANCELED);
+    }
+  while (priv->rxresult == 0 && ret == OK);
+
+  return ret;
+}
+#endif
+
+/************************************************************************************
+ * Name: ssp_dmatxwait
+ *
+ * Description:
+ *   Wait for DMA to complete.
+ *
+ ************************************************************************************/
+
+#ifdef CONFIG_LPC17_40_SSP_DMA
+static int ssp_dmatxwait(FAR struct lpc17_40_sspdev_s *priv)
+{
+  int ret;
+
+  /* Take the semaphore (perhaps waiting).  If the result is zero, then the DMA
+   * must not really have completed???
+   */
+
+  do
+    {
+      ret = nxsem_wait_uninterruptible(&priv->txsem);
+
+      /* The only expected error is ECANCELED which would occur if the calling
+       * thread were canceled.
+       */
+
+      DEBUGASSERT(ret == OK || ret == -ECANCELED);
+    }
+  while (priv->txresult == 0 && ret == OK);
+
+  return ret;
+}
+#endif
+
+/************************************************************************************
+ * Name: ssp_dmarxwakeup
+ *
+ * Description:
+ *   Signal that DMA is complete
+ *
+ ************************************************************************************/
+
+#ifdef CONFIG_LPC17_40_SSP_DMA
+static inline void ssp_dmarxwakeup(FAR struct lpc17_40_sspdev_s *priv)
+{
+  nxsem_post(&priv->rxsem);
+}
+#endif
+
+/************************************************************************************
+ * Name: ssp_dmatxwakeup
+ *
+ * Description:
+ *   Signal that DMA is complete
+ *
+ ************************************************************************************/
+
+#ifdef CONFIG_LPC17_40_SSP_DMA
+static inline void ssp_dmatxwakeup(FAR struct lpc17_40_sspdev_s *priv)
+{
+  nxsem_post(&priv->txsem);
+}
+#endif
+
+/************************************************************************************
+ * Name: ssp_dmarxcallback
+ *
+ * Description:
+ *   Called when the RX DMA completes
+ *
+ ************************************************************************************/
+
+#ifdef CONFIG_LPC17_40_SSP_DMA
+static void ssp_dmarxcallback(DMA_HANDLE handle, void *arg, int status)
+{
+    FAR struct lpc17_40_sspdev_s *priv = (FAR struct lpc17_40_sspdev_s *)arg;
+
+  /* Wake-up the SPI driver */
+
+  priv->rxresult = status | 0x080;  /* OR'ed with 0x80 to assure non-zero */
+  ssp_dmarxwakeup(priv);
+}
+#endif
+
+/************************************************************************************
+ * Name: ssp_dmatxcallback
+ *
+ * Description:
+ *   Called when the RX DMA completes
+ *
+ ************************************************************************************/
+
+#ifdef CONFIG_LPC17_40_SSP_DMA
+static void ssp_dmatxcallback(DMA_HANDLE handle, void *arg, int status)
+{
+    FAR struct lpc17_40_sspdev_s *priv = (FAR struct lpc17_40_sspdev_s *)arg;
+
+  /* Wake-up the SPI driver */
+
+  priv->txresult = status | 0x080;  /* OR'ed with 0x80 to assure non-zero */
+  ssp_dmatxwakeup(priv);
+}
+#endif
+
+/************************************************************************************
+ * Name: ssp_dmadump
+ *
+ * Description:
+ *   Captures and prints DMA register status.
+ *
+ ************************************************************************************/
+
+#ifdef CONFIG_LPC17_40_SSP_DMA
+#ifdef CONFIG_DEBUG_DMA_INFO
+static void ssp_dmadump(DMA_HANDLE handle, const char * msg)
+{
+  struct lpc17_40_dmaregs_s regs;
+  lpc17_40_dmasample(handle, &regs);
+  lpc17_40_dmadump(handle, &regs, msg);
+  dmainfo("-------------------\n");
+}
+#endif
+#endif
 
 /****************************************************************************
  * Name: lpc17_40_ssp0initialize
@@ -835,6 +1301,14 @@ static inline FAR struct lpc17_40_sspdev_s *lpc17_40_ssp0initialize(void)
   regval |= SYSCON_PCONP_PCSSP0;
   putreg32(regval, LPC17_40_SYSCON_PCONP);
   leave_critical_section(flags);
+
+#ifdef CONFIG_LPC17_40_SSP_DMA
+  /* Configure the SSP DMA request */
+
+  lpc17_40_dmaconfigure(DMA_REQ_SSP0TX, DMA_DMASEL_SSP0TX);
+  lpc17_40_dmaconfigure(DMA_REQ_SSP0RX, DMA_DMASEL_SSP0RX);
+
+#endif
 
   return &g_ssp0dev;
 }
@@ -890,6 +1364,14 @@ static inline FAR struct lpc17_40_sspdev_s *lpc17_40_ssp1initialize(void)
   putreg32(regval, LPC17_40_SYSCON_PCONP);
   leave_critical_section(flags);
 
+#ifdef CONFIG_LPC17_40_SSP_DMA
+  /* Configure the SSP DMA request */
+
+  lpc17_40_dmaconfigure(DMA_REQ_SSP1TX, DMA_DMASEL_SSP1TX);
+  lpc17_40_dmaconfigure(DMA_REQ_SSP1RX, DMA_DMASEL_SSP1RX);
+
+#endif
+
   return &g_ssp1dev;
 }
 #endif
@@ -942,6 +1424,14 @@ static inline FAR struct lpc17_40_sspdev_s *lpc17_40_ssp2initialize(void)
   regval |= SYSCON_PCONP_PCSSP2;
   putreg32(regval, LPC17_40_SYSCON_PCONP);
   leave_critical_section(flags);
+
+#ifdef CONFIG_LPC17_40_SSP_DMA
+  /* Configure the SSP DMA request */
+
+  lpc17_40_dmaconfigure(DMA_REQ_SSP2TX, DMA_DMASEL_SSP2TX);
+  lpc17_40_dmaconfigure(DMA_REQ_SSP2RX, DMA_DMASEL_SSP2RX);
+
+#endif
 
   return &g_ssp2dev;
 }
@@ -1017,6 +1507,22 @@ FAR struct spi_dev_s *lpc17_40_sspbus_initialize(int port)
   /* Initialize the SPI semaphore that enforces mutually exclusive access */
 
   nxsem_init(&priv->exclsem, 0, 1);
+
+#ifdef CONFIG_LPC17_40_SSP_DMA
+
+  /* Allocate a DMA channel for SSP DMA.  Request the RX channel first so it
+   * has a higher priority. */
+
+  priv->rxdma = lpc17_40_dmachannel();
+  priv->txdma = lpc17_40_dmachannel();
+  DEBUGASSERT(priv->txdma);
+  DEBUGASSERT(priv->rxdma);
+
+  /* Enable DMA mode on SSP peripheral */
+
+  ssp_putreg(priv, LPC17_40_SSP_DMACR_OFFSET, SSP_DMACR_RXDMAE |
+             SSP_DMACR_TXDMAE);
+#endif
 
   /* Enable the SPI */
 

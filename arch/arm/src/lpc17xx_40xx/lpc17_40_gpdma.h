@@ -66,9 +66,19 @@ typedef FAR void *DMA_HANDLE;
 
 typedef void (*dma_callback_t)(DMA_HANDLE handle, void *arg, int result);
 
+/* Linked list Item structure for use with scatter-gather DMA operations */
+
+struct lpc17_40_lli_s
+{
+  uint32_t srcaddr; /* DMA source address */
+  uint32_t dstaddr; /* DMA destination address */
+  uint32_t nextlli; /* Pointer to next lli */
+  uint32_t control; /* DMA control word */
+};
+
 /* The following is used for sampling DMA registers when CONFIG DEBUG_DMA is selected */
 
-#ifdef CONFIG__DEBUG_DMA_INFO
+#ifdef CONFIG_DEBUG_DMA_INFO
 struct lpc17_40_dmaglobalregs_s
 {
   /* Global Registers */
@@ -197,6 +207,17 @@ int lpc17_40_dmasetup(DMA_HANDLE handle, uint32_t control, uint32_t config,
                    uint32_t srcaddr, uint32_t destaddr, size_t nxfrs);
 
 /****************************************************************************
+ * Name: lpc17_40_dmasetup_scattergather
+ *
+ * Description:
+ *   Configure DMA for multiple transfers.
+ *
+ ****************************************************************************/
+
+int lpc17_40_dmasetup_scattergather(DMA_HANDLE handle, uint32_t config,
+                                    struct lpc17_40_lli_s *lli, uint32_t nlli);
+
+/****************************************************************************
  * Name: lpc17_40_dmastart
  *
  * Description:
@@ -219,6 +240,23 @@ int lpc17_40_dmastart(DMA_HANDLE handle, dma_callback_t callback, void *arg);
 void lpc17_40_dmastop(DMA_HANDLE handle);
 
 /****************************************************************************
+ * Name: lpc17_40_configlli
+ *
+ * Description:
+ *   Set up a Linked List Item (LLI) structure for use with a scatter-gather
+ *   DMA transfer.
+ *
+ *   This function must be called by the user on one or more lpc17_40_lli_s
+ *   structures to populate them before calling
+ *   lpc17_40_dmasetup_scattergather.
+ *
+ ****************************************************************************/
+
+void lpc17_40_configlli(struct lpc17_40_lli_s *lli, void *srcaddr,
+                        void *dstaddr, struct lpc17_40_lli_s *nextlli,
+                        uint32_t control, uint32_t nwords);
+
+/****************************************************************************
  * Name: lpc17_40_dmasample
  *
  * Description:
@@ -226,7 +264,7 @@ void lpc17_40_dmastop(DMA_HANDLE handle);
  *
  ****************************************************************************/
 
-#ifdef CONFIG__DEBUG_DMA_INFO
+#ifdef CONFIG_DEBUG_DMA_INFO
 void lpc17_40_dmasample(DMA_HANDLE handle, struct lpc17_40_dmaregs_s *regs);
 #else
 #  define lpc17_40_dmasample(handle,regs)
@@ -240,7 +278,7 @@ void lpc17_40_dmasample(DMA_HANDLE handle, struct lpc17_40_dmaregs_s *regs);
  *
  ****************************************************************************/
 
-#ifdef CONFIG__DEBUG_DMA_INFO
+#ifdef CONFIG_DEBUG_DMA_INFO
 void lpc17_40_dmadump(DMA_HANDLE handle, const struct lpc17_40_dmaregs_s *regs,
                    const char *msg);
 #else

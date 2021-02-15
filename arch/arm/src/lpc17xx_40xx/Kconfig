@@ -804,6 +804,17 @@ config LPC17_40_I2C2_FREQUENCY
 
 endmenu
 
+menu "SSP driver options"
+	depends on LPC17_40_SSP0 || LPC17_40_SSP1 || LPC17_40_SSP2
+
+config LPC17_40_SSP_DMA
+	bool "Support DMA data transfers"
+#	default y if LPC17_40_GPDMA
+	default n
+	depends on LPC17_40_GPDMA
+
+endmenu
+
 menu "SDCARD Configuration"
 	depends on LPC17_40_SDCARD
 
