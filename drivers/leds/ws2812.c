@@ -48,6 +48,13 @@
  * rounded to the nearest multiple of 100 kHz which meets the specs.
  * Try to avoid using the extreme frequencies.
  *
+ * A third target frequency of 2.4 MHz is also supported. When this frequency
+ * is selected, each WS2812 bit can be packed into 3 (instead of 8) physical
+ * bits. The SPI port will be operated in 12-bit mode, which means that the
+ * buffer will use 16-bit words rather than 8-bit words.  Despite this, RAM
+ * usage is 50% less than it would otherwise be.  Bus utilization is also
+ * reduced due to shorter dead time after each bit.
+ *
  * If using an LED different to the WS2812 (e.g. WS2812B) check its timing
  * specs, which may vary slightly, to decide which frequency is safe to use.
  *
@@ -63,6 +70,10 @@
 #elif CONFIG_WS2812_FREQUENCY >= 5900000 && CONFIG_WS2812_FREQUENCY <= 9000000
 #  define WS2812_ZERO_BYTE  0b01100000 /* 222ns at 9 MHz, 339ns at 5.9 MHz */
 #  define WS2812_ONE_BYTE   0b01111100 /* 556ns at 9 MHz, 847ns at 5.9 MHz */
+#elif CONFIG_WS2812_FREQUENCY == 2400000
+#  define WS2812_ZERO_SYMBOL  0b100 /* 417ns at 2.4MHz */
+#  define WS2812_ONE_SYMBOL   0b110 /* 833ns at 2.4MHz */
+#  define WS2812_DENSE_PACKING
 #else
 #  error "Unsupported SPI Frequency"
 #endif
@@ -71,11 +82,26 @@
  * Number of empty bytes to create the reset low pulse
  * Aiming for 60 us, safely above the 50us required.
  */
+#ifdef WS2812_DENSE_PACKING
+#define WS2812_WORD_SIZE      (2)
+#else
+#define WS2812_WORD_SIZE      (1)
+#endif
 
-#define WS2812_RST_CYCLES (CONFIG_WS2812_FREQUENCY * 60 / 1000000 / 8) 
+#define WS2812_RST_CYCLES     (WS2812_WORD_SIZE * (CONFIG_WS2812_FREQUENCY * 60 / 1000000 / 8))
 
+#ifdef WS2812_DENSE_PACKING
+#define WS2812_BYTES_PER_LED  (6 * WS2812_WORD_SIZE)
+#else
 #define WS2812_BYTES_PER_LED  (8 * 3)
-#define WS2812_RW_PIXEL_SIZE  4
+#endif
+#define WS2812_RW_PIXEL_SIZE  (4)
+
+#ifdef WS2812_DENSE_PACKING
+#define ws2812_pixel_type     uint16_t
+#else
+#define ws2812_pixel_type     uint8_t
+#endif
 
 /* Transmit buffer looks like:
  * [<----N reset bytes---->|<-RGBn->...<-RGB0->|<----1 reset byte---->]
@@ -107,7 +133,11 @@ struct ws2812_dev_s
  ****************************************************************************/
 
 static inline void ws2812_configspi(FAR struct spi_dev_s *spi);
+#ifdef WS2812_DENSE_PACKING
+static void ws2812_pack(FAR uint16_t *buf, uint32_t rgb);
+#else
 static void ws2812_pack(FAR uint8_t *buf, uint32_t rgb);
+#endif
 static void ws2812_writespi(FAR struct ws2812_dev_s * priv);
 
 /* Character driver methods */
@@ -155,10 +185,42 @@ static inline void ws2812_configspi(FAR struct spi_dev_s *spi)
   /* Configure SPI for the WS2812 */
 
   SPI_SETMODE(spi, SPIDEV_MODE3);
+#ifdef WS2812_DENSE_PACKING
+  SPI_SETBITS(spi, 12);
+#else
   SPI_SETBITS(spi, 8);
+#endif
   SPI_HWFEATURES(spi, 0);
   SPI_SETFREQUENCY(spi, CONFIG_WS2812_FREQUENCY);
 }
+
+/****************************************************************************
+ * Name: unpack_four_bits
+ *
+ * Description:
+ *   Unpacks 4 bits of color information into 12 physical bits for
+ *   transmission via SPI when in "dense packing" mode.
+ *
+ ****************************************************************************/
+#ifdef WS2812_DENSE_PACKING
+static inline uint16_t unpack_four_bits(uint8_t bits)
+{
+
+  /* Encode '0' bits as 100 and '1' bits as 110.
+     We have this bit pattern: 00000000abcd
+     We want this bit pattern: 1a01b01c01d0 */
+
+  uint16_t ac = (bits * 0x088) &        /* 0abcdabcd000 */
+                0x410;                  /* 0a00000c0000 */
+
+  uint16_t bd = (bits * 0x022) &        /* 000abcdabcd0 */
+                0x082;                  /* 0000b00000d0 */
+
+  static uint16_t const base = 0x924;   /* 100100100100 */
+
+  return (base | ac | bd);              /* 1a01b01c01d0 */
+}
+#endif
 
 /****************************************************************************
  * Name: ws2812_pack
@@ -172,7 +234,17 @@ static inline void ws2812_configspi(FAR struct spi_dev_s *spi)
  *   rgb - A 24bit RGB color 8bit red, 8-bit green, 8-bit blue
  *
  ****************************************************************************/
-
+#ifdef WS2812_DENSE_PACKING
+static void ws2812_pack(FAR uint16_t *buf, uint32_t rgb)
+{
+  buf[0] = unpack_four_bits((rgb & 0x00f000) >> 12); /* Green bits 4-7 */
+  buf[1] = unpack_four_bits((rgb & 0x000f00) >>  8); /* Green bits 0-3 */
+  buf[2] = unpack_four_bits((rgb & 0xf00000) >> 20); /* Red bits 4-7 */
+  buf[3] = unpack_four_bits((rgb & 0x0f0000) >> 16); /* Red bits 0-3 */
+  buf[4] = unpack_four_bits((rgb & 0x0000f0) >>  4); /* Blue bits 4-7 */
+  buf[5] = unpack_four_bits((rgb & 0x00000f) >>  0); /* Blue bits 0-3 */
+}
+#else
 static void ws2812_pack(FAR uint8_t *buf, uint32_t rgb)
 {
   uint8_t bit_idx;
@@ -203,6 +275,7 @@ static void ws2812_pack(FAR uint8_t *buf, uint32_t rgb)
         }
     }
 }
+#endif
 
 /****************************************************************************
  * Name: ws2812_writespi
@@ -334,14 +407,14 @@ static ssize_t ws2812_write(FAR struct file *filep, FAR const char *buffer,
   end_led = start_led + (buflen / WS2812_RW_PIXEL_SIZE) - 1;
   ledinfo("Start: %d End: %d\n", start_led, end_led);
 
-  if (end_led  > (priv->nleds -1))
+  if (end_led  > (priv->nleds - 1))
     {
       end_led = priv->nleds - 1;
     }
 
   for (cur_led = start_led; cur_led <= end_led; cur_led++)
     {
-      ws2812_pack(tx_pixel, *pixel_buf & 0xffffff);
+      ws2812_pack((ws2812_pixel_type*)tx_pixel, *pixel_buf & 0xffffff);
       pixel_buf++;
       tx_pixel += WS2812_BYTES_PER_LED;
       written += WS2812_RW_PIXEL_SIZE;
@@ -349,7 +422,7 @@ static ssize_t ws2812_write(FAR struct file *filep, FAR const char *buffer,
 
   ws2812_writespi(priv);
 
-  /* Update LED position and handle case were we wrote the last LED */
+  /* Update LED position and handle case where we wrote the last LED */
 
   filep->f_pos += written;
   if (end_led == (priv->nleds - 1))
@@ -496,8 +569,8 @@ int ws2812_leds_register(FAR const char *devpath, FAR struct spi_dev_s *spi,
 
   for (led = 0; led < priv->nleds; led++)
     {
-      ws2812_pack(
-        priv->tx_buf + WS2812_RST_CYCLES + led * WS2812_BYTES_PER_LED,
+      ws2812_pack((ws2812_pixel_type*)
+        (priv->tx_buf + WS2812_RST_CYCLES + led * WS2812_BYTES_PER_LED),
         0);
     }
 
