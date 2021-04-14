@@ -177,6 +177,8 @@
 #define CANAF_AFMR_ACCOFF               (1 << 0)  /* Bit 0:  AF non-operational; All RX messages ignored */
 #define CANAF_AFMR_ACCBP                (1 << 1)  /* Bit 1:  AF bypass: All RX messages accepted */
 #define CANAF_AFMR_EFCAN                (1 << 2)  /* Bit 2:  Enable Full CAN mode */
+#define CANAF_AFMR_NORMAL               (0)       /* Normal operation of acceptance filter */
+#define CANAF_AFMR_MASK                 (0x07)    /* All allowable bits in the AFMR field */
                                                   /* Bits 3-31: Reserved */
 /* Standard Frame Individual Start Address Register */
                                                   /* Bits 0-1: Reserved */
@@ -494,6 +496,102 @@
 #define CAN_RDB_DATA7_MASK              (0x0ff << CAN_RDB_DATA7_SHIFT)
 #define CAN_RDB_DATA8_SHIFT             (24)      /* Bits 24-31: RTR=0 && DLC >= 8 */
 #define CAN_RDB_DATA8_MASK              (0x0ff << CAN_RDB_DATA8_SHIFT)
+
+
+/*
+ * @brief Standard ID Entry definitions for acceptance filter
+ */
+/** Start position of Controller Number Bits */
+#define CAN_STD_ENTRY_CTRL_NO_POS       (13 )
+/** Mask of Controller Number Bits */
+#define CAN_STD_ENTRY_CTRL_NO_MASK      (0x07)
+/** Start position of Disable bit */
+#define CAN_STD_ENTRY_DISABLE_POS       (12 )
+/** Mask of Disable Bit */
+#define CAN_STD_ENTRY_DISABLE_MASK      (0x01)
+/** Start position of Interrupt Enable bit (FullCAN entry only)*/
+#define CAN_STD_ENTRY_IE_POS            (11 )
+/** Mask of Interrupt Enable bit (FullCAN entry only)*/
+#define CAN_STD_ENTRY_IE_MASK           (0x01)
+/** Start position of ID bit */
+#define CAN_STD_ENTRY_ID_POS            (0  )
+/** Mask of ID Bit */
+#define CAN_STD_ENTRY_ID_MASK           (0x7FF)
+
+/*
+ * @brief Extended ID Entry definitions
+ */
+/** Start position of Controller Number Bits */
+#define CAN_EXT_ENTRY_CTRL_NO_POS       (29 )
+/** Mask of Controller Number Bits */
+#define CAN_EXT_ENTRY_CTRL_NO_MASK      (0x07)
+/** Start position of ID bit */
+#define CAN_EXT_ENTRY_ID_POS            (0  )
+/** Mask of ID Bit */
+#define CAN_EXT_ENTRY_ID_MASK           (0x1FFFFFFF)
+
+/*
+ * @brief CAN Message Type definitions
+ */
+
+/** Remote Message */
+#define CAN_REMOTE_MSG         ((uint32_t) (1 << 0))
+
+/** Message use Extend ID*/
+#define CAN_EXTEND_ID_USAGE     ((uint32_t) (1 << 30))
+
+/** The maximum data length in CAN Message */
+#define CAN_MSG_MAX_DATA_LEN       (8)
+
+/** The number of entries in AF RAM region */
+#define CANAF_RAM_ENTRY_NUM        512
+/** The start address of the table of grouped Extended Identifier */
+#define CANAF_ENDADDR(n)       ((uint32_t) (((n) & 0x3FF) << 2))
+#define CANAF_ENDADDR_VAL(n)   ((uint32_t) ((n >> 2) & 0x3FF))
+
+/************************************************************************************
+ * Public Types
+ ************************************************************************************/
+  /**
+   * @brief Standard ID Entry structure
+   */
+  typedef struct {
+      uint8_t CtrlNo;             /*!<Controller Number: 0 for CAN1 and 1 for CAN2*/
+      uint8_t Disable;            /*!< 0(ENABLE)/1(DISABLE): Response On/Off dynamically*/
+      uint16_t ID_11;             /*!< Standard ID, should be 11-bit value */
+  } CAN_STD_ID_ENTRY_T;
+
+  /**
+   * @brief Standard ID Range structure
+   */
+  typedef struct {
+      CAN_STD_ID_ENTRY_T LowerID; /*!< Lower ID Bound, should be in 11-bit value*/
+      CAN_STD_ID_ENTRY_T UpperID; /*!< Upper ID Bound, should be in 11-bit value*/
+  } CAN_STD_ID_RANGE_ENTRY_T;
+
+  /**
+   * @brief Extended ID  Entry structure
+   */
+  typedef struct {
+      uint8_t CtrlNo;         /*!<Controller Number: 0 for CAN1 and 1 for CAN2*/
+      uint32_t ID_29;         /*!< Extend ID, shoud be 29-bit value */
+  } CAN_EXT_ID_ENTRY_T;
+
+  /**
+   * @brief Extended ID Range structure
+   */
+  typedef struct {
+      CAN_EXT_ID_ENTRY_T LowerID; /*!< Lower ID Bound, should be in 29-bit value*/
+      CAN_EXT_ID_ENTRY_T UpperID; /*!< Upper ID Bound, should be in 29-bit value*/
+  } CAN_EXT_ID_RANGE_ENTRY_T;
+
+  /**
+   * @brief CAN acceptance filter RAM register block structure
+   */
+  typedef struct                          /*!< AF RAM Mask Table        */
+  {
+      volatile uint32_t MASK[CANAF_RAM_ENTRY_NUM];    /*!< Acceptance Filter RAM ID mask register */
+  } LPC_CANAF_RAM_T;
 
 /************************************************************************************
  * Public Types
