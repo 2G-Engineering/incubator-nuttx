@@ -1568,6 +1568,14 @@ static bool up_rxavailable(struct uart_dev_s *dev)
 static void up_send(struct uart_dev_s *dev, int ch)
 {
   struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
+#ifdef CONFIG_USE_2ND_485_PORT
+#ifndef CONFIG_SHARE_2ND_485_WITH_232
+  if (dev == &g_uart2port) {//only enable tx if we're sending on the 2nd RS485 port
+                            //change this if we ever use a different port for RS485 #2
+    rs485_2_set_transmit();
+  }
+#endif
+#endif
   up_serialout(priv, LPC17_40_UART_THR_OFFSET, (uint32_t)ch);
 }
 
