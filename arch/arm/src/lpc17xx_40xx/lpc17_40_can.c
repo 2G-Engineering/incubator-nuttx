@@ -214,6 +214,16 @@ static void can_putcommon(uint32_t addr, uint32_t value);
 #  define can_putcommon(addr, value) putreg32(value, addr)
 #endif
 
+#ifdef CONFIG_CAN_EXTID
+static int lpc17can_add_extfilter(FAR struct up_dev_s *priv,
+              FAR struct canioc_extfilter_s *extconfig);
+static int lpc17can_del_extfilter(FAR struct up_dev_s *priv, int ndx);
+#endif
+static int lpc17can_add_stdfilter(FAR struct up_dev_s *priv,
+              FAR struct canioc_stdfilter_s *stdconfig);
+static int lpc17can_del_stdfilter(FAR struct up_dev_s *priv, int ndx);
+
+
 /* CAN methods */
 
 static void lpc17can_reset(FAR struct can_dev_s *dev);
@@ -763,6 +773,7 @@ static int lpc17can_ioctl(FAR struct can_dev_s *dev, int cmd,
             uint32_t can_bit_quanta;
             uint32_t tmp;
             uint32_t regval;
+            uint32_t ier;
             irqstate_t flags;
 
             DEBUGASSERT(bt != NULL);
@@ -817,21 +828,27 @@ static int lpc17can_ioctl(FAR struct can_dev_s *dev, int cmd,
 
             flags = enter_critical_section();
 
-            /* Disable the CAN and stop ongong transmissions */
+            /* Save enabled interrupts */
+            ier = can_getreg(priv, LPC17_40_CAN_IER_OFFSET);
 
+            /* Disable the CAN and stop ongoing transmissions */
+            while (can_getreg(priv, LPC17_40_CAN_GSR_OFFSET) & CAN_GSR_TS);
             can_putreg(priv, LPC17_40_CAN_MOD_OFFSET, CAN_MOD_RM);  /* Enter Reset Mode */
             can_putreg(priv, LPC17_40_CAN_IER_OFFSET, 0);           /* Disable interrupts */
             can_putreg(priv, LPC17_40_CAN_GSR_OFFSET, 0);           /* Clear status bits */
-            can_putreg(priv, LPC17_40_CAN_CMR_OFFSET, CAN_CMR_AT);  /* Abort transmission */
+            //can_putreg(priv, LPC17_40_CAN_CMR_OFFSET, CAN_CMR_AT);  /* Abort transmission */
 
             can_putreg(priv, LPC17_40_CAN_BTR_OFFSET, regval);
 
             can_putreg(priv, LPC17_40_CAN_MOD_OFFSET, 0);           /* Leave Reset Mode */
 
+            can_putreg(priv, LPC17_40_CAN_IER_OFFSET, ier);         /* Restore enabled interrupts */
+
             leave_critical_section(flags);
 
             priv->baud  = CAN_CLOCK_FREQUENCY(priv->divisor) /
                 (brp * (bt->bt_tseg1 + bt->bt_tseg2 + 1));
+            ret = OK;
           }
           break;
 #if 0
@@ -914,7 +931,7 @@ static int lpc17can_ioctl(FAR struct can_dev_s *dev, int cmd,
             ret = stm32can_exitinitmode(priv);
           }
           break;
-
+#endif
   #ifdef CONFIG_CAN_EXTID
         /* CANIOC_ADD_EXTFILTER:
          *   Description:    Add an address filter for a extended 29 bit
@@ -928,7 +945,7 @@ static int lpc17can_ioctl(FAR struct can_dev_s *dev, int cmd,
         case CANIOC_ADD_EXTFILTER:
           {
             DEBUGASSERT(arg != 0);
-            ret = stm32can_addextfilter(priv,
+            ret = lpc17can_add_extfilter(priv,
                                         (FAR struct canioc_extfilter_s *)arg);
           }
           break;
@@ -948,7 +965,7 @@ static int lpc17can_ioctl(FAR struct can_dev_s *dev, int cmd,
   #if 0 /* Unimplemented */
             DEBUGASSERT(arg <= priv->config->nextfilters);
   #endif
-            ret = stm32can_delextfilter(priv, (int)arg);
+            ret = lpc17can_del_extfilter(priv, (int)arg);
           }
           break;
   #endif
@@ -965,7 +982,7 @@ static int lpc17can_ioctl(FAR struct can_dev_s *dev, int cmd,
         case CANIOC_ADD_STDFILTER:
           {
             DEBUGASSERT(arg != 0);
-            ret = stm32can_addstdfilter(priv,
+            ret = lpc17can_add_stdfilter(priv,
                                         (FAR struct canioc_stdfilter_s *)arg);
           }
           break;
@@ -985,10 +1002,10 @@ static int lpc17can_ioctl(FAR struct can_dev_s *dev, int cmd,
   #if 0 /* Unimplemented */
             DEBUGASSERT(arg <= priv->config->nstdfilters);
   #endif
-            ret = stm32can_delstdfilter(priv, (int)arg);
+            ret = lpc17can_del_stdfilter(priv, (int)arg);
           }
           break;
-#endif
+
         /* Unsupported/unrecognized command */
 
         default:
@@ -1530,6 +1547,512 @@ static int can_bittiming(struct up_dev_s *priv)
   return OK;
 }
 
+
+
+
+static uint16_t can_createStdIDEntry(CAN_STD_ID_ENTRY_T *pEntryInfo, bool IsFullCANEntry);
+static inline uint16_t can_createUnUsedSTDEntry(uint8_t CtrlNo);
+static void can_readStdIDEntry(uint16_t EntryVal, CAN_STD_ID_ENTRY_T *pEntryInfo);
+static int can_setupSTDSection(uint32_t *pCANAFRamAddr, CAN_STD_ID_ENTRY_T *pStdCANSec,
+                           uint16_t EntryCount, bool IsFullCANEntry);
+static int can_setupSTDRangeSection(uint32_t *pCANAFRamAddr, CAN_STD_ID_RANGE_ENTRY_T *pStdRangeCANSec, uint16_t EntryCount);
+static uint32_t can_createExtIDEntry(CAN_EXT_ID_ENTRY_T *pEntryInfo);
+static void can_readExtIDEntry(uint32_t EntryVal, CAN_EXT_ID_ENTRY_T *pEntryInfo);
+static int can_setupEXTSection(uint32_t *pCANAFRamAddr, CAN_EXT_ID_ENTRY_T *pExtCANSec, uint16_t EntryCount);
+static int can_setupEXTRangeSection(uint32_t *pCANAFRamAddr, CAN_EXT_ID_RANGE_ENTRY_T *pExtRangeCANSec, uint16_t EntryCount);
+static void dump_af_ram(void);
+
+
+/****************************************************************************
+ * Name: mcan_add_extfilter
+ *
+ * Description:
+ *   Add an address filter for a extended 29 bit address.
+ *
+ * Input Parameters:
+ *   priv      - An instance of the MCAN driver state structure.
+ *   extconfig - The configuration of the extended filter
+ *
+ * Returned Value:
+ *   A non-negative filter ID is returned on success.  Otherwise a negated
+ *   errno value is returned to indicate the nature of the error.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_CAN_EXTID
+static int lpc17can_add_extfilter(FAR struct up_dev_s *priv,
+                              FAR struct canioc_extfilter_s *extconfig)
+{
+
+  int result;
+
+  DEBUGASSERT(priv != NULL && extconfig != NULL);
+
+  CAN_EXT_ID_RANGE_ENTRY_T range_ext;
+
+  /* save current CAN acceptance filter mode */
+  uint32_t cur_mode = can_getcommon(LPC17_40_CANAF_AFMR);
+
+  /*  AF Off */
+  can_putcommon(LPC17_40_CANAF_AFMR, CANAF_AFMR_ACCOFF);
+
+  if (extconfig->xf_type == CAN_FILTER_RANGE) {
+    range_ext.LowerID.ID_29 = extconfig->xf_id1;
+    range_ext.UpperID.ID_29 = extconfig->xf_id2;
+    range_ext.LowerID.CtrlNo = priv->port - 1;
+    range_ext.UpperID.CtrlNo = priv->port - 1;
+  }
+  result = can_setupEXTRangeSection((uint32_t*)LPC17_40_CANAFRAM_BASE, &range_ext, 1);
+
+  /* Return to previous mode */
+  can_putcommon(LPC17_40_CANAF_AFMR, cur_mode);
+  /* FIXME CHECK RESULT */
+  return 0;
+  return -EAGAIN;
+}
+#endif
+
+/****************************************************************************
+ * Name: mcan_del_extfilter
+ *
+ * Description:
+ *   Remove an address filter for a standard 29 bit address.
+ *
+ * Input Parameters:
+ *   priv - An instance of the MCAN driver state structure.
+ *   ndx  - The filter index previously returned by the mcan_add_extfilter().
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success.  Otherwise a negated errno value is
+ *   returned to indicate the nature of the error.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_CAN_EXTID
+static int lpc17can_del_extfilter(FAR struct up_dev_s *priv, int ndx)
+{
+  FAR const struct sam_config_s *config;
+  FAR uint32_t *extfilter;
+  uint32_t regval;
+  int word;
+  int bit;
+  int ret;
+
+  DEBUGASSERT(priv != NULL);
+
+  return -ENOTTY;
+}
+#endif
+
+/****************************************************************************
+ * Name: mcan_add_stdfilter
+ *
+ * Description:
+ *   Add an address filter for a standard 11 bit address.
+ *
+ * Input Parameters:
+ *   priv      - An instance of the MCAN driver state structure.
+ *   stdconfig - The configuration of the standard filter
+ *
+ * Returned Value:
+ *   A non-negative filter ID is returned on success.  Otherwise a negated
+ *   errno value is returned to indicate the nature of the error.
+ *
+ ****************************************************************************/
+
+static int lpc17can_add_stdfilter(FAR struct up_dev_s *priv,
+                              FAR struct canioc_stdfilter_s *stdconfig)
+{
+  FAR const struct sam_config_s *config;
+  FAR uint32_t *stdfilter;
+  uint32_t regval;
+  int word;
+  int bit;
+  int ndx;
+  int ret;
+  int result;
+
+  DEBUGASSERT(priv != NULL && stdconfig != NULL);
+
+  CAN_STD_ID_RANGE_ENTRY_T range_std;
+
+  /* save current CAN acceptance filter mode */
+  uint32_t cur_mode = can_getcommon(LPC17_40_CANAF_AFMR);
+
+  /*  AF Off */
+  can_putcommon(LPC17_40_CANAF_AFMR, CANAF_AFMR_ACCOFF);
+
+  if (stdconfig->sf_type == CAN_FILTER_RANGE) {
+    range_std.LowerID.ID_11 = stdconfig->sf_id1;
+    range_std.UpperID.ID_11 = stdconfig->sf_id2;
+    range_std.LowerID.Disable = false;
+    range_std.UpperID.Disable = false;
+    range_std.LowerID.CtrlNo = priv->port - 1;
+    range_std.UpperID.CtrlNo = priv->port - 1;
+  }
+  result = can_setupSTDRangeSection((uint32_t*)LPC17_40_CANAFRAM_BASE, &range_std, 1);
+
+  /* Return to previous mode */
+  can_putcommon(LPC17_40_CANAF_AFMR, cur_mode);
+  /* FIXME CHECK RESULT */
+  return 0;
+  return -EAGAIN;
+}
+
+/****************************************************************************
+ * Name: mcan_del_stdfilter
+ *
+ * Description:
+ *   Remove an address filter for a standard 29 bit address.
+ *
+ * Input Parameters:
+ *   priv - An instance of the MCAN driver state structure.
+ *   ndx  - The filter index previously returned by the mcan_add_stdfilter().
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success.  Otherwise a negated errno value is
+ *   returned to indicate the nature of the error.
+ *
+ ****************************************************************************/
+
+static int lpc17can_del_stdfilter(FAR struct up_dev_s *priv, int ndx)
+{
+  FAR const struct sam_config_s *config;
+  FAR uint32_t *stdfilter;
+  uint32_t regval;
+  int word;
+  int bit;
+  int ret;
+
+  DEBUGASSERT(priv != NULL);
+
+  return -ENOTTY;
+}
+
+/****************************************************************************
+ * Name: can_add_af_range
+ *
+ * Description:
+ *   Adds a range of CAN message ids to the CAN acceptance filter.  This function only implements
+ *   the minimum required functionality for our application.  The LPC17xx CAN module provides many
+ *   more features that one could conceivably want to implement in the future.
+ *
+ * Input Parameters:
+ *   dev - An instance of the "upper half" can driver state structure.
+ *   start_id - the beginning of the ID range to match
+ *   end_id  - the end of the ID range to match
+ *   extid - if true, the IDs will be treated as extended IDs.  Otherwise, they will be treated as standard IDs.
+ *
+ * Returned Value:
+ *   Zero on success; a negated errno on failure
+ *
+ ****************************************************************************/
+int can_add_af_range(int port, uint32_t start_id, uint32_t end_id, bool extid) {
+  int result;
+  CAN_STD_ID_RANGE_ENTRY_T range_std;
+  CAN_EXT_ID_RANGE_ENTRY_T range_ext;
+
+  /* save current CAN acceptance filter mode */
+  uint32_t CurMode = can_getcommon(LPC17_40_CANAF_AFMR);
+
+  /*  AF Off */
+  can_putcommon(LPC17_40_CANAF_AFMR, CANAF_AFMR_ACCOFF);
+
+  if (port > 2) {
+    return -1;//error
+  }
+  port -= 1;//convert to 0-indexed
+//  dump_af_ram();
+  if (extid) {
+    range_ext.LowerID.ID_29 = start_id;
+    range_ext.LowerID.CtrlNo = port;
+    range_ext.UpperID.ID_29 = end_id;
+    range_ext.UpperID.CtrlNo = port;
+    result = can_setupEXTRangeSection((uint32_t*)LPC17_40_CANAFRAM_BASE, &range_ext, 1);
+  } else { //standard ID
+    range_std.LowerID.ID_11 = start_id;
+    range_std.LowerID.Disable = false;
+    range_std.LowerID.CtrlNo = port;
+    range_std.UpperID.ID_11 = end_id;
+    range_std.UpperID.Disable = false;
+    range_std.UpperID.CtrlNo = port;
+    result = can_setupSTDRangeSection((uint32_t*)LPC17_40_CANAFRAM_BASE, &range_std, 1);
+  }
+//  dump_af_ram();
+  /* Return to previous mode */
+  can_putcommon(LPC17_40_CANAF_AFMR, CurMode);
+  return 0;
+}
+
+/****************************************************************************
+ * Name: can_add_af_range
+ *
+ * Description:
+ *  Erases all acceptance filters from the acceptance filter LUT RAM.
+ *
+ * Input Parameters:
+ *  None
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+void can_reset_af(void) {
+  uint32_t i = 0;
+  /* save current CAN acceptance filter mode */
+  uint32_t CurMode = can_getcommon(LPC17_40_CANAF_AFMR);
+
+  /*  AF Off */
+  can_putcommon(LPC17_40_CANAF_AFMR, CANAF_AFMR_ACCOFF);
+
+  /* Clear AF Ram region */
+  for (i = 0; i < CANAF_RAM_ENTRY_NUM; i++) {
+     putreg32(0, (LPC17_40_CANAFRAM_BASE + i));
+  }
+
+  /* Reset address registers */
+  can_putcommon(LPC17_40_CANAF_SFFSA, 0);
+  can_putcommon(LPC17_40_CANAF_SFFGRPSA, 0);
+  can_putcommon(LPC17_40_CANAF_EFFSA, 0);
+  can_putcommon(LPC17_40_CANAF_EFFGRPSA, 0);
+  can_putcommon(LPC17_40_CANAF_EOT, 0);
+
+  /* Return to previous mode */
+  can_putcommon(LPC17_40_CANAF_AFMR, CurMode);
+}
+/*
+ * Sets the CAN acceptance filter mode.
+ */
+void can_set_af_mode(uint32_t can_mode) {
+  /* only allow valid bits to be used */
+  can_mode &= CANAF_AFMR_MASK;
+  /* set AF mode */
+  can_putcommon(LPC17_40_CANAF_AFMR, can_mode);
+}
+
+/*
+ * Configure the acceptance filter address tables assuming only one entry in the CAN address range section
+ * (either standard or extended.
+ * Minimum required to support the functionality we're using in the actuator.
+ */
+void can_configure_af_sections(bool extid) {
+  if (extid) {
+    can_putcommon(LPC17_40_CANAF_SFFSA, CANAF_ENDADDR(0));
+    can_putcommon(LPC17_40_CANAF_SFFGRPSA, CANAF_ENDADDR(0));
+    can_putcommon(LPC17_40_CANAF_EFFSA, CANAF_ENDADDR(0));
+    can_putcommon(LPC17_40_CANAF_EFFGRPSA, CANAF_ENDADDR(0));//extended ID range entry is two words wide
+    can_putcommon(LPC17_40_CANAF_EOT, CANAF_ENDADDR(3));
+  } else {
+    can_putcommon(LPC17_40_CANAF_SFFSA, CANAF_ENDADDR(0));
+    can_putcommon(LPC17_40_CANAF_SFFGRPSA, CANAF_ENDADDR(0));//standard ID range entry is one word wide
+    can_putcommon(LPC17_40_CANAF_EFFSA, CANAF_ENDADDR(1));
+    can_putcommon(LPC17_40_CANAF_EFFGRPSA, CANAF_ENDADDR(1));
+    can_putcommon(LPC17_40_CANAF_EOT, CANAF_ENDADDR(1));
+  }
+//  dump_af_ram();
+}
+
+uint8_t get_can_tx_error_count(int port) {
+  struct up_dev_s *priv;
+  switch (port) {
+    case 0:
+#ifdef CONFIG_LPC17_40_CAN1
+      priv = g_can1dev.cd_priv;
+#else
+      return 0;
+#endif
+      break;
+    case 1:
+#ifdef CONFIG_LPC17_40_CAN2
+      priv = g_can2dev.cd_priv;
+#else
+      return 0;
+#endif
+      break;
+    default:
+      return 0;
+      break;
+  }
+  return (can_getreg(priv, LPC17_40_CAN_GSR_OFFSET) & CAN_GSR_RXERR_MASK) >> CAN_GSR_RXERR_SHIFT;
+
+}
+
+uint8_t get_can_rx_error_count(int port) {
+  struct up_dev_s *priv;
+  switch (port) {
+    case 0:
+#ifdef CONFIG_LPC17_40_CAN1
+      priv = g_can1dev.cd_priv;
+#else
+      return 0;
+#endif
+      break;
+    case 1:
+#ifdef CONFIG_LPC17_40_CAN2
+      priv = g_can2dev.cd_priv;
+#else
+      return 0;
+#endif
+      break;
+    default:
+      return 0;
+      break;
+  }
+  return (can_getreg(priv, LPC17_40_CAN_GSR_OFFSET) & CAN_GSR_TXERR_MASK) >> CAN_GSR_TXERR_SHIFT;
+}
+
+uint8_t get_can_device_status(int port) {
+  struct up_dev_s *priv;
+  switch (port) {
+    case 0:
+#ifdef CONFIG_LPC17_40_CAN1
+      priv = g_can1dev.cd_priv;
+#else
+      return 0;
+#endif
+      break;
+    case 1:
+#ifdef CONFIG_LPC17_40_CAN2
+      priv = g_can2dev.cd_priv;
+#else
+      return 0;
+#endif
+      break;
+    default:
+      return 0;
+      break;
+  }
+  return (can_getreg(priv, LPC17_40_CAN_GSR_OFFSET)  &  (CAN_GSR_ES | CAN_GSR_BS))  >> 6;
+}
+
+/* Create the standard ID entry */
+static uint16_t can_createStdIDEntry(CAN_STD_ID_ENTRY_T *pEntryInfo, bool IsFullCANEntry) {
+    uint16_t Entry = 0;
+    Entry = (pEntryInfo->CtrlNo & CAN_STD_ENTRY_CTRL_NO_MASK) << CAN_STD_ENTRY_CTRL_NO_POS;
+    Entry |= (pEntryInfo->Disable & CAN_STD_ENTRY_DISABLE_MASK) << CAN_STD_ENTRY_DISABLE_POS;
+    Entry |= (pEntryInfo->ID_11 & CAN_STD_ENTRY_ID_MASK) << CAN_STD_ENTRY_ID_POS;
+    if (IsFullCANEntry) {
+        Entry |= 1 << CAN_STD_ENTRY_IE_POS;
+    }
+    return Entry;
+}
+
+static inline uint16_t can_createUnUsedSTDEntry(uint8_t CtrlNo) {
+    return ((CtrlNo & CAN_STD_ENTRY_CTRL_NO_MASK) << CAN_STD_ENTRY_CTRL_NO_POS) | (1 << CAN_STD_ENTRY_DISABLE_POS);
+}
+
+/* Get information from the standard ID entry */
+static void can_readStdIDEntry(uint16_t EntryVal, CAN_STD_ID_ENTRY_T *pEntryInfo) {
+    pEntryInfo->CtrlNo = (EntryVal >> CAN_STD_ENTRY_CTRL_NO_POS) & CAN_STD_ENTRY_CTRL_NO_MASK;
+    pEntryInfo->Disable = (EntryVal >> CAN_STD_ENTRY_DISABLE_POS) & CAN_STD_ENTRY_DISABLE_MASK;
+    pEntryInfo->ID_11 = (EntryVal >> CAN_STD_ENTRY_ID_POS) & CAN_STD_ENTRY_ID_MASK;
+}
+
+/* Setup Standard ID section */
+static int can_setupSTDSection(uint32_t *pCANAFRamAddr, CAN_STD_ID_ENTRY_T *pStdCANSec,
+                           uint16_t EntryCount, bool IsFullCANEntry) {
+    uint16_t i;
+    uint16_t CurID = 0;
+    uint16_t Entry;
+    uint16_t EntryCnt = 0;
+
+    /* Setup FullCAN section */
+    for (i = 0; i < EntryCount; i += 2) {
+        /* First Entry */
+        if (CurID > pStdCANSec[i].ID_11) {
+            return -1;//error
+        }
+        CurID = pStdCANSec[i].ID_11;
+        Entry = can_createStdIDEntry(&pStdCANSec[i], IsFullCANEntry);
+        pCANAFRamAddr[EntryCnt] = Entry << 16;
+
+        /* Second Entry */
+        if ((i + 1) < EntryCount) {
+            if (CurID > pStdCANSec[i + 1].ID_11) {
+                return -1;//error
+            }
+            CurID = pStdCANSec[i + 1].ID_11;
+            Entry = can_createStdIDEntry(&pStdCANSec[i + 1], IsFullCANEntry);
+            pCANAFRamAddr[EntryCnt] |= Entry;
+        }
+        else {
+            pCANAFRamAddr[EntryCnt] |= can_createUnUsedSTDEntry(pStdCANSec[0].CtrlNo);
+        }
+        EntryCnt++;
+    }
+    return 0;//success
+}
+
+/* Setup the Group Standard ID section */
+static int can_setupSTDRangeSection(uint32_t *pCANAFRamAddr, CAN_STD_ID_RANGE_ENTRY_T *pStdRangeCANSec, uint16_t EntryCount) {
+    return can_setupSTDSection(pCANAFRamAddr, (CAN_STD_ID_ENTRY_T *) pStdRangeCANSec, EntryCount * 2, false);
+}
+
+static uint32_t can_createExtIDEntry(CAN_EXT_ID_ENTRY_T *pEntryInfo) {
+    uint32_t Entry = 0;
+    Entry = (pEntryInfo->CtrlNo & CAN_EXT_ENTRY_CTRL_NO_MASK) << CAN_EXT_ENTRY_CTRL_NO_POS;
+    Entry |= (pEntryInfo->ID_29 & CAN_EXT_ENTRY_ID_MASK) << CAN_EXT_ENTRY_ID_POS;
+    return Entry;
+}
+
+/* Get information from an extended ID entry */
+static void can_readExtIDEntry(uint32_t EntryVal, CAN_EXT_ID_ENTRY_T *pEntryInfo) {
+    pEntryInfo->CtrlNo = (EntryVal >> CAN_EXT_ENTRY_CTRL_NO_POS) & CAN_EXT_ENTRY_CTRL_NO_MASK;
+    pEntryInfo->ID_29 = (EntryVal >> CAN_EXT_ENTRY_ID_POS) & CAN_EXT_ENTRY_ID_MASK;
+}
+
+/* Setup the Extended ID Section */
+static int can_setupEXTSection(uint32_t *pCANAFRamAddr, CAN_EXT_ID_ENTRY_T *pExtCANSec, uint16_t EntryCount) {
+    uint16_t i;
+    uint32_t CurID = 0;
+    uint32_t Entry;
+    uint16_t EntryCnt = 0;
+
+    /* Setup Extended ID section */
+    for (i = 0; i < EntryCount; i++) {
+        if (CurID > pExtCANSec[i].ID_29) {
+            return -1;//error
+        }
+        CurID = pExtCANSec[i].ID_29;
+        Entry = can_createExtIDEntry(&pExtCANSec[i]);
+        pCANAFRamAddr[EntryCnt] = Entry;
+        EntryCnt++;
+    }
+    return 0;//success
+
+}
+
+/* Setup Group Extended ID section */
+static int can_setupEXTRangeSection(uint32_t *pCANAFRamAddr, CAN_EXT_ID_RANGE_ENTRY_T *pExtRangeCANSec, uint16_t EntryCount) {
+    return can_setupEXTSection(pCANAFRamAddr, (CAN_EXT_ID_ENTRY_T *) pExtRangeCANSec, EntryCount * 2);
+}
+
+static void dump_af_ram(void) {
+  int i;
+  uint32_t tmp32;
+  syslog(LOG_INFO, "---------------------------\n\n");
+  /* print AF Ram region */
+  for (i = 0; i < 10 /*CANAF_RAM_ENTRY_NUM*/; i++) {
+     tmp32 = getreg32((LPC17_40_CANAFRAM_BASE + (i * 4)));
+     syslog(LOG_INFO, "%08x\n", tmp32);
+  }
+  /* print address registers */
+  tmp32 = getreg32(LPC17_40_CANAF_SFFSA);
+  syslog(LOG_INFO, "LPC17_40_CANAF_SFFSA    %08x\n", tmp32);
+  tmp32 = getreg32(LPC17_40_CANAF_SFFGRPSA);
+  syslog(LOG_INFO, "LPC17_40_CANAF_SFFGRPSA %08x\n", tmp32);
+  tmp32 = getreg32(LPC17_40_CANAF_EFFSA);
+  syslog(LOG_INFO, "LPC17_40_CANAF_EFFSA    %08x\n", tmp32);
+  tmp32 = getreg32(LPC17_40_CANAF_EFFGRPSA);
+  syslog(LOG_INFO, "LPC17_40_CANAF_EFFGRPSA %08x\n", tmp32);
+  tmp32 = getreg32(LPC17_40_CANAF_EOT);
+  syslog(LOG_INFO, "LPC17_40_CANAF_EOT      %08x\n", tmp32);
+  //Print AFMR
+  tmp32 = getreg32(LPC17_40_CANAF_AFMR);
+  syslog(LOG_INFO, "LPC17_40_CANAF_AFMR     %08x\n", tmp32);
+}
+
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -1573,9 +2096,9 @@ FAR struct can_dev_s *lpc17_40_caninitialize(int port)
 
 #ifdef LPC178x_40xx
       regval  = can_getcommon(LPC17_40_SYSCON_PCLKSEL);
-      regval &= SYSCON_PCLKSEL_PCLKDIV_MASK
+      regval &= SYSCON_PCLKSEL_PCLKDIV_MASK;
       regval >>= SYSCON_PCLKSEL_PCLKDIV_SHIFT;
-      g_can1pri.divisor = regval;
+      g_can1priv.divisor = regval;
 #else
       regval  = can_getcommon(LPC17_40_SYSCON_PCLKSEL0);
       regval &= ~SYSCON_PCLKSEL0_CAN1_MASK;
