@@ -71,7 +71,6 @@ include unionfs/Make.defs
 include userfs/Make.defs
 include hostfs/Make.defs
 include littlefs/Make.defs
-include littlefs2/Make.defs
 
 endif
 
