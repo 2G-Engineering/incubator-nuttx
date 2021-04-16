@@ -1,35 +1,20 @@
 /****************************************************************************
  * net/socket/net_dup2.c
  *
- *   Copyright (C) 2009, 2011-2015, 2017 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ****************************************************************************/
 
@@ -46,6 +31,7 @@
 #include <debug.h>
 
 #include <nuttx/net/net.h>
+#include <nuttx/net/tcp.h>
 
 #include "inet/inet.h"
 #include "tcp/tcp.h"
@@ -59,7 +45,7 @@
  * Name: psock_dup2
  *
  * Description:
- *   Performs the low level, common portion of net_dup() and net_dup2()
+ *   Performs the low level, common portion of dup
  *
  * Input Parameters:
  *   psock1 - The existing socket that is being cloned.
@@ -74,6 +60,9 @@
 
 int psock_dup2(FAR struct socket *psock1, FAR struct socket *psock2)
 {
+#ifdef NET_TCP_HAVE_STACK
+  FAR struct tcp_conn_s *conn;
+#endif
   int ret = OK;
 
   /* Parts of this operation need to be atomic */
@@ -98,10 +87,6 @@ int psock_dup2(FAR struct socket *psock1, FAR struct socket *psock2)
 #endif
   psock2->s_conn     = psock1->s_conn;      /* UDP or TCP connection structure */
 
-  /* Increment the reference count on the socket */
-
-  psock2->s_crefs    = 1;                   /* One reference on the new socket itself */
-
   /* Increment the reference count on the underlying connection structure
    * for this address family type.
    */
@@ -116,7 +101,11 @@ int psock_dup2(FAR struct socket *psock1, FAR struct socket *psock2)
    * the network connection is lost.
    */
 
-  if (psock2->s_type == SOCK_STREAM)
+  conn = (FAR struct tcp_conn_s *)psock2->s_conn;
+
+  if (psock2->s_type == SOCK_STREAM && conn &&
+      (conn->tcpstateflags == TCP_ESTABLISHED ||
+       conn->tcpstateflags == TCP_SYN_RCVD))
     {
       ret = tcp_start_monitor(psock2);
 
@@ -140,70 +129,13 @@ int psock_dup2(FAR struct socket *psock1, FAR struct socket *psock2)
 
           inet_close(psock2);
 
-          /* Then release our reference on the socket structure containing
-           * the connection.
-           */
+          /* The socket will not persist... reset it */
 
-          psock_release(psock2);
+          memset(psock2, 0, sizeof(*psock2));
         }
     }
 #endif
 
   net_unlock();
-  return ret;
-}
-
-/****************************************************************************
- * Name: net_dup2
- *
- * Description:
- *   Clone a socket descriptor to an arbitrary descriptor number.
- *
- * Returned Value:
- *   Zero (OK) is returned on success; a negated errno value is returned on
- *   any failure.
- *
- ****************************************************************************/
-
-int net_dup2(int sockfd1, int sockfd2)
-{
-  FAR struct socket *psock1;
-  FAR struct socket *psock2;
-  int ret;
-
-  /* Lock the scheduler throughout the following */
-
-  sched_lock();
-
-  /* Get the socket structures underly both descriptors */
-
-  psock1 = sockfd_socket(sockfd1);
-  psock2 = sockfd_socket(sockfd2);
-
-  /* Verify that the sockfd1 and sockfd2 both refer to valid socket
-   * descriptors and that sockfd2 corresponds to an allocated socket
-   */
-
-  if (psock1 == NULL || psock2 == NULL || psock1->s_crefs <= 0)
-    {
-      ret = -EBADF;
-      goto errout;
-    }
-
-  /* If sockfd2 also valid, allocated socket, then we will have to
-   * close it!
-   */
-
-  if (psock2->s_crefs > 0)
-    {
-      net_close(sockfd2);
-    }
-
-  /* Duplicate the socket state */
-
-  ret = psock_dup2(psock1, psock2);
-
-errout:
-  sched_unlock();
   return ret;
 }

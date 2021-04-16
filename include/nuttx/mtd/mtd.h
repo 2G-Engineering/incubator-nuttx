@@ -90,7 +90,7 @@
  * Public Types
  ****************************************************************************/
 
-struct qspi_dev_s; /* Forward reference */
+struct qspi_dev_s;    /* Forward reference */
 
 /* The following defines the geometry for the device.  It treats the device
  * as though it were just an array of fixed size blocks.  That is most likely

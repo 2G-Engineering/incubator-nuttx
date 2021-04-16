@@ -29,9 +29,11 @@
 #include <assert.h>
 #include <sched.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/cancelpt.h>
 #include <nuttx/semaphore.h>
 
 #include "inode/inode.h"
@@ -56,20 +58,52 @@ static int _files_semtake(FAR struct filelist *list)
 #define _files_semgive(list) nxsem_post(&list->fl_sem)
 
 /****************************************************************************
- * Public Functions
+ * Name: files_extend
  ****************************************************************************/
+
+static int files_extend(FAR struct filelist *list, size_t row)
+{
+  FAR struct file **tmp;
+  int i;
+
+  if (row <= list->fl_rows)
+    {
+      return 0;
+    }
+
+  tmp = kmm_realloc(list->fl_files, sizeof(FAR struct file *) * row);
+  DEBUGASSERT(tmp);
+  if (tmp == NULL)
+    {
+      return -ENFILE;
+    }
+
+  i = list->fl_rows;
+  do
+    {
+      tmp[i] = kmm_zalloc(sizeof(struct file) *
+                          CONFIG_NFILE_DESCRIPTORS_PER_BLOCK);
+      if (tmp[i] == NULL)
+        {
+          while (--i >= list->fl_rows)
+            {
+              kmm_free(tmp[i]);
+            }
+
+          kmm_free(tmp);
+          return -ENFILE;
+        }
+    }
+  while (++i < row);
+
+  list->fl_files = tmp;
+  list->fl_rows = row;
+  return 0;
+}
 
 /****************************************************************************
- * Name: files_initialize
- *
- * Description:
- *   This is called from the FS initialization logic to configure the files.
- *
+ * Public Functions
  ****************************************************************************/
-
-void files_initialize(void)
-{
-}
 
 /****************************************************************************
  * Name: files_initlist
@@ -98,6 +132,7 @@ void files_initlist(FAR struct filelist *list)
 void files_releaselist(FAR struct filelist *list)
 {
   int i;
+  int j;
 
   DEBUGASSERT(list);
 
@@ -106,10 +141,17 @@ void files_releaselist(FAR struct filelist *list)
    * because there should not be any references in this context.
    */
 
-  for (i = CONFIG_NFILE_DESCRIPTORS; i > 0; i--)
+  for (i = list->fl_rows - 1; i >= 0; i--)
     {
-      file_close(&list->fl_files[i - 1]);
+      for (j = CONFIG_NFILE_DESCRIPTORS_PER_BLOCK - 1; j >= 0; j--)
+        {
+          file_close(&list->fl_files[i][j]);
+        }
+
+      kmm_free(list->fl_files[i]);
     }
+
+  kmm_free(list->fl_files);
 
   /* Destroy the semaphore */
 
@@ -131,6 +173,7 @@ int files_allocate(FAR struct inode *inode, int oflags, off_t pos,
   FAR struct filelist *list;
   int ret;
   int i;
+  int j;
 
   /* Get the file descriptor list.  It should not be NULL in this context. */
 
@@ -145,27 +188,200 @@ int files_allocate(FAR struct inode *inode, int oflags, off_t pos,
       return ret;
     }
 
-  for (i = minfd; i < CONFIG_NFILE_DESCRIPTORS; i++)
+  /* Calcuate minfd whether is in list->fl_files.
+   * if not, allocate a new filechunk.
+   */
+
+  i = minfd / CONFIG_NFILE_DESCRIPTORS_PER_BLOCK;
+  if (i >= list->fl_rows)
     {
-      if (!list->fl_files[i].f_inode)
+      ret = files_extend(list, i + 1);
+      if (ret < 0)
         {
-          list->fl_files[i].f_oflags = oflags;
-          list->fl_files[i].f_pos    = pos;
-          list->fl_files[i].f_inode  = inode;
-          list->fl_files[i].f_priv   = priv;
           _files_semgive(list);
-          return i;
+          return ret;
         }
     }
 
+  /* Find free file */
+
+  j = minfd % CONFIG_NFILE_DESCRIPTORS_PER_BLOCK;
+  do
+    {
+      do
+        {
+          if (!list->fl_files[i][j].f_inode)
+            {
+              list->fl_files[i][j].f_oflags = oflags;
+              list->fl_files[i][j].f_pos    = pos;
+              list->fl_files[i][j].f_inode  = inode;
+              list->fl_files[i][j].f_priv   = priv;
+              _files_semgive(list);
+              return i * CONFIG_NFILE_DESCRIPTORS_PER_BLOCK + j;
+            }
+        }
+      while (++j < CONFIG_NFILE_DESCRIPTORS_PER_BLOCK);
+
+      j = 0;
+    }
+  while (++i < list->fl_rows);
+
+  /* The space of file array isn't enough, allocate a new filechunk */
+
+  ret = files_extend(list, i + 1);
+  if (ret >= 0)
+    {
+      list->fl_files[i][0].f_oflags = oflags;
+      list->fl_files[i][0].f_pos    = pos;
+      list->fl_files[i][0].f_inode  = inode;
+      list->fl_files[i][0].f_priv   = priv;
+      ret = i * CONFIG_NFILE_DESCRIPTORS_PER_BLOCK;
+    }
+
   _files_semgive(list);
-  return -EMFILE;
+  return ret;
 }
 
 /****************************************************************************
- * Name: files_dup2
+ * Name: files_duplist
  *
  * Description:
+ *   Duplicate parent task's file descriptors.
+ *
+ ****************************************************************************/
+
+int files_duplist(FAR struct filelist *plist, FAR struct filelist *clist)
+{
+  int ret;
+  int i;
+  int j;
+
+  ret = _files_semtake(plist);
+  if (ret < 0)
+    {
+      /* Probably canceled */
+
+      return ret;
+    }
+
+  for (i = 0; i < plist->fl_rows; i++)
+    {
+      for (j = 0; j < CONFIG_NFILE_DESCRIPTORS_PER_BLOCK; j++)
+        {
+          FAR struct file *filep;
+#ifdef CONFIG_FDCLONE_STDIO
+
+          /* Determine how many file descriptors to clone.  If
+           * CONFIG_FDCLONE_DISABLE is set, no file descriptors will be
+           * cloned.  If CONFIG_FDCLONE_STDIO is set, only the first
+           * three descriptors (stdin, stdout, and stderr) will be
+           * cloned.  Otherwise all file descriptors will be cloned.
+           */
+
+          if (i * CONFIG_NFILE_DESCRIPTORS_PER_BLOCK + j >= 3)
+            {
+              goto out;
+            }
+#endif
+
+          filep = &plist->fl_files[i][j];
+          if (filep->f_inode == NULL || (filep->f_oflags & O_CLOEXEC) != 0)
+            {
+              continue;
+            }
+
+          ret = files_extend(clist, i + 1);
+          if (ret < 0)
+            {
+              goto out;
+            }
+
+          /* Yes... duplicate it for the child */
+
+          ret = file_dup2(filep, &clist->fl_files[i][j]);
+          if (ret < 0)
+            {
+              goto out;
+            }
+        }
+    }
+
+out:
+  _files_semgive(plist);
+  return ret;
+}
+
+/****************************************************************************
+ * Name: fs_getfilep
+ *
+ * Description:
+ *   Given a file descriptor, return the corresponding instance of struct
+ *   file.
+ *
+ * Input Parameters:
+ *   fd    - The file descriptor
+ *   filep - The location to return the struct file instance
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; a negated errno value is returned on
+ *   any failure.
+ *
+ ****************************************************************************/
+
+int fs_getfilep(int fd, FAR struct file **filep)
+{
+  FAR struct filelist *list;
+  int ret;
+
+  DEBUGASSERT(filep != NULL);
+  *filep = (FAR struct file *)NULL;
+
+  list = nxsched_get_files();
+
+  /* The file list can be NULL under two cases:  (1) One is an obscure
+   * cornercase:  When memory management debug output is enabled.  Then
+   * there may be attempts to write to stdout from malloc before the group
+   * data has been allocated.  The other other is (2) if this is a kernel
+   * thread.  Kernel threads have no allocated file descriptors.
+   */
+
+  if (list == NULL)
+    {
+      return -EAGAIN;
+    }
+
+  if ((unsigned int)fd >= CONFIG_NFILE_DESCRIPTORS_PER_BLOCK * list->fl_rows)
+    {
+      return -EBADF;
+    }
+
+  /* The descriptor is in a valid range to file descriptor... Get the
+   * thread-specific file list.
+   */
+
+  /* And return the file pointer from the list */
+
+  ret = _files_semtake(list);
+  if (ret >= 0)
+    {
+      *filep = &list->fl_files[fd / CONFIG_NFILE_DESCRIPTORS_PER_BLOCK]
+                              [fd % CONFIG_NFILE_DESCRIPTORS_PER_BLOCK];
+      _files_semgive(list);
+    }
+
+  return OK;
+}
+
+/****************************************************************************
+ * Name: nx_dup2
+ *
+ * Description:
+ *   nx_dup2() is similar to the standard 'dup2' interface except that is
+ *   not a cancellation point and it does not modify the errno variable.
+ *
+ *   nx_dup2() is an internal NuttX interface and should not be called from
+ *   applications.
+ *
  *   Clone a file descriptor to a specific descriptor number.
  *
  * Returned Value:
@@ -174,21 +390,21 @@ int files_allocate(FAR struct inode *inode, int oflags, off_t pos,
  *
  ****************************************************************************/
 
-int files_dup2(int fd1, int fd2)
+int nx_dup2(int fd1, int fd2)
 {
   FAR struct filelist *list;
   int ret;
-
-  if (fd1 < 0 || fd1 >= CONFIG_NFILE_DESCRIPTORS ||
-      fd2 < 0 || fd2 >= CONFIG_NFILE_DESCRIPTORS)
-    {
-      return -EBADF;
-    }
 
   /* Get the file descriptor list.  It should not be NULL in this context. */
 
   list = nxsched_get_files();
   DEBUGASSERT(list != NULL);
+
+  if (fd1 < 0 || fd1 >= CONFIG_NFILE_DESCRIPTORS_PER_BLOCK * list->fl_rows ||
+      fd2 < 0)
+    {
+      return -EBADF;
+    }
 
   ret = _files_semtake(list);
   if (ret < 0)
@@ -198,23 +414,65 @@ int files_dup2(int fd1, int fd2)
       return ret;
     }
 
-  /* Perform the dup2 operation */
-
-  ret = file_dup2(&list->fl_files[fd1], &list->fl_files[fd2]);
-  _files_semgive(list);
-  if (ret < 0)
+  if (fd2 >= CONFIG_NFILE_DESCRIPTORS_PER_BLOCK * list->fl_rows)
     {
-      return ret;
+      ret = files_extend(list, fd2 / CONFIG_NFILE_DESCRIPTORS_PER_BLOCK + 1);
+      if (ret < 0)
+        {
+          _files_semgive(list);
+          return ret;
+        }
     }
 
-  return fd2;
+  /* Perform the dup2 operation */
+
+  ret = file_dup2(&list->fl_files[fd1 / CONFIG_NFILE_DESCRIPTORS_PER_BLOCK]
+                                 [fd1 % CONFIG_NFILE_DESCRIPTORS_PER_BLOCK],
+                  &list->fl_files[fd2 / CONFIG_NFILE_DESCRIPTORS_PER_BLOCK]
+                                 [fd2 % CONFIG_NFILE_DESCRIPTORS_PER_BLOCK]);
+  _files_semgive(list);
+
+  return ret < 0 ? ret : fd2;
 }
 
 /****************************************************************************
- * Name: files_close
+ * Name: dup2
  *
  * Description:
+ *   Clone a file descriptor or socket descriptor to a specific descriptor
+ *   number
+ *
+ ****************************************************************************/
+
+int dup2(int fd1, int fd2)
+{
+  int ret;
+
+  ret = nx_dup2(fd1, fd2);
+  if (ret < 0)
+    {
+      set_errno(-ret);
+      ret = ERROR;
+    }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: nx_close
+ *
+ * Description:
+ *   nx_close() is similar to the standard 'close' interface except that is
+ *   not a cancellation point and it does not modify the errno variable.
+ *
+ *   nx_close() is an internal NuttX interface and should not be called from
+ *   applications.
+ *
  *   Close an inode (if open)
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; A negated errno value is returned on
+ *   on any failure.
  *
  * Assumptions:
  *   Caller holds the list semaphore because the file descriptor will be
@@ -222,7 +480,7 @@ int files_dup2(int fd1, int fd2)
  *
  ****************************************************************************/
 
-int files_close(int fd)
+int nx_close(int fd)
 {
   FAR struct filelist *list;
   int                  ret;
@@ -234,52 +492,69 @@ int files_close(int fd)
   list = nxsched_get_files();
   DEBUGASSERT(list != NULL);
 
-  /* If the file was properly opened, there should be an inode assigned */
-
-  if (fd < 0 || fd >= CONFIG_NFILE_DESCRIPTORS ||
-      !list->fl_files[fd].f_inode)
-    {
-      return -EBADF;
-    }
-
   /* Perform the protected close operation */
 
   ret = _files_semtake(list);
-  if (ret >= 0)
+  if (ret < 0)
     {
-      ret = file_close(&list->fl_files[fd]);
-      _files_semgive(list);
+      return ret;
     }
+
+  /* If the file was properly opened, there should be an inode assigned */
+
+  if (fd < 0 || fd >= list->fl_rows * CONFIG_NFILE_DESCRIPTORS_PER_BLOCK ||
+      !list->fl_files[fd / CONFIG_NFILE_DESCRIPTORS_PER_BLOCK]
+                     [fd % CONFIG_NFILE_DESCRIPTORS_PER_BLOCK].f_inode)
+    {
+      _files_semgive(list);
+      return -EBADF;
+    }
+
+  ret = file_close(&list->fl_files[fd / CONFIG_NFILE_DESCRIPTORS_PER_BLOCK]
+                                  [fd % CONFIG_NFILE_DESCRIPTORS_PER_BLOCK]);
+  _files_semgive(list);
 
   return ret;
 }
 
 /****************************************************************************
- * Name: files_release
+ * Name: close
+ *
+ * Description:
+ *   close() closes a file descriptor, so that it no longer refers to any
+ *   file and may be reused. Any record locks (see fcntl(2)) held on the file
+ *   it was associated with, and owned by the process, are removed
+ *   (regardless of the file descriptor that was used to obtain the lock).
+ *
+ *   If fd is the last copy of a particular file descriptor the resources
+ *   associated with it are freed; if the descriptor was the last reference
+ *   to a file which has been removed using unlink(2) the file is deleted.
+ *
+ * Input Parameters:
+ *   fd   file descriptor to close
+ *
+ * Returned Value:
+ *   0 on success; -1 on error with errno set appropriately.
  *
  * Assumptions:
- *   Similar to files_close().  Called only from open() logic on error
- *   conditions.
  *
  ****************************************************************************/
 
-void files_release(int fd)
+int close(int fd)
 {
-  FAR struct filelist *list;
   int ret;
 
-  list = nxsched_get_files();
-  DEBUGASSERT(list != NULL);
+  /* close() is a cancellation point */
 
-  if (fd >= 0 && fd < CONFIG_NFILE_DESCRIPTORS)
+  enter_cancellation_point();
+
+  ret = nx_close(fd);
+  if (ret < 0)
     {
-      ret = _files_semtake(list);
-      if (ret >= 0)
-        {
-          list->fl_files[fd].f_oflags  = 0;
-          list->fl_files[fd].f_pos     = 0;
-          list->fl_files[fd].f_inode = NULL;
-          _files_semgive(list);
-        }
+      set_errno(-ret);
+      ret = ERROR;
     }
+
+  leave_cancellation_point();
+  return ret;
 }

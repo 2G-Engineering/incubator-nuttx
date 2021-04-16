@@ -1,39 +1,20 @@
 /****************************************************************************
  * audio/pcm_decode.c
  *
- *   Copyright (C) 2014 Gregory Nutt. All rights reserved.
- *   Author:  Gregory Nutt <gnutt@nuttx.org>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Based on the original audio framework from:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *   Author: Ken Pettit <pettitkd@gmail.com>
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ****************************************************************************/
 
@@ -151,8 +132,10 @@ static uint16_t pcm_leuint32(uint32_t value);
 #  define pcm_leuint32(v) (v)
 #endif
 
+#ifndef CONFIG_AUDIO_FORMAT_RAW
 static inline bool pcm_validwav(FAR const struct wav_header_s *wav);
 static bool pcm_parsewav(FAR struct pcm_decode_s *priv, uint8_t *data);
+#endif
 
 #ifndef CONFIG_AUDIO_EXCLUDE_FFORWARD
 static void pcm_subsample_configure(FAR struct pcm_decode_s *priv,
@@ -326,7 +309,7 @@ static uint16_t pcm_leuint32(uint32_t value)
  *   Return true if this is a valid WAV file header
  *
  ****************************************************************************/
-
+#ifndef CONFIG_AUDIO_FORMAT_RAW
 static inline bool pcm_validwav(FAR const struct wav_header_s *wav)
 {
   return (wav->hdr.chunkid  == WAV_HDR_CHUNKID  &&
@@ -402,7 +385,8 @@ static bool pcm_parsewav(FAR struct pcm_decode_s *priv, uint8_t *data)
 
       if (priv->bpsamp != 8 && priv->bpsamp != 16)
         {
-          auderr("ERROR: %d bits per sample are not suported in this mode\n",
+          auderr("ERROR: %d bits per sample are not supported in this "
+                 "mode\n",
                  priv->bpsamp);
           return -EINVAL;
         }
@@ -422,6 +406,7 @@ static bool pcm_parsewav(FAR struct pcm_decode_s *priv, uint8_t *data)
 
   return ret;
 }
+#endif
 
 /****************************************************************************
  * Name: pcm_subsample_configure
@@ -1082,71 +1067,68 @@ static int pcm_enqueuebuffer(FAR struct audio_lowerhalf_s *dev,
   audinfo("curbyte=%d nbytes=%d nmaxbytes=%d bytesleft=%d\n",
           apb->curbyte, apb->nbytes, apb->nmaxbytes, bytesleft);
 
-  if (bytesleft >= sizeof(struct wav_header_s))
+  /* Parse and verify the candidate PCM WAV file header */
+
+#ifndef CONFIG_AUDIO_FORMAT_RAW
+  if (bytesleft >= sizeof(struct wav_header_s) &&
+      pcm_parsewav(priv, &apb->samp[apb->curbyte]))
     {
-      /* Parse and verify the candidate PCM WAV file header */
+      struct audio_caps_s caps;
 
-      if (pcm_parsewav(priv, &apb->samp[apb->curbyte]))
-        {
-          struct audio_caps_s caps;
+      /* Configure the lower level for the number of channels, bitrate,
+       * and sample bitwidth.
+       */
 
-          /* Configure the lower level for the number of channels, bitrate,
-           * and sample bitwidth.
-           */
+      DEBUGASSERT(priv->samprate < 65535);
 
-          DEBUGASSERT(priv->samprate < 65535);
+      caps.ac_len            = sizeof(struct audio_caps_s);
+      caps.ac_type           = AUDIO_TYPE_OUTPUT;
+      caps.ac_channels       = priv->nchannels;
 
-          caps.ac_len            = sizeof(struct audio_caps_s);
-          caps.ac_type           = AUDIO_TYPE_OUTPUT;
-          caps.ac_channels       = priv->nchannels;
-
-          caps.ac_controls.hw[0] = (uint16_t)priv->samprate;
-          caps.ac_controls.b[2]  = priv->bpsamp;
+      caps.ac_controls.hw[0] = (uint16_t)priv->samprate;
+      caps.ac_controls.b[2]  = priv->bpsamp;
 
 #ifdef CONFIG_AUDIO_MULTI_SESSION
-          ret = lower->ops->configure(lower, priv->session, &caps);
+      ret = lower->ops->configure(lower, priv->session, &caps);
 #else
-          ret = lower->ops->configure(lower, &caps);
+      ret = lower->ops->configure(lower, &caps);
 #endif
-          if (ret < 0)
-            {
-              auderr("ERROR: Failed to set PCM configuration: %d\n", ret);
-              return ret;
-            }
-
-          /* Bump up the data offset */
-
-          apb->curbyte += sizeof(struct wav_header_s);
-
-#ifndef CONFIG_AUDIO_EXCLUDE_FFORWARD
-          audinfo("Begin streaming: apb=%p curbyte=%d nbytes=%d\n",
-                  apb, apb->curbyte, apb->nbytes);
-
-          /* Perform any necessary sub-sampling operations */
-
-          pcm_subsample(priv, apb);
-#endif
-
-          /* Then give the audio buffer to the lower driver */
-
-          audinfo(
-               "Pass to lower enqueuebuffer: apb=%p curbyte=%d nbytes=%d\n",
-                apb, apb->curbyte, apb->nbytes);
-
-          ret = lower->ops->enqueuebuffer(lower, apb);
-          if (ret == OK)
-            {
-              /* Now we are streaming.  Unless for some reason there is only
-               * one audio buffer in the audio stream.  In that case, this
-               * will be marked as the final buffer
-               */
-
-              priv->streaming = ((apb->flags & AUDIO_APB_FINAL) == 0);
-              return OK;
-            }
+      if (ret < 0)
+        {
+          auderr("ERROR: Failed to set PCM configuration: %d\n", ret);
+          return ret;
         }
 
-      auderr("ERROR: Invalid PCM WAV file\n");
+      /* Bump up the data offset */
+
+      apb->curbyte += sizeof(struct wav_header_s);
+#endif
+#ifndef CONFIG_AUDIO_EXCLUDE_FFORWARD
+      audinfo("Begin streaming: apb=%p curbyte=%d nbytes=%d\n",
+              apb, apb->curbyte, apb->nbytes);
+
+      /* Perform any necessary sub-sampling operations */
+
+      pcm_subsample(priv, apb);
+#endif
+
+      /* Then give the audio buffer to the lower driver */
+
+      audinfo(
+           "Pass to lower enqueuebuffer: apb=%p curbyte=%d nbytes=%d\n",
+            apb, apb->curbyte, apb->nbytes);
+
+      ret = lower->ops->enqueuebuffer(lower, apb);
+      if (ret == OK)
+        {
+          /* Now we are streaming.  Unless for some reason there is only
+           * one audio buffer in the audio stream.  In that case, this
+           * will be marked as the final buffer
+           */
+
+          priv->streaming = ((apb->flags & AUDIO_APB_FINAL) == 0);
+          return OK;
+        }
 
       /* The normal protocol for streaming errors is as follows:
        *
@@ -1170,10 +1152,12 @@ static int pcm_enqueuebuffer(FAR struct audio_lowerhalf_s *dev,
 #endif
     }
 
+#ifndef CONFIG_AUDIO_FORMAT_RAW
   /* This is not a WAV file! */
 
   auderr("ERROR: Invalid PCM WAV file\n");
   return -EINVAL;
+#endif
 }
 
 /****************************************************************************
@@ -1301,8 +1285,8 @@ static int pcm_release(FAR struct audio_lowerhalf_s *dev)
 
   DEBUGASSERT(priv);
 
-  /* Release the lower driver.. it is then available for use by other
-   * decoders (and we cannot use the lower driver wither unless we re-
+  /* Release the lower driver. It is then available for use by other
+   * decoders (and we cannot use the lower driver either unless we re-
    * reserve it).
    */
 

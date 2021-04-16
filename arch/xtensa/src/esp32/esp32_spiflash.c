@@ -31,7 +31,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
-#include <sys/errno.h>
+#include <errno.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/init.h>
@@ -51,6 +51,7 @@
 #include "esp32_spiram.h"
 #endif
 
+#include "esp32_spicache.h"
 #include "esp32_spiflash.h"
 
 /****************************************************************************
@@ -172,7 +173,7 @@ struct spiflash_cachestate_s
  * ROM function prototypes
  ****************************************************************************/
 
-void Cache_Flush(int cpu);
+extern void cache_flush(int cpu);
 
 /****************************************************************************
  * Private Functions Prototypes
@@ -398,85 +399,6 @@ static inline void spi_reset_regbits(struct esp32_spiflash_s *priv,
 }
 
 /****************************************************************************
- * Name: spiflash_disable_cache
- ****************************************************************************/
-
-static void IRAM_ATTR spi_disable_cache(int cpu, uint32_t *state)
-{
-  const uint32_t cache_mask = 0x3f; /* Caches' bits in CTRL1_REG */
-  uint32_t regval;
-  uint32_t ret = 0;
-
-  if (cpu == 0)
-    {
-      ret |= (getreg32(DPORT_PRO_CACHE_CTRL1_REG) & cache_mask);
-      while (((getreg32(DPORT_PRO_DCACHE_DBUG0_REG) >>
-                      DPORT_PRO_CACHE_STATE_S) & DPORT_PRO_CACHE_STATE) != 1)
-        {
-          ;
-        }
-
-      regval  = getreg32(DPORT_PRO_CACHE_CTRL_REG);
-      regval &= ~DPORT_PRO_CACHE_ENABLE_M;
-      putreg32(regval, DPORT_PRO_CACHE_CTRL_REG);
-    }
-#ifdef CONFIG_SMP
-  else
-    {
-      ret |= (getreg32(DPORT_APP_CACHE_CTRL1_REG) & cache_mask);
-      while (((getreg32(DPORT_APP_DCACHE_DBUG0_REG) >>
-                      DPORT_APP_CACHE_STATE_S) & DPORT_APP_CACHE_STATE) != 1)
-        {
-          ;
-        }
-
-      regval  = getreg32(DPORT_APP_CACHE_CTRL_REG);
-      regval &= ~DPORT_APP_CACHE_ENABLE_M;
-      putreg32(regval, DPORT_APP_CACHE_CTRL_REG);
-    }
-
-#endif
-  *state = ret;
-}
-
-/****************************************************************************
- * Name: spiflash_enable_cache
- ****************************************************************************/
-
-static void IRAM_ATTR spi_enable_cache(int cpu, uint32_t state)
-{
-  const uint32_t cache_mask = 0x3f;  /* Caches' bits in CTRL1_REG */
-  uint32_t regval;
-  uint32_t ctrlreg;
-  uint32_t ctrl1reg;
-  uint32_t ctrlmask;
-
-  if (cpu == 0)
-    {
-      ctrlreg = DPORT_PRO_CACHE_CTRL_REG;
-      ctrl1reg = DPORT_PRO_CACHE_CTRL1_REG;
-      ctrlmask = DPORT_PRO_CACHE_ENABLE_M;
-    }
-#ifdef CONFIG_SMP
-  else
-    {
-      ctrlreg = DPORT_APP_CACHE_CTRL_REG;
-      ctrl1reg = DPORT_APP_CACHE_CTRL1_REG;
-      ctrlmask = DPORT_APP_CACHE_ENABLE_M;
-    }
-#endif
-
-  regval  = getreg32(ctrlreg);
-  regval |= ctrlmask;
-  putreg32(regval, ctrlreg);
-
-  regval  = getreg32(ctrl1reg);
-  regval &= ~cache_mask;
-  regval |= state;
-  putreg32(regval, ctrl1reg);
-}
-
-/****************************************************************************
  * Name: esp32_spiflash_opstart
  *
  * Description:
@@ -613,9 +535,9 @@ static void IRAM_ATTR spiflash_flushmapped(size_t start, size_t size)
 #ifdef CONFIG_ESP32_SPIRAM
           esp_spiram_writeback_cache();
 #endif
-          Cache_Flush(0);
-#ifndef CONFIG_SMP
-          Cache_Flush(1);
+          cache_flush(0);
+#ifdef CONFIG_SMP
+          cache_flush(1);
 #endif
         }
     }
@@ -1406,6 +1328,7 @@ static int IRAM_ATTR esp32_mmap(FAR struct esp32_spiflash_s *priv,
   int flash_page;
   int page_cnt;
   struct spiflash_cachestate_s state;
+  bool flush = false;
 
   esp32_spiflash_opstart(&state);
 
@@ -1441,7 +1364,7 @@ static int IRAM_ATTR esp32_mmap(FAR struct esp32_spiflash_s *priv,
       req->ptr = (void *)(VADDR0_START_ADDR +
                           start_page * SPI_FLASH_MMU_PAGE_SIZE +
                           MMU_ADDR2OFF(req->src_addr));
-
+      flush = true;
       ret = 0;
     }
   else
@@ -1449,10 +1372,17 @@ static int IRAM_ATTR esp32_mmap(FAR struct esp32_spiflash_s *priv,
       ret = -ENOBUFS;
     }
 
-  Cache_Flush(0);
-#ifdef CONFIG_SMP
-  Cache_Flush(1);
+  if (flush)
+    {
+#ifdef CONFIG_ESP32_SPIRAM
+      esp_spiram_writeback_cache();
 #endif
+      cache_flush(0);
+#ifdef CONFIG_SMP
+      cache_flush(1);
+#endif
+    }
+
   esp32_spiflash_opdone(&state);
 
   return ret;
@@ -1466,7 +1396,7 @@ static int IRAM_ATTR esp32_mmap(FAR struct esp32_spiflash_s *priv,
  *
  * Input Parameters:
  *   spi - ESP32 SPI Flash chip data
- *   req - SPI Flash mapping requesting paramters
+ *   req - SPI Flash mapping requesting parameters
  *
  * Returned Value:
  *   None.
@@ -1489,9 +1419,12 @@ static void IRAM_ATTR esp32_ummap(FAR struct esp32_spiflash_s *priv,
 #endif
     }
 
-  Cache_Flush(0);
+#ifdef CONFIG_ESP32_SPIRAM
+  esp_spiram_writeback_cache();
+#endif
+  cache_flush(0);
 #ifdef CONFIG_SMP
-  Cache_Flush(1);
+  cache_flush(1);
 #endif
   esp32_spiflash_opdone(&state);
 }
@@ -1808,7 +1741,7 @@ static ssize_t esp32_bread_decrypt(FAR struct mtd_dev_s *dev,
  *   buffer - data buffer pointer
  *
  * Returned Value:
- *   Writen bytes if success or a negative value if fail.
+ *   Written bytes if success or a negative value if fail.
  *
  ****************************************************************************/
 
@@ -1869,7 +1802,7 @@ error_with_buffer:
  *   buffer     - data buffer pointer
  *
  * Returned Value:
- *   Writen block number if success or a negative value if fail.
+ *   Written block number if success or a negative value if fail.
  *
  ****************************************************************************/
 
@@ -1913,7 +1846,7 @@ static ssize_t esp32_bwrite(FAR struct mtd_dev_s *dev, off_t startblock,
  *   buffer     - data buffer pointer
  *
  * Returned Value:
- *   Writen block number if success or a negative value if fail.
+ *   Written block number if success or a negative value if fail.
  *
  ****************************************************************************/
 

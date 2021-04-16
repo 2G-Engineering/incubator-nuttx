@@ -1,6 +1,5 @@
 /****************************************************************************
  * drivers/power/bq769x0.c
- * Lower half driver for BQ769x0 battery monitor
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -18,6 +17,8 @@
  * under the License.
  *
  ****************************************************************************/
+
+/* Lower half driver for BQ769x0 battery monitor */
 
 /* The bq76920/bq76930/bq76940 battery monitor ICs provide voltage, current,
  * and temperature monitoring of up to 15-series cells.  These ICs also
@@ -2055,7 +2056,7 @@ static int bq769x0_operate(struct battery_monitor_dev_s *dev,
  *
  *   CONFIG_BATTERY_MONITOR - Upper half battery driver support
  *   CONFIG_I2C - I2C support
- *   CONFIG_I2C_BQ769X0 - And the driver must be explictly selected.
+ *   CONFIG_I2C_BQ769X0 - And the driver must be explicitly selected.
  *
  * Input Parameters:
  *   i2c       - An instance of the I2C interface to use to communicate with

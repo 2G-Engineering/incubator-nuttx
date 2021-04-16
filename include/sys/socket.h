@@ -50,6 +50,7 @@
 #define PF_BLUETOOTH  31         /* Bluetooth sockets */
 #define PF_IEEE802154 36         /* Low level IEEE 802.15.4 radio frame interface */
 #define PF_PKTRADIO   64         /* Low level packet radio interface */
+#define PF_RPMSG      65         /* Remote core communication */
 
 /* Supported Address Families. Opengroup.org requires only AF_UNSPEC,
  * AF_UNIX, AF_INET and AF_INET6.
@@ -67,6 +68,7 @@
 #define AF_BLUETOOTH   PF_BLUETOOTH
 #define AF_IEEE802154  PF_IEEE802154
 #define AF_PKTRADIO    PF_PKTRADIO
+#define AF_RPMSG       PF_RPMSG
 
 /* The socket created by socket() has the indicated type, which specifies
  * the communication semantics.
@@ -259,6 +261,12 @@
 #define CMSG_FIRSTHDR(msg) \
   __CMSG_FIRSTHDR((msg)->msg_control, (msg)->msg_controllen)
 
+/* "Socket"-level control message types: */
+
+#define SCM_RIGHTS      0x01    /* rw: access rights (array of int) */
+#define SCM_CREDENTIALS 0x02    /* rw: struct ucred */
+#define SCM_SECURITY    0x03    /* rw: security label */
+
 /****************************************************************************
  * Type Definitions
  ****************************************************************************/
@@ -308,7 +316,7 @@ struct linger
 struct msghdr
 {
   FAR void *msg_name;           /* Socket name */
-  int msg_namelen;              /* Length of name */
+  socklen_t msg_namelen;        /* Length of name */
   FAR struct iovec *msg_iov;    /* Data blocks */
   unsigned long msg_iovlen;     /* Number of blocks */
   FAR void *msg_control;        /* Per protocol magic (eg BSD file descriptor passing) */

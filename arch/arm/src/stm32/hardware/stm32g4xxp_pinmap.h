@@ -1,5 +1,5 @@
-/****************************************************************************************************
- *  arch/arm/src/stm32/hardware/stm32g4xxp_pinmap.h
+/****************************************************************************
+ * arch/arm/src/stm32/hardware/stm32g4xxp_pinmap.h
  *
  *  Licensed to the Apache Software Foundation (ASF) under one or more
  *  contributor license agreements.  See the NOTICE file distributed with
@@ -16,14 +16,14 @@
  *  License for the specific language governing permissions and limitations
  *  under the License.
  *
- ****************************************************************************************************/
+ ****************************************************************************/
 
 #ifndef __ARCH_ARM_SRC_STM32_HARDWARE_STM32G4XXP_PINMAP_H
 #define __ARCH_ARM_SRC_STM32_HARDWARE_STM32G4XXP_PINMAP_H
 
-/****************************************************************************************************
+/****************************************************************************
  * Pre-processor Definitions
- ****************************************************************************************************/
+ ****************************************************************************/
 
 #error missing pinmap for STM32G4XXP
 

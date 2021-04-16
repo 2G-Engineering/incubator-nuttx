@@ -62,6 +62,10 @@
 #define S_IRUSR     (1 << 8)
 #define S_IRWXU     (7 << 6)
 
+#define S_IREAD     S_IRUSR    /* Obsolete synonym provided for BSD compatibility. */
+#define S_IWRITE    S_IWUSR    /* Obsolete synonym provided for BSD compatibility. */
+#define S_IEXEC     S_IXUSR    /* Obsolete synonym provided for BSD compatibility. */
+
 #define S_ISVTX     (1 << 9)   /* "Sticky" bit (not used) */
 #define S_ISGID     (1 << 10)  /* Set group ID bit (not used)*/
 #define S_ISUID     (1 << 11)  /* Set UID bit (not used) */
@@ -103,7 +107,7 @@
 #define S_TYPEISMQ(buf)  S_ISMQ((buf)->st_mode)
 #define S_TYPEISSHM(buf) S_ISSHM((buf)->st_mode)
 
-/* The following macros are required by POSIX to acheive backward
+/* The following macros are required by POSIX to achieve backward
  * compatibility with earlier versions of struct stat.
  */
 

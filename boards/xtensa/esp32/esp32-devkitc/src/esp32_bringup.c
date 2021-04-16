@@ -1,35 +1,20 @@
 /****************************************************************************
  * boards/xtensa/esp32/esp32-devkitc/src/esp32_bringup.c
  *
- *   Copyright (C) 2016 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ****************************************************************************/
 
@@ -46,18 +31,14 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
-#include <sys/mount.h>
 #include <syslog.h>
 #include <debug.h>
 #include <stdio.h>
 
-#include <syslog.h>
-#include <sys/errno.h>
+#include <errno.h>
+#include <nuttx/fs/fs.h>
 #include <nuttx/himem/himem.h>
 
-#include "esp32_procfs_imm.h"
-
-#include "esp32_wlan.h"
 #include "esp32_spiflash.h"
 #include "esp32_partition.h"
 
@@ -65,23 +46,43 @@
 #  include <nuttx/leds/userled.h>
 #endif
 
+#ifdef CONFIG_CAN_MCP2515
+#  include "esp32_mcp2515.h"
+#endif
+
 #ifdef CONFIG_TIMER
-#  include "esp32_board_tim.h"
+#include <esp32_tim_lowerhalf.h>
+#endif
+
+#ifdef CONFIG_ONESHOT
+#  include "esp32_board_oneshot.h"
 #endif
 
 #ifdef CONFIG_WATCHDOG
 #  include "esp32_board_wdt.h"
 #endif
 
+#ifdef CONFIG_ESP32_WIRELESS
+#  include "esp32_board_wlan.h"
+#endif
+
+#ifdef CONFIG_ESP32_I2C
+#  include "esp32_board_i2c.h"
+#endif
+
+#ifdef CONFIG_SENSORS_BMP180
+#  include "esp32_bmp180.h"
+#endif
+
 #ifdef CONFIG_ESP32_AES_ACCELERATOR
 #  include "esp32_aes.h"
 #endif
 
-#include "esp32-devkitc.h"
+#ifdef CONFIG_INPUT_BUTTONS
+#  include <nuttx/input/buttons.h>
+#endif
 
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
+#include "esp32-devkitc.h"
 
 /****************************************************************************
  * Public Functions
@@ -101,56 +102,9 @@
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ESP32_WIFI_SAVE_PARAM
-static int esp32_init_wifi_storage(void)
-{
-  int ret;
-  const char *path = "/dev/mtdblock1";
-  FAR struct mtd_dev_s *mtd_part;
-
-  mtd_part = esp32_spiflash_alloc_mtdpart();
-  if (!mtd_part)
-    {
-      syslog(LOG_ERR, "ERROR: Failed to alloc MTD partition of SPI Flash\n");
-      return -1;
-    }
-
-  ret = register_mtddriver(path, mtd_part, 0777, NULL);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: Failed to regitser MTD: %d\n", ret);
-      return -1;
-    }
-
-  ret = mount(path, CONFIG_ESP32_WIFI_FS_MOUNTPT, "spiffs", 0, NULL);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: Failed to mount the FS volume: %d\n", errno);
-      return ret;
-    }
-
-  return 0;
-}
-#endif
-
 int esp32_bringup(void)
 {
   int ret;
-
-#ifdef CONFIG_XTENSA_IMEM_PROCFS
-  /* Register the internal memory procfs entry.
-   * This must be done before the procfs is mounted.
-   */
-
-  ret = imm_procfs_register();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR,
-             "ERROR: Failed to register internal memory to PROCFS: %d\n",
-             ret);
-    }
-
-#endif
 
 #ifdef CONFIG_ESP32_AES_ACCELERATOR
   ret = esp32_aes_init();
@@ -181,10 +135,21 @@ int esp32_bringup(void)
 #ifdef CONFIG_FS_PROCFS
   /* Mount the procfs file system */
 
-  ret = mount(NULL, "/proc", "procfs", 0, NULL);
+  ret = nx_mount(NULL, "/proc", "procfs", 0, NULL);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: Failed to mount procfs at /proc: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_FS_TMPFS
+  /* Mount the tmpfs file system */
+
+  ret = nx_mount(NULL, CONFIG_LIBC_TMPDIR, "tmpfs", 0, NULL);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to mount tmpfs at %s: %d\n",
+             CONFIG_LIBC_TMPDIR, ret);
     }
 #endif
 
@@ -222,38 +187,78 @@ int esp32_bringup(void)
 #endif
 
 #ifdef CONFIG_ESP32_WIRELESS
-
-#ifdef CONFIG_ESP32_WIFI_SAVE_PARAM
-  ret = esp32_init_wifi_storage();
-  if (ret)
+  ret = board_wlan_init();
+  if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: Failed to initialize WiFi storage\n");
+      syslog(LOG_ERR, "ERROR: Failed to initialize wireless subsystem=%d\n",
+             ret);
       return ret;
     }
 #endif
 
-#ifdef CONFIG_NET
-  ret = esp32_wlan_sta_initialize();
-  if (ret)
-    {
-      syslog(LOG_ERR, "ERROR: Failed to initialize WiFi\n");
-      return ret;
-    }
-#endif
-
-#endif
+/* First, register the timer drivers and let timer 1 for oneshot
+ * if it is enabled.
+ */
 
 #ifdef CONFIG_TIMER
-  /* Configure timer driver */
 
-  ret = board_timer_init();
+#ifdef CONFIG_ESP32_TIMER0
+  ret = esp32_timer_initialize("/dev/timer0", TIMER0);
   if (ret < 0)
     {
       syslog(LOG_ERR,
-             "ERROR: Failed to initialize timer drivers: %d\n",
+             "ERROR: Failed to initialize timer driver: %d\n",
              ret);
+      return ret;
     }
 #endif
+
+#if defined(CONFIG_ESP32_TIMER1) && !defined(CONFIG_ONESHOT)
+  ret = esp32_timer_initialize("/dev/timer1", TIMER1);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to initialize timer driver: %d\n",
+             ret);
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_ESP32_TIMER2
+  ret = esp32_timer_initialize("/dev/timer2", TIMER2);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to initialize timer driver: %d\n",
+             ret);
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_ESP32_TIMER3
+  ret = esp32_timer_initialize("/dev/timer3", TIMER3);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to initialize timer driver: %d\n",
+             ret);
+      return ret;
+    }
+#endif
+
+#endif /* CONFIG_TIMER */
+
+  /* Now register one oneshot driver */
+
+#if defined(CONFIG_ONESHOT) && defined(CONFIG_ESP32_TIMER1)
+
+  ret = esp32_oneshot_init(ONESHOT_TIMER, ONESHOT_RESOLUTION_US);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: esp32_oneshot_init() failed: %d\n", ret);
+    }
+
+#endif /* CONFIG_ONESHOT */
 
 #ifdef CONFIG_USERLED
   /* Register the LED driver */
@@ -262,6 +267,16 @@ int esp32_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_CAN_MCP2515
+  /* Configure and initialize the MCP2515 CAN device */
+
+  ret = board_mcp2515_initialize(0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_mcp2515_initialize() failed: %d\n", ret);
     }
 #endif
 
@@ -274,6 +289,61 @@ int esp32_bringup(void)
       syslog(LOG_ERR,
              "ERROR: Failed to initialize watchdog drivers: %d\n",
              ret);
+    }
+#endif
+
+#ifdef CONFIG_DEV_GPIO
+  ret = esp32_gpio_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize GPIO Driver: %d\n", ret);
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_I2C_DRIVER
+
+#ifdef CONFIG_ESP32_I2C0
+  ret = esp32_i2c_register(0);
+
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize I2C Driver for I2C0: %d\n", ret);
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_ESP32_I2C1
+  ret = esp32_i2c_register(1);
+
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize I2C Driver for I2C1: %d\n", ret);
+      return ret;
+    }
+#endif
+
+#endif
+
+#ifdef CONFIG_SENSORS_BMP180
+  /* Try to register BMP180 device in I2C0 */
+
+  ret = board_bmp180_initialize(0, 0);
+
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize BMP180 driver: %d\n", ret);
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_INPUT_BUTTONS
+  /* Register the BUTTON driver */
+
+  ret = btn_lower_initialize("/dev/buttons");
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: btn_lower_initialize() failed: %d\n", ret);
     }
 #endif
 

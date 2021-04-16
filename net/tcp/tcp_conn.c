@@ -95,108 +95,6 @@ static dq_queue_t g_active_tcp_connections;
  ****************************************************************************/
 
 /****************************************************************************
- * Name: tcp_ipv4_listener
- *
- * Description:
- *   Given a local port number (in network byte order), find the TCP
- *   connection that listens on this port.
- *
- *   Primary uses: (1) to determine if a port number is available, (2) to
- *   To identify the socket that will accept new connections on a local port.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_NET_IPv4
-static inline FAR struct tcp_conn_s *tcp_ipv4_listener(in_addr_t ipaddr,
-                                                       uint16_t portno)
-{
-  FAR struct tcp_conn_s *conn;
-  int i;
-
-  /* Check if this port number is in use by any active UIP TCP connection */
-
-  for (i = 0; i < CONFIG_NET_TCP_CONNS; i++)
-    {
-      conn = &g_tcp_connections[i];
-
-      /* Check if this connection is open and the local port assignment
-       * matches the requested port number.
-       */
-
-      if (conn->tcpstateflags != TCP_CLOSED && conn->lport == portno)
-        {
-          /* If there are multiple interface devices, then the local IP
-           * address of the connection must also match.  INADDR_ANY is a
-           * special case:  There can only be instance of a port number
-           * with INADDR_ANY.
-           */
-
-          if (net_ipv4addr_cmp(conn->u.ipv4.laddr, ipaddr) ||
-              net_ipv4addr_cmp(conn->u.ipv4.laddr, INADDR_ANY))
-            {
-              /* The port number is in use, return the connection */
-
-              return conn;
-            }
-        }
-    }
-
-  return NULL;
-}
-#endif /* CONFIG_NET_IPv4 */
-
-/****************************************************************************
- * Name: tcp_ipv6_listener
- *
- * Description:
- *   Given a local port number (in network byte order), find the TCP
- *   connection that listens on this port.
- *
- *   Primary uses: (1) to determine if a port number is available, (2) to
- *   To identify the socket that will accept new connections on a local port.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_NET_IPv6
-static inline FAR struct tcp_conn_s *
-tcp_ipv6_listener(const net_ipv6addr_t ipaddr, uint16_t portno)
-{
-  FAR struct tcp_conn_s *conn;
-  int i;
-
-  /* Check if this port number is in use by any active UIP TCP connection */
-
-  for (i = 0; i < CONFIG_NET_TCP_CONNS; i++)
-    {
-      conn = &g_tcp_connections[i];
-
-      /* Check if this connection is open and the local port assignment
-       * matches the requested port number.
-       */
-
-      if (conn->tcpstateflags != TCP_CLOSED && conn->lport == portno)
-        {
-          /* If there are multiple interface devices, then the local IP
-           * address of the connection must also match.  The IPv6
-           * unspecified address is a special case:  There can only be
-           * one instance of a port number with the unspecified address.
-           */
-
-          if (net_ipv6addr_cmp(conn->u.ipv6.laddr, ipaddr) ||
-              net_ipv6addr_cmp(conn->u.ipv6.laddr, g_ipv6_unspecaddr))
-            {
-              /* The port number is in use, return the connection */
-
-              return conn;
-            }
-        }
-    }
-
-  return NULL;
-}
-#endif /* CONFIG_NET_IPv6 */
-
-/****************************************************************************
  * Name: tcp_listener
  *
  * Description:
@@ -212,23 +110,64 @@ static FAR struct tcp_conn_s *
   tcp_listener(uint8_t domain, FAR const union ip_addr_u *ipaddr,
                uint16_t portno)
 {
+  FAR struct tcp_conn_s *conn;
+  int i;
+
+  /* Check if this port number is in use by any active UIP TCP connection */
+
+  for (i = 0; i < CONFIG_NET_TCP_CONNS; i++)
+    {
+      conn = &g_tcp_connections[i];
+
+      /* Check if this connection is open and the local port assignment
+       * matches the requested port number.
+       */
+
+      if (conn->tcpstateflags != TCP_CLOSED && conn->lport == portno
+#if defined(CONFIG_NET_IPv4) && defined(CONFIG_NET_IPv6)
+          && domain == conn->domain
+#endif
+         )
+        {
+          /* If there are multiple interface devices, then the local IP
+           * address of the connection must also match.  INADDR_ANY is a
+           * special case:  There can only be instance of a port number
+           * with INADDR_ANY.
+           */
+
 #ifdef CONFIG_NET_IPv4
 #ifdef CONFIG_NET_IPv6
-  if (domain == PF_INET)
-#endif
-    {
-      return tcp_ipv4_listener(ipaddr->ipv4, portno);
-    }
+          if (domain == PF_INET)
+#endif /* CONFIG_NET_IPv6 */
+            {
+              if (net_ipv4addr_cmp(conn->u.ipv4.laddr, ipaddr->ipv4) ||
+                  net_ipv4addr_cmp(conn->u.ipv4.laddr, INADDR_ANY))
+                {
+                  /* The port number is in use, return the connection */
+
+                  return conn;
+                }
+            }
 #endif /* CONFIG_NET_IPv4 */
 
 #ifdef CONFIG_NET_IPv6
 #ifdef CONFIG_NET_IPv4
-  else
-#endif
-    {
-      return tcp_ipv6_listener(ipaddr->ipv6, portno);
-    }
+          else
+#endif /* CONFIG_NET_IPv4 */
+            {
+              if (net_ipv6addr_cmp(conn->u.ipv6.laddr, ipaddr->ipv6) ||
+                  net_ipv6addr_cmp(conn->u.ipv6.laddr, g_ipv6_unspecaddr))
+                {
+                  /* The port number is in use, return the connection */
+
+                  return conn;
+                }
+            }
 #endif /* CONFIG_NET_IPv6 */
+        }
+    }
+
+  return NULL;
 }
 
 /****************************************************************************
@@ -240,11 +179,11 @@ static FAR struct tcp_conn_s *
  *   been created with this port number.
  *
  * Input Parameters:
- *   portno -- the selected port number in host order. Zero means no port
+ *   portno -- the selected port number in network order. Zero means no port
  *     selected.
  *
  * Returned Value:
- *   Selected or verified port number in host order on success, a negated
+ *   Selected or verified port number in network order on success, a negated
  *   errno on failure:
  *
  *   EADDRINUSE
@@ -257,7 +196,8 @@ static FAR struct tcp_conn_s *
  *
  ****************************************************************************/
 
-static int tcp_selectport(uint8_t domain, FAR const union ip_addr_u *ipaddr,
+static int tcp_selectport(uint8_t domain,
+                          FAR const union ip_addr_u *ipaddr,
                           uint16_t portno)
 {
   static uint16_t g_last_tcp_port;
@@ -285,19 +225,18 @@ static int tcp_selectport(uint8_t domain, FAR const union ip_addr_u *ipaddr,
       do
         {
           /* Guess that the next available port number will be the one after
-           * the last port number assigned.
+           * the last port number assigned. Make sure that the port number
+           * is within range.
            */
 
-          portno = ++g_last_tcp_port;
-
-          /* Make sure that the port number is within range */
-
-          if (g_last_tcp_port >= 32000)
+          if (++g_last_tcp_port >= 32000)
             {
               g_last_tcp_port = 4096;
             }
+
+          portno = htons(g_last_tcp_port);
         }
-      while (tcp_listener(domain, ipaddr, htons(g_last_tcp_port)));
+      while (tcp_listener(domain, ipaddr, portno));
     }
   else
     {
@@ -478,11 +417,11 @@ static inline int tcp_ipv4_bind(FAR struct tcp_conn_s *conn,
 
   net_lock();
 
-  /* Verify or select a local port (host byte order) */
+  /* Verify or select a local port (network byte order) */
 
   port = tcp_selectport(PF_INET,
                        (FAR const union ip_addr_u *)&addr->sin_addr.s_addr,
-                        ntohs(addr->sin_port));
+                       addr->sin_port);
   if (port < 0)
     {
       nerr("ERROR: tcp_selectport failed: %d\n", port);
@@ -491,7 +430,7 @@ static inline int tcp_ipv4_bind(FAR struct tcp_conn_s *conn,
 
   /* Save the local address in the connection structure (network order). */
 
-  conn->lport = htons(port);
+  conn->lport = port;
   net_ipv4addr_copy(conn->u.ipv4.laddr, addr->sin_addr.s_addr);
 
   /* Find the device that can receive packets on the network associated with
@@ -543,13 +482,13 @@ static inline int tcp_ipv6_bind(FAR struct tcp_conn_s *conn,
 
   net_lock();
 
-  /* Verify or select a local port (host byte order) */
+  /* Verify or select a local port (network byte order) */
 
   /* The port number must be unique for this address binding */
 
   port = tcp_selectport(PF_INET6,
                 (FAR const union ip_addr_u *)addr->sin6_addr.in6_u.u6_addr16,
-                ntohs(addr->sin6_port));
+                addr->sin6_port);
   if (port < 0)
     {
       nerr("ERROR: tcp_selectport failed: %d\n", port);
@@ -558,7 +497,7 @@ static inline int tcp_ipv6_bind(FAR struct tcp_conn_s *conn,
 
   /* Save the local address in the connection structure (network order). */
 
-  conn->lport = htons(port);
+  conn->lport = port;
   net_ipv6addr_copy(conn->u.ipv6.laddr, addr->sin6_addr.in6_u.u6_addr16);
 
   /* Find the device that can receive packets on the network
@@ -1133,42 +1072,49 @@ int tcp_connect(FAR struct tcp_conn_s *conn, FAR const struct sockaddr *addr)
 
   net_lock();
 
+  /* Check if the local port has been bind() */
+
+  port = conn->lport;
+
+  if (port == 0)
+    {
 #ifdef CONFIG_NET_IPv4
 #ifdef CONFIG_NET_IPv6
-  if (conn->domain == PF_INET)
+      if (conn->domain == PF_INET)
 #endif
-    {
-      /* Select a port that is unique for this IPv4 local address (host
-       * order).
-       */
+        {
+          /* Select a port that is unique for this IPv4 local address
+           * (network order).
+           */
 
-      port = tcp_selectport(PF_INET,
-                            (FAR const union ip_addr_u *)&conn->u.ipv4.laddr,
-                            ntohs(conn->lport));
-    }
+          port = tcp_selectport(PF_INET,
+                                (FAR const union ip_addr_u *)
+                                &conn->u.ipv4.laddr, 0);
+        }
 #endif /* CONFIG_NET_IPv4 */
 
 #ifdef CONFIG_NET_IPv6
 #ifdef CONFIG_NET_IPv4
-  else
+      else
 #endif
-    {
-      /* Select a port that is unique for this IPv6 local address (host
-       * order).
-       */
+        {
+          /* Select a port that is unique for this IPv6 local address
+           * (network order).
+           */
 
-      port = tcp_selectport(PF_INET6,
-                            (FAR const union ip_addr_u *)conn->u.ipv6.laddr,
-                            ntohs(conn->lport));
-    }
+          port = tcp_selectport(PF_INET6,
+                                (FAR const union ip_addr_u *)
+                                conn->u.ipv6.laddr, 0);
+        }
 #endif /* CONFIG_NET_IPv6 */
 
-  /* Did we have a port assignment? */
+      /* Did we have a port assignment? */
 
-  if (port < 0)
-    {
-      ret = port;
-      goto errout_with_lock;
+      if (port < 0)
+        {
+          ret = port;
+          goto errout_with_lock;
+        }
     }
 
   /* Set up the local address (laddr) and the remote address (raddr) that
@@ -1287,7 +1233,7 @@ int tcp_connect(FAR struct tcp_conn_s *conn, FAR const struct sockaddr *addr)
   conn->rto        = TCP_RTO;
   conn->sa         = 0;
   conn->sv         = 16;   /* Initial value of the RTT variance. */
-  conn->lport      = htons((uint16_t)port);
+  conn->lport      = (uint16_t)port;
 #ifdef CONFIG_NET_TCP_WRITE_BUFFERS
   conn->expired    = 0;
   conn->isn        = 0;

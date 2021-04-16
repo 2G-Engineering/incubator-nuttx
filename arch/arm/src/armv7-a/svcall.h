@@ -1,4 +1,4 @@
-/************************************************************************************
+/****************************************************************************
  * arch/arm/src/armv7-a/svcall.h
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
@@ -16,32 +16,30 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  *
- ************************************************************************************/
+ ****************************************************************************/
 
 #ifndef __ARCH_ARM_SRC_ARMV7_A_SVCALL_H
 #define __ARCH_ARM_SRC_ARMV7_A_SVCALL_H
 
-/************************************************************************************
+/****************************************************************************
  * Included Files
- ************************************************************************************/
+ ****************************************************************************/
 
 #include <nuttx/config.h>
 
-#ifdef CONFIG_LIB_SYSCALL
-#  include <syscall.h>
-#endif
+#include <syscall.h>
 
 #ifdef CONFIG_LIB_SYSCALL
 
-/************************************************************************************
+/****************************************************************************
  * Pre-processor Definitions
- ************************************************************************************/
+ ****************************************************************************/
 
-/* Configuration ********************************************************************/
+/* Configuration ************************************************************/
 
-/* This logic uses one system call for the syscall return.  So a minimum of one
- * syscall values must be reserved.  If CONFIG_BUILD_KERNEL is defined, then four
- * more syscall values must be reserved.
+/* This logic uses one system call for the syscall return.  So a minimum of
+ * one syscall values must be reserved.  If CONFIG_BUILD_KERNEL is defined,
+ * then four more syscall values must be reserved.
  */
 
 #ifdef CONFIG_BUILD_KERNEL
@@ -58,7 +56,7 @@
 #  endif
 #endif
 
-/* Cortex-A system calls ************************************************************/
+/* Cortex-A system calls ****************************************************/
 
 /* SYS call 0:
  *
@@ -73,7 +71,7 @@
  * void arm_fullcontextrestore(uint32_t *restoreregs) noreturn_function;
  */
 
-#define SYS_context_restore       (1)
+#define SYS_restore_context       (1)
 
 /* SYS call 2:
  *
@@ -93,7 +91,8 @@
 
 /* SYS call 4:
  *
- * void signal_handler(_sa_sigaction_t sighand, int signo, FAR siginfo_t *info,
+ * void signal_handler(_sa_sigaction_t sighand,
+ *                     int signo, FAR siginfo_t *info,
  *                     FAR void *ucontext);
  */
 
@@ -108,9 +107,9 @@
 
 #endif /* CONFIG_BUILD_KERNEL */
 
-/************************************************************************************
+/****************************************************************************
  * Inline Functions
- ************************************************************************************/
+ ****************************************************************************/
 
 #endif /* CONFIG_LIB_SYSCALL */
 #endif /* __ARCH_ARM_SRC_ARMV7_A_SVCALL_H */

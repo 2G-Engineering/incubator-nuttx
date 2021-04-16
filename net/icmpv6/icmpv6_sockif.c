@@ -1,35 +1,20 @@
 /****************************************************************************
- * net/socket/icmpv6_sockif.c
+ * net/icmpv6/icmpv6_sockif.c
  *
- *   Copyright (C) 2017 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ****************************************************************************/
 
@@ -76,8 +61,6 @@ static int        icmpv6_accept(FAR struct socket *psock,
                     FAR struct socket *newsock);
 static int        icmpv6_netpoll(FAR struct socket *psock,
                     FAR struct pollfd *fds, bool setup);
-static ssize_t    icmpv6_send(FAR struct socket *psock, FAR const void *buf,
-                    size_t len, int flags);
 static int        icmpv6_close(FAR struct socket *psock);
 
 /****************************************************************************
@@ -96,16 +79,8 @@ const struct sock_intf_s g_icmpv6_sockif =
   icmpv6_connect,     /* si_connect */
   icmpv6_accept,      /* si_accept */
   icmpv6_netpoll,     /* si_poll */
-  icmpv6_send,        /* si_send */
-  icmpv6_sendto,      /* si_sendto */
-#ifdef CONFIG_NET_SENDFILE
-  NULL,               /* si_sendfile */
-#endif
-  icmpv6_recvfrom,    /* si_recvfrom */
-#ifdef CONFIG_NET_CMSG
-  NULL,               /* si_recvmsg */
-  NULL,               /* si_sendmsg */
-#endif
+  icmpv6_sendmsg,     /* si_sendmsg */
+  icmpv6_recvmsg,     /* si_recvmsg */
   icmpv6_close        /* si_close */
 };
 
@@ -465,35 +440,6 @@ static int icmpv6_netpoll(FAR struct socket *psock, FAR struct pollfd *fds,
 
       return icmpv6_pollteardown(psock, fds);
     }
-}
-
-/****************************************************************************
- * Name: icmpv6_send
- *
- * Description:
- *   Socket send() method for the raw packet socket.
- *
- * Input Parameters:
- *   psock    An instance of the internal socket structure.
- *   buf      Data to send
- *   len      Length of data to send
- *   flags    Send flags
- *
- * Returned Value:
- *   On success, returns the number of characters sent.  On  error, a negated
- *   errno value is returned (see send() for the list of appropriate error
- *   values.
- *
- ****************************************************************************/
-
-static ssize_t icmpv6_send(FAR struct socket *psock, FAR const void *buf,
-                        size_t len, int flags)
-{
-  /* ICMPv6 sockets cannot be bound and, hence, cannot support any
-   * connection-oriented data transfer.
-   */
-
-  return -EDESTADDRREQ;
 }
 
 /****************************************************************************

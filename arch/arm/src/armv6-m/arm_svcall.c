@@ -33,10 +33,6 @@
 #include <arch/irq.h>
 #include <nuttx/sched.h>
 
-#ifdef CONFIG_LIB_SYSCALL
-#  include <syscall.h>
-#endif
-
 #include "signal/signal.h"
 #include "svcall.h"
 #include "exc_return.h"
@@ -100,7 +96,7 @@ static void dispatch_syscall(void)
     " pop {r4, r5}\n"             /* Recover R4 and R5 */
     " mov r2, r0\n"               /* R2=Save return value in R2 */
     " mov r0, #3\n"               /* R0=SYS_syscall_return */
-    " svc 0"                      /* Return from the syscall */
+    " svc %0\n"::"i"(SYS_syscall) /* Return from the SYSCALL */
   );
 }
 #endif

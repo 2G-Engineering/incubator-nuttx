@@ -1,5 +1,5 @@
 /****************************************************************************
- * drivers/wireless/xbee/drivers/xbee_netdev.c
+ * drivers/wireless/ieee802154/xbee/xbee_netdev.c
  *
  *   Copyright (C) 2017 Verge Inc. All rights reserved.
  *   Author:  Anthony Merlino <anthony@vergeaero.com>
@@ -1380,8 +1380,6 @@ int xbee_netdev_register(XBEEHANDLE xbee)
   /* Setup a locking semaphore for exclusive device driver access */
 
   nxsem_init(&priv->xd_exclsem, 0, 1);
-
-  DEBUGASSERT(priv->xd_txpoll != NULL);
 
   /* Set the network mask. */
 

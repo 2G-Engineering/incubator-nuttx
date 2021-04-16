@@ -1,35 +1,20 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/stm32_allocateheap.c
  *
- *   Copyright (C) 2015, 2017 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ****************************************************************************/
 
@@ -288,20 +273,29 @@ void up_allocate_heap(FAR void **heap_start, size_t *heap_size)
   uintptr_t ubase = (uintptr_t)USERSPACE->us_bssend +
                     CONFIG_MM_KERNEL_HEAPSIZE;
   size_t    usize = SRAM1_END - ubase;
+  size_t    subreg_mask;
   int       log2;
-
-  DEBUGASSERT(ubase < (uintptr_t)SRAM1_END);
 
   /* Adjust that size to account for MPU alignment requirements.
    * NOTE that there is an implicit assumption that the SRAM1_END
    * is aligned to the MPU requirement.
    */
 
-  log2  = (int)mpu_log2regionfloor(usize);
-  DEBUGASSERT((SRAM1_END & ((1 << log2) - 1)) == 0);
+  /* align the ubase initially to a suitable mpu subregion start */
 
-  usize = (1 << log2);
-  ubase = SRAM1_END - usize;
+  log2  = (int)mpu_log2regionceil(usize);
+  subreg_mask = (1 << log2) / 8 - 1;
+  if (ubase & subreg_mask)
+    {
+      ubase = (ubase | subreg_mask) + 1;
+    }
+
+  DEBUGASSERT(ubase < (uintptr_t)SRAM1_END);
+
+  /* reset the size to fit in SRAM and align down to subregion size */
+
+  usize = SRAM1_END - ubase;
+  usize &= ~subreg_mask;
 
   /* Return the user-space heap settings */
 
@@ -343,35 +337,19 @@ void up_allocate_heap(FAR void **heap_start, size_t *heap_size)
 #if defined(CONFIG_BUILD_PROTECTED) && defined(CONFIG_MM_KERNEL_HEAP)
 void up_allocate_kheap(FAR void **heap_start, size_t *heap_size)
 {
-  /* Get the unaligned size and position of the user-space heap.
-   * This heap begins after the user-space .bss section at an offset
-   * of CONFIG_MM_KERNEL_HEAPSIZE (subject to alignment).
+  /* User heap was just initialized, with proper MPU alignment, in nx_start,
+   * store the user heap start address
    */
 
-  uintptr_t ubase = (uintptr_t)USERSPACE->us_bssend +
-                    CONFIG_MM_KERNEL_HEAPSIZE;
-  size_t    usize = SRAM1_END - ubase;
-  int       log2;
-
+  uintptr_t ubase = (uintptr_t)*heap_start;
   DEBUGASSERT(ubase < (uintptr_t)SRAM1_END);
-
-  /* Adjust that size to account for MPU alignment requirements.
-   * NOTE that there is an implicit assumption that the SRAM1_END
-   * is aligned to the MPU requirement.
-   */
-
-  log2  = (int)mpu_log2regionfloor(usize);
-  DEBUGASSERT((SRAM1_END & ((1 << log2) - 1)) == 0);
-
-  usize = (1 << log2);
-  ubase = SRAM1_END - usize;
 
   /* Return the kernel heap settings (i.e., the part of the heap region
    * that was not dedicated to the user heap).
    */
 
   *heap_start = (FAR void *)USERSPACE->us_bssend;
-  *heap_size  = ubase - (uintptr_t)USERSPACE->us_bssend;
+  *heap_size  = ubase - USERSPACE->us_bssend;
 }
 #endif
 
