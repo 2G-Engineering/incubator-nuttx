@@ -201,7 +201,7 @@ static void wtgahrs2_accel_data(FAR struct wtgahrs2_dev_s *rtdata,
   accel.temperature = (short)(buffer[7] << 8 | buffer[6]) / 100.0f;
 
   lower->push_event(lower->priv, &accel, sizeof(accel));
-  sninfo("Accel: %.3fm/s^2 %.3fm/s^2 %.3fm/s^2, t:%.1f\r\n",
+  sninfo("Accel: %.3fm/s^2 %.3fm/s^2 %.3fm/s^2, t:%.1f\n",
          accel.x, accel.y, accel.z, accel.temperature);
 }
 
@@ -227,7 +227,7 @@ static void wtgahrs2_gyro_data(FAR struct wtgahrs2_dev_s *rtdata,
   gyro.temperature = (short)(buffer[7] << 8 | buffer[6]) / 100.0f;
 
   lower->push_event(lower->priv, &gyro, sizeof(gyro));
-  sninfo("Gyro: %.3frad/s %.3frad/s %.3frad/s, t:%.1f\r\n",
+  sninfo("Gyro: %.3frad/s %.3frad/s %.3frad/s, t:%.1f\n",
           gyro.x, gyro.y, gyro.z, gyro.temperature);
 }
 
@@ -253,7 +253,7 @@ static void wtgahrs2_mag_data(FAR struct wtgahrs2_dev_s *rtdata,
   mag.temperature = (short)(buffer[7] << 8 | buffer[6]) / 100.0f;
 
   lower->push_event(lower->priv, &mag, sizeof(mag));
-  sninfo("Mag: %.3fuT %.3fuT %.3fuT, t:%.1f\r\n",
+  sninfo("Mag: %.3fuT %.3fuT %.3fuT, t:%.1f\n",
          mag.x, mag.y, mag.z, mag.temperature);
 }
 
@@ -278,7 +278,7 @@ static void wtgahrs2_baro_data(FAR struct wtgahrs2_dev_s *rtdata,
   baro.temperature = NAN;
 
   lower->push_event(lower->priv, &baro, sizeof(baro));
-  sninfo("Pressure : %.3fhPa\r\n", baro.pressure);
+  sninfo("Pressure : %.3fhPa\n", baro.pressure);
 }
 
 static void wtgahrs2_gps_data(FAR struct wtgahrs2_dev_s *rtdata,
@@ -336,12 +336,12 @@ static void wtgahrs2_gps_data(FAR struct wtgahrs2_dev_s *rtdata,
     {
       rtdata->gps_mask = 0;
       lower->push_event(lower->priv, &rtdata->gps, sizeof(rtdata->gps));
-      sninfo("Time : %d/%d/%d-%d:%d:%d\r\n", rtdata->gps.year,
+      sninfo("Time : %d/%d/%d-%d:%d:%d\n", rtdata->gps.year,
               rtdata->gps.month, rtdata->gps.day, rtdata->gps.hour,
               rtdata->gps.min, rtdata->gps.sec);
-      sninfo("GPS longitude : %fdegree, latitude:%fdegree\r\n",
+      sninfo("GPS longitude : %fdegree, latitude:%fdegree\n",
               rtdata->gps.longitude, rtdata->gps.latitude);
-      sninfo("GPS speed: %fm/s, yaw:%fdegrees, height:%fm \r\n",
+      sninfo("GPS speed: %fm/s, yaw:%fdegrees, height:%fm \n",
               rtdata->gps.speed, rtdata->gps.yaw, rtdata->gps.height);
     }
 }
@@ -446,7 +446,7 @@ int wtgahrs2_initialize(FAR const char *path, int devno)
 
   if (!path)
     {
-      snerr("Invaild path for serial interface\n");
+      snerr("Invalid path for serial interface\n");
       return -EINVAL;
     }
 
@@ -479,7 +479,7 @@ int wtgahrs2_initialize(FAR const char *path, int devno)
   tmp = &rtdata->dev[WTGAHRS2_ACCEL_IDX];
   tmp->lower.ops = &g_wtgahrs2_ops;
   tmp->lower.type = SENSOR_TYPE_ACCELEROMETER;
-  tmp->lower.buffer_size = sizeof(struct sensor_event_accel);
+  tmp->lower.buffer_number = 1;
   ret = sensor_register(&tmp->lower, devno);
   if (ret < 0)
     {
@@ -491,7 +491,7 @@ int wtgahrs2_initialize(FAR const char *path, int devno)
   tmp = &rtdata->dev[WTGAHRS2_GYRO_IDX];
   tmp->lower.ops = &g_wtgahrs2_ops;
   tmp->lower.type = SENSOR_TYPE_GYROSCOPE;
-  tmp->lower.buffer_size = sizeof(struct sensor_event_gyro);
+  tmp->lower.buffer_number = 1;
   ret = sensor_register(&tmp->lower, devno);
   if (ret < 0)
     {
@@ -503,7 +503,7 @@ int wtgahrs2_initialize(FAR const char *path, int devno)
   tmp = &rtdata->dev[WTGAHRS2_MAG_IDX];
   tmp->lower.ops = &g_wtgahrs2_ops;
   tmp->lower.type = SENSOR_TYPE_MAGNETIC_FIELD;
-  tmp->lower.buffer_size = sizeof(struct sensor_event_mag);
+  tmp->lower.buffer_number = 1;
   ret = sensor_register(&tmp->lower, devno);
   if (ret < 0)
     {
@@ -515,7 +515,7 @@ int wtgahrs2_initialize(FAR const char *path, int devno)
   tmp = &rtdata->dev[WTGAHRS2_BARO_IDX];
   tmp->lower.ops = &g_wtgahrs2_ops;
   tmp->lower.type = SENSOR_TYPE_BAROMETER;
-  tmp->lower.buffer_size = sizeof(struct sensor_event_baro);
+  tmp->lower.buffer_number = 1;
   ret = sensor_register(&tmp->lower, devno);
   if (ret < 0)
     {
@@ -527,7 +527,7 @@ int wtgahrs2_initialize(FAR const char *path, int devno)
   tmp = &rtdata->dev[WTGAHRS2_GPS_IDX];
   tmp->lower.ops = &g_wtgahrs2_ops;
   tmp->lower.type = SENSOR_TYPE_GPS;
-  tmp->lower.buffer_size = sizeof(struct sensor_event_gps);
+  tmp->lower.buffer_number = 1;
   ret = sensor_register(&tmp->lower, devno);
   if (ret < 0)
     {

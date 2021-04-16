@@ -240,13 +240,6 @@ config SPINLOCK
 		CONFIG_ARCH_HAVE_MULTICPU.  This permits the use of spinlocks in
 		other novel architectures.
 
-config SPINLOCK_IRQ
-	bool "Support Spinlocks with IRQ control"
-	default n
-	---help---
-		Enables support for spinlocks with IRQ control. This feature can be
-		used to protect data in SMP mode.
-
 config IRQCHAIN
 	bool "Enable multi handler sharing a IRQ"
 	default n
@@ -920,7 +913,7 @@ config SCHED_INSTRUMENTATION_EXTERNAL
 	bool "System performance monitor endpoints are external"
 	default n
 	---help---
-		When this option is enabled, the board specific logic must implment all
+		When this option is enabled, the board specific logic must implement all
 		callbacks listed in SCHED_INSTRUMENTATION, SCHED_INSTRUMENTATION_CSECTION,
 		SCHED_INSTRUMENTATION_SPINLOCKS, SCHED_INSTRUMENTATION_SYSCALL and
 		SCHED_INSTRUMENTATION_IRQHANDLER. Otherwise the common code will implement
@@ -1065,12 +1058,12 @@ config SDCLONE_DISABLE
 	descriptors by task_create() when a new task is started. If
 	set, all sockets will appear to be closed in the new task.
 
-config NFILE_DESCRIPTORS
-	int "Maximum number of file descriptors per task"
-	default 16
+config NFILE_DESCRIPTORS_PER_BLOCK
+	int "The number of file descriptors per block"
+	default 8
 	range 3 99999
 	---help---
-		The maximum number of file descriptors per task (one for each open)
+		The number of file descriptors per block(one for each open)
 
 config FILE_STREAM
 	bool "Enable FILE stream"
@@ -1752,6 +1745,13 @@ endif # SCHED_LPWORK
 endmenu # Work Queue Support
 
 menu "Stack and heap information"
+
+config DEFAULT_TASK_STACKSIZE
+	int "The default stack size for tasks"
+	default 65536 if ARCH_SIM
+	default 2048
+	---help---
+		The default stack size for tasks.
 
 config IDLETHREAD_STACKSIZE
 	int "Idle thread stack size"

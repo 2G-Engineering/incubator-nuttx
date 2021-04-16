@@ -1,5 +1,5 @@
 ############################################################################
-# boards/risc-v/bl602/evb/src/Makefile
+# boards/risc-v/bl602/bl602evb/src/Makefile
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -31,6 +31,10 @@ endif
 
 ifeq ($(CONFIG_DEV_GPIO),y)
 CSRCS += bl602_gpio.c
+endif
+
+ifeq ($(CONFIG_ARCH_FPU),y)
+CSRCS += bl602_ostest.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

@@ -5,76 +5,6 @@
 
 if ARCH_BOARD_ESP32_DEVKITC
 
-choice
-	prompt "On-board Crystal Frequency"
-	default ESP32_DEVKITC_XTAL_40MZ
-
-config ESP32_DEVKITC_XTAL_40MZ
-	bool "40MHz"
-
-config ESP32_DEVKITC_XTAL_26MHz
-	bool "26MHz"
-
-endchoice # On-board Crystal Frequency
-
-config ESP32_DEVKITC_RUN_IRAM
-	bool "Run from IRAM"
-	default n
-	---help---
-		The default configuration is set up run from IRAM.  However, the
-		current (2016-11-14) OpenOCD for ESP32 does not support writing to
-		FLASH.  This option sets up the linker scripts to support execution
-		from IRAM.  In this case, OpenOCD can be used to load directly into
-		IRAM.
-
-		At this stage the nuttx image is small enough to be entirely memory-
-		resident.  Once board support is more mature you can add flash cache
-		mapping code to run from SPI flash after initial boot. There are at
-		least two possible approaches you could take: You can add the flash
-		cache mapping code into nuttx directly, so it is self-contained -
-		early nuttx initialization runs from IRAM and enables flash cache,
-		and then off you go. Or you can use the esp-idf software bootloader
-		and partition table scheme and have nuttx be an esp-idf "app" which
-		allows interoperability with the esp-idf system but makes you
-		reliant on the esp-idf design for these parts. Both are possible.
-
-source boards/xtensa/esp32/common/Kconfig
-
-choice
-  prompt "SPIFLASH File System"
-  default ESP32_SPIFLASH_SMARTFS
-  depends on ESP32_SPIFLASH
-
-  config ESP32_SPIFLASH_SMARTFS
-        bool "SmartFS"
-        depends on FS_SMARTFS
-  config ESP32_SPIFLASH_NXFFS
-        bool "NXFFS"
-        depends on FS_NXFFS
-  config ESP32_SPIFLASH_SPIFFS
-        bool "SPIFFS"
-        depends on FS_SPIFFS
-  config ESP32_SPIFLASH_LITTLEFS
-        bool "LittleFS"
-        depends on FS_LITTLEFS
-endchoice
-
-config ESP32_SPIFLASH_ENCRYPTION_TEST
-	bool "SPI Flash encryption test"
-	default n
-	depends on ESP32_SPIFLASH
-	select DEBUG_ASSERTIONS
-	help
-		Enable SPI Flash encryption test. This option will also select
-		DEBUG_ASSERTIONS to enable kernel assert macro.
-
-config ESP32_SPIFLASH_TEST_ADDRESS
-	hex "SPI Flash test address"
-	default 0x180000
-	depends on ESP32_SPIFLASH_ENCRYPTION_TEST
-	help
-		SPI Flash encryption test read/write address.
-
 if PM
 
 config PM_ALARM_SEC
@@ -169,7 +99,7 @@ config ESP32_SPIRAM_SPIWP_SD3_PIN
 	default 7
 	help
 	    This value is ignored unless flash mode is set to DIO or DOUT and
-	    the SPI flash pins have been overriden by setting the eFuses
+	    the SPI flash pins have been overridden by setting the eFuses
 	    SPI_PAD_CONFIG_xxx.
 
 	    When this is the case, the eFuse config only defines 3 of the 4

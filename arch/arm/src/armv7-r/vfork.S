@@ -26,8 +26,6 @@
 
 #include "arm_vfork.h"
 
-	.file	"vfork.S"
-
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -36,6 +34,7 @@
  * Public Symbols
  ****************************************************************************/
 
+	.file	"vfork.S"
 	.globl	up_vfork
 
 /****************************************************************************
@@ -58,16 +57,16 @@
  *
  *   1) User code calls vfork().  vfork() collects context information and
  *      transfers control up up_vfork().
- *   2) up_vfork()and calls nxtask_setup_vfork().
+ *   2) up_vfork() and calls nxtask_setup_vfork().
  *   3) nxtask_setup_vfork() allocates and configures the child task's TCB.
  *      This consists of:
  *      - Allocation of the child task's TCB.
  *      - Initialization of file descriptors and streams
  *      - Configuration of environment variables
- *      - Setup the input parameters for the task.
- *      - Initialization of the TCB (including call to up_initial_state()
- *   4) up_vfork() provides any additional operating context. up_vfork must:
  *      - Allocate and initialize the stack
+ *      - Setup the input parameters for the task.
+ *      - Initialization of the TCB (including call to up_initial_state())
+ *   4) up_vfork() provides any additional operating context. up_vfork must:
  *      - Initialize special values in any CPU registers that were not
  *        already configured by up_initial_state()
  *   5) up_vfork() then calls nxtask_start_vfork()
@@ -89,7 +88,7 @@
 vfork:
 	/* Create a stack frame */
 
-	mov		r0, sp					/* Save the value of the stack on entry */
+	mov		r0, sp			/* Save the value of the stack on entry */
 	sub		sp, sp, #VFORK_SIZEOF	/* Allocate the structure on the stack */
 
 	/* CPU registers */
@@ -120,6 +119,6 @@ vfork:
 
 	ldr		lr, [sp, #VFORK_LR_OFFSET]
 	add		sp, sp, #VFORK_SIZEOF
-	mov		pc, lr
+	bx		lr
 	.size	vfork, .-vfork
 	.end

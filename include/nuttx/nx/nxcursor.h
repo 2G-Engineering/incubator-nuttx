@@ -1,5 +1,5 @@
 /****************************************************************************
- * include/nuttx/nx/cursor.h
+ * include/nuttx/nx/nxcursor.h
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -45,7 +45,7 @@ extern "C"
 #endif
 
 /****************************************************************************
- * Public Functions Defintions
+ * Public Functions Definitions
  ****************************************************************************/
 
 /* The current software cursor implementation is only available under the

@@ -1,15 +1,24 @@
-name: ❄️ Lint
+name: Lint
 
 on: [pull_request]
 
 jobs:
-  yamllint:
-    name: 🍺 YAML
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: 🧹 YAML Lint
+        with:
+          fetch-depth: 0
+      - run: mkdir super-linter.report
+      - name: Lint
         uses: github/super-linter@v3
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VALIDATE_ALL_CODEBASE: false
+          VALIDATE_PYTHON_BLACK: true
+          VALIDATE_PYTHON_FLAKE8: true
+          PYTHON_FLAKE8_CONFIG_FILE: setup.cfg
+          VALIDATE_PYTHON_ISORT: true
+          PYTHON_ISORT_CONFIG_FILE: setup.cfg
           VALIDATE_YAML: true
-          FILTER_REGEX_INCLUDE: .*\.github/.*

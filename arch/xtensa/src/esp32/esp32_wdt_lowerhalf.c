@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/esp32/esp32_wdt_lowerhalf.c
+ * arch/xtensa/src/esp32/esp32_wdt_lowerhalf.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -608,7 +608,7 @@ static int    esp32_wdt_handler(int irq, FAR void *context, FAR void *arg)
  *
  * Description:
  *   Initialize the WDT watchdog timer.  The watchdog timer is initialized
- *   and registerd as 'devpath'.
+ *   and registered as 'devpath'.
  *
  * Input Parameters:
  *   devpath                 - The full path to the watchdog.  This should

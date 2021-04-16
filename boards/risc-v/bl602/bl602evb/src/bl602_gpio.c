@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/risc-v/bl602/bl602evb/src/bl602_gpio.c
+ * boards/risc-v/bl602/bl602evb/src/bl602_gpio.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -288,7 +288,7 @@ static int bl602_gpio_interrupt(int irq, void *context, void *arg)
       while ((1 == bl602_gpio_get_intstatus(gpio_pin)) && time_out);
       if (!time_out)
         {
-          printf("WARNING: Clear GPIO interrupt status fail.\r\n");
+          gpiowarn("WARNING: Clear GPIO interrupt status fail.\n");
         }
 
       /* if time_out==0, GPIO interrupt status not cleared */
@@ -341,7 +341,7 @@ static int gpio_setpintype(FAR struct gpio_dev_s *dev,
     }
   else
     {
-      printf("pintype error\r\n");
+      gpioerr("pintype error\n");
       return -1;
     }
 
@@ -465,7 +465,7 @@ static int gpint_read(FAR struct gpio_dev_s *dev, FAR bool *value)
     (FAR struct bl602_gpint_dev_s *)dev;
 
   DEBUGASSERT(bl602xgpint != NULL && value != NULL);
-  DEBUGASSERT(bl602xgpint->bl602xgpio.id < BOARD_NGPIOINT);
+  DEBUGASSERT(bl602xgpint->bl602gpio.id < BOARD_NGPIOINT);
   gpioinfo("Reading int pin...\n");
 
   *value = bl602_gpioread(g_gpiointinputs[bl602xgpint->bl602gpio.id]);

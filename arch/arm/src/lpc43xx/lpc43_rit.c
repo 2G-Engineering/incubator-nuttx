@@ -1,5 +1,5 @@
 /****************************************************************************
- *  arch/arm/src/lpc43/lpc43_rit.c
+ * arch/arm/src/lpc43xx/lpc43_rit.c
  *
  *   Copyright (C) 2012, 2016 Gregory Nutt. All rights reserved.
  *   Author: Brandon Warhurst <warhurst_002@yahoo.com>
@@ -202,7 +202,7 @@ void up_timer_initialize(void)
       mask_bits++;
     }
 
-  tmrinfo("mask_bits = %d, mask = %X, ticks_per_int = %d\r\n",
+  tmrinfo("mask_bits = %d, mask = %X, ticks_per_int = %d\n",
           mask_bits, (0xffffffff << (32 - mask_bits)), ticks_per_int);
 
   /* Set the mask and compare value so we get interrupts every

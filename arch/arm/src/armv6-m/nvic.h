@@ -1,4 +1,4 @@
-/****************************************************************************************************
+/****************************************************************************
  * arch/arm/src/armv6-m/nvic.h
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
@@ -16,23 +16,23 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  *
- ****************************************************************************************************/
+ ****************************************************************************/
 
 #ifndef __ARCH_ARM_SRC_COMMON_ARMV6_M_NVIC_H
 #define __ARCH_ARM_SRC_COMMON_ARMV6_M_NVIC_H
 
-/****************************************************************************************************
+/****************************************************************************
  * Included Files
- ****************************************************************************************************/
+ ****************************************************************************/
 
 #include <nuttx/config.h>
 #include <nuttx/compiler.h>
 
-/****************************************************************************************************
+/****************************************************************************
  * Pre-processor Definitions
- ****************************************************************************************************/
+ ****************************************************************************/
 
-/* Base addresses ***********************************************************************************/
+/* Base addresses ***********************************************************/
 
 #define ARMV6M_SYSCON1_BASE            0xe000e008 /* 0xe000e008-0xe000e00f System Control Block */
                                                   /* 0xe000e010-0xe000e01f Reserved */
@@ -41,7 +41,7 @@
 #define ARMV6M_SYSCON2_BASE            0xe000ed00 /* 0xe000ed00-0xe000ed3f System Control Block */
 #define ARMV6M_NVIC2_BASE              0xe000ef00 /* 0xe000ef00-0xe000ef03 Nested Vectored Interrupt Controller */
 
-/* NVIC register offsets ****************************************************************************/
+/* NVIC register offsets ****************************************************/
 
 /* NVIC register offsets (all relative to ARMV6M_NVIC1_BASE) */
 
@@ -63,6 +63,7 @@
 
 #define ARMV6M_SYSCON_CPUID_OFFSET     0x0000  /* CPUID Register */
 #define ARMV6M_SYSCON_ICSR_OFFSET      0x0004  /* Interrupt control and state register  */
+#define ARMV6M_SYSCON_VECTAB_OFFSET    0x0008  /* Vector table offset register */
 #define ARMV6M_SYSCON_AIRCR_OFFSET     0x000c  /* Application interrupt and reset control register */
 #define ARMV6M_SYSCON_SCR_OFFSET       0x0010  /* System control register */
 #define ARMV6M_SYSCON_CCR_OFFSET       0x0014  /* Configuration and control register */
@@ -76,7 +77,7 @@
 #define ARMV6M_SYSTICK_CVR_OFFSET      0x0008  /* SysTick current value register */
 #define ARMV6M_SYSTICK_CALIB_OFFSET    0x000c  /* SysTick calibration value register */
 
-/* Register addresses *******************************************************************************/
+/* Register addresses *******************************************************/
 
 /* NVIC register addresses */
 
@@ -98,6 +99,7 @@
 
 #define ARMV6M_SYSCON_CPUID            (ARMV6M_SYSCON2_BASE+ARMV6M_SYSCON_CPUID_OFFSET)
 #define ARMV6M_SYSCON_ICSR             (ARMV6M_SYSCON2_BASE+ARMV6M_SYSCON_ICSR_OFFSET)
+#define ARMV6M_SYSCON_VECTAB           (ARMV6M_SYSCON2_BASE+ARMV6M_SYSCON_VECTAB_OFFSET)
 #define ARMV6M_SYSCON_AIRCR            (ARMV6M_SYSCON2_BASE+ARMV6M_SYSCON_AIRCR_OFFSET)
 #define ARMV6M_SYSCON_SCR              (ARMV6M_SYSCON2_BASE+ARMV6M_SYSCON_SCR_OFFSET)
 #define ARMV6M_SYSCON_CCR              (ARMV6M_SYSCON2_BASE+ARMV6M_SYSCON_CCR_OFFSET)
@@ -111,7 +113,7 @@
 #define ARMV6M_SYSTICK_CVR             (ARMV6M_SYSTICK_BASE+ARMV6M_SYSTICK_CVR_OFFSET)
 #define ARMV6M_SYSTICK_CALIB           (ARMV6M_SYSTICK_BASE+ARMV6M_SYSTICK_CALIB_OFFSET)
 
-/* Register bit definitions *************************************************************************/
+/* Register bit definitions *************************************************/
 
 /* Interrupt set-enable register */
 
@@ -345,13 +347,13 @@
 #define SYSTICK_CALIB_SKEW             (1 << 30) /* Bit 30: TENMS value is exact */
 #define SYSTICK_CALIB_NOREF            (1 << 31) /* Bit 31: Device provides a reference clock */
 
-/****************************************************************************************************
+/****************************************************************************
  * Public Types
- ****************************************************************************************************/
+ ****************************************************************************/
 
-/****************************************************************************************************
+/****************************************************************************
  * Public Data
- ****************************************************************************************************/
+ ****************************************************************************/
 
 #ifndef __ASSEMBLY__
 #undef EXTERN
@@ -363,17 +365,17 @@ extern "C"
 #define EXTERN extern
 #endif
 
-/****************************************************************************************************
+/****************************************************************************
  * Public Function Prototypes
- ****************************************************************************************************/
+ ****************************************************************************/
 
-/****************************************************************************************************
+/****************************************************************************
  * Function:  arm_dumpnvic
  *
  * Description:
  *   Dump all NVIC and SYSCON registers along with a user message.
  *
- ****************************************************************************************************/
+ ****************************************************************************/
 
 #ifdef CONFIG_DEBUG_FEATURES
 void arm_dumpnvic(FAR const char *msg);

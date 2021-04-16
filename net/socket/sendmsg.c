@@ -1,36 +1,20 @@
 /****************************************************************************
  * net/socket/sendmsg.c
  *
- *   Copyright (C) 2007-2009, 2011-2017, 2019 Gregory Nutt. All rights
- *     reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ****************************************************************************/
 
@@ -48,7 +32,7 @@
 
 #include "socket/socket.h"
 
-#ifdef CONFIG_NET_CMSG
+#ifdef CONFIG_NET
 
 /****************************************************************************
  * Public Functions
@@ -65,21 +49,20 @@
  *
  *   - It is not a cancellation point,
  *   - It does not modify the errno variable, and
- *   - I accepts the internal socket structure as an input rather than an
+ *   - It accepts the internal socket structure as an input rather than an
  *     task-specific socket descriptor.
  *
  * Input Parameters:
- *   psock   - A pointer to a NuttX-specific, internal socket structure
- *   msg     - Buffer to of the msg
- *   len     - Length of buffer
- *   flags   - Receive flags
+ *   psock    A pointer to a NuttX-specific, internal socket structure
+ *   msg      Message to send
+ *   flags    Receive flags
  *
  * Returned Value:
  *   On success, returns the number of characters sent.  If no data is
  *   available to be received and the peer has performed an orderly shutdown,
- *   send() will return 0.  Otherwise, on any failure, a negated errno value
- *   is returned (see comments with send() for a list of appropriate errno
- *   values).
+ *   sendmsg() will return 0. Otherwise, on any failure, a negated errno
+ *   value is returned (see comments with sendmsg() for a list of appropriate
+ *   errno values).
  *
  ****************************************************************************/
 
@@ -88,19 +71,14 @@ ssize_t psock_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 {
   /* Verify that non-NULL pointers were passed */
 
-  if (msg == NULL)
+  if (msg == NULL || msg->msg_iov == NULL || msg->msg_iov->iov_base == NULL)
     {
       return -EINVAL;
     }
 
-  if (msg->msg_iovlen != 1)
-    {
-      return -ENOTSUP;
-    }
-
   /* Verify that the sockfd corresponds to valid, allocated socket */
 
-  if (psock == NULL || psock->s_crefs <= 0)
+  if (psock == NULL || psock->s_conn == NULL)
     {
       return -EBADF;
     }
@@ -110,50 +88,34 @@ ssize_t psock_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
    */
 
   DEBUGASSERT(psock->s_sockif != NULL &&
-              (psock->s_sockif->si_sendmsg != NULL ||
-               psock->s_sockif->si_sendto != NULL));
+              psock->s_sockif->si_sendmsg != NULL);
 
-  if (psock->s_sockif->si_sendmsg != NULL)
-    {
-      return psock->s_sockif->si_sendmsg(psock, msg, flags);
-    }
-  else
-    {
-      /* Socket doesn't implement si_sendmsg fallback to si_sendto */
-
-      FAR void *buf           = msg->msg_iov->iov_base;
-      FAR struct sockaddr *to = msg->msg_name;
-      socklen_t tolen         = msg->msg_namelen;
-      size_t len              = msg->msg_iov->iov_len;
-
-      return psock->s_sockif->si_sendto(psock, buf, len, flags, to, tolen);
-    }
+  return psock->s_sockif->si_sendmsg(psock, msg, flags);
 }
 
 /****************************************************************************
- * Name: nx_sendfrom
+ * Name: nx_sendmsg
  *
  * Description:
- *   nx_sendfrom() receives messages from a socket, and may be used to
+ *   nx_sendmsg() receives messages from a socket, and may be used to
  *   receive data on a socket whether or not it is connection-oriented.
  *   This is an internal OS interface.  It is functionally equivalent to
- *   sendfrom() except that:
+ *   sendmsg() except that:
  *
  *   - It is not a cancellation point, and
  *   - It does not modify the errno variable.
  *
  * Input Parameters:
- *   sockfd  - Socket descriptor of socket
- *   msg      Buffer to receive msg
- *   len     - Length of buffer
- *   flags   - Receive flags
+ *   sockfd   Socket descriptor of socket
+ *   msg      Buffer to receive the message
+ *   flags    Receive flags
  *
  * Returned Value:
  *   On success, returns the number of characters sent.  If no data is
  *   available to be received and the peer has performed an orderly shutdown,
- *   send() will return 0.  Otherwise, on any failure, a negated errno value
- *   is returned (see comments with send() for a list of appropriate errno
- *   values).
+ *   sendmsg() will return 0. Otherwise, on any failure, a negated errno
+ *   value is returned (see comments with sendmsg() for a list of appropriate
+ *   errno values).
  *
  ****************************************************************************/
 
@@ -179,8 +141,7 @@ ssize_t nx_sendmsg(int sockfd, FAR struct msghdr *msg, int flags)
  *
  * Parameters:
  *   sockfd   Socket descriptor of socket
- *   msg      Buffer to receive msg
- *   len      Length of buffer
+ *   msg      Buffer to receive the message
  *   flags    Receive flags
  *
  * Returned Value:
@@ -216,23 +177,18 @@ ssize_t nx_sendmsg(int sockfd, FAR struct msghdr *msg, int flags)
 
 ssize_t sendmsg(int sockfd, FAR struct msghdr *msg, int flags)
 {
-  FAR struct socket *psock;
   ssize_t ret;
 
-  /* sendfrom() is a cancellation point */
+  /* sendmsg() is a cancellation point */
 
   enter_cancellation_point();
 
-  /* Get the underlying socket structure */
+  /* Let psock_sendmsg() do all of the work */
 
-  psock = sockfd_socket(sockfd);
-
-  /* Let psock_sendfrom() do all of the work */
-
-  ret = psock_sendmsg(psock, msg, flags);
+  ret = nx_sendmsg(sockfd, msg, flags);
   if (ret < 0)
     {
-      _SO_SETERRNO(psock, -ret);
+      _SO_SETERRNO(sockfd_socket(sockfd), -ret);
       ret = ERROR;
     }
 
@@ -240,4 +196,4 @@ ssize_t sendmsg(int sockfd, FAR struct msghdr *msg, int flags)
   return ret;
 }
 
-#endif /* CONFIG_NET_CMSG */
+#endif /* CONFIG_NET */

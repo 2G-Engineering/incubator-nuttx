@@ -31,7 +31,7 @@
  * crystal
  */
 
-#ifdef CONFIG_ESP32_WROVERKIT_XTAL_26MHz
+#ifdef CONFIG_ESP32_XTAL_26MHz
 #  define BOARD_XTAL_FREQUENCY  26000000
 #else
 #  define BOARD_XTAL_FREQUENCY  40000000
@@ -62,7 +62,7 @@
  *           /bootloader_support/src/bootloader_clock.c#L38-L62
  */
 
-#ifdef CONFIG_ESP32_WROVERKIT_RUN_IRAM
+#ifdef CONFIG_ESP32_RUN_IRAM
 #  define BOARD_CLOCK_FREQUENCY (2 * BOARD_XTAL_FREQUENCY)
 #else
 #ifdef CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ
@@ -71,6 +71,15 @@
 #  define BOARD_CLOCK_FREQUENCY 80000000
 #endif
 #endif
+
+/* GPIO definitions *********************************************************/
+
+/* Display */
+
+#define DISPLAY_SPI       2
+#define DISPLAY_DC        21
+#define DISPLAY_RST       18
+#define DISPLAY_BCKL      5
 
 /* LED definitions **********************************************************/
 
@@ -107,7 +116,8 @@
 
 /* GPIO pins used by the GPIO Subsystem */
 
-#define BOARD_NGPIOOUT    3 /* Amount of GPIO Output pins */
+#define BOARD_NGPIOIN     1 /* Amount of GPIO Input pins */
+#define BOARD_NGPIOOUT    1 /* Amount of GPIO Output pins */
 #define BOARD_NGPIOINT    1 /* Amount of GPIO Input w/ Interruption pins */
 
 #endif /* __BOARDS_XTENSA_ESP32_ESP32_WROVER_KIT_INCLUDE_BOARD_H */

@@ -1,4 +1,4 @@
-/***************************************************************************************************
+/****************************************************************************
  * drivers/audio/wm8994.h
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
@@ -16,14 +16,14 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  *
- ***************************************************************************************************/
+ ****************************************************************************/
 
 #ifndef __DRIVERS_AUDIO_WM8994_H
 #define __DRIVERS_AUDIO_WM8994_H
 
-/***************************************************************************************************
+/****************************************************************************
  * Included Files
- ***************************************************************************************************/
+ ****************************************************************************/
 
 #include <nuttx/config.h>
 #include <nuttx/compiler.h>
@@ -36,9 +36,9 @@
 
 #ifdef CONFIG_AUDIO
 
-/***************************************************************************************************
+/****************************************************************************
  * Pre-processor Definitions
- ***************************************************************************************************/
+ ****************************************************************************/
 
 /* So far, I have not been able to get FLL lock interrupts. Worse, I have
  * been able to get the FLL to claim that it is locked at all even when
@@ -55,12 +55,12 @@
 #define WM8994_SWRST                                    0x00                                  /* SW Reset and ID */
 #define WM8994_ID                                       0x00                                  /* SW Reset and ID */
 
-#define WM8994_PM1                                      0x01                                  /* Power Mangement */
-#define WM8994_PM2                                      0x02                                  /* Power Mangement */
-#define WM8994_PM3                                      0x03                                  /* Power Mangement */
-#define WM8994_PM4                                      0x04                                  /* Power Mangement */
-#define WM8994_PM5                                      0x05                                  /* Power Mangement */
-#define WM8994_PM6                                      0x06                                  /* Power Mangement */
+#define WM8994_PM1                                      0x01                                  /* Power Management */
+#define WM8994_PM2                                      0x02                                  /* Power Management */
+#define WM8994_PM3                                      0x03                                  /* Power Management */
+#define WM8994_PM4                                      0x04                                  /* Power Management */
+#define WM8994_PM5                                      0x05                                  /* Power Management */
+#define WM8994_PM6                                      0x06                                  /* Power Management */
 
 #define WM8994_INPUT_MIXER1                             0x15                                  /* Input Mixer (1) */
 
@@ -361,7 +361,7 @@
  */
 
 #define WM8994_BIAS_ENA                           (1 << 0)                                    /* Bit 0: Enables the Normal bias current generator (for all analogue functions */
-#define   WM8994_BIAS_ENA_DISABLE                 (0)                                         /* Diabled */
+#define   WM8994_BIAS_ENA_DISABLE                 (0)                                         /* Disabled */
 #define   WM8994_BIAS_ENA_ENABLE                  WM8994_BIAS_ENA                             /* Enabled */
 #define WM8994_VMID_SEL_SHITF                     (1)                                         /* Bits 1-2: VMID Divider Enable and Select */
 #define   WM8994_VMID_SEL_DISABLE                 (0 << WM8994_VMID_SEL_SHIFT)                /* VMID disabled (for OFF mode) */
@@ -564,7 +564,7 @@
 #define   WM8994_IN1L_VOL_DEFAULT                (11 << 0)                                    /* -16.5dB to +30dB in 1.5dB steps */
 #define   WM8994_IN1L_VOL_MAX                    (31 << 0)                                    /* +30dB */
                                                                                               /* Bit 5: Reserved */
-#define WM8994_IN1L_ZC                           (1 << 6)                                     /* Bit 6: IN1L PGA Zero Cross Dectector */ 
+#define WM8994_IN1L_ZC                           (1 << 6)                                     /* Bit 6: IN1L PGA Zero Cross Detector */ 
 #define   WM8994_IN1L_ZC_NO                      (0)                                          /* Change gain immediately */
 #define   WM8994_IN1L_ZC_YES                     (WM8994_IN1L_ZC)                             /* Change gain on zero cross only */
 #define WM8994_IN1L_MUTE                         (1 << 7)                                     /* Bit 7: IN1L PGA Mute */
@@ -582,7 +582,7 @@
 #define   WM8994_IN2L_VOL_DEFAULT                (11 << WM8994_IN2L_VOL_SHIFT)                /* -16.5dB to +30dB in 1.5dB steps */
 #define   WM8994_IN2L_VOL_MAX                    (31 << WM8994_IN2L_VOL_SHIFT)                /* +30dB */
                                                                                               /* Bit 5: Reserved */
-#define WM8994_IN2L_ZC                           (1 << 6)                                     /* Bit 6: IN2L PGA Zero Cross Dectector */ 
+#define WM8994_IN2L_ZC                           (1 << 6)                                     /* Bit 6: IN2L PGA Zero Cross Detector */ 
 #define   WM8994_IN2L_ZC_NO                      (0)                                          /* Change gain immediately */
 #define   WM8994_IN2L_ZC_YES                     (WM8994_IN2L_ZC)                             /* Change gain on zero cross only */
 #define WM8994_IN2L_MUTE                         (1 << 7)                                     /* Bit 7: IN2L PGA Mute */
@@ -590,7 +590,7 @@
 #define   WM8994_IN2L_MUTE_ENABLE                (WM8994_IN2L_MUTE)                           /* Enabled */
 #define WM8994_IN2_VU                            (1 << 8)                                     /* Bit 8: Input PGA Voluem Update. Writing a 1 to this bit cause IN2L and IN2R input PGA volumes to updated simultaneously */
 
-                                                          /* Bits 9-15: Reserved */
+                                                 /* Bits 9-15: Reserved */
 
 /* R26 (0x1A) - Right Line Input 1&2 Volume
  */
@@ -600,7 +600,7 @@
 #define   WM8994_IN1R_VOL_DEFAULT                (11 << WM8994_IN1R_VOL_SHIFT)                /* -16.5dB to +30dB in 1.5dB steps */
 #define   WM8994_IN1R_VOL_MAX                    (31 << WM8994_IN1R_VOL_SHIFT)                /* +30dB */
                                                                                               /* Bit 5: Reserved */
-#define WM8994_IN1R_ZC_SHIFT                     (6)                                          /* Bit 6: IN1R PGA Zero Cross Dectector */ 
+#define WM8994_IN1R_ZC_SHIFT                     (6)                                          /* Bit 6: IN1R PGA Zero Cross Detector */ 
 #define   WM8994_IN1R_ZC_NO                      (0)                                          /* Change gain immediately */
 #define   WM8994_IN1R_ZC_YES                     (1 << WM8994_IN1R_ZC_SHIFT)                  /* Change gain on zero cross only */
 #define WM8994_IN1R_MUTE_SHIFT                   (7)                                          /* Bit 7: IN1R PGA Mute */
@@ -619,7 +619,7 @@
 #define   WM8994_IN2R_VOL_DEFAULT                (11 << WM8994_IN2R_VOL_SHIFT)                /* -16.5dB to +30dB in 1.5dB steps */
 #define   WM8994_IN2R_VOL_MAX                    (31 << WM8994_IN2R_VOL_SHIFT)                /* +30dB */
                                                                                               /* Bit 5: Reserved */
-#define WM8994_IN2R_ZC_SHIFT                     (6)                                          /* Bit 6: IN2R PGA Zero Cross Dectector */ 
+#define WM8994_IN2R_ZC_SHIFT                     (6)                                          /* Bit 6: IN2R PGA Zero Cross Detector */ 
 #define   WM8994_IN2R_ZC_NO                      (0)                                          /* Change gain immediately */
 #define   WM8994_IN2R_ZC_YES                     (1 << WM8994_IN2R_ZC_SHIFT)                  /* Change gain on zero cross only */
 #define WM8994_IN2R_MUTE_SHIFT                         (7)                                    /* Bit 7: IN2R PGA Mute */
@@ -785,7 +785,7 @@
 /* R57 (0x39) - AntiPOP (2)
  */
 
-                                                        /* Bits 8-15: Reserved */
+                                                    /* Bits 8-15: Reserved */
 #define WM8994_MICB2_DISCH                              (1 << 8)                              /* Bit 7: Microphone Bias 2 Discharge */
 #define   WM8994_MICB2_DISCH_FLOAT                      (0)                                   /* MICBIAS2 floating when disabled */
 #define   WM8994_MICB2_DISCH_DISCHARGED                 WM8994_MICB2_DISCH                    /* MICBIAS2 disharged when disabled */
@@ -1549,9 +1549,9 @@
 #  define MAX(a,b)                   (((a) > (b)) ? (a) : (b))
 #endif
 
-/***************************************************************************************************
+/****************************************************************************
  * Public Types
- ***************************************************************************************************/
+ ****************************************************************************/
 
 struct wm8994_dev_s
 {
@@ -1559,9 +1559,9 @@ struct wm8994_dev_s
    * the WM8994 driver with respect to the board lower half driver).
    *
    * Terminology: Our "lower" half audio instances will be called dev for the
-   * publicly visible version and "priv" for the version that only this driver
-   * knows.  From the point of view of this driver, it is the board lower
-   * "half" that is referred to as "lower".
+   * publicly visible version and "priv" for the version that only this
+   * driver knows.  From the point of view of this driver, it is the board
+   * lower "half" that is referred to as "lower".
    */
 
   struct audio_lowerhalf_s dev;             /* WM8994 audio lower half (this device) */
@@ -1605,26 +1605,26 @@ struct wm8994_dev_s
   uint16_t power_mgnt_reg_1;
 };
 
-/***************************************************************************************************
+/****************************************************************************
  * Public Data
- ***************************************************************************************************/
+ ****************************************************************************/
 
 #ifdef CONFIG_WM8994_CLKDEBUG
 extern const uint8_t g_sysclk_scaleb1[WM8994_BCLK_MAXDIV + 1];
 extern const uint8_t g_fllratio[WM8994_NFLLRATIO];
 #endif
 
-/***************************************************************************************************
+/****************************************************************************
  * Public Function Prototypes
- ***************************************************************************************************/
+ ****************************************************************************/
 
-/***************************************************************************************************
+/****************************************************************************
  * Name: wm8994_readreg
  *
  * Description:
  *    Read the specified 16-bit register from the WM8994 device.
  *
- ***************************************************************************************************/
+ ****************************************************************************/
 
 #if defined(CONFIG_WM8994_REGDUMP) || defined(CONFIG_WM8994_CLKDEBUG)
 struct wm8994_dev_s;

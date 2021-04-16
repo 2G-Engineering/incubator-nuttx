@@ -35,6 +35,7 @@
 #include <stdbool.h>
 #include <mqueue.h>
 #include <queue.h>
+#include <poll.h>
 
 #if CONFIG_MQ_MAXMSGSIZE > 0
 
@@ -60,21 +61,21 @@
  */
 
 #if !defined(CONFIG_BUILD_FLAT) && defined(__KERNEL__)
+#  define _MQ_OPEN                    nxmq_open
+#  define _MQ_CLOSE(d)                nxmq_close(d)
+#  define _MQ_UNLINK(n)               nxmq_unlink(n)
 #  define _MQ_SEND(d,m,l,p)           nxmq_send(d,m,l,p)
 #  define _MQ_TIMEDSEND(d,m,l,p,t)    nxmq_timedsend(d,m,l,p,t)
 #  define _MQ_RECEIVE(d,m,l,p)        nxmq_receive(d,m,l,p)
 #  define _MQ_TIMEDRECEIVE(d,m,l,p,t) nxmq_timedreceive(d,m,l,p,t)
-#  define _MQ_GETERRNO(r)             (-(r))
-#  define _MQ_SETERRNO(r)             set_errno(-(r))
-#  define _MQ_GETERRVAL(r)            (r)
 #else
+#  define _MQ_OPEN                    mq_open
+#  define _MQ_CLOSE(d)                mq_close(d)
+#  define _MQ_UNLINK(n)               mq_unlink(n)
 #  define _MQ_SEND(d,m,l,p)           mq_send(d,m,l,p)
 #  define _MQ_TIMEDSEND(d,m,l,p,t)    mq_timedsend(d,m,l,p,t)
 #  define _MQ_RECEIVE(d,m,l,p)        mq_receive(d,m,l,p)
 #  define _MQ_TIMEDRECEIVE(d,m,l,p,t) mq_timedreceive(d,m,l,p,t)
-#  define _MQ_GETERRNO(r)             errno
-#  define _MQ_SETERRNO(r)
-#  define _MQ_GETERRVAL(r)            (-errno)
 #endif
 
 /****************************************************************************
@@ -99,6 +100,7 @@ struct mqueue_inode_s
   pid_t ntpid;                /* Notification: Receiving Task's PID */
   struct sigevent ntevent;    /* Notification description */
   struct sigwork_s ntwork;    /* Notification work */
+  FAR struct pollfd *fds[CONFIG_FS_MQUEUE_NPOLLWAITERS];
 };
 
 /****************************************************************************
@@ -393,6 +395,24 @@ void nxmq_free_msgq(FAR struct mqueue_inode_s *msgq);
 
 FAR struct mqueue_inode_s *nxmq_alloc_msgq(mode_t mode,
                                            FAR struct mq_attr *attr);
+
+/****************************************************************************
+ * Name: nxmq_pollnotify
+ *
+ * Description:
+ *   pollnotify, used for notify the poll
+ *
+ * Input Parameters:
+ *   msgq     - Named essage queue
+ *   eventset - evnet
+ *
+ * Returned Value:
+ *   The allocated and initialized message queue structure or NULL in the
+ *   event of a failure.
+ *
+ ****************************************************************************/
+
+void nxmq_pollnotify(FAR struct mqueue_inode_s *msgq, pollevent_t eventset);
 
 /****************************************************************************
  * Name: file_mq_open

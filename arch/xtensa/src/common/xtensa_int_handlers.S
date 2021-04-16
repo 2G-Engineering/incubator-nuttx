@@ -72,12 +72,12 @@
  .data
  .align     16
  .global    g_intstackalloc
- .global    g_intstackbase
+ .global    g_intstacktop
  .type      g_intstackalloc, @object
- .type      g_intstackbase, @object
+ .type      g_intstacktop, @object
 g_intstackalloc:
  .skip      INTSTACK_SIZE
-g_intstackbase:
+g_intstacktop:
  .size      g_intstackalloc, .-g_intstackalloc
 #endif
 
@@ -115,7 +115,7 @@ g_intstackbase:
 
 #if !defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 15
 	.macro	setintstack tmp1 tmp2
-	movi		a1, g_intstackbase
+	movi		a1, g_intstacktop
 	.endm
 #endif
 
@@ -314,7 +314,7 @@ _xtensa_level1_handler:
 	call0	_xtensa_context_save			/* Save full register state */
 
   /* Save current SP before (possibly) overwriting it, it's the register save
-   * area. This value will be used later by dispatch_c_isr to retrive the
+   * area. This value will be used later by dispatch_c_isr to retrieve the
    * register save area.
    */
 

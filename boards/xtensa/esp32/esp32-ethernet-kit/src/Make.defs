@@ -33,16 +33,16 @@ CSRCS += esp32_reset.c
 endif
 endif
 
-ifeq ($(CONFIG_ESP32_SPI),y)
-CSRCS += esp32_spi.c
-endif
-
 ifeq ($(CONFIG_MMCSD),y)
 CSRCS += esp32_mmcsd.c
 endif
 
 ifeq ($(CONFIG_ESP32_SPIFLASH),y)
 CSRCS += esp32_spiflash.c
+endif
+
+ifeq ($(CONFIG_ARCH_BUTTONS),y)
+CSRCS += esp32_buttons.c
 endif
 
 SCRIPTIN = $(SCRIPTDIR)$(DELIM)esp32.template.ld
@@ -57,6 +57,7 @@ context:: $(SCRIPTOUT)
 
 distclean::
 	$(call DELFILE, $(SCRIPTOUT))
+	$(call DELFILE, $(TOPDIR)/esp32_qemu_img.bin)
 
 DEPPATH += --dep-path board
 VPATH += :board

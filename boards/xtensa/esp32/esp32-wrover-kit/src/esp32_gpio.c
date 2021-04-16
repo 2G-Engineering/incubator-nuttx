@@ -1,5 +1,5 @@
 /****************************************************************************
- * boards/xtensa/esp32-wrover-kit/src/esp32_gpio.c
+ * boards/xtensa/esp32/esp32-wrover-kit/src/esp32_gpio.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -25,7 +25,6 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
-#include <sys/mount.h>
 #include <syslog.h>
 #include <nuttx/irq.h>
 #include <arch/irq.h>
@@ -37,7 +36,6 @@
 
 #include "esp32-wrover-kit.h"
 #include "esp32_gpio.h"
-#include "rom/esp32_gpio.h"
 #include "hardware/esp32_gpio_sigmap.h"
 
 #if defined(CONFIG_DEV_GPIO) && !defined(CONFIG_GPIO_LOWER_HALF)
@@ -50,11 +48,23 @@
 #  error "NGPIOINT is > 0 and GPIO interrupts aren't enabled"
 #endif
 
+/* Output pins. GPIO16 is used as an example, any other outputs could be
+ * used.
+ */
+
+#define GPIO_OUT1    16
+
+/* Input pins. GPIO17 is used as an example, any other inputs could be
+ * used.
+ */
+
+#define GPIO_IN1     17
+
 /* Interrupt pins.  GPIO22 is used as an example, any other inputs could be
  * used.
  */
 
-#define GPIO_IRQPIN  22
+#define GPIO_IRQPIN1  22
 
 /****************************************************************************
  * Private Types
@@ -81,6 +91,10 @@ static int gpout_read(FAR struct gpio_dev_s *dev, FAR bool *value);
 static int gpout_write(FAR struct gpio_dev_s *dev, bool value);
 #endif
 
+#if BOARD_NGPIOIN > 0
+static int gpin_read(FAR struct gpio_dev_s *dev, FAR bool *value);
+#endif
+
 #if BOARD_NGPIOINT > 0
 static int gpint_read(FAR struct gpio_dev_s *dev, FAR bool *value);
 static int gpint_attach(FAR struct gpio_dev_s *dev,
@@ -105,10 +119,29 @@ static const struct gpio_operations_s gpout_ops =
 
 static const uint32_t g_gpiooutputs[BOARD_NGPIOOUT] =
 {
-  GPIO_LED1, GPIO_LED2, GPIO_LED3
+  GPIO_OUT1
 };
 
 static struct esp32gpio_dev_s g_gpout[BOARD_NGPIOOUT];
+#endif
+
+#if BOARD_NGPIOIN > 0
+static const struct gpio_operations_s gpin_ops =
+{
+  .go_read   = gpin_read,
+  .go_write  = NULL,
+  .go_attach = NULL,
+  .go_enable = NULL,
+};
+
+/* This array maps the GPIO pins used as INTERRUPT INPUTS */
+
+static const uint32_t g_gpioinputs[BOARD_NGPIOIN] =
+{
+  GPIO_IN1
+};
+
+static struct esp32gpio_dev_s g_gpin[BOARD_NGPIOIN];
 #endif
 
 #if BOARD_NGPIOINT > 0
@@ -124,7 +157,7 @@ static const struct gpio_operations_s gpint_ops =
 
 static const uint32_t g_gpiointinputs[BOARD_NGPIOINT] =
 {
-  GPIO_IRQPIN,
+  GPIO_IRQPIN1,
 };
 
 static struct esp32gpint_dev_s g_gpint[BOARD_NGPIOINT];
@@ -164,6 +197,24 @@ static int gpout_write(FAR struct gpio_dev_s *dev, bool value)
   gpioinfo("Writing %d\n", (int)value);
 
   esp32_gpiowrite(g_gpiooutputs[esp32gpio->id], value);
+  return OK;
+}
+#endif
+
+/****************************************************************************
+ * Name: gpin_read
+ ****************************************************************************/
+
+#if BOARD_NGPIOIN > 0
+static int gpin_read(FAR struct gpio_dev_s *dev, FAR bool *value)
+{
+  FAR struct esp32gpio_dev_s *esp32gpio = (FAR struct esp32gpio_dev_s *)dev;
+
+  DEBUGASSERT(esp32gpio != NULL && value != NULL);
+  DEBUGASSERT(esp32gpio->id < BOARD_NGPIOIN);
+  gpioinfo("Reading... pin %d\n", g_gpioinputs[esp32gpio->id]);
+
+  *value = esp32_gpioread(g_gpioinputs[esp32gpio->id]);
   return OK;
 }
 #endif
@@ -290,13 +341,35 @@ int esp32_gpio_init(void)
 
       /* Configure the pins that will be used as output */
 
-      gpio_matrix_out(g_gpiooutputs[i], SIG_GPIO_OUT_IDX, 0, 0);
+      esp32_gpio_matrix_out(g_gpiooutputs[i], SIG_GPIO_OUT_IDX, 0, 0);
       esp32_configgpio(g_gpiooutputs[i], OUTPUT_FUNCTION_3);
       esp32_gpiowrite(g_gpiooutputs[i], 0);
 
       pincount++;
     }
 #endif
+
+  pincount = 0;
+
+#if BOARD_NGPIOIN > 0
+  for (i = 0; i < BOARD_NGPIOIN; i++)
+    {
+      /* Setup and register the GPIO pin */
+
+      g_gpin[i].gpio.gp_pintype = GPIO_INPUT_PIN;
+      g_gpin[i].gpio.gp_ops     = &gpin_ops;
+      g_gpin[i].id              = i;
+      gpio_pin_register(&g_gpin[i].gpio, pincount);
+
+      /* Configure the pins that will be used as INPUT */
+
+      esp32_configgpio(g_gpioinputs[i], INPUT_FUNCTION_3);
+
+      pincount++;
+    }
+#endif
+
+  pincount = 0;
 
 #if BOARD_NGPIOINT > 0
   for (i = 0; i < BOARD_NGPIOINT; i++)

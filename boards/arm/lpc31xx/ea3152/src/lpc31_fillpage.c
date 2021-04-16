@@ -1,35 +1,20 @@
 /****************************************************************************
  * boards/arm/lpc31xx/ea3152/src/lpc31_fillpage.c
  *
- *   Copyright (C) 2011, 2013, 2017-2018 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ****************************************************************************/
 
@@ -182,7 +167,7 @@
 struct pg_source_s
 {
   bool initialized;  /* TRUE: we are initialized */
-  int  fd;           /* File descriptor of the nuttx.bin file */
+  struct file file;  /* File descriptor of the nuttx.bin file */
 };
 #endif
 
@@ -272,16 +257,16 @@ static inline void lpc31_initsrc(void)
       /* Now mount the file system */
 
       snprintf(devname, 16, "/dev/mmcsd%d", CONFIG_EA3152_PAGING_MINOR);
-      ret = mount(devname, CONFIG_EA3152_PAGING_MOUNTPT, "vfat", MS_RDONLY,
-                  NULL);
+      ret = nx_mount(devname, CONFIG_EA3152_PAGING_MOUNTPT, "vfat",
+                     MS_RDONLY, NULL);
       DEBUGASSERT(ret == OK);
 
 #endif /* CONFIG_EA3152_PAGING_SDSLOT */
 
       /* Open the selected path for read-only access */
 
-      g_pgsrc.fd = nx_open(CONFIG_PAGING_BINPATH, O_RDONLY);
-      DEBUGASSERT(g_pgsrc.fd >= 0);
+      file_open(&g_pgsrc.file, CONFIG_PAGING_BINPATH, O_RDONLY);
+      DEBUGASSERT(g_pgsrc.file.f_inode != NULL);
 
       /* Then we are initialized */
 
@@ -444,12 +429,12 @@ int up_fillpage(FAR struct tcb_s *tcb, FAR void *vpage)
 
   /* Seek to that position */
 
-  pos = nx_seek(g_pgsrc.fd, offset, SEEK_SET);
+  pos = file_seek(&g_pgsrc.file, offset, SEEK_SET);
   DEBUGASSERT(pos != (off_t)-1);
 
   /* And read the page data from that offset */
 
-  nbytes = nx_read(g_pgsrc.fd, vpage, PAGESIZE);
+  nbytes = file_read(&g_pgsrc.file, vpage, PAGESIZE);
   DEBUGASSERT(nbytes == PAGESIZE);
   return OK;
 

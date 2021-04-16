@@ -1,5 +1,5 @@
 /****************************************************************************
- * boards/risc-v/bl602/evb/src/bl602_bringup.c
+ * boards/risc-v/bl602/bl602evb/src/bl602_bringup.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -28,28 +28,77 @@
 #include <sys/mount.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <time.h>
 #include <syslog.h>
 #include <debug.h>
 #include <errno.h>
 
 #include <nuttx/board.h>
+#include <nuttx/fs/fs.h>
+#include <nuttx/wdog.h>
+#include <nuttx/wqueue.h>
 #include <nuttx/input/buttons.h>
 #include <bl602_tim_lowerhalf.h>
 #include <bl602_oneshot_lowerhalf.h>
 #include <bl602_pwm_lowerhalf.h>
 #include <bl602_wdt_lowerhalf.h>
+#include <bl602_glb.h>
 #include <bl602_gpio.h>
 #include <bl602_i2c.h>
+#include <bl602_spi.h>
 
 #if defined(CONFIG_BL602_SPIFLASH)
 #include <bl602_spiflash.h>
 #endif
 
+#ifdef CONFIG_FS_ROMFS
+#include <nuttx/drivers/ramdisk.h>
+
+#define BL602_XIP_START_ADDR    (0x23000000)
+#define BL602_XIP_OFFSET        (*(volatile uint32_t *)0x4000B434)
+#define BL602_ROMFS_FLASH_ADDR  (0x1C0000)
+#define BL602_ROMFS_XIP_ADDR    (BL602_XIP_START_ADDR \
+                                 + BL602_ROMFS_FLASH_ADDR \
+                                 - BL602_XIP_OFFSET)
+#endif /* CONFIG_FS_ROMFS */
+
 #include "chip.h"
+
+/****************************************************************************
+ * Private Function Prototypes
+ ****************************************************************************/
+
+#if defined(CONFIG_BL602_BLE_CONTROLLER)
+static void bl602_net_poll_work(FAR void *arg);
+static void ble_hci_rx_poll_expiry(wdparm_t arg);
+#endif
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+#if defined(CONFIG_BL602_BLE_CONTROLLER)
+/* BLE HCI timer */
+
+static struct wdog_s g_ble_hci_rx_poll;
+
+/* For deferring poll work to the work queue */
+
+static struct work_s g_ble_hci_rx_work;
+#endif
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+#if defined(CONFIG_BL602_WIRELESS)
+extern int bl602_net_initialize(int intf);
+#endif
+
+#if defined(CONFIG_BL602_BLE_CONTROLLER)
+extern void bl602_hci_uart_init(uint8_t uartid);
+extern int ble_hci_do_rx(void);
+#endif
 
 /****************************************************************************
  * Name: bl602_bringup
@@ -68,17 +117,31 @@ int bl602_bringup(void)
 #ifdef CONFIG_I2C
   struct i2c_master_s *i2c_bus;
 #endif
+#ifdef CONFIG_SPI
+  struct spi_dev_s *spi_bus;
+#endif
   int ret = OK;
 
 #ifdef CONFIG_FS_PROCFS
   /* Mount the procfs file system */
 
-  ret = mount(NULL, "/proc", "procfs", 0, NULL);
+  ret = nx_mount(NULL, "/proc", "procfs", 0, NULL);
   if (ret < 0)
     {
       syslog(LOG_DEBUG,
         "ERROR: Failed to mount procfs at %s: %d\n", "/proc", ret);
       return ret;
+    }
+#endif
+
+#ifdef CONFIG_FS_TMPFS
+  /* Mount the tmpfs file system */
+
+  ret = nx_mount(NULL, CONFIG_LIBC_TMPDIR, "tmpfs", 0, NULL);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to mount tmpfs at %s: %d\n",
+             CONFIG_LIBC_TMPDIR, ret);
     }
 #endif
 
@@ -168,6 +231,11 @@ int bl602_bringup(void)
   i2c_register(i2c_bus, 0);
 #endif
 
+#ifdef CONFIG_SPI
+  spi_bus = bl602_spibus_initialize(0);
+  spi_register(spi_bus, 0);
+#endif
+
 #ifdef CONFIG_BL602_SPIFLASH
   mtd_part = bl602_spiflash_alloc_mtdpart();
 
@@ -190,16 +258,83 @@ int bl602_bringup(void)
   /* Mount the SPIFFS file system */
 
 #ifdef CONFIG_FS_LITTLEFS
-  ret = mount(path, "/mnt/lfs", "littlefs", 0, "autoformat");
+  ret = nx_mount(path, "/data", "littlefs", 0, "autoformat");
   if (ret < 0)
     {
       syslog(LOG_DEBUG,
-        "ERROR: Failed to mount littlefs at /mnt/llfs: %d\n", ret);
+        "ERROR: Failed to mount littlefs at /data: %d\n", ret);
       return -1;
     }
 
 #endif /* CONFIG_FS_LITTLEFS */
 #endif /* CONFIG_BL602_SPIFLASH */
 
+#ifdef CONFIG_BL602_WIRELESS
+  bl602_set_em_sel(BL602_GLB_EM_8KB);
+
+  bl602_net_initialize(0);
+#endif
+
+#if defined(CONFIG_BL602_BLE_CONTROLLER)
+  bl602_hci_uart_init(0);
+
+  /* 50ms interval */
+
+  wd_start(&g_ble_hci_rx_poll,
+      1 * CLOCKS_PER_SEC / 20, ble_hci_rx_poll_expiry, (wdparm_t)NULL);
+#endif /* CONFIG_BL602_BLE_CONTROLLER */
+
+#ifdef CONFIG_FS_ROMFS
+  /* Create a ROM disk for the /sbin filesystem */
+
+  ret = romdisk_register(0, BL602_ROMFS_XIP_ADDR,
+                         512,
+                         512);
+  if (ret < 0)
+    {
+      _err("ERROR: romdisk_register failed: %d\n", -ret);
+    }
+  else
+    {
+      /* Mount the file system */
+
+      ret = nx_mount("/dev/ram0",
+                  "/sbin",
+                  "romfs", MS_RDONLY, NULL);
+      if (ret < 0)
+        {
+          _err("ERROR: nx_mount(%s,%s,romfs) failed: %d\n",
+               "dev/ram0",
+               "/sbin", ret);
+        }
+    }
+#endif /* CONFIG_FS_ROMFS */
+
   return ret;
 }
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+#if defined(CONFIG_BL602_BLE_CONTROLLER)
+static void bl602_net_poll_work(FAR void *arg)
+{
+  ble_hci_do_rx();
+
+  /* 50ms interval */
+
+  wd_start(&g_ble_hci_rx_poll,
+      1 * CLOCKS_PER_SEC / 20, ble_hci_rx_poll_expiry, (wdparm_t)NULL);
+}
+
+static void ble_hci_rx_poll_expiry(wdparm_t arg)
+{
+  UNUSED(arg);
+
+  if (work_available(&g_ble_hci_rx_work))
+    {
+      work_queue(LPWORK, &g_ble_hci_rx_work, bl602_net_poll_work, NULL, 0);
+    }
+}
+#endif

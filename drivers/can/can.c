@@ -811,7 +811,7 @@ static ssize_t can_write(FAR struct file *filep, FAR const char *buffer,
    * shorter than the minimum.
    */
 
-  while ((buflen - nsent) >= CAN_MSGLEN(0))
+  while (((ssize_t)buflen - nsent) >= CAN_MSGLEN(0))
     {
       /* Check if adding this new message would over-run the drivers ability
        * to enqueue xmit data.
@@ -989,7 +989,7 @@ static inline ssize_t can_rtrread(FAR struct file *filep,
 
           request->ci_msg->cm_hdr.ch_rtr = 1;
           ret = can_write(filep,
-                          request->ci_msg,
+                          (const char *) request->ci_msg,
                           CAN_MSGLEN(request->ci_msg->cm_hdr.ch_dlc));
           request->ci_msg->cm_hdr.ch_rtr = 0;
 #else

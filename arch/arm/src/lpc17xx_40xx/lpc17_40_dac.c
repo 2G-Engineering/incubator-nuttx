@@ -1,4 +1,4 @@
-/************************************************************************************
+/****************************************************************************
  * arch/arm/src/lpc17xx_40xx/lpc17_40_dac.c
  *
  *   Copyright (C) 2011 Li Zhuoyi. All rights reserved.
@@ -36,7 +36,7 @@
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- ************************************************************************************/
+ ****************************************************************************/
 
 /****************************************************************************
  * Included Files
@@ -126,7 +126,7 @@ static void dac_reset(FAR struct dac_dev_s *dev)
   putreg32(regval, LPC17_40_SYSCON_PCLKSEL0);
 #endif
 
-  //putreg32(DAC_CTRL_DBLBUFEN, LPC17_40_DAC_CTRL); ?
+  /* putreg32(DAC_CTRL_DBLBUFEN, LPC17_40_DAC_CTRL); ? */
 
   lpc17_40_configgpio(GPIO_AOUT);
 

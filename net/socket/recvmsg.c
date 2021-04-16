@@ -1,36 +1,20 @@
 /****************************************************************************
  * net/socket/recvmsg.c
  *
- *   Copyright (C) 2007-2009, 2011-2017, 2019 Gregory Nutt. All rights
- *     reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ****************************************************************************/
 
@@ -48,7 +32,7 @@
 
 #include "socket/socket.h"
 
-#ifdef CONFIG_NET_CMSG
+#ifdef CONFIG_NET
 
 /****************************************************************************
  * Public Functions
@@ -58,21 +42,20 @@
  * Name: psock_recvmsg
  *
  * Description:
- *   psock_recvfrom() receives messages from a socket, and may be used to
+ *   psock_recvmsg() receives messages from a socket, and may be used to
  *   receive data on a socket whether or not it is connection-oriented.
  *   This is an internal OS interface.  It is functionally equivalent to
- *   recvfrom() except that:
+ *   recvmsg() except that:
  *
  *   - It is not a cancellation point,
  *   - It does not modify the errno variable, and
- *   - I accepts the internal socket structure as an input rather than an
+ *   - It accepts the internal socket structure as an input rather than an
  *     task-specific socket descriptor.
  *
  * Input Parameters:
- *   psock   - A pointer to a NuttX-specific, internal socket structure
- *   msg      Buffer to receive msg
- *   len     - Length of buffer
- *   flags   - Receive flags
+ *   psock     A pointer to a NuttX-specific, internal socket structure
+ *   msg       Buffer to receive data
+ *   flags     Receive flags
  *
  * Returned Value:
  *   On success, returns the number of characters received.  If no data is
@@ -88,7 +71,12 @@ ssize_t psock_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 {
   /* Verify that non-NULL pointers were passed */
 
-  if (msg == NULL)
+  if (msg == NULL || msg->msg_iov == NULL || msg->msg_iov->iov_base == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (msg->msg_name != NULL && msg->msg_namelen <= 0)
     {
       return -EINVAL;
     }
@@ -100,53 +88,36 @@ ssize_t psock_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 
   /* Verify that the sockfd corresponds to valid, allocated socket */
 
-  if (psock == NULL || psock->s_crefs <= 0)
+  if (psock == NULL || psock->s_conn == NULL)
     {
       return -EBADF;
     }
 
-  /* Let logic specific to this address family handle the recvfrom()
+  /* Let logic specific to this address family handle the recvmsg()
    * operation.
    */
 
   DEBUGASSERT(psock->s_sockif != NULL &&
-              (psock->s_sockif->si_recvmsg != NULL ||
-               psock->s_sockif->si_recvfrom != NULL));
+              psock->s_sockif->si_recvmsg != NULL);
 
-  if (psock->s_sockif->si_recvmsg != NULL)
-    {
-      return psock->s_sockif->si_recvmsg(psock, msg, flags);
-    }
-  else
-    {
-      /* Socket doesn't implement si_recvmsg fallback to si_recvfrom */
-
-      FAR void *buf             = msg->msg_iov->iov_base;
-      FAR struct sockaddr *from = msg->msg_name;
-      FAR socklen_t *fromlen    = (FAR socklen_t *)&msg->msg_namelen;
-      size_t len                = msg->msg_iov->iov_len;
-
-      return psock->s_sockif->si_recvfrom(psock, buf, len, flags, from,
-                                          fromlen);
-    }
+  return psock->s_sockif->si_recvmsg(psock, msg, flags);
 }
 
 /****************************************************************************
- * Name: nx_recvfrom
+ * Name: nx_recvmsg
  *
  * Description:
- *   nx_recvfrom() receives messages from a socket, and may be used to
+ *   nx_recvmsg() receives messages from a socket, and may be used to
  *   receive data on a socket whether or not it is connection-oriented.
  *   This is an internal OS interface.  It is functionally equivalent to
- *   recvfrom() except that:
+ *   recvmsg() except that:
  *
  *   - It is not a cancellation point, and
  *   - It does not modify the errno variable.
  *
  * Input Parameters:
  *   sockfd  - Socket descriptor of socket
- *   msg      Buffer to receive msg
- *   len     - Length of buffer
+ *   msg      Buffer to receive the message
  *   flags   - Receive flags
  *
  * Returned Value:
@@ -175,13 +146,12 @@ ssize_t nx_recvmsg(int sockfd, FAR struct msghdr *msg, int flags)
  * Function: recvmsg
  *
  * Description:
- *   The recvmsg() call is identical to recvfrom() with a NULL from
- *   parameter.
+ *   recvmsg() receives messages from a socket, and may be used to
+ *   receive data on a socket whether or not it is connection-oriented.
  *
  * Parameters:
  *   sockfd   Socket descriptor of socket
- *   msg      Buffer to receive msg
- *   len      Length of buffer
+ *   msg      Buffer to receive the message
  *   flags    Receive flags
  *
  * Returned Value:
@@ -217,23 +187,18 @@ ssize_t nx_recvmsg(int sockfd, FAR struct msghdr *msg, int flags)
 
 ssize_t recvmsg(int sockfd, FAR struct msghdr *msg, int flags)
 {
-  FAR struct socket *psock;
   ssize_t ret;
 
-  /* recvfrom() is a cancellation point */
+  /* recvmsg() is a cancellation point */
 
   enter_cancellation_point();
 
-  /* Get the underlying socket structure */
+  /* Let nx_recvmsg() do all of the work */
 
-  psock = sockfd_socket(sockfd);
-
-  /* Let psock_recvfrom() do all of the work */
-
-  ret = psock_recvmsg(psock, msg, flags);
+  ret = nx_recvmsg(sockfd, msg, flags);
   if (ret < 0)
     {
-      _SO_SETERRNO(psock, -ret);
+      _SO_SETERRNO(sockfd_socket(sockfd), -ret);
       ret = ERROR;
     }
 
@@ -241,4 +206,4 @@ ssize_t recvmsg(int sockfd, FAR struct msghdr *msg, int flags)
   return ret;
 }
 
-#endif /* CONFIG_NET_CMSG */
+#endif /* CONFIG_NET */

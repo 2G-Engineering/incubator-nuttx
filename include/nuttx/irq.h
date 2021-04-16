@@ -32,6 +32,7 @@
 # include <assert.h>
 # ifdef CONFIG_SMP
 #  include <stdbool.h>
+#  include <nuttx/spinlock.h>
 # endif
 #endif
 
@@ -273,59 +274,74 @@ void leave_critical_section(irqstate_t flags);
  * Name: spin_lock_irqsave
  *
  * Description:
- *   If SMP and SPINLOCK_IRQ are enabled:
- *     Disable local interrupts and take the global spinlock (g_irq_spin)
+ *   If SMP is are enabled:
+ *     If the argument lock is not specified (i.e. NULL),
+ *     disable local interrupts and take the global spinlock (g_irq_spin)
  *     if the call counter (g_irq_spin_count[cpu]) equals to 0. Then the
- *     counter on the CPU is increment to allow nested call.
+ *     counter on the CPU is increment to allow nested call and return
+ *     the interrupt state.
+ *
+ *     If the argument lock is specified,
+ *     disable local interrupts and take the lock spinlock and return
+ *     the interrupt state.
  *
  *     NOTE: This API is very simple to protect data (e.g. H/W register
  *     or internal data structure) in SMP mode. But do not use this API
  *     with kernel APIs which suspend a caller thread. (e.g. nxsem_wait)
  *
- *   If SMP and SPINLOCK_IRQ are not enabled:
- *     This function is equivalent to enter_critical_section().
+ *   If SMP is not enabled:
+ *     This function is equivalent to up_irq_save().
  *
  * Input Parameters:
- *   None
+ *   lock - Caller specific spinlock. If specified NULL, g_irq_spin is used
+ *          and can be nested. Otherwise, nested call for the same lock
+ *          would cause a deadlock
  *
  * Returned Value:
  *   An opaque, architecture-specific value that represents the state of
- *   the interrupts prior to the call to spin_lock_irqsave();
+ *   the interrupts prior to the call to spin_lock_irqsave(lock);
  *
  ****************************************************************************/
 
-#if defined(CONFIG_SMP) && defined(CONFIG_SPINLOCK_IRQ)
-irqstate_t spin_lock_irqsave(void);
+#if defined(CONFIG_SMP)
+irqstate_t spin_lock_irqsave(spinlock_t *lock);
 #else
-#  define spin_lock_irqsave() enter_critical_section()
+#  define spin_lock_irqsave(l) up_irq_save()
 #endif
 
 /****************************************************************************
  * Name: spin_unlock_irqrestore
  *
  * Description:
- *   If SMP and SPINLOCK_IRQ are enabled:
- *     Decrement the call counter (g_irq_spin_count[cpu]) and if it
+ *   If SMP is enabled:
+ *     If the argument lock is not specified (i.e. NULL),
+ *     decrement the call counter (g_irq_spin_count[cpu]) and if it
  *     decrements to zero then release the spinlock (g_irq_spin) and
  *     restore the interrupt state as it was prior to the previous call to
- *     spin_lock_irqsave().
+ *     spin_lock_irqsave(NULL).
  *
- *   If SMP and SPINLOCK_IRQ are not enabled:
- *     This function is equivalent to leave_critical_section().
+ *     If the argument lock is specified, release the the lock and
+ *     restore the interrupt state as it was prior to the previous call to
+ *     spin_lock_irqsave(lock).
+ *
+ *   If SMP is not enabled:
+ *     This function is equivalent to up_irq_restore().
  *
  * Input Parameters:
+ *   lock - Caller specific spinlock. If specified NULL, g_irq_spin is used.
+ *
  *   flags - The architecture-specific value that represents the state of
- *           the interrupts prior to the call to spin_lock_irqsave();
+ *           the interrupts prior to the call to spin_lock_irqsave(lock);
  *
  * Returned Value:
  *   None
  *
  ****************************************************************************/
 
-#if defined(CONFIG_SMP) && defined(CONFIG_SPINLOCK_IRQ)
-void spin_unlock_irqrestore(irqstate_t flags);
+#if defined(CONFIG_SMP)
+void spin_unlock_irqrestore(spinlock_t *lock, irqstate_t flags);
 #else
-#  define spin_unlock_irqrestore(f) leave_critical_section(f)
+#  define spin_unlock_irqrestore(l, f) up_irq_restore(f)
 #endif
 
 #undef EXTERN

@@ -82,22 +82,35 @@
  * Public Types
  ****************************************************************************/
 
-/* This structure provides the interface to a SYSLOG device */
+/* Forward declaration */
 
-typedef CODE ssize_t (*syslog_write_t)(FAR const char *buf, size_t buflen);
-typedef CODE int (*syslog_putc_t)(int ch);
-typedef CODE int (*syslog_flush_t)(void);
+struct syslog_channel_s;
 
-struct syslog_channel_s
+/* SYSLOG I/O redirection methods */
+
+typedef CODE ssize_t (*syslog_write_t)(FAR struct syslog_channel_s *channel,
+                                       FAR const char *buf, size_t buflen);
+typedef CODE int (*syslog_putc_t)(FAR struct syslog_channel_s *channel,
+                                  int ch);
+typedef CODE int (*syslog_flush_t)(FAR struct syslog_channel_s *channel);
+
+/* SYSLOG device operations */
+
+struct syslog_channel_ops_s
 {
-  /* I/O redirection methods */
-
   syslog_putc_t  sc_putc;   /* Normal buffered output */
   syslog_putc_t  sc_force;  /* Low-level output for interrupt handlers */
   syslog_flush_t sc_flush;  /* Flush buffered output (on crash) */
-#ifdef CONFIG_SYSLOG_WRITE
   syslog_write_t sc_write;  /* Write multiple bytes */
-#endif
+};
+
+/* This structure provides the interface to a SYSLOG channel */
+
+struct syslog_channel_s
+{
+  /* Channel operations */
+
+  FAR const struct syslog_channel_ops_s *sc_ops;
 
   /* Implementation specific logic may follow */
 };
@@ -131,12 +144,30 @@ extern "C"
  *   channel - Provides the interface to the channel to be used.
  *
  * Returned Value:
- *   Zero (OK)is returned on  success.  A negated errno value is returned
+ *   Zero (OK) is returned on success.  A negated errno value is returned
  *   on any failure.
  *
  ****************************************************************************/
 
-int syslog_channel(FAR const struct syslog_channel_s *channel);
+int syslog_channel(FAR struct syslog_channel_s *channel);
+
+/****************************************************************************
+ * Name: syslog_channel_remove
+ *
+ * Description:
+ *   Removes an already configured SYSLOG channel from the list of used
+ *   channels.
+ *
+ * Input Parameters:
+ *   channel - Provides the interface to the channel to be removed.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success.  A negated errno value is returned
+ *   on any failure.
+ *
+ ****************************************************************************/
+
+int syslog_channel_remove(FAR struct syslog_channel_s *channel);
 
 /****************************************************************************
  * Name: syslog_initialize

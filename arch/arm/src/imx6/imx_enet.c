@@ -103,7 +103,7 @@
 #endif
 
 #if !defined (CONFIG_NET_TCP_WRITE_BUFFERS) && (CONFIG_IMX_ENET_NTXBUFFERS != 1)
-#  error "CONFIG_IMX_ENET_NTXBUFFERS must be 1 without TCP_WRITE_BUFFERS"
+#  error "TCP_WRITE_BUFFERS are disabled. CONFIG_IMX_ENET_NTXBUFFERS must be set to 1"
 #endif
 
 #if CONFIG_IMX_ENET_NRXBUFFERS < 1
@@ -587,7 +587,7 @@ static int imx_transmit(FAR struct imx_driver_s *priv)
 
   /* Make the following operations atomic */
 
-  flags = spin_lock_irqsave();
+  flags = spin_lock_irqsave(NULL);
 
   /* Enable TX interrupts */
 
@@ -604,7 +604,7 @@ static int imx_transmit(FAR struct imx_driver_s *priv)
 
   putreg32(ENET_TDAR, IMX_ENET_TDAR);
 
-  spin_unlock_irqrestore(flags);
+  spin_unlock_irqrestore(NULL, flags);
 
 #if CONFIG_IMX_ENET_NTXBUFFERS == 1
   priv->txbusy = false;
