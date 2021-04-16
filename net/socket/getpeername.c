@@ -1,5 +1,5 @@
 /****************************************************************************
- * nuttx/net/socket/getpeername.c
+ * net/socket/getpeername.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -81,7 +81,7 @@ int psock_getpeername(FAR struct socket *psock, FAR struct sockaddr *addr,
 {
   /* Verify that the psock corresponds to valid, allocated socket */
 
-  if (psock == NULL || psock->s_crefs <= 0)
+  if (psock == NULL || psock->s_conn == NULL)
     {
       return -EBADF;
     }

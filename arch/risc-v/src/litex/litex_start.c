@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/risc-v/src/litex/litex_init.c
+ * arch/risc-v/src/litex/litex_start.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -38,7 +38,7 @@
  ****************************************************************************/
 
 #ifdef CONFIG_DEBUG_FEATURES
-#  define showprogress(c) up_lowputc(c)
+#  define showprogress(c) riscv_lowputc(c)
 #else
 #  define showprogress(c)
 #endif
@@ -105,7 +105,7 @@ void __litex_start(void)
   showprogress('A');
 
 #ifdef USE_EARLYSERIALINIT
-  up_earlyserialinit();
+  riscv_earlyserialinit();
 #endif
 
   showprogress('B');

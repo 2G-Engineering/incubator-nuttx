@@ -35,6 +35,8 @@
 
 #include <nuttx/irq.h>
 #include <nuttx/serial/serial.h>
+#include <nuttx/fs/ioctl.h>
+#include <nuttx/serial/tioctl.h>
 
 #include "bl602_lowputc.h"
 #include "bl602_gpio.h"
@@ -111,7 +113,7 @@
 
 /* Common initialization logic will not not know that the all of the UARTs
  * have been disabled.  So, as a result, we may still have to provide
- * stub implementations of up_earlyserialinit(), up_serialinit(), and
+ * stub implementations of riscv_earlyserialinit(), riscv_serialinit(), and
  * up_putc().
  */
 
@@ -461,25 +463,25 @@ static int bl602_ioctl(struct file *filep, int cmd, unsigned long arg)
 
           /* Return parity */
 
-          termiosp->c_cflag = ((priv->parity != 0) ? PARENB : 0) |
-                              ((priv->parity == 1) ? PARODD : 0);
+          termiosp->c_cflag = ((priv->config.parity != 0) ? PARENB : 0) |
+                              ((priv->config.parity == 1) ? PARODD : 0);
 
           /* Return stop bits */
 
-          termiosp->c_cflag |= (priv->stop_bits) ? CSTOPB : 0;
+          termiosp->c_cflag |= (priv->config.stop_bits) ? CSTOPB : 0;
 
           /* Return flow control */
 
-          termiosp->c_cflag |= (priv->iflow_ctl) ? CRTS_IFLOW : 0;
-          termiosp->c_cflag |= (priv->oflow_ctl) ? CCTS_OFLOW : 0;
+          termiosp->c_cflag |= (priv->config.iflow_ctl) ? CRTS_IFLOW : 0;
+          termiosp->c_cflag |= (priv->config.oflow_ctl) ? CCTS_OFLOW : 0;
 
           /* Return baud */
 
-          cfsetispeed(termiosp, priv->baud);
+          cfsetispeed(termiosp, priv->config.baud);
 
           /* Return number of bits */
 
-          switch (priv->data_bits)
+          switch (priv->config.data_bits)
             {
             case 5:
               termiosp->c_cflag |= CS5;
@@ -563,7 +565,7 @@ static int bl602_ioctl(struct file *filep, int cmd, unsigned long arg)
 
           /* Decode flow control */
 
-          if (priv->idx == 0)
+          if (priv->config.idx == 0)
             {
 #if CONFIG_UART0_IFLOWCONTROL
               config.iflow_ctl = (termiosp->c_cflag & CRTS_IFLOW) != 0;
@@ -594,9 +596,9 @@ static int bl602_ioctl(struct file *filep, int cmd, unsigned long arg)
                * implement TCSADRAIN / TCSAFLUSH
                */
 
-              tmp_val = getreg32(BL602_UART_INT_MASK(config->idx));
+              tmp_val = getreg32(BL602_UART_INT_MASK(config.idx));
               bl602_uart_configure(&config);
-              putreg32(tmp_val, BL602_UART_INT_MASK(config->idx));
+              putreg32(tmp_val, BL602_UART_INT_MASK(config.idx));
             }
         }
       while (0);
@@ -812,18 +814,18 @@ static bool bl602_txempty(struct uart_dev_s *dev)
 #ifdef USE_EARLYSERIALINIT
 
 /****************************************************************************
- * Name: up_earlyserialinit
+ * Name: riscv_earlyserialinit
  *
  * Description:
  *   Performs the low level UART initialization early in debug so that the
  *   serial console will be available during bootup.  This must be called
- *   before up_serialinit.  NOTE:  This function depends on GPIO pin
+ *   before riscv_serialinit.  NOTE:  This function depends on GPIO pin
  *   configuration performed in up_consoleinit() and main clock
  *   initialization performed in up_clkinitialize().
  *
  ****************************************************************************/
 
-void up_earlyserialinit(void)
+void riscv_earlyserialinit(void)
 {
 #ifdef HAVE_SERIAL_CONSOLE
   /* Configuration whichever one is the console */
@@ -835,15 +837,15 @@ void up_earlyserialinit(void)
 #endif
 
 /****************************************************************************
- * Name: up_serialinit
+ * Name: riscv_serialinit
  *
  * Description:
  *   Register serial console and serial ports.  This assumes
- *   that up_earlyserialinit was called previously.
+ *   that riscv_earlyserialinit was called previously.
  *
  ****************************************************************************/
 
-void up_serialinit(void)
+void riscv_serialinit(void)
 {
   int  i;
   char devname[16];
@@ -900,17 +902,17 @@ int up_putc(int ch)
     {
       /* Add CR */
 
-      up_lowputc('\r');
+      riscv_lowputc('\r');
     }
 
-  up_lowputc(ch);
+  riscv_lowputc(ch);
   leave_critical_section(flags);
 #endif
   return ch;
 }
 
 /****************************************************************************
- * Name: up_earlyserialinit, up_serialinit, and up_putc
+ * Name: riscv_earlyserialinit, riscv_serialinit, and up_putc
  *
  * Description:
  *   stubs that may be needed.  These stubs would be used if all UARTs are
@@ -921,11 +923,11 @@ int up_putc(int ch)
  ****************************************************************************/
 
 #else /* HAVE_UART_DEVICE */
-void up_earlyserialinit(void)
+void riscv_earlyserialinit(void)
 {
 }
 
-void up_serialinit(void)
+void riscv_serialinit(void)
 {
 }
 
@@ -954,10 +956,10 @@ int up_putc(int ch)
     {
       /* Add CR */
 
-      up_lowputc('\r');
+      riscv_lowputc('\r');
     }
 
-  up_lowputc(ch);
+  riscv_lowputc(ch);
 #endif
   return ch;
 }

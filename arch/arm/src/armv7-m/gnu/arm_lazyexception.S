@@ -1,4 +1,4 @@
-/************************************************************************************************
+/****************************************************************************
  * arch/arm/src/armv7-m/gnu/up_lazyexcption.S
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
@@ -16,11 +16,11 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  *
- ************************************************************************************************/
+ ****************************************************************************/
 
-/************************************************************************************************
+/****************************************************************************
  * Included Files
- ************************************************************************************************/
+ ****************************************************************************/
 
 #include <nuttx/config.h>
 
@@ -30,14 +30,14 @@
 #include "chip.h"
 #include "exc_return.h"
 
-/************************************************************************************************
+/****************************************************************************
  * Pre-processor Definitions
- ************************************************************************************************/
+ ****************************************************************************/
 
-/* Configuration ********************************************************************************/
+/* Configuration ************************************************************/
 
 #ifdef CONFIG_ARCH_HIPRI_INTERRUPT
-  /* In kernel mode without an interrupt stack, this interrupt handler will set the MSP to the
+  /* In protected mode without an interrupt stack, this interrupt handler will set the MSP to the
    * stack pointer of the interrupted thread.  If the interrupted thread was a privileged
    * thread, that will be the MSP otherwise it will be the PSP.  If the PSP is used, then the
    * value of the MSP will be invalid when the interrupt handler returns because it will be a
@@ -51,7 +51,7 @@
    */
 
 #  if defined(CONFIG_BUILD_PROTECTED) && CONFIG_ARCH_INTERRUPTSTACK < 8
-#    error Interrupt stack must be used with high priority interrupts in kernel mode
+#    error Interrupt stack must be used with high priority interrupts in protected mode
 #  endif
 
   /* Use the BASEPRI to control interrupts is required if nested, high
@@ -63,9 +63,9 @@
 #  endif
 #endif
 
-/************************************************************************************************
+/****************************************************************************
  * Public Symbols
- ************************************************************************************************/
+ ****************************************************************************/
 
 	.globl		exception_common
 
@@ -73,28 +73,28 @@
 	.thumb
 	.file		"arm_lazyexception.S"
 
-/************************************************************************************************
+/****************************************************************************
  * Macro Definitions
- ************************************************************************************************/
+ ****************************************************************************/
 
-/************************************************************************************************
+/****************************************************************************
  * Name: setintstack
  *
  * Description:
  *   Set the current stack pointer to the  "top" the interrupt stack.  Single CPU case.  Must be
  *   provided by MCU-specific logic in chip.h for the SMP case.
  *
- ************************************************************************************************/
+ ****************************************************************************/
 
 #if !defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
 	.macro	setintstack, tmp1, tmp2
-	ldr		sp, =g_intstackbase
+	ldr		sp, =g_intstacktop
 	.endm
 #endif
 
-/************************************************************************************************
+/****************************************************************************
  * .text
- ************************************************************************************************/
+ ****************************************************************************/
 
 /* Common IRQ handling logic.  On entry here, the return stack is on either
  * the PSP or the MSP and looks like the following:
@@ -115,13 +115,13 @@
  */
 
 	.text
-	.type		exception_common, function
+	.type	exception_common, function
 
 exception_common:
 
 	/* Get the IRQ number from the IPSR */
 
-	mrs			r0, ipsr			/* R0=exception number */
+	mrs		r0, ipsr			/* R0=exception number */
 
 	/* Complete the context save */
 
@@ -131,21 +131,21 @@ exception_common:
 	 * EXC_RETURN is 0xfffffffd (unprivileged thread)
 	 */
 
-	tst		r14, #EXC_RETURN_PROCESS_STACK /* nonzero if context on process stack */
-	beq		1f						/* Branch if context already on the MSP */
+	tst		r14, #EXC_RETURN_PROCESS_STACK		/* Nonzero if context on process stack */
+	beq		1f					/* Branch if context already on the MSP */
 	mrs		r1, psp					/* R1=The process stack pointer (PSP) */
-	mov     sp, r1					/* Set the MSP to the PSP */
+	mov		sp, r1					/* Set the MSP to the PSP */
 
 1:
 #endif
 
-	/* r1 holds the value of the stack pointer AFTER the exception handling logic
+	/* sp holds the value of the stack pointer AFTER the exception handling logic
 	 * pushed the various registers onto the stack.  Get r2 = the value of the
 	 * stack pointer BEFORE the interrupt modified it.
 	 */
 
 	mov		r2, sp					/* R2=Copy of the main/process stack pointer */
-	add		r2, #HW_XCPT_SIZE		/* R2=MSP/PSP before the interrupt was taken */
+	add		r2, #HW_XCPT_SIZE			/* R2=MSP/PSP before the interrupt was taken */
 
 #ifdef CONFIG_ARMV7M_USEBASEPRI
 	mrs		r3, basepri				/* R3=Current BASEPRI setting */
@@ -169,9 +169,9 @@ exception_common:
 	 */
 
 #ifdef CONFIG_BUILD_PROTECTED
-	stmdb	sp!, {r2-r11,r14}		/* Save the remaining registers plus the SP value */
+	stmdb		sp!, {r2-r11,r14}		/* Save the remaining registers plus the SP value */
 #else
-	stmdb	sp!, {r2-r11}			/* Save the remaining registers plus the SP value */
+	stmdb		sp!, {r2-r11}			/* Save the remaining registers plus the SP value */
 #endif
 
 	/* There are two arguments to arm_doirq:
@@ -214,7 +214,7 @@ exception_common:
 	 */
 
 	cmp		r0, r1					/* Context switch? */
-	beq		2f						/* Branch if no context switch */
+	beq		2f					/* Branch if no context switch */
 
 	/* We are returning with a pending context switch.
 	 *
@@ -241,16 +241,16 @@ exception_common:
 	 * values to the stack.
 	 */
 
-	add		r1, r0, #SW_XCPT_SIZE	/* R1=Address of HW save area in reg array */
-	ldmia	r1, {r4-r11}			/* Fetch eight registers in HW save area */
-	ldr		r1, [r0, #(4*REG_SP)]	/* R1=Value of SP before interrupt */
-	stmdb	r1!, {r4-r11}			/* Store eight registers in HW save area */
+	add		r1, r0, #SW_XCPT_SIZE		/* R1=Address of HW save area in reg array */
+	ldmia		r1, {r4-r11}			/* Fetch eight registers in HW save area */
+	ldr		r1, [r0, #(4*REG_SP)]		/* R1=Value of SP before interrupt */
+	stmdb		r1!, {r4-r11}			/* Store eight registers in HW save area */
 #ifdef CONFIG_BUILD_PROTECTED
-	ldmia	r0, {r2-r11,r14}		/* Recover R4-R11, r14 + 2 temp values */
+	ldmia		r0, {r2-r11,r14}		/* Recover R4-R11, r14 + 2 temp values */
 #else
-	ldmia	r0, {r2-r11}			/* Recover R4-R11 + 2 temp values */
+	ldmia		r0, {r2-r11}			/* Recover R4-R11 + 2 temp values */
 #endif
-	b		3f						/* Re-join common logic */
+	b		3f				/* Re-join common logic */
 
 	/* We are returning with no context switch.  We simply need to "unwind"
 	 * the same stack frame that we created
@@ -261,9 +261,9 @@ exception_common:
 
 2:
 #ifdef CONFIG_BUILD_PROTECTED
-	ldmia	r1!, {r2-r11,r14}		/* Recover R4-R11, r14 + 2 temp values */
+	ldmia		r1!, {r2-r11,r14}		/* Recover R4-R11, r14 + 2 temp values */
 #else
-	ldmia	r1!, {r2-r11}			/* Recover R4-R11 + 2 temp values */
+	ldmia		r1!, {r2-r11}			/* Recover R4-R11 + 2 temp values */
 #endif
 
 #ifdef CONFIG_ARCH_FPU
@@ -292,8 +292,8 @@ exception_common:
 	 */
 
 	mrs		r2, control				/* R2=Contents of the control register */
-	tst		r14, #EXC_RETURN_PROCESS_STACK /* nonzero if context on process stack */
-	beq		4f						/* Branch if privileged */
+	tst		r14, #EXC_RETURN_PROCESS_STACK		/* nonzero if context on process stack */
+	beq		4f					/* Branch if privileged */
 
 	orr		r2, r2, #1				/* Unprivileged mode */
 	msr		psp, r1					/* R1=The process stack pointer */
@@ -310,7 +310,7 @@ exception_common:
 	 * actually occurs with interrupts still disabled).
 	 */
 
-	ldr		r14, =EXC_RETURN_PRIVTHR	/* Load the special value */
+	ldr		r14, =EXC_RETURN_PRIVTHR		/* Load the special value */
 #endif
 
 	/* Restore the interrupt state */
@@ -328,22 +328,22 @@ exception_common:
 	bx		r14						/* And return */
 	.size	exception_common, .-exception_common
 
-/************************************************************************************************
- *  Name: g_intstackalloc/g_intstackbase
+/****************************************************************************
+ *  Name: g_intstackalloc/g_intstacktop
  *
  * Description:
  *   Shouldn't happen
  *
- ************************************************************************************************/
+ ****************************************************************************/
 
 #if !defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
 	.bss
 	.global	g_intstackalloc
-	.global	g_intstackbase
+	.global	g_intstacktop
 	.balign	8
 g_intstackalloc:
 	.skip	((CONFIG_ARCH_INTERRUPTSTACK + 4) & ~7)
-g_intstackbase:
+g_intstacktop:
 	.size	g_intstackalloc, .-g_intstackalloc
 #endif
 

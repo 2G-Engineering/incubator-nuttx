@@ -1,36 +1,20 @@
 /****************************************************************************
  * mm/mm_heap/mm_sem.c
  *
- *   Copyright (C) 2007-2009, 2013, 2017-2018 Gregory Nutt. All rights
- *     reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
  ****************************************************************************/
 
@@ -48,9 +32,7 @@
 #include <nuttx/semaphore.h>
 #include <nuttx/mm/mm.h>
 
-#ifdef CONFIG_SMP
-#  include <nuttx/irq.h>
-#endif
+#include "mm_heap/mm.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -90,14 +72,19 @@
 
 void mm_seminitialize(FAR struct mm_heap_s *heap)
 {
+  FAR struct mm_heap_impl_s *heap_impl;
+
+  DEBUGASSERT(MM_IS_VALID(heap));
+  heap_impl = heap->mm_impl;
+
   /* Initialize the MM semaphore to one (to support one-at-a-time access to
    * private data sets).
    */
 
-  nxsem_init(&heap->mm_semaphore, 0, 1);
+  _SEM_INIT(&heap_impl->mm_semaphore, 0, 1);
 
-  heap->mm_holder      = NO_HOLDER;
-  heap->mm_counts_held = 0;
+  heap_impl->mm_holder      = NO_HOLDER;
+  heap_impl->mm_counts_held = 0;
 }
 
 /****************************************************************************
@@ -113,9 +100,7 @@ void mm_seminitialize(FAR struct mm_heap_s *heap)
 
 int mm_trysemaphore(FAR struct mm_heap_s *heap)
 {
-#ifdef CONFIG_SMP
-  irqstate_t flags = enter_critical_section();
-#endif
+  FAR struct mm_heap_impl_s *heap_impl;
   pid_t my_pid = getpid();
   int ret;
 
@@ -148,6 +133,9 @@ int mm_trysemaphore(FAR struct mm_heap_s *heap)
    * 'else', albeit with a nonsensical PID value.
    */
 
+  DEBUGASSERT(MM_IS_VALID(heap));
+  heap_impl = heap->mm_impl;
+
   if (my_pid < 0)
     {
       ret = my_pid;
@@ -158,20 +146,20 @@ int mm_trysemaphore(FAR struct mm_heap_s *heap)
    * task actually running?
    */
 
-  if (heap->mm_holder == my_pid)
+  if (heap_impl->mm_holder == my_pid)
     {
       /* Yes, just increment the number of references held by the current
        * task.
        */
 
-      heap->mm_counts_held++;
+      heap_impl->mm_counts_held++;
       ret = OK;
     }
   else
     {
       /* Try to take the semaphore */
 
-      ret = _SEM_TRYWAIT(&heap->mm_semaphore);
+      ret = _SEM_TRYWAIT(&heap_impl->mm_semaphore);
       if (ret < 0)
         {
           ret = _SEM_ERRVAL(ret);
@@ -180,15 +168,12 @@ int mm_trysemaphore(FAR struct mm_heap_s *heap)
 
       /* We have it.  Claim the heap for the current task and return */
 
-      heap->mm_holder      = my_pid;
-      heap->mm_counts_held = 1;
+      heap_impl->mm_holder      = my_pid;
+      heap_impl->mm_counts_held = 1;
       ret = OK;
     }
 
 errout:
-#ifdef CONFIG_SMP
-  leave_critical_section(flags);
-#endif
   return ret;
 }
 
@@ -203,20 +188,21 @@ errout:
 
 void mm_takesemaphore(FAR struct mm_heap_s *heap)
 {
-#ifdef CONFIG_SMP
-  irqstate_t flags = enter_critical_section();
-#endif
+  FAR struct mm_heap_impl_s *heap_impl;
   pid_t my_pid = getpid();
+
+  DEBUGASSERT(MM_IS_VALID(heap));
+  heap_impl = heap->mm_impl;
 
   /* Does the current task already hold the semaphore? */
 
-  if (heap->mm_holder == my_pid)
+  if (heap_impl->mm_holder == my_pid)
     {
       /* Yes, just increment the number of references held by the current
        * task.
        */
 
-      heap->mm_counts_held++;
+      heap_impl->mm_counts_held++;
     }
   else
     {
@@ -227,7 +213,7 @@ void mm_takesemaphore(FAR struct mm_heap_s *heap)
       mseminfo("PID=%d taking\n", my_pid);
       do
         {
-          ret = _SEM_WAIT(&heap->mm_semaphore);
+          ret = _SEM_WAIT(&heap_impl->mm_semaphore);
 
           /* The only case that an error should occur here is if the wait
            * was awakened by a signal.
@@ -245,14 +231,12 @@ void mm_takesemaphore(FAR struct mm_heap_s *heap)
        * the semaphore for the current task and return.
        */
 
-      heap->mm_holder      = my_pid;
-      heap->mm_counts_held = 1;
+      heap_impl->mm_holder      = my_pid;
+      heap_impl->mm_counts_held = 1;
     }
 
-#ifdef CONFIG_SMP
-  leave_critical_section(flags);
-#endif
-  mseminfo("Holder=%d count=%d\n", heap->mm_holder, heap->mm_counts_held);
+  mseminfo("Holder=%d count=%d\n", heap_impl->mm_holder,
+            heap_impl->mm_counts_held);
 }
 
 /****************************************************************************
@@ -265,25 +249,26 @@ void mm_takesemaphore(FAR struct mm_heap_s *heap)
 
 void mm_givesemaphore(FAR struct mm_heap_s *heap)
 {
-#ifdef CONFIG_SMP
-  irqstate_t flags = enter_critical_section();
-#endif
+  FAR struct mm_heap_impl_s *heap_impl;
+
+  DEBUGASSERT(MM_IS_VALID(heap));
+  heap_impl = heap->mm_impl;
 
   /* The current task should be holding at least one reference to the
    * semaphore.
    */
 
-  DEBUGASSERT(heap->mm_holder == getpid());
+  DEBUGASSERT(heap_impl->mm_holder == getpid());
 
   /* Does the current task hold multiple references to the semaphore */
 
-  if (heap->mm_counts_held > 1)
+  if (heap_impl->mm_counts_held > 1)
     {
       /* Yes, just release one count and return */
 
-      heap->mm_counts_held--;
-      mseminfo("Holder=%d count=%d\n", heap->mm_holder,
-               heap->mm_counts_held);
+      heap_impl->mm_counts_held--;
+      mseminfo("Holder=%d count=%d\n", heap_impl->mm_holder,
+               heap_impl->mm_counts_held);
     }
   else
     {
@@ -291,12 +276,8 @@ void mm_givesemaphore(FAR struct mm_heap_s *heap)
 
       mseminfo("PID=%d giving\n", getpid());
 
-      heap->mm_holder      = NO_HOLDER;
-      heap->mm_counts_held = 0;
-      DEBUGVERIFY(_SEM_POST(&heap->mm_semaphore));
+      heap_impl->mm_holder      = NO_HOLDER;
+      heap_impl->mm_counts_held = 0;
+      DEBUGVERIFY(_SEM_POST(&heap_impl->mm_semaphore));
     }
-
-#ifdef CONFIG_SMP
-  leave_critical_section(flags);
-#endif
 }

@@ -27,9 +27,11 @@
 #include <stdint.h>
 #include <debug.h>
 
+#include <nuttx/board.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <arch/irq.h>
+#include <arch/board/board.h>
 
 #include "chip.h"
 #include "nvic.h"
@@ -476,14 +478,14 @@ void up_disable_irq(int irq)
       g_cpu_for_irq[irq] = -1;
 #endif
 
-      irqstate_t flags = spin_lock_irqsave();
+      irqstate_t flags = spin_lock_irqsave(NULL);
       irq -= CXD56_IRQ_EXTINT;
       bit  = 1 << (irq & 0x1f);
 
       regval  = getreg32(INTC_EN(irq));
       regval &= ~bit;
       putreg32(regval, INTC_EN(irq));
-      spin_unlock_irqrestore(flags);
+      spin_unlock_irqrestore(NULL, flags);
       putreg32(bit, NVIC_IRQ_CLEAR(irq));
     }
   else
@@ -531,14 +533,14 @@ void up_enable_irq(int irq)
         }
 #endif
 
-      irqstate_t flags = spin_lock_irqsave();
+      irqstate_t flags = spin_lock_irqsave(NULL);
       irq -= CXD56_IRQ_EXTINT;
       bit  = 1 << (irq & 0x1f);
 
       regval  = getreg32(INTC_EN(irq));
       regval |= bit;
       putreg32(regval, INTC_EN(irq));
-      spin_unlock_irqrestore(flags);
+      spin_unlock_irqrestore(NULL, flags);
       putreg32(bit, NVIC_IRQ_ENABLE(irq));
     }
   else
@@ -564,6 +566,10 @@ void up_enable_irq(int irq)
 
 void arm_ack_irq(int irq)
 {
+#ifdef CONFIG_ARCH_LEDS_CPU_ACTIVITY
+  board_autoled_on(LED_CPU);
+#endif
+
   /* Check for external interrupt */
 
   if (irq >= CXD56_IRQ_EXTINT)
@@ -623,16 +629,16 @@ int up_prioritize_irq(int irq, int priority)
 #endif
 
 /****************************************************************************
- * Name: arm_intstack_base
+ * Name: arm_intstack_top
  *
  * Description:
- *   Return a pointer to the "base" the correct interrupt stack allocation
- *   for the current CPU. NOTE: Here, the base means "top" of the stack
+ *   Return a pointer to the top the correct interrupt stack allocation
+ *   for the current CPU.
  *
  ****************************************************************************/
 
 #if defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
-uintptr_t arm_intstack_base(void)
+uintptr_t arm_intstack_top(void)
 {
   return g_cpu_intstack_top[up_cpu_index()];
 }

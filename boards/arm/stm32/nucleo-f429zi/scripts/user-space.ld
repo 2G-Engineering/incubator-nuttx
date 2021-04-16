@@ -1,5 +1,5 @@
 /****************************************************************************
- * boards/arm/stm32f4/nucleo-f429zi/scripts/user-space.ld
+ * boards/arm/stm32/nucleo-f429zi/scripts/user-space.ld
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -29,8 +29,6 @@
 
 EXTERN(umm_initialize)
 EXTERN(umm_addregion)
-EXTERN(umm_trysemaphore)
-EXTERN(umm_givesemaphore)
 
 EXTERN(malloc)
 EXTERN(realloc)

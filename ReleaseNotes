@@ -2358,7 +2358,7 @@ The new features (some still incomplete) include:
     to LCD GRAM memory.
 
   * I2C tool. Extended to support to include a verify command and
-    repititions and auto-address increment for most commands.
+    repetitions and auto-address increment for most commands.
 
   * USB terminal example.  Line oriented serial bridge connects a host
     USB serial terminal to a host UART serial terminal.
@@ -16586,7 +16586,7 @@ detailed bugfix information):
         script.  From Mateusz Szafoni.
       - Nucleo-F334R8:  Add missing ram_vectors configuration in linker
         script.  From Mateusz Szafoni.
-      - Nucleo-F334R8:  Add Missing ADC trigger configuration tot he highpri
+      - Nucleo-F334R8:  Add Missing ADC trigger configuration to the highpri
         configuration.  From Mateusz Szafoni.
       - STM3240G-EVAL:  The timer frequencies (BOARD_TIMx_FREQUENCY) are
         incorrectly defined in board.h.  Since the APB prescalers are set to

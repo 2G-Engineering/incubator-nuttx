@@ -1559,7 +1559,8 @@ static int mcp2515_ioctl(FAR struct can_dev_s *dev, int cmd,
            * PHSEG1 == PHSEG2 (PHSEG2 = TSEG2)
            *
            * See more at:
-           *  http://www.analog.com/en/analog-dialogue/articles/configure-can-bit-timing.html
+           *  http://www.analog.com/en/analog-dialogue/articles/
+           *          configure-can-bit-timing.html
            *
            */
 
@@ -1813,7 +1814,7 @@ static int mcp2515_send(FAR struct can_dev_s *dev, FAR struct can_msg_s *msg)
 
       /* STD2 - STD0 */
 
-      regval |= (msg->cm_hdr.ch_id & 0x1c0000) >> 18;
+      regval |= (msg->cm_hdr.ch_id & 0x1c0000) >> 13;
       TXREGVAL(MCP2515_TXB0SIDL) = regval;
 
       /* STD10 - STD3 */

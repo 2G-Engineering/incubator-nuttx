@@ -21,8 +21,6 @@
 include $(TOPDIR)/.config
 include $(TOPDIR)/tools/Config.mk
 
-HOSTOS = ${shell uname -o 2>/dev/null || uname -s 2>/dev/null || echo "Other"}
-
 # NuttX is sometimes built as a native target.
 # In that case, the __NuttX__ macro is predefined by the compiler.
 # https://github.com/NuttX/buildroot
@@ -51,6 +49,10 @@ endif
 
 ifeq ($(CONFIG_STACK_CANARIES),y)
   ARCHOPTIMIZATION += -fstack-protector-all
+endif
+
+ifeq ($(CONFIG_SIM_SANITIZE),y)
+  ARCHOPTIMIZATION += -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer
 endif
 
 ARCHCPUFLAGS = -fno-builtin
@@ -187,6 +189,11 @@ ifeq ($(CONFIG_SIM_M32),y)
   LDMODULEFLAGS += -melf_i386
   LDELFFLAGS += -melf_i386
   HOSTLDFLAGS += -m32
+endif
+
+ifeq ($(CONFIG_SIM_SANITIZE),y)
+  CCLINKFLAGS += -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer
+  HOSTLDFLAGS += -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer
 endif
 
 HOSTCFLAGS = $(ARCHWARNINGS) $(ARCHOPTIMIZATION) \
