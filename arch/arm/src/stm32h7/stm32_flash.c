@@ -880,7 +880,6 @@ ssize_t up_progmem_write(size_t addr, const void *buf, size_t count)
                             FLASH_CR_PSIZE_MASK, FLASH_CR_PSIZE);
 
   stm32h7_flash_modifyreg32(priv, STM32_FLASH_CR1_OFFSET, 0, FLASH_CR_PG);
-
   for (ll = (uint32_t *) buf, faddr = addr; pcount;
       pcount -= 1, ll += llperpage, faddr += pagesize)
     {
@@ -909,10 +908,13 @@ ssize_t up_progmem_write(size_t addr, const void *buf, size_t count)
       ARM_DSB();
       ARM_ISB();
 
-      if (stm32h7_wait_for_last_operation(priv))
-        {
-          return -EIO;
-        }
+while (stm32h7_flash_getreg32(priv, STM32_FLASH_SR1_OFFSET) & (FLASH_SR_BSY | FLASH_SR_QW | FLASH_SR_WBNE)) {
+
+}
+//      if (stm32h7_wait_for_last_operation(priv))
+//        {
+//          return -EIO;
+//        }
 
       sr = stm32h7_flash_getreg32(priv, STM32_FLASH_SR1_OFFSET);
       if (sr & (FLASH_SR_SNECCERR | FLASH_SR_DBECCERR))
