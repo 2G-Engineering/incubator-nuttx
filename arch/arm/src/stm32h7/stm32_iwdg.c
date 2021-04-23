@@ -37,6 +37,7 @@
 #include "arm_arch.h"
 #include "stm32_rcc.h"
 #include "stm32_wdg.h"
+#include "stm32_dbgmcu.h"
 
 #if defined(CONFIG_WATCHDOG) && defined(CONFIG_STM32H7_IWDG)
 
@@ -676,14 +677,14 @@ void stm32_iwdginitialize(FAR const char *devpath, uint32_t lsifreq)
    * the IWDG counter either continues to work normally or stops, depending
    * on DBG_IWDG_STOP configuration bit in DBG module.
    */
-
-#if defined(CONFIG_STM32H7_JTAG_FULL_ENABLE) || \
-    defined(CONFIG_STM32H7_JTAG_NOJNTRST_ENABLE) || \
-    defined(CONFIG_STM32H7_JTAG_SW_ENABLE)
+#if 1
+//#if defined(CONFIG_STM32H7_JTAG_FULL_ENABLE) || \
+//    defined(CONFIG_STM32H7_JTAG_NOJNTRST_ENABLE) || \
+//    defined(CONFIG_STM32H7_JTAG_SW_ENABLE)
     {
-      uint32_t cr = getreg32(STM32_DBGMCU_APB4_FZ1);
-      cr |= DBGMCU_APB4_WDGLSD1;
-      putreg32(cr, STM32_DBGMCU_APB4_FZ1);
+      uint32_t cr = getreg32(STM32_DBGMCU_APB4LFZ1);
+      cr |= DBGMCU_APB4FZ1_IIWDG1STOP;
+      putreg32(cr, STM32_DBGMCU_APB4LFZ1);
     }
 #endif
 }
