@@ -311,11 +311,11 @@ static void ws2812_writespi(FAR struct ws2812_dev_s * priv)
 
 #ifndef CONFIG_WS2812_EXCLUSIVE_BUS
 
-  /* Unlock bus and de-select */
-
-  SPI_LOCK(priv->spi, false);
+  /* De-select and unlock bus */
 
   SPI_SELECT(priv->spi, SPIDEV_DISPLAY(0), false);
+
+  SPI_LOCK(priv->spi, false);
 #endif
 
 }
