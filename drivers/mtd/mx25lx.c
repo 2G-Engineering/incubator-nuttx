@@ -90,11 +90,17 @@
 #define MX25L_MX25L3233F_NSECTORS      1024
 #define MX25L_MX25L3233F_PAGE_SHIFT    8     /* Page size 1 << 8 = 256 */
 
-/* MX25L6433F capacity is 32Mbit  (8192Kbit x 8) =   8Mb (1024kb x 8) */
+/* MX25L6433F capacity is 64Mbit  (8192Kbit x 8) =   8Mb (1024kb x 8) */
 
 #define MX25L_MX25L6433F_SECTOR_SHIFT  12    /* Sector size 1 << 12 = 4Kb */
 #define MX25L_MX25L6433F_NSECTORS      2048
 #define MX25L_MX25L6433F_PAGE_SHIFT    8     /* Page size 1 << 8 = 256 */
+
+/* MX25L12833F capacity is 128Mbit  (16384Kbit x 8) */
+
+#define MX25L_MX25L12833F_SECTOR_SHIFT  12    /* Sector size 1 << 12 = 4Kb */
+#define MX25L_MX25L12833F_NSECTORS      4096
+#define MX25L_MX25L12833F_PAGE_SHIFT    8     /* Page size 1 << 8 = 256 */
 
 /* MX25L25635F capacity is 256Mbit */
 
@@ -199,6 +205,7 @@
 #define MX25L_JEDEC_MEMORY_TYPE          0x20  /* MX25Lx  memory type */
 #define MX25L_JEDEC_MX25L3233F_CAPACITY  0x16  /* MX25L3233F memory capacity */
 #define MX25L_JEDEC_MX25L6433F_CAPACITY  0x17  /* MX25L6433F memory capacity */
+#define MX25L_JEDEC_MX25L12833F_CAPACITY 0x18  /* MX25L12833F memory capacity */
 #define MX25L_JEDEC_MX25L25635F_CAPACITY 0x19  /* MX25L25635F memory capacity */
 
 /* Status register bit definitions */
@@ -405,6 +412,16 @@ static inline int mx25l_readid(FAR struct mx25l_dev_s *priv)
           priv->sectorshift  = MX25L_MX25L6433F_SECTOR_SHIFT;
           priv->nsectors     = MX25L_MX25L6433F_NSECTORS;
           priv->pageshift    = MX25L_MX25L6433F_PAGE_SHIFT;
+          priv->addressbytes = MX25L_ADDRESSBYTES_3;
+          return OK;
+        }
+      else if (capacity == MX25L_JEDEC_MX25L12833F_CAPACITY)
+        {
+          /* Save the FLASH geometry */
+
+          priv->sectorshift  = MX25L_MX25L12833F_SECTOR_SHIFT;
+          priv->nsectors     = MX25L_MX25L12833F_NSECTORS;
+          priv->pageshift    = MX25L_MX25L12833F_PAGE_SHIFT;
           priv->addressbytes = MX25L_ADDRESSBYTES_3;
           return OK;
         }
