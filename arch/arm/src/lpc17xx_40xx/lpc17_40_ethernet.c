@@ -2564,7 +2564,7 @@ static int lpc17_40_phymode(uint8_t phyaddr, uint8_t mode)
 
   /* Then wait for the link to be established */
 
-  for (timeout = 100; timeout > 0; timeout--)
+  for (timeout = CONFIG_LPC17_40_ETH_UP_TIMEOUT / 10; timeout > 0; timeout--)
     {
       /* REVISIT:  This should not depend explicit y on the board
        * configuration.  Rather, there should be some additional

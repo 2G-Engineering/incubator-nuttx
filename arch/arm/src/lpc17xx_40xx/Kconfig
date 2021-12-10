@@ -909,6 +909,10 @@ config LPC17_40_MULTICAST
 		Enable receipt of multicast (and unicast) frames. Automatically set
 		if NET_MCASTGROUP is selected.
 
+config LPC17_40_ETH_UP_TIMEOUT
+	int "Timeout for bringing up Ethernet interface (ms)"
+	default 1000
+
 endmenu
 
 menu "LCD device driver options"
