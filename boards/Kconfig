@@ -1566,6 +1566,15 @@ config ARCH_BOARD_STM32F303_MINIMUM
 	---help---
 		A configuration for the STM32F103 Minimum board.
 
+config ARCH_BOARD_STM32F401_MINIMUM
+	bool "STM32F401CD Mini System Dev Board"
+	depends on ARCH_CHIP_STM32F401CD
+	select ARCH_HAVE_LEDS
+	select ARCH_HAVE_BUTTONS
+	select ARCH_HAVE_IRQBUTTONS
+	---help---
+		A configuration for the STM32F401 Minimum board.
+
 config ARCH_BOARD_STM32F334_DISCO
 	bool "STMicro STM32F334-Discovery board"
 	depends on ARCH_CHIP_STM32F334C8
