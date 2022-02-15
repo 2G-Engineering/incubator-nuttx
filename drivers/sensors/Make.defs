@@ -168,6 +168,10 @@ ifeq ($(CONFIG_SENSORS_LTC4151),y)
   CSRCS += ltc4151.c
 endif
 
+ifeq ($(CONFIG_SENSORS_LTR303ALS),y)
+  CSRCS += ltr303als.c
+endif
+
 ifeq ($(CONFIG_SENSORS_INA219),y)
   CSRCS += ina219.c
 endif

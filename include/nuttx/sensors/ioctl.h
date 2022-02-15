@@ -284,4 +284,10 @@
 
 #define SNIOC_SET_BUFFER_NUMBER    _SNIOC(0x0084)
 
+/* IOCTL commands unique to the LTR303ALS */
+
+/* SNIOC_SET_OPERATIONAL_MODE */                   /* Arg: LTR303ALS_OP_MODE_xxx */
+
+/* SNIOC_SET_RANGE */                              /* Arg: LTR303ALS_ALS_RANGE_xxx */
+
 #endif /* __INCLUDE_NUTTX_SENSORS_IOCTL_H */

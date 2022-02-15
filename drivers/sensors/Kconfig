@@ -469,6 +469,18 @@ config LTC4151_I2C_FREQUENCY
 	default 400000
 	depends on SENSORS_LTC4151
 
+config SENSORS_LTR303ALS
+	bool "LTR303ALS ambient light sensor"
+	default n
+	select I2C
+	---help---
+		Enable driver support for the Lite-On LTR303ALS ambient light sensor.
+
+config LTR303ALS_I2C_FREQUENCY
+	int "LTR303ALS I2C frequency"
+	default 400000
+	depends on SENSORS_LTR303ALS
+
 config SENSORS_INA219
 	bool "INA219 current and voltage monitor"
 	default n
