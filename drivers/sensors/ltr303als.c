@@ -25,6 +25,7 @@
 #include <nuttx/config.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <endian.h>
 #include <debug.h>
 #include <stdio.h>
 #include <string.h>
@@ -67,11 +68,17 @@
 /* Registers definitions */
 
 
-#define LTR303ALS_ALS_RANGE_MASK   0x7
-#define LTR303ALS_ALS_RANGE_SHIFT  0x2
+#define LTR303ALS_ALS_RANGE_MASK      0x7
+#define LTR303ALS_ALS_RANGE_SHIFT     0x2
 
-#define LTR303ALS_OP_MODE_MASK     0x1
-#define LTR303ALS_OP_MODE_SHIFT    0x0
+#define LTR303ALS_OP_MODE_MASK        0x1
+#define LTR303ALS_OP_MODE_SHIFT       0x0
+
+#define LTR303ALS_ALS_INTTIME_MASK    0x7
+#define LTR303ALS_ALS_INTTIME_SHIFT   0x3
+
+#define LTR303ALS_ALS_MEASRATE_MASK   0x7
+#define LTR303ALS_ALS_MEASRATE_SHIFT  0x0
 
 /****************************************************************************
  * Private Types
@@ -100,11 +107,20 @@ static int ltr303als_read_reg(FAR struct ltr303als_dev_s *dev,
 static int ltr303als_read_lux(FAR struct ltr303als_dev_s *dev,
                               FAR struct ltr303als_data_s *data);
 static int ltr303als_set_op_mode(FAR struct ltr303als_dev_s *dev,
-                                uint8_t mode);
+                                 uint8_t mode);
 static int ltr303als_set_resolution(FAR struct ltr303als_dev_s *dev,
                                     uint8_t res_mode);
 static int ltr303als_set_range(FAR struct ltr303als_dev_s *dev,
-                              uint8_t range_mode);
+                               uint8_t range_mode);
+static int ltr303als_set_integration_time(FAR struct ltr303als_dev_s *dev,
+                                          uint8_t int_time);
+static int ltr303als_set_meas_rate(FAR struct ltr303als_dev_s *dev,
+                                   uint8_t meas_rate);
+static int ltr303als_set_int_thresh(FAR struct ltr303als_dev_s *dev,
+                                    uint16_t int_low, uint16_t int_up);
+static int ltr303als_set_int_mode(FAR struct ltr303als_dev_s *dev,
+                                  uint8_t int_mode);
+
 
 /* Driver methods */
 
@@ -321,8 +337,8 @@ static int ltr303als_read_lux(FAR struct ltr303als_dev_s *dev,
       return ret;
     }
 
-  data->raw[0] = (buffer[3] << 8) | buffer[2];
-  data->raw[1] = (buffer[1] << 8) | buffer[0];
+  data->raw[0] = letoh((buffer[3] << 8) | buffer[2]);
+  data->raw[1] = letoh((buffer[1] << 8) | buffer[0]);
 
   add_sensor_randomness(data->raw[0]);
   add_sensor_randomness(data->raw[1]);
@@ -387,11 +403,11 @@ static int ltr303als_set_range(FAR struct ltr303als_dev_s *dev,
       return ret;
     }
 
-  /* Clear the mode bits */
+  /* Clear the range bits */
 
   buffer[1] &= ~(LTR303ALS_ALS_RANGE_MASK << LTR303ALS_ALS_RANGE_SHIFT);
 
-  /* Modify mode bits */
+  /* Modify range bits */
 
   range_mode &= LTR303ALS_ALS_RANGE_MASK;
   buffer[1] |= range_mode << LTR303ALS_ALS_RANGE_SHIFT;
@@ -403,6 +419,86 @@ static int ltr303als_set_range(FAR struct ltr303als_dev_s *dev,
   return ltr303als_i2c_write(dev, buffer, 2);
 }
 
+static int ltr303als_set_integration_time(FAR struct ltr303als_dev_s *dev,
+                                          uint8_t int_time)
+{
+  uint8_t buffer[2];
+  int ret;
+
+  ret = ltr303als_read_reg(dev, LTR303ALS_ALS_MEAS_RATE, &buffer[1], 1);
+  if (ret < 0)
+    {
+      snerr("ERROR: i2c read reg failed: %d\n", ret);
+      return ret;
+    }
+
+  /* Clear the mode bits */
+
+  buffer[1] &= ~(LTR303ALS_ALS_INTTIME_MASK << LTR303ALS_ALS_INTTIME_SHIFT);
+
+  /* Modify mode bits */
+
+  int_time &= LTR303ALS_ALS_INTTIME_MASK;
+  buffer[1] |= int_time << LTR303ALS_ALS_INTTIME_SHIFT;
+  buffer[0] = LTR303ALS_ALS_MEAS_RATE;
+
+  sninfo("int time: %u\n", int_time);
+
+  return ltr303als_i2c_write(dev, buffer, 2);
+}
+
+static int ltr303als_set_meas_rate(FAR struct ltr303als_dev_s *dev,
+                                   uint8_t meas_rate)
+{
+  uint8_t buffer[2];
+  int ret;
+
+  ret = ltr303als_read_reg(dev, LTR303ALS_ALS_MEAS_RATE, &buffer[1], 1);
+  if (ret < 0)
+    {
+      snerr("ERROR: i2c read reg failed: %d\n", ret);
+      return ret;
+    }
+
+  /* Clear the mode bits */
+
+  buffer[1] &= ~(LTR303ALS_ALS_MEASRATE_MASK << LTR303ALS_ALS_MEASRATE_SHIFT);
+
+  /* Modify mode bits */
+
+  meas_rate &= LTR303ALS_ALS_MEASRATE_MASK;
+  buffer[1] |= meas_rate << LTR303ALS_ALS_MEASRATE_SHIFT;
+  buffer[0] = LTR303ALS_ALS_MEAS_RATE;
+
+  sninfo("meas rate: %u\n", meas_rate);
+
+  return ltr303als_i2c_write(dev, buffer, 2);
+}
+
+static int ltr303als_set_int_thresh(FAR struct ltr303als_dev_s *dev,
+                                    uint16_t int_low, uint16_t int_up)
+{
+  uint8_t buffer[5];
+  int ret;
+
+  int_low = htole(int_low);
+  int_up = htole(int_up);
+
+  buffer[1] = int_up & 0xFF;
+  buffer[2] = (int_up >> 8) & 0xFF;
+  buffer[3] = int_low & 0xFF;
+  buffer[4] = (int_low >> 8) & 0xFF;
+  buffer[0] = LTR303ALS_ALS_THRES_UP_0;
+
+  return ltr303als_i2c_write(dev, buffer, 5);
+}
+
+static int ltr303als_set_int_mode(FAR struct ltr303als_dev_s *dev,
+                                  uint8_t int_mode)
+{
+#error not implemented
+
+}
 /****************************************************************************
  * Name: ltr303als_ioctl
  ****************************************************************************/
