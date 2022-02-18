@@ -74,12 +74,48 @@ enum ltr303als_measurement_rate_e
   LTR303ALS_ALS_MEAS_RATE_2000MS = 0x5,
 };
 
+enum ltr303als_persist_e
+{
+  LTR303ALS_PERSIST_1 =  0x0,
+  LTR303ALS_PERSIST_2 =  0x1,
+  LTR303ALS_PERSIST_3 =  0x2,
+  LTR303ALS_PERSIST_4 =  0x3,
+  LTR303ALS_PERSIST_5 =  0x4,
+  LTR303ALS_PERSIST_6 =  0x5,
+  LTR303ALS_PERSIST_7 =  0x6,
+  LTR303ALS_PERSIST_8 =  0x7,
+  LTR303ALS_PERSIST_9 =  0x8,
+  LTR303ALS_PERSIST_10 = 0x9,
+  LTR303ALS_PERSIST_11 = 0xA,
+  LTR303ALS_PERSIST_12 = 0xB,
+  LTR303ALS_PERSIST_13 = 0xC,
+  LTR303ALS_PERSIST_14 = 0xD,
+  LTR303ALS_PERSIST_15 = 0xE,
+  LTR303ALS_PERSIST_16 = 0xF,
+};
+
+enum ltr303als_meas_type_e
+{
+  LTR303ALS_MEAS_RAW,
+  LTR303ALS_MEAS_LUX
+};
+
 /* Data transfer structure (this device has 2 sensor channels) */
 
 struct ltr303als_data_s
 {
   uint16_t lux[2];              /* Converted lux values */
   uint16_t raw[2];              /* Raw unconverted values */
+};
+
+struct ltr303als_int_cfg_s
+{
+  bool int_en;
+  bool int_pol; /* true for active high */
+  ltr303als_persist_e persist;
+  ltr303als_meas_type_e thr_type;
+  uint16_t lower_int_thresh;
+  uint16_t upper_int_thresh;
 };
 
 /****************************************************************************
