@@ -832,11 +832,12 @@ static int lpc17can_ioctl(FAR struct can_dev_s *dev, int cmd,
             ier = can_getreg(priv, LPC17_40_CAN_IER_OFFSET);
 
             /* Disable the CAN and stop ongoing transmissions */
-            while (can_getreg(priv, LPC17_40_CAN_GSR_OFFSET) & CAN_GSR_TS);
+            while (can_getreg(priv, LPC17_40_CAN_GSR_OFFSET) & CAN_GSR_TS) {
+                can_putreg(priv, LPC17_40_CAN_CMR_OFFSET, CAN_CMR_AT);  /* Abort transmission */
+            }
             can_putreg(priv, LPC17_40_CAN_MOD_OFFSET, CAN_MOD_RM);  /* Enter Reset Mode */
             can_putreg(priv, LPC17_40_CAN_IER_OFFSET, 0);           /* Disable interrupts */
             can_putreg(priv, LPC17_40_CAN_GSR_OFFSET, 0);           /* Clear status bits */
-            //can_putreg(priv, LPC17_40_CAN_CMR_OFFSET, CAN_CMR_AT);  /* Abort transmission */
 
             can_putreg(priv, LPC17_40_CAN_BTR_OFFSET, regval);
 
