@@ -29,7 +29,6 @@
 
 #include "chip.h"
 #include "z80_internal.h"
-#include "z80_arch.h"
 
 /****************************************************************************
  * Public Functions
@@ -55,10 +54,25 @@ void up_initial_state(struct tcb_s *tcb)
 
   /* Initialize the idle thread stack */
 
-  if (tcb->pid == 0)
+  if (tcb->pid == IDLE_PROCESS_ID)
     {
-      tcb->stack_alloc_ptr = (void *)CONFIG_STACK_BASE;
-      tcb->stack_base_ptr   = tcb->stack_alloc_ptr;
+      char *stack_ptr = (char *)CONFIG_STACK_BASE;
+#ifdef CONFIG_STACK_COLORATION
+      char *stack_end = (char *)up_getsp();
+
+      /* If stack debug is enabled, then fill the stack with a
+       * recognizable value that we can use later to test for high
+       * water marks.
+       */
+
+      while (stack_ptr < stack_end)
+        {
+          *--stack_end = 0xaa;
+        }
+#endif /* CONFIG_STACK_COLORATION */
+
+      tcb->stack_alloc_ptr = stack_ptr;
+      tcb->stack_base_ptr  = stack_ptr;
       tcb->adj_stack_size  = CONFIG_IDLETHREAD_STACKSIZE;
     }
 

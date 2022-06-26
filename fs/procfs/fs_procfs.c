@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <fnmatch.h>
 #include <assert.h>
 #include <errno.h>
 #include <debug.h>
@@ -45,7 +46,6 @@
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/procfs.h>
 #include <nuttx/fs/dirent.h>
-#include <nuttx/lib/regex.h>
 
 #include "mount/mount.h"
 
@@ -66,10 +66,12 @@ extern const struct procfs_operations irq_operations;
 extern const struct procfs_operations cpuload_operations;
 extern const struct procfs_operations critmon_operations;
 extern const struct procfs_operations meminfo_operations;
+extern const struct procfs_operations memdump_operations;
 extern const struct procfs_operations iobinfo_operations;
 extern const struct procfs_operations module_operations;
 extern const struct procfs_operations uptime_operations;
 extern const struct procfs_operations version_operations;
+extern const struct procfs_operations tcbinfo_operations;
 
 /* This is not good.  These are implemented in other sub-systems.  Having to
  * deal with them here is not a good coupling. What is really needed is a
@@ -114,6 +116,9 @@ static const struct procfs_entry_s g_procfs_entries[] =
 
 #ifndef CONFIG_FS_PROCFS_EXCLUDE_MEMINFO
   { "meminfo",       &meminfo_operations,         PROCFS_FILE_TYPE   },
+#ifndef CONFIG_FS_PROCFS_EXCLUDE_MEMDUMP
+  { "memdump",       &memdump_operations,         PROCFS_FILE_TYPE   },
+#endif
 #endif
 
 #if defined(CONFIG_MM_IOB) && !defined(CONFIG_FS_PROCFS_EXCLUDE_IOBINFO)
@@ -164,6 +169,10 @@ static const struct procfs_entry_s g_procfs_entries[] =
 
 #if !defined(CONFIG_FS_PROCFS_EXCLUDE_VERSION)
   { "version",       &version_operations,         PROCFS_FILE_TYPE   },
+#endif
+
+#if defined(CONFIG_DEBUG_TCBINFO) && !defined(CONFIG_FS_PROCFS_EXCLUDE_TCBINFO)
+  { "tcbinfo",       &tcbinfo_operations,         PROCFS_FILE_TYPE   },
 #endif
 };
 
@@ -249,6 +258,7 @@ const struct mountpt_operations procfs_operations =
   NULL,              /* sync */
   procfs_dup,        /* dup */
   procfs_fstat,      /* fstat */
+  NULL,              /* fchstat */
   NULL,              /* truncate */
 
   procfs_opendir,    /* opendir */
@@ -264,7 +274,8 @@ const struct mountpt_operations procfs_operations =
   NULL,              /* mkdir */
   NULL,              /* rmdir */
   NULL,              /* rename */
-  procfs_stat        /* stat */
+  procfs_stat,       /* stat */
+  NULL               /* chstat */
 };
 
 /* Level 0 contains the directory of active tasks in addition to other
@@ -279,9 +290,9 @@ struct procfs_level0_s
 
   /* Our private data */
 
-  uint8_t lastlen;                   /* length of last reported static dir */
-  pid_t pid[CONFIG_MAX_TASKS];       /* Snapshot of all active task IDs */
-  FAR const char *lastread;          /* Pointer to last static dir read */
+  uint8_t lastlen;                       /* length of last reported static dir */
+  pid_t pid[CONFIG_FS_PROCFS_MAX_TASKS]; /* Snapshot of all active task IDs */
+  FAR const char *lastread;              /* Pointer to last static dir read */
 };
 
 /* Level 1 is an internal virtual directory (such as /proc/fs) which
@@ -321,7 +332,10 @@ static void procfs_enum(FAR struct tcb_s *tcb, FAR void *arg)
   /* Add the PID to the list */
 
   index = dir->base.nentries;
-  DEBUGASSERT(index < CONFIG_MAX_TASKS);
+  if (index >= CONFIG_FS_PROCFS_MAX_TASKS)
+    {
+      return;
+    }
 
   dir->pid[index] = tcb->pid;
   dir->base.nentries = index + 1;
@@ -346,7 +360,7 @@ static int procfs_open(FAR struct file *filep, FAR const char *relpath,
     {
       /* Test if the path matches this entry's specification */
 
-      if (match(g_procfs_entries[x].pathpattern, relpath))
+      if (fnmatch(g_procfs_entries[x].pathpattern, relpath, 0) == 0)
         {
           /* Match found!  Stat using this procfs entry */
 
@@ -580,7 +594,8 @@ static int procfs_opendir(FAR struct inode *mountpt, FAR const char *relpath,
     }
   else
     {
-      int x, ret;
+      int x;
+      int ret;
       int len = strlen(relpath);
 
       /* Search the static array of procfs_entries */
@@ -589,7 +604,7 @@ static int procfs_opendir(FAR struct inode *mountpt, FAR const char *relpath,
         {
           /* Test if the path matches this entry's specification */
 
-          if (match(g_procfs_entries[x].pathpattern, relpath))
+          if (fnmatch(g_procfs_entries[x].pathpattern, relpath, 0) == 0)
             {
               /* Match found!  Call the handler's opendir routine.  If
                * successful, this opendir routine will create an entry
@@ -789,8 +804,7 @@ static int procfs_readdir(struct inode *mountpt, struct fs_dirent_s *dir)
 
               level0->lastlen = strcspn(name, "/");
               level0->lastread = name;
-              strncpy(dir->fd_dir.d_name, name, level0->lastlen);
-              dir->fd_dir.d_name[level0->lastlen] = '\0';
+              strlcpy(dir->fd_dir.d_name, name, level0->lastlen + 1);
 
               /* If the entry is a directory type OR if the reported name is
                * only a sub-string of the entry (meaning that it contains
@@ -830,7 +844,7 @@ static int procfs_readdir(struct inode *mountpt, struct fs_dirent_s *dir)
           /* Save the filename=pid and file type=directory */
 
           dir->fd_dir.d_type = DTYPE_DIRECTORY;
-          snprintf(dir->fd_dir.d_name, NAME_MAX + 1, "%d", (int)pid);
+          procfs_snprintf(dir->fd_dir.d_name, NAME_MAX + 1, "%d", (int)pid);
 
           /* Set up the next directory entry offset.  NOTE that we could use
            * the standard f_pos instead of our own private index.
@@ -1036,7 +1050,7 @@ static int procfs_stat(struct inode *mountpt, const char *relpath,
         {
           /* Test if the path matches this entry's specification */
 
-          if (match(g_procfs_entries[x].pathpattern, relpath))
+          if (fnmatch(g_procfs_entries[x].pathpattern, relpath, 0) == 0)
             {
               /* Match found!  Stat using this procfs entry */
 

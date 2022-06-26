@@ -29,11 +29,10 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <sys/ipc.h>
+#include <sys/shm.h>
+#include <X11/extensions/XShm.h>
 
-#ifndef CONFIG_SIM_X11NOSHM
-#  include <sys/shm.h>
-#  include <X11/extensions/XShm.h>
-#endif
+#include "up_internal.h"
 
 /****************************************************************************
  * Public Data
@@ -116,7 +115,7 @@ static inline int up_x11createframe(void)
 #else
   XSelectInput(g_display, g_window,
                ButtonPressMask | ButtonReleaseMask | PointerMotionMask |
-               KeyPressMask);
+               KeyPressMask | KeyReleaseMask);
 #endif
 
   /* Release queued events on the display */

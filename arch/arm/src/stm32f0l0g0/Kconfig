@@ -927,6 +927,12 @@ config STM32F0L0G0_SYSTICK_CORECLK_DIV16
 
 endchoice
 
+config ARCH_BOARD_STM32F0G0L0_CUSTOM_CLOCKCONFIG
+	bool "Custom clock configuration"
+	default n
+	---help---
+		Enables special, board-specific STM32 clock configuration.
+
 menu "STM32 Peripheral Support"
 
 # These "hidden" settings determine whether a peripheral option is available
@@ -2496,7 +2502,6 @@ config USART5_RS485_DIR_POLARITY
 		enables TX (0 - low / nTXEN, 1 - high / TXEN).
 
 endif # STM32F0L0G0_USART5_SERIALDRIVER
-
 
 choice
 	prompt "USART6 Driver Configuration"

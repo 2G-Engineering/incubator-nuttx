@@ -24,9 +24,10 @@
 
 #include <nuttx/config.h>
 
+#include <assert.h>
+
 #include <nuttx/kmalloc.h>
 #include <nuttx/rptun/openamp.h>
-#include <nuttx/syslog/syslog.h>
 #include <nuttx/syslog/syslog_rpmsg.h>
 
 #include "syslog.h"

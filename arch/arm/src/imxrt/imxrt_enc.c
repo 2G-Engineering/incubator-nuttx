@@ -35,11 +35,11 @@
 #include <nuttx/semaphore.h>
 
 #include "chip.h"
-#include "arm_arch.h"
-
+#include "arm_internal.h"
 #include "imxrt_periphclks.h"
 
 #include "imxrt_enc.h"
+#include "hardware/imxrt_enc.h"
 
 /* This functionality is dependent on Qencoder Sensor support */
 
@@ -273,14 +273,14 @@ struct imxrt_enc_lowerhalf_s
    * half callback structure:
    */
 
-  FAR const struct qe_ops_s *ops;             /* Lower half callback structure */
+  const struct qe_ops_s *ops;             /* Lower half callback structure */
 
   /* IMXRT driver-specific fields: */
 
-  FAR const struct imxrt_qeconfig_s *config;  /* static configuration */
-  sem_t sem_excl;                             /* Mutual exclusion semaphore to
-                                               * ensure atomic 32-bit reads.
-                                               */
+  const struct imxrt_qeconfig_s *config;  /* static configuration */
+  sem_t sem_excl;                         /* Mutual exclusion semaphore to
+                                           * ensure atomic 32-bit reads.
+                                           */
 };
 
 /****************************************************************************
@@ -290,43 +290,42 @@ struct imxrt_enc_lowerhalf_s
 /* Helper functions */
 
 static inline uint16_t imxrt_enc_getreg16
-                        (FAR struct imxrt_enc_lowerhalf_s *priv, int offset);
-static inline void imxrt_enc_putreg16(FAR struct imxrt_enc_lowerhalf_s *priv,
-              int offset,  uint16_t value);
+                        (struct imxrt_enc_lowerhalf_s *priv, int offset);
+static inline void imxrt_enc_putreg16(struct imxrt_enc_lowerhalf_s *priv,
+                                      int offset,  uint16_t value);
 static inline void imxrt_enc_modifyreg16
-                    (FAR struct imxrt_enc_lowerhalf_s *priv, int offset,
+                    (struct imxrt_enc_lowerhalf_s *priv, int offset,
                     uint16_t clearbits, uint16_t setbits);
 
 static void imxrt_enc_clock_enable (uint32_t base);
 static void imxrt_enc_clock_disable (uint32_t base);
 
-static inline int  imxrt_enc_sem_wait(
-    FAR struct imxrt_enc_lowerhalf_s *priv);
-static inline void imxrt_enc_sem_post(
-    FAR struct imxrt_enc_lowerhalf_s *priv);
+static inline int imxrt_enc_sem_wait(struct imxrt_enc_lowerhalf_s *priv);
+static inline void imxrt_enc_sem_post
+                    (struct imxrt_enc_lowerhalf_s *priv);
 
-static int imxrt_enc_reconfig(FAR struct imxrt_enc_lowerhalf_s *priv,
-              uint16_t args);
-static void imxrt_enc_set_initial_val(FAR struct imxrt_enc_lowerhalf_s *priv,
-              uint32_t value);
-static void imxrt_enc_modulo_enable(FAR struct imxrt_enc_lowerhalf_s *priv,
-              uint32_t modulus);
-static void imxrt_enc_modulo_disable(FAR struct imxrt_enc_lowerhalf_s *priv);
+static int imxrt_enc_reconfig(struct imxrt_enc_lowerhalf_s *priv,
+                              uint16_t args);
+static void imxrt_enc_set_initial_val(struct imxrt_enc_lowerhalf_s *priv,
+                                      uint32_t value);
+static void imxrt_enc_modulo_enable(struct imxrt_enc_lowerhalf_s *priv,
+                                    uint32_t modulus);
+static void imxrt_enc_modulo_disable(struct imxrt_enc_lowerhalf_s *priv);
 
 #ifdef CONFIG_DEBUG_SENSORS
-static int imxrt_enc_test_gen(FAR struct imxrt_enc_lowerhalf_s *priv,
-              uint16_t value);
+static int imxrt_enc_test_gen(struct imxrt_enc_lowerhalf_s *priv,
+                              uint16_t value);
 #endif
 
 /* Lower-half Quadrature Encoder Driver Methods */
 
-static int imxrt_setup(FAR struct qe_lowerhalf_s *lower);
-static int imxrt_shutdown(FAR struct qe_lowerhalf_s *lower);
-static int imxrt_position(FAR struct qe_lowerhalf_s *lower,
-                          FAR int32_t *pos);
-static int imxrt_reset(FAR struct qe_lowerhalf_s *lower);
-static int imxrt_ioctl(FAR struct qe_lowerhalf_s *lower, int cmd,
-              unsigned long arg);
+static int imxrt_setup(struct qe_lowerhalf_s *lower);
+static int imxrt_shutdown(struct qe_lowerhalf_s *lower);
+static int imxrt_position(struct qe_lowerhalf_s *lower,
+                          int32_t *pos);
+static int imxrt_reset(struct qe_lowerhalf_s *lower);
+static int imxrt_ioctl(struct qe_lowerhalf_s *lower, int cmd,
+                       unsigned long arg);
 
 /****************************************************************************
  * Private Data
@@ -336,11 +335,13 @@ static int imxrt_ioctl(FAR struct qe_lowerhalf_s *lower, int cmd,
 
 static const struct qe_ops_s g_qecallbacks =
 {
-  .setup    = imxrt_setup,
-  .shutdown = imxrt_shutdown,
-  .position = imxrt_position,
-  .reset    = imxrt_reset,
-  .ioctl    = imxrt_ioctl,
+  .setup     = imxrt_setup,
+  .shutdown  = imxrt_shutdown,
+  .position  = imxrt_position,
+  .setposmax = NULL,            /* not supported yet */
+  .reset     = imxrt_reset,
+  .setindex  = NULL,            /* not supported yet */
+  .ioctl     = imxrt_ioctl,
 };
 
 /* Per-timer state structures */
@@ -470,7 +471,7 @@ static struct imxrt_enc_lowerhalf_s imxrt_enc4_priv =
  ****************************************************************************/
 
 static inline uint16_t imxrt_enc_getreg16
-                        (FAR struct imxrt_enc_lowerhalf_s *priv, int offset)
+                        (struct imxrt_enc_lowerhalf_s *priv, int offset)
 {
   return getreg16(priv->config->base + offset);
 }
@@ -483,7 +484,7 @@ static inline uint16_t imxrt_enc_getreg16
  *
  ****************************************************************************/
 
-static inline void imxrt_enc_putreg16(FAR struct imxrt_enc_lowerhalf_s *priv,
+static inline void imxrt_enc_putreg16(struct imxrt_enc_lowerhalf_s *priv,
                                       int offset, uint16_t value)
 {
   putreg16(value, priv->config->base + offset);
@@ -498,7 +499,7 @@ static inline void imxrt_enc_putreg16(FAR struct imxrt_enc_lowerhalf_s *priv,
  ****************************************************************************/
 
 static inline void imxrt_enc_modifyreg16
-                    (FAR struct imxrt_enc_lowerhalf_s *priv, int offset,
+                    (struct imxrt_enc_lowerhalf_s *priv, int offset,
                     uint16_t clearbits, uint16_t setbits)
 {
   modifyreg16(priv->config->base + offset, clearbits, setbits);
@@ -512,7 +513,7 @@ static inline void imxrt_enc_modifyreg16
  *
  ****************************************************************************/
 
-void imxrt_enc_clock_enable (uint32_t base)
+void imxrt_enc_clock_enable(uint32_t base)
 {
   if (base == IMXRT_ENC1_BASE)
     {
@@ -544,7 +545,7 @@ void imxrt_enc_clock_enable (uint32_t base)
  *
  ****************************************************************************/
 
-void imxrt_enc_clock_disable (uint32_t base)
+void imxrt_enc_clock_disable(uint32_t base)
 {
   if (base == IMXRT_ENC1_BASE)
     {
@@ -576,7 +577,7 @@ void imxrt_enc_clock_disable (uint32_t base)
  *
  ****************************************************************************/
 
-static inline int imxrt_enc_sem_wait(FAR struct imxrt_enc_lowerhalf_s *priv)
+static inline int imxrt_enc_sem_wait(struct imxrt_enc_lowerhalf_s *priv)
 {
   return nxsem_wait_uninterruptible(&priv->sem_excl);
 }
@@ -610,8 +611,8 @@ static inline void imxrt_enc_sem_post(struct imxrt_enc_lowerhalf_s *priv)
  *
  ****************************************************************************/
 
-static int imxrt_enc_reconfig(FAR struct imxrt_enc_lowerhalf_s *priv,
-                                uint16_t args)
+static int imxrt_enc_reconfig(struct imxrt_enc_lowerhalf_s *priv,
+                              uint16_t args)
 {
   uint16_t clear = 0;
   uint16_t set = 0;
@@ -707,7 +708,7 @@ static int imxrt_enc_reconfig(FAR struct imxrt_enc_lowerhalf_s *priv,
  *
  ****************************************************************************/
 
-static void imxrt_enc_set_initial_val(FAR struct imxrt_enc_lowerhalf_s *priv,
+static void imxrt_enc_set_initial_val(struct imxrt_enc_lowerhalf_s *priv,
                                       uint32_t value)
 {
   imxrt_enc_putreg16(priv, IMXRT_ENC_LINIT_OFFSET, value & 0xffff);
@@ -726,7 +727,7 @@ static void imxrt_enc_set_initial_val(FAR struct imxrt_enc_lowerhalf_s *priv,
  *
  ****************************************************************************/
 
-static void imxrt_enc_modulo_enable(FAR struct imxrt_enc_lowerhalf_s *priv,
+static void imxrt_enc_modulo_enable(struct imxrt_enc_lowerhalf_s *priv,
                                     uint32_t modulus)
 {
   imxrt_enc_putreg16(priv, IMXRT_ENC_LMOD_OFFSET, modulus & 0xffff);
@@ -746,7 +747,7 @@ static void imxrt_enc_modulo_enable(FAR struct imxrt_enc_lowerhalf_s *priv,
  *
  ****************************************************************************/
 
-static void imxrt_enc_modulo_disable(FAR struct imxrt_enc_lowerhalf_s *priv)
+static void imxrt_enc_modulo_disable(struct imxrt_enc_lowerhalf_s *priv)
 {
   imxrt_enc_modifyreg16(priv, IMXRT_ENC_CTRL2_OFFSET, ENC_CTRL2_MOD, 0);
 }
@@ -771,21 +772,30 @@ static void imxrt_enc_modulo_disable(FAR struct imxrt_enc_lowerhalf_s *priv)
  *
  ****************************************************************************/
 
-static int imxrt_enc_test_gen(FAR struct imxrt_enc_lowerhalf_s *priv,
-                                uint16_t value)
+static int imxrt_enc_test_gen(struct imxrt_enc_lowerhalf_s *priv,
+                              uint16_t value)
 {
   if (value >> 9)
     {
       return -EINVAL;
     }
 
+  if (value == 0)
+    {
+      imxrt_enc_modifyreg16(priv, IMXRT_ENC_TST_OFFSET,
+                            ENC_TST_TCE | ENC_TST_TEN, 0);
+      return OK;
+    }
+
   if (value & (1 << 8))
     {
-      imxrt_enc_modifyreg16(priv, IMXRT_ENC_TST_OFFSET, 0, ENC_TST_QDN);
+      imxrt_enc_modifyreg16(priv, IMXRT_ENC_TST_OFFSET, 0, ENC_TST_QDN
+                            | ENC_TST_TCE | ENC_TST_TEN);
     }
   else
     {
-      imxrt_enc_modifyreg16(priv, IMXRT_ENC_TST_OFFSET, ENC_TST_QDN, 0);
+      imxrt_enc_modifyreg16(priv, IMXRT_ENC_TST_OFFSET, ENC_TST_QDN,
+                            ENC_TST_TCE | ENC_TST_TEN);
     }
 
   imxrt_enc_modifyreg16(priv, IMXRT_ENC_TST_OFFSET, 0,
@@ -811,11 +821,11 @@ static int imxrt_enc_test_gen(FAR struct imxrt_enc_lowerhalf_s *priv,
  *
  ****************************************************************************/
 
-static int imxrt_setup(FAR struct qe_lowerhalf_s *lower)
+static int imxrt_setup(struct qe_lowerhalf_s *lower)
 {
-  FAR struct imxrt_enc_lowerhalf_s *priv =
-    (FAR struct imxrt_enc_lowerhalf_s *)lower;
-  FAR const struct imxrt_qeconfig_s *config = priv->config;
+  struct imxrt_enc_lowerhalf_s *priv =
+    (struct imxrt_enc_lowerhalf_s *)lower;
+  const struct imxrt_qeconfig_s *config = priv->config;
   uint32_t regval;
   int ret;
 
@@ -851,8 +861,7 @@ static int imxrt_setup(FAR struct qe_lowerhalf_s *lower)
   /* Test Registers */
 
 #ifdef CONFIG_DEBUG_SENSORS
-  regval = ENC_TST_TCE | ENC_TST_TEN;
-  regval |= config->tst_dir_adv ? ENC_TST_QDN : 0;
+  regval = config->tst_dir_adv ? ENC_TST_QDN : 0;
   regval |= (config->tst_period & ENC_TST_PERIOD_MASK) <<
             ENC_TST_PERIOD_SHIFT;
   imxrt_enc_putreg16(priv, IMXRT_ENC_TST_OFFSET, regval);
@@ -872,6 +881,7 @@ static int imxrt_setup(FAR struct qe_lowerhalf_s *lower)
   imxrt_enc_putreg16(priv, IMXRT_ENC_CTRL2_OFFSET, regval);
 
   imxrt_enc_sem_post(priv);
+
   return OK;
 }
 
@@ -885,10 +895,10 @@ static int imxrt_setup(FAR struct qe_lowerhalf_s *lower)
  *
  ****************************************************************************/
 
-static int imxrt_shutdown(FAR struct qe_lowerhalf_s *lower)
+static int imxrt_shutdown(struct qe_lowerhalf_s *lower)
 {
-  FAR struct imxrt_enc_lowerhalf_s *priv =
-    (FAR struct imxrt_enc_lowerhalf_s *)lower;
+  struct imxrt_enc_lowerhalf_s *priv =
+    (struct imxrt_enc_lowerhalf_s *)lower;
   int ret;
 
   /* Ensure any in-progress operations are done. */
@@ -929,10 +939,10 @@ static int imxrt_shutdown(FAR struct qe_lowerhalf_s *lower)
  *
  ****************************************************************************/
 
-static int imxrt_position(FAR struct qe_lowerhalf_s *lower, FAR int32_t *pos)
+static int imxrt_position(struct qe_lowerhalf_s *lower, int32_t *pos)
 {
-  FAR struct imxrt_enc_lowerhalf_s *priv =
-    (FAR struct imxrt_enc_lowerhalf_s *)lower;
+  struct imxrt_enc_lowerhalf_s *priv =
+    (struct imxrt_enc_lowerhalf_s *)lower;
   uint16_t lpos;
   uint16_t upos;
   int i;
@@ -985,10 +995,10 @@ static int imxrt_position(FAR struct qe_lowerhalf_s *lower, FAR int32_t *pos)
  *
  ****************************************************************************/
 
-static int imxrt_reset(FAR struct qe_lowerhalf_s *lower)
+static int imxrt_reset(struct qe_lowerhalf_s *lower)
 {
-  FAR struct imxrt_enc_lowerhalf_s *priv =
-    (FAR struct imxrt_enc_lowerhalf_s *)lower;
+  struct imxrt_enc_lowerhalf_s *priv =
+    (struct imxrt_enc_lowerhalf_s *)lower;
   int ret;
 
   /* Write a 1 to the SWIP bit to load UINIT and LINIT into UPOS and LPOS */
@@ -1013,8 +1023,8 @@ static int imxrt_reset(FAR struct qe_lowerhalf_s *lower)
  *
  ****************************************************************************/
 
-static int imxrt_ioctl(FAR struct qe_lowerhalf_s *lower, int cmd,
-              unsigned long arg)
+static int imxrt_ioctl(struct qe_lowerhalf_s *lower, int cmd,
+                       unsigned long arg)
 {
   struct imxrt_enc_lowerhalf_s *priv = (struct imxrt_enc_lowerhalf_s *)lower;
   switch (cmd)
@@ -1079,7 +1089,7 @@ static int imxrt_ioctl(FAR struct qe_lowerhalf_s *lower, int cmd,
  *
  ****************************************************************************/
 
-int imxrt_qeinitialize(FAR const char *devpath, int enc)
+int imxrt_qeinitialize(const char *devpath, int enc)
 {
   struct imxrt_enc_lowerhalf_s * priv = NULL;
 
@@ -1115,7 +1125,7 @@ int imxrt_qeinitialize(FAR const char *devpath, int enc)
 
   /* Register the upper-half driver */
 
-  int ret = qe_register(devpath, (FAR struct qe_lowerhalf_s *)priv);
+  int ret = qe_register(devpath, (struct qe_lowerhalf_s *)priv);
   if (ret < 0)
     {
       snerr("ERROR: qe_register failed: %d\n", ret);

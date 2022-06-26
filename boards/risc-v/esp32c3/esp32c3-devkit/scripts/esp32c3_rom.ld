@@ -59,7 +59,6 @@ ets_set_user_start = 0x400000bc;
 ets_rom_layout_p = 0x3ff1fffc;
 ets_ops_table_ptr = 0x3fcdfffc;
 
-
 /***************************************
  Group miniz
  ***************************************/
@@ -83,7 +82,6 @@ tinfl_decompress_mem_to_callback = 0x400000f8;
 tinfl_decompress_mem_to_heap = 0x400000fc;
 tinfl_decompress_mem_to_mem = 0x40000100;
 
-
 /***************************************
  Group tjpgd
  ***************************************/
@@ -91,7 +89,6 @@ tinfl_decompress_mem_to_mem = 0x40000100;
 /* Functions */
 jd_prepare = 0x40000104;
 jd_decomp = 0x40000108;
-
 
 /***************************************
  Group spiflash_legacy
@@ -173,9 +170,7 @@ PROVIDE( Enable_QMode = 0x40000228 );
 /* Data (.data, .bss, .rodata) */
 PROVIDE( rom_spiflash_legacy_funcs = 0x3fcdfff4 );
 PROVIDE( rom_spiflash_legacy_data = 0x3fcdfff0 );
-PROVIDE( g_rom_flashchip = 0x3fcdf730 );
 PROVIDE( g_flash_guard_ops = 0x3fcdfff8 );
-
 
 /***************************************
  Group spi_flash_hal
@@ -193,7 +188,6 @@ PROVIDE( spi_flash_hal_erase_block = 0x40000248 );
 PROVIDE( spi_flash_hal_program_page = 0x4000024c );
 PROVIDE( spi_flash_hal_set_write_protect = 0x40000250 );
 PROVIDE( spi_flash_hal_host_idle = 0x40000254 );
-
 
 /***************************************
  Group spi_flash_chips
@@ -232,7 +226,6 @@ PROVIDE( spi_flash_chip_gd_set_io_mode = 0x400002c8 );
 /* Data (.data, .bss, .rodata) */
 PROVIDE( spi_flash_chip_generic_config_data = 0x3fcdffec );
 
-
 /***************************************
  Group memspi_host
  ***************************************/
@@ -250,7 +243,6 @@ PROVIDE( memspi_host_set_write_protect = 0x400002ec );
 PROVIDE( memspi_host_set_max_read_len = 0x400002f0 );
 PROVIDE( memspi_host_read_data_slicer = 0x400002f4 );
 PROVIDE( memspi_host_write_data_slicer = 0x400002f8 );
-
 
 /***************************************
  Group esp_flash
@@ -282,7 +274,6 @@ PROVIDE( spi_flash_reset_counters = 0x4000034c );
 PROVIDE( esp_flash_default_chip = 0x3fcdffe8 );
 PROVIDE( esp_flash_api_funcs = 0x3fcdffe4 );
 
-
 /***************************************
  Group cache
  ***************************************/
@@ -297,8 +288,8 @@ PROVIDE( Cache_Enable_Defalut_ICache_Mode = 0x400004c4 );
 PROVIDE( ROM_Boot_Cache_Init = 0x400004c8 );
 PROVIDE( Cache_Invalidate_ICache_Items = 0x400004cc );
 PROVIDE( Cache_Op_Addr = 0x400004d0 );
-PROVIDE( Cache_Invalidate_Addr = 0x400004d4 );
-PROVIDE( Cache_Invalidate_ICache_All = 0x400004d8 );
+PROVIDE( cache_invalidate_addr = 0x400004d4 );
+PROVIDE( cache_invalidate_icache_all = 0x400004d8 );
 PROVIDE( Cache_Mask_All = 0x400004dc );
 PROVIDE( Cache_UnMask_Dram0 = 0x400004e0 );
 PROVIDE( Cache_Suspend_ICache_Autoload = 0x400004e4 );
@@ -317,8 +308,8 @@ PROVIDE( Cache_Lock_Addr = 0x40000514 );
 PROVIDE( Cache_Unlock_Addr = 0x40000518 );
 PROVIDE( Cache_Disable_ICache = 0x4000051c );
 PROVIDE( Cache_Enable_ICache = 0x40000520 );
-PROVIDE( Cache_Suspend_ICache = 0x40000524 );
-PROVIDE( Cache_Resume_ICache = 0x40000528 );
+PROVIDE( cache_suspend_icache = 0x40000524 );
+PROVIDE( cache_resume_icache = 0x40000528 );
 PROVIDE( Cache_Freeze_ICache_Enable = 0x4000052c );
 PROVIDE( Cache_Freeze_ICache_Disable = 0x40000530 );
 PROVIDE( Cache_Pms_Lock = 0x40000534 );
@@ -332,8 +323,8 @@ PROVIDE( Cache_Get_DROM_MMU_End = 0x40000550 );
 PROVIDE( Cache_Owner_Init = 0x40000554 );
 PROVIDE( Cache_Occupy_ICache_MEMORY = 0x40000558 );
 PROVIDE( Cache_MMU_Init = 0x4000055c );
-PROVIDE( Cache_Ibus_MMU_Set = 0x40000560 );
-PROVIDE( Cache_Dbus_MMU_Set = 0x40000564 );
+PROVIDE( cache_ibus_mmu_set = 0x40000560 );
+PROVIDE( cache_dbus_mmu_set = 0x40000564 );
 PROVIDE( Cache_Count_Flash_Pages = 0x40000568 );
 PROVIDE( Cache_Travel_Tag_Memory = 0x4000056c );
 PROVIDE( Cache_Get_Virtual_Addr = 0x40000570 );
@@ -343,7 +334,6 @@ PROVIDE( Cache_Get_Memory_value = 0x4000057c );
 /* Data (.data, .bss, .rodata) */
 PROVIDE( rom_cache_op_cb = 0x3fcdffd8 );
 PROVIDE( rom_cache_internal_table_ptr = 0x3fcdffd4 );
-
 
 /***************************************
  Group clock
@@ -357,7 +347,6 @@ ets_get_printf_channel = 0x4000058c;
 ets_get_xtal_div = 0x40000590;
 ets_set_xtal_div = 0x40000594;
 ets_get_xtal_freq = 0x40000598;
-
 
 /***************************************
  Group gpio
@@ -382,7 +371,6 @@ gpio_pin_wakeup_disable = 0x400005d4;
 gpio_pin_wakeup_enable = 0x400005d8;
 gpio_bypass_matrix_in = 0x400005dc;
 
-
 /***************************************
  Group interrupts
  ***************************************/
@@ -400,7 +388,6 @@ PROVIDE( intr_handler_set = 0x40000600 );
 ets_isr_attach = 0x40000604;
 ets_isr_mask = 0x40000608;
 ets_isr_unmask = 0x4000060c;
-
 
 /***************************************
  Group crypto
@@ -456,7 +443,6 @@ ets_aes_setkey_dec = 0x400006c4;
 ets_aes_setkey_enc = 0x400006c8;
 ets_mgf1_sha256 = 0x400006cc;
 
-
 /***************************************
  Group efuse
  ***************************************/
@@ -494,7 +480,6 @@ ets_efuse_usb_download_mode_disabled = 0x40000740;
 ets_efuse_usb_module_disabled = 0x40000744;
 ets_efuse_usb_device_disabled = 0x40000748;
 
-
 /***************************************
  Group secureboot
  ***************************************/
@@ -506,7 +491,6 @@ ets_secure_boot_verify_bootloader_with_keys = 0x40000754;
 ets_secure_boot_verify_signature = 0x40000758;
 ets_secure_boot_read_key_digests = 0x4000075c;
 ets_secure_boot_revoke_public_key_digest = 0x40000760;
-
 
 /***************************************
  Group usb_uart
@@ -520,7 +504,6 @@ PROVIDE( usb_uart_tx_one_char = 0x400008d8 );
 /* Data (.data, .bss, .rodata) */
 PROVIDE( g_uart_print = 0x3fcdffd1 );
 PROVIDE( g_usb_print = 0x3fcdffd0 );
-
 
 /***************************************
  Group bluetooth
@@ -1491,7 +1474,6 @@ rwip_coex_cfg = 0x3ff1eeac;
 rwip_priority = 0x3ff1ee94;
 veryBigHexP256 = 0x3ff1ee48;
 
-
 /***************************************
  Group rom_pp
  ***************************************/
@@ -1592,7 +1574,6 @@ ppTask = 0x40001720;
 ppTxPkt = 0x40001724;
 ppTxProtoProc = 0x40001728;
 ppTxqUpdateBitmap = 0x4000172c;
-pp_coex_tx_request = 0x40001730;
 pp_hdrsize = 0x40001734;
 pp_post = 0x40001738;
 pp_process_hmac_waiting_txq = 0x4000173c;
@@ -1702,7 +1683,6 @@ g_tx_done_cb_func = 0x3fcdf8c0;
 g_per_conn_trc = 0x3fcdf874;
 s_encap_amsdu_func = 0x3fcdf870;
 
-
 /***************************************
  Group rom_net80211
  ***************************************/
@@ -1753,7 +1733,6 @@ s_netstack_free = 0x3fcdf854;
 mesh_rxcb = 0x3fcdf850;
 sta_rxcb = 0x3fcdf84c;
 
-
 /***************************************
  Group rom_coexist
  ***************************************/
@@ -1763,12 +1742,10 @@ esp_coex_rom_version_get = 0x400018ac;
 coex_bt_release = 0x400018b0;
 coex_bt_request = 0x400018b4;
 coex_core_ble_conn_dyn_prio_get = 0x400018b8;
-coex_core_event_duration_get = 0x400018bc;
 coex_core_pti_get = 0x400018c0;
 coex_core_release = 0x400018c4;
 coex_core_request = 0x400018c8;
 coex_core_status_get = 0x400018cc;
-coex_core_timer_idx_get = 0x400018d0;
 coex_event_duration_get = 0x400018d4;
 coex_hw_timer_disable = 0x400018d8;
 coex_hw_timer_enable = 0x400018dc;
@@ -1786,7 +1763,6 @@ coex_schm_env_ptr = 0x3fcdf840;
 coexist_funcs = 0x3fcdf83c;
 g_coa_funcs_p = 0x3fcdf838;
 g_coex_param_ptr = 0x3fcdf834;
-
 
 /***************************************
  Group rom_phy
@@ -1816,9 +1792,9 @@ rom_get_i2c_read_mask = 0x40001948;
 rom_get_pwctrl_correct = 0x4000194c;
 rom_get_rf_gain_qdb = 0x40001950;
 rom_i2c_readreg = 0x40001954;
-rom_i2c_readreg_Mask = 0x40001958;
+rom_i2c_readreg_mask = 0x40001958;
 rom_i2c_writereg = 0x4000195c;
-rom_i2c_writereg_Mask = 0x40001960;
+rom_i2c_writereg_mask = 0x40001960;
 rom_index_to_txbbgain = 0x40001964;
 rom_iq_est_disable = 0x40001968;
 rom_iq_est_enable = 0x4000196c;
@@ -1940,18 +1916,117 @@ rom_pll_vol_cal = 0x40001b28;
 
 memset = 0x40000354;
 memcpy = 0x40000358;
+memccpy = 0x400003c4;
 memmove = 0x4000035c;
 memcmp = 0x40000360;
-memccpy = 0x400003c4;
 memchr = 0x400003c8;
 memrchr = 0x400003cc;
 strcpy = 0x40000364;
 strncpy = 0x40000368;
+strlcpy = 0x400003f0;
 strcmp = 0x4000036c;
 strncmp = 0x40000370;
 strlen = 0x40000374;
+strnlen = 0x40000404;
 strstr = 0x40000378;
+strchr = 0x400003e0;
 bzero = 0x4000037c;
+
+/***************************************
+ Group libgcc
+ ***************************************/
+
+/* Functions */
+__absvdi2 = 0x40000764;
+__absvsi2 = 0x40000768;
+__adddf3 = 0x4000076c;
+__addsf3 = 0x40000770;
+__addvdi3 = 0x40000774;
+__addvsi3 = 0x40000778;
+__ashldi3 = 0x4000077c;
+__ashrdi3 = 0x40000780;
+__bswapdi2 = 0x40000784;
+__bswapsi2 = 0x40000788;
+__clear_cache = 0x4000078c;
+__clrsbdi2 = 0x40000790;
+__clrsbsi2 = 0x40000794;
+__clzdi2 = 0x40000798;
+__clzsi2 = 0x4000079c;
+__cmpdi2 = 0x400007a0;
+__ctzdi2 = 0x400007a4;
+__ctzsi2 = 0x400007a8;
+__divdc3 = 0x400007ac;
+__divdf3 = 0x400007b0;
+__divdi3 = 0x400007b4;
+__divsc3 = 0x400007b8;
+__divsf3 = 0x400007bc;
+__divsi3 = 0x400007c0;
+__eqdf2 = 0x400007c4;
+__eqsf2 = 0x400007c8;
+__extendsfdf2 = 0x400007cc;
+__ffsdi2 = 0x400007d0;
+__ffssi2 = 0x400007d4;
+__fixdfdi = 0x400007d8;
+__fixdfsi = 0x400007dc;
+__fixsfdi = 0x400007e0;
+__fixsfsi = 0x400007e4;
+__fixunsdfsi = 0x400007e8;
+__fixunssfdi = 0x400007ec;
+__fixunssfsi = 0x400007f0;
+__floatdidf = 0x400007f4;
+__floatdisf = 0x400007f8;
+__floatsidf = 0x400007fc;
+__floatsisf = 0x40000800;
+__floatundidf = 0x40000804;
+__floatundisf = 0x40000808;
+__floatunsidf = 0x4000080c;
+__floatunsisf = 0x40000810;
+__gcc_bcmp = 0x40000814;
+__gedf2 = 0x40000818;
+__gesf2 = 0x4000081c;
+__gtdf2 = 0x40000820;
+__gtsf2 = 0x40000824;
+__ledf2 = 0x40000828;
+__lesf2 = 0x4000082c;
+__lshrdi3 = 0x40000830;
+__ltdf2 = 0x40000834;
+__ltsf2 = 0x40000838;
+__moddi3 = 0x4000083c;
+__modsi3 = 0x40000840;
+__muldc3 = 0x40000844;
+__muldf3 = 0x40000848;
+__muldi3 = 0x4000084c;
+__mulsc3 = 0x40000850;
+__mulsf3 = 0x40000854;
+__mulsi3 = 0x40000858;
+__mulvdi3 = 0x4000085c;
+__mulvsi3 = 0x40000860;
+__nedf2 = 0x40000864;
+__negdf2 = 0x40000868;
+__negdi2 = 0x4000086c;
+__negsf2 = 0x40000870;
+__negvdi2 = 0x40000874;
+__negvsi2 = 0x40000878;
+__nesf2 = 0x4000087c;
+__paritysi2 = 0x40000880;
+__popcountdi2 = 0x40000884;
+__popcountsi2 = 0x40000888;
+__powidf2 = 0x4000088c;
+__powisf2 = 0x40000890;
+__subdf3 = 0x40000894;
+__subsf3 = 0x40000898;
+__subvdi3 = 0x4000089c;
+__subvsi3 = 0x400008a0;
+__truncdfsf2 = 0x400008a4;
+__ucmpdi2 = 0x400008a8;
+__udivdi3 = 0x400008ac;
+__udivmoddi4 = 0x400008b0;
+__udivsi3 = 0x400008b4;
+__udiv_w_sdiv = 0x400008b8;
+__umoddi3 = 0x400008bc;
+__umodsi3 = 0x400008c0;
+__unorddf2 = 0x400008c4;
+__unordsf2 = 0x400008c8;
 
 /***************************************
  Redefine functions

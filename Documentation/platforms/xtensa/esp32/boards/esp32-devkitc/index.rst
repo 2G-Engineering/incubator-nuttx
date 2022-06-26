@@ -95,7 +95,6 @@ board + LAN8720 module. If users have some issue about using this driver,
 please refer the upper official document, specially the issue that GPIO0
 causes failing to bring the ESP32 chip up.
 
-
 Pin Mapping
 ===========
 
@@ -119,7 +118,44 @@ USB connection by means of CP2102 converter, at 115200 bps).
 wapi
 ----
 
-Enables WiFi support
+Enables Wi-Fi support. You can define your credentials this way::
+
+    $ make menuconfig
+    -> Application Configuration
+        -> Network Utilities
+            -> Network initialization (NETUTILS_NETINIT [=y])
+                -> WAPI Configuration
+
+Or if you don't want to keep it saved in the firmware you can do it
+at runtime::
+
+    nsh> wapi psk wlan0 mypasswd 1
+    nsh> wapi essid wlan0 myssid 1
+    nsh> renew wlan0
+
+wifinsh
+-------
+
+The ``wifinsh`` is similar to the ``wapi`` board example, but it will connect
+automatically to your Access Point (Wi-Fi Router) and will run telnet daemon
+in the board. Then you can connect to your board from your computer using the
+telnet program.
+
+After configuring the ``esp32-devkit:wifinsh`` you need to define your creden-
+tials in the menuconfig. You can define your credentials this way::
+
+    $ make menuconfig
+    -> Application Configuration
+        -> Network Utilities
+            -> Network initialization (NETUTILS_NETINIT [=y])
+                -> WAPI Configuration
+
+Find your board IP using ``nsh> ifconfig`` and then from your computer::
+
+    $ telnet 192.168.x.y
+
+Where x and y are the last two numbers of the IP that your router gave to
+your board.
 
 mqttc
 -----
@@ -129,14 +165,14 @@ This configuration tests the MQTT-C publisher example.
 From the host, start the broker and subscribe to the :code:`test` topic.  Using
 `mosquitto` this should be::
 
-    mosquitto&
-    mosquitto_sub -t test
+    $ mosquitto&
+    $ mosquitto_sub -t test
 
 From the NSH, connect to an access point::
 
-    wapi psk wlan0 mypasswd 1
-    wapi essid wlan0 myssid 1
-    renew wlan0
+    nsh> wapi psk wlan0 mypasswd 1
+    nsh> wapi essid wlan0 myssid 1
+    nsh> renew wlan0
 
 Publish to the broker::
 
@@ -163,7 +199,6 @@ additional settings:
 SMP is enabled::
 
   CONFIG_SMP=y
-  CONFIG_SMP_IDLETHREAD_STACKSIZE=3072
   CONFIG_SMP_NCPUS=2
   CONFIG_SPINLOCK=y
 
@@ -182,7 +217,6 @@ architecture ports to assure a correct implementation of the OS.  The default
 version is for a single CPU but can be modified for an SMP test by adding::
 
   CONFIG_SMP=y
-  CONFIG_SMP_IDLETHREAD_STACKSIZE=2048
   CONFIG_SMP_NCPUS=2
   CONFIG_SPINLOCK=y
 
@@ -213,7 +247,7 @@ SPI2 is used and kept with the default IOMUX pins, i.e.::
 
 Once booted the following command is used to mount a FAT file system::
 
-    mount -t vfat /dev/mmcsd0 /mnt
+    nsh> mount -t vfat /dev/mmcsd0 /mnt
 
 module
 ------
@@ -234,8 +268,8 @@ through SPI1.
 By default a SmartFS file system is selected.
 Once booted you can use the following commands to mount the file system::
 
-    mksmartfs /dev/smart0
-    mount -t smartfs /dev/smart0 /mnt
+    nsh> mksmartfs /dev/smart0
+    nsh> mount -t smartfs /dev/smart0 /mnt
 
 Note that mksmartfs is only needed the first time.
 
@@ -280,3 +314,46 @@ To test it, just run the following::
   nsh> wdog -d /dev/watchdogx
 
 Where x in the watchdog instance.
+
+wamr_wasi_debug
+---------------
+
+This config is an example to use wasm-micro-runtime.
+It can run both of wasm bytecode and AoT compiled modules.
+
+This example uses littlefs on ESP32's SPI flash to store wasm modules.
+
+1. Create a littlefs image which contains wasm modules.
+
+   https://github.com/jrast/littlefs-python/blob/master/examples/mkfsimg.py
+   is used in the following example::
+
+      % python3 mkfsimg.py \
+        --img-filename ..../littlefs.bin \
+        --img-size 3080192 \
+        --block-size 4096 \
+        --prog-size 256 \
+        --read-size 256 \
+        ..../wasm_binary_directory
+
+2. Write the NuttX image and the filesystem to ESP32::
+
+      % esptool.py \
+        --chip esp32 \
+        --port /dev/tty.SLAB_USBtoUART \
+        --baud 921600 \
+        write_flash \
+        0x1000 ..../bootloader-esp32.bin \
+        0x8000 ..../partition-table-esp32.bin \
+        0x10000 nuttx.bin \
+        0x180000 ..../littlefs.bin
+
+3. Mount the filesystem and run a wasm module on it::
+
+      nsh> mount -t littlefs /dev/esp32flash /mnt
+      nsh> iwasm /mnt/....
+
+efuse
+-----
+
+A config with EFUSE enabled.

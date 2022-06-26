@@ -29,6 +29,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <string.h>
+#include <assert.h>
 #include <errno.h>
 #include <debug.h>
 
@@ -40,9 +41,7 @@
 #include <arch/board/board.h>
 
 #include "chip.h"
-#include "arm_arch.h"
 #include "arm_internal.h"
-
 #include "tiva_lowputc.h"
 
 /****************************************************************************
@@ -1029,7 +1028,7 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
 #if defined(CONFIG_SERIAL_TERMIOS)
   struct up_dev_s   *priv  = (struct up_dev_s *)dev->priv;
 #endif
-  int                ret    = OK;
+  int                ret   = OK;
 
   switch (cmd)
     {

@@ -26,14 +26,17 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/compiler.h>
 
 #include <stddef.h>
 
-/* Non-standard support for cases where CHAR_BIT != 8 carried in strings.h
- * only for convenience.  See include/nuttx/b2c.h.
- */
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
 
-#include <nuttx/b2c.h>
+#define strcoll_l(s1, s2, l)    strcoll(s1, s2)
+#define strerror_l(e, l)        strerror(e)
+#define strxfrm_l(s1, s2, n, l) strxfrm(s1, s2, n)
 
 /****************************************************************************
  * Public Function Prototypes
@@ -50,11 +53,12 @@ extern "C"
 
 FAR char  *strdup(FAR const char *s);
 FAR char  *strndup(FAR const char *s, size_t size);
-FAR const char *strerror(int);
+FAR char  *strerror(int);
 int        strerror_r(int, FAR char *, size_t);
 size_t     strlen(FAR const char *);
 size_t     strnlen(FAR const char *, size_t);
 FAR char  *strcat(FAR char *, FAR const char *);
+size_t     strlcat(FAR char *, FAR const char *, size_t);
 FAR char  *strncat(FAR char *, FAR const char *, size_t);
 int        strcmp(FAR const char *, FAR const char *);
 int        strncmp(FAR const char *, FAR const char *, size_t);
@@ -66,6 +70,7 @@ FAR char  *strncpy(FAR char *, FAR const char *, size_t);
 FAR char  *stpncpy(FAR char *, FAR const char *, size_t);
 FAR char  *strpbrk(FAR const char *, FAR const char *);
 FAR char  *strchr(FAR const char *s, int c);
+FAR char  *strchrnul(FAR const char *s, int c);
 FAR char  *strrchr(FAR const char *s, int c);
 size_t     strspn(FAR const char *, FAR const char *);
 size_t     strcspn(FAR const char *, FAR const char *);

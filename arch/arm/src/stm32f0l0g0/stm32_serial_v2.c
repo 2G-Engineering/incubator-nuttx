@@ -29,6 +29,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <string.h>
+#include <assert.h>
 #include <errno.h>
 #include <debug.h>
 
@@ -42,9 +43,7 @@
 #  include <termios.h>
 #endif
 
-#include "arm_arch.h"
 #include "arm_internal.h"
-
 #include "chip.h"
 #include "stm32_gpio.h"
 #include "hardware/stm32_pinmap.h"
@@ -177,7 +176,7 @@ static int  up_setup(struct uart_dev_s *dev);
 static void up_shutdown(struct uart_dev_s *dev);
 static int  up_attach(struct uart_dev_s *dev);
 static void up_detach(struct uart_dev_s *dev);
-static int  up_interrupt(int irq, void *context, FAR void *arg);
+static int  up_interrupt(int irq, void *context, void *arg);
 static int  up_ioctl(struct file *filep, int cmd, unsigned long arg);
 static int  up_receive(struct uart_dev_s *dev, unsigned int *status);
 static void up_rxint(struct uart_dev_s *dev, bool enable);
@@ -993,7 +992,7 @@ static void up_detach(struct uart_dev_s *dev)
  *
  ****************************************************************************/
 
-static int up_interrupt(int irq, void *context, FAR void *arg)
+static int up_interrupt(int irq, void *context, void *arg)
 {
   struct up_dev_s *priv = (struct up_dev_s *)arg;
   int  passes;
@@ -1127,7 +1126,7 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
     || defined(CONFIG_STM32F0L0G0_SERIALBRK_BSDCOMPAT)
   struct up_dev_s   *priv  = (struct up_dev_s *)dev->priv;
 #endif
-  int                ret    = OK;
+  int                ret   = OK;
 
   switch (cmd)
     {
@@ -1634,6 +1633,7 @@ static void up_txint(struct uart_dev_s *dev, bool enable)
 #  ifdef CONFIG_STM32_SERIALBRK_BSDCOMPAT
       if (priv->ie & USART_CR1_IE_BREAK_INPROGRESS)
         {
+          leave_critical_section(flags);
           return;
         }
 #  endif
@@ -1791,7 +1791,7 @@ static int up_pm_prepare(struct pm_callback_s *cb, int domain,
  *
  ****************************************************************************/
 
-FAR uart_dev_t *stm32_serial_get_uart(int uart_num)
+uart_dev_t *stm32_serial_get_uart(int uart_num)
 {
   int uart_idx = uart_num - 1;
 

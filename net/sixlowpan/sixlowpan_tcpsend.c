@@ -52,7 +52,7 @@
 
 /* Buffer access helpers */
 
-#define TCPBUF(dev)   ((FAR struct tcp_hdr_s *)(&(dev)->d_buf[IPv6_HDRLEN]))
+#define TCPBUF(dev) ((FAR struct tcp_hdr_s *)(&(dev)->d_buf[IPv6_HDRLEN]))
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -156,7 +156,7 @@ static uint16_t sixlowpan_tcp_chksum(FAR const struct ipv6tcp_hdr_s *ipv6tcp,
   /* Sum payload data. */
 
   sum = chksum(sum, buf, buflen);
-  return (sum == 0) ? 0xffff : htons(sum);
+  return (sum == 0) ? 0xffff : HTONS(sum);
 }
 
 /****************************************************************************
@@ -194,7 +194,7 @@ static int sixlowpan_tcp_header(FAR struct tcp_conn_s *conn,
   ipv6tcp->ipv6.tcf    = 0x00;
   ipv6tcp->ipv6.flow   = 0x00;
   ipv6tcp->ipv6.proto  = IP_PROTO_TCP;
-  ipv6tcp->ipv6.ttl    = IP_TTL;
+  ipv6tcp->ipv6.ttl    = IP_TTL_DEFAULT;
 
   /* The IPv6 header length field does not include the size of IPv6 IP
    * header.
@@ -257,7 +257,8 @@ static int sixlowpan_tcp_header(FAR struct tcp_conn_s *conn,
     {
       /* Update the TCP received window based on I/O buffer availability */
 
-      uint16_t recvwndo = tcp_get_recvwindow(dev, conn);
+      uint32_t rcvseq = tcp_getsequence(conn->rcvseq);
+      uint32_t recvwndo = tcp_get_recvwindow(dev, conn);
 
       /* Set the TCP Window */
 
@@ -266,7 +267,7 @@ static int sixlowpan_tcp_header(FAR struct tcp_conn_s *conn,
 
       /* Update the Receiver Window */
 
-      conn->rcv_wnd = recvwndo;
+      conn->rcv_adv = rcvseq + recvwndo;
     }
 
   /* Calculate TCP checksum. */
@@ -400,11 +401,11 @@ static uint16_t tcp_send_eventhandler(FAR struct net_driver_s *dev,
        */
 
       DEBUGASSERT(psock != NULL);
-      if (_SS_ISCONNECTED(psock->s_flags))
+      if (_SS_ISCONNECTED(conn->sconn.s_flags))
         {
           /* Report the disconnection event to all socket clones */
 
-          tcp_lost_connection(psock, sinfo->s_cb, flags);
+          tcp_lost_connection(conn, sinfo->s_cb, flags);
         }
 
       /* Report not connected to the sender */
@@ -729,17 +730,17 @@ ssize_t psock_6lowpan_tcp_send(FAR struct socket *psock, FAR const void *buf,
       return (ssize_t)-EBADF;
     }
 
+  /* Get the underlying TCP connection structure */
+
+  conn = (FAR struct tcp_conn_s *)psock->s_conn;
+
   /* Make sure that this is a connected TCP socket */
 
-  if (psock->s_type != SOCK_STREAM || !_SS_ISCONNECTED(psock->s_flags))
+  if (psock->s_type != SOCK_STREAM || !_SS_ISCONNECTED(conn->sconn.s_flags))
     {
       nerr("ERROR: Not connected\n");
       return (ssize_t)-ENOTCONN;
     }
-
-  /* Get the underlying TCP connection structure */
-
-  conn = (FAR struct tcp_conn_s *)psock->s_conn;
 
 #ifdef CONFIG_NET_IPv4
   /* Ignore if not IPv6 domain */
@@ -798,7 +799,7 @@ ssize_t psock_6lowpan_tcp_send(FAR struct socket *psock, FAR const void *buf,
    */
 
   ret = sixlowpan_send_packet(psock, dev, conn, buf, buflen, &destmac,
-                              _SO_TIMEOUT(psock->s_sndtimeo));
+                              _SO_TIMEOUT(conn->sconn.s_sndtimeo));
   if (ret < 0)
     {
       nerr("ERROR: sixlowpan_send_packet() failed: %d\n", ret);
@@ -822,7 +823,7 @@ ssize_t psock_6lowpan_tcp_send(FAR struct socket *psock, FAR const void *buf,
  *   3. TCP output resulting from TX or timer polling
  *
  *   Cases 2 and 3 will be handled here.  Logic in ipv6_tcp_input(),
- *   devif_poll(), and devif_timer() detect if (1) an attempt to return with
+ *   and devif_poll() detect if (1) an attempt to return with
  *   d_len > 0 and (2) that the device is an IEEE802.15.4 MAC network
  *   driver. Under those conditions, this function will be called to create
  *   the IEEE80215.4 frames.

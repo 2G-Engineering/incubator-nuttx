@@ -36,8 +36,8 @@
  *
  ****************************************************************************/
 
-#ifndef _NET_DEVIF_DEVIF_H
-#define _NET_DEVIF_DEVIF_H
+#ifndef __NET_DEVIF_DEVIF_H
+#define __NET_DEVIF_DEVIF_H
 
 /****************************************************************************
  * Included Files
@@ -260,6 +260,7 @@ typedef CODE uint16_t (*devif_callback_event_t)(FAR struct net_driver_s *dev,
 struct devif_callback_s
 {
   FAR struct devif_callback_s *nxtconn;
+  FAR struct devif_callback_s *prevconn;
   FAR struct devif_callback_s *nxtdev;
   FAR devif_callback_event_t event;
   FAR void *priv;
@@ -330,7 +331,8 @@ void devif_callback_init(void);
 
 FAR struct devif_callback_s *
   devif_callback_alloc(FAR struct net_driver_s *dev,
-                       FAR struct devif_callback_s **list);
+                       FAR struct devif_callback_s **list_head,
+                       FAR struct devif_callback_s **list_tail);
 
 /****************************************************************************
  * Name: devif_conn_callback_free
@@ -352,7 +354,8 @@ FAR struct devif_callback_s *
 
 void devif_conn_callback_free(FAR struct net_driver_s *dev,
                               FAR struct devif_callback_s *cb,
-                              FAR struct devif_callback_s **list);
+                              FAR struct devif_callback_s **list_head,
+                              FAR struct devif_callback_s **list_tail);
 
 /****************************************************************************
  * Name: devif_dev_callback_free
@@ -387,7 +390,7 @@ void devif_dev_callback_free(FAR struct net_driver_s *dev,
  *   dev - The network device state structure associated with the network
  *     device that initiated the callback event.
  *   pvconn - Holds a reference to the TCP connection structure or the UDP
- *     port structure.  May be NULL if the even is not related to a TCP
+ *     port structure. It can be NULL if the event is not related to a TCP
  *     connection or UDP port.
  *   flags - The bit set of events to be notified.
  *   list - The list to traverse in performing the notifications
@@ -413,7 +416,7 @@ uint16_t devif_conn_event(FAR struct net_driver_s *dev, FAR void *pvconn,
  *   dev - The network device state structure associated with the network
  *     device that initiated the callback event.
  *   pvconn - Holds a reference to the TCP connection structure or the UDP
- *     port structure.  May be NULL if the even is not related to a TCP
+ *     port structure. It can be NULL if the event is not related to a TCP
  *     connection or UDP port.
  *   flags - The bit set of events to be notified.
  *
@@ -523,4 +526,4 @@ void devif_can_send(FAR struct net_driver_s *dev, FAR const void *buf,
 #endif
 
 #endif /* CONFIG_NET */
-#endif /* _NET_DEVIF_DEVIF_H */
+#endif /* __NET_DEVIF_DEVIF_H */

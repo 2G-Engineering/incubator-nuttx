@@ -40,20 +40,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Although task IDs can take the (positive, non-zero)
- * range of pid_t, the number of tasks that will be supported
- * at any one time is (artificially) limited by the CONFIG_MAX_TASKS
- * configuration setting. Limiting the number of tasks speeds certain
- * OS functions (this is the only limitation in the number of
- * tasks built into the design).
- */
-
-#if CONFIG_MAX_TASKS & (CONFIG_MAX_TASKS - 1)
-#  error CONFIG_MAX_TASKS must be power of 2
-#endif
-
-#define MAX_TASKS_MASK           (CONFIG_MAX_TASKS-1)
-#define PIDHASH(pid)             ((pid) & MAX_TASKS_MASK)
+#define PIDHASH(pid)             ((pid) & (g_npidhash - 1))
 
 /* These are macros to access the current CPU and the current task on a CPU.
  * These macros are intended to support a future SMP implementation.
@@ -102,26 +89,6 @@
 /****************************************************************************
  * Public Type Definitions
  ****************************************************************************/
-
-/* This structure defines the format of the hash table that is used to (1)
- * determine if a task ID is unique, and (2) to map a process ID to its
- * corresponding TCB.
- *
- * NOTE also that CPU load measurement data is retained in his table vs. in
- * the TCB which would seem to be the more logic place.  It is place in the
- * hash table, instead, to facilitate CPU load adjustments on all threads
- * during timer interrupt handling. nxsched_foreach() could do this too, but
- * this would require a little more overhead.
- */
-
-struct pidhash_s
-{
-  FAR struct tcb_s *tcb;       /* TCB assigned to this PID */
-  pid_t pid;                   /* The full PID value */
-#ifdef CONFIG_SCHED_CPULOAD
-  uint32_t ticks;              /* Number of ticks on this thread */
-#endif
-};
 
 /* This structure defines an element of the g_tasklisttable[].  This table
  * is used to map a task_state enumeration to the corresponding task list.
@@ -188,18 +155,13 @@ extern volatile dq_queue_t g_readytorun;
  */
 
 extern volatile dq_queue_t g_assignedtasks[CONFIG_SMP_NCPUS];
+#endif
 
 /* g_running_tasks[] holds a references to the running task for each cpu.
  * It is valid only when up_interrupt_context() returns true.
  */
 
 extern FAR struct tcb_s *g_running_tasks[CONFIG_SMP_NCPUS];
-
-#else
-
-extern FAR struct tcb_s *g_running_tasks[1];
-
-#endif
 
 /* This is the list of all tasks that are ready-to-run, but cannot be placed
  * in the g_readytorun list because:  (1) They are higher priority than the
@@ -254,12 +216,10 @@ extern volatile pid_t g_lastpid;
  * 1. This hash table greatly speeds the determination of a new unique
  *    process ID for a task, and
  * 2. Is used to quickly map a process ID into a TCB.
- *
- * It has the side effects of using more memory and limiting the number
- * of tasks to CONFIG_MAX_TASKS.
  */
 
-extern struct pidhash_s g_pidhash[CONFIG_MAX_TASKS];
+extern FAR struct tcb_s **g_pidhash;
+extern volatile int g_npidhash;
 
 /* This is a table of task lists.  This table is indexed by the task stat
  * enumeration type (tstate_t) and provides a pointer to the associated
@@ -337,16 +297,16 @@ extern volatile uint32_t g_cpuload_total;
  *    least one CPU has pre-emption disabled.
  */
 
-extern volatile spinlock_t g_cpu_schedlock SP_SECTION;
+extern volatile spinlock_t g_cpu_schedlock;
 
 /* Used to keep track of which CPU(s) hold the IRQ lock. */
 
-extern volatile spinlock_t g_cpu_locksetlock SP_SECTION;
-extern volatile cpu_set_t g_cpu_lockset SP_SECTION;
+extern volatile spinlock_t g_cpu_locksetlock;
+extern volatile cpu_set_t g_cpu_lockset;
 
 /* Used to lock tasklist to prevent from concurrent access */
 
-extern volatile spinlock_t g_cpu_tasklistlock SP_SECTION;
+extern volatile spinlock_t g_cpu_tasklistlock;
 
 #endif /* CONFIG_SMP */
 
@@ -430,6 +390,7 @@ int  nxsched_pause_cpu(FAR struct tcb_s *tcb);
 /* CPU load measurement support */
 
 void weak_function nxsched_process_cpuload(void);
+void weak_function nxsched_process_cpuload_ticks(uint32_t ticks);
 #endif
 
 /* Critical section monitor */

@@ -24,13 +24,6 @@ config PM_NDOMAINS
 		Network domain, shutting down the network when it is not be used,
 		from the UI domain, shutting down the UI when it is not in use.
 
-choice
-	prompt "PM system governor"
-	default PM_GOVERNOR_ACTIVITY
-	---help---
-		A PM governor applies a policy to control the change in power
-		states.
-
 config PM_GOVERNOR_GREEDY
 	bool "Greedy governor"
 	---help---
@@ -45,14 +38,6 @@ config PM_GOVERNOR_ACTIVITY
 		in units which are accumulated during a certain time slice interval.
 		The governor will then switch between power states given a set of
 		activity thresholds for each state.
-
-config PM_GOVERNOR_CUSTOM
-	bool "Custom governor"
-	---help---
-		By selecting this option, a custom governor can be supplied from
-		board-logic.
-
-endchoice
 
 menu "Governor options"
 
@@ -72,7 +57,6 @@ config PM_GOVERNOR_EXPLICIT_RELAX
 		(via boardctl()) for every run-level you wish to allow to enter.
 
 endif
-
 
 if PM_GOVERNOR_ACTIVITY
 
@@ -334,56 +318,6 @@ config SMPS_HAVE_EFFICIENCY
 
 endif
 
-config DRIVERS_MOTOR
-	bool "Motor driver"
-	default n
-	---help---
-		Enables building of a motor upper half driver.
-
-if DRIVERS_MOTOR
-
-config MOTOR_HAVE_POSITION
-	bool "Have position control"
-	default n
-
-config MOTOR_HAVE_DIRECTION
-	bool "Have direction control"
-	default n
-
-config MOTOR_HAVE_SPEED
-	bool "Have speed control"
-	default n
-
-config MOTOR_HAVE_TORQUE
-	bool "Have torque control (rotary motors)"
-	default n
-
-config MOTOR_HAVE_FORCE
-	bool "Have force control (linear motors)"
-	default n
-
-config MOTOR_HAVE_ACCELERATION
-	bool "Have acceleration control"
-	default n
-
-config MOTOR_HAVE_DECELERATION
-	bool "Have deceleration control"
-	default n
-
-config MOTOR_HAVE_INPUT_VOLTAGE
-	bool "Have input voltage protection"
-	default n
-
-config MOTOR_HAVE_INPUT_CURRENT
-	bool "Have input current protection"
-	default n
-
-config MOTOR_HAVE_INPUT_POWER
-	bool "Have input power protection"
-	default n
-
-endif
-
 menuconfig POWER
 	bool "Power Management Support"
 	default n
@@ -392,6 +326,35 @@ menuconfig POWER
 		etc).
 
 if POWER
+
+config REGULATOR
+	bool "Regulator core driver support"
+	default n
+	---help---
+		The regulator core driver implements the uper layer framework that the lower
+		layer driver can register with, and the common regulator APIs that are easy
+		for other drivers to call for the control of their power supply.
+
+config REGULATOR_RPMSG
+	bool "Regulator rpmsg driver support"
+	depends on RPTUN
+	default n
+	---help---
+		The rpmsg regulator driver implements the common regulator APIs, inside which
+		the regulator operations are sent from the client to the remote device via
+		the rpmsg channel. The remote device(namely server) is responsible for
+		the parse and the completion.
+
+if REGULATOR
+
+config REGULATOR_GPIO
+	bool "Regulator gpio driver support"
+	default n
+	---help---
+		The regulator gpio driver implements the lower regulator ops that use gpio to
+		control to regulator.
+
+endif
 
 config BATTERY_CHARGER
 	bool "Battery Charger support"
@@ -403,6 +366,7 @@ config BQ2425X
 	select I2C
 	select I2C_BQ2425X
 	depends on BATTERY_CHARGER
+	depends on ALLOW_BSD_COMPONENTS
 	---help---
 		The BQ24250/BQ24251 are battery charger for lithium-ion batteries.
 
@@ -414,6 +378,51 @@ config BQ2429X
 	depends on BATTERY_CHARGER
 	---help---
 		The BQ24296/BQ24297/BQ24296M are battery charger for lithium-ion batteries.
+
+config AXP202
+	bool "AXP202 Battery charger support"
+	default n
+	select I2C
+	depends on BATTERY_CHARGER
+	---help---
+		axp202 are battery charger for lithium-ion batteries.
+
+config AXP202_DC2_VOLTAGE
+	int "AXP202 DC2 output voltage"
+	default 0
+	depends on AXP202
+	---help---
+		AXP202 DC2 output voltage. 0 is disable, enable range: [700, 2275] mV.
+
+config AXP202_DC3_VOLTAGE
+	int "AXP202 DC3 output voltage"
+	default 3300
+	depends on AXP202
+	---help---
+		AXP202 DC3 output voltage. 0 is disable, enable range: [700, 3500] mV.
+
+config AXP202_LDO2_VOLTAGE
+	int "AXP202 LDO2 output voltage"
+	default 0
+	depends on AXP202
+	---help---
+		AXP202 LDO2 output voltage. 0 is disable, enable range: [1800, 3300] mV.
+
+config AXP202_LDO3_VOLTAGE
+	int "AXP202 LDO3 output voltage"
+	default 0
+	depends on AXP202
+	---help---
+		Enable LDO3 output voltage. 0 is disable, enable range: [700, 2275] mV.
+
+config AXP202_LDO4_VOLTAGE
+	int "AXP202 LDO4 output voltage"
+	default 0
+	depends on AXP202
+	---help---
+		Enable LDO4 output voltage. 0 is disable, other value: 
+			1250 1300 1400 1500 1600 1700 1800 1900 
+			2000 2500 2700 2800 3000 3100 3200 3300 mV.
 
 config MCP73871
 	bool "Microchip MCP73871 Battery charger support"
@@ -459,16 +468,6 @@ config BQ27426
 		It can be interrogated by a system processor to provide cell information,
 		such as state-of-charge (SOC).
 
-if BQ27426
-
-config DEBUG_BQ27426
-	bool "BQ27426 Debug Features"
-	default n
-	---help---
-		Enable BQ27426 battery management debug features.
-
-endif # BQ27426
-
 config I2C_BQ2425X
 	bool
 	default y if BQ2425X
@@ -476,6 +475,10 @@ config I2C_BQ2425X
 config I2C_BQ2429X
 	bool
 	default y if BQ2429X
+
+config I2C_AXP202
+	bool
+	default y if AXP202
 
 config I2C_MAX1704X
 	bool
@@ -500,10 +503,6 @@ config I2C_BQ769X0
 	default y if BQ769X0
 
 if BQ769X0
-	config DEBUG_BQ769X0
-		bool "BQ769X0 debug features"
-		default n
-
 	config BQ769X0_USE_INTERNAL_TS
 		bool "Use internal temperature sensor on BQ769X0"
 		default n

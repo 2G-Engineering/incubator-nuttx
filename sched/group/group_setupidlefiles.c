@@ -28,6 +28,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sched.h>
+#include <assert.h>
 #include <errno.h>
 #include <debug.h>
 
@@ -63,10 +64,6 @@ int group_setupidlefiles(FAR struct task_tcb_s *tcb)
 #endif
 
   DEBUGASSERT(group != NULL);
-
-  /* Initialize file descriptors for the TCB */
-
-  files_initlist(&group->tg_filelist);
 
   /* Open stdin, dup to get stdout and stderr. This should always
    * be the first file opened and, hence, should always get file

@@ -106,7 +106,7 @@ GNU Toolchain Options
   a different toolchain, you simply need to modify the configuration.  As an
   example:
 
-    CONFIG_ARM_TOOLCHAIN_GNU_EABIL : Generic arm-none-eabi toolchain
+    CONFIG_ARM_TOOLCHAIN_GNU_EABI : Generic arm-none-eabi toolchain
 
 IDEs
 ====
@@ -535,7 +535,7 @@ Configurations
        for Linux.  That can easily be reconfigured, of course.
 
        CONFIG_HOST_LINUX=y                     : Builds under Linux
-       CONFIG_ARMV7M_TOOLCHAIN_GNU_EABIL=y     : GNU EABI toolchain for Linux
+       CONFIG_ARMV7M_TOOLCHAIN_GNU_EABI=y      : GNU EABI toolchain for Linux
 
     3. Although the default console is USART2 (which would correspond to
        the Virtual COM port) I have done all testing with the console
@@ -559,20 +559,23 @@ Configurations
     Functionality of CAN driver can be tested by calling application
     "can" in NuttShell. This application sends 100 messages over CAN 1.
 
-  lcd:
+  dac:
   ----
-    This is basically an nsh configuration (see above) with added support
-    of ILI9225 176x220 TFT display and test framebuffer application.
+    This is an nsh configuration (see above) with added support
+    for digital analog converter driver.
 
-    Display connection is set to SPI 3 and pinout is following:
+    Functionality of DAC driver can be tested by calling application
+    "dac" in NuttShell. GPIO_DAC1_OUT1 pin is set on PA_4.
 
-    CS    D8
-    RST   D6
-    RS    D7
-    SDA   D4
-    CLK   D3
+  gpio:
+  -----
+    This is an nsh configuration (see above) with added support for GPIO
+    driver and GPIO test application "gpio". Three pins are configured for
+    testing purposes:
 
-    Framebuffer application can be started from terminal by typing "fb".
+    PA_7 - GPIO_INPUT
+    PB_6 - GPIO_OUTPUT
+    PC_7 - GPIO_INPUT_INTERRUPT
 
   ihm08m1_f32 and ihm08m1_b16:
   ----------------------------
@@ -637,3 +640,24 @@ Configurations
     VBUS_RATIO   = 1/VBUS_gain      = 19.152
 
     For now only 3-shunt resistors configuration is supported.
+
+  lcd:
+  ----
+    This is basically an nsh configuration (see above) with added support
+    of ILI9225 176x220 TFT display and test framebuffer application.
+
+    Display connection is set to SPI 3 and pinout is following:
+
+    CS    D8
+    RST   D6
+    RS    D7
+    SDA   D4
+    CLK   D3
+
+    Framebuffer application can be started from terminal by typing "fb".
+
+  pwm:
+  ----
+  This is an nsh configuration (see above) with added capability of pulse width
+  modulation. PWM output is on Timer 3 channel 1, which is pin PA_6 (D12) on
+  Nucleo board. Example program can be stared by "pwm" command.

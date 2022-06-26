@@ -27,6 +27,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <sched.h>
+#include <assert.h>
 #include <debug.h>
 
 #include <nuttx/kmalloc.h>
@@ -35,36 +36,7 @@
 #include <nuttx/board.h>
 #include <arch/board/board.h>
 
-#include "mips_arch.h"
 #include "mips_internal.h"
-
-/****************************************************************************
- * Pre-processor Macros
- ****************************************************************************/
-
-/* MIPS requires at least a 4-byte stack alignment.  For floating point use,
- * however, the stack must be aligned to 8-byte addresses.
- */
-
-#ifdef CONFIG_LIBC_FLOATINGPOINT
-#  define STACK_ALIGNMENT   8
-#else
-#  define STACK_ALIGNMENT   4
-#endif
-
-/* Stack alignment macros */
-
-#define STACK_ALIGN_MASK    (STACK_ALIGNMENT-1)
-#define STACK_ALIGN_DOWN(a) ((a) & ~STACK_ALIGN_MASK)
-#define STACK_ALIGN_UP(a)   (((a) + STACK_ALIGN_MASK) & ~STACK_ALIGN_MASK)
-
-/****************************************************************************
- * Private Types
- ****************************************************************************/
-
-/****************************************************************************
- * Private Function Prototypes
- ****************************************************************************/
 
 /****************************************************************************
  * Public Functions
@@ -107,7 +79,7 @@
  *
  ****************************************************************************/
 
-int up_create_stack(FAR struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
+int up_create_stack(struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
 {
 #ifdef CONFIG_TLS_ALIGNED
   /* The allocated stack size must not exceed the maximum possible for the
@@ -226,8 +198,9 @@ int up_create_stack(FAR struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
 
       /* Save the adjusted stack values in the struct tcb_s */
 
-      tcb->stack_base_ptr  = tcb->stack_alloc_ptr;
+      tcb->stack_base_ptr = tcb->stack_alloc_ptr;
       tcb->adj_stack_size = size_of_stack;
+      tcb->flags |= TCB_FLAG_FREE_STACK;
 
       board_autoled_on(LED_STACKCREATED);
       return OK;

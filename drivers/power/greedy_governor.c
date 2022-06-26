@@ -40,7 +40,6 @@
 
 #include <nuttx/irq.h>
 
-#include "greedy_governor.h"
 #include "pm.h"
 
 /****************************************************************************
@@ -53,21 +52,23 @@
 
 /* PM governor methods */
 
-static void             greedy_governor_initialize(void);
-static void             greedy_governor_statechanged(int domain,
-                                                enum pm_state_e newstate);
-static enum pm_state_e  greedy_governor_checkstate(int domain);
+static void greedy_governor_initialize(void);
+static void greedy_governor_statechanged(int domain,
+                                         enum pm_state_e newstate);
+static enum pm_state_e greedy_governor_checkstate(int domain);
 
 /****************************************************************************
  * Private Data
  ****************************************************************************/
 
-static struct pm_governor_s g_greedy_governor_ops =
+static const struct pm_governor_s g_greedy_governor_ops =
 {
-  .initialize   = greedy_governor_initialize,   /* initialize */
-  .statechanged = greedy_governor_statechanged, /* statechanged */
-  .checkstate   = greedy_governor_checkstate,   /* checkstate */
-  .activity     = NULL,                         /* activity */
+  greedy_governor_initialize,   /* initialize */
+  NULL,                         /* deinitialize */
+  greedy_governor_statechanged, /* statechanged */
+  greedy_governor_checkstate,   /* checkstate */
+  NULL,                         /* activity */
+  NULL                          /* priv */
 };
 
 /****************************************************************************
@@ -121,7 +122,7 @@ static enum pm_state_e greedy_governor_checkstate(int domain)
    * invoked, which modifies the stay count which we are about to read
    */
 
-  flags = enter_critical_section();
+  flags = pm_lock();
 
   /* Find the lowest power-level which is not locked. */
 
@@ -130,7 +131,7 @@ static enum pm_state_e greedy_governor_checkstate(int domain)
       state++;
     }
 
-  leave_critical_section(flags);
+  pm_unlock(flags);
 
   /* Return the found state */
 

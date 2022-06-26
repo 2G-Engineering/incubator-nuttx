@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <strings.h>
 #include <unistd.h>
+#include <assert.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/signal.h>
@@ -79,10 +80,10 @@
 
 struct highpri_s
 {
-  FAR struct nrf52_tim_dev_s *dev;
-  volatile uint64_t           basepri[16];
-  volatile uint64_t           handler;
-  volatile uint64_t           thread;
+  struct nrf52_tim_dev_s *dev;
+  volatile uint64_t       basepri[16];
+  volatile uint64_t       handler;
+  volatile uint64_t       thread;
 };
 
 /****************************************************************************
@@ -153,7 +154,7 @@ void timer_handler(void)
 
 int highpri_main(int argc, char *argv[])
 {
-  FAR struct nrf52_tim_dev_s *tim = NULL;
+  struct nrf52_tim_dev_s *tim = NULL;
   uint64_t basepri[16];
   uint64_t handler;
   uint64_t thread;

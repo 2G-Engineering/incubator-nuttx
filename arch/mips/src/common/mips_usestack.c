@@ -27,6 +27,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <sched.h>
+#include <assert.h>
 #include <debug.h>
 
 #include <nuttx/kmalloc.h>
@@ -34,26 +35,6 @@
 #include <nuttx/tls.h>
 
 #include "mips_internal.h"
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/* MIPS requires at least a 4-byte stack alignment.  For floating point use,
- * however, the stack must be aligned to 8-byte addresses.
- */
-
-#ifdef CONFIG_LIBC_FLOATINGPOINT
-#  define STACK_ALIGNMENT   8
-#else
-#  define STACK_ALIGNMENT   4
-#endif
-
-/* Stack alignment macros */
-
-#define STACK_ALIGN_MASK    (STACK_ALIGNMENT - 1)
-#define STACK_ALIGN_DOWN(a) ((a) & ~STACK_ALIGN_MASK)
-#define STACK_ALIGN_UP(a)   (((a) + STACK_ALIGN_MASK) & ~STACK_ALIGN_MASK)
 
 /****************************************************************************
  * Public Functions
@@ -144,7 +125,7 @@ int up_use_stack(struct tcb_s *tcb, void *stack, size_t stack_size)
 
   /* Save the adjusted stack values in the struct tcb_s */
 
-  tcb->stack_base_ptr  = tcb->stack_alloc_ptr;
+  tcb->stack_base_ptr = tcb->stack_alloc_ptr;
   tcb->adj_stack_size = size_of_stack;
 
   return OK;
