@@ -37,7 +37,7 @@
 
 #include <nuttx/sensors/ltr303als.h>
 
-#if 1 defined(CONFIG_I2C) && defined(CONFIG_SENSORS_LTR303ALS)
+#if defined(CONFIG_I2C) && defined(CONFIG_SENSORS_LTR303ALS)
 
 /****************************************************************************
  * Pre-Processor Definitions
@@ -127,7 +127,7 @@ struct ltr303als_dev_s
   FAR struct i2c_master_s *i2c;
   uint8_t addr;                   /* Address on the I2C bus */
   uint8_t op_mode;                /* Defined by ltr303als_operational_mode_e */
-  ltr303als_meas_type_e meas_type;/* Defined by ltr303als_meas_type_e */
+  uint8_t meas_type;              /* Defined by ltr303als_meas_type_e */
   uint32_t range;                 /* Sensor range 600..64000 */
   uint32_t upper_int_thr;         /* Upper interrupt threshold (normalized) */
   uint32_t lower_int_thr;         /* Upper interrupt threshold (normalized) */
@@ -152,8 +152,6 @@ static int ltr303als_read_lux(FAR struct ltr303als_dev_s *dev,
                               FAR struct ltr303als_data_s *data);
 static int ltr303als_set_op_mode(FAR struct ltr303als_dev_s *dev,
                                  uint8_t mode);
-static int ltr303als_set_resolution(FAR struct ltr303als_dev_s *dev,
-                                    uint8_t res_mode);
 static int ltr303als_set_range(FAR struct ltr303als_dev_s *dev,
                                uint8_t range_mode);
 static int ltr303als_set_integration_time(FAR struct ltr303als_dev_s *dev,
@@ -271,7 +269,7 @@ static int ltr303als_i2c_read(FAR struct ltr303als_dev_s *dev,
 
   /* Setup for the transfer */
 
-  msg.frequency = CONFIG_LM75_I2C_FREQUENCY,
+  msg.frequency = CONFIG_LTR303ALS_I2C_FREQUENCY,
   msg.addr      = dev->addr,
   msg.flags     = I2C_M_READ;
   msg.buffer    = buffer;
@@ -394,7 +392,6 @@ static int ltr303als_read_lux(FAR struct ltr303als_dev_s *dev,
 {
   int ret;
   uint8_t buffer[4];
-  uint32_t tmp;
 
   ret = ltr303als_read_reg(dev, LTR303ALS_ALS_DATA_CH1_L, buffer, 4);
   if (ret < 0)
@@ -410,7 +407,7 @@ static int ltr303als_read_lux(FAR struct ltr303als_dev_s *dev,
 
   /* Resolution is always 16 bits */
 
-  data->lux[0] = raw_to_lux(dev->range, data->raw[0])
+  data->lux[0] = raw_to_lux(dev->range, data->raw[0]);
   data->lux[1] = raw_to_lux(dev->range, data->raw[1]);
 
   sninfo("raw value 0: %8x, lux: %5u\n", data->raw[0], data->lux[0]);
@@ -446,13 +443,13 @@ static int ltr303als_set_op_mode(FAR struct ltr303als_dev_s *dev, uint8_t mode)
   buffer[0] = LTR303ALS_ALS_CONTR;
 
   dev->op_mode = mode;
-  sninfo("mode: %x\n", dev->mode);
+  sninfo("mode: %x\n", dev->op_mode);
 
   return ltr303als_i2c_write(dev, buffer, 2);
 }
 
 /****************************************************************************
- * Name: ltr303als_set_resolution
+ * Name: ltr303als_set_range
  ****************************************************************************/
 
 static int ltr303als_set_range(FAR struct ltr303als_dev_s *dev,
@@ -461,7 +458,7 @@ static int ltr303als_set_range(FAR struct ltr303als_dev_s *dev,
   uint8_t buffer[2];
   int ret;
 
-  ret = ltr303als_read_reg(dev, LTR303ALS_CONTR, &buffer[1], 1);
+  ret = ltr303als_read_reg(dev, LTR303ALS_ALS_CONTR, &buffer[1], 1);
   if (ret < 0)
     {
       snerr("ERROR: i2c read reg failed: %d\n", ret);
@@ -476,13 +473,17 @@ static int ltr303als_set_range(FAR struct ltr303als_dev_s *dev,
 
   range_mode &= LTR303ALS_ALS_RANGE_MASK;
   buffer[1] |= range_mode << LTR303ALS_ALS_RANGE_SHIFT;
-  buffer[0] = LTR303ALS_CONTR;
+  buffer[0] = LTR303ALS_ALS_CONTR;
 
   dev->range = ltr303_range[range_mode];
-  sninfo("range: %u\n", dev->range);
+  sninfo("range: %"PRIu32"\n", dev->range);
 
   return ltr303als_i2c_write(dev, buffer, 2);
 }
+
+/****************************************************************************
+ * Name: ltr303als_set_integration_time
+ ****************************************************************************/
 
 static int ltr303als_set_integration_time(FAR struct ltr303als_dev_s *dev,
                                           uint8_t int_time)
@@ -511,6 +512,10 @@ static int ltr303als_set_integration_time(FAR struct ltr303als_dev_s *dev,
 
   return ltr303als_i2c_write(dev, buffer, 2);
 }
+
+/****************************************************************************
+ * Name: ltr303als_set_meas_rate
+ ****************************************************************************/
 
 static int ltr303als_set_meas_rate(FAR struct ltr303als_dev_s *dev,
                                    uint8_t meas_rate)
@@ -546,9 +551,8 @@ static int ltr303als_write_int_thresh(FAR struct ltr303als_dev_s *dev)
   uint8_t buffer[5];
   uint16_t int_up;
   uint16_t int_low;
-  int ret;
 
-  if (cfg->thr_type == LTR303ALS_MEAS_LUX) {
+  if (dev->meas_type == LTR303ALS_MEAS_LUX) {
       int_up = lux_to_raw(dev->range, dev->upper_int_thr);
       int_low = lux_to_raw(dev->range, dev->lower_int_thr);
   } else {
@@ -574,7 +578,7 @@ static void ltr303als_update_int_thresh(FAR struct ltr303als_dev_s *dev,
                                         FAR struct ltr303als_int_cfg_s *cfg)
 {
     dev->lower_int_thr = cfg->lower_int_thresh;
-    dev->upper_int_thr = cfg->lower_int_thresh;
+    dev->upper_int_thr = cfg->upper_int_thresh;
     dev->meas_type = cfg->thr_type;
 }
 
@@ -582,7 +586,6 @@ static int ltr303als_set_int_config(FAR struct ltr303als_dev_s *dev,
                                     bool enable, bool polarity)
 {
     uint8_t buffer[2] = {0};
-    int ret;
 
     buffer[1]  = enable ? 1 << LTR303ALS_INT_MODE_SHIFT : 0;
     buffer[1] |= polarity ? 1 << LTR303ALS_INT_POL_SHIFT : 0;
@@ -597,7 +600,6 @@ static int ltr303als_set_int_persist(FAR struct ltr303als_dev_s *dev,
                                      uint8_t persist)
 {
     uint8_t buffer[2] = {0};
-    int ret;
 
     buffer[1]  = persist & LTR303ALS_INT_PERSIST_MASK;
     buffer[0]  = LTR303ALS_INTERRUPT;
@@ -614,25 +616,24 @@ static int ltr303als_config_interrupt(FAR struct ltr303als_dev_s *dev,
 
   /* Disable interrupt pin while working on configuration */
 
-  ret = ltr303als_set_int_config(priv, false, cfg->int_pol);
+  ret = ltr303als_set_int_config(dev, false, cfg->int_pol);
   if (ret < 0) {
       return ret;
   }
 
-  ltr303als_update_int_thresh(priv, cfg);
+  ltr303als_update_int_thresh(dev, cfg);
 
-  ret = ltr303als_write_int_thresh(priv, cfg->int_lower_thresh,
-                                 cfg->int_upper_thresh);
+  ret = ltr303als_write_int_thresh(dev);
   if (ret < 0) {
       return ret;
   }
 
-  ret = ltr303als_set_int_persist(priv, cfg->persist);
+  ret = ltr303als_set_int_persist(dev, cfg->persist);
   if (ret < 0) {
       return ret;
   }
 
-  ret = ltr303als_set_int_config(priv, cfg->int_en, cfg->int_pol);
+  ret = ltr303als_set_int_config(dev, cfg->int_en, cfg->int_pol);
   return ret;
 }
 /****************************************************************************
@@ -680,7 +681,7 @@ static int ltr303als_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
       case SNIOC_CONFIGURE_INT:
         {
           FAR struct ltr303als_int_cfg_s *cfg;
-          cfg = (ltr303als_int_cfg_s *) arg;
+          cfg = (struct ltr303als_int_cfg_s *) arg;
           ret = ltr303als_config_interrupt(priv, cfg);
         }
         break;
@@ -721,7 +722,7 @@ int ltr303als_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
   priv->op_mode       = LTR303ALS_OP_MODE_POWER_DOWN;
 
   /* Verify that the device is connected by reading ID registers */
-  ret = ltr303als_read_reg(dev, LTR303ALS_PART_ID, buffer, 2);
+  ret = ltr303als_read_reg(priv, LTR303ALS_PART_ID, buffer, 2);
   if (ret < 0)
     {
       snerr("ERROR: Failed to read device identification: %d\n", ret);
@@ -744,7 +745,7 @@ int ltr303als_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
 
   buffer[0] = LTR303ALS_ALS_CONTR;
   buffer[1] = LTR303ALS_ALS_SW_RESET_MASK << LTR303ALS_ALS_SW_RESET_SHIFT;
-  ret = ltr303als_i2c_write(dev, buffer, 2);
+  ret = ltr303als_i2c_write(priv, buffer, 2);
   if (ret < 0)
     {
       snerr("ERROR: Failed to reset LTR303ALS: %d\n", ret);
