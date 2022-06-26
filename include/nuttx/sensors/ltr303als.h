@@ -112,8 +112,8 @@ struct ltr303als_int_cfg_s
 {
   bool int_en;
   bool int_pol; /* true for active high */
-  ltr303als_persist_e persist;
-  ltr303als_meas_type_e thr_type;
+  enum ltr303als_persist_e persist;
+  enum ltr303als_meas_type_e thr_type;
   uint16_t lower_int_thresh;
   uint16_t upper_int_thresh;
 };
@@ -139,7 +139,7 @@ extern "C"
  * Input Parameters:
  *   devpath - The full path to the driver to register. E.g., "/dev/als0"
  *   i2c - An instance of the I2C interface to use to communicate with the ALS
- *   addr - The I2C address of the ALS.  The default for this device is 0x52.
+ *   addr - The I2C address of the ALS.  The default for this device is 0x29.
  *
  * Returned Value:
  *   Zero (OK) on success; a negated errno value on failure.
