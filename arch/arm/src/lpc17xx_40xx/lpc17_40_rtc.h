@@ -86,7 +86,7 @@ int lpc17_40_rtc_irqinitialize(void);
 
 #ifdef CONFIG_RTC_ALARM
 struct tm;
-int lpc17_40_rtc_setalarm(FAR const struct tm *tp, alarmcb_t callback);
+int lpc17_40_rtc_setalarm(const struct timespec *tp, alarmcb_t callback);
 #endif
 
 /****************************************************************************

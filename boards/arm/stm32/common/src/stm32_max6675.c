@@ -27,6 +27,7 @@
 #include <nuttx/sensors/max6675.h>
 #include <nuttx/spi/spi.h>
 #include <stdio.h>
+#include <debug.h>
 #include "stm32_spi.h"
 
 #ifdef CONFIG_SENSORS_MAX6675
@@ -76,7 +77,7 @@
 
 int board_max6675_initialize(int devno, int busno)
 {
-  FAR struct spi_dev_s *spi;
+  struct spi_dev_s *spi;
   char devpath[12];
   int ret;
 

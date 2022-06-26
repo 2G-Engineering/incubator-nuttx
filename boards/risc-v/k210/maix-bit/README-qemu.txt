@@ -21,13 +21,12 @@
 +CONFIG_K210_WITH_QEMU=y
  CONFIG_LIBC_PERROR_STDOUT=y
  CONFIG_LIBC_STRERROR=y
- CONFIG_MAX_TASKS=64
 
 4. Configure and build NuttX
 
   $ mkdir ./nuttx; cd ./nuttx
-  $ git clone https://github.com/apache/incubator-nuttx.git
-  $ git clone https://github.com/apache/incubator-nuttx-apps.git
+  $ git clone https://github.com/apache/incubator-nuttx.git nuttx
+  $ git clone https://github.com/apache/incubator-nuttx-apps.git apps
   $ cd nuttx
   $ make distclean
   $ ./tools/configure.sh maix-bit:nsh

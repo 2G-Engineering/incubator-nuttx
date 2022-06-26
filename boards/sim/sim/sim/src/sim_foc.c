@@ -25,14 +25,13 @@
 #include <nuttx/config.h>
 
 #include <stdio.h>
+#include <assert.h>
 #include <errno.h>
 #include <debug.h>
 
 #include <arch/board/board.h>
 
-#include <nuttx/motor/foc/foc_lower.h>
-
-#include "up_internal.h"
+#include <nuttx/motor/foc/foc_dummy.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -57,7 +56,7 @@
 
 int sim_foc_setup(void)
 {
-  FAR struct foc_dev_s *foc[CONFIG_MOTOR_FOC_INST];
+  struct foc_dev_s *foc[CONFIG_MOTOR_FOC_INST];
   static bool           initialized = false;
   int                   ret         = OK;
   int                   i           = 0;
@@ -75,7 +74,7 @@ int sim_foc_setup(void)
         {
           /* Initialize arch specific FOC lower-half */
 
-          foc[i] = sim_foc_initialize(i);
+          foc[i] = foc_dummy_initialize(i);
           if (foc[i] == NULL)
             {
               ret = -errno;

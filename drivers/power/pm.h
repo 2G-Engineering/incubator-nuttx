@@ -29,37 +29,17 @@
 
 #include <queue.h>
 
-#include <nuttx/semaphore.h>
+#include <nuttx/mutex.h>
 #include <nuttx/clock.h>
 #include <nuttx/power/pm.h>
 #include <nuttx/wdog.h>
+#include <nuttx/wqueue.h>
 
 #ifdef CONFIG_PM
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: pm_lock
- *
- * Description:
- *   Lock the power management registry.  NOTE: This function may return
- *   an error if a signal is received while what (errno == EINTR).
- *
- ****************************************************************************/
-
-#define pm_lock() nxsem_wait(&g_pmglobals.regsem);
-
-/****************************************************************************
- * Name: pm_unlock
- *
- * Description:
- *   Unlock the power management registry.
- *
- ****************************************************************************/
-
-#define pm_unlock() nxsem_post(&g_pmglobals.regsem);
 
 /****************************************************************************
  * Public Types
@@ -78,6 +58,20 @@ struct pm_domain_s
   /* The power state lock count */
 
   uint16_t stay[PM_COUNT];
+
+  /* Auto update or not */
+
+  bool auto_update;
+
+#if defined(CONFIG_SCHED_WORKQUEUE)
+  /* The worker of update callback */
+
+  struct work_s update_work;
+#endif
+
+  /* A pointer to the PM governor instance */
+
+  FAR const struct pm_governor_s *governor;
 };
 
 /* This structure encapsulates all of the global data used by the PM system */
@@ -100,10 +94,6 @@ struct pm_global_s
   /* The state information for each PM domain */
 
   struct pm_domain_s domain[CONFIG_PM_NDOMAINS];
-
-  /* A pointer to the PM governor instance */
-
-  FAR const struct pm_governor_s *governor;
 };
 
 /****************************************************************************
@@ -126,6 +116,26 @@ EXTERN struct pm_global_s g_pmglobals;
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: pm_lock
+ *
+ * Description:
+ *   Lock the power management operation.
+ *
+ ****************************************************************************/
+
+irqstate_t pm_lock(void);
+
+/****************************************************************************
+ * Name: pm_unlock
+ *
+ * Description:
+ *   Unlock the power management operation.
+ *
+ ****************************************************************************/
+
+void pm_unlock(irqstate_t flags);
 
 #undef EXTERN
 #if defined(__cplusplus)

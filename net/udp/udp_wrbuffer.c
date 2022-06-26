@@ -226,19 +226,56 @@ FAR struct udp_wrbuffer_s *udp_wrbuffer_tryalloc(void)
 
 void udp_wrbuffer_release(FAR struct udp_wrbuffer_s *wrb)
 {
-  DEBUGASSERT(wrb && wrb->wb_iob);
+  DEBUGASSERT(wrb);
 
   /* To avoid deadlocks, we must following this ordering:  Release the I/O
    * buffer chain first, then the write buffer structure.
    */
 
-  iob_free_chain(wrb->wb_iob, IOBUSER_NET_UDP_WRITEBUFFER);
+  if (wrb->wb_iob)
+    {
+      iob_free_chain(wrb->wb_iob, IOBUSER_NET_UDP_WRITEBUFFER);
+    }
 
   /* Then free the write buffer structure */
 
   sq_addlast(&wrb->wb_node, &g_wrbuffer.freebuffers);
   nxsem_post(&g_wrbuffer.sem);
 }
+
+/****************************************************************************
+ * Name: udp_wrbuffer_inqueue_size
+ *
+ * Description:
+ *   Get the in-queued write buffer size from connection
+ *
+ * Input Parameters:
+ *   conn - The UDP connection of interest
+ *
+ * Assumptions:
+ *   Called from user logic with the network locked.
+ *
+ ****************************************************************************/
+
+#if CONFIG_NET_SEND_BUFSIZE > 0
+uint32_t udp_wrbuffer_inqueue_size(FAR struct udp_conn_s *conn)
+{
+  FAR struct udp_wrbuffer_s *wrb;
+  FAR sq_entry_t *entry;
+  uint32_t total = 0;
+
+  if (conn)
+    {
+      for (entry = sq_peek(&conn->write_q); entry; entry = sq_next(entry))
+        {
+          wrb = (FAR struct udp_wrbuffer_s *)entry;
+          total += wrb->wb_iob->io_pktlen;
+        }
+    }
+
+  return total;
+}
+#endif /* CONFIG_NET_SEND_BUFSIZE */
 
 /****************************************************************************
  * Name: udp_wrbuffer_test

@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <assert.h>
 #include <errno.h>
 #include <debug.h>
 
@@ -194,10 +195,16 @@ static void st7789_fill(FAR struct st7789_dev_s *dev, uint16_t color);
 
 /* LCD Data Transfer Methods */
 
-static int st7789_putrun(fb_coord_t row, fb_coord_t col,
+static int st7789_putrun(FAR struct lcd_dev_s *dev,
+                         fb_coord_t row, fb_coord_t col,
                          FAR const uint8_t *buffer, size_t npixels);
+static int st7789_putarea(FAR struct lcd_dev_s *dev,
+                          fb_coord_t row_start, fb_coord_t row_end,
+                          fb_coord_t col_start, fb_coord_t col_end,
+                          FAR const uint8_t *buffer);
 #ifndef CONFIG_LCD_NOGETRUN
-static int st7789_getrun(fb_coord_t row, fb_coord_t col,
+static int st7789_getrun(FAR struct lcd_dev_s *dev,
+                         fb_coord_t row, fb_coord_t col,
                          FAR uint8_t *buffer, size_t npixels);
 #endif
 
@@ -296,7 +303,7 @@ static void st7789_deselect(FAR struct spi_dev_s *spi)
 
 static inline void st7789_sendcmd(FAR struct st7789_dev_s *dev, uint8_t cmd)
 {
-  st7789_select(dev->spi, ST7789_BYTESPP * 8);
+  st7789_select(dev->spi, 8);
   SPI_CMDDATA(dev->spi, SPIDEV_DISPLAY(0), true);
   SPI_SEND(dev->spi, cmd);
   SPI_CMDDATA(dev->spi, SPIDEV_DISPLAY(0), false);
@@ -382,17 +389,21 @@ static void st7789_setarea(FAR struct st7789_dev_s *dev,
   /* Set row address */
 
   st7789_sendcmd(dev, ST7789_RASET);
-  st7789_select(dev->spi, 16);
-  SPI_SEND(dev->spi, y0 + ST7789_YOFFSET);
-  SPI_SEND(dev->spi, y1 + ST7789_YOFFSET);
+  st7789_select(dev->spi, 8);
+  SPI_SEND(dev->spi, (y0 + ST7789_YOFFSET) >> 8);
+  SPI_SEND(dev->spi, (y0 + ST7789_YOFFSET) & 0xff);
+  SPI_SEND(dev->spi, (y1 + ST7789_YOFFSET) >> 8);
+  SPI_SEND(dev->spi, (y1 + ST7789_YOFFSET) & 0xff);
   st7789_deselect(dev->spi);
 
   /* Set column address */
 
   st7789_sendcmd(dev, ST7789_CASET);
-  st7789_select(dev->spi, 16);
-  SPI_SEND(dev->spi, x0 + ST7789_XOFFSET);
-  SPI_SEND(dev->spi, x1 + ST7789_XOFFSET);
+  st7789_select(dev->spi, 8);
+  SPI_SEND(dev->spi, (x0 + ST7789_XOFFSET) >> 8);
+  SPI_SEND(dev->spi, (x0 + ST7789_XOFFSET) & 0xff);
+  SPI_SEND(dev->spi, (x1 + ST7789_XOFFSET) >> 8);
+  SPI_SEND(dev->spi, (x1 + ST7789_XOFFSET) & 0xff);
   st7789_deselect(dev->spi);
 }
 
@@ -495,6 +506,7 @@ static void st7789_fill(FAR struct st7789_dev_s *dev, uint16_t color)
  * Description:
  *   This method can be used to write a partial raster line to the LCD:
  *
+ *   dev     - The lcd device
  *   row     - Starting row to write to (range: 0 <= row < yres)
  *   col     - Starting column to write to (range: 0 <= col <= xres-npixels)
  *   buffer  - The buffer containing the run to be written to the LCD
@@ -503,10 +515,11 @@ static void st7789_fill(FAR struct st7789_dev_s *dev, uint16_t color)
  *
  ****************************************************************************/
 
-static int st7789_putrun(fb_coord_t row, fb_coord_t col,
+static int st7789_putrun(FAR struct lcd_dev_s *dev,
+                         fb_coord_t row, fb_coord_t col,
                          FAR const uint8_t *buffer, size_t npixels)
 {
-  FAR struct st7789_dev_s *priv = &g_lcddev;
+  FAR struct st7789_dev_s *priv = (FAR struct st7789_dev_s *)dev;
   FAR const uint16_t *src = (FAR const uint16_t *)buffer;
 
   ginfo("row: %d col: %d npixels: %d\n", row, col, npixels);
@@ -519,11 +532,48 @@ static int st7789_putrun(fb_coord_t row, fb_coord_t col,
 }
 
 /****************************************************************************
+ * Name:  st7789_putarea
+ *
+ * Description:
+ *   This method can be used to write a partial area to the LCD:
+ *
+ *   dev       - The lcd device
+ *   row_start - Starting row to write to (range: 0 <= row < yres)
+ *   row_end   - Ending row to write to (range: row_start <= row < yres)
+ *   col_start - Starting column to write to (range: 0 <= col <= xres)
+ *   col_end   - Ending column to write to
+ *               (range: col_start <= col_end < xres)
+ *   buffer    - The buffer containing the area to be written to the LCD
+ *
+ ****************************************************************************/
+
+static int st7789_putarea(FAR struct lcd_dev_s *dev,
+                          fb_coord_t row_start, fb_coord_t row_end,
+                          fb_coord_t col_start, fb_coord_t col_end,
+                          FAR const uint8_t *buffer)
+{
+  FAR struct st7789_dev_s *priv = (FAR struct st7789_dev_s *)dev;
+  FAR const uint16_t *src = (FAR const uint16_t *)buffer;
+
+  ginfo("row_start: %d row_end: %d col_start: %d col_end: %d\n",
+         row_start, row_end, col_start, col_end);
+
+  DEBUGASSERT(buffer && ((uintptr_t)buffer & 1) == 0);
+
+  st7789_setarea(priv, col_start, row_start, col_end, row_end);
+  st7789_wrram(priv, src,
+               (row_end - row_start + 1) * (col_end - col_start + 1));
+
+  return OK;
+}
+
+/****************************************************************************
  * Name:  st7789_getrun
  *
  * Description:
  *   This method can be used to read a partial raster line from the LCD:
  *
+ *  dev     - The lcd device
  *  row     - Starting row to read from (range: 0 <= row < yres)
  *  col     - Starting column to read read (range: 0 <= col <= xres-npixels)
  *  buffer  - The buffer in which to return the run read from the LCD
@@ -533,10 +583,11 @@ static int st7789_putrun(fb_coord_t row, fb_coord_t col,
  ****************************************************************************/
 
 #ifndef CONFIG_LCD_NOGETRUN
-static int st7789_getrun(fb_coord_t row, fb_coord_t col, FAR uint8_t *buffer,
-                         size_t npixels)
+static int st7789_getrun(FAR struct lcd_dev_s *dev,
+                         fb_coord_t row, fb_coord_t col,
+                         FAR uint8_t *buffer, size_t npixels)
 {
-  FAR struct st7789_dev_s *priv = &g_lcddev;
+  FAR struct st7789_dev_s *priv = (FAR struct st7789_dev_s *)dev;
   FAR uint16_t *dest = (FAR uint16_t *)buffer;
 
   ginfo("row: %d col: %d npixels: %d\n", row, col, npixels);
@@ -589,6 +640,7 @@ static int st7789_getplaneinfo(FAR struct lcd_dev_s *dev,
   lcdinfo("planeno: %d bpp: %d\n", planeno, ST7789_BPP);
 
   pinfo->putrun = st7789_putrun;                  /* Put a run into LCD memory */
+  pinfo->putarea = st7789_putarea;                /* Put an area into LCD */
 #ifndef CONFIG_LCD_NOGETRUN
   pinfo->getrun = st7789_getrun;                  /* Get a run from LCD memory */
 #endif

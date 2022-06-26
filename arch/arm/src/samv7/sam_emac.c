@@ -36,6 +36,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <string.h>
+#include <assert.h>
 #include <debug.h>
 #include <queue.h>
 #include <errno.h>
@@ -58,9 +59,7 @@
 
 #include <arch/samv7/chip.h>
 
-#include "arm_arch.h"
 #include "arm_internal.h"
-
 #include "hardware/sam_pinmap.h"
 #include "hardware/sam_chipid.h"
 #include "sam_gpio.h"
@@ -389,12 +388,6 @@
 
 /* Timing *******************************************************************/
 
-/* TX poll delay = 1 seconds.
- * CLK_TCK is the number of clock ticks per second
- */
-
-#define SAM_WDDELAY         (1*CLK_TCK)
-
 /* TX timeout = 1 minute */
 
 #define SAM_TXTIMEOUT       (60*CLK_TCK)
@@ -506,7 +499,6 @@ struct sam_queue_s
 struct sam_emac_s
 {
   uint8_t               ifup    : 1; /* true:ifup false:ifdown */
-  struct wdog_s         txpoll;      /* TX poll timer */
   struct wdog_s         txtimeout;   /* TX timeout timer */
   struct work_s         irqwork;     /* For deferring work to the work queue */
   struct work_s         pollwork;    /* For deferring work to the work queue */
@@ -573,25 +565,22 @@ static void sam_dopoll(struct sam_emac_s *priv, int qid);
 static int  sam_recvframe(struct sam_emac_s *priv, int qid);
 static void sam_receive(struct sam_emac_s *priv, int qid);
 static void sam_txdone(struct sam_emac_s *priv, int qid);
-static void sam_txerr_interrupt(FAR struct sam_emac_s *priv, int qid);
+static void sam_txerr_interrupt(struct sam_emac_s *priv, int qid);
 
-static void sam_interrupt_work(FAR void *arg);
-static int  sam_emac_interrupt(int irq, void *context, FAR void *arg);
+static void sam_interrupt_work(void *arg);
+static int  sam_emac_interrupt(int irq, void *context, void *arg);
 
 /* Watchdog timer expirations */
 
-static void sam_txtimeout_work(FAR void *arg);
+static void sam_txtimeout_work(void *arg);
 static void sam_txtimeout_expiry(wdparm_t arg);
-
-static void sam_poll_work(FAR void *arg);
-static void sam_poll_expiry(wdparm_t arg);
 
 /* NuttX callback functions */
 
 static int  sam_ifup(struct net_driver_s *dev);
 static int  sam_ifdown(struct net_driver_s *dev);
 
-static void sam_txavail_work(FAR void *arg);
+static void sam_txavail_work(void *arg);
 static int  sam_txavail(struct net_driver_s *dev);
 
 #if defined(CONFIG_NET_MCASTGROUP) || defined(CONFIG_NET_ICMPv6)
@@ -664,26 +653,26 @@ static int  sam_emac_configure(struct sam_emac_s *priv);
 /* EMAC0 TX descriptors list */
 
 static struct emac_txdesc_s g_emac0_tx0desc[CONFIG_SAMV7_EMAC0_NTXBUFFERS]
-              __attribute__((aligned(EMAC_ALIGN)));
+              aligned_data(EMAC_ALIGN);
 
 #if EMAC0_TX_DPADSIZE > 0
 static uint8_t g_emac0_txdpad[EMAC0_TX_DPADSIZE] __atrribute__((used));
 #endif
 
 static struct emac_txdesc_s g_emac0_tx1desc[DUMMY_NBUFFERS]
-              __attribute__((aligned(EMAC_ALIGN)));
+              aligned_data(EMAC_ALIGN);
 
 /* EMAC0 RX descriptors list */
 
 static struct emac_rxdesc_s g_emac0_rx0desc[CONFIG_SAMV7_EMAC0_NRXBUFFERS]
-              __attribute__((aligned(EMAC_ALIGN)));
+              aligned_data(EMAC_ALIGN);
 
 #if EMAC0_RX_DPADSIZE > 0
 static uint8_t g_emac0_rxdpad[EMAC0_RX_DPADSIZE] __atrribute__((used));
 #endif
 
 static struct emac_rxdesc_s g_emac0_rx1desc[DUMMY_NBUFFERS]
-              __attribute__((aligned(EMAC_ALIGN)));
+              aligned_data(EMAC_ALIGN);
 
 /* EMAC0 Transmit Buffers
  *
@@ -693,15 +682,15 @@ static struct emac_rxdesc_s g_emac0_rx1desc[DUMMY_NBUFFERS]
  */
 
 static uint8_t g_emac0_tx0buffer[EMAC0_TX_BUFSIZE]
-               __attribute__((aligned(EMAC_ALIGN)));
+               aligned_data(EMAC_ALIGN);
 
 static uint8_t g_emac0_tx1buffer[DUMMY_NBUFFERS * DUMMY_BUFSIZE]
-               __attribute__((aligned(EMAC_ALIGN)));
+               aligned_data(EMAC_ALIGN);
 
 /* EMAC0 Receive Buffers */
 
 static uint8_t g_emac0_rx0buffer[EMAC0_RX_BUFSIZE]
-               __attribute__((aligned(EMAC_ALIGN)));
+               aligned_data(EMAC_ALIGN);
 
 #endif
 
@@ -709,26 +698,26 @@ static uint8_t g_emac0_rx0buffer[EMAC0_RX_BUFSIZE]
 /* EMAC1 TX descriptors list */
 
 static struct emac_txdesc_s g_emac1_tx1desc[CONFIG_SAMV7_EMAC1_NTXBUFFERS]
-              __attribute__((aligned(EMAC_ALIGN)));
+              aligned_data(EMAC_ALIGN);
 
 #if EMAC1_TX_DPADSIZE > 0
 static uint8_t g_emac1_txdpad[EMAC1_TX_DPADSIZE] __atrribute__((used));
 #endif
 
 static struct emac_txdesc_s g_emac1_tx1desc[DUMMY_NBUFFERS]
-              __attribute__((aligned(EMAC_ALIGN)));
+              aligned_data(EMAC_ALIGN);
 
 /* EMAC1 RX descriptors list */
 
 static struct emac_rxdesc_s g_emac1_rx1desc[CONFIG_SAMV7_EMAC1_NRXBUFFERS]
-              __attribute__((aligned(EMAC_ALIGN)));
+              aligned_data(EMAC_ALIGN);
 
 #if EMAC1_RX_DPADSIZE > 0
 static uint8_t g_emac1_rxdpad[EMAC1_RX_DPADSIZE] __atrribute__((used));
 #endif
 
 static struct emac_rxdesc_s g_emac1_rx1desc[DUMMY_NBUFFERS]
-              __attribute__((aligned(EMAC_ALIGN)));
+              aligned_data(EMAC_ALIGN);
 
 /* EMAC1 Transmit Buffers
  *
@@ -738,18 +727,18 @@ static struct emac_rxdesc_s g_emac1_rx1desc[DUMMY_NBUFFERS]
  */
 
 static uint8_t g_emac1_tx1buffer[EMAC1_TX_BUFSIZE]
-               __attribute__((aligned(EMAC_ALIGN)));
+               aligned_data(EMAC_ALIGN);
 
 static uint8_t g_emac1_tx1buffer[DUMMY_NBUFFERS * DUMMY_BUFSIZE]
-               __attribute__((aligned(EMAC_ALIGN)));
+               aligned_data(EMAC_ALIGN);
 
 /* EMAC1 Receive Buffers */
 
 static uint8_t g_emac1_rxbuffer[EMAC1_RX_BUFSIZE]
-               __attribute__((aligned(EMAC_ALIGN)));
+               aligned_data(EMAC_ALIGN);
 
 static uint8_t g_emac1_rx1buffer[DUMMY_NBUFFERS * DUMMY_BUFSIZE]
-               __attribute__((aligned(EMAC_ALIGN)));
+               aligned_data(EMAC_ALIGN);
 
 #endif
 #endif
@@ -1594,7 +1583,7 @@ static void sam_dopoll(struct sam_emac_s *priv, int qid)
        * then poll the network for new XMIT data.
        */
 
-      devif_timer(dev, 0, sam_txpoll);
+      devif_poll(dev, sam_txpoll);
     }
 }
 
@@ -2012,7 +2001,7 @@ static void sam_receive(struct sam_emac_s *priv, int qid)
       else
 #endif
 #ifdef CONFIG_NET_ARP
-      if (BUF->type == htons(ETHTYPE_ARP))
+      if (BUF->type == HTONS(ETHTYPE_ARP))
         {
           ninfo("ARP frame\n");
           NETDEV_RXARP(&priv->dev);
@@ -2157,7 +2146,7 @@ static void sam_txdone(struct sam_emac_s *priv, int qid)
  *
  ****************************************************************************/
 
-static void sam_txerr_interrupt(FAR struct sam_emac_s *priv, int qid)
+static void sam_txerr_interrupt(struct sam_emac_s *priv, int qid)
 {
   struct emac_txdesc_s *txdesc;
   struct sam_queue_s *xfrq;
@@ -2284,9 +2273,9 @@ static void sam_txerr_interrupt(FAR struct sam_emac_s *priv, int qid)
  *
  ****************************************************************************/
 
-static void sam_interrupt_work(FAR void *arg)
+static void sam_interrupt_work(void *arg)
 {
-  FAR struct sam_emac_s *priv = (FAR struct sam_emac_s *)arg;
+  struct sam_emac_s *priv = (struct sam_emac_s *)arg;
   uint32_t isr;
   uint32_t rsr;
   uint32_t tsr;
@@ -2485,7 +2474,7 @@ static void sam_interrupt_work(FAR void *arg)
  *
  ****************************************************************************/
 
-static int sam_emac_interrupt(int irq, void *context, FAR void *arg)
+static int sam_emac_interrupt(int irq, void *context, void *arg)
 {
   struct sam_emac_s *priv = (struct sam_emac_s *)arg;
   uint32_t tsr;
@@ -2541,9 +2530,9 @@ static int sam_emac_interrupt(int irq, void *context, FAR void *arg)
  *
  ****************************************************************************/
 
-static void sam_txtimeout_work(FAR void *arg)
+static void sam_txtimeout_work(void *arg)
 {
-  FAR struct sam_emac_s *priv = (FAR struct sam_emac_s *)arg;
+  struct sam_emac_s *priv = (struct sam_emac_s *)arg;
 
   nerr("ERROR: Timeout!\n");
 
@@ -2581,7 +2570,7 @@ static void sam_txtimeout_work(FAR void *arg)
 
 static void sam_txtimeout_expiry(wdparm_t arg)
 {
-  FAR struct sam_emac_s *priv = (FAR struct sam_emac_s *)arg;
+  struct sam_emac_s *priv = (struct sam_emac_s *)arg;
 
   /* Disable further Ethernet interrupts.  This will prevent some race
    * conditions with interrupt work.  There is still a potential race
@@ -2593,72 +2582,6 @@ static void sam_txtimeout_expiry(wdparm_t arg)
   /* Schedule to perform the TX timeout processing on the worker thread. */
 
   work_queue(ETHWORK, &priv->irqwork, sam_txtimeout_work, priv, 0);
-}
-
-/****************************************************************************
- * Function: sam_poll_work
- *
- * Description:
- *   Perform periodic polling from the worker thread
- *
- * Input Parameters:
- *   arg - The argument passed when work_queue() as called.
- *
- * Returned Value:
- *   OK on success
- *
- * Assumptions:
- *   Ethernet interrupts are disabled
- *
- ****************************************************************************/
-
-static void sam_poll_work(FAR void *arg)
-{
-  FAR struct sam_emac_s *priv = (FAR struct sam_emac_s *)arg;
-  struct net_driver_s *dev  = &priv->dev;
-
-  /* Check if there are any free TX descriptors.  We cannot perform the
-   * TX poll if we do not have buffering for another packet.
-   */
-
-  net_lock();
-  if (sam_txfree(priv, EMAC_QUEUE_0) > 0)
-    {
-      /* Update TCP timing states and poll the network for new XMIT data. */
-
-      devif_timer(dev, SAM_WDDELAY, sam_txpoll);
-    }
-
-  /* Setup the watchdog poll timer again */
-
-  wd_start(&priv->txpoll, SAM_WDDELAY, sam_poll_expiry, (wdparm_t)priv);
-  net_unlock();
-}
-
-/****************************************************************************
- * Function: sam_poll_expiry
- *
- * Description:
- *   Periodic timer handler.  Called from the timer interrupt handler.
- *
- * Input Parameters:
- *   arg  - The argument
- *
- * Returned Value:
- *   None
- *
- * Assumptions:
- *   Global interrupts are disabled by the watchdog logic.
- *
- ****************************************************************************/
-
-static void sam_poll_expiry(wdparm_t arg)
-{
-  FAR struct sam_emac_s *priv = (FAR struct sam_emac_s *)arg;
-
-  /* Schedule to perform the interrupt processing on the worker thread. */
-
-  work_queue(ETHWORK, &priv->pollwork, sam_poll_work, priv, 0);
 }
 
 /****************************************************************************
@@ -2742,15 +2665,11 @@ static int sam_ifup(struct net_driver_s *dev)
     }
 
   while (sam_linkup(priv) == 0);
-  ninfo("Link detected \n");
+  ninfo("Link detected\n");
 
   /* Enable normal MAC operation */
 
   ninfo("Enable normal operation\n");
-
-  /* Set and activate a timer process */
-
-  wd_start(&priv->txpoll, SAM_WDDELAY, sam_poll_expiry, (wdparm_t)priv);
 
   /* Enable the EMAC interrupt */
 
@@ -2787,9 +2706,8 @@ static int sam_ifdown(struct net_driver_s *dev)
   flags = enter_critical_section();
   up_disable_irq(priv->attr->irq);
 
-  /* Cancel the TX poll timer and TX timeout timers */
+  /* Cancel the TX timeout timers */
 
-  wd_cancel(&priv->txpoll);
   wd_cancel(&priv->txtimeout);
 
   /* Put the EMAC in its reset, non-operational state.  This should be
@@ -2823,9 +2741,9 @@ static int sam_ifdown(struct net_driver_s *dev)
  *
  ****************************************************************************/
 
-static void sam_txavail_work(FAR void *arg)
+static void sam_txavail_work(void *arg)
 {
-  FAR struct sam_emac_s *priv = (FAR struct sam_emac_s *)arg;
+  struct sam_emac_s *priv = (struct sam_emac_s *)arg;
 
   ninfo("ifup: %d\n", priv->ifup);
 
@@ -2863,7 +2781,7 @@ static void sam_txavail_work(FAR void *arg)
 
 static int sam_txavail(struct net_driver_s *dev)
 {
-  FAR struct sam_emac_s *priv = (FAR struct sam_emac_s *)dev->d_private;
+  struct sam_emac_s *priv = (struct sam_emac_s *)dev->d_private;
 
   /* Is our single work structure available?  It may not be if there are
    * pending interrupt actions and we will have to ignore the Tx

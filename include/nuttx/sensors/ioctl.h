@@ -285,8 +285,12 @@
 #define SNIOC_SET_BUFFER_NUMBER    _SNIOC(0x0084)
 
 /* IOCTL commands unique to the LTR303ALS */
+/* IOCTL commands unique to the Hall effect sensor */
 
+
+#define SNIOC_GET_POSITION         _SNIOC(0x0085)
 /* SNIOC_SET_OPERATIONAL_MODE */                   /* Arg: LTR303ALS_OP_MODE_xxx */
+
 
 /* SNIOC_SET_RANGE */                              /* Arg: LTR303ALS_ALS_RANGE_xxx */
 
@@ -295,5 +299,24 @@
 #define SNIOC_SET_MEAS_RATE        _SNIOC(0x0086)  /* Arg: LTR303ALS_ALS_MEAS_RATE_xxx */
 
 #define SNIOC_CONFIGURE_INT        _SNIOC(0x0087)  /* Arg: struct ltr303als_int_cfg_s* */
+
+/* Command:      SNIOC_SELFTEST
+ * Description:  Take a selftest for sensor.
+ * Argument:     A argument of selftest for sensor.
+ * Note:         If selftest is failed, return errno, otherwise, return OK.
+ *               This cmd is handled by sensor_ops_s::selftest.
+ */
+
+#define SNIOC_SELFTEST             _SNIOC(0x0086)
+
+/* Command:      SNIOC_SET_CALIBVALUE
+ * Description:  Set calibration value for sensor.
+ * Argument:     Calibration value for the sensor.
+ * Note:         If setting calibvalue failed, a negated errno value is
+ *               returned, otherwise, OK is returned.
+ *               This cmd is handled by sensor_ops_s::set_calibvalue.
+ */
+
+#define SNIOC_SET_CALIBVALUE       _SNIOC(0x0087)
 
 #endif /* __INCLUDE_NUTTX_SENSORS_IOCTL_H */

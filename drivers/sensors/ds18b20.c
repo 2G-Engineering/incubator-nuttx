@@ -25,6 +25,7 @@
 
 #include <nuttx/config.h>
 
+#include <assert.h>
 #include <errno.h>
 #include <debug.h>
 #include <stdio.h>
@@ -157,7 +158,7 @@ struct ds18b20_dev_s
 /* Sensor functions */
 
 static int ds18b20_active(FAR struct sensor_lowerhalf_s *lower,
-                          unsigned char enabled);
+                          bool enabled);
 
 static int ds18b20_fetch(FAR struct sensor_lowerhalf_s *lower,
                          FAR char *buffer, size_t buflen);
@@ -548,12 +549,8 @@ static int ds18b20_set_alarm(FAR struct ds18b20_dev_s *dev,
 static unsigned long ds18b20_curtime(void)
 {
   struct timespec ts;
-#ifdef CONFIG_CLOCK_MONOTONIC
-  clock_gettime(CLOCK_MONOTONIC, &ts);
-#else
-  clock_gettime(CLOCK_REALTIME, &ts);
-#endif
 
+  clock_systime_timespec(&ts);
   return 1000000ull * ts.tv_sec + ts.tv_nsec / 1000;
 }
 
@@ -743,7 +740,7 @@ static int ds18b20_control(FAR struct sensor_lowerhalf_s *lower,
  ****************************************************************************/
 
 static int ds18b20_active(FAR struct sensor_lowerhalf_s *lower,
-                         unsigned char enabled)
+                          bool enabled)
 {
 #ifdef CONFIG_SENSORS_DS18B20_POLL
   bool start_thread = false;

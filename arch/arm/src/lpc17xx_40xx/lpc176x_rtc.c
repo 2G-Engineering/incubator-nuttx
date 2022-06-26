@@ -33,9 +33,7 @@
 
 #include <arch/board/board.h>
 
-#include "arm_arch.h"
 #include "arm_internal.h"
-
 #include "chip.h"
 #include "hardware/lpc17_40_syscon.h"
 
@@ -96,7 +94,7 @@ volatile bool g_rtc_enabled = false;
  ****************************************************************************/
 
 #ifdef CONFIG_DEBUG_RTC_INFO
-static void rtc_dumpregs(FAR const char *msg)
+static void rtc_dumpregs(const char *msg)
 {
   rtcinfo("%s:\n", msg);
   rtcinfo("   SEC : %08x\n\n", (getreg32(LPC17_40_RTC_SEC) & RTC_SEC_MASK));
@@ -135,7 +133,7 @@ static void rtc_dumpregs(FAR const char *msg)
  ****************************************************************************/
 
 #ifdef CONFIG_DEBUG_RTC_INFO
-static void rtc_dumptime(FAR const struct tm *tp, FAR const char *msg)
+static void rtc_dumptime(struct tm *tp, const char *msg)
 {
   rtcinfo("%s:\n", msg);
   rtcinfo("  tm_sec: %08x\n", tp->tm_sec);
@@ -181,31 +179,7 @@ static int rtc_setup(void)
 }
 
 /****************************************************************************
- * Name: rtc_resume
- *
- * Description:
- *   Called when the RTC was already initialized on a previous power cycle.
- *   This just brings the RTC back into full operation.
- *
- * Input Parameters:
- *   None
- *
- * Returned Value:
- *   Zero (OK) on success; a negated errno on failure
- *
- ****************************************************************************/
-
-static int rtc_resume(void)
-{
-  /* Clear the RTC alarm flags */
-
-#ifdef CONFIG_RTC_ALARM
     putreg32(RTC_AMR_MASK, LPC17_40_RTC_AMR);
-#endif
-  return OK;
-}
-
-/****************************************************************************
  * Name: rtc_interrupt
  *
  * Description:
@@ -221,7 +195,7 @@ static int rtc_resume(void)
  ****************************************************************************/
 
 #ifdef CONFIG_RTC_ALARM
-static int rtc_interrupt(int irq, void *context, FAR void *arg)
+static int rtc_interrupt(int irq, void *context, void *arg)
 {
   uint32_t status = getreg32(LPC17_40_RTC_ILR);
 
@@ -318,7 +292,7 @@ int lpc17_40_rtc_irqinitialize(void)
     }
 #endif /* CONFIG_RTC_ALARM */
 
-  return OK;
+  return ret;
 }
 
 /****************************************************************************
@@ -344,7 +318,7 @@ int lpc17_40_rtc_irqinitialize(void)
  *
  ****************************************************************************/
 
-int up_rtc_getdatetime(FAR struct tm *tp)
+int up_rtc_getdatetime(struct tm *tp)
 {
   uint32_t seconds = 0xFF;
 
@@ -393,9 +367,9 @@ int up_rtc_getdatetime(FAR struct tm *tp)
  *
  ****************************************************************************/
 
-int up_rtc_settime(FAR const struct timespec *tp)
+int up_rtc_settime(const struct timespec *tp)
 {
-  FAR struct tm newtime;
+  struct tm newtime;
 
   /* Break out the time values
    * (note that the time is set only to units of seconds)

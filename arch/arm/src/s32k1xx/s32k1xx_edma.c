@@ -51,14 +51,15 @@
 #include <stdbool.h>
 #include <string.h>
 #include <queue.h>
+#include <assert.h>
 #include <debug.h>
 #include <errno.h>
 
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/semaphore.h>
 
-#include "arm_arch.h"
 #include "arm_internal.h"
 #include "sched/sched.h"
 
@@ -169,7 +170,7 @@ static sq_queue_t g_tcd_free;
 /* This is a pool of pre-allocated TCDs */
 
 static struct s32k1xx_edmatcd_s g_tcd_pool[CONFIG_S32K1XX_EDMA_NTCD]
-              __attribute__((aligned(EDMA_ALIGN)));
+              aligned_data(EDMA_ALIGN);
 #endif
 
 /****************************************************************************
@@ -551,7 +552,7 @@ static void s32k1xx_dmaterminate(struct s32k1xx_dmach_s *dmach, int result)
  *
  ****************************************************************************/
 
-static int s32k1xx_edma_interrupt(int irq, void *context, FAR void *arg)
+static int s32k1xx_edma_interrupt(int irq, void *context, void *arg)
 {
   struct s32k1xx_dmach_s *dmach;
   uintptr_t regaddr;
@@ -634,7 +635,7 @@ static int s32k1xx_edma_interrupt(int irq, void *context, FAR void *arg)
  *
  ****************************************************************************/
 
-static int s32k1xx_error_interrupt(int irq, void *context, FAR void *arg)
+static int s32k1xx_error_interrupt(int irq, void *context, void *arg)
 {
   uint32_t errstatus;
   uint32_t errmask;

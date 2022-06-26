@@ -46,7 +46,6 @@
 #include <nuttx/arch.h>
 
 #include "up_internal.h"
-#include "up_arch.h"
 
 #include <arch/spr.h>
 
@@ -75,12 +74,21 @@ void up_initial_state(struct tcb_s *tcb)
 
   /* Initialize the idle thread stack */
 
-  if (tcb->pid == 0)
+  if (tcb->pid == IDLE_PROCESS_ID)
     {
       tcb->stack_alloc_ptr = (void *)(g_idle_topstack -
                                       CONFIG_IDLETHREAD_STACKSIZE);
-      tcb->stack_base_ptr   = tcb->stack_alloc_ptr;
+      tcb->stack_base_ptr  = tcb->stack_alloc_ptr;
       tcb->adj_stack_size  = CONFIG_IDLETHREAD_STACKSIZE;
+
+#ifdef CONFIG_STACK_COLORATION
+      /* If stack debug is enabled, then fill the stack with a
+       * recognizable value that we can use later to test for high
+       * water marks.
+       */
+
+      up_stack_color(tcb->stack_alloc_ptr, 0);
+#endif /* CONFIG_STACK_COLORATION */
     }
 
   /* Initialize the initial exception register context structure */

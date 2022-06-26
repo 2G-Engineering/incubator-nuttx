@@ -53,16 +53,18 @@
  *   buf   - Local to store the received data
  *   len   - Length of data to receive [in]
  *           Length of data actually received [out]
+ *           Zero means *len[in] is zero,
+ *           or the sending side has closed the FIFO
+ *   once  - Flag to indicate the buf may only be read once
  *
  * Returned Value:
  *   Zero is returned on success; a negated errno value is returned on any
- *   failure.  If -ECONNRESET is received, then the sending side has closed
- *   the FIFO. In this case, the returned data may still be valid (if the
- *   returned len > 0).
+ *   failure.
  *
  ****************************************************************************/
 
-int local_fifo_read(FAR struct file *filep, FAR uint8_t *buf, size_t *len)
+int local_fifo_read(FAR struct file *filep, FAR uint8_t *buf,
+                    size_t *len, bool once)
 {
   ssize_t remaining;
   ssize_t nread;
@@ -91,14 +93,18 @@ int local_fifo_read(FAR struct file *filep, FAR uint8_t *buf, size_t *len)
            * has closed the FIFO.
            */
 
-          ret = -ECONNRESET;
-          goto errout;
+            break;
         }
       else
         {
           DEBUGASSERT(nread <= remaining);
           remaining -= nread;
           buf       += nread;
+
+          if (once)
+            {
+              break;
+            }
         }
     }
 
@@ -142,7 +148,7 @@ int local_sync(FAR struct file *filep)
       do
         {
           readlen = sizeof(uint8_t);
-          ret     = local_fifo_read(filep, &sync, &readlen);
+          ret     = local_fifo_read(filep, &sync, &readlen, false);
           if (ret < 0)
             {
               nerr("ERROR: Failed to read sync bytes: %d\n", ret);
@@ -156,7 +162,7 @@ int local_sync(FAR struct file *filep)
       do
         {
           readlen = sizeof(uint8_t);
-          ret     = local_fifo_read(filep, &sync, &readlen);
+          ret     = local_fifo_read(filep, &sync, &readlen, false);
           if (ret < 0)
             {
               nerr("ERROR: Failed to read sync bytes: %d\n", ret);
@@ -170,7 +176,7 @@ int local_sync(FAR struct file *filep)
   /* Then read the packet length */
 
   readlen = sizeof(uint16_t);
-  ret     = local_fifo_read(filep, (FAR uint8_t *)&pktlen, &readlen);
+  ret     = local_fifo_read(filep, (FAR uint8_t *)&pktlen, &readlen, false);
   return ret < 0 ? ret : pktlen;
 }
 

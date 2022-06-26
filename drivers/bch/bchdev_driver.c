@@ -223,7 +223,7 @@ static off_t bch_seek(FAR struct file *filep, off_t offset, int whence)
   FAR struct inode *inode = filep->f_inode;
   FAR struct bchlib_s *bch;
   off_t newpos;
-  int ret;
+  off_t ret;
 
   DEBUGASSERT(inode && inode->i_private);
 
@@ -231,7 +231,7 @@ static off_t bch_seek(FAR struct file *filep, off_t offset, int whence)
   ret = bchlib_semtake(bch);
   if (ret < 0)
     {
-      return (off_t)ret;
+      return ret;
     }
 
   /* Determine the new, requested file position */
@@ -419,6 +419,14 @@ static int bch_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
               ferr("ERROR: geometry failed: %d\n", -ret);
               ret = -ENODEV;
             }
+        }
+        break;
+
+      case BIOC_FLUSH:
+        {
+          /* Flush any dirty pages remaining in the cache */
+
+          ret = bchlib_flushsector(bch);
         }
         break;
 

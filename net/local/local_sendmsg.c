@@ -32,6 +32,7 @@
 #include <assert.h>
 #include <debug.h>
 
+#include <nuttx/kmalloc.h>
 #include <nuttx/net/net.h>
 
 #include "socket/socket.h"
@@ -40,6 +41,105 @@
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: local_sendctl
+ *
+ * Description:
+ *   Handle the socket message conntrol field
+ *
+ * Input Parameters:
+ *   conn     Local connection instance
+ *   msg      Message to send
+ *
+ * Returned Value:
+ *  On any failure, a negated errno value is returned
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_LOCAL_SCM
+static int local_sendctl(FAR struct local_conn_s *conn,
+                         FAR struct msghdr *msg)
+{
+  FAR struct local_conn_s *peer;
+  FAR struct file *filep2;
+  FAR struct file *filep;
+  struct cmsghdr *cmsg;
+  int count;
+  int *fds;
+  int ret;
+  int i;
+
+  net_lock();
+
+  peer = conn->lc_peer;
+  if (peer == NULL)
+    {
+      peer = conn;
+    }
+
+  for_each_cmsghdr(cmsg, msg)
+    {
+      if (!CMSG_OK(msg, cmsg) ||
+          cmsg->cmsg_level != SOL_SOCKET ||
+          cmsg->cmsg_type != SCM_RIGHTS)
+        {
+          ret = -EOPNOTSUPP;
+          goto fail;
+        }
+
+      fds = (int *)CMSG_DATA(cmsg);
+      count = (cmsg->cmsg_len - sizeof(struct cmsghdr)) / sizeof(int);
+
+      if (count + peer->lc_cfpcount > LOCAL_NCONTROLFDS)
+        {
+          ret = -EMFILE;
+          goto fail;
+        }
+
+      for (i = 0; i < count; i++)
+        {
+          ret = fs_getfilep(fds[i], &filep);
+          if (ret < 0)
+            {
+              goto fail;
+            }
+
+          filep2 = (FAR struct file *)kmm_zalloc(sizeof(*filep2));
+          if (!filep2)
+            {
+              ret = -ENOMEM;
+              goto fail;
+            }
+
+          ret = file_dup2(filep, filep2);
+          if (ret < 0)
+            {
+              kmm_free(filep2);
+              goto fail;
+            }
+
+          peer->lc_cfps[peer->lc_cfpcount++] = filep2;
+        }
+    }
+
+  net_unlock();
+
+  return count;
+
+fail:
+  while (i-- > 0)
+    {
+      file_close(peer->lc_cfps[--peer->lc_cfpcount]);
+      kmm_free(peer->lc_cfps[peer->lc_cfpcount]);
+      peer->lc_cfps[peer->lc_cfpcount] = NULL;
+    }
+
+  net_unlock();
+
+  return ret;
+}
+#endif /* CONFIG_NET_LOCAL_SCM */
 
 /****************************************************************************
  * Name: local_send
@@ -85,13 +185,18 @@ static ssize_t local_send(FAR struct socket *psock,
           if (peer->lc_state != LOCAL_STATE_CONNECTED ||
               peer->lc_outfile.f_inode == NULL)
             {
+              if (peer->lc_state == LOCAL_STATE_CONNECTING)
+                {
+                  return -EAGAIN;
+                }
+
               nerr("ERROR: not connected\n");
               return -ENOTCONN;
             }
 
           /* Send the packet */
 
-          ret = local_send_packet(&peer->lc_outfile, buf, len);
+          ret = local_send_packet(&peer->lc_outfile, buf, len, false);
         }
         break;
 #endif /* CONFIG_NET_LOCAL_STREAM */
@@ -156,8 +261,7 @@ static ssize_t local_sendto(FAR struct socket *psock,
 #ifdef CONFIG_NET_LOCAL_DGRAM
   FAR struct local_conn_s *conn = (FAR struct local_conn_s *)psock->s_conn;
   FAR struct sockaddr_un *unaddr = (FAR struct sockaddr_un *)to;
-  ssize_t nsent;
-  int ret;
+  ssize_t ret;
 
   /* Verify that a valid address has been provided */
 
@@ -212,7 +316,7 @@ static ssize_t local_sendto(FAR struct socket *psock,
   ret = local_create_halfduplex(conn, unaddr->sun_path);
   if (ret < 0)
     {
-      nerr("ERROR: Failed to create FIFO for %s: %d\n",
+      nerr("ERROR: Failed to create FIFO for %s: %zd\n",
            conn->lc_path, ret);
       return ret;
     }
@@ -220,29 +324,22 @@ static ssize_t local_sendto(FAR struct socket *psock,
   /* Open the sending side of the transfer */
 
   ret = local_open_sender(conn, unaddr->sun_path,
-                          _SS_ISNONBLOCK(psock->s_flags) ||
+                          _SS_ISNONBLOCK(conn->lc_conn.s_flags) ||
                           (flags & MSG_DONTWAIT) != 0);
   if (ret < 0)
     {
-      nerr("ERROR: Failed to open FIFO for %s: %d\n",
+      nerr("ERROR: Failed to open FIFO for %s: %zd\n",
            unaddr->sun_path, ret);
 
-      nsent = ret;
       goto errout_with_halfduplex;
     }
 
   /* Send the packet */
 
-  nsent = local_send_packet(&conn->lc_outfile, buf, len);
-  if (nsent < 0)
+  ret = local_send_packet(&conn->lc_outfile, buf, len, true);
+  if (ret < 0)
     {
-      nerr("ERROR: Failed to send the packet: %d\n", ret);
-    }
-  else
-    {
-      /* local_send_packet returns 0 if all 'len' bytes were sent */
-
-      nsent = len;
+      nerr("ERROR: Failed to send the packet: %zd\n", ret);
     }
 
   /* Now we can close the write-only socket descriptor */
@@ -255,7 +352,8 @@ errout_with_halfduplex:
   /* Release our reference to the half duplex FIFO */
 
   local_release_halfduplex(conn);
-  return nsent;
+
+  return ret;
 #else
   return -EISCONN;
 #endif /* CONFIG_NET_LOCAL_DGRAM */
@@ -286,13 +384,44 @@ errout_with_halfduplex:
 ssize_t local_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
                       int flags)
 {
-  FAR const struct iovec *buf = msg->msg_iov;
-  size_t len = msg->msg_iovlen;
   FAR const struct sockaddr *to = msg->msg_name;
+  FAR const struct iovec *buf = msg->msg_iov;
   socklen_t tolen = msg->msg_namelen;
+  size_t len = msg->msg_iovlen;
+#ifdef CONFIG_NET_LOCAL_SCM
+  FAR struct local_conn_s *conn = psock->s_conn;
+  int count;
 
-  return to ? local_sendto(psock, buf, len, flags, to, tolen) :
-              local_send(psock, buf, len, flags);
+  if (msg->msg_control &&
+      msg->msg_controllen > sizeof(struct cmsghdr))
+    {
+      count = local_sendctl(conn, msg);
+      if (count < 0)
+        {
+          return count;
+        }
+    }
+#endif /* CONFIG_NET_LOCAL_SCM */
+
+  len = to ? local_sendto(psock, buf, len, flags, to, tolen) :
+             local_send(psock, buf, len, flags);
+#ifdef CONFIG_NET_LOCAL_SCM
+  if (len < 0 && count > 0)
+    {
+      net_lock();
+
+      while (count-- > 0)
+        {
+          file_close(conn->lc_cfps[--conn->lc_cfpcount]);
+          kmm_free(conn->lc_cfps[conn->lc_cfpcount]);
+          conn->lc_cfps[conn->lc_cfpcount] = NULL;
+        }
+
+      net_unlock();
+    }
+#endif
+
+  return len;
 }
 
 #endif /* CONFIG_NET && CONFIG_NET_LOCAL */

@@ -33,8 +33,7 @@
 
 #include <nuttx/arch.h>
 
-#include "arm_arch.h"
-
+#include "arm_internal.h"
 #include "stm32_pwm.h"
 #include "stm32_adc.h"
 #include "stm32_dma.h"
@@ -169,7 +168,8 @@
 #  define FOC1_PWM           (8)
 #  define FOC1_PWM_NCHANNELS (PWM_TIM8_NCHANNELS)
 #  define FOC1_PWM_BASE      (STM32_TIM8_BASE)
-#  if defined(CONFIG_STM32_HAVE_IP_DBGMCU_V2)
+#  if defined(CONFIG_STM32_HAVE_IP_DBGMCU_V2) ||  \
+      defined(CONFIG_STM32_HAVE_IP_DBGMCU_V3)
 #    define FOC1_PWM_FZ_BIT    (DBGMCU_APB2_TIM8STOP)
 #  elif defined(CONFIG_STM32_HAVE_IP_DBGMCU_V1)
 #    define FOC1_PWM_FZ_BIT    (DBGMCU_CR_TIM8STOP)
@@ -263,7 +263,7 @@
 #    error Not supported
 #  endif
 
-/* ADC trigger offset - must be greather than 0! */
+/* ADC trigger offset - must be greater than 0! */
 
 #  define ADC_TRIGGER_OFFSET (1)
 
@@ -377,6 +377,14 @@
 #  endif
 #endif
 
+/* The number of required injected channels */
+
+#ifdef CONFIG_STM32_FOC_G4_ADCCHAN0_WORKAROUND
+#  define FOC_ADC_INJ_CHAN_REQUIRED (CONFIG_MOTOR_FOC_SHUNTS + 1)
+#else
+#  define FOC_ADC_INJ_CHAN_REQUIRED (CONFIG_MOTOR_FOC_SHUNTS)
+#endif
+
 /* Validate ADC configuration:
  *   1. ADC must be supported by chip,
  *   2. ADC support for injected channels must be enabled,
@@ -393,8 +401,8 @@
 #  if CONFIG_STM32_ADC1_ANIOC_TRIGGER != 1
 #    error CONFIG_STM32_ADC1_ANIOC_TRIGGER must be 1
 #  endif
-#  if CONFIG_STM32_ADC1_INJECTED_CHAN != CONFIG_MOTOR_FOC_SHUNTS
-#    error Invalid configuration for ADC1 injected channles
+#  if CONFIG_STM32_ADC1_INJECTED_CHAN != FOC_ADC_INJ_CHAN_REQUIRED
+#    error Invalid configuration for ADC1 injected channels
 #  endif
 #endif
 #ifdef CONFIG_STM32_FOC_USE_ADC2
@@ -407,8 +415,8 @@
 #  if CONFIG_STM32_ADC2_ANIOC_TRIGGER != 1
 #    error CONFIG_STM32_ADC2_ANIOC_TRIGGER must be 1
 #  endif
-#  if CONFIG_STM32_ADC2_INJECTED_CHAN != CONFIG_MOTOR_FOC_SHUNTS
-#    error Invalid configuration for ADC2 injected channles
+#  if CONFIG_STM32_ADC2_INJECTED_CHAN != FOC_ADC_INJ_CHAN_REQUIRED
+#    error Invalid configuration for ADC2 injected channels
 #  endif
 #endif
 #ifdef CONFIG_STM32_FOC_USE_ADC3
@@ -421,8 +429,8 @@
 #  if CONFIG_STM32_ADC3_ANIOC_TRIGGER != 1
 #    error CONFIG_STM32_ADC3_ANIOC_TRIGGER must be 1
 #  endif
-#  if CONFIG_STM32_ADC3_INJECTED_CHAN != CONFIG_MOTOR_FOC_SHUNTS
-#    error Invalid configuration for ADC3 injected channles
+#  if CONFIG_STM32_ADC3_INJECTED_CHAN != FOC_ADC_INJ_CHAN_REQUIRED
+#    error Invalid configuration for ADC3 injected channels
 #  endif
 #endif
 #ifdef CONFIG_STM32_FOC_USE_ADC4
@@ -435,8 +443,16 @@
 #  if CONFIG_STM32_ADC4_ANIOC_TRIGGER != 1
 #    error CONFIG_STM32_ADC4_ANIOC_TRIGGER must be 1
 #  endif
-#  if CONFIG_STM32_ADC4_INJECTED_CHAN != CONFIG_MOTOR_FOC_SHUNTS
-#    error Invalid configuration for ADC4 injected channles
+#  if CONFIG_STM32_ADC4_INJECTED_CHAN != FOC_ADC_INJ_CHAN_REQUIRED
+#    error Invalid configuration for ADC4 injected channels
+#  endif
+#endif
+
+/* Max 3 shunts supported if STM32G4 ADC CHAN0 workaround enabled */
+
+#ifdef CONFIG_STM32_FOC_G4_ADCCHAN0_WORKAROUND
+#  if CONFIG_MOTOR_FOC_SHUNTS > 3
+#    error
 #  endif
 #endif
 
@@ -449,7 +465,7 @@
 #  define FOC1_ADC_JEXT (ADC_JEXTREG_JEXTEN_DEFAULT | FOC1_ADC_JEXTSEL)
 #endif
 
-/* Generalize ADC interupt flags */
+/* Generalize ADC interrupt flags */
 
 #if defined(CONFIG_STM32_HAVE_IP_ADC_V2)
 #  define FOC_ADC_ISR_FOC ADC_ISR_JEOS
@@ -587,7 +603,7 @@
 /* Get arch-specific FOC private part */
 
 #define STM32_FOC_PRIV_FROM_DEV_GET(d)              \
-  ((FAR struct stm32_foc_priv_s *)(d)->lower->data)
+  ((struct stm32_foc_priv_s *)(d)->lower->data)
 
 /* Get board-specific FOC data */
 
@@ -664,7 +680,7 @@
  ****************************************************************************/
 
 /* STM32 FOC devices.
- * This strucutre gathers all low level drivers required by FOC device.
+ * This structure gathers all low level drivers required by FOC device.
  */
 
 struct stm32_foc_dev_s
@@ -675,13 +691,13 @@ struct stm32_foc_dev_s
   uint32_t                    adc_irq;  /* ADC irq */
   uint32_t                    jextval;  /* JEXT configuration */
 
-  FAR struct stm32_pwm_dev_s *pwm;      /* PWM device reference */
-  FAR struct adc_dev_s       *adc_dev;  /* ADC device reference */
-  FAR struct stm32_adc_dev_s *adc;      /* STM32 ADC device reference */
+  struct stm32_pwm_dev_s *pwm;      /* PWM device reference */
+  struct adc_dev_s       *adc_dev;  /* ADC device reference */
+  struct stm32_adc_dev_s *adc;      /* STM32 ADC device reference */
 
   /* Interrupt handler for FOC device */
 
-  CODE int (*adc_isr)(FAR struct foc_dev_s *dev);
+  int (*adc_isr)(struct foc_dev_s *dev);
 };
 
 /* STM32 FOC common data */
@@ -719,20 +735,20 @@ struct stm32_foc_priv_s
 
   /* STM32 FOC devices */
 
-  FAR struct stm32_foc_dev_s *dev;
+  struct stm32_foc_dev_s *dev;
 
   /* Board-specific data */
 
-  FAR struct stm32_foc_board_s *board;
+  struct stm32_foc_board_s *board;
 
   /* Upper-half FOC controller callbacks */
 
-  FAR const struct foc_callbacks_s *cb;
+  const struct foc_callbacks_s *cb;
 
 #ifdef FOC_ADC_HAVE_CMN
   /* Common data */
 
-  FAR struct stm32_foc_adccmn_s *adc_cmn;
+  struct stm32_foc_adccmn_s *adc_cmn;
 #endif
 };
 
@@ -742,50 +758,52 @@ struct stm32_foc_priv_s
 
 /* FOC lower-half operations */
 
-static int stm32_foc_configure(FAR struct foc_dev_s *dev,
-                               FAR struct foc_cfg_s *cfg);
-static int stm32_foc_setup(FAR struct foc_dev_s *dev);
-static int stm32_foc_shutdown(FAR struct foc_dev_s *dev);
-static int stm32_foc_start(FAR struct foc_dev_s *dev, bool state);
-static int stm32_foc_pwm_duty_set(FAR struct foc_dev_s *dev,
-                                  FAR foc_duty_t *duty);
-static int stm32_foc_ioctl(FAR struct foc_dev_s *dev, int cmd,
+static int stm32_foc_configure(struct foc_dev_s *dev,
+                               struct foc_cfg_s *cfg);
+static int stm32_foc_setup(struct foc_dev_s *dev);
+static int stm32_foc_shutdown(struct foc_dev_s *dev);
+static int stm32_foc_start(struct foc_dev_s *dev, bool state);
+static int stm32_foc_pwm_duty_set(struct foc_dev_s *dev,
+                                  foc_duty_t *duty);
+static int stm32_foc_ioctl(struct foc_dev_s *dev, int cmd,
                            unsigned long arg);
-static int stm32_foc_bind(FAR struct foc_dev_s *dev,
-                          FAR struct foc_callbacks_s *cb);
-static int stm32_foc_fault_clear(FAR struct foc_dev_s *dev);
+static int stm32_foc_bind(struct foc_dev_s *dev,
+                          struct foc_callbacks_s *cb);
+static int stm32_foc_fault_clear(struct foc_dev_s *dev);
 #ifdef CONFIG_MOTOR_FOC_TRACE
-int stm32_foc_trace_init(FAR struct foc_dev_s *dev);
-void stm32_foc_trace(FAR struct foc_dev_s *dev, int type, bool state);
+int stm32_foc_trace_init(struct foc_dev_s *dev);
+void stm32_foc_trace(struct foc_dev_s *dev, int type, bool state);
 #endif
 
 /* ADC handlers */
 
-static int stm32_foc_adc_handler(int irq, FAR void *context, FAR void *arg);
-static int stm32_foc_adc_calibration_handler(FAR struct foc_dev_s *dev);
-static int stm32_foc_worker_handler(FAR struct foc_dev_s *dev);
+static int stm32_foc_adc_handler(int irq, void *context, void *arg);
+static int stm32_foc_adc_calibration_handler(struct foc_dev_s *dev);
+static int stm32_foc_worker_handler(struct foc_dev_s *dev);
 
 /* Helpers */
 
-static int stm32_foc_notifier_cfg(FAR struct foc_dev_s *dev, uint32_t freq);
-static int stm32_foc_pwm_cfg(FAR struct foc_dev_s *dev, uint32_t freq);
-static int stm32_foc_adc_cfg(FAR struct foc_dev_s *dev);
-static int stm32_foc_pwm_start(FAR struct foc_dev_s *dev, bool state);
-static int stm32_foc_adc_start(FAR struct foc_dev_s *dev, bool state);
-static int stm32_foc_calibration_start(FAR struct foc_dev_s *dev);
-static int stm32_foc_pwm_freq_set(FAR struct foc_dev_s *dev, uint32_t freq);
+static void stm32_foc_curr_get(struct foc_dev_s *dev,
+                               int16_t *curr, int shunts);
+static int stm32_foc_notifier_cfg(struct foc_dev_s *dev, uint32_t freq);
+static int stm32_foc_pwm_cfg(struct foc_dev_s *dev, uint32_t freq);
+static int stm32_foc_adc_cfg(struct foc_dev_s *dev);
+static int stm32_foc_pwm_start(struct foc_dev_s *dev, bool state);
+static int stm32_foc_adc_start(struct foc_dev_s *dev, bool state);
+static int stm32_foc_calibration_start(struct foc_dev_s *dev);
+static int stm32_foc_pwm_freq_set(struct foc_dev_s *dev, uint32_t freq);
 
 #if defined(CONFIG_STM32_FOC_ADC_CCR4)
-static void stm32_foc_adc_ccr4_trg_set(FAR struct foc_dev_s *dev,
+static void stm32_foc_adc_ccr4_trg_set(struct foc_dev_s *dev,
                                        uint32_t offset);
 #elif defined(CONFIG_STM32_FOC_ADC_TRGO)
-static void stm32_foc_adc_trgo_trg_set(FAR struct foc_dev_s *dev,
+static void stm32_foc_adc_trgo_trg_set(struct foc_dev_s *dev,
                                        uint8_t rcr);
 #else
 #  error Invalid FOC ADC trigger
 #endif
 
-static void stm32_foc_hw_config_get(FAR struct foc_dev_s *dev);
+static void stm32_foc_hw_config_get(struct foc_dev_s *dev);
 
 /****************************************************************************
  * Private Data
@@ -867,10 +885,10 @@ static struct foc_dev_s g_foc_dev[CONFIG_MOTOR_FOC_INST];
 
 void stm32_foc_sync_all(void)
 {
-  FAR struct foc_dev_s       *dev     = NULL;
-  FAR struct stm32_foc_dev_s *foc_dev = NULL;
-  uint32_t                    egr_reg[CONFIG_MOTOR_FOC_INST];
-  int                         i       = 0;
+  struct foc_dev_s       *dev     = NULL;
+  struct stm32_foc_dev_s *foc_dev = NULL;
+  uint32_t                egr_reg[CONFIG_MOTOR_FOC_INST];
+  int                     i       = 0;
 
   /* Get registers to write */
 
@@ -895,7 +913,7 @@ void stm32_foc_sync_all(void)
     {
       /* Force update event to reset CNTR */
 
-      putreg32(ATIM_EGR_UG, egr_reg[i]);
+      putreg32(GTIM_EGR_UG, egr_reg[i]);
     }
 }
 #endif
@@ -908,11 +926,11 @@ void stm32_foc_sync_all(void)
  *
  ****************************************************************************/
 
-static int stm32_foc_pwm_cfg(FAR struct foc_dev_s *dev, uint32_t freq)
+static int stm32_foc_pwm_cfg(struct foc_dev_s *dev, uint32_t freq)
 {
-  FAR struct stm32_foc_board_s *board = STM32_FOC_BOARD_FROM_DEV_GET(dev);
-  FAR struct stm32_pwm_dev_s   *pwm   = PWM_FROM_FOC_DEV_GET(dev);
-  int                           ret   = OK;
+  struct stm32_foc_board_s *board = STM32_FOC_BOARD_FROM_DEV_GET(dev);
+  struct stm32_pwm_dev_s   *pwm   = PWM_FROM_FOC_DEV_GET(dev);
+  int                       ret   = OK;
 
   DEBUGASSERT(dev);
   DEBUGASSERT(board);
@@ -962,11 +980,11 @@ errout:
  *
  ****************************************************************************/
 
-static int stm32_foc_pwm_freq_set(FAR struct foc_dev_s *dev, uint32_t freq)
+static int stm32_foc_pwm_freq_set(struct foc_dev_s *dev, uint32_t freq)
 {
-  FAR struct stm32_foc_priv_s *priv = STM32_FOC_PRIV_FROM_DEV_GET(dev);
-  FAR struct stm32_pwm_dev_s  *pwm  = PWM_FROM_FOC_DEV_GET(dev);
-  int                          ret  = OK;
+  struct stm32_foc_priv_s *priv = STM32_FOC_PRIV_FROM_DEV_GET(dev);
+  struct stm32_pwm_dev_s  *pwm  = PWM_FROM_FOC_DEV_GET(dev);
+  int                      ret  = OK;
 
   DEBUGASSERT(dev);
   DEBUGASSERT(priv);
@@ -999,7 +1017,7 @@ errout:
  *
  ****************************************************************************/
 
-static int stm32_foc_start(FAR struct foc_dev_s *dev, bool state)
+static int stm32_foc_start(struct foc_dev_s *dev, bool state)
 {
   int ret = OK;
 
@@ -1035,10 +1053,10 @@ errout:
  *
  ****************************************************************************/
 
-static int stm32_foc_pwm_start(FAR struct foc_dev_s *dev, bool state)
+static int stm32_foc_pwm_start(struct foc_dev_s *dev, bool state)
 {
-  FAR struct stm32_foc_board_s *board = STM32_FOC_BOARD_FROM_DEV_GET(dev);
-  FAR struct stm32_pwm_dev_s   *pwm   = PWM_FROM_FOC_DEV_GET(dev);
+  struct stm32_foc_board_s *board = STM32_FOC_BOARD_FROM_DEV_GET(dev);
+  struct stm32_pwm_dev_s   *pwm   = PWM_FROM_FOC_DEV_GET(dev);
 
   DEBUGASSERT(dev);
   DEBUGASSERT(board);
@@ -1063,10 +1081,10 @@ static int stm32_foc_pwm_start(FAR struct foc_dev_s *dev, bool state)
  *
  ****************************************************************************/
 
-static int stm32_foc_adc_start(FAR struct foc_dev_s *dev, bool state)
+static int stm32_foc_adc_start(struct foc_dev_s *dev, bool state)
 {
-  FAR struct stm32_foc_dev_s *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
-  FAR struct stm32_adc_dev_s *adc     = ADC_FROM_FOC_DEV_GET(dev);
+  struct stm32_foc_dev_s *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
+  struct stm32_adc_dev_s *adc     = ADC_FROM_FOC_DEV_GET(dev);
 
   DEBUGASSERT(dev);
   DEBUGASSERT(foc_dev);
@@ -1112,9 +1130,9 @@ static int stm32_foc_adc_start(FAR struct foc_dev_s *dev, bool state)
  *
  ****************************************************************************/
 
-static int stm32_foc_adc_cfg(FAR struct foc_dev_s *dev)
+static int stm32_foc_adc_cfg(struct foc_dev_s *dev)
 {
-  FAR struct stm32_foc_dev_s  *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
+  struct stm32_foc_dev_s  *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
 
   DEBUGASSERT(dev);
   DEBUGASSERT(foc_dev);
@@ -1136,10 +1154,10 @@ static int stm32_foc_adc_cfg(FAR struct foc_dev_s *dev)
  *
  ****************************************************************************/
 
-static void stm32_foc_adc_ccr4_trg_set(FAR struct foc_dev_s *dev,
+static void stm32_foc_adc_ccr4_trg_set(struct foc_dev_s *dev,
                                        uint32_t offset)
 {
-  FAR struct stm32_pwm_dev_s *pwm = PWM_FROM_FOC_DEV_GET(dev);
+  struct stm32_pwm_dev_s *pwm = PWM_FROM_FOC_DEV_GET(dev);
 
   DEBUGASSERT(dev);
   DEBUGASSERT(pwm);
@@ -1168,10 +1186,10 @@ static void stm32_foc_adc_ccr4_trg_set(FAR struct foc_dev_s *dev,
  *
  ****************************************************************************/
 
-static void stm32_foc_adc_trgo_trg_set(FAR struct foc_dev_s *dev,
+static void stm32_foc_adc_trgo_trg_set(struct foc_dev_s *dev,
                                        uint8_t rcr)
 {
-  FAR struct stm32_pwm_dev_s *pwm = PWM_FROM_FOC_DEV_GET(dev);
+  struct stm32_pwm_dev_s *pwm = PWM_FROM_FOC_DEV_GET(dev);
 
   DEBUGASSERT(dev);
   DEBUGASSERT(pwm);
@@ -1206,11 +1224,11 @@ static void stm32_foc_adc_trgo_trg_set(FAR struct foc_dev_s *dev,
  *
  ****************************************************************************/
 
-static int stm32_foc_configure(FAR struct foc_dev_s *dev,
-                               FAR struct foc_cfg_s *cfg)
+static int stm32_foc_configure(struct foc_dev_s *dev,
+                               struct foc_cfg_s *cfg)
 {
-  FAR struct stm32_foc_priv_s *priv = STM32_FOC_PRIV_FROM_DEV_GET(dev);
-  int                          ret  = OK;
+  struct stm32_foc_priv_s *priv = STM32_FOC_PRIV_FROM_DEV_GET(dev);
+  int                      ret  = OK;
 
   DEBUGASSERT(dev);
   DEBUGASSERT(cfg);
@@ -1288,14 +1306,14 @@ errout:
  *
  ****************************************************************************/
 
-static int stm32_foc_setup(FAR struct foc_dev_s *dev)
+static int stm32_foc_setup(struct foc_dev_s *dev)
 {
-  FAR struct stm32_foc_dev_s   *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
-  FAR struct stm32_foc_board_s *board   = STM32_FOC_BOARD_FROM_DEV_GET(dev);
-  FAR struct stm32_foc_priv_s  *priv    = STM32_FOC_PRIV_FROM_DEV_GET(dev);
-  FAR struct stm32_adc_dev_s   *adc     = ADC_FROM_FOC_DEV_GET(dev);
-  struct adc_sample_time_s      stime;
-  int                           ret     = OK;
+  struct stm32_foc_dev_s   *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
+  struct stm32_foc_board_s *board   = STM32_FOC_BOARD_FROM_DEV_GET(dev);
+  struct stm32_foc_priv_s  *priv    = STM32_FOC_PRIV_FROM_DEV_GET(dev);
+  struct stm32_adc_dev_s   *adc     = ADC_FROM_FOC_DEV_GET(dev);
+  struct adc_sample_time_s  stime;
+  int                       ret     = OK;
 
   DEBUGASSERT(dev);
   DEBUGASSERT(foc_dev);
@@ -1428,12 +1446,12 @@ errout:
  *
  ****************************************************************************/
 
-static int stm32_foc_shutdown(FAR struct foc_dev_s *dev)
+static int stm32_foc_shutdown(struct foc_dev_s *dev)
 {
-  FAR struct stm32_foc_dev_s    *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
-  FAR struct stm32_foc_board_s  *board   = STM32_FOC_BOARD_FROM_DEV_GET(dev);
-  FAR struct stm32_foc_priv_s   *priv    = STM32_FOC_PRIV_FROM_DEV_GET(dev);
-  int                            ret     = OK;
+  struct stm32_foc_dev_s    *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
+  struct stm32_foc_board_s  *board   = STM32_FOC_BOARD_FROM_DEV_GET(dev);
+  struct stm32_foc_priv_s   *priv    = STM32_FOC_PRIV_FROM_DEV_GET(dev);
+  int                        ret     = OK;
 
   DEBUGASSERT(dev);
   DEBUGASSERT(foc_dev);
@@ -1504,7 +1522,7 @@ errout:
  *
  ****************************************************************************/
 
-static int stm32_foc_ioctl(FAR struct foc_dev_s *dev, int cmd,
+static int stm32_foc_ioctl(struct foc_dev_s *dev, int cmd,
                            unsigned long arg)
 {
   return -1;
@@ -1518,24 +1536,19 @@ static int stm32_foc_ioctl(FAR struct foc_dev_s *dev, int cmd,
  *
  ****************************************************************************/
 
-static int stm32_foc_adc_calibration_handler(FAR struct foc_dev_s *dev)
+static int stm32_foc_adc_calibration_handler(struct foc_dev_s *dev)
 {
-  FAR struct stm32_foc_priv_s *priv = STM32_FOC_PRIV_FROM_DEV_GET(dev);
-  FAR struct stm32_adc_dev_s  *adc  = ADC_FROM_FOC_DEV_GET(dev);
-  int                          i    = 0;
+  struct stm32_foc_priv_s *priv = STM32_FOC_PRIV_FROM_DEV_GET(dev);
+  int                      i    = 0;
 
   DEBUGASSERT(dev);
   DEBUGASSERT(priv);
-  DEBUGASSERT(adc);
 
   if (priv->data.adcint_cntr < CAL_SAMPLES)
     {
-      /* Get raw currents */
+      /* Get raw current samples */
 
-      for (i = 0; i < CONFIG_MOTOR_FOC_SHUNTS; i += 1)
-        {
-          priv->data.curr_raw[i] = (int16_t)STM32_ADC_INJDATA_GET(adc, i);
-        }
+      stm32_foc_curr_get(dev, priv->data.curr_raw, CONFIG_MOTOR_FOC_SHUNTS);
 
       /* Get sum */
 
@@ -1557,7 +1570,7 @@ static int stm32_foc_adc_calibration_handler(FAR struct foc_dev_s *dev)
 
       /* Post semaphore that calibration is done */
 
-      sem_post(&priv->cal_done_sem);
+      nxsem_post(&priv->cal_done_sem);
     }
   else
     {
@@ -1575,18 +1588,18 @@ static int stm32_foc_adc_calibration_handler(FAR struct foc_dev_s *dev)
  *
  ****************************************************************************/
 
-static int stm32_foc_adc_handler(int irq, FAR void *context, FAR void *arg)
+static int stm32_foc_adc_handler(int irq, void *context, void *arg)
 {
-  FAR struct foc_dev_s         *dev     = NULL;
-  FAR struct stm32_foc_priv_s  *priv    = NULL;
+  struct foc_dev_s         *dev     = NULL;
+  struct stm32_foc_priv_s  *priv    = NULL;
 #ifdef CONFIG_MOTOR_FOC_TRACE
-  FAR struct stm32_foc_board_s *board   = NULL;
+  struct stm32_foc_board_s *board   = NULL;
 #endif
-  FAR struct stm32_adc_dev_s   *adc     = NULL;
-  FAR struct stm32_foc_dev_s   *foc_dev = NULL;
-  uint32_t                      pending = 0;
-  int                           ret     = OK;
-  int                           i       = 0;
+  struct stm32_adc_dev_s   *adc     = NULL;
+  struct stm32_foc_dev_s   *foc_dev = NULL;
+  uint32_t                  pending = 0;
+  int                       ret     = OK;
+  int                       i       = 0;
 
   UNUSED(irq);
   UNUSED(context);
@@ -1624,7 +1637,7 @@ static int stm32_foc_adc_handler(int irq, FAR void *context, FAR void *arg)
 
       if (dev != NULL)
         {
-          priv  = STM32_FOC_PRIV_FROM_DEV_GET(dev);
+          priv = STM32_FOC_PRIV_FROM_DEV_GET(dev);
           DEBUGASSERT(priv);
 
           foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
@@ -1640,7 +1653,7 @@ static int stm32_foc_adc_handler(int irq, FAR void *context, FAR void *arg)
 
           STM32_ADC_INT_ACK(adc, pending);
 
-          /* Call interrupt handler if registerd */
+          /* Call interrupt handler if registered */
 
           if (foc_dev->adc_isr != NULL)
             {
@@ -1672,13 +1685,12 @@ static int stm32_foc_adc_handler(int irq, FAR void *context, FAR void *arg)
  *
  ****************************************************************************/
 
-static int stm32_foc_worker_handler(FAR struct foc_dev_s *dev)
+static int stm32_foc_worker_handler(struct foc_dev_s *dev)
 {
-  FAR struct stm32_foc_priv_s  *priv  = STM32_FOC_PRIV_FROM_DEV_GET(dev);
-  FAR struct stm32_foc_board_s *board = STM32_FOC_BOARD_FROM_DEV_GET(dev);
-  FAR struct stm32_adc_dev_s   *adc   = ADC_FROM_FOC_DEV_GET(dev);
-  int                           i     = 0;
-  int                           ret   = OK;
+  struct stm32_foc_priv_s  *priv  = STM32_FOC_PRIV_FROM_DEV_GET(dev);
+  struct stm32_foc_board_s *board = STM32_FOC_BOARD_FROM_DEV_GET(dev);
+  struct stm32_adc_dev_s   *adc   = ADC_FROM_FOC_DEV_GET(dev);
+  int                       ret   = OK;
 
   DEBUGASSERT(dev);
   DEBUGASSERT(priv);
@@ -1689,16 +1701,9 @@ static int stm32_foc_worker_handler(FAR struct foc_dev_s *dev)
 
   if (priv->data.adcint_cntr % priv->data.notifier_div == 0)
     {
-      for (i = 0; i < CONFIG_MOTOR_FOC_SHUNTS; i += 1)
-        {
-          /* Get raw current samples.
-           * We have ADC offset enabled for injected channels so this
-           * gives us signed values.
-           * NOTE: ADC value is 11 bits + sign.
-           */
+      /* Get raw current samples */
 
-          priv->data.curr_raw[i] = (int16_t)STM32_ADC_INJDATA_GET(adc, i);
-        }
+      stm32_foc_curr_get(dev, priv->data.curr_raw, CONFIG_MOTOR_FOC_SHUNTS);
 
       /* Get phase currents */
 
@@ -1722,16 +1727,16 @@ static int stm32_foc_worker_handler(FAR struct foc_dev_s *dev)
  *
  ****************************************************************************/
 
-static int stm32_foc_calibration_start(FAR struct foc_dev_s *dev)
+static int stm32_foc_calibration_start(struct foc_dev_s *dev)
 {
-  FAR struct stm32_foc_dev_s   *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
-  FAR struct stm32_foc_priv_s  *priv    = STM32_FOC_PRIV_FROM_DEV_GET(dev);
-  FAR struct stm32_foc_board_s *board   = STM32_FOC_BOARD_FROM_DEV_GET(dev);
-  FAR struct stm32_pwm_dev_s   *pwm     = PWM_FROM_FOC_DEV_GET(dev);
-  FAR struct stm32_adc_dev_s   *adc     = ADC_FROM_FOC_DEV_GET(dev);
-  uint8_t                       i       = 0;
-  uint8_t                       ch      = 0;
-  int                           ret     = OK;
+  struct stm32_foc_dev_s   *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
+  struct stm32_foc_priv_s  *priv    = STM32_FOC_PRIV_FROM_DEV_GET(dev);
+  struct stm32_foc_board_s *board   = STM32_FOC_BOARD_FROM_DEV_GET(dev);
+  struct stm32_pwm_dev_s   *pwm     = PWM_FROM_FOC_DEV_GET(dev);
+  struct stm32_adc_dev_s   *adc     = ADC_FROM_FOC_DEV_GET(dev);
+  uint8_t                   i       = 0;
+  uint8_t                   ch      = 0;
+  int                       ret     = OK;
 
   DEBUGASSERT(dev);
   DEBUGASSERT(foc_dev);
@@ -1852,12 +1857,12 @@ errout:
  *
  ****************************************************************************/
 
-static int stm32_foc_pwm_duty_set(FAR struct foc_dev_s *dev,
-                                  FAR foc_duty_t *duty)
+static int stm32_foc_pwm_duty_set(struct foc_dev_s *dev,
+                                  foc_duty_t *duty)
 {
-  FAR struct stm32_foc_priv_s *priv    = STM32_FOC_PRIV_FROM_DEV_GET(dev);
-  FAR struct stm32_foc_dev_s  *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
-  uint16_t                     ccr[CONFIG_MOTOR_FOC_PHASES];
+  struct stm32_foc_priv_s *priv    = STM32_FOC_PRIV_FROM_DEV_GET(dev);
+  struct stm32_foc_dev_s  *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
+  uint16_t                 ccr[CONFIG_MOTOR_FOC_PHASES];
 
   DEBUGASSERT(dev);
   DEBUGASSERT(duty);
@@ -1909,9 +1914,9 @@ static int stm32_foc_pwm_duty_set(FAR struct foc_dev_s *dev,
  *
  ****************************************************************************/
 
-static void stm32_foc_hw_config_get(FAR struct foc_dev_s *dev)
+static void stm32_foc_hw_config_get(struct foc_dev_s *dev)
 {
-  FAR struct stm32_foc_board_s *board = STM32_FOC_BOARD_FROM_DEV_GET(dev);
+  struct stm32_foc_board_s *board = STM32_FOC_BOARD_FROM_DEV_GET(dev);
 
   DEBUGASSERT(dev);
   DEBUGASSERT(board);
@@ -1923,6 +1928,44 @@ static void stm32_foc_hw_config_get(FAR struct foc_dev_s *dev)
 }
 
 /****************************************************************************
+ * Name: stm32_foc_curr_get
+ *
+ * Description:
+ *   Get current samples from ADC
+ *
+ ****************************************************************************/
+
+static void stm32_foc_curr_get(struct foc_dev_s *dev,
+                               int16_t *curr, int shunts)
+{
+  struct stm32_foc_priv_s *priv = STM32_FOC_PRIV_FROM_DEV_GET(dev);
+  struct stm32_adc_dev_s  *adc  = ADC_FROM_FOC_DEV_GET(dev);
+  int                      i    = 0;
+
+  DEBUGASSERT(dev);
+  DEBUGASSERT(priv);
+  DEBUGASSERT(adc);
+  DEBUGASSERT(curr);
+
+  for (i = 0; i < shunts; i += 1)
+    {
+      /* Get raw current samples.
+       * We have ADC offset enabled for injected channels so this
+       * gives us signed values.
+       * NOTE: ADC value is 11 bits + sign.
+       */
+
+#ifdef CONFIG_STM32_FOC_G4_ADCCHAN0_WORKAROUND
+      /* Ignore first channel */
+
+      curr[i] = (int16_t)STM32_ADC_INJDATA_GET(adc, (i + 1));
+#else
+      curr[i] = (int16_t)STM32_ADC_INJDATA_GET(adc, i);
+#endif
+    }
+}
+
+/****************************************************************************
  * Name: stm32_foc_notifier_cfg
  *
  * Description:
@@ -1930,10 +1973,10 @@ static void stm32_foc_hw_config_get(FAR struct foc_dev_s *dev)
  *
  ****************************************************************************/
 
-static int stm32_foc_notifier_cfg(FAR struct foc_dev_s *dev, uint32_t freq)
+static int stm32_foc_notifier_cfg(struct foc_dev_s *dev, uint32_t freq)
 {
-  FAR struct stm32_foc_priv_s *priv = STM32_FOC_PRIV_FROM_DEV_GET(dev);
-  int                          ret  = OK;
+  struct stm32_foc_priv_s *priv = STM32_FOC_PRIV_FROM_DEV_GET(dev);
+  int                      ret  = OK;
 
   DEBUGASSERT(dev);
   DEBUGASSERT(priv);
@@ -1983,24 +2026,15 @@ errout:
  *
  ****************************************************************************/
 
-static int stm32_foc_bind(FAR struct foc_dev_s *dev,
-                          FAR struct foc_callbacks_s *cb)
+static int stm32_foc_bind(struct foc_dev_s *dev,
+                          struct foc_callbacks_s *cb)
 {
-  FAR struct stm32_foc_priv_s *priv = STM32_FOC_PRIV_FROM_DEV_GET(dev);
-  int                          ret  = OK;
+  struct stm32_foc_priv_s *priv = STM32_FOC_PRIV_FROM_DEV_GET(dev);
+  int                      ret  = OK;
 
   DEBUGASSERT(dev);
   DEBUGASSERT(cb);
   DEBUGASSERT(priv);
-
-  /* Do we support given FOC instance? */
-
-  if (dev->devno > CONFIG_MOTOR_FOC_INST)
-    {
-      mtrerr("Unsupported STM32 FOC instance %d\n", dev->devno);
-      ret = -EINVAL;
-      goto errout;
-    }
 
   /* Validate callbacks */
 
@@ -2009,8 +2043,6 @@ static int stm32_foc_bind(FAR struct foc_dev_s *dev,
   /* Bind upper-half FOC device callbacks */
 
   priv->cb = cb;
-
-errout:
   return ret;
 }
 
@@ -2022,9 +2054,9 @@ errout:
  *
  ****************************************************************************/
 
-static int stm32_foc_fault_clear(FAR struct foc_dev_s *dev)
+static int stm32_foc_fault_clear(struct foc_dev_s *dev)
 {
-  FAR struct stm32_foc_board_s *board = STM32_FOC_BOARD_FROM_DEV_GET(dev);
+  struct stm32_foc_board_s *board = STM32_FOC_BOARD_FROM_DEV_GET(dev);
 
   DEBUGASSERT(dev);
   DEBUGASSERT(board);
@@ -2042,9 +2074,9 @@ static int stm32_foc_fault_clear(FAR struct foc_dev_s *dev)
  *
  ****************************************************************************/
 
-int stm32_foc_trace_init(FAR struct foc_dev_s *dev)
+int stm32_foc_trace_init(struct foc_dev_s *dev)
 {
-  FAR struct stm32_foc_board_s *board = STM32_FOC_BOARD_FROM_DEV_GET(dev);
+  struct stm32_foc_board_s *board = STM32_FOC_BOARD_FROM_DEV_GET(dev);
 
   DEBUGASSERT(dev);
   DEBUGASSERT(board);
@@ -2062,9 +2094,9 @@ int stm32_foc_trace_init(FAR struct foc_dev_s *dev)
  *
  ****************************************************************************/
 
-void stm32_foc_trace(FAR struct foc_dev_s *dev, int type, bool state)
+void stm32_foc_trace(struct foc_dev_s *dev, int type, bool state)
 {
-  FAR struct stm32_foc_board_s *board = STM32_FOC_BOARD_FROM_DEV_GET(dev);
+  struct stm32_foc_board_s *board = STM32_FOC_BOARD_FROM_DEV_GET(dev);
 
   DEBUGASSERT(dev);
   DEBUGASSERT(board);
@@ -2086,33 +2118,37 @@ void stm32_foc_trace(FAR struct foc_dev_s *dev, int type, bool state)
  *   Initialize the FOC lower-half.
  *
  * Input Parameters:
- *   inst  - FOC instnace number
+ *   inst  - FOC instance number
  *   board - FOC board-specific data
  *
  * Returned Value:
- *   Valid lower-half FOC controller structure reference on succes;
+ *   Valid lower-half FOC controller structure reference on success;
  *   NULL on failure
  *
  ****************************************************************************/
 
-FAR struct foc_dev_s *
-stm32_foc_initialize(int inst, FAR struct stm32_foc_board_s *board)
+struct foc_dev_s *
+stm32_foc_initialize(int inst, struct stm32_foc_board_s *board)
 {
-  FAR struct foc_dev_s          *dev       = NULL;
-  FAR struct stm32_foc_adc_s    *adc_cfg   = NULL;
-  FAR struct foc_lower_s        *foc_lower = NULL;
-  FAR struct stm32_foc_dev_s    *foc_dev   = NULL;
-  FAR struct stm32_foc_priv_s   *foc_priv  = NULL;
+  struct foc_dev_s          *dev       = NULL;
+  struct stm32_foc_adc_s    *adc_cfg   = NULL;
+  struct foc_lower_s        *foc_lower = NULL;
+  struct stm32_foc_dev_s    *foc_dev   = NULL;
+  struct stm32_foc_priv_s   *foc_priv  = NULL;
 #ifdef FOC_ADC_HAVE_CMN
-  FAR struct stm32_foc_adccmn_s *adc_cmn   = NULL;
+  struct stm32_foc_adccmn_s *adc_cmn   = NULL;
 #endif
-  uint32_t                       adc_irq   = 0;
-  uint32_t                       pwm_base  = 0;
-  uint32_t                       jextval   = 0;
-  uint8_t                        pwm_inst  = 0;
-  uint8_t                        adc_inst  = 0;
-  uint32_t                       pwmfzbit  = 0;
-  int                            j         = 0;
+  uint32_t                   adc_irq   = 0;
+  uint32_t                   pwm_base  = 0;
+  uint32_t                   jextval   = 0;
+  uint8_t                    pwm_inst  = 0;
+  uint8_t                    adc_inst  = 0;
+  uint32_t                   pwmfzbit  = 0;
+  int                        i         = 0;
+#ifdef CONFIG_STM32_FOC_G4_ADCCHAN0_WORKAROUND
+  uint8_t                   *adc_chan  = NULL;
+  uint8_t                    adc_nchan = 0;
+#endif
 
   DEBUGASSERT(board != NULL);
   DEBUGASSERT(board->ops != NULL);
@@ -2208,7 +2244,7 @@ stm32_foc_initialize(int inst, FAR struct stm32_foc_board_s *board)
   foc_priv->adc_cmn = adc_cmn;
 #endif
 
-  /* Get archspecific devive */
+  /* Get arch-specific device */
 
   foc_dev = (struct stm32_foc_dev_s *)foc_priv->dev;
   DEBUGASSERT(foc_dev);
@@ -2223,7 +2259,7 @@ stm32_foc_initialize(int inst, FAR struct stm32_foc_board_s *board)
 
   /* Get the advanced timer PWM interface */
 
-  foc_dev->pwm = (FAR struct stm32_pwm_dev_s *)stm32_pwminitialize(pwm_inst);
+  foc_dev->pwm = (struct stm32_pwm_dev_s *)stm32_pwminitialize(pwm_inst);
   if (foc_dev->pwm == NULL)
     {
       mtrerr("Failed to get PWM%d interface\n", pwm_inst);
@@ -2237,9 +2273,9 @@ stm32_foc_initialize(int inst, FAR struct stm32_foc_board_s *board)
   DEBUGASSERT(adc_cfg->pins != NULL);
   DEBUGASSERT(adc_cfg->chan != NULL);
 
-  for (j = 0; j < adc_cfg->nchan; j++)
+  for (i = 0; i < adc_cfg->nchan; i++)
     {
-      stm32_configgpio(adc_cfg->pins[j]);
+      stm32_configgpio(adc_cfg->pins[i]);
     }
 
   /* Make sure that we are using the appropriate ADC interface */
@@ -2252,11 +2288,55 @@ stm32_foc_initialize(int inst, FAR struct stm32_foc_board_s *board)
       goto errout;
     }
 
+  /* STM32G4 ADC channel 0 unwanted conversion workaround */
+
+#ifdef CONFIG_STM32_FOC_G4_ADCCHAN0_WORKAROUND
+  /* Add one dummy channel to conversion */
+
+  adc_nchan = (adc_cfg->nchan + 1);
+
+  /* Allocate memory for the extended list of channels */
+
+  adc_chan = zalloc(adc_nchan);
+  if (adc_chan == NULL)
+    {
+      goto errout;
+    }
+
+  /* Copy regular channels first */
+
+  for (i = 0; i < adc_cfg->regch; i += 1)
+    {
+      adc_chan[i] = adc_cfg->chan[i];
+    }
+
+  /* Add dummy channel at the beginning of injected channels */
+
+  adc_chan[adc_cfg->regch] = 0;
+
+  /* Copy injected channels */
+
+  for (i = (adc_cfg->regch + 1); i < adc_nchan; i += 1)
+    {
+      adc_chan[i] = adc_cfg->chan[i - 1];
+    }
+
+#endif  /* CONFIG_STM32_FOC_G4_ADCCHAN0_WORKAROUND */
+
   /* Get the ADC interface */
 
+#ifdef CONFIG_STM32_FOC_G4_ADCCHAN0_WORKAROUND
+  foc_dev->adc_dev = stm32_adcinitialize(adc_inst,
+                                         adc_chan,
+                                         adc_nchan);
+
+  free(adc_chan);
+#else
   foc_dev->adc_dev = stm32_adcinitialize(adc_inst,
                                          adc_cfg->chan,
                                          adc_cfg->nchan);
+#endif
+
   if (foc_dev->adc_dev == NULL)
     {
       mtrerr("Failed to get ADC%d interface\n", adc_cfg->intf);
@@ -2266,7 +2346,7 @@ stm32_foc_initialize(int inst, FAR struct stm32_foc_board_s *board)
 
   /* Get ADC private part */
 
-  foc_dev->adc = (FAR struct stm32_adc_dev_s *)foc_dev->adc_dev->ad_priv;
+  foc_dev->adc = (struct stm32_adc_dev_s *)foc_dev->adc_dev->ad_priv;
 
   /* Froze timer and reset outputs when core is halted.
    * TODO: move this to stm32_pwm.c and configure from Kconfig
@@ -2291,7 +2371,7 @@ stm32_foc_initialize(int inst, FAR struct stm32_foc_board_s *board)
 
   /* Connect the lower-half device with the upper-half device */
 
-  dev->lower = (FAR void *)foc_lower;
+  dev->lower = (void *)foc_lower;
 
   /* Return upper-half driver instance */
 
@@ -2322,9 +2402,9 @@ errout:
  *
  ****************************************************************************/
 
-FAR struct adc_dev_s *stm32_foc_adcget(FAR struct foc_dev_s *dev)
+struct adc_dev_s *stm32_foc_adcget(struct foc_dev_s *dev)
 {
-  FAR struct stm32_foc_dev_s *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
+  struct stm32_foc_dev_s *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
 
   DEBUGASSERT(dev);
   DEBUGASSERT(foc_dev);
