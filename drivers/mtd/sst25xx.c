@@ -861,7 +861,7 @@ static int sst25xx_ioctl(FAR struct mtd_dev_s *dev, int cmd,
   FAR struct sst25xx_dev_s *priv = (FAR struct sst25xx_dev_s *)dev;
   int ret = -EINVAL; /* Assume good command with bad parameters */
 
-  finfo("cmd: %d \n", cmd);
+  finfo("cmd: %d\n", cmd);
 
   switch (cmd)
     {
@@ -893,6 +893,22 @@ static int sst25xx_ioctl(FAR struct mtd_dev_s *dev, int cmd,
         }
         break;
 
+      case BIOC_PARTINFO:
+        {
+          FAR struct partition_info_s *info =
+            (FAR struct partition_info_s *)arg;
+          if (info != NULL)
+            {
+              info->numsectors  = priv->nsectors *
+                                  (priv->sectorshift - priv->pageshift);
+              info->sectorsize  = 1 << priv->pageshift;
+              info->startsector = 0;
+              info->parent[0]   = '\0';
+              ret               = OK;
+            }
+        }
+        break;
+
       case MTDIOC_BULKERASE:
         {
             /* Erase the entire device */
@@ -903,7 +919,6 @@ static int sst25xx_ioctl(FAR struct mtd_dev_s *dev, int cmd,
         }
         break;
 
-      case MTDIOC_XIPBASE:
       default:
         ret = -ENOTTY; /* Bad command */
         break;

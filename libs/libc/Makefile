@@ -52,6 +52,7 @@ include signal/Make.defs
 include spawn/Make.defs
 include stdio/Make.defs
 include stdlib/Make.defs
+include stream/Make.defs
 include string/Make.defs
 include symtab/Make.defs
 include syslog/Make.defs
@@ -136,21 +137,21 @@ $(COBJS): $(BINDIR)$(DELIM)%$(OBJEXT): %.c
 
 $(BIN): $(OBJS)
 	$(call ARCHIVE, $@, $(OBJS))
-ifeq ($(CONFIG_LIB_ZONEINFO_ROMFS),y)
+ifeq ($(CONFIG_LIBC_ZONEINFO_ROMFS),y)
 	$(Q) $(MAKE) -C zoneinfo all BIN=$(BIN)
 endif
 
 # C library for the kernel phase of the two-pass kernel build
 
 ifneq ($(BIN),$(KBIN))
-$(KBIN):
-	$(Q) $(MAKE) $(KBIN) BIN=$(KBIN) BINDIR=kbin EXTRAFLAGS="$(EXTRAFLAGS)"
+$(KBIN): $(OBJS)
+	$(Q) $(MAKE) $(KBIN) BIN=$(KBIN) EXTRAFLAGS="$(EXTRAFLAGS)"
 endif
 
 # Context
 
 context::
-ifeq ($(CONFIG_LIB_ZONEINFO_ROMFS),y)
+ifeq ($(CONFIG_LIBC_ZONEINFO_ROMFS),y)
 	$(Q) $(MAKE) -C zoneinfo context BIN=$(BIN)
 endif
 
@@ -169,7 +170,7 @@ makekdepfile: $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds)
 ifneq ($(CONFIG_BUILD_FLAT),y)
 	$(Q) $(MAKE) makekdepfile CFLAGS="$(CFLAGS) $(KDEFINE)" OBJPATH="kbin"
 endif
-ifeq ($(CONFIG_LIB_ZONEINFO_ROMFS),y)
+ifeq ($(CONFIG_LIBC_ZONEINFO_ROMFS),y)
 	$(Q) $(MAKE) -C zoneinfo depend BIN=$(BIN)
 endif
 	$(Q) touch $@

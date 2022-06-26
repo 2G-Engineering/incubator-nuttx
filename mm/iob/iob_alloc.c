@@ -93,7 +93,7 @@ static FAR struct iob_s *iob_alloc_committed(enum iob_user_e consumerid)
  *
  ****************************************************************************/
 
-static FAR struct iob_s *iob_allocwait(bool throttled,
+static FAR struct iob_s *iob_allocwait(bool throttled, unsigned int timeout,
                                        enum iob_user_e consumerid)
 {
   FAR struct iob_s *iob;
@@ -130,7 +130,15 @@ static FAR struct iob_s *iob_allocwait(bool throttled,
        * list.
        */
 
-      ret = nxsem_wait_uninterruptible(sem);
+      if (timeout == UINT_MAX)
+        {
+          ret = nxsem_wait_uninterruptible(sem);
+        }
+      else
+        {
+          ret = nxsem_tickwait_uninterruptible(sem, MSEC2TICK(timeout));
+        }
+
       if (ret >= 0)
         {
           /* When we wake up from wait successfully, an I/O buffer was
@@ -180,18 +188,25 @@ static FAR struct iob_s *iob_allocwait(bool throttled,
  ****************************************************************************/
 
 /****************************************************************************
- * Name: iob_alloc
+ * Name: iob_timedalloc
  *
  * Description:
  *  Allocate an I/O buffer by taking the buffer at the head of the free list.
+ *  This wait will be terminated when the specified timeout expires.
+ *
+ * Input Parameters:
+ *   throttled  - An indication of the IOB allocation is "throttled"
+ *   timeout    - Timeout value in milliseconds.
+ *   consumerid - id representing who is consuming the IOB
  *
  ****************************************************************************/
 
-FAR struct iob_s *iob_alloc(bool throttled, enum iob_user_e consumerid)
+FAR struct iob_s *iob_timedalloc(bool throttled, unsigned int timeout,
+                                 enum iob_user_e consumerid)
 {
   /* Were we called from the interrupt level? */
 
-  if (up_interrupt_context() || sched_idletask())
+  if (up_interrupt_context() || sched_idletask() || timeout == 0)
     {
       /* Yes, then try to allocate an I/O buffer without waiting */
 
@@ -201,8 +216,21 @@ FAR struct iob_s *iob_alloc(bool throttled, enum iob_user_e consumerid)
     {
       /* Then allocate an I/O buffer, waiting as necessary */
 
-      return iob_allocwait(throttled, consumerid);
+      return iob_allocwait(throttled, timeout, consumerid);
     }
+}
+
+/****************************************************************************
+ * Name: iob_alloc
+ *
+ * Description:
+ *  Allocate an I/O buffer by taking the buffer at the head of the free list.
+ *
+ ****************************************************************************/
+
+FAR struct iob_s *iob_alloc(bool throttled, enum iob_user_e consumerid)
+{
+  return iob_timedalloc(throttled, UINT_MAX, consumerid);
 }
 
 /****************************************************************************
@@ -237,7 +265,8 @@ FAR struct iob_s *iob_tryalloc(bool throttled, enum iob_user_e consumerid)
 #if CONFIG_IOB_THROTTLE > 0
   /* If there are free I/O buffers for this allocation */
 
-  if (sem->semcount > 0)
+  if (sem->semcount > 0 ||
+      (throttled && g_iob_sem.semcount - CONFIG_IOB_THROTTLE > 0))
 #endif
     {
       /* Take the I/O buffer from the head of the free list */
@@ -265,10 +294,12 @@ FAR struct iob_s *iob_tryalloc(bool throttled, enum iob_user_e consumerid)
 #if CONFIG_IOB_THROTTLE > 0
           /* The throttle semaphore is a little more complicated because
            * it can be negative!  Decrementing is still safe, however.
+           *
+           * Note: usually g_throttle_sem.semcount >= -CONFIG_IOB_THROTTLE.
+           * But it can be smaller than that if there are blocking threads.
            */
 
           g_throttle_sem.semcount--;
-          DEBUGASSERT(g_throttle_sem.semcount >= -CONFIG_IOB_THROTTLE);
 #endif
 
 #if !defined(CONFIG_DISABLE_MOUNTPOINT) && defined(CONFIG_FS_PROCFS) && \

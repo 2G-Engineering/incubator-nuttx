@@ -28,6 +28,7 @@
 #include <syslog.h>
 
 #include <nuttx/board.h>
+#include <nuttx/fs/fs.h>
 
 #ifdef CONFIG_USERLED
 #  include <nuttx/leds/userled.h>
@@ -35,6 +36,10 @@
 
 #ifdef CONFIG_INPUT_BUTTONS
 #  include <nuttx/input/buttons.h>
+#endif
+
+#ifdef CONFIG_SENSORS_QENCODER
+#  include "board_qencoder.h"
 #endif
 
 #include "nucleo-g431rb.h"
@@ -62,7 +67,7 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_LIB_BOARDCTL=y :
+ *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
  *     Called from the NSH library
  *
  ****************************************************************************/
@@ -70,6 +75,17 @@
 int stm32_bringup(void)
 {
   int ret;
+
+#ifdef CONFIG_FS_PROCFS
+  /* Mount the procfs file system */
+
+  ret = nx_mount(NULL, STM32_PROCFS_MOUNTPOINT, "procfs", 0, NULL);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to mount the PROC filesystem: %d\n",  ret);
+    }
+#endif /* CONFIG_FS_PROCFS */
 
 #ifdef CONFIG_INPUT_BUTTONS
   /* Register the BUTTON driver */
@@ -119,6 +135,49 @@ int stm32_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_adc_setup failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_MATH_CORDIC
+  /* Initialize CORDIC and register the CORDIC driver. */
+
+  ret = stm32_cordic_setup();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: stm32_cordic_setup failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_SENSORS_QENCODER
+  /* Initialize and register the qencoder driver */
+
+  ret = board_qencoder_initialize(0, CONFIG_NUCLEO_G431RB_QETIMER);
+  if (ret != OK)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to register the qencoder: %d\n",
+             ret);
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_STM32_FDCAN_CHARDRIVER
+  /* Initialize CAN and register the CAN driver. */
+
+  ret = stm32_can_setup();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: stm32_fdcan_setup failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_STM32_FDCAN_SOCKET
+  /* Initialize CAN socket interface */
+
+  ret = stm32_cansock_setup();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: stm32_cansock_setup failed: %d\n", ret);
     }
 #endif
 

@@ -15,7 +15,7 @@ config MM_DEFAULT_MANAGER
 config MM_CUSTOMIZE_MANAGER
 	bool "Customized heap manager"
 	---help---
-		Customized memory manger policy. The build will fail
+		Customized memory manager policy. The build will fail
 		if the MM heap module not defined by customer.
 
 endchoice
@@ -177,5 +177,33 @@ config MM_CIRCBUF
 	default n
 	---help---
 		Build in support for the circular buffer management.
+
+config MM_KASAN
+	bool "Kernel Address Sanitizer"
+	default n
+	---help---
+		KASan is a fast compiler-based tool for detecting memory
+		bugs in native code. After turn on this option, Please
+		add -fsanitize=kernel-address to CFLAGS/CXXFLAGS too.
+
+config MM_BACKTRACE
+	bool "Owner tracking and backtrace"
+	default n
+	depends on DEBUG_MM
+
+config MM_BACKTRACE_DEFAULT
+	bool "Enable the backtrace record by default"
+	default n
+	depends on MM_BACKTRACE
+
+config MM_DUMP_ON_FAILURE
+	bool "Dump heap info on allocation failure"
+	default n
+	depends on DEBUG_MM
+
+config MM_PANIC_ON_FAILURE
+	bool "Panic on allocation failure"
+	default n
+	depends on DEBUG_MM
 
 source "mm/iob/Kconfig"

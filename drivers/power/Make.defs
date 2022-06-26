@@ -23,7 +23,7 @@
 ifeq ($(CONFIG_PM),y)
 
 CSRCS += pm_initialize.c pm_activity.c pm_changestate.c pm_checkstate.c
-CSRCS += pm_register.c pm_unregister.c
+CSRCS += pm_register.c pm_unregister.c pm_autoupdate.c pm_governor.c pm_lock.c
 
 # Governor implementations
 
@@ -71,11 +71,29 @@ POWER_CFLAGS := ${shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)drivers$(DELIM)power}
 
 endif
 
-# Add motor driver
+ifeq ($(CONFIG_REGULATOR), y)
 
-ifeq ($(CONFIG_DRIVERS_MOTOR),y)
+CSRCS += regulator.c
 
-CSRCS += motor.c
+POWER_DEPPATH := --dep-path power
+POWER_VPATH := :power
+POWER_CFLAGS := ${shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)drivers$(DELIM)power}
+
+endif
+
+ifeq ($(CONFIG_REGULATOR_RPMSG), y)
+
+CSRCS += regulator_rpmsg.c
+
+POWER_DEPPATH := --dep-path power
+POWER_VPATH := :power
+POWER_CFLAGS := ${shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)drivers$(DELIM)power}
+
+endif
+
+ifeq ($(CONFIG_REGULATOR_GPIO), y)
+
+CSRCS += regulator_gpio.c
 
 POWER_DEPPATH := --dep-path power
 POWER_VPATH := :power
@@ -109,6 +127,12 @@ endif
 
 ifeq ($(CONFIG_I2C_BQ2429X),y)
 CSRCS += bq2429x.c
+endif
+
+# Add the axp202 I2C-based battery charger driver
+
+ifeq ($(CONFIG_I2C_AXP202),y)
+CSRCS += axp202.c
 endif
 
 endif

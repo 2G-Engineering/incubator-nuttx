@@ -18,8 +18,8 @@
  *
  ****************************************************************************/
 
-#ifndef __BOARDS_ARM_STM32_NUCLEOF302R8_INCLUDE_BOARD_H
-#define __BOARDS_ARM_STM32_NUCLEOF302R8_INCLUDE_BOARD_H
+#ifndef __BOARDS_ARM_STM32_NUCLEO_F302R8_INCLUDE_BOARD_H
+#define __BOARDS_ARM_STM32_NUCLEO_F302R8_INCLUDE_BOARD_H
 
 /****************************************************************************
  * Included Files
@@ -193,6 +193,11 @@
 
 /* Alternate function pin selections ****************************************/
 
+/* TIM2 input ***************************************************************/
+
+#define GPIO_TIM2_CH1IN (GPIO_TIM2_CH1IN_2 | GPIO_PULLUP) /* PA15 */
+#define GPIO_TIM2_CH2IN (GPIO_TIM2_CH2IN_2 | GPIO_PULLUP) /* PB3 */
+
 /* USART */
 
 /* By default the USART2 is connected to STLINK Virtual COM Port:
@@ -207,6 +212,11 @@
 
 #define GPIO_USART1_RX GPIO_USART1_RX_2 /* PB7 */
 #define GPIO_USART1_TX GPIO_USART1_TX_2 /* PB6 */
+
+/* CAN */
+
+#define GPIO_CAN1_RX     GPIO_CAN_RX_3 /* PB8 */
+#define GPIO_CAN1_TX     GPIO_CAN_TX_3 /* PB9 */
 
 /* PWM configuration ********************************************************/
 

@@ -27,11 +27,13 @@
 #include <assert.h>
 #include <debug.h>
 #include <string.h>
+#include <malloc.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/mm/mm.h>
 
 #include "mm_heap/mm.h"
+#include "kasan/kasan.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -48,19 +50,15 @@
 static void mm_free_delaylist(FAR struct mm_heap_s *heap)
 {
 #if defined(CONFIG_BUILD_FLAT) || defined(__KERNEL__)
-  FAR struct mm_heap_impl_s *heap_impl;
   FAR struct mm_delaynode_s *tmp;
   irqstate_t flags;
-
-  DEBUGASSERT(MM_IS_VALID(heap));
-  heap_impl = heap->mm_impl;
 
   /* Move the delay list to local */
 
   flags = enter_critical_section();
 
-  tmp = heap_impl->mm_delaylist;
-  heap_impl->mm_delaylist = NULL;
+  tmp = heap->mm_delaylist[up_cpu_index()];
+  heap->mm_delaylist[up_cpu_index()] = NULL;
 
   leave_critical_section(flags);
 
@@ -101,16 +99,12 @@ static void mm_free_delaylist(FAR struct mm_heap_s *heap)
 
 FAR void *mm_malloc(FAR struct mm_heap_s *heap, size_t size)
 {
-  FAR struct mm_heap_impl_s *heap_impl;
   FAR struct mm_freenode_s *node;
   size_t alignsize;
   FAR void *ret = NULL;
   int ndx;
 
-  DEBUGASSERT(MM_IS_VALID(heap));
-  heap_impl = heap->mm_impl;
-
-  /* Firstly, free mm_delaylist */
+  /* Free the delay list first */
 
   mm_free_delaylist(heap);
 
@@ -138,7 +132,7 @@ FAR void *mm_malloc(FAR struct mm_heap_s *heap, size_t size)
 
   /* We need to hold the MM semaphore while we muck with the nodelist. */
 
-  mm_takesemaphore(heap);
+  DEBUGVERIFY(mm_takesemaphore(heap));
 
   /* Get the location in the node list to start the search. Special case
    * really big allocations
@@ -160,7 +154,7 @@ FAR void *mm_malloc(FAR struct mm_heap_s *heap, size_t size)
    * other mm_nodelist[] entries.
    */
 
-  for (node = heap_impl->mm_nodelist[ndx].flink;
+  for (node = heap->mm_nodelist[ndx].flink;
        node && node->size < alignsize;
        node = node->flink)
     {
@@ -168,7 +162,7 @@ FAR void *mm_malloc(FAR struct mm_heap_s *heap, size_t size)
     }
 
   /* If we found a node with non-zero size, then this is one to use. Since
-   * the list is ordered, we know that is must be best fitting chunk
+   * the list is ordered, we know that it must be the best fitting chunk
    * available.
    */
 
@@ -230,31 +224,41 @@ FAR void *mm_malloc(FAR struct mm_heap_s *heap, size_t size)
       /* Handle the case of an exact size match */
 
       node->preceding |= MM_ALLOC_BIT;
+      MM_ADD_BACKTRACE(heap, node);
       ret = (FAR void *)((FAR char *)node + SIZEOF_MM_ALLOCNODE);
     }
 
   DEBUGASSERT(ret == NULL || mm_heapmember(heap, ret));
   mm_givesemaphore(heap);
 
-#ifdef CONFIG_MM_FILL_ALLOCATIONS
   if (ret)
     {
-       memset(ret, 0xaa, alignsize - SIZEOF_MM_ALLOCNODE);
-    }
+      kasan_unpoison(ret, mm_malloc_size(ret));
+#ifdef CONFIG_MM_FILL_ALLOCATIONS
+      memset(ret, 0xaa, alignsize - SIZEOF_MM_ALLOCNODE);
 #endif
-
-  /* If CONFIG_DEBUG_MM is defined, then output the result of the allocation
-   * to the SYSLOG.
-   */
-
 #ifdef CONFIG_DEBUG_MM
-  if (!ret)
-    {
-      mwarn("WARNING: Allocation failed, size %zu\n", alignsize);
+      minfo("Allocated %p, size %zu\n", ret, alignsize);
+#endif
     }
+#ifdef CONFIG_DEBUG_MM
   else
     {
-      minfo("Allocated %p, size %zu\n", ret, alignsize);
+#ifdef CONFIG_MM_DUMP_ON_FAILURE
+      struct mallinfo minfo;
+#endif
+
+      mwarn("WARNING: Allocation failed, size %zu\n", alignsize);
+#ifdef CONFIG_MM_DUMP_ON_FAILURE
+      mm_mallinfo(heap, &minfo);
+      mwarn("Total:%d, used:%d, free:%d, largest:%d, nused:%d, nfree:%d\n",
+            minfo.arena, minfo.uordblks, minfo.fordblks,
+            minfo.mxordblk, minfo.aordblks, minfo.ordblks);
+      mm_memdump(heap, -1);
+#endif
+#ifdef CONFIG_MM_PANIC_ON_FAILURE
+      PANIC();
+#endif
     }
 #endif
 

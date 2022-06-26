@@ -69,10 +69,14 @@
 
 void pm_activity(int domain, int priority)
 {
-  if (g_pmglobals.governor->activity)
+  DEBUGASSERT(domain >= 0 && domain < CONFIG_PM_NDOMAINS);
+
+  if (g_pmglobals.domain[domain].governor->activity)
     {
-      g_pmglobals.governor->activity(domain, priority);
+      g_pmglobals.domain[domain].governor->activity(domain, priority);
     }
+
+  pm_auto_updatestate(domain);
 }
 
 /****************************************************************************
@@ -107,11 +111,13 @@ void pm_stay(int domain, enum pm_state_e state)
   DEBUGASSERT(domain >= 0 && domain < CONFIG_PM_NDOMAINS);
   pdom = &g_pmglobals.domain[domain];
 
-  flags = enter_critical_section();
+  flags = pm_lock();
   DEBUGASSERT(state < PM_COUNT);
   DEBUGASSERT(pdom->stay[state] < UINT16_MAX);
   pdom->stay[state]++;
-  leave_critical_section(flags);
+  pm_unlock(flags);
+
+  pm_auto_updatestate(domain);
 }
 
 /****************************************************************************
@@ -145,11 +151,13 @@ void pm_relax(int domain, enum pm_state_e state)
   DEBUGASSERT(domain >= 0 && domain < CONFIG_PM_NDOMAINS);
   pdom = &g_pmglobals.domain[domain];
 
-  flags = enter_critical_section();
+  flags = pm_lock();
   DEBUGASSERT(state < PM_COUNT);
   DEBUGASSERT(pdom->stay[state] > 0);
   pdom->stay[state]--;
-  leave_critical_section(flags);
+  pm_unlock(flags);
+
+  pm_auto_updatestate(domain);
 }
 
 /****************************************************************************

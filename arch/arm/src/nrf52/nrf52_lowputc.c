@@ -25,10 +25,9 @@
 #include <nuttx/config.h>
 
 #include <stdbool.h>
+#include <assert.h>
 
-#include "arm_arch.h"
 #include "arm_internal.h"
-
 #include "hardware/nrf52_memorymap.h"
 #include "hardware/nrf52_uarte.h"
 
@@ -405,7 +404,7 @@ void nrf52_usart_disable(uintptr_t base, const struct uart_config_s *config)
  ****************************************************************************/
 
 void nrf52_usart_setformat(uintptr_t base,
-                           FAR const struct uart_config_s *config)
+                           const struct uart_config_s *config)
 {
   /* Configure baud */
 

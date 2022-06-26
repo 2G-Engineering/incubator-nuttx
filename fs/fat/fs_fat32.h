@@ -945,7 +945,7 @@ struct fat_dirseq_s
 
 #ifdef CONFIG_FAT_LFN
 #  ifdef CONFIG_FAT_LFN_UTF8
-typedef wchar_t lfnchar;
+typedef uint16_t lfnchar;
 #  else
 typedef uint8_t lfnchar;
 #  endif
@@ -1082,8 +1082,9 @@ EXTERN int    fat_ffcacheinvalidate(struct fat_mountpt_s *fs,
 /* FSINFO sector support */
 
 EXTERN int    fat_updatefsinfo(struct fat_mountpt_s *fs);
+EXTERN int    fat_computefreeclusters(struct fat_mountpt_s *fs);
 EXTERN int    fat_nfreeclusters(struct fat_mountpt_s *fs,
-                                off_t *pfreeclusters);
+                                fsblkcnt_t *pfreeclusters);
 EXTERN int    fat_currentsector(struct fat_mountpt_s *fs,
                                 struct fat_file_s *ff, off_t position);
 

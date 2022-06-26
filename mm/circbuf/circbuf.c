@@ -31,6 +31,8 @@
 
 #include <nuttx/config.h>
 
+#include <assert.h>
+
 #include <nuttx/kmalloc.h>
 #include <nuttx/mm/circbuf.h>
 
@@ -107,6 +109,10 @@ int circbuf_resize(FAR struct circbuf_s *circ, size_t bytes)
 
   DEBUGASSERT(circ);
   DEBUGASSERT(!circ->external);
+  if (bytes == circ->size)
+    {
+      return 0;
+    }
 
   if (bytes)
     {

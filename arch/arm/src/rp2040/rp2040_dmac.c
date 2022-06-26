@@ -28,13 +28,14 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <debug.h>
 #include <errno.h>
 
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/semaphore.h>
 
-#include "arm_arch.h"
+#include "arm_internal.h"
 #include "hardware/rp2040_dma.h"
 #include "rp2040_dmac.h"
 
@@ -93,7 +94,7 @@ static struct dma_channel_s g_dmach[RP2040_DMA_NCHANNELS];
  *
  ****************************************************************************/
 
-static int rp2040_dmac_interrupt(int irq, void *context, FAR void *arg)
+static int rp2040_dmac_interrupt(int irq, void *context, void *arg)
 {
   struct dma_channel_s *dmach;
   int result = OK;

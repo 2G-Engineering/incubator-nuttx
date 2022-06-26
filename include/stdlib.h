@@ -62,9 +62,24 @@
  * function call.  However, get_environ_ptr() can be used in its place.
  */
 
-#ifndef CONFIG_DISABLE_ENVIRON
+#ifdef CONFIG_DISABLE_ENVIRON
+#  define environ NULL
+#else
 #  define environ get_environ_ptr()
 #endif
+
+#if defined(CONFIG_FS_LARGEFILE) && defined(CONFIG_HAVE_LONG_LONG)
+#  define mkstemp64            mkstemp
+#  define mkostemp64           mkostemp
+#  define mkstemps64           mkstemps
+#  define mkostemps64          mkostemps
+#endif
+
+#define strtof_l(s, e, l)      strtof(s, e)
+#define strtod_l(s, e, l)      strtod(s, e)
+#define strtold_l(s, e, l)     strtold(s, e)
+#define strtoll_l(s, e, b, l)  strtoll(s, e, b)
+#define strtoull_l(s, e, b, l) strtoull(s, e, b)
 
 /****************************************************************************
  * Public Type Definitions
@@ -211,12 +226,10 @@ int       posix_memalign(FAR void **, size_t, size_t);
 
 /* Pseudo-Terminals */
 
-#ifdef CONFIG_PSEUDOTERM_SUSV1
+#ifdef CONFIG_PSEUDOTERM
+int       posix_openpt(int oflag);
 FAR char *ptsname(int fd);
 int       ptsname_r(int fd, FAR char *buf, size_t buflen);
-#endif
-
-#ifdef CONFIG_PSEUDOTERM
 int       unlockpt(int fd);
 
 /* int grantpt(int fd); Not implemented */
@@ -254,6 +267,10 @@ void      qsort(FAR void *base, size_t nel, size_t width,
 FAR void  *bsearch(FAR const void *key, FAR const void *base, size_t nel,
                    size_t width, CODE int (*compar)(FAR const void *,
                    FAR const void *));
+
+/* Current program name manipulation */
+
+FAR const char *getprogname(void);
 
 #undef EXTERN
 #if defined(__cplusplus)

@@ -42,14 +42,6 @@
 #define OPEN_MODE  (S_IROTH | S_IRGRP | S_IRUSR | S_IWUSR)
 
 /****************************************************************************
- * Private Data
- ****************************************************************************/
-
-/* Handle to the SYSLOG channel */
-
-FAR static struct syslog_channel_s *g_syslog_dev_channel;
-
-/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -72,25 +64,32 @@ FAR static struct syslog_channel_s *g_syslog_dev_channel;
  *   None
  *
  * Returned Value:
- *   Zero (OK) is returned on success; a negated errno value is returned on
- *   any failure.
+ *   A pointer to the new SYSLOG channel; NULL is returned on any failure.
  *
  ****************************************************************************/
 
-int syslog_dev_channel(void)
+FAR struct syslog_channel_s *syslog_dev_channel(void)
 {
+  FAR struct syslog_channel_s *dev_channel;
+
   /* Initialize the character driver interface */
 
-  g_syslog_dev_channel = syslog_dev_initialize(CONFIG_SYSLOG_DEVPATH,
-                                               OPEN_FLAGS, OPEN_MODE);
-  if (g_syslog_dev_channel == NULL)
+  dev_channel = syslog_dev_initialize(CONFIG_SYSLOG_DEVPATH,
+                                      OPEN_FLAGS, OPEN_MODE);
+  if (dev_channel == NULL)
     {
-      return -ENOMEM;
+      return NULL;
     }
 
   /* Use the character driver as the SYSLOG channel */
 
-  return syslog_channel(g_syslog_dev_channel);
+  if (syslog_channel(dev_channel) != OK)
+    {
+      syslog_dev_uninitialize(dev_channel);
+      dev_channel = NULL;
+    }
+
+  return dev_channel;
 }
 
 #endif /* CONFIG_SYSLOG_CHAR */

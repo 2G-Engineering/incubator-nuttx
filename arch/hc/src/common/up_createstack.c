@@ -27,6 +27,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <sched.h>
+#include <assert.h>
 #include <debug.h>
 
 #include <nuttx/kmalloc.h>
@@ -34,7 +35,6 @@
 #include <nuttx/tls.h>
 #include <nuttx/board.h>
 
-#include "up_arch.h"
 #include "up_internal.h"
 
 /****************************************************************************
@@ -199,8 +199,9 @@ int up_create_stack(FAR struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
 
       /* Save the adjusted stack values in the struct tcb_s */
 
-      tcb->stack_base_ptr  = tcb->alloc_stack_ptr;
+      tcb->stack_base_ptr = tcb->alloc_stack_ptr;
       tcb->adj_stack_size = size_of_stack;
+      tcb->flags |= TCB_FLAG_FREE_STACK;
 
       board_autoled_on(LED_STACKCREATED);
       return OK;

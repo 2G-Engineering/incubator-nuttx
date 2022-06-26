@@ -30,9 +30,7 @@
 #include <nuttx/arch.h>
 #include <arch/board/board.h>
 
-#include "arm_arch.h"
 #include "arm_internal.h"
-
 #include "nrf52_clockconfig.h"
 #include "hardware/nrf52_clock.h"
 #include "hardware/nrf52_power.h"
@@ -55,7 +53,7 @@
 void nrf52_clockconfig(void)
 {
 #ifdef CONFIG_NRF52_HFCLK_XTAL
-  /* Initilize HFCLK crystal oscillator */
+  /* Initialize HFCLK crystal oscillator */
 
   putreg32(0x0, NRF52_CLOCK_EVENTS_HFCLKSTARTED);
   putreg32(0x1, NRF52_CLOCK_TASKS_HFCLKSTART);

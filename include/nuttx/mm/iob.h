@@ -18,8 +18,8 @@
  *
  ****************************************************************************/
 
-#ifndef _INCLUDE_NUTTX_MM_IOB_H
-#define _INCLUDE_NUTTX_MM_IOB_H
+#ifndef __INCLUDE_NUTTX_MM_IOB_H
+#define __INCLUDE_NUTTX_MM_IOB_H
 
 /****************************************************************************
  * Included Files
@@ -106,7 +106,7 @@ struct iob_s
   uint16_t io_len;      /* Length of the data in the entry */
   uint16_t io_offset;   /* Data begins at this offset */
 #endif
-  uint16_t io_pktlen;   /* Total length of the packet */
+  unsigned int io_pktlen; /* Total length of the packet */
 
   uint8_t  io_data[CONFIG_IOB_BUFSIZE];
 };
@@ -234,6 +234,23 @@ struct iob_userstats_s
 void iob_initialize(void);
 
 /****************************************************************************
+ * Name: iob_timedalloc
+ *
+ * Description:
+ *  Allocate an I/O buffer by taking the buffer at the head of the free list.
+ *  This wait will be terminated when the specified timeout expires.
+ *
+ * Input Parameters:
+ *   throttled  - An indication of the IOB allocation is "throttled"
+ *   timeout    - Timeout value in milliseconds.
+ *   consumerid - id representing who is consuming the IOB
+ *
+ ****************************************************************************/
+
+FAR struct iob_s *iob_timedalloc(bool throttled, unsigned int timeout,
+                                 enum iob_user_e consumerid);
+
+/****************************************************************************
  * Name: iob_alloc
  *
  * Description:
@@ -332,13 +349,12 @@ int iob_notifier_setup(int qid, worker_t worker, FAR void *arg);
  *         iob_notifier_setup().
  *
  * Returned Value:
- *   Zero (OK) is returned on success; a negated errno value is returned on
- *   any failure.
+ *   None.
  *
  ****************************************************************************/
 
 #ifdef CONFIG_IOB_NOTIFIER
-int iob_notifier_teardown(int key);
+void iob_notifier_teardown(int key);
 #endif
 
 /****************************************************************************
@@ -426,6 +442,32 @@ void iob_free_queue(FAR struct iob_queue_s *qhead,
 #endif /* CONFIG_IOB_NCHAINS > 0 */
 
 /****************************************************************************
+ * Name: iob_free_queue_qentry
+ *
+ * Description:
+ *   Free an iob entire queue of I/O buffer chains.
+ *
+ ****************************************************************************/
+
+#if CONFIG_IOB_NCHAINS > 0
+void iob_free_queue_qentry(FAR struct iob_s *iob,
+                           FAR struct iob_queue_s *iobq,
+                           enum iob_user_e producerid);
+#endif /* CONFIG_IOB_NCHAINS > 0 */
+
+/****************************************************************************
+ * Name: iob_get_queue_size
+ *
+ * Description:
+ *   Queue helper for get the iob queue buffer size.
+ *
+ ****************************************************************************/
+
+#if CONFIG_IOB_NCHAINS > 0
+unsigned int iob_get_queue_size(FAR struct iob_queue_s *queue);
+#endif /* CONFIG_IOB_NCHAINS > 0 */
+
+/****************************************************************************
  * Name: iob_copyin
  *
  * Description:
@@ -463,6 +505,17 @@ int iob_trycopyin(FAR struct iob_s *iob, FAR const uint8_t *src,
 
 int iob_copyout(FAR uint8_t *dest, FAR const struct iob_s *iob,
                 unsigned int len, unsigned int offset);
+
+/****************************************************************************
+ * Name: iob_tailroom
+ *
+ * Description:
+ *  Return the number of bytes at the tail of the I/O buffer chain which
+ *  can be used to append data without additional allocations.
+ *
+ ****************************************************************************/
+
+unsigned int iob_tailroom(FAR struct iob_s *iob);
 
 /****************************************************************************
  * Name: iob_clone
@@ -593,4 +646,4 @@ FAR struct iob_userstats_s * iob_getuserstats(enum iob_user_e userid);
 #endif
 
 #endif /* CONFIG_MM_IOB */
-#endif /* _INCLUDE_NUTTX_MM_IOB_H */
+#endif /* __INCLUDE_NUTTX_MM_IOB_H */

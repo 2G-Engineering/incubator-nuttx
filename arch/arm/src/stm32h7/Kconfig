@@ -17,6 +17,8 @@ config ARCH_CHIP_STM32H743AG
 	select STM32H7_STM32H7X3XX
 	select STM32H7_FLASH_CONFIG_G
 	select STM32H7_IO_CONFIG_A
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		STM32 H7 Cortex M7, 1024 Kb FLASH, 1024K Kb SRAM,
 		UFBGA169
@@ -35,6 +37,8 @@ config ARCH_CHIP_STM32H743BG
 	select STM32H7_STM32H7X3XX
 	select STM32H7_FLASH_CONFIG_G
 	select STM32H7_IO_CONFIG_B
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		STM32 H7 Cortex M7, 1024 Kb FLASH, 1024K Kb SRAM,
 		LQFP208
@@ -44,6 +48,8 @@ config ARCH_CHIP_STM32H743BI
 	select STM32H7_STM32H7X3XX
 	select STM32H7_FLASH_CONFIG_I
 	select STM32H7_IO_CONFIG_B
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
 		LQFP208
@@ -53,6 +59,8 @@ config ARCH_CHIP_STM32H743IG
 	select STM32H7_STM32H7X3XX
 	select STM32H7_FLASH_CONFIG_G
 	select STM32H7_IO_CONFIG_I
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		STM32 H7 Cortex M7, 1024 Kb FLASH, 1024K Kb SRAM,
 		LQFP176 or UFBGA176
@@ -62,6 +70,8 @@ config ARCH_CHIP_STM32H743II
 	select STM32H7_STM32H7X3XX
 	select STM32H7_FLASH_CONFIG_I
 	select STM32H7_IO_CONFIG_I
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
 		LQFP176 or UFBGA176
@@ -71,6 +81,8 @@ config ARCH_CHIP_STM32H743VG
 	select STM32H7_STM32H7X3XX
 	select STM32H7_FLASH_CONFIG_G
 	select STM32H7_IO_CONFIG_V
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		STM32 H7 Cortex M7, 1024 Kb FLASH, 1024K Kb SRAM,
 		LQFP100 or TFBGA100
@@ -80,6 +92,8 @@ config ARCH_CHIP_STM32H743VI
 	select STM32H7_STM32H7X3XX
 	select STM32H7_FLASH_CONFIG_I
 	select STM32H7_IO_CONFIG_V
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
 		LQFP100 or TFBGA100
@@ -89,6 +103,8 @@ config ARCH_CHIP_STM32H743XG
 	select STM32H7_STM32H7X3XX
 	select STM32H7_FLASH_CONFIG_G
 	select STM32H7_IO_CONFIG_X
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		STM32 H7 Cortex M7, 1024 Kb FLASH, 1024K Kb SRAM,
 		TFBGA240
@@ -98,6 +114,8 @@ config ARCH_CHIP_STM32H743XI
 	select STM32H7_STM32H7X3XX
 	select STM32H7_FLASH_CONFIG_I
 	select STM32H7_IO_CONFIG_X
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
 		TFBGA240
@@ -107,6 +125,8 @@ config ARCH_CHIP_STM32H743ZG
 	select STM32H7_STM32H7X3XX
 	select STM32H7_FLASH_CONFIG_G
 	select STM32H7_IO_CONFIG_Z
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		STM32 H7 Cortex M7, 1024 Kb FLASH, 1024K Kb SRAM,
 		LQFP144
@@ -116,6 +136,8 @@ config ARCH_CHIP_STM32H743ZI
 	select STM32H7_STM32H7X3XX
 	select STM32H7_FLASH_CONFIG_I
 	select STM32H7_IO_CONFIG_Z
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
 		LQFP144
@@ -125,6 +147,8 @@ config ARCH_CHIP_STM32H747XI
 	select STM32H7_STM32H7X7XX
 	select STM32H7_FLASH_CONFIG_I
 	select STM32H7_IO_CONFIG_X
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		Dual core STM32 H7 Cortex M7+M4, 2048 Kb FLASH, 1024K Kb SRAM
 		TFBGA240
@@ -134,10 +158,11 @@ config ARCH_CHIP_STM32H753AI
 	select STM32H7_STM32H7X3XX
 	select STM32H7_FLASH_CONFIG_I
 	select STM32H7_IO_CONFIG_A
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
 		with cryptographic accelerator, UFBGA169
-
 
 config ARCH_CHIP_STM32H753BI
 	bool "STM32H753BI"
@@ -153,6 +178,8 @@ config ARCH_CHIP_STM32H753II
 	select STM32H7_STM32H7X3XX
 	select STM32H7_FLASH_CONFIG_I
 	select STM32H7_IO_CONFIG_I
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
 		with cryptographic accelerator, LQFP176/UFBGA176
@@ -162,6 +189,8 @@ config ARCH_CHIP_STM32H753VI
 	select STM32H7_STM32H7X3XX
 	select STM32H7_FLASH_CONFIG_I
 	select STM32H7_IO_CONFIG_V
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
 		with cryptographic accelerator, LQFP100/TFBGA100
@@ -180,6 +209,8 @@ config ARCH_CHIP_STM32H753ZI
 	select STM32H7_STM32H7X3XX
 	select STM32H7_FLASH_CONFIG_I
 	select STM32H7_IO_CONFIG_Z
+	select STM32H7_HAVE_FDCAN1
+	select STM32H7_HAVE_FDCAN2
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
 		with cryptographic accelerator, LQFP144
@@ -303,7 +334,7 @@ config STM32H7_FLASH_CR_PSIZE
 	range 0 3
 	---help---
 		On some hardware the fastest 64 bit wide flash writes cause too
-		high power consumption which may compromize the system stability.
+		high power consumption which may compromise the system stability.
 		This option can be used to reduce the program size. The options are:
 		0: 8 bits
 		1: 16 bits
@@ -366,6 +397,14 @@ config STM32H7_HAVE_SPI6
 	bool
 	default n
 
+config STM32H7_HAVE_FDCAN1
+	bool
+	default n
+
+config STM32H7_HAVE_FDCAN2
+	bool
+	default n
+
 # These "hidden" settings are the OR of individual peripheral selections
 # indicating that the general capability is required.
 
@@ -373,8 +412,11 @@ config STM32H7_ADC
 	bool
 	default n
 
-config STM32H7_CAN
+config STM32H7_FDCAN
 	bool
+	select NET_CAN_HAVE_CANFD
+	select NET_CAN_EXTID
+	select NET_CAN_HAVE_TX_DEADLINE
 	default n
 
 config STM32H7_DAC
@@ -402,6 +444,10 @@ config STM32H7_SPI
 	default n
 
 config STM32H7_TIM
+	bool
+	default n
+
+config STM32H7_LPTIM
 	bool
 	default n
 
@@ -563,6 +609,18 @@ config STM32H7_WWDG
 	default n
 	select WATCHDOG
 
+config STM32H7_FDCAN1
+	bool "FDCAN1"
+	select STM32H7_FDCAN
+	default n
+	depends on STM32H7_HAVE_FDCAN1
+
+config STM32H7_FDCAN2
+	bool "FDCAN2"
+	select STM32H7_FDCAN
+	default n
+	depends on STM32H7_HAVE_FDCAN2
+
 menu "STM32H7 I2C Selection"
 
 config STM32H7_I2C1
@@ -711,6 +769,35 @@ config STM32H7_TIM17
 
 endmenu # STM32H7 Timer Selection
 
+menu "STM32H7 Low-power Timer Selection"
+
+config STM32H7_LPTIM1
+	bool "LPTIM1"
+	default n
+	select STM32H7_LPTIM
+
+config STM32H7_LPTIM2
+	bool "LPTIM2"
+	default n
+	select STM32H7_LPTIM
+
+config STM32H7_LPTIM3
+	bool "LPTIM3"
+	default n
+	select STM32H7_LPTIM
+
+config STM32H7_LPTIM4
+	bool "LPTIM4"
+	default n
+	select STM32H7_LPTIM
+
+config STM32H7_LPTIM5
+	bool "LPTIM5"
+	default n
+	select STM32H7_LPTIM
+
+endmenu # STM32H7 Timer Selection
+
 menu "STM32H7 U[S]ART Selection"
 
 config STM32H7_USART1
@@ -842,6 +929,19 @@ config STM32H7_I2CTIMEOTICKS
 	depends on STM32H7_I2C && !STM32H7_I2C_DYNTIMEO
 
 endmenu # "I2C Configuration"
+
+menu "OTG Configuration"
+	depends on STM32H7_OTGFS
+
+config OTG_ID_GPIO_DISABLE
+	bool "Disable the use of GPIO_OTG_ID pin."
+	default n
+	---help---
+		Disables/Enables the use of GPIO_OTG_ID pin. This allows non OTG use
+		cases to reuse this GPIO pin and ensure it is not set incorrectlty
+		during OS boot.
+
+endmenu
 
 menu "SPI Configuration"
 	depends on STM32H7_SPI
@@ -1310,6 +1410,18 @@ config UART8_RXFIFO_THRES
 
 endif # STM32H7_UART8
 
+config STM32H7_SERIAL_RXDMA_BUFFER_SIZE
+	int "Rx DMA buffer size"
+	default 32
+	depends on USART1_RXDMA || USART2_RXDMA || USART3_RXDMA || UART4_RXDMA || UART5_RXDMA || USART6_RXDMA || UART7_RXDMA || UART8_RXDMA
+	---help---
+		The DMA buffer size when using RX DMA to emulate a FIFO.
+
+		When streaming data, the generic serial layer will be called
+		every time the FIFO receives half this number of bytes.
+
+		Value given here will be rounded up to next multiple of 32 bytes.
+
 config STM32H7_SERIAL_DISABLE_REORDERING
 	bool "Disable reordering of ttySx devices."
 	default n
@@ -1537,21 +1649,21 @@ endchoice #"RTC clock source"
 if STM32H7_RTC_LSECLOCK
 
 config STM32H7_RTC_AUTO_LSECLOCK_START_DRV_CAPABILITY
-	bool "Automaticaly boost the LSE oscillator drive capability level until it starts-up"
+	bool "Automatically boost the LSE oscillator drive capability level until it starts-up"
 	default n
 	---help---
-		This will cycle through the correct* values from low to high. To avoid
-		damaging the the crystal. We want to use the lowest setting that gets
-		the OSC running. See app note AN2867
+		This will cycle through the correct* values from low to high. To
+		avoid damaging the crystal, we want to use the lowest setting that
+		gets the OSC running. See app note AN2867
 
 			0 = Low drive capability (default)
 			1 = Medium low drive capability
 			2 = Medium high drive capability
 			3 = High drive capability
 
-		*It will take into account the rev of the silicon and use
-		the correct code points to achive the drive strength.
-		See Eratta ES0392 Rev 7 2.2.14 LSE oscillator driving capability
+		*It will take into account the revision of the silicon and use
+		the correct code points to achieve the drive strength.
+		See Errata ES0392 Rev 7 2.2.14 LSE oscillator driving capability
 		selection bits are swapped.
 
 config STM32H7_RTC_LSECLOCK_START_DRV_CAPABILITY
@@ -1565,9 +1677,9 @@ config STM32H7_RTC_LSECLOCK_START_DRV_CAPABILITY
 		2 = Medium high drive capability
 		3 = High drive capability
 
-		It will take into account the rev of the silicon and use
-		the correct code points tp achive the drive strength.
-		See Eratta ES0392 Rev 7 2.2.14 LSE oscillator driving capability
+		It will take into account the revision of the silicon and use
+		the correct code points to achieve the drive strength.
+		See Errata ES0392 Rev 7 2.2.14 LSE oscillator driving capability
 		selection bits are swapped.
 
 config STM32H7_RTC_LSECLOCK_RUN_DRV_CAPABILITY
@@ -1581,14 +1693,13 @@ config STM32H7_RTC_LSECLOCK_RUN_DRV_CAPABILITY
 		2 = Medium high drive capability
 		3 = High drive capability
 
-		It will take into account the rev of the silicon and use
-		the correct code points tp achive the drive strength.
-		See Eratta ES0392 Rev 7 2.2.14 LSE oscillator driving capability
+		It will take into account the revision of the silicon and use
+		the correct code points to achieve the drive strength.
+		See Errata ES0392 Rev 7 2.2.14 LSE oscillator driving capability
 		selection bits are swapped.
 
-		WARNING this RUN setting does not apear to work!
-		it apears that the LSEDRV bits can not be changes once the OSC
-		is running.
+		WARNING this RUN setting does not appear to work! It appears
+		that the LSEDRV bits cannot be changed once the OSC is running.
 
 endif # STM32H7_RTC_LSECLOCK
 
@@ -1775,11 +1886,33 @@ config STM32H7_DMACAPABLE_ASSUME_CACHE_ALIGNED
 	---help---
 		This option configures the stm32_dmacapable to not disqualify
 		DMA operations on memory that is not dcache aligned based solely
-		on the starting addresss and byte count.
+		on the starting address and byte count.
+
 		Use this when ALL buffer extents are known to be aligned, but the
 		the count does not use the complete buffer.
 
 menu "Timer Configuration"
+
+if SCHED_TICKLESS
+
+config STM32H7_TICKLESS_TIMER
+	int "Tickless hardware timer"
+	default 2
+	range 1 17
+	---help---
+		If the Tickless OS feature is enabled, then one clock must be
+		assigned to provided the timer needed by the OS.
+
+config STM32H7_TICKLESS_CHANNEL
+	int "Tickless timer channel"
+	default 1
+	range 1 4
+	---help---
+		If the Tickless OS feature is enabled, the one clock must be
+		assigned to provided the free-running timer needed by the OS
+		and one channel on that clock is needed to handle intervals.
+
+endif # SCHED_TICKLESS
 
 config STM32H7_ONESHOT
 	bool "TIM one-shot wrapper"
@@ -1965,7 +2098,7 @@ config STM32H7_TIM1_CHANNEL5
 	bool "TIM1 Channel 5 (internal)"
 	default n
 	---help---
-		Enables channel 5 (no available externaly)
+		Enables channel 5 (not available externally)
 
 if STM32H7_TIM1_CHANNEL5
 
@@ -1988,7 +2121,7 @@ config STM32H7_TIM1_CHANNEL6
 	bool "TIM1 Channel 6 (internal)"
 	default n
 	---help---
-		Enables channel 6 (no available externaly)
+		Enables channel 6 (not available externally)
 
 if STM32H7_TIM1_CHANNEL6
 
@@ -2968,7 +3101,7 @@ config STM32H7_TIM8_CHANNEL5
 	bool "TIM8 Channel 5 (internal)"
 	default n
 	---help---
-		Enables channel 5 (no available externaly)
+		Enables channel 5 (not available externally)
 
 if STM32H7_TIM8_CHANNEL5
 
@@ -2991,7 +3124,7 @@ config STM32H7_TIM8_CHANNEL6
 	bool "TIM8 Channel 6 (internal)"
 	default n
 	---help---
-		Enables channel 6 (no available externaly)
+		Enables channel 6 (not available externally)
 
 if STM32H7_TIM8_CHANNEL6
 
@@ -4156,7 +4289,6 @@ config STM32H7_TIM17_CAP
 		Timer devices may be used for different purposes.  One special purpose is
 		to capture input.
 
-
 menu "STM32 TIMx Outputs Configuration"
 
 config STM32H7_TIM1_CH1POL
@@ -5249,6 +5381,114 @@ config STM32H7_QENCODER_SAMPLE_EVENT_8
 
 endchoice
 
-endmenu
+endmenu # QEncoder Driver
+
+menu "FDCAN Driver Configuration"
+	depends on STM32H7_FDCAN1 || STM32H7_FDCAN2
+
+menu "FDCAN1 Configuration"
+	depends on STM32H7_FDCAN1
+
+config FDCAN1_BITRATE
+	int "CAN bitrate"
+	depends on !NET_CAN_CANFD
+	default 1000000
+
+config FDCAN1_ARBI_BITRATE
+	int "CAN FD Arbitration phase bitrate"
+	depends on NET_CAN_CANFD
+	default 1000000
+
+config FDCAN1_DATA_BITRATE
+	int "CAN FD Data phase bitrate"
+	depends on NET_CAN_CANFD
+	default 4000000
+
+endmenu # STM32H7_FDCAN1
+
+menu "FDCAN2 Configuration"
+	depends on STM32H7_FDCAN2
+
+config FDCAN2_BITRATE
+	int "CAN bitrate"
+	depends on !NET_CAN_CANFD
+	default 1000000
+
+config FDCAN2_ARBI_BITRATE
+	int "CAN FD Arbitration phase bitrate"
+	depends on NET_CAN_CANFD
+	default 1000000
+
+config FDCAN2_DATA_BITRATE
+	int "CAN FD Data phase bitrate"
+	depends on NET_CAN_CANFD
+	default 4000000
+
+endmenu # STM32H7_FDCAN2
+
+config STM32H7_FDCAN_REGDEBUG
+	bool "Enable register dump debugging"
+	depends on DEBUG_CAN_INFO
+	depends on DEBUG_NET_INFO
+	default n
+	---help---
+		Output detailed register-level CAN device debug information.
+		Requires also CONFIG_DEBUG_CAN_INFO and CONFIG_DEBUG_NET_INFO.
+
+config STM32H7_FDCAN_LOOPBACK
+	bool "Enable FDCAN loopback mode"
+	default n
+	---help---
+		Enable the FDCAN local loopback mode for testing purposes.
+		Requires a further choice of internal or external loopback mode.
+
+		TODO: Enable separately for FDCAN1 and FDCAN2
+
+choice
+	prompt "FDCAN Loopback Mode"
+	depends on STM32H7_FDCAN_LOOPBACK
+	default STM32H7_FDCAN_LOOPBACK_INTERNAL
+
+config STM32H7_FDCAN_LOOPBACK_INTERNAL
+	bool "Internal loopback mode"
+	---help---
+		Enable internal loopback mode, where both Tx and Rx are
+		disconnected from the CAN bus.  This can be used for a "Hot Selftest",
+		meaning the FDCAN can be used without affecting a running CAN bus.
+
+		All transmitted frames are treated as received frames and processed
+		accordingly.
+
+config STM32H7_FDCAN_LOOPBACK_EXTERNAL
+	bool "External loopback mode"
+	---help---
+		Enable external loopback mode, where the Rx pin is disconnected from
+		the CAN bus but the Tx pin remains connected.
+
+		All transmitted frames are treated as received frames and processed
+		accordingly.
+
+endchoice # CAN Loopback Mode
+
+choice
+	prompt "FDCAN WorkQueue Selection"
+	default STM32H7_FDCAN_LPWORK
+
+config STM32H7_FDCAN_LPWORK
+	bool "Use LP work queue"
+	---help---
+		Use the low-priority (LP) work queue for reception and transmission
+		of new frames and for processing of transmission timeouts.
+
+config STM32H7_FDCAN_HPWORK
+	bool "Use HP work queue"
+	---help---
+		Use the high-priority (HP) work queue for reception and transmission
+		of new frames and for processing of transmission timeouts.
+
+endchoice
+
+endmenu # FDCAN Driver
+
 
 endif # ARCH_CHIP_STM32H7

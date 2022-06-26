@@ -28,6 +28,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 #include <errno.h>
 #include <debug.h>
 
@@ -99,31 +100,37 @@ static int     sensor_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
 static const struct sensor_info g_sensor_info[] =
 {
-  {0,                                 NULL},
-  {sizeof(struct sensor_event_accel), "accel"},
-  {sizeof(struct sensor_event_mag),   "mag"},
-  {sizeof(struct sensor_event_gyro),  "gyro"},
-  {sizeof(struct sensor_event_light), "light"},
-  {sizeof(struct sensor_event_baro),  "baro"},
-  {sizeof(struct sensor_event_prox),  "prox"},
-  {sizeof(struct sensor_event_humi),  "humi"},
-  {sizeof(struct sensor_event_temp),  "temp"},
-  {sizeof(struct sensor_event_rgb),   "rgb"},
-  {sizeof(struct sensor_event_hall),  "hall"},
-  {sizeof(struct sensor_event_ir),    "ir"},
-  {sizeof(struct sensor_event_gps),   "gps"},
-  {sizeof(struct sensor_event_uv),    "uv"},
-  {sizeof(struct sensor_event_noise), "noise"},
-  {sizeof(struct sensor_event_pm25),  "pm25"},
-  {sizeof(struct sensor_event_pm1p0), "pm1p0"},
-  {sizeof(struct sensor_event_pm10),  "pm10"},
-  {sizeof(struct sensor_event_co2),   "co2"},
-  {sizeof(struct sensor_event_hcho),  "hcho"},
-  {sizeof(struct sensor_event_tvoc),  "tvoc"},
-  {sizeof(struct sensor_event_ph),    "ph"},
-  {sizeof(struct sensor_event_dust),  "dust"},
-  {sizeof(struct sensor_event_hrate), "hrate"},
-  {sizeof(struct sensor_event_hbeat), "hbeat"},
+  {0,                                           NULL},
+  {sizeof(struct sensor_event_accel),           "accel"},
+  {sizeof(struct sensor_event_mag),             "mag"},
+  {sizeof(struct sensor_event_gyro),            "gyro"},
+  {sizeof(struct sensor_event_light),           "light"},
+  {sizeof(struct sensor_event_baro),            "baro"},
+  {sizeof(struct sensor_event_prox),            "prox"},
+  {sizeof(struct sensor_event_humi),            "humi"},
+  {sizeof(struct sensor_event_temp),            "temp"},
+  {sizeof(struct sensor_event_rgb),             "rgb"},
+  {sizeof(struct sensor_event_hall),            "hall"},
+  {sizeof(struct sensor_event_ir),              "ir"},
+  {sizeof(struct sensor_event_gps),             "gps"},
+  {sizeof(struct sensor_event_uv),              "uv"},
+  {sizeof(struct sensor_event_noise),           "noise"},
+  {sizeof(struct sensor_event_pm25),            "pm25"},
+  {sizeof(struct sensor_event_pm1p0),           "pm1p0"},
+  {sizeof(struct sensor_event_pm10),            "pm10"},
+  {sizeof(struct sensor_event_co2),             "co2"},
+  {sizeof(struct sensor_event_hcho),            "hcho"},
+  {sizeof(struct sensor_event_tvoc),            "tvoc"},
+  {sizeof(struct sensor_event_ph),              "ph"},
+  {sizeof(struct sensor_event_dust),            "dust"},
+  {sizeof(struct sensor_event_hrate),           "hrate"},
+  {sizeof(struct sensor_event_hbeat),           "hbeat"},
+  {sizeof(struct sensor_event_ecg),             "ecg"},
+  {sizeof(struct sensor_event_ppgd),            "ppgd"},
+  {sizeof(struct sensor_event_ppgq),            "ppgq"},
+  {sizeof(struct sensor_event_impd),            "impd"},
+  {sizeof(struct sensor_event_ots),             "ots"},
+  {sizeof(struct sensor_event_gps_satellite),   "gps_satellite"},
 };
 
 static const struct file_operations g_sensor_fops =
@@ -135,6 +142,9 @@ static const struct file_operations g_sensor_fops =
   NULL,           /* seek  */
   sensor_ioctl,   /* ioctl */
   sensor_poll     /* poll  */
+#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
+  , NULL          /* unlink */
+#endif
 };
 
 /****************************************************************************
@@ -157,7 +167,7 @@ static void sensor_pollnotify(FAR struct sensor_upperhalf_s *upper,
 
           if (fd->revents != 0)
             {
-              sninfo("Report events: %02x\n", fd->revents);
+              sninfo("Report events: %08" PRIx32 "\n", fd->revents);
 
               nxsem_get_value(fd->sem, &semcount);
               if (semcount < 1)
@@ -364,19 +374,31 @@ static int sensor_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
           if (ret >= 0)
             {
               upper->enabled = !!arg;
+              if (!upper->enabled)
+                {
+                  upper->interval = 0;
+                  upper->latency = 0;
+                  ret = circbuf_resize(&upper->buffer, lower->buffer_number *
+                                                       upper->esize);
+                }
             }
         }
         break;
 
       case SNIOC_SET_INTERVAL:
         {
+          if (lower->ops->set_interval == NULL)
+            {
+              ret = -ENOTSUP;
+              break;
+            }
+
           if (upper->interval == *val)
             {
               break;
             }
 
-          ret = lower->ops->set_interval ?
-                lower->ops->set_interval(lower, val) : -ENOTSUP;
+          ret = lower->ops->set_interval(lower, val);
           if (ret >= 0)
             {
               upper->interval = *val;
@@ -386,6 +408,12 @@ static int sensor_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
       case SNIOC_BATCH:
         {
+          if (lower->ops->batch == NULL)
+            {
+              ret = -ENOTSUP;
+              break;
+            }
+
           if (upper->interval == 0)
             {
               ret = -EINVAL;
@@ -397,8 +425,7 @@ static int sensor_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
               break;
             }
 
-          ret = lower->ops->batch ?
-                lower->ops->batch(lower, val) : -ENOTSUP;
+          ret = lower->ops->batch(lower, val);
           if (ret >= 0)
             {
               upper->latency = *val;
@@ -414,6 +441,30 @@ static int sensor_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
                   ret = circbuf_resize(&upper->buffer, buffer_size);
                 }
             }
+        }
+        break;
+
+      case SNIOC_SELFTEST:
+        {
+          if (lower->ops->selftest == NULL)
+            {
+              ret = -ENOTSUP;
+              break;
+            }
+
+          ret = lower->ops->selftest(lower, arg);
+        }
+        break;
+
+      case SNIOC_SET_CALIBVALUE:
+        {
+          if (lower->ops->set_calibvalue == NULL)
+            {
+              ret = -ENOTSUP;
+              break;
+            }
+
+          ret = lower->ops->set_calibvalue(lower, arg);
         }
         break;
 

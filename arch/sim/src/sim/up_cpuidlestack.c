@@ -72,16 +72,11 @@
  *   - tcb:         The TCB of new CPU IDLE task
  *   - stack_size:  The requested stack size for the IDLE task.  At least
  *                  this much must be allocated.  This should be
- *                  CONFIG_SMP_IDLETHREAD_STACKSIZE.
+ *                  CONFIG_IDLETHREAD_STACKSIZE.
  *
  ****************************************************************************/
 
-int up_cpu_idlestack(int cpu, FAR struct tcb_s *tcb, size_t stack_size)
+int up_cpu_idlestack(int cpu, struct tcb_s *tcb, size_t stack_size)
 {
-  /* REVISIT:  I don't think anything is needed here */
-
-  tcb->adj_stack_size  = 0;
-  tcb->stack_alloc_ptr = NULL;
-  tcb->stack_base_ptr   = NULL;
-  return OK;
+  return up_create_stack(tcb, stack_size, TCB_FLAG_TTYPE_KERNEL);
 }

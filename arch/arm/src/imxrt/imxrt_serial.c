@@ -29,6 +29,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <string.h>
+#include <assert.h>
 #include <errno.h>
 #include <debug.h>
 
@@ -38,6 +39,7 @@
 
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/init.h>
 #include <nuttx/power/pm.h>
 #include <nuttx/fs/ioctl.h>
@@ -46,9 +48,7 @@
 #include <arch/board/board.h>
 
 #include "chip.h"
-#include "arm_arch.h"
 #include "arm_internal.h"
-
 #include "hardware/imxrt_lpuart.h"
 #include "imxrt_gpio.h"
 #include "hardware/imxrt_pinmux.h"
@@ -352,7 +352,7 @@ static int  imxrt_setup(struct uart_dev_s *dev);
 static void imxrt_shutdown(struct uart_dev_s *dev);
 static int  imxrt_attach(struct uart_dev_s *dev);
 static void imxrt_detach(struct uart_dev_s *dev);
-static int  imxrt_interrupt(int irq, void *context, FAR void *arg);
+static int  imxrt_interrupt(int irq, void *context, void *arg);
 static int  imxrt_ioctl(struct file *filep, int cmd, unsigned long arg);
 static int  imxrt_receive(struct uart_dev_s *dev, unsigned int *status);
 static void imxrt_rxint(struct uart_dev_s *dev, bool enable);
@@ -1054,7 +1054,7 @@ static void imxrt_detach(struct uart_dev_s *dev)
  *
  ****************************************************************************/
 
-static int imxrt_interrupt(int irq, void *context, FAR void *arg)
+static int imxrt_interrupt(int irq, void *context, void *arg)
 {
   struct uart_dev_s *dev = (struct uart_dev_s *)arg;
   struct imxrt_uart_s *priv;

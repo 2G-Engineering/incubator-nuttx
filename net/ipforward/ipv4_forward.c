@@ -25,6 +25,7 @@
 #include <nuttx/config.h>
 
 #include <string.h>
+#include <assert.h>
 #include <debug.h>
 #include <errno.h>
 
@@ -178,7 +179,7 @@ static int ipv4_decr_ttl(FAR struct ipv4_hdr_s *ipv4)
     }
   else
     {
-      sum = htons(sum);
+      sum = HTONS(sum);
     }
 
   ipv4->ipchksum = ~sum;

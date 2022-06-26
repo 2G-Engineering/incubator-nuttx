@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <assert.h>
 #include <errno.h>
 #include <debug.h>
 
@@ -37,8 +38,7 @@
 
 #include <arch/board/board.h>
 
-#include "arm_arch.h"
-
+#include "arm_internal.h"
 #include "hardware/imxrt_snvs.h"
 #include "imxrt_periphclks.h"
 #include "imxrt_hprtc.h"
@@ -184,7 +184,7 @@ time_t up_rtc_time(void)
  *
  ****************************************************************************/
 
-int up_rtc_settime(FAR const struct timespec *ts)
+int up_rtc_settime(const struct timespec *ts)
 {
   uint32_t regval;
 

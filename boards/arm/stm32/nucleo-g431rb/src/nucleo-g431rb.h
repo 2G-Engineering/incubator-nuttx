@@ -31,6 +31,16 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+/* procfs File System */
+
+#ifdef CONFIG_FS_PROCFS
+#  ifdef CONFIG_NSH_PROC_MOUNTPOINT
+#    define STM32_PROCFS_MOUNTPOINT CONFIG_NSH_PROC_MOUNTPOINT
+#  else
+#    define STM32_PROCFS_MOUNTPOINT "/proc"
+#  endif
+#endif
+
 /* LED definitions **********************************************************/
 
 /* LED definitions **********************************************************/
@@ -93,7 +103,7 @@
  * Description:
  *   Perform architecture specific initialization
  *
- *   CONFIG_LIB_BOARDCTL=y:
+ *   CONFIG_BOARDCTL=y:
  *     If CONFIG_NSH_ARCHINITIALIZE=y:
  *       Called from the NSH library (or other application)
  *     Otherwise, assumed to be called from some other application.
@@ -141,6 +151,42 @@ int stm32_adc_setup(void);
 
 #ifdef CONFIG_STM32_FOC
 int stm32_foc_setup(void);
+#endif
+
+/****************************************************************************
+ * Name: stm32_cordic_setup
+ *
+ * Description:
+ *  Initialize CORDIC peripheral for the board.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_MATH_CORDIC
+int stm32_cordic_setup(void);
+#endif
+
+/****************************************************************************
+ * Name: stm32_can_setup
+ *
+ * Description:
+ *  Initialize CAN and register the CAN device
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_STM32_FDCAN_CHARDRIVER
+int stm32_can_setup(void);
+#endif
+
+/****************************************************************************
+ * Name: stm32_cansock_setup
+ *
+ * Description:
+ *  Initialize CAN socket interface
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_STM32_FDCAN_SOCKET
+int stm32_cansock_setup(void);
 #endif
 
 #endif /* __BOARDS_ARM_STM32_NUCLEO_G431RB_SRC_NUCLEO_G431RB_H */

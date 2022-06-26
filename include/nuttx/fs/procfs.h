@@ -127,13 +127,20 @@ struct procfs_dir_priv_s
 
 /* An entry for procfs_register_meminfo */
 
+struct mm_heap_s;
 struct procfs_meminfo_entry_s
 {
   FAR const char *name;
-  CODE void (*mallinfo)(FAR void *user_data, FAR struct mallinfo *);
-  FAR void *user_data;
-
+  FAR struct mm_heap_s *heap;
   struct procfs_meminfo_entry_s *next;
+#if defined(CONFIG_DEBUG_MM)
+
+  /* This is dynamic control flag whether to turn on backtrace in the heap,
+   * you can set it by /proc/memdump.
+   */
+
+  bool backtrace;
+#endif
 };
 
 /****************************************************************************
@@ -195,6 +202,26 @@ size_t procfs_memcpy(FAR const char *src, size_t srclen,
                      off_t *offset);
 
 /****************************************************************************
+ * Name: procfs_snprintf
+ *
+ * Description:
+ *   This function is same with snprintf, except return values.
+ *   If buf has no enough space and output was truncated due to size limit,
+ *   snprintf:        return formated string len.
+ *   procfs_snprintf: return string len which has written to buf.
+ *
+ * Input Parameters:
+ *   Same with snprintf
+ *
+ * Returned Value:
+ *   See Description.
+ *
+ ****************************************************************************/
+
+int procfs_snprintf(FAR char *buf, size_t size,
+                    FAR const IPTR char *format, ...);
+
+/****************************************************************************
  * Name: procfs_register
  *
  * Description:
@@ -228,6 +255,19 @@ int procfs_register(FAR const struct procfs_entry_s *entry);
  ****************************************************************************/
 
 void procfs_register_meminfo(FAR struct procfs_meminfo_entry_s *entry);
+
+/****************************************************************************
+ * Name: procfs_unregister_meminfo
+ *
+ * Description:
+ *   Remove a meminfo entry from the procfs file system.
+ *
+ * Input Parameters:
+ *   entry - Describes the entry to be unregistered.
+ *
+ ****************************************************************************/
+
+void procfs_unregister_meminfo(FAR struct procfs_meminfo_entry_s *entry);
 
 #undef EXTERN
 #ifdef __cplusplus

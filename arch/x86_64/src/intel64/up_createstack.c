@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sched.h>
+#include <assert.h>
 #include <debug.h>
 
 #include <nuttx/kmalloc.h>
@@ -36,7 +37,6 @@
 #include <nuttx/board.h>
 #include <arch/board/board.h>
 
-#include "up_arch.h"
 #include "up_internal.h"
 
 /****************************************************************************
@@ -88,7 +88,7 @@
  *
  ****************************************************************************/
 
-int up_create_stack(FAR struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
+int up_create_stack(struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
 {
 #ifdef CONFIG_TLS_ALIGNED
   /* The allocated stack size must not exceed the maximum possible for the
@@ -201,8 +201,9 @@ int up_create_stack(FAR struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
 
       /* Save the adjusted stack values in the struct tcb_s */
 
-      tcb->stack_base_ptr  = tcb->stack_alloc_ptr;
+      tcb->stack_base_ptr = tcb->stack_alloc_ptr;
       tcb->adj_stack_size = size_of_stack;
+      tcb->flags |= TCB_FLAG_FREE_STACK;
 
       board_autoled_on(LED_STACKCREATED);
       return OK;

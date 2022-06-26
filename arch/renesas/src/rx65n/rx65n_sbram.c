@@ -35,6 +35,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <poll.h>
+#include <assert.h>
 #include <errno.h>
 #include <unistd.h>
 #include <time.h>
@@ -134,7 +135,7 @@ static const struct file_operations rx65n_sbram_fops =
   .ioctl  = rx65n_sbram_ioctl,
   .poll   = rx65n_sbram_poll,
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-  .unlink = rx65n_sbram_unlink,
+  .unlink = rx65n_sbram_unlink
 #endif
 };
 
@@ -277,7 +278,7 @@ static int rx65n_sbram_open(FAR struct file *filep)
 static int rx65n_sbram_internal_close(FAR struct sbramfh_s *bbf)
 {
   bbf->dirty = 0;
-  (void)clock_gettime(CLOCK_REALTIME, &bbf->lastwrite);
+  clock_gettime(CLOCK_REALTIME, &bbf->lastwrite);
   bbf->crc = rx65n_sbram_crc(bbf);
 
   SBRAM_DUMP(bbf, "close done");
