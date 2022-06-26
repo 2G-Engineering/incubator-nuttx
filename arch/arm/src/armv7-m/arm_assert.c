@@ -117,7 +117,8 @@ static void up_taskdump(FAR struct tcb_s *tcb, FAR void *arg)
  ****************************************************************************/
 
 #ifdef CONFIG_STACK_COLORATION
-static inline void up_showtasks(void)
+//static inline void up_showtasks(void)
+/*static inline*/ void up_showtasks(void)
 {
   /* Dump interesting properties of each task in the crash environment */
 
