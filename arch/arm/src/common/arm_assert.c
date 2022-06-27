@@ -252,7 +252,7 @@ static void arm_dump_backtrace(struct tcb_s *tcb, void *arg)
  * Name: arm_showtasks
  ****************************************************************************/
 
-static void arm_showtasks(void)
+void arm_showtasks(void)
 {
 #if CONFIG_ARCH_INTERRUPTSTACK > 7
 #  ifdef CONFIG_STACK_COLORATION

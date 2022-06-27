@@ -284,21 +284,11 @@
 
 #define SNIOC_SET_BUFFER_NUMBER    _SNIOC(0x0084)
 
-/* IOCTL commands unique to the LTR303ALS */
 /* IOCTL commands unique to the Hall effect sensor */
 
 
 #define SNIOC_GET_POSITION         _SNIOC(0x0085)
-/* SNIOC_SET_OPERATIONAL_MODE */                   /* Arg: LTR303ALS_OP_MODE_xxx */
 
-
-/* SNIOC_SET_RANGE */                              /* Arg: LTR303ALS_ALS_RANGE_xxx */
-
-#define SNIOC_SET_INTEG_TIME       _SNIOC(0x0085)  /* Arg: LTR303ALS_ALS_INT_TIME_xxx */
-
-#define SNIOC_SET_MEAS_RATE        _SNIOC(0x0086)  /* Arg: LTR303ALS_ALS_MEAS_RATE_xxx */
-
-#define SNIOC_CONFIGURE_INT        _SNIOC(0x0087)  /* Arg: struct ltr303als_int_cfg_s* */
 
 /* Command:      SNIOC_SELFTEST
  * Description:  Take a selftest for sensor.
@@ -318,5 +308,17 @@
  */
 
 #define SNIOC_SET_CALIBVALUE       _SNIOC(0x0087)
+
+/* IOCTL commands unique to the LTR303ALS */
+/* SNIOC_SET_OPERATIONAL_MODE */                   /* Arg: LTR303ALS_OP_MODE_xxx */
+
+
+/* SNIOC_SET_RANGE */                              /* Arg: LTR303ALS_ALS_RANGE_xxx */
+
+#define SNIOC_SET_INTEG_TIME       _SNIOC(0x0088)  /* Arg: LTR303ALS_ALS_INT_TIME_xxx */
+
+#define SNIOC_SET_MEAS_RATE        _SNIOC(0x0089)  /* Arg: LTR303ALS_ALS_MEAS_RATE_xxx */
+
+#define SNIOC_CONFIGURE_INT        _SNIOC(0x0090)  /* Arg: struct ltr303als_int_cfg_s* */
 
 #endif /* __INCLUDE_NUTTX_SENSORS_IOCTL_H */

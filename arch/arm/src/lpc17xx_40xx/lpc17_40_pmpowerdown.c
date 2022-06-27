@@ -41,7 +41,7 @@
 
 #include <stdbool.h>
 
-#include "arm_arch.h"
+#include "arm_internal.h"
 #include "nvic.h"
 #include "lpc17_40_pm.h"
 #include "hardware/lpc17_40_syscon.h"

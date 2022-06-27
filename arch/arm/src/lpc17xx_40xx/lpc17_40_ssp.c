@@ -149,10 +149,10 @@ static inline void ssp_putreg(struct lpc17_40_sspdev_s *priv,
                               uint8_t offset, uint32_t value);
 
 #ifdef CONFIG_LPC17_40_SSP_DMA
-static int         ssp_dmarxwait(FAR struct lpc17_40_sspdev_s *priv);
-static int         ssp_dmatxwait(FAR struct lpc17_40_sspdev_s *priv);
-static inline void ssp_dmarxwakeup(FAR struct lpc17_40_sspdev_s *priv);
-static inline void ssp_dmatxwakeup(FAR struct lpc17_40_sspdev_s *priv);
+static int         ssp_dmarxwait(struct lpc17_40_sspdev_s *priv);
+static int         ssp_dmatxwait(struct lpc17_40_sspdev_s *priv);
+static inline void ssp_dmarxwakeup(struct lpc17_40_sspdev_s *priv);
+static inline void ssp_dmatxwakeup(struct lpc17_40_sspdev_s *priv);
 static void        ssp_dmarxcallback(DMA_HANDLE handle, void *arg, int status);
 static void        ssp_dmatxcallback(DMA_HANDLE handle, void *arg, int status);
 #ifdef CONFIG_DEBUG_DMA_INFO
@@ -179,10 +179,10 @@ static void     ssp_recvblock(struct spi_dev_s *dev, void *buffer,
 #endif
 
 #ifdef CONFIG_LPC17_40_SSP_DMA
-static void     ssp_sndblockdma(FAR struct spi_dev_s *dev,
-                                FAR const void *buffer, size_t nwords);
-static void     ssp_recvblockdma(FAR struct spi_dev_s *dev,
-                                 FAR void *buffer, size_t nwords);
+static void     ssp_sndblockdma(struct spi_dev_s *dev,
+                                const void *buffer, size_t nwords);
+static void     ssp_recvblockdma(struct spi_dev_s *dev,
+                                 void *buffer, size_t nwords);
 #endif
 
 /* Initialization */
@@ -796,10 +796,10 @@ static void ssp_sndblock(struct spi_dev_s *dev, const void *buffer,
  ****************************************************************************/
 
 #ifdef CONFIG_LPC17_40_SSP_DMA
-static void ssp_sndblockdma(FAR struct spi_dev_s *dev, FAR const void *buffer,
+static void ssp_sndblockdma(struct spi_dev_s *dev, const void *buffer,
                             size_t nwords)
 {
-  FAR struct lpc17_40_sspdev_s *priv = (FAR struct lpc17_40_sspdev_s *)dev;
+  struct lpc17_40_sspdev_s *priv = (struct lpc17_40_sspdev_s *)dev;
   int ret;
 
   uint32_t control = (DMACH_CONTROL_SBSIZE_1 | DMACH_CONTROL_DBSIZE_1 | \
@@ -932,10 +932,10 @@ static void ssp_recvblock(struct spi_dev_s *dev, void *buffer,
  */
 
 #  if 0
-static void ssp_recvblockdma(FAR struct spi_dev_s *dev, FAR void *buffer,
+static void ssp_recvblockdma(struct spi_dev_s *dev, void *buffer,
                              size_t nwords)
 {
-  FAR struct lpc17_40_sspdev_s *priv = (FAR struct lpc17_40_sspdev_s *)dev;
+  struct lpc17_40_sspdev_s *priv = (struct lpc17_40_sspdev_s *)dev;
   static const uint16_t txdummy = 0xffff;
   int ret;
 
@@ -993,10 +993,10 @@ static void ssp_recvblockdma(FAR struct spi_dev_s *dev, FAR void *buffer,
     }
 }
 #  else
-static void ssp_recvblockdma(FAR struct spi_dev_s *dev, FAR void *buffer,
+static void ssp_recvblockdma(struct spi_dev_s *dev, void *buffer,
                              size_t nwords)
 {
-  FAR struct lpc17_40_sspdev_s *priv = (FAR struct lpc17_40_sspdev_s *)dev;
+  struct lpc17_40_sspdev_s *priv = (struct lpc17_40_sspdev_s *)dev;
   static const uint16_t txdummy = 0xffff;
   uint32_t rxdummy = 0;
   int ret;
@@ -1089,7 +1089,7 @@ static void ssp_recvblockdma(FAR struct spi_dev_s *dev, FAR void *buffer,
  ************************************************************************************/
 
 #ifdef CONFIG_LPC17_40_SSP_DMA
-static int ssp_dmarxwait(FAR struct lpc17_40_sspdev_s *priv)
+static int ssp_dmarxwait(struct lpc17_40_sspdev_s *priv)
 {
   int ret;
 
@@ -1122,7 +1122,7 @@ static int ssp_dmarxwait(FAR struct lpc17_40_sspdev_s *priv)
  ************************************************************************************/
 
 #ifdef CONFIG_LPC17_40_SSP_DMA
-static int ssp_dmatxwait(FAR struct lpc17_40_sspdev_s *priv)
+static int ssp_dmatxwait(struct lpc17_40_sspdev_s *priv)
 {
   int ret;
 
@@ -1155,7 +1155,7 @@ static int ssp_dmatxwait(FAR struct lpc17_40_sspdev_s *priv)
  ************************************************************************************/
 
 #ifdef CONFIG_LPC17_40_SSP_DMA
-static inline void ssp_dmarxwakeup(FAR struct lpc17_40_sspdev_s *priv)
+static inline void ssp_dmarxwakeup(struct lpc17_40_sspdev_s *priv)
 {
   nxsem_post(&priv->rxsem);
 }
@@ -1170,7 +1170,7 @@ static inline void ssp_dmarxwakeup(FAR struct lpc17_40_sspdev_s *priv)
  ************************************************************************************/
 
 #ifdef CONFIG_LPC17_40_SSP_DMA
-static inline void ssp_dmatxwakeup(FAR struct lpc17_40_sspdev_s *priv)
+static inline void ssp_dmatxwakeup(struct lpc17_40_sspdev_s *priv)
 {
   nxsem_post(&priv->txsem);
 }
@@ -1187,7 +1187,7 @@ static inline void ssp_dmatxwakeup(FAR struct lpc17_40_sspdev_s *priv)
 #ifdef CONFIG_LPC17_40_SSP_DMA
 static void ssp_dmarxcallback(DMA_HANDLE handle, void *arg, int status)
 {
-    FAR struct lpc17_40_sspdev_s *priv = (FAR struct lpc17_40_sspdev_s *)arg;
+    struct lpc17_40_sspdev_s *priv = (struct lpc17_40_sspdev_s *)arg;
 
   /* Wake-up the SPI driver */
 
@@ -1207,7 +1207,7 @@ static void ssp_dmarxcallback(DMA_HANDLE handle, void *arg, int status)
 #ifdef CONFIG_LPC17_40_SSP_DMA
 static void ssp_dmatxcallback(DMA_HANDLE handle, void *arg, int status)
 {
-    FAR struct lpc17_40_sspdev_s *priv = (FAR struct lpc17_40_sspdev_s *)arg;
+    struct lpc17_40_sspdev_s *priv = (struct lpc17_40_sspdev_s *)arg;
 
   /* Wake-up the SPI driver */
 
