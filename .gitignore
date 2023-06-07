@@ -56,3 +56,4 @@ uImage
 .dirlinks
 .vscode
 .DS_Store
+/build_configs/*
