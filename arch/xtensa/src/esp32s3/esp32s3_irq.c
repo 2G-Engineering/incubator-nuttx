@@ -39,10 +39,12 @@
 #include "xtensa.h"
 
 #include "esp32s3_gpio.h"
+#include "esp32s3_rtc_gpio.h"
 #include "esp32s3_irq.h"
 #ifdef CONFIG_SMP
 #include "esp32s3_smp.h"
 #endif
+#include "esp32s3_userspace.h"
 #include "hardware/esp32s3_interrupt_core0.h"
 #ifdef CONFIG_SMP
 #include "hardware/esp32s3_interrupt_core1.h"
@@ -105,21 +107,15 @@
 #define ESP32S3_MAX_PRIORITY    5
 #define ESP32S3_PRIO_INDEX(p)   ((p) - ESP32S3_MIN_PRIORITY)
 
+#ifdef CONFIG_ESP32S3_WIFI
+#  define ESP32S3_WIFI_RESERVE_INT  (1 << ESP32S3_CPUINT_MAC)
+#else
+#  define ESP32S3_WIFI_RESERVE_INT  0
+#endif
+
 /****************************************************************************
  * Public Data
  ****************************************************************************/
-
-/* g_current_regs[] holds a reference to the current interrupt level
- * register storage structure.  It is non-NULL only during interrupt
- * processing.  Access to g_current_regs[] must be through the macro
- * CURRENT_REGS for portability.
- */
-
-/* For the case of architectures with multiple CPUs, then there must be one
- * such value for each processor that can receive an interrupt.
- */
-
-volatile uint32_t *g_current_regs[CONFIG_SMP_NCPUS];
 
 #if defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 15
 /* In the SMP configuration, we will need custom interrupt stacks.
@@ -162,7 +158,9 @@ static uint32_t g_intenable[CONFIG_SMP_NCPUS];
  * devices.
  */
 
-static uint32_t g_cpu0_freeints = ESP32S3_CPUINT_PERIPHSET;
+static uint32_t g_cpu0_freeints = ESP32S3_CPUINT_PERIPHSET &
+                                  ~ESP32S3_WIFI_RESERVE_INT;
+
 #ifdef CONFIG_SMP
 static uint32_t g_cpu1_freeints = ESP32S3_CPUINT_PERIPHSET;
 #endif
@@ -432,14 +430,23 @@ void up_irqinitialize(void)
   /* Hard code special cases. */
 
   g_irqmap[XTENSA_IRQ_TIMER0] = IRQ_MKMAP(0, ESP32S3_CPUINT_TIMER0);
-
   g_irqmap[XTENSA_IRQ_SWINT]  = IRQ_MKMAP(0, ESP32S3_CPUINT_SOFTWARE1);
-
   g_irqmap[XTENSA_IRQ_SWINT]  = IRQ_MKMAP(1, ESP32S3_CPUINT_SOFTWARE1);
+
+#ifdef CONFIG_ESP32S3_WIFI
+  g_irqmap[ESP32S3_IRQ_MAC] = IRQ_MKMAP(0, ESP32S3_CPUINT_MAC);
+#endif
 
   /* Initialize CPU interrupts */
 
   esp32s3_cpuint_initialize();
+
+  /* Reserve CPU0 interrupt for some special drivers */
+
+#ifdef CONFIG_ESP32S3_WIFI
+  g_cpu0_intmap[ESP32S3_CPUINT_MAC]  = CPUINT_ASSIGN(ESP32S3_IRQ_MAC);
+  xtensa_enable_cpuint(&g_intenable[0], 1 << ESP32S3_CPUINT_MAC);
+#endif
 
 #ifdef CONFIG_SMP
   /* Attach and enable the inter-CPU interrupt */
@@ -450,6 +457,14 @@ void up_irqinitialize(void)
   /* Initialize GPIO interrupt support */
 
   esp32s3_gpioirqinitialize();
+
+  /* Initialize RTCIO interrupt support */
+
+  esp32s3_rtcioirqinitialize();
+
+  /* Initialize interrupt handler for the PMS violation ISR */
+
+  esp32s3_pmsirqinitialize();
 
 #ifndef CONFIG_SUPPRESS_INTERRUPTS
   /* And finally, enable interrupts.  Also clears PS.EXCM */

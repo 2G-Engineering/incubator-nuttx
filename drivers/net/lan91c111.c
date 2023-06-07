@@ -33,7 +33,6 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/wqueue.h>
 
-#include <nuttx/net/arp.h>
 #include <nuttx/net/lan91c111.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/pkt.h>
@@ -81,12 +80,12 @@
 
 struct lan91c111_driver_s
 {
-  uintptr_t base;                         /* Base address */
-  int       irq;                          /* IRQ number */
-  uint16_t  bank;                         /* Current bank */
-  struct work_s irqwork;                  /* For deferring interrupt work to the work queue */
-  struct work_s pollwork;                 /* For deferring poll work to the work queue */
-  uint8_t pktbuf[MAX_NETDEV_PKTSIZE + 4]; /* +4 due to getregs32/putregs32 */
+  uintptr_t base;                                     /* Base address */
+  int       irq;                                      /* IRQ number */
+  struct work_s irqwork;                              /* For deferring interrupt work to the work queue */
+  struct work_s pollwork;                             /* For deferring poll work to the work queue */
+  uint16_t  bank;                                     /* Current bank */
+  uint16_t  pktbuf[(MAX_NETDEV_PKTSIZE + 4 + 1) / 2]; /* +4 due to getregs32/putregs32 */
 
   /* This holds the information visible to the NuttX network */
 
@@ -496,49 +495,15 @@ static int lan91c111_txpoll(FAR struct net_driver_s *dev)
 {
   FAR struct lan91c111_driver_s *priv = dev->d_private;
 
-  /* If the polling resulted in data that should be sent out on the network,
-   * the field d_len is set to a value > 0.
+  /* Send the packet */
+
+  lan91c111_transmit(dev);
+
+  /* Check if there is room in the device to hold another packet.  If
+   * not, return a non-zero value to terminate the poll.
    */
 
-  if (dev->d_len > 0)
-    {
-      /* Look up the destination MAC address and add it to the Ethernet
-       * header.
-       */
-
-#ifdef CONFIG_NET_IPv4
-      if (IFF_IS_IPv4(dev->d_flags))
-        {
-          arp_out(dev);
-        }
-#endif /* CONFIG_NET_IPv4 */
-
-#ifdef CONFIG_NET_IPv6
-      if (IFF_IS_IPv6(dev->d_flags))
-        {
-          neighbor_out(dev);
-        }
-#endif /* CONFIG_NET_IPv6 */
-
-      if (!devif_loopback(dev))
-        {
-          /* Send the packet */
-
-          lan91c111_transmit(dev);
-
-          /* Check if there is room in the device to hold another packet.  If
-           * not, return a non-zero value to terminate the poll.
-           */
-
-          return !(getreg16(priv, MIR_REG) & MIR_FREE_MASK);
-        }
-    }
-
-  /* If zero is returned, the polling will continue until all connections
-   * have been examined.
-   */
-
-  return 0;
+  return !(getreg16(priv, MIR_REG) & MIR_FREE_MASK);
 }
 
 /****************************************************************************
@@ -568,22 +533,6 @@ static void lan91c111_reply(FAR struct net_driver_s *dev)
 
   if (dev->d_len > 0)
     {
-      /* Update the Ethernet header with the correct MAC address */
-
-#ifdef CONFIG_NET_IPv4
-      if (IFF_IS_IPv4(dev->d_flags))
-        {
-          arp_out(dev);
-        }
-#endif
-
-#ifdef CONFIG_NET_IPv6
-      if (IFF_IS_IPv6(dev->d_flags))
-        {
-          neighbor_out(dev);
-        }
-#endif
-
       /* And send the packet */
 
       lan91c111_transmit(dev);
@@ -679,11 +628,8 @@ static void lan91c111_receive(FAR struct net_driver_s *dev)
       ninfo("IPv4 frame\n");
       NETDEV_RXIPV4(dev);
 
-      /* Handle ARP on input, then dispatch IPv4 packet to the network
-       * layer.
-       */
+      /* Receive an IPv4 packet from the network device */
 
-      arp_ipin(dev);
       ipv4_input(dev);
 
       /* Check for a reply to the IPv4 packet */
@@ -716,7 +662,7 @@ static void lan91c111_receive(FAR struct net_driver_s *dev)
 
       /* Dispatch ARP packet to the network layer */
 
-      arp_arpin(dev);
+      arp_input(dev);
 
       /* Check for a reply to the ARP packet */
 
@@ -785,7 +731,7 @@ static void lan91c111_txdone(FAR struct net_driver_s *dev)
     }
   else
     {
-      DEBUGASSERT(0);
+      DEBUGPANIC();
     }
 }
 
@@ -989,8 +935,8 @@ static int lan91c111_ifup(FAR struct net_driver_s *dev)
 
 #ifdef CONFIG_NET_IPv4
   ninfo("Bringing up: %d.%d.%d.%d\n",
-        dev->d_ipaddr & 0xff, (dev->d_ipaddr >> 8) & 0xff,
-        (dev->d_ipaddr >> 16) & 0xff, dev->d_ipaddr >> 24);
+        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
+        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
 #endif
 #ifdef CONFIG_NET_IPv6
   ninfo("Bringing up: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -1493,18 +1439,18 @@ int lan91c111_initialize(uintptr_t base, int irq)
 
   /* Initialize the driver structure */
 
-  dev->d_buf     = priv->pktbuf;      /* Single packet buffer */
-  dev->d_ifup    = lan91c111_ifup;    /* I/F up (new IP address) callback */
-  dev->d_ifdown  = lan91c111_ifdown;  /* I/F down callback */
-  dev->d_txavail = lan91c111_txavail; /* New TX data callback */
+  dev->d_buf     = (FAR uint8_t *)priv->pktbuf; /* Single packet buffer */
+  dev->d_ifup    = lan91c111_ifup;              /* I/F up (new IP address) callback */
+  dev->d_ifdown  = lan91c111_ifdown;            /* I/F down callback */
+  dev->d_txavail = lan91c111_txavail;           /* New TX data callback */
 #ifdef CONFIG_NET_MCASTGROUP
-  dev->d_addmac  = lan91c111_addmac;  /* Add multicast MAC address */
-  dev->d_rmmac   = lan91c111_rmmac;   /* Remove multicast MAC address */
+  dev->d_addmac  = lan91c111_addmac;            /* Add multicast MAC address */
+  dev->d_rmmac   = lan91c111_rmmac;             /* Remove multicast MAC address */
 #endif
 #ifdef CONFIG_NETDEV_IOCTL
-  dev->d_ioctl   = lan91c111_ioctl;   /* Handle network IOCTL commands */
+  dev->d_ioctl   = lan91c111_ioctl;             /* Handle network IOCTL commands */
 #endif
-  dev->d_private = priv;              /* Used to recover private state from dev */
+  dev->d_private = priv;                        /* Used to recover private state from dev */
 
   /* Put the interface in the down state. This usually amounts to resetting
    * the device and/or calling lan91c111_ifdown().

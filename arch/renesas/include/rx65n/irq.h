@@ -49,38 +49,38 @@
 #define RX65N_BUSERR_IRQBASE (RX65N_TRAP_IRQBASE+16)
 
 #if defined(CONFIG_BSC) || defined(CONFIG_RX65N_BSC)
-# define RX65N_BUSERR_IRQ     (RX65N_BUSERR_IRQBASE)
-# define RX65N_RAMERR_IRQBASE (RX65N_BUSERR_IRQBASE + 1)
+#  define RX65N_BUSERR_IRQ     (RX65N_BUSERR_IRQBASE)
+#  define RX65N_RAMERR_IRQBASE (RX65N_BUSERR_IRQBASE + 1)
 #else
-# define RX65N_RAMERR_IRQBASE (RX65N_BUSERR_IRQBASE)
+#  define RX65N_RAMERR_IRQBASE (RX65N_BUSERR_IRQBASE)
 #endif
 
 #if defined(CONFIG_RAM) || defined(CONFIG_RX65N_RAM)
-# define RX65N_RAMERR_IRQ     (RX65N_RAMERR_IRQBASE)
-# define RX65N_FIFERR_IRQBASE (RX65N_RAMERR_IRQBASE + 1)
+#  define RX65N_RAMERR_IRQ      (RX65N_RAMERR_IRQBASE)
+#  define RX65N_FIFERR_IRQBASE  (RX65N_RAMERR_IRQBASE + 1)
 #else
-# define RX65N_FIFERR_IRQBASE (RX65N_RAMERR_IRQBASE)
+#  define RX65N_FIFERR_IRQBASE  (RX65N_RAMERR_IRQBASE)
 #endif
 
 #if defined(CONFIG_FIFERR) || defined(CONFIG_RX65N_FIFERR)
-# define RX65N_FIFERR_IRQ     (RX65N_FIFERR_IRQBASE)
-# define RX65N_FRDYI_IRQBASE  (RX65N_FIFERR_IRQBASE + 1)
+#  define RX65N_FIFERR_IRQ      (RX65N_FIFERR_IRQBASE)
+#  define RX65N_FRDYI_IRQBASE   (RX65N_FIFERR_IRQBASE + 1)
 #else
-# define RX65N_FRDYI_IRQBASE  (RX65N_FIFERR_IRQBASE)
+#  define RX65N_FRDYI_IRQBASE   (RX65N_FIFERR_IRQBASE)
 #endif
 
 #if defined(CONFIG_FRDYI) || defined(CONFIG_RX65N_FRDYI)
-# define RX65N_FRDYI_IRQ        (RX65N_FRDYI_IRQBASE)
-# define RX65N_SWINT2_IRQBASE   (RX65N_FRDYI_IRQBASE + 1)
+#  define RX65N_FRDYI_IRQ       (RX65N_FRDYI_IRQBASE)
+#  define RX65N_SWINT2_IRQBASE  (RX65N_FRDYI_IRQBASE + 1)
 #else
-# define RX65N_SWINT2_IRQBASE   (RX65N_FRDYI_IRQBASE)
+#  define RX65N_SWINT2_IRQBASE  (RX65N_FRDYI_IRQBASE)
 #endif
 
-# define RX65N_SWINT2_IRQ       (RX65N_SWINT2_IRQBASE)
-# define RX65N_SWINT_IRQBASE    (RX65N_SWINT2_IRQBASE + 1)
+#  define RX65N_SWINT2_IRQ      (RX65N_SWINT2_IRQBASE)
+#  define RX65N_SWINT_IRQBASE   (RX65N_SWINT2_IRQBASE + 1)
 
-# define RX65N_SWINT_IRQ        (RX65N_SWINT_IRQBASE)
-# define RX65N_CMT0_IRQBASE     (RX65N_SWINT_IRQBASE+1)
+#  define RX65N_SWINT_IRQ       (RX65N_SWINT_IRQBASE)
+#  define RX65N_CMT0_IRQBASE    (RX65N_SWINT_IRQBASE+1)
 
 #define RX65N_CMI0_IRQ          (RX65N_CMT0_IRQBASE)
 #define RX65N_CMT1_IRQBASE      (RX65N_CMT0_IRQBASE + 1)
@@ -1029,6 +1029,23 @@ static inline irqstate_t __getsr(void)
 static inline void __setsr(irqstate_t psw)
 {
   __asm__ __volatile__("mvtc %0, psw": :"r"(psw));
+}
+
+/* Return the current value of the stack pointer */
+
+static inline uint16_t up_getsp(void)
+{
+  uint16_t sp;
+
+  __asm__ __volatile__
+    (
+      "\tmvfc usp, %0\n\t"
+      : "=r" (sp)
+      :
+      :"memory"
+    );
+
+  return sp;
 }
 
 /* Disable interrupts */

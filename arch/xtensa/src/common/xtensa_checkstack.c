@@ -42,10 +42,12 @@
  * Private Function Prototypes
  ****************************************************************************/
 
-static size_t do_stackcheck(uintptr_t alloc, size_t size);
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
 
 /****************************************************************************
- * Name: do_stackcheck
+ * Name: xtensa_stack_check
  *
  * Description:
  *   Determine (approximately) how much stack has been used be searching the
@@ -61,7 +63,7 @@ static size_t do_stackcheck(uintptr_t alloc, size_t size);
  *
  ****************************************************************************/
 
-static size_t do_stackcheck(uintptr_t alloc, size_t size)
+size_t xtensa_stack_check(uintptr_t alloc, size_t size)
 {
   uintptr_t start;
   uintptr_t end;
@@ -139,11 +141,7 @@ static size_t do_stackcheck(uintptr_t alloc, size_t size)
 }
 
 /****************************************************************************
- * Public Functions
- ****************************************************************************/
-
-/****************************************************************************
- * Name: up_check_stack and friends
+ * Name: up_check_tcbstack and friends
  *
  * Description:
  *   Determine (approximately) how much stack has been used be searching the
@@ -160,37 +158,14 @@ static size_t do_stackcheck(uintptr_t alloc, size_t size)
 
 size_t up_check_tcbstack(struct tcb_s *tcb)
 {
-  return do_stackcheck((uintptr_t)tcb->stack_base_ptr, tcb->adj_stack_size);
-}
-
-ssize_t up_check_tcbstack_remain(struct tcb_s *tcb)
-{
-  return tcb->adj_stack_size - up_check_tcbstack(tcb);
-}
-
-size_t up_check_stack(void)
-{
-  return up_check_tcbstack(this_task());
-}
-
-ssize_t up_check_stack_remain(void)
-{
-  return up_check_tcbstack_remain(this_task());
+  return xtensa_stack_check((uintptr_t)tcb->stack_base_ptr,
+                                       tcb->adj_stack_size);
 }
 
 #if CONFIG_ARCH_INTERRUPTSTACK > 15
 size_t up_check_intstack(void)
 {
-#ifdef CONFIG_SMP
-  return do_stackcheck(xtensa_intstack_alloc(), INTSTACK_SIZE);
-#else
-  return do_stackcheck((uintptr_t)&g_intstackalloc, INTSTACK_SIZE);
-#endif
-}
-
-size_t up_check_intstack_remain(void)
-{
-  return INTSTACK_SIZE - up_check_intstack();
+  return xtensa_stack_check(up_get_intstackbase(), INTSTACK_SIZE);
 }
 #endif
 

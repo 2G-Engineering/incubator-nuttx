@@ -52,13 +52,27 @@ struct mallinfo
                  * by free (not in use) chunks. */
 };
 
-#ifdef CONFIG_DEBUG_MM
+struct mm_memdump_s
+{
+  pid_t pid; /* Process id */
+#if CONFIG_MM_BACKTRACE >= 0
+  unsigned long seqmin; /* The minimum sequence */
+  unsigned long seqmax; /* The maximum sequence */
+#endif
+};
+
 struct mallinfo_task
 {
-  pid_t pid;    /* The pid of task */
   int aordblks; /* This is the number of allocated (in use) chunks for task */
   int uordblks; /* This is the total size of memory occupied for task */
 };
+
+/****************************************************************************
+ * Public data
+ ****************************************************************************/
+
+#if CONFIG_MM_BACKTRACE >= 0
+extern unsigned long g_mm_seqno;
 #endif
 
 /****************************************************************************
@@ -72,9 +86,7 @@ extern "C"
 
 struct mallinfo mallinfo(void);
 size_t malloc_size(FAR void *ptr);
-#ifdef CONFIG_DEBUG_MM
-struct mallinfo_task mallinfo_task(pid_t pid);
-#endif
+struct mallinfo_task mallinfo_task(FAR const struct mm_memdump_s *dump);
 
 #if defined(__cplusplus)
 }

@@ -29,6 +29,7 @@
 #include <string.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/tls.h>
 #include <arch/irq.h>
 
 #include "riscv_internal.h"
@@ -77,6 +78,10 @@ void up_initial_state(struct tcb_s *tcb)
 
       riscv_stack_color(tcb->stack_alloc_ptr, 0);
 #endif /* CONFIG_STACK_COLORATION */
+
+      /* Set idle process' initial interrupt context */
+
+      riscv_set_idleintctx();
       return;
     }
 

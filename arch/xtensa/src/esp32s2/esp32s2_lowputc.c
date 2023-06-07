@@ -683,6 +683,12 @@ void esp32s2_lowputc_config_pins(const struct esp32s2_uart_s *priv)
 {
   /* Configure the pins */
 
+  /* Keep TX pin in high level to avoid "?" trash character
+   * This "?" is the Unicode replacement character (U+FFFD)
+   */
+
+  esp32s2_gpiowrite(priv->txpin, true);
+
   /* Route UART TX signal to the selected TX pin */
 
   esp32s2_gpio_matrix_out(priv->txpin, priv->txsig, 0, 0);
@@ -722,7 +728,7 @@ void esp32s2_lowputc_config_pins(const struct esp32s2_uart_s *priv)
 }
 
 /****************************************************************************
- * Name: up_lowputc
+ * Name: xtensa_lowputc
  *
  * Description:
  *   Output one byte on the serial console.
@@ -732,15 +738,15 @@ void esp32s2_lowputc_config_pins(const struct esp32s2_uart_s *priv)
  *
  ****************************************************************************/
 
-void up_lowputc(char ch)
+void xtensa_lowputc(char ch)
 {
 #ifdef HAVE_SERIAL_CONSOLE
 
-#if defined(CONFIG_UART0_SERIAL_CONSOLE)
+#  if defined(CONFIG_UART0_SERIAL_CONSOLE)
   struct esp32s2_uart_s *priv = &g_uart0_config;
-#elif defined (CONFIG_UART1_SERIAL_CONSOLE)
+#  elif defined (CONFIG_UART1_SERIAL_CONSOLE)
   struct esp32s2_uart_s *priv = &g_uart1_config;
-# endif
+#  endif
 
   /* Wait until the TX FIFO has space to insert new char */
 

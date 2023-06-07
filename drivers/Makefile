@@ -32,10 +32,12 @@ include bch/Make.defs
 include can/Make.defs
 include clk/Make.defs
 include crypto/Make.defs
+include dma/Make.defs
 include math/Make.defs
 include motor/Make.defs
 include i2c/Make.defs
 include i2s/Make.defs
+include ipcc/Make.defs
 include input/Make.defs
 include ioexpander/Make.defs
 include lcd/Make.defs
@@ -62,12 +64,14 @@ include usbhost/Make.defs
 include usbmisc/Make.defs
 include usbmonitor/Make.defs
 include video/Make.defs
+include virtio/Make.defs
 include wireless/Make.defs
 include contactless/Make.defs
 include 1wire/Make.defs
 include rf/Make.defs
 include rc/Make.defs
 include segger/Make.defs
+include usrsock/Make.defs
 
 ifeq ($(CONFIG_SPECIFIC_DRIVERS),y)
 -include platform/Make.defs

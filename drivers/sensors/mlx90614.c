@@ -40,7 +40,7 @@
 #include <nuttx/random.h>
 
 #ifdef CONFIG_MLX90614_CRC
-#include <crc8.h>
+#include <nuttx/crc8.h>
 #endif
 
 #if defined(CONFIG_I2C) && defined(CONFIG_SENSORS_MLX90614)
@@ -91,10 +91,6 @@ static const struct file_operations g_mlx90614_fops =
   mlx90614_write,  /* write */
   NULL,            /* seek */
   mlx90614_ioctl,  /* ioctl */
-  NULL             /* poll */
-#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-  , NULL            /* unlink */
-#endif
 };
 
 /****************************************************************************

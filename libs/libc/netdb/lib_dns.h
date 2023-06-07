@@ -132,34 +132,44 @@ EXTERN uint8_t g_dns_nservers;
  ****************************************************************************/
 
 /****************************************************************************
- * Name: dns_initialize
+ * Name: dns_lock
  *
  * Description:
- *   Make sure that the DNS client has been properly initialized for use.
+ *   Take the DNS mutex, ignoring errors due to the receipt of signals.
  *
  ****************************************************************************/
 
-bool dns_initialize(void);
+void dns_lock(void);
 
 /****************************************************************************
- * Name: dns_semtake
+ * Name: dns_unlock
  *
  * Description:
- *   Take the DNS semaphore, ignoring errors due to the receipt of signals.
+ *   Release the DNS mutex
  *
  ****************************************************************************/
 
-void dns_semtake(void);
+void dns_unlock(void);
 
 /****************************************************************************
- * Name: dns_semgive
+ * Name: dns_breaklock
  *
  * Description:
- *   Release the DNS semaphore
+ *   Break the DNS lock
  *
  ****************************************************************************/
 
-void dns_semgive(void);
+void dns_breaklock(FAR unsigned int *count);
+
+/****************************************************************************
+ * Name: dns_restorelock
+ *
+ * Description:
+ *   Restore the DNS lock
+ *
+ ****************************************************************************/
+
+void dns_restorelock(unsigned int count);
 
 /****************************************************************************
  * Name: dns_bind
@@ -177,7 +187,7 @@ void dns_semgive(void);
  *
  ****************************************************************************/
 
-int dns_bind(void);
+int dns_bind(sa_family_t family);
 
 /****************************************************************************
  * Name: dns_query
@@ -187,7 +197,6 @@ int dns_bind(void);
  *   return its IP address in 'ipaddr'
  *
  * Input Parameters:
- *   sd       - The socket descriptor previously initialized by dsn_bind().
  *   hostname - The hostname string to be resolved.
  *   addr     - The location to return the IP addresses associated with the
  *     hostname.
@@ -200,7 +209,7 @@ int dns_bind(void);
  *
  ****************************************************************************/
 
-int dns_query(int sd, FAR const char *hostname, FAR union dns_addr_u *addr,
+int dns_query(FAR const char *hostname, FAR union dns_addr_u *addr,
               FAR int *naddr);
 
 /****************************************************************************
@@ -213,6 +222,7 @@ int dns_query(int sd, FAR const char *hostname, FAR union dns_addr_u *addr,
  *   hostname - The hostname string to be cached.
  *   addr     - The IP addresses associated with the hostname.
  *   naddr    - The count of the IP addresses.
+ *   ttl      - The TTL of the IP addresses.
  *
  * Returned Value:
  *   None
@@ -221,7 +231,8 @@ int dns_query(int sd, FAR const char *hostname, FAR union dns_addr_u *addr,
 
 #if CONFIG_NETDB_DNSCLIENT_ENTRIES > 0
 void dns_save_answer(FAR const char *hostname,
-                     FAR const union dns_addr_u *addr, int naddr);
+                     FAR const union dns_addr_u *addr, int naddr,
+                     uint32_t ttl);
 #endif
 
 /****************************************************************************

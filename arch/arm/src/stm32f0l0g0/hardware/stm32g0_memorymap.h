@@ -86,7 +86,7 @@
 
 #define STM32_SYSCFG_BASE    0x40010000     /* 0x40010000-0x400103ff SYSCFG */
                                             /* EXTI ??? */
-#define STM32_ADC1_BASE      0x40012400     /* 0x40012400-0x400127ff ADC 1 */
+#define STM32_ADC1_BASE      0x40012400     /* 0x40012400-0x400127ff ADC1 */
 #define STM32_TIM1_BASE      0x40012c00     /* 0x40012c00-0x40012fff TIM1 */
 #define STM32_SPI1_BASE      0x40013000     /* 0x40013000-0x400133ff SPI1 */
 #define STM32_USART1_BASE    0x40013800     /* 0x40013800-0x40013bff USART1 */
@@ -112,6 +112,7 @@
 #define STM32_GPIOB_BASE     0x50000400     /* 0x50000400-0x500007ff: GPIO Port B */
 #define STM32_GPIOC_BASE     0x50000800     /* 0x50000800-0x50000bff: GPIO Port C */
 #define STM32_GPIOD_BASE     0X50000C00     /* 0x50000c00-0x50000fff: GPIO Port D */
+#define STM32_GPIOE_BASE     0X50001000     /* 0x50001000-0x500013ff: GPIO Port E */
 #define STM32_GPIOF_BASE     0x50001400     /* 0x50001400-0x500017ff: GPIO Port F */
 
 /* Cortex-M4 Base Addresses *************************************************/

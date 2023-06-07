@@ -68,6 +68,10 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+#ifndef ALIGN_UP
+#  define ALIGN_UP(num, align) (((num) + ((align) - 1)) & ~((align) - 1))
+#endif
+
 /* IRQ Stack Frame Format.  Each value is a uint32_t register index */
 
 #define REG_PC              (0)  /* Return PC */
@@ -113,10 +117,19 @@
 #ifndef __XTENSA_CALL0_ABI__
   /* Temporary space for saving stuff during window spill. */
 
-#  define REG_TMP0          (_REG_WINDOW_TMPS + 0)
-#  define _REG_OVLY_START   (_REG_WINDOW_TMPS + 1)
+#  define REG_TMP0            (_REG_WINDOW_TMPS + 0)
+#  define _REG_INT_CTX_START  (_REG_WINDOW_TMPS + 1)
 #else
-#  define _REG_OVLY_START   _REG_WINDOW_TMPS
+#  define _REG_INT_CTX_START  _REG_WINDOW_TMPS
+#endif
+
+#ifndef CONFIG_BUILD_FLAT
+/* Temporary space for saving Interrupt Context information */
+
+#  define REG_INT_CTX       (_REG_INT_CTX_START + 0)
+#  define _REG_OVLY_START   (_REG_INT_CTX_START + 1)
+#else
+#  define _REG_OVLY_START   _REG_INT_CTX_START
 #endif
 
 #ifdef CONFIG_XTENSA_USE_OVLY
@@ -129,19 +142,19 @@
 #endif
 
 #if XCHAL_CP_NUM > 0
-#  if (XCHAL_TOTAL_SA_ALIGN == 8) && ((_REG_CP_START & 1) == 1)
-  /* Fpu first address must align to cp align size. */
+  /* FPU first address must align to CP align size. */
 
-#    define REG_CP_DUMMY      (_REG_CP_START + 0)
-#    define XCPTCONTEXT_REGS  (_REG_CP_START + 1)
-#  else
-#    define XCPTCONTEXT_REGS  _REG_CP_START
-#  endif
-#  define XCPTCONTEXT_SIZE    ((4 * XCPTCONTEXT_REGS) + XTENSA_CP_SA_SIZE + 0x20)
+#  define COMMON_CTX_REGS   ALIGN_UP(_REG_CP_START, XCHAL_TOTAL_SA_ALIGN / 4)
+#  define COPROC_CTX_REGS   (XTENSA_CP_SA_SIZE / 4)
+#  define RESERVE_REGS      8
+#  define XCPTCONTEXT_REGS  (COMMON_CTX_REGS + COPROC_CTX_REGS + RESERVE_REGS)
 #else
-#  define XCPTCONTEXT_REGS    _REG_CP_START
-#  define XCPTCONTEXT_SIZE    ((4 * XCPTCONTEXT_REGS) + 0x20)
+#  define COMMON_CTX_REGS   _REG_CP_START
+#  define RESERVE_REGS      8
+#  define XCPTCONTEXT_REGS  (COMMON_CTX_REGS + RESERVE_REGS)
 #endif
+
+#define XCPTCONTEXT_SIZE    (4 * XCPTCONTEXT_REGS)
 
 /****************************************************************************
  * Public Types
@@ -155,6 +168,9 @@
 struct xcpt_syscall_s
 {
   uintptr_t sysreturn;   /* The return PC */
+#ifndef CONFIG_BUILD_FLAT
+  uintptr_t int_ctx;     /* Interrupt context */
+#endif
 };
 #endif
 
@@ -230,6 +246,21 @@ static inline void xtensa_setps(uint32_t ps)
     : "r"(ps)
     : "memory"
   );
+}
+
+/* Return the current value of the stack pointer */
+
+static inline uint32_t up_getsp(void)
+{
+  register uint32_t sp;
+
+  __asm__ __volatile__
+  (
+    "mov %0, sp\n"
+    : "=r" (sp)
+  );
+
+  return sp;
 }
 
 /* Restore the value of the PS register */

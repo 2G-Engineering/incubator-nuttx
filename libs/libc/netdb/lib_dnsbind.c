@@ -61,23 +61,15 @@
  *
  ****************************************************************************/
 
-int dns_bind(void)
+int dns_bind(sa_family_t family)
 {
   struct timeval tv;
   int sd;
   int ret;
 
-  /* Has the DNS client been properly initialized? */
-
-  if (!dns_initialize())
-    {
-      nerr("ERROR: DNS client has not been initialized\n");
-      return -EDESTADDRREQ;
-    }
-
   /* Create a new socket */
 
-  sd = socket(PF_INET, SOCK_DGRAM, 0);
+  sd = socket(family, SOCK_DGRAM, 0);
   if (sd < 0)
     {
       ret = -get_errno();
@@ -91,6 +83,17 @@ int dns_bind(void)
   tv.tv_usec = 0;
 
   ret = setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(struct timeval));
+  if (ret >= 0)
+    {
+      /* Set up a send timeout */
+
+      tv.tv_sec  = CONFIG_NETDB_DNSCLIENT_SEND_TIMEOUT;
+      tv.tv_usec = 0;
+
+      ret = setsockopt(sd, SOL_SOCKET, SO_SNDTIMEO, &tv,
+                       sizeof(struct timeval));
+    }
+
   if (ret < 0)
     {
       ret = -get_errno();

@@ -29,6 +29,7 @@
 #include <nuttx/irq.h>
 #include <sys/boardctl.h>
 #include <stdbool.h>
+#include <arch/chip/pin.h>
 
 #include "board_lcdpins.h"
 
@@ -41,11 +42,12 @@
 #include "cxd56_i2cdev.h"
 #include "cxd56_spidev.h"
 #include "cxd56_sdcard.h"
+#include "cxd56_automount.h"
 #include "cxd56_wdt.h"
 #include "cxd56_gpioif.h"
 
 #include "cxd56_audio.h"
-#include "cxd56_altmdm.h"
+#include "cxd56_alt1250.h"
 #include "cxd56_ak09912.h"
 #include "cxd56_apds9930.h"
 #include "cxd56_apds9960.h"
@@ -165,11 +167,13 @@
 #define PMIC_TYPE_LSW       (1u << 8)
 #define PMIC_TYPE_GPO       (1u << 9)
 #define PMIC_TYPE_DDCLDO    (1u << 10)
+#define CHIP_TYPE_GPIO      (1u << 11)
 #define PMIC_GET_TYPE(v)    ((v) & 0xff00)
 #define PMIC_GET_CH(v)      ((v) & 0x00ff)
 #define PMIC_LSW(n)         (PMIC_TYPE_LSW | (1u << (n)))
 #define PMIC_GPO(n)         (PMIC_TYPE_GPO | (1u << (n)))
 #define PMIC_DDCLDO(n)      (PMIC_TYPE_DDCLDO | (1u << (n)))
+#define CHIP_GPIO(n)        (CHIP_TYPE_GPIO | (n))
 
 enum board_power_device
 {
@@ -197,7 +201,13 @@ enum board_power_device
 
   POWER_BTBLE           = PMIC_NONE,
   POWER_SENSOR          = PMIC_NONE,
+#if defined(CONFIG_CXD56_EMMC_POWER_PIN_I2S0_BCK)
+  POWER_EMMC            = CHIP_GPIO(PIN_I2S0_BCK),
+#elif defined(CONFIG_CXD56_EMMC_POWER_PIN_UART2_CTS)
+  POWER_EMMC            = CHIP_GPIO(PIN_UART2_CTS),
+#else
   POWER_EMMC            = PMIC_NONE,
+#endif
   POWER_LTE             = PMIC_GPO(2),
 };
 
@@ -226,6 +236,21 @@ enum board_power_device
 #define DISPLAY_DMA_RXCH       (5)
 #define DISPLAY_DMA_TXCH_CFG   CXD56_DMA_PERIPHERAL_SPI5_TX
 #define DISPLAY_DMA_RXCH_CFG   CXD56_DMA_PERIPHERAL_SPI5_RX
+#define DISPLAY_DMA_TX_MAXSIZE (192000)
+#define DISPLAY_DMA_RX_MAXSIZE (192000)
+
+#elif defined(CONFIG_LCD_ON_LTE_EXTENSION_BOARD)
+
+/* Display connected to LTE extension board. */
+
+#define DISPLAY_SPI     3
+
+/* Specify invalid channels because DMA cannot be used */
+
+#define DISPLAY_DMA_TXCH       (-1)
+#define DISPLAY_DMA_RXCH       (-1)
+#define DISPLAY_DMA_TXCH_CFG   (-1)
+#define DISPLAY_DMA_RXCH_CFG   (-1)
 #define DISPLAY_DMA_TX_MAXSIZE (192000)
 #define DISPLAY_DMA_RX_MAXSIZE (192000)
 
@@ -266,17 +291,13 @@ enum board_power_device
 
 #define BOARDIOC_USBDEV_SETNOTIFYSIG      (BOARDIOC_USER+0x0001)
 
-/* Set callback function pointer for notify SDCard state change *************/
-
-#define BOARDIOC_SDCARD_SETNOTIFYCB       (BOARDIOC_USER+0x0002)
-
 /* Altair modem device pin definitions **************************************/
 
-#define ALTMDM_SLAVE_REQ          PIN_SPI2_SCK
-#define ALTMDM_MASTER_REQ         PIN_RTC_IRQ_OUT
-#define ALTMDM_WAKEUP             PIN_SPI2_MOSI
-#define ALTMDM_SHUTDOWN           PIN_SPI2_MISO
-#define ALTMDM_LTE_POWER_BUTTON   PIN_AP_CLK
+#define ALT1250_SLAVE_REQ          PIN_SPI2_SCK
+#define ALT1250_MASTER_REQ         PIN_RTC_IRQ_OUT
+#define ALT1250_WAKEUP             PIN_SPI2_MOSI
+#define ALT1250_SHUTDOWN           PIN_SPI2_MISO
+#define ALT1250_LTE_POWER_BUTTON   PIN_AP_CLK
 
 /****************************************************************************
  * Public Types

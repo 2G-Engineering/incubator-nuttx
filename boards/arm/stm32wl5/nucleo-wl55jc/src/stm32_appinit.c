@@ -39,6 +39,7 @@
 
 #include <stm32wl5.h>
 #include <stm32wl5_uart.h>
+#include <stm32wl5_pwr.h>
 
 #include <arch/board/board.h>
 
@@ -47,6 +48,12 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+/* Define proc mountpoint in case procfs is used but nsh is not */
+
+#ifndef CONFIG_NSH_PROC_MOUNTPOINT
+#define CONFIG_NSH_PROC_MOUNTPOINT "/proc"
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -116,7 +123,7 @@ int board_app_initialize(uintptr_t arg)
     }
 #endif
 
-#if defined(CONFIG_ARCH_BOARD_ENABLE_FLASH_MOUNT)
+#if defined(CONFIG_ARCH_BOARD_FLASH_MOUNT)
   /* Register partition table for on-board FLASH memory */
 
   ret = stm32wl5_flash_init();
@@ -124,6 +131,22 @@ int board_app_initialize(uintptr_t arg)
     {
       syslog(LOG_ERR, "ERROR: stm32wl5_flash_init() failed: %d\n", ret);
     }
+#endif
+
+#if defined(CONFIG_ARCH_BOARD_IPCC)
+  /* Register IPCC driver */
+
+  ret = ipcc_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: ipcc_init() failed\n");
+    }
+#endif
+
+#if defined(CONFIG_ARCH_BOARD_ENABLE_CPU2)
+  /* Start second CPU */
+
+  stm32wl5_pwr_boot_c2();
 #endif
 
   return ret;

@@ -38,7 +38,6 @@
 #include <string.h>
 #include <assert.h>
 #include <debug.h>
-#include <queue.h>
 #include <errno.h>
 
 #include <arpa/inet.h>
@@ -49,7 +48,6 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/net/mii.h>
-#include <nuttx/net/arp.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/phy.h>
 
@@ -341,29 +339,13 @@
 
 #ifdef CONFIG_ARMV7M_DCACHE
 /* Align to the cache line size which we assume is >= 8 */
-
 #  define EMAC_ALIGN        ARMV7M_DCACHE_LINESIZE
-#  define EMAC_ALIGN_MASK   (EMAC_ALIGN-1)
-#  define EMAC_ALIGN_UP(n)  (((n) + EMAC_ALIGN_MASK) & ~EMAC_ALIGN_MASK)
-
-#  define EMAC0_RX_DPADSIZE (EMAC0_RX_DESCSIZE & EMAC_ALIGN_MASK)
-#  define EMAC0_TX_DPADSIZE (EMAC0_TX_DESCSIZE & EMAC_ALIGN_MASK)
-#  define EMAC1_RX_DPADSIZE (EMAC1_RX_DESCSIZE & EMAC_ALIGN_MASK)
-#  define EMAC1_TX_DPADSIZE (EMAC1_TX_DESCSIZE & EMAC_ALIGN_MASK)
-
 #else
 /* Use the minimum alignment requirement */
-
 #  define EMAC_ALIGN        8
-#  define EMAC_ALIGN_MASK   7
-#  define EMAC_ALIGN_UP(n)  (((n) + 7) & ~7)
-
-#  define EMAC0_RX_DPADSIZE 0
-#  define EMAC0_TX_DPADSIZE 0
-#  define EMAC1_RX_DPADSIZE 0
-#  define EMAC1_TX_DPADSIZE 0
-
 #endif
+#define EMAC_ALIGN_MASK     (EMAC_ALIGN - 1)
+#define EMAC_ALIGN_UP(n)    (((n) + EMAC_ALIGN_MASK) & ~EMAC_ALIGN_MASK)
 
 /* Buffer sizes.
  *
@@ -650,95 +632,86 @@ static int  sam_emac_configure(struct sam_emac_s *priv);
 /* Preallocated data */
 
 #ifdef CONFIG_SAMV7_EMAC0
-/* EMAC0 TX descriptors list */
 
-static struct emac_txdesc_s g_emac0_tx0desc[CONFIG_SAMV7_EMAC0_NTXBUFFERS]
-              aligned_data(EMAC_ALIGN);
+static struct
+{
+  /* EMAC0 TX descriptors list */
 
-#if EMAC0_TX_DPADSIZE > 0
-static uint8_t g_emac0_txdpad[EMAC0_TX_DPADSIZE] __atrribute__((used));
-#endif
+  struct emac_txdesc_s tx0desc[CONFIG_SAMV7_EMAC0_NTXBUFFERS]
+                       aligned_data(EMAC_ALIGN);
+  struct emac_txdesc_s tx1desc[DUMMY_NBUFFERS]
+                       aligned_data(EMAC_ALIGN);
 
-static struct emac_txdesc_s g_emac0_tx1desc[DUMMY_NBUFFERS]
-              aligned_data(EMAC_ALIGN);
+  /* EMAC0 RX descriptors list */
 
-/* EMAC0 RX descriptors list */
+  struct emac_rxdesc_s rx0desc[CONFIG_SAMV7_EMAC0_NRXBUFFERS]
+                       aligned_data(EMAC_ALIGN);
+  struct emac_rxdesc_s rx1desc[DUMMY_NBUFFERS]
+                       aligned_data(EMAC_ALIGN);
 
-static struct emac_rxdesc_s g_emac0_rx0desc[CONFIG_SAMV7_EMAC0_NRXBUFFERS]
-              aligned_data(EMAC_ALIGN);
+  /* EMAC0 Transmit Buffers
+   *
+   * Section 3.6 of AMBA 2.0 spec states that burst should not cross 1K
+   * Boundaries. Receive buffer manager writes are burst of 2 words => 3
+   * lsb bits of the address shall be set to 0
+   */
 
-#if EMAC0_RX_DPADSIZE > 0
-static uint8_t g_emac0_rxdpad[EMAC0_RX_DPADSIZE] __atrribute__((used));
-#endif
+  uint8_t tx0buffer[EMAC0_TX_BUFSIZE]
+          aligned_data(EMAC_ALIGN);
 
-static struct emac_rxdesc_s g_emac0_rx1desc[DUMMY_NBUFFERS]
-              aligned_data(EMAC_ALIGN);
+  uint8_t tx1buffer[DUMMY_NBUFFERS * DUMMY_BUFSIZE]
+          aligned_data(EMAC_ALIGN);
 
-/* EMAC0 Transmit Buffers
- *
- * Section 3.6 of AMBA 2.0 spec states that burst should not cross 1K
- * Boundaries. Receive buffer manager writes are burst of 2 words => 3
- * lsb bits of the address shall be set to 0
- */
+  /* EMAC0 Receive Buffers */
 
-static uint8_t g_emac0_tx0buffer[EMAC0_TX_BUFSIZE]
-               aligned_data(EMAC_ALIGN);
+  uint8_t rx0buffer[EMAC0_RX_BUFSIZE]
+          aligned_data(EMAC_ALIGN);
 
-static uint8_t g_emac0_tx1buffer[DUMMY_NBUFFERS * DUMMY_BUFSIZE]
-               aligned_data(EMAC_ALIGN);
-
-/* EMAC0 Receive Buffers */
-
-static uint8_t g_emac0_rx0buffer[EMAC0_RX_BUFSIZE]
-               aligned_data(EMAC_ALIGN);
+  uint8_t rx1buffer[DUMMY_NBUFFERS * DUMMY_BUFSIZE]
+          aligned_data(EMAC_ALIGN);
+} g_emac0_mem;
 
 #endif
 
 #ifdef CONFIG_SAMV7_EMAC1
-/* EMAC1 TX descriptors list */
 
-static struct emac_txdesc_s g_emac1_tx1desc[CONFIG_SAMV7_EMAC1_NTXBUFFERS]
-              aligned_data(EMAC_ALIGN);
+static struct
+{
+  /* EMAC1 TX descriptors list */
 
-#if EMAC1_TX_DPADSIZE > 0
-static uint8_t g_emac1_txdpad[EMAC1_TX_DPADSIZE] __atrribute__((used));
-#endif
+  struct emac_txdesc_s tx0desc[CONFIG_SAMV7_EMAC1_NTXBUFFERS]
+                       aligned_data(EMAC_ALIGN);
+  struct emac_txdesc_s tx1desc[DUMMY_NBUFFERS]
+                       aligned_data(EMAC_ALIGN);
 
-static struct emac_txdesc_s g_emac1_tx1desc[DUMMY_NBUFFERS]
-              aligned_data(EMAC_ALIGN);
+  /* EMAC1 RX descriptors list */
 
-/* EMAC1 RX descriptors list */
+  struct emac_rxdesc_s rx0desc[CONFIG_SAMV7_EMAC1_NRXBUFFERS]
+                       aligned_data(EMAC_ALIGN);
+  struct emac_rxdesc_s rx1desc[DUMMY_NBUFFERS]
+                       aligned_data(EMAC_ALIGN);
 
-static struct emac_rxdesc_s g_emac1_rx1desc[CONFIG_SAMV7_EMAC1_NRXBUFFERS]
-              aligned_data(EMAC_ALIGN);
+  /* EMAC1 Transmit Buffers
+   *
+   * Section 3.6 of AMBA 2.0 spec states that burst should not cross 1K
+   * Boundaries. Receive buffer manager writes are burst of 2 words => 3
+   * lsb bits of the address shall be set to 0
+   */
 
-#if EMAC1_RX_DPADSIZE > 0
-static uint8_t g_emac1_rxdpad[EMAC1_RX_DPADSIZE] __atrribute__((used));
-#endif
+  uint8_t tx0buffer[EMAC1_TX_BUFSIZE]
+          aligned_data(EMAC_ALIGN);
 
-static struct emac_rxdesc_s g_emac1_rx1desc[DUMMY_NBUFFERS]
-              aligned_data(EMAC_ALIGN);
+  uint8_t tx1buffer[DUMMY_NBUFFERS * DUMMY_BUFSIZE]
+          aligned_data(EMAC_ALIGN);
 
-/* EMAC1 Transmit Buffers
- *
- * Section 3.6 of AMBA 2.0 spec states that burst should not cross 1K
- * Boundaries. Receive buffer manager writes are burst of 2 words => 3
- * lsb bits of the address shall be set to 0
- */
+  /* EMAC1 Receive Buffers */
 
-static uint8_t g_emac1_tx1buffer[EMAC1_TX_BUFSIZE]
-               aligned_data(EMAC_ALIGN);
+  uint8_t rx0buffer[EMAC1_RX_BUFSIZE]
+          aligned_data(EMAC_ALIGN);
 
-static uint8_t g_emac1_tx1buffer[DUMMY_NBUFFERS * DUMMY_BUFSIZE]
-               aligned_data(EMAC_ALIGN);
-
-/* EMAC1 Receive Buffers */
-
-static uint8_t g_emac1_rxbuffer[EMAC1_RX_BUFSIZE]
-               aligned_data(EMAC_ALIGN);
-
-static uint8_t g_emac1_rx1buffer[DUMMY_NBUFFERS * DUMMY_BUFSIZE]
-               aligned_data(EMAC_ALIGN);
+  uint8_t rx1buffer[DUMMY_NBUFFERS * DUMMY_BUFSIZE]
+          aligned_data(EMAC_ALIGN);
+} g_emac1_mem;
 
 #endif
 #endif
@@ -803,10 +776,14 @@ static const struct sam_emacattr_s g_emac0_attr =
 #ifdef CONFIG_SAMV7_EMAC_PREALLOCATE
   /* Addresses of preallocated buffers */
 
-  .tx0desc      = g_emac0_tx0desc,
-  .rx0desc      = g_emac0_rx0desc,
-  .tx0buffer    = g_emac0_tx0buffer,
-  .rx0buffer    = g_emac0_rx0buffer,
+  .tx0desc      = g_emac0_mem.tx0desc,
+  .rx0desc      = g_emac0_mem.rx0desc,
+  .tx0buffer    = g_emac0_mem.tx0buffer,
+  .rx0buffer    = g_emac0_mem.rx0buffer,
+  .tx1desc      = g_emac0_mem.tx1desc,
+  .rx1desc      = g_emac0_mem.rx1desc,
+  .tx1buffer    = g_emac0_mem.tx1buffer,
+  .rx1buffer    = g_emac0_mem.rx1buffer,
 #endif
 };
 
@@ -884,10 +861,14 @@ static const struct sam_emacattr_s g_emac1_attr =
 #ifdef CONFIG_SAMV7_EMAC_PREALLOCATE
   /* Attributes and addresses of preallocated buffers */
 
-  .txdesc       = g_emac1_tx0desc,
-  .rxdesc       = g_emac1_rx0desc,
-  .txbuffer     = g_emac1_tx0buffer,
-  .rxbuffer     = g_emac1_rxbuffer,
+  .tx0desc      = g_emac1_mem.tx0desc,
+  .rx0desc      = g_emac1_mem.rx0desc,
+  .tx0buffer    = g_emac1_mem.tx0buffer,
+  .rx0buffer    = g_emac1_mem.rx0buffer,
+  .tx1desc      = g_emac1_mem.tx1desc,
+  .rx1desc      = g_emac1_mem.rx1desc,
+  .tx1buffer    = g_emac1_mem.tx1buffer,
+  .rx1buffer    = g_emac1_mem.rx1buffer,
 #endif
 };
 
@@ -1488,53 +1469,21 @@ static int sam_txpoll(struct net_driver_s *dev)
 {
   struct sam_emac_s *priv = (struct sam_emac_s *)dev->d_private;
 
-  /* If the polling resulted in data that should be sent out on the network,
-   * the field d_len is set to a value > 0.
+  /* Send the packet */
+
+  sam_transmit(priv, EMAC_QUEUE_0);
+
+  /* Check if there are any free TX descriptors.  We cannot perform
+   * the TX poll if we do not have buffering for another packet.
    */
 
-  if (priv->dev.d_len > 0)
+  if (sam_txfree(priv, EMAC_QUEUE_0) == 0)
     {
-      /* Look up the destination MAC address and add it to the Ethernet
-       * header.
+      /* We have to terminate the poll if we have no more descriptors
+       * available for another transfer.
        */
 
-#ifdef CONFIG_NET_IPv4
-#ifdef CONFIG_NET_IPv6
-      if (IFF_IS_IPv4(priv->dev.d_flags))
-#endif
-        {
-          arp_out(&priv->dev);
-        }
-#endif /* CONFIG_NET_IPv4 */
-
-#ifdef CONFIG_NET_IPv6
-#ifdef CONFIG_NET_IPv4
-      else
-#endif
-        {
-          neighbor_out(&priv->dev);
-        }
-#endif /* CONFIG_NET_IPv6 */
-
-      if (!devif_loopback(&priv->dev))
-        {
-          /* Send the packet */
-
-          sam_transmit(priv, EMAC_QUEUE_0);
-
-          /* Check if there are any free TX descriptors.  We cannot perform
-           * the TX poll if we do not have buffering for another packet.
-           */
-
-          if (sam_txfree(priv, EMAC_QUEUE_0) == 0)
-            {
-              /* We have to terminate the poll if we have no more descriptors
-               * available for another transfer.
-               */
-
-              return -EBUSY;
-            }
-        }
+      return -EBUSY;
     }
 
   /* If zero is returned, the polling will continue until all connections
@@ -1927,11 +1876,8 @@ static void sam_receive(struct sam_emac_s *priv, int qid)
           ninfo("IPv4 frame\n");
           NETDEV_RXIPV4(&priv->dev);
 
-          /* Handle ARP on input then give the IPv4 packet to the network
-           * layer
-           */
+          /* Receive an IPv4 packet from the network device */
 
-          arp_ipin(&priv->dev);
           ipv4_input(&priv->dev);
 
           /* If the above function invocation resulted in data that should be
@@ -1940,21 +1886,6 @@ static void sam_receive(struct sam_emac_s *priv, int qid)
 
           if (priv->dev.d_len > 0)
             {
-              /* Update the Ethernet header with the correct MAC address */
-
-#ifdef CONFIG_NET_IPv6
-              if (IFF_IS_IPv4(priv->dev.d_flags))
-#endif
-                {
-                  arp_out(&priv->dev);
-                }
-#ifdef CONFIG_NET_IPv6
-              else
-                {
-                  neighbor_out(&priv->dev);
-                }
-#endif
-
               /* And send the packet */
 
               sam_transmit(priv, qid);
@@ -1978,21 +1909,6 @@ static void sam_receive(struct sam_emac_s *priv, int qid)
 
           if (priv->dev.d_len > 0)
             {
-              /* Update the Ethernet header with the correct MAC address */
-
-#ifdef CONFIG_NET_IPv4
-              if (IFF_IS_IPv4(priv->dev.d_flags))
-                {
-                  arp_out(&priv->dev);
-                }
-              else
-#endif
-#ifdef CONFIG_NET_IPv6
-                {
-                  neighbor_out(&priv->dev);
-                }
-#endif
-
               /* And send the packet */
 
               sam_transmit(priv, qid);
@@ -2008,7 +1924,7 @@ static void sam_receive(struct sam_emac_s *priv, int qid)
 
           /* Handle ARP packet */
 
-          arp_arpin(&priv->dev);
+          arp_input(&priv->dev);
 
           /* If the above function invocation resulted in data that should be
            * sent out on the network, d_len field will set to a value > 0.
@@ -2168,7 +2084,7 @@ static void sam_txerr_interrupt(struct sam_emac_s *priv, int qid)
   /* The following step should be optional since this function is called
    * directly by the IRQ handler. Indeed, according to Cadence
    * documentation, the transmission is halted on errors such as
-   * too many retries or transmit under run.  However it would becom
+   * too many retries or transmit under run.  However it would become
    * mandatory if the call of this function were scheduled as a task by
    * the IRQ handler (this is how Linux driver works). Then this function
    * might compete with GMACD_Send().
@@ -2241,7 +2157,7 @@ static void sam_txerr_interrupt(struct sam_emac_s *priv, int qid)
   /* Now we are ready to start transmission again */
 
   regval  = sam_getreg(priv, SAM_EMAC_NCR_OFFSET);
-  regval &= ~EMAC_NCR_TXEN;
+  regval |= EMAC_NCR_TXEN;
   sam_putreg(priv, SAM_EMAC_NCR_OFFSET, regval);
 
   /* At least one TX descriptor is available.  Re-enable RX interrupts.
@@ -3128,10 +3044,10 @@ static int sam_ioctl(struct net_driver_s *dev, int cmd, unsigned long arg)
     {
 #ifdef CONFIG_NETDEV_PHY_IOCTL
 #ifdef CONFIG_ARCH_PHY_INTERRUPT
-  case SIOCMIINOTIFY: /* Set up for PHY event notifications */
-    {
+      case SIOCMIINOTIFY: /* Set up for PHY event notifications */
+        {
           struct mii_ioctl_notify_s *req =
-        (struct mii_ioctl_notify_s *)((uintptr_t)arg);
+            (struct mii_ioctl_notify_s *)((uintptr_t)arg);
 
           ret = phy_notify_subscribe(dev->d_ifname, req->pid, &req->event);
           if (ret == OK)
@@ -3147,7 +3063,7 @@ static int sam_ioctl(struct net_driver_s *dev, int cmd, unsigned long arg)
       case SIOCGMIIPHY: /* Get MII PHY address */
         {
           struct mii_ioctl_data_s *req =
-        (struct mii_ioctl_data_s *)((uintptr_t)arg);
+            (struct mii_ioctl_data_s *)((uintptr_t)arg);
           req->phy_id = priv->phyaddr;
           ret = OK;
         }
@@ -3156,7 +3072,7 @@ static int sam_ioctl(struct net_driver_s *dev, int cmd, unsigned long arg)
       case SIOCGMIIREG: /* Get register from MII PHY */
         {
           struct mii_ioctl_data_s *req =
-        (struct mii_ioctl_data_s *)((uintptr_t)arg);
+            (struct mii_ioctl_data_s *)((uintptr_t)arg);
           uint32_t regval;
 
           /* Enable management port */
@@ -3177,7 +3093,7 @@ static int sam_ioctl(struct net_driver_s *dev, int cmd, unsigned long arg)
       case SIOCSMIIREG: /* Set register in MII PHY */
         {
           struct mii_ioctl_data_s *req =
-        (struct mii_ioctl_data_s *)((uintptr_t)arg);
+            (struct mii_ioctl_data_s *)((uintptr_t)arg);
           uint32_t regval;
 
           /* Enable management port */
@@ -4299,8 +4215,7 @@ static void sam_txreset(struct sam_emac_s *priv, int qid)
 
   /* Mark the final descriptor in the list */
 
-  txdesc[xfrq->ntxbuffers - 1].status =
-    EMACTXD_STA_USED | EMACTXD_STA_WRAP;
+  txdesc[xfrq->ntxbuffers - 1].status = EMACTXD_STA_USED | EMACTXD_STA_WRAP;
 
   /* Flush the entire TX descriptor table to RAM */
 
@@ -4716,8 +4631,8 @@ static int sam_queue0_configure(struct sam_emac_s *priv)
    *                          (units of 64 bytes)
    */
 
-  regval = EMAC_DCFGR_FBLDO_INCR4 | EMAC_DCFGR_RXBMS_FULL | /* EMAC_DCFGR_TXPBMS | */
-           EMAC_DCFGR_DRBS(priv->xfrq[0].rxbufsize >> 6);
+  regval = EMAC_DCFGR_FBLDO_INCR4 | EMAC_DCFGR_RXBMS_FULL |
+           EMAC_DCFGR_TXPBMS | EMAC_DCFGR_DRBS(priv->xfrq[0].rxbufsize >> 6);
   sam_putreg(priv, SAM_EMAC_DCFGR_OFFSET, regval);
 
   /* Reset RX and TX */

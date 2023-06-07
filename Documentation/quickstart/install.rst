@@ -22,7 +22,7 @@ First, install the following set of system dependencies according to your Operat
     .. code-block:: console
 
       $ sudo apt install \
-      bison flex gettext texinfo libncurses5-dev libncursesw5-dev \
+      bison flex gettext texinfo libncurses5-dev libncursesw5-dev xxd \
       gperf automake libtool pkg-config build-essential gperf genromfs \
       libgmp-dev libmpc-dev libmpfr-dev libisl-dev binutils-dev libelf-dev \
       libexpat-dev gcc-multilib g++-multilib picocom u-boot-tools util-linux
@@ -45,7 +45,7 @@ First, install the following set of system dependencies according to your Operat
     There may be complications interacting with
     programming tools over USB.  Recently support for USBIP was added to WSL 2
     which has been used with the STM32 platform, but it is not trivial to configure:
-    https://github.com/rpasek/usbip-wsl2-instructions
+    https://learn.microsoft.com/en-us/windows/wsl/connect-usb
 
   .. tab:: Windows/Cygwin
 
@@ -67,7 +67,7 @@ NuttX configuration system uses `KConfig <https://www.kernel.org/doc/Documentati
 
       .. code-tab:: console Ubuntu 20.04 LTS and later
 
-         $ apt install kconfig-frontends
+         $ sudo apt install kconfig-frontends
 
       .. code-tab:: console MacOS, Ubuntu 18.04 LTS and earlier
 
@@ -80,6 +80,22 @@ NuttX configuration system uses `KConfig <https://www.kernel.org/doc/Documentati
          $ ./configure --enable-mconf --disable-nconf --disable-gconf --disable-qconf
          $ make
          $ make install
+
+NuttX also supports `kconfiglib <https://github.com/ulfalizer/Kconfiglib>` by default, which is a Kconfig tool implemented in Python 2/3. Compared with kconfig-frontends, kconfiglib provides NuttX with the possibility of multi-platform support(configure NuttX in Winodws native/Visual Studio), and also kconfiglib has a stronger Kconfig syntax check, this will help developers to avoid some Kconfig syntax errors.  Install kconfiglib via following command:
+
+   .. tabs::
+         $ pip install kconfiglib
+
+If you are a working on Windows, which also need the support of windows-curses:
+
+   .. tabs::
+         $ pip install windows-curses
+
+.. tip::
+  It should be noted that kconfiglib does not support **modules** attributes.
+  (<https://github.com/ulfalizer/Kconfiglib/blob/master/kconfiglib.py#L3239-L3254>,
+  the community seems to have stopped updating), if the features depends on
+  ``CONFIG_BUILD_LOADABLE``, kconfiglib may not be a good choice.
 
 Toolchain
 =========
@@ -99,7 +115,7 @@ ARM architecture:
 
   .. code-tab:: console Ubuntu (deb)
 
-    $ apt install gcc-arm-none-eabi binutils-arm-none-eabi
+    $ sudo apt install gcc-arm-none-eabi binutils-arm-none-eabi
 
   .. tab:: From arm.com
 
@@ -135,16 +151,16 @@ ARM architecture:
 .. tip::
   There are hints on how to get the latest tool chains for most supported
   architectures in the Apache NuttX CI helper
-  `script <https://github.com/apache/incubator-nuttx/tree/master/tools/ci/cibuild.sh>`_
-  and Docker `container <https://github.com/apache/incubator-nuttx/tree/master/tools/ci/docker/linux/Dockerfile>`_
+  `script <https://github.com/apache/nuttx/tree/master/tools/ci/cibuild.sh>`_
+  and Docker `container <https://github.com/apache/nuttx/tree/master/tools/ci/docker/linux/Dockerfile>`_
   
 .. todo::
-  Required toolchain should be part of each arch documentation (see `relevant issue <https://github.com/apache/incubator-nuttx/issues/2409>`_).
+  Required toolchain should be part of each arch documentation (see `relevant issue <https://github.com/apache/nuttx/issues/2409>`_).
 
 Download NuttX
 ==============
 
-Apache NuttX is actively developed on GitHub. There are two main repositories, `nuttx <https://github.com/apache/incubator-nuttx>`_ and `apps <https://github.com/apache/incubator-nuttx-apps>`_, where the latter is technically optional (but recommended for complete set of features). If you intend to contribute changes, you need the absolute latest version or you simply prefer to work using git, you should clone these repositories (recommended). Otherwise you can choose to download any `stable release <https://nuttx.apache.org/download/>`_ archive.
+Apache NuttX is actively developed on GitHub. There are two main repositories, `nuttx <https://github.com/apache/nuttx>`_ and `apps <https://github.com/apache/nuttx-apps>`_, where the latter is technically optional (but recommended for complete set of features). If you intend to contribute changes, you need the absolute latest version or you simply prefer to work using git, you should clone these repositories (recommended). Otherwise you can choose to download any `stable release <https://nuttx.apache.org/download/>`_ archive.
 
 .. tabs::
 
@@ -154,8 +170,8 @@ Apache NuttX is actively developed on GitHub. There are two main repositories, `
 
        $ mkdir nuttxspace
        $ cd nuttxspace
-       $ git clone https://github.com/apache/incubator-nuttx.git nuttx
-       $ git clone https://github.com/apache/incubator-nuttx-apps apps
+       $ git clone https://github.com/apache/nuttx.git nuttx
+       $ git clone https://github.com/apache/nuttx-apps apps
 
     The development source code is also available as a compressed archive, should you need it:
 
@@ -163,8 +179,8 @@ Apache NuttX is actively developed on GitHub. There are two main repositories, `
 
        $ mkdir nuttxspace
        $ cd nuttxspace
-       $ curl -L https://github.com/apache/incubator-nuttx/tarball/master -o nuttx.tar.gz 
-       $ curl -L https://github.com/apache/incubator-nuttx-apps/tarball/master -o apps.tar.gz
+       $ curl -L https://github.com/apache/nuttx/tarball/master -o nuttx.tar.gz 
+       $ curl -L https://github.com/apache/nuttx-apps/tarball/master -o apps.tar.gz
        $ tar zxf nuttx.tar.gz --one-top-level=nuttx --strip-components 1
        $ tar zxf apps.tar.gz --one-top-level=apps --strip-components 1
        
@@ -180,7 +196,7 @@ Apache NuttX is actively developed on GitHub. There are two main repositories, `
     
        $ mkdir nuttxspace
        $ cd nuttxspace
-       $ curl -L https://www.apache.org/dyn/closer.lua/incubator/nuttx/10.1.0/apache-nuttx-10.1.0-incubating.tar.gz?action=download -o nuttx.tar.gz 
-       $ curl -L https://www.apache.org/dyn/closer.lua/incubator/nuttx/10.1.0/apache-nuttx-apps-10.1.0-incubating.tar.gz?action=download -o apps.tar.gz
+       $ curl -L https://www.apache.org/dyn/closer.lua/nuttx/12.0.0/apache-nuttx-12.0.0.tar.gz?action=download -o nuttx.tar.gz
+       $ curl -L https://www.apache.org/dyn/closer.lua/nuttx/12.0.0/apache-nuttx-apps-12.0.0.tar.gz?action=download -o apps.tar.gz
        $ tar zxf nuttx.tar.gz
        $ tar zxf apps.tar.gz

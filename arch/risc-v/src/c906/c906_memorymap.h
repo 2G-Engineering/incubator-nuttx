@@ -25,7 +25,7 @@
  * Included Files
  ****************************************************************************/
 
-#include "riscv_internal.h"
+#include "riscv_common_memorymap.h"
 #include "hardware/c906_memorymap.h"
 #include "hardware/c906_uart.h"
 #include "hardware/c906_clint.h"
@@ -39,7 +39,7 @@
 /* Idle thread stack starts from _ebss */
 
 #ifndef __ASSEMBLY__
-#define C906_IDLESTACK_BASE  (uintptr_t)&_ebss
+#define C906_IDLESTACK_BASE  (uintptr_t)_ebss
 #else
 #define C906_IDLESTACK_BASE  _ebss
 #endif

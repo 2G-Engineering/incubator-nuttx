@@ -33,7 +33,7 @@
 #include <nuttx/spi/spi.h>
 #include <nuttx/spi/spi_bitbang.h>
 
-#include <nuttx/semaphore.h>
+#include <nuttx/mutex.h>
 
 #ifdef CONFIG_SPI_BITBANG
 
@@ -161,11 +161,11 @@ static int spi_lock(FAR struct spi_dev_s *dev, bool lock)
   spiinfo("lock=%d\n", lock);
   if (lock)
     {
-      ret = nxsem_wait_uninterruptible(&priv->exclsem);
+      ret = nxmutex_lock(&priv->lock);
     }
   else
     {
-      ret = nxsem_post(&priv->exclsem);
+      ret = nxmutex_unlock(&priv->lock);
     }
 
   return ret;
@@ -192,7 +192,7 @@ static void spi_select(FAR struct spi_dev_s *dev, uint32_t devid,
 {
   FAR struct spi_bitbang_s *priv = (FAR struct spi_bitbang_s *)dev;
 
-  spiinfo("devid=%d selected=%d\n", devid, selected);
+  spiinfo("devid=%" PRIu32 " selected=%d\n", devid, selected);
   DEBUGASSERT(priv && priv->low->select);
   priv->low->select(priv, devid, selected);
 }
@@ -220,7 +220,7 @@ static uint32_t spi_setfrequency(FAR struct spi_dev_s *dev,
 
   DEBUGASSERT(priv && priv->low->setfrequency);
   actual = priv->low->setfrequency(priv, frequency);
-  spiinfo("frequency=%d holdtime=%d actual=%d\n",
+  spiinfo("frequency=%" PRIu32 " holdtime=%" PRIu32 " actual=%" PRIu32 "\n",
           frequency, priv->holdtime, actual);
   return actual;
 }
@@ -515,7 +515,8 @@ static int spi_cmddata(FAR struct spi_dev_s *dev, uint32_t devid,
  ****************************************************************************/
 
 FAR struct spi_dev_s *spi_create_bitbang(FAR const struct
-                                         spi_bitbang_ops_s *low)
+                                         spi_bitbang_ops_s *low,
+                                         FAR void *low_priv)
 {
   FAR struct spi_bitbang_s *priv;
 
@@ -535,11 +536,12 @@ FAR struct spi_dev_s *spi_create_bitbang(FAR const struct
 
   priv->dev.ops = &g_spiops;
   priv->low     = low;
+  priv->priv    = low_priv;
 #ifdef CONFIG_SPI_BITBANG_VARWIDTH
   priv->nbits   = 8;
 #endif
 
-  nxsem_init(&priv->exclsem, 0, 1);
+  nxmutex_init(&priv->lock);
 
   /* Select an initial state of mode 0, 8-bits, and 400KHz */
 
@@ -549,6 +551,12 @@ FAR struct spi_dev_s *spi_create_bitbang(FAR const struct
   /* And return the initialized driver structure */
 
   return &priv->dev;
+}
+
+void spi_destroy_bitbang(FAR struct spi_dev_s *dev)
+{
+  DEBUGASSERT(dev);
+  kmm_free(dev);
 }
 
 #endif /* CONFIG_SPI_BITBANG */

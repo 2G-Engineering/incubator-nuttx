@@ -34,20 +34,24 @@
 #include "xtensa.h"
 #include "xtensa_attr.h"
 
-#include "hardware/esp32_dport.h"
-#include "hardware/esp32_rtccntl.h"
 #include "esp32_clockconfig.h"
 #include "esp32_region.h"
 #include "esp32_start.h"
 #include "esp32_spiram.h"
 #include "esp32_wdt.h"
+#ifdef CONFIG_BUILD_PROTECTED
+#  include "esp32_userspace.h"
+#endif
+#include "hardware/esp32_dport.h"
+#include "hardware/esp32_rtccntl.h"
+#include "rom/esp32_libc_stubs.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
 #ifdef CONFIG_DEBUG_FEATURES
-#  define showprogress(c)     up_puts(c)
+#  define showprogress(c)     up_putc(c)
 #else
 #  define showprogress(c)
 #endif
@@ -74,13 +78,13 @@
  ****************************************************************************/
 
 #ifdef CONFIG_ESP32_APP_FORMAT_MCUBOOT
-extern uint32_t _image_irom_vma;
-extern uint32_t _image_irom_lma;
-extern uint32_t _image_irom_size;
+extern uint8_t _image_irom_vma[];
+extern uint8_t _image_irom_lma[];
+extern uint8_t _image_irom_size[];
 
-extern uint32_t _image_drom_vma;
-extern uint32_t _image_drom_lma;
-extern uint32_t _image_drom_size;
+extern uint8_t _image_drom_vma[];
+extern uint8_t _image_drom_lma[];
+extern uint8_t _image_drom_size[];
 #endif
 
 /****************************************************************************
@@ -88,7 +92,7 @@ extern uint32_t _image_drom_size;
  ****************************************************************************/
 
 #ifdef CONFIG_ESP32_APP_FORMAT_MCUBOOT
-extern int ets_printf(const char *fmt, ...);
+extern int ets_printf(const char *fmt, ...) printf_like(1, 2);
 extern void cache_read_enable(int cpu);
 extern void cache_read_disable(int cpu);
 extern void cache_flush(int cpu);
@@ -119,7 +123,7 @@ extern void esp32_lowsetup(void);
  ****************************************************************************/
 
 #ifdef CONFIG_ESP32_APP_FORMAT_MCUBOOT
-HDR_ATTR static void (*_entry_point)(void) = &__start;
+HDR_ATTR static void (*_entry_point)(void) = __start;
 #endif
 
 /****************************************************************************
@@ -138,6 +142,7 @@ uint32_t g_idlestack[IDLETHREAD_STACKWORDS]
 static noreturn_function void __esp32_start(void)
 {
   uint32_t sp;
+  uint32_t regval unused_data;
 
   /* Make sure that normal interrupts are disabled.  This is really only an
    * issue when we are started in un-usual ways (such as from IRAM).  In this
@@ -160,17 +165,31 @@ static noreturn_function void __esp32_start(void)
 
   esp32_region_protection();
 
+#if defined(CONFIG_ESP32_PID) && defined(CONFIG_BUILD_PROTECTED)
+  /* We have 2 VECBASE Addresses: one in CPU and one in DPORT peripheral.
+   * CPU has no knowledge of PID hence any PID can change the CPU VECBASE
+   * address thus jumping to malicious interrupt vectors with higher
+   * privilege.
+   * So we configure CPU to use the VECBASE address in DPORT peripheral.
+   */
+
+  regval = ((uint32_t)_init_start) >> 10;
+  putreg32(regval, DPORT_PRO_VECBASE_SET_REG);
+
+  regval  = getreg32(DPORT_PRO_VECBASE_CTRL_REG);
+  regval |= BIT(0) | BIT(1);
+  putreg32(regval, DPORT_PRO_VECBASE_CTRL_REG);
+#else
   /* Move CPU0 exception vectors to IRAM */
 
-  __asm__ __volatile__ ("wsr %0, vecbase\n"::"r" (&_init_start));
+  __asm__ __volatile__ ("wsr %0, vecbase\n"::"r"(_init_start));
+#endif
 
   /* Set .bss to zero */
 
-  memset(&_sbss, 0, (&_ebss - &_sbss) * sizeof(_sbss));
+  memset(_sbss, 0, _ebss - _sbss);
 
 #ifndef CONFIG_SMP
-  uint32_t regval;
-
   /* Make sure that the APP_CPU is disabled for now */
 
   regval  = getreg32(DPORT_APPCPU_CTRL_B_REG);
@@ -201,7 +220,7 @@ static noreturn_function void __esp32_start(void)
   xtensa_earlyserialinit();
 #endif
 
-  showprogress("A");
+  showprogress('A');
 
 #if defined(CONFIG_ESP32_SPIRAM_BOOT_INIT)
   if (esp_spiram_init() != OK)
@@ -220,17 +239,31 @@ static noreturn_function void __esp32_start(void)
   /* Set external memory bss section to zero */
 
 #  ifdef CONFIG_XTENSA_EXTMEM_BSS
-     memset(&_sbss_extmem, 0,
-            (&_ebss_extmem - &_sbss_extmem) * sizeof(_sbss_extmem));
+     memset(_sbss_extmem, 0, _ebss_extmem - _sbss_extmem);
 #  endif
 
 #endif
+
+  /* Setup the syscall table needed by the ROM code */
+
+  esp_setup_syscall_table();
 
   /* Initialize onboard resources */
 
   esp32_board_initialize();
 
-  showprogress("B");
+  showprogress('B');
+
+  /* For the case of the separate user-/kernel-space build, perform whatever
+   * platform specific initialization of the user memory is required.
+   * Normally this just means initializing the user space .data and .bss
+   * segments.
+   */
+
+#ifdef CONFIG_BUILD_PROTECTED
+  esp32_userspace();
+  showprogress('C');
+#endif
 
   /* Bring up NuttX */
 
@@ -288,12 +321,12 @@ static int map_rom_segments(void)
   uint32_t irom_page_count;
 
   size_t partition_offset = PRIMARY_SLOT_OFFSET;
-  uint32_t app_irom_lma = partition_offset + (uint32_t)&_image_irom_lma;
-  uint32_t app_irom_size = (uint32_t)&_image_irom_size;
-  uint32_t app_irom_vma = (uint32_t)&_image_irom_vma;
-  uint32_t app_drom_lma = partition_offset + (uint32_t)&_image_drom_lma;
-  uint32_t app_drom_size = (uint32_t)&_image_drom_size;
-  uint32_t app_drom_vma = (uint32_t)&_image_drom_vma;
+  uint32_t app_irom_lma = partition_offset + (uint32_t)_image_irom_lma;
+  uint32_t app_irom_size = (uint32_t)_image_irom_size;
+  uint32_t app_irom_vma = (uint32_t)_image_irom_vma;
+  uint32_t app_drom_lma = partition_offset + (uint32_t)_image_drom_lma;
+  uint32_t app_drom_size = (uint32_t)_image_drom_size;
+  uint32_t app_drom_vma = (uint32_t)_image_drom_vma;
 
   volatile uint32_t *pro_flash_mmu_table =
     (volatile uint32_t *)DPORT_PRO_FLASH_MMU_TABLE_REG;

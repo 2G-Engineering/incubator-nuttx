@@ -51,8 +51,10 @@ namespace std
   // Process exit functions
 
   using ::exit;
+  using ::quick_exit;
   using ::abort;
   using ::atexit;
+  using ::at_quick_exit;
   using ::on_exit;
 
 #ifndef __KERNEL__
@@ -86,10 +88,8 @@ namespace std
 
   // Wide character operations
 
-#ifdef CONFIG_LIBC_WCHAR
   using ::mbtowc;
   using ::wctomb;
-#endif
 
   // Memory Management
 

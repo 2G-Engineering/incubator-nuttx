@@ -22,6 +22,22 @@ config ARCH_ARM
 	---help---
 		The ARM architectures
 
+config ARCH_ARM64
+	bool "ARM64"
+	select ALARM_ARCH
+	select ARCH_HAVE_BACKTRACE
+	select ARCH_HAVE_INTERRUPTSTACK
+	select ARCH_HAVE_VFORK
+	select ARCH_HAVE_STACKCHECK
+	select ARCH_HAVE_CUSTOMOPT
+	select ARCH_HAVE_STDARG_H
+	select ARCH_HAVE_SYSCALL_HOOKS
+	select ARCH_HAVE_RDWR_MEM_CPU_RUN
+	select ARCH_HAVE_THREAD_LOCAL
+	select ONESHOT
+	---help---
+		The ARM64 architectures
+
 config ARCH_AVR
 	bool "AVR"
 	select ARCH_NOINTC
@@ -62,6 +78,7 @@ config ARCH_RENESAS
 config ARCH_RISCV
 	bool "RISC-V"
 	select ARCH_HAVE_BACKTRACE
+	select ARCH_HAVE_CPUINFO
 	select ARCH_HAVE_INTERRUPTSTACK
 	select ARCH_HAVE_STACKCHECK
 	select ARCH_HAVE_VFORK
@@ -84,14 +101,16 @@ config ARCH_SIM
 	select ARCH_HAVE_TICKLESS
 	select ARCH_HAVE_POWEROFF
 	select ARCH_HAVE_TESTSET
-	select ARCH_HAVE_VFORK
+	select ARCH_HAVE_VFORK if !HOST_WINDOWS
 	select ARCH_HAVE_SETJMP
 	select ARCH_HAVE_CUSTOMOPT
+	select ARCH_HAVE_TEXT_HEAP
 	select ARCH_SETJMP_H
 	select ALARM_ARCH
 	select ONESHOT
 	select SERIAL_CONSOLE
 	select SERIAL_IFLOWCONTROL
+	select SCHED_HPWORK
 	---help---
 		Linux/Cygwin user-mode simulation.
 
@@ -109,6 +128,7 @@ config ARCH_X86_64
 config ARCH_XTENSA
 	bool "Xtensa"
 	select ARCH_HAVE_BACKTRACE
+	select ARCH_HAVE_CPUINFO
 	select ARCH_HAVE_INTERRUPTSTACK
 	select ARCH_HAVE_STACKCHECK
 	select ARCH_HAVE_CUSTOMOPT
@@ -147,6 +167,7 @@ endchoice
 config ARCH
 	string
 	default "arm"     if ARCH_ARM
+	default "arm64"   if ARCH_ARM64
 	default "avr"     if ARCH_AVR
 	default "hc"      if ARCH_HC
 	default "mips"    if ARCH_MIPS
@@ -155,6 +176,7 @@ config ARCH
 	default "risc-v"  if ARCH_RISCV
 	default "sim"     if ARCH_SIM
 	default "x86"     if ARCH_X86
+	default "x86_64"  if ARCH_X86_64
 	default "xtensa"  if ARCH_XTENSA
 	default "z16"     if ARCH_Z16
 	default "z80"     if ARCH_Z80
@@ -162,6 +184,7 @@ config ARCH
 	default "sparc"   if ARCH_SPARC
 
 source "arch/arm/Kconfig"
+source "arch/arm64/Kconfig"
 source "arch/avr/Kconfig"
 source "arch/hc/Kconfig"
 source "arch/mips/Kconfig"
@@ -213,7 +236,7 @@ config ARCH_CHIP_CUSTOM_DIR_RELPATH
 endmenu # Custom Chip Configuration
 endif #ARCH_CHIP_CUSTOM
 
-source "arch/dummy/Kconfig"
+source "$BINDIR/arch/dummy/Kconfig"
 
 config ARCH_TOOLCHAIN_IAR
 	bool
@@ -287,6 +310,18 @@ config ARCH_COVERAGE
 	default n
 	---help---
 		Generate code coverage
+
+config ARCH_COVERAGE_ALL
+	bool "Enable code coverage for the entire image"
+	depends on ARCH_COVERAGE
+	default y
+	---help---
+		This option activates code coverage instrumentation for the
+		entire image. If you don't enable this option, you have to
+		explicitly specify "-fprofile-generate -ftest-coverage" for
+		the files/directories you want to check. Enabling this option
+		will get image size increased and performance decreased
+		significantly.
 
 comment "Architecture Options"
 
@@ -435,6 +470,10 @@ config ARCH_HAVE_BOOTLOADER
 	bool
 	default n
 
+config ARCH_HAVE_CPUINFO
+	bool
+	default n
+
 config ARCH_FPU
 	bool "FPU support"
 	default y
@@ -484,7 +523,7 @@ config ARCH_USE_TEXT_HEAP
 menuconfig ARCH_ADDRENV
 	bool "Address environments"
 	default n
-	depends on ARCH_HAVE_ADDRENV
+	depends on ARCH_HAVE_ADDRENV && SCHED_LPWORK
 	---help---
 		Support per-task address environments using the MMU... i.e., support
 		"processes"
@@ -506,11 +545,22 @@ config ARCH_HEAP_VBASE
 	---help---
 		The virtual address of the beginning of the heap region.
 
+config ARCH_VMA_MAPPING
+	bool "Support runtime memory mapping into SHM area"
+	default n
+
 config ARCH_SHM_VBASE
 	hex "Shared memory base"
-	depends on MM_SHM
+	depends on ARCH_VMA_MAPPING
 	---help---
 		The virtual address of the beginning of the shared memory region.
+
+config ARCH_KMAP_VBASE
+	hex "Kernel dynamic virtual mappings base"
+	depends on ARCH_VMA_MAPPING
+	---help---
+		The virtual address of the beginning of the kernel dynamic mapping
+		region.
 
 config ARCH_TEXT_NPAGES
 	int "Max .text pages"
@@ -536,7 +586,7 @@ config ARCH_HEAP_NPAGES
 		This, along with knowledge of the page size, determines the size of
 		the heap virtual address space. Default is 1.
 
-if MM_SHM
+if ARCH_VMA_MAPPING
 
 config ARCH_SHM_MAXREGIONS
 	int "Max shared memory regions"
@@ -564,7 +614,19 @@ config ARCH_SHM_NPAGES
 		maximum number of pages per region, and the configured size of
 		each page.
 
-endif # MM_SHM
+config ARCH_KMAP_NPAGES
+	int "Max kernel dynamic mapping pages"
+	default 1
+	---help---
+		The maximum amount of pages that a kernel can use for dynamically
+		mapping physical pages to itself.
+
+		The size of the virtual shared memory address space is then
+		determined by the product of the maximum number of regions, the
+		maximum number of pages per region, and the configured size of
+		each page.
+
+endif # ARCH_VMA_MAPPING
 
 config ARCH_STACK_DYNAMIC
 	bool "Dynamic user stack"
@@ -821,6 +883,11 @@ config ARCH_STACKDUMP
 	---help---
 		Enable to do stack dumps after assertions
 
+config ARCH_STACKDUMP_MAX_LENGTH
+	int "The maximum length for dump stack on assertions"
+	depends on ARCH_STACKDUMP
+	default 0
+
 config DUMP_ON_EXIT
 	bool "Dump all tasks state on exit"
 	default n
@@ -944,7 +1011,7 @@ config ARCH_NUSER_INTERRUPTS
 # and DEBUG_FEATURES.
 
 menu "Bring-Up Options"
-	depends on EXPERIMENTAL && DEBUG_FEATURES
+	depends on DEBUG_FEATURES
 
 config SUPPRESS_CLOCK_CONFIG
 	bool "Suppress clock configuration"

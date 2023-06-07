@@ -33,12 +33,6 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Values for seeking */
-
-#define SEEK_SET    0  /* From the start of the file */
-#define SEEK_CUR    1  /* From the current file offset */
-#define SEEK_END    2  /* From the end of the file */
-
 /* Bit values for the second argument to access */
 
 #define F_OK        0  /* Test existence */
@@ -259,7 +253,7 @@
 
 /* Helpers and legacy compatibility definitions */
 
-#define link(p1, p2)                     symlink((p1), (p2))
+#define syncfs(f)                        fsync(f)
 #define fdatasync(f)                     fsync(f)
 #define getdtablesize(f)                 ((int)sysconf(_SC_OPEN_MAX))
 #define getpagesize(f)                   ((int)sysconf(_SC_PAGESIZE))
@@ -271,7 +265,7 @@
 #define optind                           (*(getoptindp()))
 #define optopt                           (*(getoptoptp()))
 
-#if defined(CONFIG_FS_LARGEFILE) && defined(CONFIG_HAVE_LONG_LONG)
+#if defined(CONFIG_FS_LARGEFILE)
 #  define lseek64                        lseek
 #  define pread64                        pread
 #  define pwrite64                       pwrite
@@ -352,7 +346,7 @@ FAR void *sbrk(intptr_t incr);
 
 /* Special devices */
 
-int     pipe(int fd[2]);
+#define pipe(fd) pipe2(fd, 0)
 int     pipe2(int pipefd[2], int flags);
 
 /* Schedule an alarm */
@@ -362,18 +356,30 @@ unsigned int alarm(unsigned int seconds);
 /* Working directory operations */
 
 int     chdir(FAR const char *path);
+int     fchdir(int fd);
 FAR char *getcwd(FAR char *buf, size_t size);
 
 /* File path operations */
 
 int     access(FAR const char *path, int amode);
+int     faccessat(int dirfd, FAR const char *path, int mode, int flags);
 int     rmdir(FAR const char *pathname);
 int     unlink(FAR const char *pathname);
+int     unlinkat(int dirfd, FAR const char *pathname, int flags);
 int     truncate(FAR const char *path, off_t length);
+int     link(FAR const char *path1, FAR const char *path2);
+int     linkat(int olddirfd, FAR const char *path1,
+               int newdirfd, FAR const char *path2, int flags);
 int     symlink(FAR const char *path1, FAR const char *path2);
+int     symlinkat(FAR const char *path1, int dirfd,
+                  FAR const char *path2);
 ssize_t readlink(FAR const char *path, FAR char *buf, size_t bufsize);
+ssize_t readlinkat(int dirfd, FAR const char *path, FAR char *buf,
+                   size_t bufsize);
 int     chown(FAR const char *path, uid_t owner, gid_t group);
 int     lchown(FAR const char *path, uid_t owner, gid_t group);
+int     fchownat(int dirfd, FAR const char *path, uid_t owner,
+                 gid_t group, int flags);
 
 /* Execution of programs from files */
 
@@ -425,6 +431,8 @@ int     setreuid(uid_t ruid, uid_t euid);
 int     setregid(gid_t rgid, gid_t egid);
 
 int     getentropy(FAR void *buffer, size_t length);
+
+void    sync(void);
 
 #undef EXTERN
 #if defined(__cplusplus)

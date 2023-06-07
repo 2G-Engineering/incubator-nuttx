@@ -75,7 +75,7 @@
 #  include "esp32_ble.h"
 #endif
 
-#ifdef CONFIG_ESP32_WIRELESS
+#ifdef CONFIG_ESP32_WIFI
 #  include "esp32_board_wlan.h"
 #endif
 
@@ -200,6 +200,16 @@ int esp32_bringup(void)
     }
 #endif
 
+#ifdef CONFIG_LPWAN_SX127X
+  ret = esp32_lpwaninitialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to initialize wireless driver: %d\n",
+             ret);
+    }
+#endif /* CONFIG_LPWAN_SX127X */
+
 #ifdef CONFIG_ESP32_BLE
   ret = esp32_ble_initialize();
   if (ret)
@@ -208,7 +218,7 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESP32_WIRELESS
+#ifdef CONFIG_ESP32_WIFI
   ret = board_wlan_init();
   if (ret < 0)
     {

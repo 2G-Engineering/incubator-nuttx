@@ -127,6 +127,18 @@ void circbuf_uninit(FAR struct circbuf_s *circ);
 void circbuf_reset(FAR struct circbuf_s *circ);
 
 /****************************************************************************
+ * Name: circbuf_is_init
+ *
+ * Description:
+ *   Return true if the circular buffer had been initialized.
+ *
+ * Input Parameters:
+ *   circ  - Address of the circular buffer to be used.
+ ****************************************************************************/
+
+bool circbuf_is_init(FAR struct circbuf_s *circ);
+
+/****************************************************************************
  * Name: circbuf_is_full
  *
  * Description:
@@ -187,10 +199,34 @@ size_t circbuf_used(FAR struct circbuf_s *circ);
 size_t circbuf_space(FAR struct circbuf_s *circ);
 
 /****************************************************************************
+ * Name: circbuf_peekat
+ *
+ * Description:
+ *   Get data speicified position from the circular buffer without removing
+ *
+ * Note :
+ *   That with only one concurrent reader and one concurrent writer,
+ *   you don't need extra locking to use these api.
+ *
+ * Input Parameters:
+ *   circ  - Address of the circular buffer to be used.
+ *   pos   - Position to read.
+ *   dst   - Address where to store the data.
+ *   bytes - Number of bytes to get.
+ *
+ * Returned Value:
+ *   The bytes of get data is returned if the peek data is successful;
+ *   A negated errno value is returned on any failure.
+ ****************************************************************************/
+
+ssize_t circbuf_peekat(FAR struct circbuf_s *circ, size_t pos,
+                       FAR void *dst, size_t bytes);
+
+/****************************************************************************
  * Name: circbuf_peek
  *
  * Description:
- *   Get data form the circular buffer without removing
+ *   Get data from the circular buffer without removing
  *
  * Note :
  *   That with only one concurrent reader and one concurrent writer,
@@ -213,7 +249,7 @@ ssize_t circbuf_peek(FAR struct circbuf_s *circ,
  * Name: circbuf_read
  *
  * Description:
- *   Get data form the circular buffer.
+ *   Get data from the circular buffer.
  *
  * Note :
  *   That with only one concurrent reader and one concurrent writer,
@@ -236,7 +272,7 @@ ssize_t circbuf_read(FAR struct circbuf_s *circ,
  * Name: circbuf_skip
  *
  * Description:
- *   Skip data form the circular buffer.
+ *   Skip data from the circular buffer.
  *
  * Note:
  *   That with only one concurrent reader and one concurrent writer,
@@ -300,6 +336,72 @@ ssize_t circbuf_write(FAR struct circbuf_s *circ,
 
 ssize_t circbuf_overwrite(FAR struct circbuf_s *circ,
                            FAR const void *src, size_t bytes);
+
+/****************************************************************************
+ * Name: circbuf_get_writeptr
+ *
+ * Description:
+ *   Get the write pointer of the circbuf.
+ *
+ * Input Parameters:
+ *   circ  - Address of the circular buffer to be used.
+ *   size  - Returns the maximum size that can be written consecutively.
+ *
+ * Returned Value:
+ *   The write pointer of the circbuf.
+ *
+ ****************************************************************************/
+
+FAR void *circbuf_get_writeptr(FAR struct circbuf_s *circ, FAR size_t *size);
+
+/****************************************************************************
+ * Name: circbuf_get_readptr
+ *
+ * Description:
+ *   Get the read pointer of the circbuf.
+ *
+ * Input Parameters:
+ *   circ  - Address of the circular buffer to be used.
+ *   size  - Returns the maximum size that can be read consecutively.
+ *
+ * Returned Value:
+ *   The read pointer of the circbuf.
+ *
+ ****************************************************************************/
+
+FAR void *circbuf_get_readptr(FAR struct circbuf_s *circ, FAR size_t *size);
+
+/****************************************************************************
+ * Name: circbuf_writecommit
+ *
+ * Description:
+ *   After writing data using the buf returned by circbuf_writebuf,
+ *   you need to use this function to update the internal structure
+ *   of cricbuf.
+ *
+ * Input Parameters:
+ *   circ        - Address of the circular buffer to be used.
+ *   writtensize - The data that has been written to the buffer.
+ *
+ ****************************************************************************/
+
+void circbuf_writecommit(FAR struct circbuf_s *circ, size_t writtensize);
+
+/****************************************************************************
+ * Name: circbuf_readcommit
+ *
+ * Description:
+ *   After reading data using the buf returned by circbuf_readbuf,
+ *   you need to use this function to update the internal structure
+ *   of cricbuf.
+ *
+ * Input Parameters:
+ *   circ     - Address of the circular buffer to be used.
+ *   readsize - The data that has been read to the buffer.
+ *
+ ****************************************************************************/
+
+void circbuf_readcommit(FAR struct circbuf_s *circ, size_t readsize);
 
 #undef EXTERN
 #if defined(__cplusplus)

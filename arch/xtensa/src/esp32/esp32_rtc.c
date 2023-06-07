@@ -35,6 +35,7 @@
 #include "esp32_rt_timer.h"
 
 #include "hardware/esp32_rtccntl.h"
+#include "hardware/esp32_rtc_io.h"
 #include "hardware/esp32_dport.h"
 #include "hardware/esp32_i2s.h"
 
@@ -157,13 +158,11 @@
   .fe_pd = (val), \
 }
 
-#ifdef CONFIG_RTC_DRIVER
 /* The magic data for the struct esp32_rtc_backup_s that is in RTC slow
  * memory.
  */
 
-#  define MAGIC_RTC_SAVE (UINT64_C(0x11223344556677))
-#endif
+#define MAGIC_RTC_SAVE UINT64_C(0x11223344556677)
 
 /* RTC Memory & Store Register usage */
 
@@ -228,8 +227,6 @@ struct esp32_rtc_sleep_pd_config_s
   uint32_t fe_pd : 1;     /* Set to 1 to power down Wi-Fi in sleep */
 };
 
-#ifdef CONFIG_RTC_DRIVER
-
 #ifdef CONFIG_RTC_ALARM
 struct alm_cbinfo_s
 {
@@ -248,8 +245,6 @@ struct esp32_rtc_backup_s
   int64_t  reserved0;
 };
 
-#endif
-
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
@@ -266,9 +261,8 @@ static void IRAM_ATTR esp32_rtc_clk_slow_freq_set(
 static void esp32_select_rtc_slow_clk(enum esp32_slow_clk_sel_e slow_clk);
 static void esp32_rtc_clk_32k_enable(int ac, int res, int bias);
 static void IRAM_ATTR esp32_rtc_clk_8m_enable(bool clk_8m_en, bool d256_en);
-static uint32_t IRAM_ATTR esp32_rtc_clk_slow_freq_get_hz(void);
 
-#ifdef CONFIG_RTC_DRIVER
+#ifdef CONFIG_RTC_ALARM
 static void IRAM_ATTR esp32_rt_cb_handler(void *arg);
 #endif
 
@@ -286,8 +280,6 @@ static struct esp32_rtc_priv_s esp32_rtc_priv =
   .rtc_dboost_fpd = 1
 };
 
-#ifdef CONFIG_RTC_DRIVER
-
 /* Callback to use when the alarm expires */
 
 #ifdef CONFIG_RTC_ALARM
@@ -301,15 +293,11 @@ static RTC_DATA_ATTR struct esp32_rtc_backup_s rtc_saved_data;
 static struct esp32_rtc_backup_s *g_rtc_save;
 static bool g_rt_timer_enabled = false;
 
-#endif
-
 /****************************************************************************
  * Public Data
  ****************************************************************************/
 
-#ifdef CONFIG_RTC_DRIVER
 volatile bool g_rtc_enabled = false;
-#endif
 
 /****************************************************************************
  * Private Functions
@@ -623,39 +611,6 @@ static void IRAM_ATTR esp32_rtc_clk_8m_enable(bool clk_8m_en, bool d256_en)
 }
 
 /****************************************************************************
- * Name: esp32_rtc_clk_slow_freq_get_hz
- *
- * Description:
- *   Get the approximate frequency of RTC_SLOW_CLK, in Hz
- *
- * Input Parameters:
- *   None
- *
- * Returned Value:
- *   slow_clk_freq - RTC_SLOW_CLK frequency, in Hz
- *
- ****************************************************************************/
-
-static uint32_t IRAM_ATTR esp32_rtc_clk_slow_freq_get_hz(void)
-{
-  enum esp32_rtc_slow_freq_e slow_clk_freq =
-              REG_GET_FIELD(RTC_CNTL_CLK_CONF_REG, RTC_CNTL_ANA_CLK_RTC_SEL);
-  switch (slow_clk_freq)
-    {
-      case RTC_SLOW_FREQ_RTC:
-        return RTC_SLOW_CLK_FREQ_150K;
-
-      case RTC_SLOW_FREQ_32K_XTAL:
-        return RTC_SLOW_CLK_FREQ_32K;
-
-      case RTC_SLOW_FREQ_8MD256:
-        return RTC_SLOW_CLK_FREQ_8MD256;
-    }
-
-  return OK;
-}
-
-/****************************************************************************
  * Name: esp32_select_rtc_slow_clk
  *
  * Description:
@@ -747,7 +702,7 @@ static void esp32_select_rtc_slow_clk(enum esp32_slow_clk_sel_e slow_clk)
   putreg32((uint32_t)cal_val, RTC_SLOW_CLK_CAL_REG);
 }
 
-#ifdef CONFIG_RTC_DRIVER
+#ifdef CONFIG_RTC_ALARM
 
 /****************************************************************************
  * Name: esp32_rt_cb_handler
@@ -788,11 +743,63 @@ static void IRAM_ATTR esp32_rt_cb_handler(void *arg)
     }
 }
 
-#endif /* CONFIG_RTC_DRIVER */
+#endif /* CONFIG_RTC_ALARM */
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: esp32_rtc_clk_slow_freq_get_hz
+ *
+ * Description:
+ *   Get the approximate frequency of RTC_SLOW_CLK, in Hz
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   slow_clk_freq - RTC_SLOW_CLK frequency, in Hz
+ *
+ ****************************************************************************/
+
+uint32_t IRAM_ATTR esp32_rtc_clk_slow_freq_get_hz(void)
+{
+  enum esp32_rtc_slow_freq_e slow_clk_freq =
+              REG_GET_FIELD(RTC_CNTL_CLK_CONF_REG, RTC_CNTL_ANA_CLK_RTC_SEL);
+  switch (slow_clk_freq)
+    {
+      case RTC_SLOW_FREQ_RTC:
+        return RTC_SLOW_CLK_FREQ_150K;
+
+      case RTC_SLOW_FREQ_32K_XTAL:
+        return RTC_SLOW_CLK_FREQ_32K;
+
+      case RTC_SLOW_FREQ_8MD256:
+        return RTC_SLOW_CLK_FREQ_8MD256;
+    }
+
+  return OK;
+}
+
+/****************************************************************************
+ * Name: esp32_rtc_clk_fast_freq_get_hz
+ *
+ * Description:
+ *   Get fast_clk_rtc source in Hz.
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   The clock source in Hz.
+ *
+ ****************************************************************************/
+
+uint32_t IRAM_ATTR esp32_rtc_clk_fast_freq_get_hz(void)
+{
+  return RTC_FAST_CLK_FREQ_APPROX;
+}
 
 /****************************************************************************
  * Name: esp32_rtc_get_slow_clk_rtc
@@ -1548,7 +1555,7 @@ int IRAM_ATTR esp_rtc_clk_get_cpu_freq(void)
             }
           else
             {
-              DEBUGASSERT(0);
+              DEBUGPANIC();
             }
         }
         break;
@@ -1561,7 +1568,7 @@ int IRAM_ATTR esp_rtc_clk_get_cpu_freq(void)
 
       case RTC_CNTL_SOC_CLK_SEL_APLL:
         default:
-          DEBUGASSERT(0);
+          DEBUGPANIC();
     }
 
   return freq_mhz;
@@ -1883,8 +1890,6 @@ uint64_t IRAM_ATTR esp32_rtc_get_boot_time(void)
   return ((uint64_t)getreg32(RTC_BOOT_TIME_LOW_REG))
         + (((uint64_t)getreg32(RTC_BOOT_TIME_HIGH_REG)) << 32);
 }
-
-#ifdef CONFIG_RTC_DRIVER
 
 /****************************************************************************
  * Name: up_rtc_time
@@ -2271,5 +2276,3 @@ int up_rtc_timer_init(void)
 
   return OK;
 }
-
-#endif /* CONFIG_RTC_DRIVER */

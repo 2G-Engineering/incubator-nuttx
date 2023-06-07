@@ -117,7 +117,7 @@
 #endif
 
 #if CONFIG_RX65N_USBHOST_NTDS < 2
-#  error "Insufficent TDs"
+#  error "Insufficient TDs"
 #endif
 
 /* Derived size of user transfer descriptor (TD) memory. */
@@ -235,7 +235,7 @@ extern "C"
 
 #ifdef CONFIG_USBHOST
 struct usbhost_connection_s;
-FAR struct usbhost_connection_s *rx65n_usbhost_initialize(int controller);
+struct usbhost_connection_s *rx65n_usbhost_initialize(int controller);
 #endif
 
 #undef EXTERN

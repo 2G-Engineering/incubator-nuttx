@@ -48,7 +48,7 @@ struct procfs_operations
                   int oflags, mode_t mode);
 
   /* The following methods must be identical in signature and position
-   * because the struct file_operations and struct mountp_operations are
+   * because the struct file_operations and struct mountpt_operations are
    * treated like unions.
    */
 
@@ -73,9 +73,9 @@ struct procfs_operations
   /* Directory operations */
 
   int     (*opendir)(FAR const char *relpath,
-                     FAR struct fs_dirent_s *dir);
+                     FAR struct fs_dirent_s **dir);
   int     (*closedir)(FAR struct fs_dirent_s *dir);
-  int     (*readdir)(FAR struct fs_dirent_s *dir);
+  int     (*readdir)(FAR struct fs_dirent_s *dir, FAR struct dirent *entry);
   int     (*rewinddir)(FAR struct fs_dirent_s *dir);
 
   /* Operations on paths */
@@ -119,6 +119,7 @@ struct procfs_file_s
 
 struct procfs_dir_priv_s
 {
+  struct fs_dirent_s dir;                       /* VFS directory structure */
   uint8_t level;                                /* Directory level.  Currently 0 or 1 */
   uint16_t index;                               /* Index to the next directory entry */
   uint16_t nentries;                            /* Number of directory entries */
@@ -133,7 +134,7 @@ struct procfs_meminfo_entry_s
   FAR const char *name;
   FAR struct mm_heap_s *heap;
   struct procfs_meminfo_entry_s *next;
-#if defined(CONFIG_DEBUG_MM)
+#if CONFIG_MM_BACKTRACE >= 0
 
   /* This is dynamic control flag whether to turn on backtrace in the heap,
    * you can set it by /proc/memdump.
@@ -207,7 +208,7 @@ size_t procfs_memcpy(FAR const char *src, size_t srclen,
  * Description:
  *   This function is same with snprintf, except return values.
  *   If buf has no enough space and output was truncated due to size limit,
- *   snprintf:        return formated string len.
+ *   snprintf:        return formatted string len.
  *   procfs_snprintf: return string len which has written to buf.
  *
  * Input Parameters:
@@ -219,7 +220,28 @@ size_t procfs_memcpy(FAR const char *src, size_t srclen,
  ****************************************************************************/
 
 int procfs_snprintf(FAR char *buf, size_t size,
-                    FAR const IPTR char *format, ...);
+                    FAR const IPTR char *format, ...) printf_like(3, 4);
+
+/****************************************************************************
+ * Name: procfs_sprintf
+ *
+ * Description:
+ *   This function used to continous format string and copy it to buffer.
+ *   Every single string length must be smaller then LINEBUF_SIZE.
+ *
+ * Input Parameters:
+ *   buf          - The address of the user's receive buffer.
+ *   size         - The size (in bytes) of the user's receive buffer.
+ *   offset       - On input, when *offset is larger the 0 , this is the
+ *                  number of bytes to skip before returning data; If bytes
+ *                  were skipped, this *offset will be decremented. when it
+ *                  decrements to a negative value, -*offset is the number of
+ *                  data copied to buffer.
+ *
+ ****************************************************************************/
+
+void procfs_sprintf(FAR char *buf, size_t size, FAR off_t *offset,
+                    FAR const IPTR char *format, ...) printf_like(4, 5);
 
 /****************************************************************************
  * Name: procfs_register

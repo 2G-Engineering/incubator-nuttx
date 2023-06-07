@@ -795,6 +795,12 @@ void esp32s3_lowputc_config_pins(const struct esp32s3_uart_s *priv)
 {
   /* Configure the pins */
 
+  /* Keep TX pin in high level to avoid "?" trash character
+   * This "?" is the Unicode replacement character (U+FFFD)
+   */
+
+  esp32s3_gpiowrite(priv->txpin, true);
+
   if (uart_is_iomux(priv))
     {
       esp32s3_configgpio(priv->txpin, OUTPUT_FUNCTION_1);
@@ -869,7 +875,7 @@ void esp32s3_lowputc_restore_pins(const struct esp32s3_uart_s *priv)
 }
 
 /****************************************************************************
- * Name: up_lowputc
+ * Name: xtensa_lowputc
  *
  * Description:
  *   Output one byte on the serial console.
@@ -879,7 +885,7 @@ void esp32s3_lowputc_restore_pins(const struct esp32s3_uart_s *priv)
  *
  ****************************************************************************/
 
-void up_lowputc(char ch)
+void xtensa_lowputc(char ch)
 {
 #ifdef CONSOLE_UART
 

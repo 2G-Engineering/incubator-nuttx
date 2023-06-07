@@ -14,6 +14,7 @@ choice
 config ARCH_CHIP_ESP32S3WROOM1
 	bool "ESP32-S3-WROOM-1"
 	select ESP32S3_FLASH_4M
+	select ARCH_HAVE_I2CRESET
 	---help---
 		Generic module with an embedded ESP32-S3.
 
@@ -21,12 +22,14 @@ config ARCH_CHIP_ESP32S3WROOM2
 	bool "ESP32-S3-WROOM-2"
 	select ESP32S3_FLASH_16M
 	select ESP32S3_PSRAM_8M
+	select ARCH_HAVE_I2CRESET
 	---help---
 		Generic module with an embedded ESP32-S3.
 
 config ARCH_CHIP_ESP32S3MINI1
 	bool "ESP32-S3-MINI-1"
 	select ESP32S3_FLASH_8M
+	select ARCH_HAVE_I2CRESET
 	---help---
 		Generic module with an embedded ESP32-S3.
 
@@ -211,7 +214,7 @@ config ESP32S3_ULP_COPROC_RESERVE_MEM
 	range 32 8176 if ESP32S3_ULP_COPROC_ENABLED
 	default 0 if !ESP32S3_ULP_COPROC_ENABLED
 	range 0 0 if !ESP32S3_ULP_COPROC_ENABLED
-	help
+	---help---
 		Bytes of memory to reserve for ULP coprocessor firmware & data.
 		Data is reserved at the beginning of RTC slow memory.
 
@@ -247,48 +250,6 @@ config ESP32S3_PSRAM_8M
 	bool
 	default n
 
-choice ESP32S3_FLASH_MODE
-	prompt "SPI FLASH mode"
-	default ESP32S3_FLASH_MODE_DIO
-	---help---
-		These options control how many I/O pins are used for communication
-		with the attached SPI flash chip.
-		The option selected here is then used by esptool when flashing.
-
-	config ESP32S3_FLASH_MODE_DIO
-		bool "Dual IO (DIO)"
-
-	config ESP32S3_FLASH_MODE_DOUT
-		bool "Dual Output (DOUT)"
-
-	config ESP32S3_FLASH_MODE_QIO
-		bool "Quad IO (QIO)"
-
-	config ESP32S3_FLASH_MODE_QOUT
-		bool "Quad Output (QOUT)"
-
-endchoice # ESP32S3_FLASH_MODE
-
-choice ESP32S3_FLASH_FREQ
-	prompt "SPI FLASH frequency"
-	default ESP32S3_FLASH_FREQ_40M
-	---help---
-		SPI FLASH frequency
-
-	config ESP32S3_FLASH_FREQ_120M
-		bool "120 MHz"
-
-	config ESP32S3_FLASH_FREQ_80M
-		bool "80 MHz"
-
-	config ESP32S3_FLASH_FREQ_40M
-		bool "40 MHz"
-
-	config ESP32S3_FLASH_FREQ_20M
-		bool "20 MHz"
-
-endchoice # ESP32S3_FLASH_FREQ
-
 config ESP32S3_RUN_IRAM
 	bool "Run from IRAM"
 	default n
@@ -306,6 +267,10 @@ config ESP32S3_TIMER
 	bool
 	default n
 
+config ESP32S3_I2C
+	bool
+	default n
+
 config ESP32S3_SPI
 	bool
 	default n
@@ -313,6 +278,19 @@ config ESP32S3_SPI
 config ESP32S3_WDT
 	bool
 	default n
+
+config ESP32S3_EFUSE
+	bool "EFUSE support"
+	default n
+	---help---
+		Enable ESP32-S3 efuse support.
+
+config ESP32S3_RNG
+	bool "Random Number Generator (RNG)"
+	default n
+	select ARCH_HAVE_RNG
+	---help---
+		ESP32-S3 supports a RNG that passed on Dieharder test suite.
 
 config ESP32S3_SPIRAM
 	bool "SPI RAM Support"
@@ -323,12 +301,23 @@ config ESP32S3_SPI2
 	default n
 	select ESP32S3_SPI
 	select SPI
+	select ESP32S3_GPIO_IRQ if SPI_SLAVE
 
 config ESP32S3_SPI3
 	bool "SPI 3"
 	default n
 	select ESP32S3_SPI
 	select SPI
+	select ESP32S3_GPIO_IRQ if SPI_SLAVE
+
+config ESP32S3_DMA
+	bool "General DMA (GDMA)"
+	default n
+	select ARCH_DMA
+
+config ESP32S3_RTC
+	bool "Real Time Clock (RTC)"
+	default y
 
 config ESP32S3_UART0
 	bool "UART 0"
@@ -351,11 +340,50 @@ config ESP32S3_UART2
 	select UART2_SERIALDRIVER
 	select ARCH_HAVE_SERIAL_TERMIOS
 
+config ESP32S3_WIRELESS
+	bool
+	default n
+	select NET
+	select ARCH_PHY_INTERRUPT
+	select ESP32S3_RNG
+	select ESP32S3_RT_TIMER
+	select ESP32S3_TIMER0
+	---help---
+		Enable Wireless support
+
+config ESP32S3_WIFI
+	bool "Wi-Fi"
+	default n
+	select ESP32S3_WIRELESS
+	---help---
+		Enable Wi-Fi support
+
+config ESP32S3_I2C0
+	bool "I2C 0"
+	default n
+	select ESP32S3_I2C
+	select I2C
+
+config ESP32S3_I2C1
+	bool "I2C 1"
+	default n
+	select ESP32S3_I2C
+	select I2C
+
+config ESP32S3_LEDC
+	bool "LEDC (PWM)"
+	default n
+	select PWM
+	select ARCH_HAVE_PWM_MULTICHAN
+	---help---
+		Enable support to PWM on ESP32S3 using LEDC peripheral.
+
+
 config ESP32S3_USBSERIAL
-        bool "USB-Serial Driver"
-        default n
-        select OTHER_UART_SERIALDRIVER
-        select ARCH_HAVE_SERIAL_TERMIOS
+	bool "USB-Serial Driver"
+	default n
+	select OTHER_UART_SERIALDRIVER
+	select ARCH_HAVE_SERIAL_TERMIOS
 
 config ESP32S3_TIMER0
 	bool "54-bit Timer 0 (Group 0 Timer 0)"
@@ -405,6 +433,7 @@ config ESP32S3_RWDT
 	bool "RTC Watchdog Timer"
 	default n
 	select ESP32S3_WDT
+	select ESP32S3_RTCIO_IRQ
 	---help---
 		Includes RWDT. This watchdog timer is from the RTC module.
 		When it is selected, if the developer sets it to reset on expiration
@@ -417,6 +446,12 @@ config ESP32S3_RT_TIMER
 	default n
 	---help---
 		Real-Time Timer is relying upon the Systimer 1.
+
+config ESP32S3_WCL
+	bool "World Controller"
+	default n
+	select ARCH_USE_MPU
+	select XTENSA_HAVE_GENERAL_EXCEPTION_HOOKS if BUILD_PROTECTED
 
 endmenu # ESP32-S3 Peripheral Selection
 
@@ -484,7 +519,7 @@ config ESP32S3_SPIRAM_RODATA
 	default n
 	---help---
 		If enabled, rodata in flash will be copied into SPIRAM.
-		If ESP32S3_ESP32S2_SPIRAM_FETCH_INSTRUCTIONS is also enabled,
+		If ESP32S3_SPIRAM_FETCH_INSTRUCTIONS is also enabled,
 		you can run the instruction when erasing or programming the
 		flash.
 
@@ -502,6 +537,7 @@ config ESP32S3_SPIRAM_SPEED_80M
 
 config ESP32S3_SPIRAM_SPEED_120M
 	bool "120MHz clock speed"
+	depends on ESP32S3_SPIRAM_MODE_QUAD
 
 endchoice # ESP32S3_SPIRAM_SPEED
 
@@ -539,6 +575,13 @@ config ESP32S3_GPIO_IRQ
 	---help---
 		Enable support for interrupting GPIO pins.
 
+config ESP32S3_RTCIO_IRQ
+	bool "RTC IO interrupts"
+	default n
+	---help---
+		Enable support for RTC peripherals interrupts.
+
+
 menu "SPI configuration"
 	depends on ESP32S3_SPI
 
@@ -555,7 +598,35 @@ config ESP32S3_SPI_UDCS
 	---help---
 		Use user-defined CS.
 
+config ESP32S3_SPI_SLAVE_BUFSIZE
+	int "SPI slave buffer size"
+	default 2048
+	depends on SPI_SLAVE
+
 if ESP32S3_SPI2
+
+config ESP32S3_SPI2_DMA
+	bool "SPI2 use GDMA"
+	default n
+	depends on ESP32S3_DMA
+	---help---
+		Enable support for transfers using the GDMA engine.
+
+config ESP32S3_SPI2_DMADESC_NUM
+	int "SPI2 Master GDMA maximum number of descriptors"
+	default 2
+	depends on ESP32S3_SPI2_DMA
+	---help---
+		Configure the maximum number of out-link/in-link descriptors to
+		be chained for a GDMA transfer.
+
+config ESP32S3_SPI2_DMATHRESHOLD
+	int "SPI2 Master GDMA threshold"
+	default 64
+	depends on ESP32S3_SPI2_DMA
+	---help---
+		When SPI GDMA is enabled, GDMA transfers whose size are below the
+		defined threshold will be performed by polling logic.
 
 config ESP32S3_SPI2_CSPIN
 	int "SPI2 CS Pin"
@@ -580,6 +651,13 @@ config ESP32S3_SPI2_MISOPIN
 endif # ESP32S3_SPI2
 
 if ESP32S3_SPI3
+
+config ESP32S3_SPI3_DMA
+	bool "SPI3 use GDMA"
+	default n
+	depends on ESP32S3_DMA
+	---help---
+		Enable support for transfers using the GDMA engine.
 
 config ESP32S3_SPI3_CSPIN
 	int "SPI3 CS Pin"
@@ -688,6 +766,161 @@ endif # ESP32S3_UART2
 
 endmenu # UART Configuration
 
+menu "I2C Configuration"
+	depends on ESP32S3_I2C
+
+if ESP32S3_I2C0
+
+config ESP32S3_I2C0_SCLPIN
+	int "I2C0 SCL Pin"
+	default 2
+	range 0 48
+
+config ESP32S3_I2C0_SDAPIN
+	int "I2C0 SDA Pin"
+	default 1
+	range 0 48
+
+endif # ESP32S3_I2C0
+
+if ESP32S3_I2C1
+
+config ESP32S3_I2C1_SCLPIN
+	int "I2C1 SCL Pin"
+	default 5
+	range 0 48
+
+config ESP32S3_I2C1_SDAPIN
+	int "I2C1 SDA Pin"
+	default 4
+	range 0 48
+
+endif # ESP32S3_I2C1
+
+config ESP32S3_I2CTIMEOSEC
+	int "Timeout seconds"
+	default 0
+
+config ESP32S3_I2CTIMEOMS
+	int "Timeout milliseconds"
+	default 500
+
+endmenu # I2C Configuration
+
+menu "Wi-Fi Configuration"
+	depends on ESP32S3_WIFI
+
+menu "ESP WPA-Supplicant"
+
+config WPA_WAPI_PSK
+	bool "Enable WAPI PSK support"
+	default n
+	---help---
+		Select this option to enable WAPI-PSK
+		which is a Chinese National Standard Encryption for Wireless LANs (GB 15629.11-2003).
+
+config WPA_SUITE_B_192
+	bool "Enable NSA suite B support with 192-bit key"
+	default n
+	select ESP_WIFI_GCMP_SUPPORT
+	select ESP_WIFI_GMAC_SUPPORT
+	---help---
+		Select this option to enable 192-bit NSA suite-B.
+		This is necessary to support WPA3 192-bit security.
+
+config ESP_WPA_DEBUG_PRINT
+	bool "Print debug messages from Espressif's WPA Supplicant"
+	default n
+	---help---
+		Select this option to print logging information from WPA supplicant,
+		this includes handshake information and key hex dumps depending
+		on the project logging level.
+
+		Enabling this could increase the build size ~60kb
+		depending on the project logging level.
+
+endmenu # ESP WPA-Supplicant
+
+choice
+	prompt "ESP32S3 Wi-Fi mode"
+	default ESP32S3_WIFI_STATION
+
+config ESP32S3_WIFI_STATION
+	bool "Station mode"
+
+config ESP32S3_WIFI_SOFTAP
+	bool "SoftAP mode"
+
+config ESP32S3_WIFI_STATION_SOFTAP
+	bool "Station + SoftAP"
+
+endchoice # ESP32S3 Wi-Fi mode
+
+config ESP32S3_WIFI_STATIC_RXBUF_NUM
+	int "Wi-Fi static RX buffer number"
+	default 10
+
+config ESP32S3_WIFI_DYNAMIC_RXBUF_NUM
+	int "Wi-Fi dynamic RX buffer number"
+	default 32
+
+config ESP32S3_WIFI_DYNAMIC_TXBUF_NUM
+	int "Wi-Fi dynamic TX buffer number"
+	default 32
+
+config ESP32S3_WIFI_TX_AMPDU
+	bool "Wi-Fi TX AMPDU"
+	default y
+
+config ESP32S3_WIFI_RX_AMPDU
+	bool "Wi-Fi RX AMPDU"
+	default y
+
+config ESP32S3_WIFI_RXBA_AMPDU_WZ
+	int "Wi-Fi RX BA AMPDU windown size"
+	default 6
+
+config ESP_WIFI_GCMP_SUPPORT
+	bool "WiFi GCMP Support(GCMP128 and GCMP256)"
+	default n
+	---help---
+		Select this option to enable GCMP support. GCMP support is compulsory for WiFi Suite-B support.
+
+config ESP_WIFI_GMAC_SUPPORT
+	bool "WiFi GMAC Support(GMAC128 and GMAC256)"
+	default n
+	---help---
+		Select this option to enable GMAC support. GMAC support is compulsory for WiFi 192-bit certification.
+
+config ESP32S3_WIFI_CONNECT_TIMEOUT
+	int "Connect timeout in second"
+	default 10
+	---help---
+		Max waiting time of connecting to AP.
+
+config ESP32S3_WIFI_SCAN_RESULT_SIZE
+	int "Scan result buffer"
+	default 4096
+	---help---
+		Maximum scan result buffer size.
+
+config ESP32S3_WIFI_STA_DISCONNECT_PM
+	bool "Power Management for station when disconnected"
+	default n
+	---help---
+		Select this option to enable power management for station when disconnected.
+		Chip will do modem-sleep when RF module is not in use anymore.
+
+config EXAMPLE_WIFI_LISTEN_INTERVAL
+	int "Wi-Fi listen interval"
+	default 3
+	---help---
+		Interval for station to listen to beacon from AP. The unit of listen interval is one beacon interval.
+		For example, if beacon interval is 100 ms and listen interval is 3, the interval for station to listen
+		to beacon is 300 ms.
+
+endmenu # ESP32S3_WIFI
+
 menu "Timer/Counter Configuration"
 	depends on ESP32S3_TIMER
 
@@ -738,7 +971,114 @@ config ESP32S3_SPIFLASH
 	default n
 
 menu "SPI Flash configuration"
-	depends on ESP32S3_SPIFLASH
+
+choice ESP32S3_FLASH_MODE
+	prompt "SPI Flash mode"
+	default ESP32S3_FLASH_MODE_DIO
+	---help---
+		These options control how many I/O pins are used for communication
+		with the attached SPI Flash chip.
+		The option selected here is then used by esptool when flashing.
+
+	config ESP32S3_FLASH_MODE_DIO
+		bool "Dual IO (DIO)"
+
+	config ESP32S3_FLASH_MODE_DOUT
+		bool "Dual Output (DOUT)"
+
+	config ESP32S3_FLASH_MODE_QIO
+		bool "Quad IO (QIO)"
+
+	config ESP32S3_FLASH_MODE_QOUT
+		bool "Quad Output (QOUT)"
+
+	config ESP32S3_FLASH_MODE_OCT
+		bool "Octal"
+
+endchoice # ESP32S3_FLASH_MODE
+
+choice ESP32S3_FLASH_FREQ
+	prompt "SPI Flash frequency"
+	default ESP32S3_FLASH_FREQ_40M
+	---help---
+		SPI Flash frequency
+
+	config ESP32S3_FLASH_FREQ_120M
+		bool "120 MHz"
+
+	config ESP32S3_FLASH_FREQ_80M
+		bool "80 MHz"
+
+	config ESP32S3_FLASH_FREQ_40M
+		bool "40 MHz"
+
+	config ESP32S3_FLASH_FREQ_20M
+		bool "20 MHz"
+
+endchoice # ESP32S3_FLASH_FREQ
+
+config ESP32S3_FLASH_FREQ
+	int
+	default 120 if ESP32S3_FLASH_FREQ_120M
+	default 80 if ESP32S3_FLASH_FREQ_80M
+	default 40 if ESP32S3_FLASH_FREQ_40M
+	default 20 if ESP32S3_FLASH_FREQ_20M
+
+choice ESP32S3_FLASH_SAMPLE_MODE
+	prompt "Flash Sampling Mode"
+	default ESP32S3_FLASH_SAMPLE_MODE_DTR if ESP32S3_FLASH_MODE_OCT
+	default ESP32S3_FLASH_SAMPLE_MODE_STR if !ESP32S3_FLASH_MODE_OCT
+
+	config ESP32S3_FLASH_SAMPLE_MODE_DTR
+		depends on ESP32S3_FLASH_MODE_OCT
+		bool "DTR Mode"
+	config ESP32S3_FLASH_SAMPLE_MODE_STR
+		bool "STR Mode"
+endchoice
+
+config ESP32S3_HAVE_OTA_PARTITION
+	bool
+	default n
+
+if ESP32S3_HAVE_OTA_PARTITION
+
+comment "Application Image OTA Update support"
+
+config ESP32S3_OTA_PRIMARY_SLOT_OFFSET
+	hex "Application image primary slot offset"
+	default 0x10000
+
+config ESP32S3_OTA_PRIMARY_SLOT_DEVPATH
+	string "Application image primary slot device path"
+	default "/dev/ota0"
+
+config ESP32S3_OTA_SECONDARY_SLOT_OFFSET
+	hex "Application image secondary slot offset"
+	default 0x110000
+
+config ESP32S3_OTA_SECONDARY_SLOT_DEVPATH
+	string "Application image secondary slot device path"
+	default "/dev/ota1"
+
+config ESP32S3_OTA_SLOT_SIZE
+	hex "Application image slot size (in bytes)"
+	default 0x100000
+
+config ESP32S3_OTA_SCRATCH_OFFSET
+	hex "Scratch partition offset"
+	default 0x210000
+
+config ESP32S3_OTA_SCRATCH_SIZE
+	hex "Scratch partition size"
+	default 0x40000
+
+config ESP32S3_OTA_SCRATCH_DEVPATH
+	string "Scratch partition device path"
+	default "/dev/otascratch"
+
+endif
+
+if ESP32S3_SPIFLASH
 
 comment "General storage MTD configuration"
 
@@ -765,7 +1105,94 @@ config ESP32S3_STORAGE_MTD_DEBUG
 		If this option is enabled, Storage MTD driver read and write functions
 		will output input parameters and return values (if applicable).
 
+endif # ESP32S3_SPIFLASH
+
 endmenu # SPI Flash configuration
+
+menu "LEDC Configuration"
+	depends on ESP32S3_LEDC
+
+menuconfig ESP32S3_LEDC_TIM0
+	bool "Timer 0"
+	default n
+
+if ESP32S3_LEDC_TIM0
+
+config ESP32S3_LEDC_TIM0_CHANNELS
+	int "Number of Timer 0 channels"
+	default 2
+
+endif # ESP32S3_LEDC_TIM0
+
+menuconfig ESP32S3_LEDC_TIM1
+	bool "Timer 1"
+	default n
+
+if ESP32S3_LEDC_TIM1
+
+config ESP32S3_LEDC_TIM1_CHANNELS
+	int "Number of Timer 1 channels"
+	default 2
+
+endif # ESP32S3_LEDC_TIM1
+
+menuconfig ESP32S3_LEDC_TIM2
+	bool "Timer 2"
+	default n
+
+if ESP32S3_LEDC_TIM2
+
+config ESP32S3_LEDC_TIM2_CHANNELS
+	int "Number of Timer 2 channels"
+	default 2
+
+endif # ESP32S3_LEDC_TIM2
+
+menuconfig ESP32S3_LEDC_TIM3
+	bool "Timer 3"
+	default n
+
+if ESP32S3_LEDC_TIM3
+
+config ESP32S3_LEDC_TIM3_CHANNELS
+	int "Number of Timer 3 channels"
+	default 2
+
+endif # ESP32S3_LEDC_TIM2
+
+config ESP32S3_LEDC_CHANNEL0_PIN
+	int "Channel 0 pin"
+	default 2
+
+config ESP32S3_LEDC_CHANNEL1_PIN
+	int "Channel 1 pin"
+	default 3
+
+config ESP32S3_LEDC_CHANNEL2_PIN
+	int "Channel 2 pin"
+	default 4
+
+config ESP32S3_LEDC_CHANNEL3_PIN
+	int "Channel 3 pin"
+	default 5
+
+config ESP32S3_LEDC_CHANNEL4_PIN
+	int "Channel 4 pin"
+	default 6
+
+config ESP32S3_LEDC_CHANNEL5_PIN
+	int "Channel 5 pin"
+	default 7
+
+config ESP32S3_LEDC_CHANNEL6_PIN
+	int "Channel 6 pin"
+	default 8
+
+config ESP32S3_LEDC_CHANNEL7_PIN
+	int "Channel 7 pin"
+	default 9
+
+endmenu # LEDC configuration
 
 menu "Application Image Configuration"
 
@@ -783,6 +1210,13 @@ config ESP32S3_APP_FORMAT_LEGACY
 	---help---
 		This is the legacy application image format, as supported by the ESP-IDF
 		2nd stage bootloader.
+
+config ESP32S3_APP_FORMAT_MCUBOOT
+	bool "MCUboot-bootable format"
+	select ESP32S3_HAVE_OTA_PARTITION
+	---help---
+		The Espressif port of MCUboot supports the loading of unsegmented firmware
+		images.
 
 endchoice # Application Image Format
 
@@ -810,10 +1244,50 @@ config ESP32S3_BOOTLOADER_BUILD_FROM_SOURCE
 
 endchoice
 
+choice
+	prompt "Target slot for image flashing"
+	default ESP32S3_ESPTOOL_TARGET_PRIMARY
+	depends on ESP32S3_HAVE_OTA_PARTITION
+	---help---
+		Slot to which ESPTOOL will flash the generated binary image.
+
+config ESP32S3_ESPTOOL_TARGET_PRIMARY
+	bool "Application image primary slot"
+	---help---
+		This assumes that the generated image is already pre-validated.
+		This is the recommended option for the initial stages of the
+		application firmware image development.
+
+config ESP32S3_ESPTOOL_TARGET_SECONDARY
+	bool "Application image secondary slot"
+	---help---
+		The application needs to confirm the generated image as valid,
+		otherwise the bootloader may consider it invalid and perform the
+		rollback of the update after a reset.
+		This is the choice most suitable for the development and verification
+		of a secure firmware update workflow.
+
+endchoice
+
+config ESP32S3_APP_MCUBOOT_HEADER_SIZE
+	int "Application image header size (in bytes)"
+	default 32
+	depends on ESP32S3_APP_FORMAT_MCUBOOT
+
 config ESP32S3_PARTITION_TABLE_OFFSET
 	hex "Partition Table offset"
 	default 0x8000
 	depends on ESP32S3_APP_FORMAT_LEGACY
+
+if BUILD_PROTECTED
+
+config ESP32S3_USER_IMAGE_OFFSET
+	hex "User image offset"
+	default 0x90000
+	---help---
+		Offset in SPI Flash for flashing the User application firmware image.
+
+endif
 
 endmenu # Application Image Configuration
 

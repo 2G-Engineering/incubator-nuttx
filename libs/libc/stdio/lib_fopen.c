@@ -32,6 +32,10 @@
 #include <assert.h>
 #include <errno.h>
 
+#ifdef CONFIG_FDSAN
+#  include <android/fdsan.h>
+#endif
+
 #include "libc.h"
 
 /****************************************************************************
@@ -76,6 +80,12 @@ FAR FILE *fdopen(int fd, FAR const char *mode)
           set_errno(-ret);
         }
     }
+
+#ifdef CONFIG_FDSAN
+  android_fdsan_exchange_owner_tag(fd, 0,
+      android_fdsan_create_owner_tag(ANDROID_FDSAN_OWNER_TYPE_FILE,
+                                     (uintptr_t)filep));
+#endif
 
   return filep;
 }
@@ -123,6 +133,12 @@ FAR FILE *fopen(FAR const char *path, FAR const char *mode)
           filep = NULL;
         }
     }
+
+#ifdef CONFIG_FDSAN
+  android_fdsan_exchange_owner_tag(fd, 0,
+    android_fdsan_create_owner_tag(ANDROID_FDSAN_OWNER_TYPE_FILE,
+                                       (uintptr_t)filep));
+#endif
 
   return filep;
 }

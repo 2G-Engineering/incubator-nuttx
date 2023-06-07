@@ -30,8 +30,9 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <queue.h>
 #include <debug.h>
+
+#include <nuttx/queue.h>
 
 #include "sched/sched.h"
 #include "environ/environ.h"
@@ -168,7 +169,7 @@ FAR struct task_tcb_s *nxtask_setup_vfork(start_t retaddr)
   /* Allocate the stack for the TCB */
 
   stack_size = (uintptr_t)ptcb->stack_base_ptr -
-      (uintptr_t)ptcb->stack_alloc_ptr + ptcb->adj_stack_size;
+               (uintptr_t)ptcb->stack_alloc_ptr + ptcb->adj_stack_size;
 
   ret = up_create_stack(&child->cmn, stack_size, ttype);
   if (ret < OK)
@@ -204,8 +205,12 @@ FAR struct task_tcb_s *nxtask_setup_vfork(start_t retaddr)
 
   /* Setup to pass parameters to the new task */
 
-  nxtask_setup_arguments(child, parent->group->tg_info->argv[0],
-                         &parent->group->tg_info->argv[1]);
+  ret = nxtask_setup_arguments(child, parent->group->tg_info->argv[0],
+                               &parent->group->tg_info->argv[1]);
+  if (ret < OK)
+    {
+      goto errout_with_tcb;
+    }
 
   /* Now we have enough in place that we can join the group */
 
@@ -331,7 +336,7 @@ void nxtask_abort_vfork(FAR struct task_tcb_s *child, int errcode)
 {
   /* The TCB was added to the active task list by nxtask_setup_scheduler() */
 
-  dq_rem((FAR dq_entry_t *)child, (FAR dq_queue_t *)&g_inactivetasks);
+  dq_rem((FAR dq_entry_t *)child, &g_inactivetasks);
 
   /* Release the TCB */
 

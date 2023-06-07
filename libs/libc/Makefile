@@ -27,7 +27,6 @@ include builtin/Make.defs
 include ctype/Make.defs
 include dirent/Make.defs
 include dlfcn/Make.defs
-include endian/Make.defs
 include errno/Make.defs
 include eventfd/Make.defs
 include fixedmath/Make.defs
@@ -38,14 +37,15 @@ include libgen/Make.defs
 include locale/Make.defs
 include lzf/Make.defs
 include machine/Make.defs
-include math/Make.defs
 include misc/Make.defs
 include modlib/Make.defs
 include net/Make.defs
 include netdb/Make.defs
+include obstack/Make.defs
 include pthread/Make.defs
 include pwd/Make.defs
 include queue/Make.defs
+include regex/Make.defs
 include sched/Make.defs
 include semaphore/Make.defs
 include signal/Make.defs
@@ -67,7 +67,22 @@ include wchar/Make.defs
 include wctype/Make.defs
 include wqueue/Make.defs
 
-CFLAGS += ${shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)libs$(DELIM)libc}
+# Use double delim to fix windows native build and give an error:
+# makefile:132: *** target mode do not include“%”. stop.
+#
+# In Windows environment DELIM := $(strip \) but \ has two role:
+# first: \ as directory, and second \ as Escape character, Reference:
+#
+# https://github.com/apache/nuttx/pull/7572#discussion_r1028219229
+
+ifeq ($(CONFIG_WINDOWS_NATIVE),y)
+  DELIMS = $(DELIM)$(DELIM)
+else
+  DELIMS = $(DELIM)
+endif
+
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)libs$(DELIM)libc
+AFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)libs$(DELIM)libc
 
 # Rule for the symbol table generation
 
@@ -81,7 +96,7 @@ $(MKSYMTAB):
 # not need symbol tables.
 
 CSVFILES  = $(TOPDIR)$(DELIM)libs$(DELIM)libc$(DELIM)libc.csv
-CSVFILES += $(TOPDIR)$(DELIM)libs$(DELIM)libc$(DELIM)math.csv
+CSVFILES += $(TOPDIR)$(DELIM)libs$(DELIM)libm$(DELIM)libm.csv
 
 # In the PROTECTED and KERNEL builds, the applications could link with
 # libproxy which will provide symbol-compatible access to OS functions
@@ -114,8 +129,8 @@ endif
 
 BINDIR ?= bin
 
-AOBJS = $(patsubst %.S, $(BINDIR)$(DELIM)%$(OBJEXT), $(ASRCS))
-COBJS = $(patsubst %.c, $(BINDIR)$(DELIM)%$(OBJEXT), $(CSRCS))
+AOBJS = $(patsubst %.S, $(BINDIR)$(DELIMS)%$(OBJEXT), $(ASRCS))
+COBJS = $(patsubst %.c, $(BINDIR)$(DELIMS)%$(OBJEXT), $(CSRCS))
 
 SRCS = $(ASRCS) $(CSRCS)
 OBJS = $(AOBJS) $(COBJS)
@@ -126,10 +141,12 @@ BIN ?= libc$(LIBEXT)
 all: $(BIN)
 .PHONY: clean distclean
 
-$(AOBJS): $(BINDIR)$(DELIM)%$(OBJEXT): %.S
+$(AOBJS): $(BINDIR)$(DELIMS)%$(OBJEXT): %.S
 	$(call ASSEMBLE, $<, $@)
 
-$(COBJS): $(BINDIR)$(DELIM)%$(OBJEXT): %.c
+# REVISIT: Backslash causes problems in $(COBJS) target
+
+$(COBJS): $(BINDIR)$(DELIMS)%$(OBJEXT): %.c
 	$(call COMPILE, $<, $@)
 
 # C library for the flat build and
@@ -194,9 +211,9 @@ distclean:: clean
 	$(Q) $(MAKE) -C kbin distclean
 	$(Q) $(MAKE) -C zoneinfo distclean BIN=$(BIN)
 	$(call DELFILE, exec_symtab.c)
-	$(call DELFILE, bin/Make.dep)
-	$(call DELFILE, kbin/Make.dep)
+	$(call DELFILE, bin$(DELIM)Make.dep)
+	$(call DELFILE, kbin$(DELIM)Make.dep)
 	$(call DELFILE, .depend)
 
--include bin/Make.dep
--include kbin/Make.dep
+-include bin$(DELIM)Make.dep
+-include kbin$(DELIM)Make.dep

@@ -48,6 +48,20 @@ ifeq ($(CONFIG_AUDIO_CS4344),y)
 CSRCS += cs4344.c
 endif
 
+ifeq ($(CONFIG_AUDIO_ES8311),y)
+CSRCS += es8311.c
+ifeq ($(CONFIG_ES8311_REGDUMP),y)
+CSRCS += es8311_debug.c
+endif
+endif
+
+ifeq ($(CONFIG_AUDIO_ES8388),y)
+CSRCS += es8388.c
+ifeq ($(CONFIG_ES8388_REGDUMP),y)
+CSRCS += es8388_debug.c
+endif
+endif
+
 ifeq ($(CONFIG_AUDIO_WM8994),y)
 CSRCS += wm8994.c
 ifeq ($(CONFIG_WM8994_REGDUMP),y)
@@ -84,6 +98,10 @@ endif
 
 ifeq ($(CONFIG_AUDIO_I2S),y)
 CSRCS += audio_i2s.c
+endif
+
+ifeq ($(CONFIG_AUDIO_DMA),y)
+CSRCS += audio_dma.c
 endif
 
 # Include Audio driver support

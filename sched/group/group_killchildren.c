@@ -24,11 +24,12 @@
 
 #include <nuttx/config.h>
 
-#include <sys/types.h>
-#include <stdint.h>
-#include <sched.h>
-#include <pthread.h>
+#include <assert.h>
 #include <debug.h>
+#include <pthread.h>
+#include <sched.h>
+#include <stdint.h>
+#include <sys/types.h>
 
 #include <nuttx/sched.h>
 
@@ -67,8 +68,8 @@ static int group_kill_children_handler(pid_t pid, FAR void *arg)
     {
       /* Cancel this thread.  This is a forced cancellation.  Make sure that
        * cancellation is not disabled by the task/thread.  That bit will
-       * prevent pthread_cancel() or task_delete() from doing what they need
-       * to do.
+       * prevent pthread_cancel() or nxtask_delete() from doing what they
+       * need to do.
        */
 
       rtcb = nxsched_get_tcb(pid);
@@ -92,7 +93,7 @@ static int group_kill_children_handler(pid_t pid, FAR void *arg)
             }
           else
             {
-              ret = task_delete(pid);
+              ret = nxtask_delete(pid);
             }
 
           if (ret < 0)
@@ -132,6 +133,8 @@ int group_kill_children(FAR struct tcb_s *tcb)
 {
   int ret;
 
+  DEBUGASSERT(tcb->group);
+
 #ifdef CONFIG_SMP
   /* NOTE: sched_lock() is not enough for SMP
    * because tcb->group will be accessed from the child tasks
@@ -145,8 +148,14 @@ int group_kill_children(FAR struct tcb_s *tcb)
 
   sched_lock();
 #endif
+
+  /* Tell the children that this group has started exiting */
+
+  tcb->group->tg_flags |= GROUP_FLAG_EXITING;
+
   ret = group_foreachchild(tcb->group, group_kill_children_handler,
                            (FAR void *)((uintptr_t)tcb->pid));
+
 #ifdef CONFIG_SMP
   leave_critical_section(flags);
 #else

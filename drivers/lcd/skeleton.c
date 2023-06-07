@@ -76,13 +76,13 @@
 /* Debug ********************************************************************/
 
 #ifdef CONFIG_LCD_SKELDEBUG
-# define skelerr(format, ...)  _err(format, ##__VA_ARGS__)
-# define skelwarn(format, ...) _warn(format, ##__VA_ARGS__)
-# define skelinfo(format, ...) _info(format, ##__VA_ARGS__)
+#  define skelerr(format, ...)  _err(format, ##__VA_ARGS__)
+#  define skelwarn(format, ...) _warn(format, ##__VA_ARGS__)
+#  define skelinfo(format, ...) _info(format, ##__VA_ARGS__)
 #else
-# define skelerr(x...)
-# define skelwarn(x...)
-# define skelinfo(x...)
+#  define skelerr(x...)
+#  define skelwarn(x...)
+#  define skelinfo(x...)
 #endif
 
 /****************************************************************************
@@ -301,6 +301,7 @@ static int skel_getplaneinfo(FAR struct lcd_dev_s *dev,
   DEBUGASSERT(dev && pinfo && planeno == 0);
   ginfo("planeno: %d bpp: %d\n", planeno, g_planeinfo.bpp);
   memcpy(pinfo, &g_planeinfo, sizeof(struct lcd_planeinfo_s));
+  pinfo->dev = dev;
   return OK;
 }
 

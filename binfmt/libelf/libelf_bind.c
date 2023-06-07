@@ -51,9 +51,9 @@
 #endif
 
 #ifdef CONFIG_ELF_DUMPBUFFER
-# define elf_dumpbuffer(m,b,n) binfodumpbuffer(m,b,n)
+#  define elf_dumpbuffer(m,b,n) binfodumpbuffer(m,b,n)
 #else
-# define elf_dumpbuffer(m,b,n)
+#  define elf_dumpbuffer(m,b,n)
 #endif
 
 /****************************************************************************
@@ -643,7 +643,7 @@ int elf_bind(FAR struct elf_loadinfo_s *loadinfo,
    */
 
 #if 0 /* REVISIT... has some problems */
-  up_addrenv_coherent(&loadinfo->addrenv);
+  up_addrenv_coherent(&loadinfo->addrenv.addrenv);
 #else
   up_coherent_dcache(loadinfo->textalloc, loadinfo->textsize);
   up_coherent_dcache(loadinfo->dataalloc, loadinfo->datasize);

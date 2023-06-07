@@ -198,11 +198,11 @@ FAR struct mqueue_msg_s *nxmq_alloc_msg(void)
  *   On success, nxmq_wait_send() returns 0 (OK); a negated errno value is
  *   returned on any failure:
  *
- *   EAGAIN   The queue was full and the O_NONBLOCK flag was set for the
- *            message queue description referred to by msgq.
- *   EINTR    The call was interrupted by a signal handler.
- *   ETIMEOUT A timeout expired before the message queue became non-full
- *            (mq_timedsend only).
+ *   EAGAIN    The queue was full and the O_NONBLOCK flag was set for the
+ *             message queue description referred to by msgq.
+ *   EINTR     The call was interrupted by a signal handler.
+ *   ETIMEDOUT A timeout expired before the message queue became non-full
+ *             (mq_timedsend only).
  *
  * Assumptions/restrictions:
  * - The caller has verified the input parameters using nxmq_verify_send().
@@ -213,6 +213,7 @@ FAR struct mqueue_msg_s *nxmq_alloc_msg(void)
 int nxmq_wait_send(FAR struct mqueue_inode_s *msgq, int oflags)
 {
   FAR struct tcb_s *rtcb;
+  bool switch_needed;
 
 #ifdef CONFIG_CANCELLATION_POINTS
   /* nxmq_wait_send() is not a cancellation point, but may be called via
@@ -252,9 +253,9 @@ int nxmq_wait_send(FAR struct mqueue_inode_s *msgq, int oflags)
        * When we are unblocked, we will try again
        */
 
-      rtcb           = this_task();
-      rtcb->msgwaitq = msgq;
-      msgq->nwaitnotfull++;
+      rtcb          = this_task();
+      rtcb->waitobj = msgq;
+      msgq->cmn.nwaitnotfull++;
 
       /* Initialize the errcode used to communication wake-up error
        * conditions.
@@ -266,13 +267,28 @@ int nxmq_wait_send(FAR struct mqueue_inode_s *msgq, int oflags)
        * isn't going to end well.
        */
 
-      DEBUGASSERT(NULL != rtcb->flink);
-      up_block_task(rtcb, TSTATE_WAIT_MQNOTFULL);
+      DEBUGASSERT(!is_idle_task(rtcb));
+
+      /* Remove the tcb task from the ready-to-run list. */
+
+      switch_needed = nxsched_remove_readytorun(rtcb, true);
+
+      /* Add the task to the specified blocked task list */
+
+      rtcb->task_state = TSTATE_WAIT_MQNOTFULL;
+      nxsched_add_prioritized(rtcb, MQ_WNFLIST(msgq->cmn));
+
+      /* Now, perform the context switch if one is needed */
+
+      if (switch_needed)
+        {
+          up_switch_context(this_task(), rtcb);
+        }
 
       /* When we resume at this point, either (1) the message queue
        * is no longer empty, or (2) the wait has been interrupted by
        * a signal.  We can detect the latter case be examining the
-       * per-task errno value (should be EINTR or ETIMEOUT).
+       * per-task errno value (should be EINTR or ETIMEDOUT).
        */
 
       if (rtcb->errcode != OK)
@@ -386,28 +402,42 @@ int nxmq_do_send(FAR struct mqueue_inode_s *msgq,
 
   /* Check if any tasks are waiting for the MQ not empty event. */
 
-  if (msgq->nwaitnotempty > 0)
+  if (msgq->cmn.nwaitnotempty > 0)
     {
+      FAR struct tcb_s *rtcb = this_task();
+
       /* Find the highest priority task that is waiting for
-       * this queue to be non-empty in g_waitingformqnotempty
+       * this queue to be non-empty in waitfornotempty
        * list. leave_critical_section() should give us sufficient
        * protection since interrupts should never cause a change
        * in this list
        */
 
-      for (btcb = (FAR struct tcb_s *)g_waitingformqnotempty.head;
-           btcb && btcb->msgwaitq != msgq;
-           btcb = btcb->flink)
-        {
-        }
+      btcb = (FAR struct tcb_s *)dq_remfirst(MQ_WNELIST(msgq->cmn));
 
       /* If one was found, unblock it */
 
       DEBUGASSERT(btcb);
 
-      btcb->msgwaitq = NULL;
-      msgq->nwaitnotempty--;
-      up_unblock_task(btcb);
+      if (WDOG_ISACTIVE(&btcb->waitdog))
+        {
+          wd_cancel(&btcb->waitdog);
+        }
+
+      msgq->cmn.nwaitnotempty--;
+
+      /* Indicate that the wait is over. */
+
+      btcb->waitobj = NULL;
+
+      /* Add the task to ready-to-run task list and
+       * perform the context switch if one is needed
+       */
+
+      if (nxsched_add_readytorun(btcb))
+        {
+          up_switch_context(btcb, rtcb);
+        }
     }
 
   return OK;

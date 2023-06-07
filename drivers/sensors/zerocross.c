@@ -39,7 +39,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/signal.h>
 #include <nuttx/fs/fs.h>
-#include <nuttx/semaphore.h>
+#include <nuttx/mutex.h>
 #include <nuttx/sensors/zerocross.h>
 
 #include <nuttx/irq.h>
@@ -55,7 +55,7 @@
 struct zc_upperhalf_s
 {
   FAR struct zc_lowerhalf_s *lower;    /* lower-half state */
-  sem_t                      exclsem;  /* Supports mutual exclusion */
+  mutex_t                    lock;     /* Supports mutual exclusion */
 
   /* The following is a singly linked list of open references to the
    * zero cross device.
@@ -113,10 +113,6 @@ static const struct file_operations g_zcops =
   zc_write,  /* write */
   NULL,      /* seek */
   zc_ioctl,  /* ioctl */
-  NULL       /* poll */
-#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-  , NULL     /* unlink */
-#endif
 };
 
 volatile int sample = 0;
@@ -211,7 +207,7 @@ static int zc_open(FAR struct file *filep)
 
   /* Get exclusive access to the driver structure */
 
-  ret = nxsem_wait(&priv->exclsem);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       snerr("ERROR: nxsem_wait failed: %d\n", ret);
@@ -225,7 +221,7 @@ static int zc_open(FAR struct file *filep)
     {
       snerr("ERROR: Failed to allocate open structure\n");
       ret = -ENOMEM;
-      goto errout_with_sem;
+      goto errout_with_lock;
     }
 
   /* Attach the open structure to the device */
@@ -238,8 +234,8 @@ static int zc_open(FAR struct file *filep)
   filep->f_priv = (FAR void *)opriv;
   ret = OK;
 
-errout_with_sem:
-  nxsem_post(&priv->exclsem);
+errout_with_lock:
+  nxmutex_unlock(&priv->lock);
   return ret;
 }
 
@@ -292,7 +288,7 @@ static int zc_close(FAR struct file *filep)
 
   /* Get exclusive access to the driver structure */
 
-  ret = nxsem_wait(&priv->exclsem);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       snerr("ERROR: nxsem_wait failed: %d\n", ret);
@@ -310,7 +306,7 @@ static int zc_close(FAR struct file *filep)
     {
       snerr("ERROR: Failed to find open entry\n");
       ret = -ENOENT;
-      goto errout_with_exclsem;
+      goto errout_with_lock;
     }
 
   /* Remove the structure from the device */
@@ -337,8 +333,8 @@ static int zc_close(FAR struct file *filep)
   zerocross_enable(priv);
   ret = OK;
 
-errout_with_exclsem:
-  nxsem_post(&priv->exclsem);
+errout_with_lock:
+  nxmutex_unlock(&priv->lock);
   return ret;
 }
 
@@ -398,7 +394,7 @@ static int zc_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   /* Get exclusive access to the device structures */
 
-  ret = nxsem_wait(&priv->exclsem);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return ret;
@@ -428,7 +424,7 @@ static int zc_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
               /* Save the notification events */
 
               opriv->do_event = *event;
-              opriv->do_pid   = getpid();
+              opriv->do_pid   = nxsched_getpid();
 
               /* Enable/disable interrupt handling */
 
@@ -446,7 +442,7 @@ static int zc_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         break;
     }
 
-  nxsem_post(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
   return ret;
 }
 
@@ -501,7 +497,7 @@ int zc_register(FAR const char *devname, FAR struct zc_lowerhalf_s *lower)
   /* Initialize the new zero cross driver instance */
 
   priv->lower = lower;
-  nxsem_init(&priv->exclsem, 0, 1);
+  nxmutex_init(&priv->lock);
 
   /* And register the zero cross driver */
 
@@ -509,7 +505,7 @@ int zc_register(FAR const char *devname, FAR struct zc_lowerhalf_s *lower)
   if (ret < 0)
     {
       snerr("ERROR: register_driver failed: %d\n", ret);
-      nxsem_destroy(&priv->exclsem);
+      nxmutex_destroy(&priv->lock);
       kmm_free(priv);
     }
 

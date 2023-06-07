@@ -43,37 +43,6 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: arm_gic_nlines
- *
- * Description:
- *   Return the number of interrupt lines supported by this GIC
- *   implementation (include both PPIs (32) and SPIs).
- *
- * Input Parameters:
- *   None
- *
- * Returned Value:
- *   The number of interrupt lines.
- *
- ****************************************************************************/
-
-static inline unsigned int arm_gic_nlines(void)
-{
-  uint32_t regval;
-  uint32_t field;
-
-  /* Get the number of interrupt lines. */
-
-  regval = getreg32(GIC_ICDICTR);
-  field = (regval & GIC_ICDICTR_ITLINES_MASK) >> GIC_ICDICTR_ITLINES_SHIFT;
-  return (field + 1) << 5;
-}
-
-/****************************************************************************
- * Public Functions
- ****************************************************************************/
-
-/****************************************************************************
  * Name: arm_gic0_initialize
  *
  * Description:
@@ -259,16 +228,17 @@ void arm_gic_initialize(void)
 
 #endif
 
-#if defined(CONFIG_ARCH_TRUSTZONE_SECURE) || defined(CONFIG_ARCH_TRUSTZONE_BOTH)
+#ifdef CONFIG_ARMV7R_GIC_EOIMODE
+#  if defined(CONFIG_ARCH_TRUSTZONE_SECURE) || defined(CONFIG_ARCH_TRUSTZONE_BOTH)
   /* Set EnableS=1 to enable CPU interface to signal secure interrupts.
    *
    * NOTE:  Only for processors that operate in secure state.
    */
 
   iccicr |= GIC_ICCICRS_EOIMODES;
-#endif
+#  endif
 
-#if defined(CONFIG_ARCH_TRUSTZONE_NONSECURE)
+#  if defined(CONFIG_ARCH_TRUSTZONE_NONSECURE)
   /* Set EnableNS=1 to enable the CPU to signal non-secure interrupts.
    *
    * NOTE:  Only for processors that operate in non-secure state.
@@ -276,13 +246,14 @@ void arm_gic_initialize(void)
 
   iccicr |= GIC_ICCICRS_EOIMODENS;
 
-#elif defined(CONFIG_ARCH_TRUSTZONE_BOTH)
+#  elif defined(CONFIG_ARCH_TRUSTZONE_BOTH)
   /* Set EnableNS=1 to enable the CPU to signal non-secure interrupts.
    *
    * NOTE:  Only for processors that operate in non-secure state.
    */
 
   iccicr |= GIC_ICCICRU_EOIMODENS;
+#  endif
 #endif
 
 #ifdef CONFIG_ARCH_TRUSTZONE_BOTH
@@ -374,6 +345,10 @@ uint32_t *arm_decodeirq(uint32_t *regs)
   regval = getreg32(GIC_ICCIAR);
   irq = (regval & GIC_ICCIAR_INTID_MASK) >> GIC_ICCIAR_INTID_SHIFT;
 
+#ifdef CONFIG_ARMV7R_GIC_EOIMODE
+  putreg32(regval, GIC_ICCEOIR);
+#endif
+
   /* Ignore spurions IRQs.  ICCIAR will report 1023 if there is no pending
    * interrupt.
    */
@@ -388,7 +363,11 @@ uint32_t *arm_decodeirq(uint32_t *regs)
 
   /* Write to the end-of-interrupt register */
 
+#ifdef CONFIG_ARMV7R_GIC_EOIMODE
+  putreg32(regval, GIC_ICCDIR);
+#else
   putreg32(regval, GIC_ICCEOIR);
+#endif
   return regs;
 }
 
@@ -504,7 +483,34 @@ int up_prioritize_irq(int irq, int priority)
 }
 
 /****************************************************************************
- * Name: arm_cpu_sgi
+ * Name: up_affinity_irq
+ *
+ * Description:
+ *   Set an IRQ affinity by software.
+ *
+ ****************************************************************************/
+
+void up_affinity_irq(int irq, cpu_set_t cpuset)
+{
+  if (irq >= GIC_IRQ_SPI && irq < NR_IRQS)
+    {
+      uintptr_t regaddr;
+      uint32_t regval;
+
+      /* Write the new cpuset to the corresponding field in the in the
+       * distributor Interrupt Processor Target Register (GIC_ICDIPTR).
+       */
+
+      regaddr = GIC_ICDIPTR(irq);
+      regval  = getreg32(regaddr);
+      regval &= ~GIC_ICDIPTR_ID_MASK(irq);
+      regval |= GIC_ICDIPTR_ID(irq, cpuset);
+      putreg32(regval, regaddr);
+    }
+}
+
+/****************************************************************************
+ * Name: up_trigger_irq
  *
  * Description:
  *   Perform a Software Generated Interrupt (SGI).  If CONFIG_SMP is
@@ -515,30 +521,28 @@ int up_prioritize_irq(int irq, int priority)
  *   only to the current CPU.
  *
  * Input Parameters
- *   sgi    - The SGI interrupt ID (0-15)
+ *   irq    - The SGI interrupt ID (0-15)
  *   cpuset - The set of CPUs to receive the SGI
- *
- * Returned Value:
- *   OK is always returned at present.
  *
  ****************************************************************************/
 
-int arm_cpu_sgi(int sgi, unsigned int cpuset)
+void up_trigger_irq(int irq, cpu_set_t cpuset)
 {
-  uint32_t regval;
+  if (irq >= 0 && irq <= GIC_IRQ_SGI15)
+    {
+      arm_cpu_sgi(irq, cpuset);
+    }
+  else if (irq >= 0 && irq < NR_IRQS)
+    {
+      uintptr_t regaddr;
 
-#ifdef CONFIG_SMP
-  regval = GIC_ICDSGIR_INTID(sgi)        |
-           GIC_ICDSGIR_CPUTARGET(cpuset) |
-           GIC_ICDSGIR_TGTFILTER_LIST;
-#else
-  regval = GIC_ICDSGIR_INTID(sgi)   |
-           GIC_ICDSGIR_CPUTARGET(0) |
-           GIC_ICDSGIR_TGTFILTER_THIS;
-#endif
+      /* Write '1' to the corresponding bit in the distributor Interrupt
+       * Set-Pending (ICDISPR)
+       */
 
-  putreg32(regval, GIC_ICDSGIR);
-  return OK;
+      regaddr = GIC_ICDISPR(irq);
+      putreg32(GIC_ICDISPR_INT(irq), regaddr);
+    }
 }
 
-#endif							/* CONFIG_ARMV7R_HAVE_GICv2 */
+#endif /* CONFIG_ARMV7R_HAVE_GICv2 */

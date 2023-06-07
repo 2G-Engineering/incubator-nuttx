@@ -50,14 +50,13 @@ static void z8_sigsetup(FAR struct tcb_s *tcb, sig_deliver_t sigdeliver,
    * the signal trampoline after the signals have been delivered.
    */
 
-  tcb->xcp.sigdeliver    = sigdeliver;
-  tcb->xcp.saved_pc      = regs[XCPT_PC];
-  tcb->xcp.saved_irqctl  = regs[XCPT_IRQCTL];
+  tcb->xcp.saved_pc     = regs[XCPT_PC];
+  tcb->xcp.saved_irqctl = regs[XCPT_IRQCTL];
 
   /* Then set up to vector to the trampoline with interrupts disabled */
 
-  regs[XCPT_PC]          = (chipreg_t)z80_sigdeliver;
-  regs[XCPT_IRQCTL]      = 0;
+  regs[XCPT_PC]         = (chipreg_t)z80_sigdeliver;
+  regs[XCPT_IRQCTL]     = 0;
 }
 
 /****************************************************************************
@@ -102,12 +101,14 @@ static void z8_sigsetup(FAR struct tcb_s *tcb, sig_deliver_t sigdeliver,
 
 void up_schedule_sigaction(FAR struct tcb_s *tcb, sig_deliver_t sigdeliver)
 {
-  sinfo("tcb=0x%p sigdeliver=0x%04x\n", tcb, (uint16_t)sigdeliver);
+  sinfo("tcb=%p sigdeliver=0x%04x\n", tcb, (uint16_t)sigdeliver);
 
   /* Refuse to handle nested signal actions */
 
   if (tcb->xcp.sigdeliver == NULL)
     {
+      tcb->xcp.sigdeliver = sigdeliver;
+
       /* First, handle some special cases when the signal is being delivered
        * to the currently executing task.
        */
@@ -123,6 +124,7 @@ void up_schedule_sigaction(FAR struct tcb_s *tcb, sig_deliver_t sigdeliver)
               /* In this case just deliver the signal now. */
 
               sigdeliver(tcb);
+              tcb->xcp.sigdeliver = NULL;
             }
 
           /* CASE 2:  We are in an interrupt handler AND the interrupted task

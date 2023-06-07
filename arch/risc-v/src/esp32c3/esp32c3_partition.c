@@ -606,9 +606,8 @@ int esp32c3_partition_init(void)
           break;
         }
 
-      strncpy(label, (char *)info->label, PARTITION_LABEL_LEN);
-      label[PARTITION_LABEL_LEN] = '\0';
-      sprintf(path, "%s%s", path_base, label);
+      strlcpy(label, (char *)info->label, sizeof(label));
+      snprintf(path, sizeof(path), "%s%s", path_base, label);
 
       finfo("INFO: [label]:   %s\n", label);
       finfo("INFO: [type]:    %d\n", info->type);
@@ -652,7 +651,7 @@ int esp32c3_partition_init(void)
       ret = register_mtddriver(path, mtd_part, 0777, NULL);
       if (ret < 0)
         {
-          ferr("ERROR: Failed to regitser MTD @ %s\n", path);
+          ferr("ERROR: Failed to register MTD @ %s\n", path);
           kmm_free(mtd_priv);
           ret = -1;
           goto errout_with_mtd;

@@ -471,7 +471,9 @@ SPI Test
     +CONFIG_STM32F7_SPI3=y
 
     +# CONFIG_STM32F7_SPI_INTERRUPTS is not set
-    +# CONFIG_STM32F7_SPI_DMA is not set
+    +# CONFIG_STM32F7_SPI1_DMA is not set
+    +# CONFIG_STM32F7_SPI2_DMA is not set
+    +# CONFIG_STM32F7_SPI3_DMA is not set
      # CONFIG_STM32F7_CUSTOM_CLOCKCONFIG is not set
 
     +CONFIG_NUCLEO_SPI_TEST=y
@@ -533,7 +535,7 @@ f7xx-nsh:
      for Linux.  That can easily be reconfigured, of course.
 
      CONFIG_HOST_LINUX=y                     : Builds under Linux
-     CONFIG_ARMV7M_TOOLCHAIN_GNU_EABI=y      : ARM GNU for Linux
+     CONFIG_ARM_TOOLCHAIN_GNU_EABI=y      : ARM GNU for Linux
 
   3. The serial console may be configured to use either USART3 (which would
      correspond to the Virtual COM port) or with the console device
@@ -600,4 +602,4 @@ f7xx-evalos:
     for Linux.  That can easily be reconfigured, of course.
 
     CONFIG_HOST_LINUX=y                     : Builds under Linux
-    CONFIG_ARMV7M_TOOLCHAIN_GNU_EABI=y      : ARM GNU for Linux
+    CONFIG_ARM_TOOLCHAIN_GNU_EABI=y      : ARM GNU for Linux

@@ -96,8 +96,8 @@ struct lpc43_lowerhalf_s
 static uint32_t lpc43_getreg(uint32_t addr);
 static void     lpc43_putreg(uint32_t val, uint32_t addr);
 #else
-# define        lpc43_getreg(addr)     getreg32(addr)
-# define        lpc43_putreg(val,addr) putreg32(val,addr)
+#  define       lpc43_getreg(addr)     getreg32(addr)
+#  define       lpc43_putreg(val,addr) putreg32(val,addr)
 #endif
 
 /* Interrupt handling *******************************************************/
@@ -743,7 +743,7 @@ void lpc43_tmrinitialize(const char *devpath, int irq)
 #endif
 
     default:
-      DEBUGASSERT(0);
+      DEBUGPANIC();
     }
 
   priv->ops = &g_tmrops;

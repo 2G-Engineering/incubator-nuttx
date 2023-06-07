@@ -24,12 +24,12 @@ ifeq ($(CONFIG_MODEM_U_BLOX),y)
 CSRCS += u-blox.c
 endif
 
-include modem/altair/Make.defs
+include modem/alt1250/Make.defs
 
 # Include modem driver build support
 
 DEPPATH += --dep-path modem
 VPATH += :modem
-CFLAGS += ${shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)drivers$(DELIM)modem}
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)drivers$(DELIM)modem
 
 endif

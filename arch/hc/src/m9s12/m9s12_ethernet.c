@@ -38,7 +38,6 @@
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
 #include <nuttx/wdog.h>
-#include <nuttx/net/arp.h>
 #include <nuttx/net/netdev.h>
 
 #ifdef CONFIG_NET_PKT
@@ -54,7 +53,7 @@
  */
 
 #ifndef CONFIG_HCS12_NINTERFACES
-# define CONFIG_HCS12_NINTERFACES 1
+#  define CONFIG_HCS12_NINTERFACES 1
 #endif
 
 /* TX timeout = 1 minute */
@@ -89,7 +88,8 @@ struct emac_driver_s
 
 /* A single packet buffer is used */
 
-static uint8_t g_pktbuf[MAX_NETDEV_PKTSIZE + CONFIG_NET_GUARDSIZE];
+static uint8_t g_pktbuf[CONFIG_HCS12_NINTERFACES]
+                       [MAX_NETDEV_PKTSIZE + CONFIG_NET_GUARDSIZE];
 
 /* Driver state structure */
 
@@ -198,45 +198,9 @@ static int emac_txpoll(struct net_driver_s *dev)
   FAR struct emac_driver_s *priv =
     (FAR struct emac_driver_s *)dev->d_private;
 
-  /* If the polling resulted in data that should be sent out on the network,
-   * the field d_len is set to a value > 0.
-   */
+  /* Send the packet */
 
-  if (priv->d_dev.d_len > 0)
-    {
-      /* Look up the destination MAC address and add it to the Ethernet
-       * header.
-       */
-
-#ifdef CONFIG_NET_IPv4
-#ifdef CONFIG_NET_IPv6
-      if (IFF_IS_IPv4(priv->d_dev.d_flags))
-#endif
-        {
-          arp_out(&priv->d_dev);
-        }
-#endif /* CONFIG_NET_IPv4 */
-
-#ifdef CONFIG_NET_IPv6
-#ifdef CONFIG_NET_IPv4
-      else
-#endif
-        {
-          neighbor_out(&priv->d_dev);
-        }
-#endif /* CONFIG_NET_IPv6 */
-
-      if (!devif_loopback(&priv->d_dev))
-        {
-          /* Send the packet */
-
-          emac_transmit(priv);
-
-          /* Check if there is room in the device to hold another packet.
-           * If not, return a non-zero value to terminate the poll.
-           */
-        }
-    }
+  emac_transmit(priv);
 
   /* If zero is returned, the polling will continue until all connections
    * have been examined.
@@ -289,11 +253,8 @@ static void emac_receive(FAR struct emac_driver_s *priv)
         {
           ninfo("IPv4 frame\n");
 
-          /* Handle ARP on input then give the IPv4 packet to the network
-           * layer
-           */
+          /* Receive an IPv4 packet from the network device */
 
-          arp_ipin(&priv->d_dev);
           ipv4_input(&priv->d_dev);
 
           /* If the above function invocation resulted in data that should be
@@ -302,21 +263,6 @@ static void emac_receive(FAR struct emac_driver_s *priv)
 
           if (priv->d_dev.d_len > 0)
             {
-              /* Update the Ethernet header with the correct MAC address */
-
-#ifdef CONFIG_NET_IPv6
-              if (IFF_IS_IPv4(priv->d_dev.d_flags))
-#endif
-                {
-                  arp_out(&priv->d_dev);
-                }
-#ifdef CONFIG_NET_IPv6
-              else
-                {
-                  neighbor_out(&priv->d_dev);
-                }
-#endif
-
               /* And send the packet */
 
               emac_transmit(priv);
@@ -339,21 +285,6 @@ static void emac_receive(FAR struct emac_driver_s *priv)
 
           if (priv->d_dev.d_len > 0)
             {
-              /* Update the Ethernet header with the correct MAC address */
-
-#ifdef CONFIG_NET_IPv4
-              if (IFF_IS_IPv4(priv->d_dev.d_flags))
-                {
-                  arp_out(&priv->d_dev);
-                }
-              else
-#endif
-#ifdef CONFIG_NET_IPv6
-                {
-                  neighbor_out(&priv->d_dev);
-                }
-#endif
-
               /* And send the packet */
 
               emac_transmit(priv);
@@ -364,7 +295,7 @@ static void emac_receive(FAR struct emac_driver_s *priv)
 #ifdef CONFIG_NET_ARP
       if (BUF->type == HTONS(ETHTYPE_ARP))
         {
-          arp_arpin(&priv->d_dev);
+          arp_input(&priv->d_dev);
 
           /* If the above function invocation resulted in data that should be
            * sent out on the network, d_len field will set to a value > 0.
@@ -693,7 +624,7 @@ int emac_initialize(int intf)
 
   /* Get the interface structure associated with this interface number. */
 
-  DEBUGASSERT(inf <  CONFIG_HCS12_NINTERFACES);
+  DEBUGASSERT(inf < CONFIG_HCS12_NINTERFACES);
   priv = &g_emac[intf];
 
   /* Check if a Ethernet chip is recognized at its I/O base */
@@ -710,7 +641,7 @@ int emac_initialize(int intf)
   /* Initialize the driver structure */
 
   memset(priv, 0, sizeof(struct emac_driver_s));
-  priv->d_dev.d_buf     = g_pktbuf;      /* Single packet buffer */
+  priv->d_dev.d_buf     = g_pktbuf[inf]; /* Single packet buffer */
   priv->d_dev.d_ifup    = emac_ifup;     /* I/F down callback */
   priv->d_dev.d_ifdown  = emac_ifdown;   /* I/F up (new IP address) callback */
   priv->d_dev.d_txavail = emac_txavail;  /* New TX data callback */

@@ -41,6 +41,14 @@ config SERIAL_CONSOLE
 	bool
 	default n
 
+menuconfig UART_PL011
+	bool "PL011 Chip support"
+	default n
+
+if UART_PL011
+source "drivers/serial/Kconfig-pl011"
+endif
+
 menuconfig 16550_UART
 	bool "16550 UART Chip support"
 	select ARCH_HAVE_SERIAL_TERMIOS
@@ -72,11 +80,6 @@ config RPMSG_UART
 	select SERIAL_TXDMA
 	select SERIAL_REMOVABLE
 	select SERIAL_IFLOWCONTROL
-
-config RPMSG_SERIALINIT
-	bool "Add dummy up_serialinit for UART rpmsg"
-	default y if !16550_UART && !MCU_SERIAL
-	depends on RPMSG_UART
 
 #
 # Standard serial driver configuration
@@ -169,9 +172,10 @@ config SERIAL_TERMIOS
 	depends on ARCH_HAVE_SERIAL_TERMIOS
 	default n
 	---help---
-		Serial driver supports termios.h interfaces (tcsetattr, tcflush, etc.).
-		If this is not defined, then the terminal settings (baud, parity, etc).
-		are not configurable at runtime; serial streams cannot be flushed, etc..
+		If this is not defined, then the terminal hardware settings
+		(baud, parity, flow control) are not configurable at runtime.
+		Note: other software settings (echo, \r\n<->\n, break, tcflush)
+		are always supported.
 
 config TTY_LAUNCH
 	bool "Enable feature TTY launch program"
@@ -199,7 +203,7 @@ config TTY_LAUNCH_PRIORITY
 	default INIT_PRIORITY
 
 config TTY_LAUNCH_STACKSIZE
-	hex "TTY launch program stack size"
+	int "TTY launch program stack size"
 	default INIT_STACKSIZE
 
 choice
@@ -486,6 +490,41 @@ config LPUART8_SERIAL_CONSOLE
 	depends on LPUART8_SERIALDRIVER
 	select SERIAL_CONSOLE
 
+config LPUART9_SERIAL_CONSOLE
+	bool "LPUART9"
+	depends on LPUART9_SERIALDRIVER
+	select SERIAL_CONSOLE
+
+config LPUART10_SERIAL_CONSOLE
+	bool "LPUART10"
+	depends on LPUART10_SERIALDRIVER
+	select SERIAL_CONSOLE
+
+config LPUART11_SERIAL_CONSOLE
+	bool "LPUART11"
+	depends on LPUART11_SERIALDRIVER
+	select SERIAL_CONSOLE
+
+config LPUART12_SERIAL_CONSOLE
+	bool "LPUART12"
+	depends on LPUART12_SERIALDRIVER
+	select SERIAL_CONSOLE
+
+config LPUART13_SERIAL_CONSOLE
+	bool "LPUART13"
+	depends on LPUART13_SERIALDRIVER
+	select SERIAL_CONSOLE
+
+config LPUART14_SERIAL_CONSOLE
+	bool "LPUART14"
+	depends on LPUART14_SERIALDRIVER
+	select SERIAL_CONSOLE
+
+config LPUART15_SERIAL_CONSOLE
+	bool "LPUART15"
+	depends on LPUART15_SERIALDRIVER
+	select SERIAL_CONSOLE
+
 config SCI0_SERIAL_CONSOLE
 	bool "SCI0"
 	depends on SCI0_SERIALDRIVER
@@ -679,7 +718,7 @@ endif # PSEUDOTERM
 menuconfig UART_BTH4
 	bool "BT H4 uart pseudo device"
 	default n
-	select MM_CIRCBUF
+	depends on DRIVERS_BLUETOOTH
 	---help---
 		Enable support for Bluetooth H4 UART Pseudo Device(eg. /dev/ttyHCI).
 		This instantiates a serial-like interface over an existing bluetooth
@@ -690,15 +729,15 @@ if UART_BTH4
 
 config UART_BTH4_TXBUFSIZE
 	int "BT H4 uart TX buffer size"
-	default 1024
+	default 2048
 	---help---
-		H4 UART TX buffer size.  Default: 1024
+		H4 UART TX buffer size.  Default: 2048
 
 config UART_BTH4_RXBUFSIZE
 	int "BT H4 uart RX buffer size"
-	default 1024
+	default 8096
 	---help---
-		H4 UART RX buffer size.  Default: 1024
+		H4 UART RX buffer size.  Default: 8096
 
 config UART_BTH4_NPOLLWAITERS
 	int "Number of poll threads"

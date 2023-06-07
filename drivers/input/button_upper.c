@@ -125,7 +125,7 @@ static int     btn_poll(FAR struct file *filep, FAR struct pollfd *fds,
  * Private Data
  ****************************************************************************/
 
-static const struct file_operations btn_fops =
+static const struct file_operations g_btn_fops =
 {
   btn_open,  /* open */
   btn_close, /* close */
@@ -133,10 +133,9 @@ static const struct file_operations btn_fops =
   btn_write, /* write */
   NULL,      /* seek */
   btn_ioctl, /* ioctl */
+  NULL,      /* mmap */
+  NULL,      /* truncate */
   btn_poll   /* poll */
-#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-  , NULL     /* unlink */
-#endif
 };
 
 /****************************************************************************
@@ -230,7 +229,6 @@ static void btn_sample(FAR struct btn_upperhalf_s *priv)
   btn_buttonset_t change;
   btn_buttonset_t press;
   btn_buttonset_t release;
-  int i;
 
   DEBUGASSERT(priv && priv->bu_lower);
   lower = priv->bu_lower;
@@ -267,19 +265,8 @@ static void btn_sample(FAR struct btn_upperhalf_s *priv)
         {
           /* Yes.. Notify all waiters */
 
-          for (i = 0; i < CONFIG_INPUT_BUTTONS_NPOLLWAITERS; i++)
-            {
-              FAR struct pollfd *fds = opriv->bo_fds[i];
-              if (fds)
-                {
-                  fds->revents |= (fds->events & POLLIN);
-                  if (fds->revents != 0)
-                    {
-                      iinfo("Report events: %08" PRIx32 "\n", fds->revents);
-                      nxsem_post(fds->sem);
-                    }
-                }
-            }
+          poll_notify(opriv->bo_fds, CONFIG_INPUT_BUTTONS_NPOLLWAITERS,
+                      POLLIN);
         }
 
       /* Have any signal events occurred? */
@@ -620,7 +607,7 @@ static int btn_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
             opriv->bo_notify.bn_press   = notify->bn_press;
             opriv->bo_notify.bn_release = notify->bn_release;
             opriv->bo_notify.bn_event   = notify->bn_event;
-            opriv->bo_pid               = getpid();
+            opriv->bo_pid               = nxsched_getpid();
 
             /* Enable/disable interrupt handling */
 
@@ -687,12 +674,7 @@ static int btn_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
               if (opriv->bo_pending)
                 {
-                  fds->revents |= (fds->events & POLLIN);
-                  if (fds->revents != 0)
-                    {
-                      iinfo("Report events: %08" PRIx32 "\n", fds->revents);
-                      nxsem_post(fds->sem);
-                    }
+                  poll_notify(&fds, 1, POLLIN);
                 }
 
               break;
@@ -791,7 +773,7 @@ int btn_register(FAR const char *devname,
 
   /* And register the button driver */
 
-  ret = register_driver(devname, &btn_fops, 0666, priv);
+  ret = register_driver(devname, &g_btn_fops, 0666, priv);
   if (ret < 0)
     {
       ierr("ERROR: register_driver failed: %d\n", ret);

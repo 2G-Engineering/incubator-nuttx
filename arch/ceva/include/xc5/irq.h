@@ -139,14 +139,14 @@ struct xcptcontext
 
   uint32_t *saved_regs;
 
-# ifdef CONFIG_BUILD_PROTECTED
+#  ifdef CONFIG_BUILD_PROTECTED
   /* This is the saved address to use when returning from a user-space
    * signal handler.
    */
 
   uint32_t sigreturn;
 
-# endif
+#  endif
 #endif
 
 #ifdef CONFIG_LIB_SYSCALL
@@ -231,6 +231,15 @@ static inline void setmodp(uint32_t modp_v)
       );
 }
 
+/* Return the current value of the stack pointer */
+
+static inline uint32_t up_getsp(void)
+{
+  uint32_t sp;
+  __asm__ __volatile__("nop\nmov sp, %0" : "=r"(sp));
+  return sp;
+}
+
 static inline void up_irq_disable(void)
 {
   setmodp(REG_MODP_DISABLE);
@@ -251,17 +260,6 @@ static inline void up_irq_enable(void)
 static inline void up_irq_restore(irqstate_t flags)
 {
   setmodp(flags);
-}
-
-/****************************************************************************
- * Name: up_getsp
- ****************************************************************************/
-
-static inline uint32_t up_getsp(void)
-{
-  uint32_t sp;
-  __asm__ __volatile__("nop\nmov sp, %0" : "=r"(sp));
-  return sp;
 }
 
 #endif /* __ASSEMBLY__ */

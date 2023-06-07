@@ -26,12 +26,14 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <sys/param.h>
 #include <fcntl.h>
 #include <time.h>
 #include <errno.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
+#include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 
 #include <debug.h>
@@ -81,7 +83,6 @@
 #define ISE_SRC_VSIZE_MAX   (2160)
 #define ISE_DST_HSIZE_MAX   (768)
 #define ISE_DST_VSIZE_MAX   (1024)
-#define MAX_RATIO           (64)
 
 /* Command code */
 
@@ -126,10 +127,6 @@
 #define FIXEDSRC    (1 << 14)
 #define MSBFIRST    (1 << 13)
 
-#ifndef MIN
-#  define MIN(a,b)  (((a) < (b)) ? (a) : (b))
-#endif
-
 /****************************************************************************
  * Private Types
  ****************************************************************************/
@@ -148,7 +145,7 @@ struct aligned_data(16) ge2d_copycmd_s
   uint32_t reserved[3];
 };
 
-/* Raster operation (ROP) command (48 bytes) */
+/* Raster operation (ROP) command (32 bytes + scaling OP 16 bytes) */
 
 struct aligned_data(16) ge2d_ropcmd_s
 {
@@ -167,7 +164,10 @@ struct aligned_data(16) ge2d_ropcmd_s
   uint16_t patpitch;          /* 0x1c */
   uint8_t pathoffset;         /* 0x1e */
   uint8_t patvoffset;         /* 0x1f */
+};
 
+struct aligned_data(16) ge2d_ropcmd_scaling_s
+{
   uint16_t desth;             /* 0x20 */
   uint16_t destv;             /* 0x22 */
   uint16_t ratioh;            /* 0x24 */
@@ -204,10 +204,11 @@ struct aligned_data(16) ge2d_abcmd_s
  * Private Data
  ****************************************************************************/
 
-static sem_t g_rotwait;
-static sem_t g_rotexc;
-static sem_t g_geexc;
-static sem_t g_abexc;
+static bool g_imageprocinitialized = false;
+static sem_t g_rotwait = SEM_INITIALIZER(0);
+static mutex_t g_rotlock = NXMUTEX_INITIALIZER;
+static mutex_t g_gelock = NXMUTEX_INITIALIZER;
+static mutex_t g_ablock = NXMUTEX_INITIALIZER;
 
 static struct file g_gfile;
 static char g_gcmdbuf[256] aligned_data(16);
@@ -216,45 +217,13 @@ static char g_gcmdbuf[256] aligned_data(16);
  * Private Functions
  ****************************************************************************/
 
-static int ip_semtake(sem_t * id)
-{
-  return nxsem_wait_uninterruptible(id);
-}
-
-static void ip_semgive(sem_t * id)
-{
-  nxsem_post(id);
-}
-
 static int intr_handler_rot(int irq, void *context, void *arg)
 {
   putreg32(1, ROT_INTR_CLEAR);
   putreg32(0, ROT_INTR_ENABLE);
   putreg32(1, ROT_INTR_DISABLE);
 
-  ip_semgive(&g_rotwait);
-
-  return 0;
-}
-
-static int ratio_check(uint16_t src, uint16_t dest)
-{
-  uint16_t ratio = 1;
-
-  if (src > dest)
-    {
-      ratio = src / dest;
-    }
-  else if (src < dest)
-    {
-      ratio = dest / src;
-    }
-
-  if (ratio > MAX_RATIO)
-    {
-      return -1;
-    }
-
+  nxsem_post(&g_rotwait);
   return 0;
 }
 
@@ -262,28 +231,27 @@ static uint16_t calc_ratio(uint16_t src, uint16_t dest)
 {
   uint16_t r;
 
-  if (src > dest)
+  /* Calculate scale factor for the ratio
+   *
+   * ratio = 256 / scalefactor
+   *
+   * scalefactor is from 16383 (=x1/64) to 4 (=x64).
+   * Actually, scalefactor of x1/64 is 16384, but hardware
+   * can take 14 bits (0x3fff), so we need set 16383 for x1/64.
+   */
+
+  r = (uint32_t)src * 256 / dest;
+  if (r == 16384)
     {
-      r = src / dest;
-      if (r == 2 || r == 4 || r == 8 || r == 16 || r == 32 || r == 64)
-        {
-          return 256 * r;
-        }
-    }
-  else if (src < dest)
-    {
-      r = dest / src;
-      if (r == 2 || r == 4 || r == 8 || r == 16 || r == 32 || r == 64)
-        {
-          return 256 / r;
-        }
-    }
-  else
-    {
-      return 256;
+      r = 16383;
     }
 
-  return 0;
+  if (r < 4 || r > 16383)
+    {
+      return 0;
+    }
+
+  return r;
 }
 
 static void *set_rop_cmd(void *cmdbuf,
@@ -301,6 +269,7 @@ static void *set_rop_cmd(void *cmdbuf,
                          uint16_t patcolor)
 {
   struct ge2d_ropcmd_s *rc = (struct ge2d_ropcmd_s *)cmdbuf;
+  struct ge2d_ropcmd_scaling_s *sc;
   uint16_t rv;
   uint16_t rh;
   uint16_t cmd = ROPCMD;
@@ -351,17 +320,34 @@ static void *set_rop_cmd(void *cmdbuf,
   rc->daddr = CXD56_PHYSADDR(destaddr) | MSEL;
   rc->spitch = srcpitch - 1;
   rc->dpitch = destpitch - 1;
-  rc->desth = destwidth - 1;
-  rc->destv = destheight - 1;
-  rc->ratiov = rv - 1;
-  rc->ratioh = rh - 1;
-  rc->hphaseinit = 1;
-  rc->vphaseinit = 1;
-  rc->intpmode = 0;             /* XXX: HV Linear interpolation */
+
+  /* Shift to next command area */
+
+  cmdbuf = (void *)((uintptr_t)cmdbuf + sizeof(struct ge2d_ropcmd_s));
+
+  /* Set scaling information */
+
+  if (cmd & SCALING)
+    {
+      sc = (struct ge2d_ropcmd_scaling_s *)cmdbuf;
+
+      sc->desth = destwidth - 1;
+      sc->destv = destheight - 1;
+      sc->ratiov = rv;
+      sc->ratioh = rh;
+      sc->hphaseinit = 1;
+      sc->vphaseinit = 1;
+      sc->intpmode = 0;         /* XXX: HV Linear interpolation */
+
+      /* Shift to next command area */
+
+      cmdbuf = (void *)((uintptr_t)cmdbuf
+                        + sizeof(struct ge2d_ropcmd_scaling_s));
+    }
 
   /* return next command area */
 
-  return (void *)((uintptr_t) cmdbuf + sizeof(struct ge2d_ropcmd_s));
+  return cmdbuf;
 }
 
 static void *set_ab_cmd(void *cmdbuf, void *srcaddr, void *destaddr,
@@ -403,22 +389,27 @@ static void *set_halt_cmd(void *cmdbuf)
   return (void *)((uintptr_t) cmdbuf + 16);
 }
 
-static void imageproc_convert_(int      is_yuv2rgb,
-                               uint8_t * ibuf,
-                               uint32_t hsize,
-                               uint32_t vsize)
+static int imageproc_convert_(int is_yuv2rgb,
+                              uint8_t *ibuf,
+                              uint32_t hsize,
+                              uint32_t vsize)
 {
   int ret;
 
-  if ((hsize & 1) || (vsize & 1))
+  if (!g_imageprocinitialized)
     {
-      return;
+      return -EPERM;
     }
 
-  ret = ip_semtake(&g_rotexc);
+  if ((hsize & 1) || (vsize & 1))
+    {
+      return -EINVAL;
+    }
+
+  ret = nxmutex_lock(&g_rotlock);
   if (ret)
     {
-      return;
+      return ret;
     }
 
   /* Image processing hardware want to be set horizontal/vertical size
@@ -445,9 +436,10 @@ static void imageproc_convert_(int      is_yuv2rgb,
   putreg32(0, ROT_RGB_ALIGNMENT);
   putreg32(1, ROT_COMMAND);
 
-  ip_semtake(&g_rotwait);
+  nxsem_wait_uninterruptible(&g_rotwait);
+  nxmutex_unlock(&g_rotlock);
 
-  ip_semgive(&g_rotexc);
+  return 0;
 }
 
 static void get_rect_info(imageproc_imginfo_t *imginfo,
@@ -466,8 +458,6 @@ static void get_rect_info(imageproc_imginfo_t *imginfo,
       *w      = imginfo->w;
       *h      = imginfo->h;
     }
-
-  return;
 }
 
 static int  chk_imgsize(imageproc_imginfo_t *imginfo)
@@ -509,10 +499,10 @@ static void *get_blendarea(imageproc_imginfo_t *imginfo, int offset)
         return imginfo->img.p_u8 + offset;
 
       case IMAGEPROC_IMGTYPE_16BPP:
-        return imginfo->img.p_u16 + offset;
+        return imginfo->img.p_u8 + (offset * 2);
 
-      case IMAGEPROC_IMGTYPE_BINARY:
-        return imginfo->img.binary.p_u8 + offset / 8;
+      case IMAGEPROC_IMGTYPE_1BPP:
+        return imginfo->img.binary.p_u8 + (offset / 8);
 
       default:
         return NULL;
@@ -527,14 +517,13 @@ static void *get_blendarea(imageproc_imginfo_t *imginfo, int offset)
 
 void imageproc_initialize(void)
 {
-  nxsem_init(&g_rotexc, 0, 1);
-  nxsem_init(&g_rotwait, 0, 0);
-  nxsem_init(&g_geexc, 0, 1);
-  nxsem_init(&g_abexc, 0, 1);
-  nxsem_set_protocol(&g_rotwait, SEM_PRIO_NONE);
+  if (g_imageprocinitialized)
+    {
+      return;
+    }
 
+  g_imageprocinitialized = true;
   cxd56_ge2dinitialize(GEDEVNAME);
-
   file_open(&g_gfile, GEDEVNAME, O_RDWR);
 
   putreg32(1, ROT_INTR_CLEAR);
@@ -547,6 +536,11 @@ void imageproc_initialize(void)
 
 void imageproc_finalize(void)
 {
+  if (!g_imageprocinitialized)
+    {
+      return;
+    }
+
   up_disable_irq(CXD56_IRQ_ROT);
   irq_detach(CXD56_IRQ_ROT);
 
@@ -556,31 +550,27 @@ void imageproc_finalize(void)
     }
 
   cxd56_ge2duninitialize(GEDEVNAME);
-
-  nxsem_destroy(&g_rotwait);
-  nxsem_destroy(&g_rotexc);
-  nxsem_destroy(&g_geexc);
-  nxsem_destroy(&g_abexc);
+  g_imageprocinitialized = false;
 }
 
-void imageproc_convert_yuv2rgb(uint8_t * ibuf,
-                               uint32_t hsize,
-                               uint32_t vsize)
+int imageproc_convert_yuv2rgb(uint8_t *ibuf,
+                              uint32_t hsize,
+                              uint32_t vsize)
 {
-  imageproc_convert_(1, ibuf, hsize, vsize);
+  return imageproc_convert_(1, ibuf, hsize, vsize);
 }
 
-void imageproc_convert_rgb2yuv(uint8_t * ibuf,
-                               uint32_t hsize,
-                               uint32_t vsize)
+int imageproc_convert_rgb2yuv(uint8_t *ibuf,
+                              uint32_t hsize,
+                              uint32_t vsize)
 {
-  imageproc_convert_(0, ibuf, hsize, vsize);
+  return imageproc_convert_(0, ibuf, hsize, vsize);
 }
 
 void imageproc_convert_yuv2gray(uint8_t * ibuf, uint8_t * obuf, size_t hsize,
                                 size_t vsize)
 {
-  uint16_t *p_src = (uint16_t *) ibuf;
+  uint16_t *p_src = (uint16_t *)ibuf;
   size_t ix;
   size_t iy;
 
@@ -616,20 +606,14 @@ int imageproc_resize(uint8_t * ibuf,
     }
 
   if ((ihsize > ISE_SRC_HSIZE_MAX || ihsize < HSIZE_MIN) ||
-      (ivsize > ISE_SRC_VSIZE_MAX || ihsize < VSIZE_MIN) ||
+      (ivsize > ISE_SRC_VSIZE_MAX || ivsize < VSIZE_MIN) ||
       (ohsize > ISE_DST_HSIZE_MAX || ohsize < HSIZE_MIN) ||
       (ovsize > ISE_DST_VSIZE_MAX || ovsize < VSIZE_MIN))
     {
       return -EINVAL;
     }
 
-  if ((ratio_check(ihsize, ohsize) != 0) ||
-      (ratio_check(ivsize, ovsize) != 0))
-    {
-      return -EINVAL;
-    }
-
-  ret = ip_semtake(&g_geexc);
+  ret = nxmutex_lock(&g_gelock);
   if (ret)
     {
       return ret;
@@ -652,7 +636,7 @@ int imageproc_resize(uint8_t * ibuf,
                     0x0080);
   if (cmd == NULL)
     {
-      ip_semgive(&g_geexc);
+      nxmutex_unlock(&g_gelock);
       return -EINVAL;
     }
 
@@ -666,12 +650,11 @@ int imageproc_resize(uint8_t * ibuf,
   ret = file_write(&g_gfile, g_gcmdbuf, len);
   if (ret < 0)
     {
-      ip_semgive(&g_geexc);
+      nxmutex_unlock(&g_gelock);
       return -EFAULT;
     }
 
-  ip_semgive(&g_geexc);
-
+  nxmutex_unlock(&g_gelock);
   return 0;
 }
 
@@ -702,7 +685,7 @@ int imageproc_clip_and_resize(uint8_t * ibuf,
     }
 
   if ((ihsize > ISE_SRC_HSIZE_MAX || ihsize < HSIZE_MIN) ||
-      (ivsize > ISE_SRC_VSIZE_MAX || ihsize < VSIZE_MIN) ||
+      (ivsize > ISE_SRC_VSIZE_MAX || ivsize < VSIZE_MIN) ||
       (ohsize > ISE_DST_HSIZE_MAX || ohsize < HSIZE_MIN) ||
       (ovsize > ISE_DST_VSIZE_MAX || ovsize < VSIZE_MIN))
     {
@@ -725,29 +708,17 @@ int imageproc_clip_and_resize(uint8_t * ibuf,
       clip_width = clip_rect->x2 - clip_rect->x1 + 1;
       clip_height = clip_rect->y2 - clip_rect->y1 + 1;
 
-      if ((ratio_check(clip_width, ohsize) != 0) ||
-          (ratio_check(clip_height, ovsize) != 0))
-        {
-          return -EINVAL;
-        }
-
       pix_bytes = bpp >> 3;
       ibuf = ibuf + (clip_rect->x1 * pix_bytes +
                      clip_rect->y1 * ihsize * pix_bytes);
     }
   else
     {
-      if ((ratio_check(ihsize, ohsize) != 0) ||
-          (ratio_check(ivsize, ovsize) != 0))
-        {
-          return -EINVAL;
-        }
-
       clip_width = ihsize;
       clip_height = ivsize;
     }
 
-  ret = ip_semtake(&g_geexc);
+  ret = nxmutex_lock(&g_gelock);
   if (ret)
     {
       return ret;
@@ -771,7 +742,7 @@ int imageproc_clip_and_resize(uint8_t * ibuf,
 
   if (cmd == NULL)
     {
-      ip_semgive(&g_geexc);
+      nxmutex_unlock(&g_gelock);
       return -EINVAL;
     }
 
@@ -785,12 +756,11 @@ int imageproc_clip_and_resize(uint8_t * ibuf,
   ret = file_write(&g_gfile, g_gcmdbuf, len);
   if (ret < 0)
     {
-      ip_semgive(&g_geexc);
+      nxmutex_unlock(&g_gelock);
       return -EFAULT;
     }
 
-  ip_semgive(&g_geexc);
-
+  nxmutex_unlock(&g_gelock);
   return 0;
 }
 
@@ -863,11 +833,11 @@ int imageproc_alpha_blend(imageproc_imginfo_t *dst,
   switch (alpha->type)
     {
       case IMAGEPROC_IMGTYPE_SINGLE:
-        fixed_alpha = 0x0800 | (uint8_t)alpha->img.single;
+        fixed_alpha = 0x0800 | alpha->img.single;
         break;
 
-      case IMAGEPROC_IMGTYPE_BINARY:
-        fixed_alpha = (uint8_t)alpha->img.binary.multiplier;
+      case IMAGEPROC_IMGTYPE_1BPP:
+        fixed_alpha = alpha->img.binary.multiplier;
         options |= ALPHA1BPP;
 
         break;
@@ -885,8 +855,14 @@ int imageproc_alpha_blend(imageproc_imginfo_t *dst,
   switch (src->type)
     {
       case IMAGEPROC_IMGTYPE_SINGLE:
+
+        /* WORKAROUND: Hardware can take Y and Cb but Cr is not.
+         * So it can not use full color.
+         * Allow only Y value to use fixed src color. (monotone)
+         */
+
         options   |= FIXEDSRC;
-        fixed_src =  src->img.single;
+        fixed_src =  (uint16_t)src->img.single << 8 | 0x80 ;
         break;
 
       case IMAGEPROC_IMGTYPE_16BPP:
@@ -939,7 +915,7 @@ int imageproc_alpha_blend(imageproc_imginfo_t *dst,
   src_addr = get_blendarea(src,   src_offset);
   a_addr   = get_blendarea(alpha, a_offset);
 
-  ret = ip_semtake(&g_abexc);
+  ret = nxmutex_lock(&g_ablock);
   if (ret)
     {
       return ret; /* -EINTR */
@@ -962,7 +938,7 @@ int imageproc_alpha_blend(imageproc_imginfo_t *dst,
 
   if (cmd == NULL)
     {
-      ip_semgive(&g_abexc);
+      nxmutex_unlock(&g_ablock);
       return -EINVAL;
     }
 
@@ -976,11 +952,11 @@ int imageproc_alpha_blend(imageproc_imginfo_t *dst,
   ret = file_write(&g_gfile, g_gcmdbuf, len);
   if (ret < 0)
     {
-      ip_semgive(&g_abexc);
+      nxmutex_unlock(&g_ablock);
       return -EFAULT;
     }
 
-  ip_semgive(&g_abexc);
+  nxmutex_unlock(&g_ablock);
   return 0;
 }
 

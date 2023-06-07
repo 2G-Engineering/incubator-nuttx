@@ -42,6 +42,7 @@
 
 #include "esp32_smp.h"
 #include "esp32_gpio.h"
+#include "esp32_rtc_gpio.h"
 
 #include "esp32_irq.h"
 
@@ -98,10 +99,10 @@
 #define ESP32_MAX_PRIORITY     5
 #define ESP32_PRIO_INDEX(p)    ((p) - ESP32_MIN_PRIORITY)
 
-#ifdef CONFIG_ESP32_WIRELESS
-#  define ESP32_WIRELESS_RESERVE_INT  (1 << ESP32_CPUINT_MAC)
+#ifdef CONFIG_ESP32_WIFI
+#  define ESP32_WIFI_RESERVE_INT  (1 << ESP32_CPUINT_MAC)
 #else
-#  define ESP32_WIRELESS_RESERVE_INT  0
+#  define ESP32_WIFI_RESERVE_INT  0
 #endif
 
 #ifdef CONFIG_ESP32_BLE
@@ -115,18 +116,6 @@
 /****************************************************************************
  * Public Data
  ****************************************************************************/
-
-/* g_current_regs[] holds a reference to the current interrupt level
- * register storage structure.  It is non-NULL only during interrupt
- * processing.  Access to g_current_regs[] must be through the macro
- * CURRENT_REGS for portability.
- */
-
-/* For the case of architectures with multiple CPUs, then there must be one
- * such value for each processor that can receive an interrupt.
- */
-
-volatile uint32_t *g_current_regs[CONFIG_SMP_NCPUS];
 
 #if defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 15
 /* In the SMP configuration, we will need custom interrupt stacks.
@@ -170,7 +159,7 @@ static uint32_t g_intenable[CONFIG_SMP_NCPUS];
  */
 
 static uint32_t g_cpu0_freeints = ESP32_CPUINT_PERIPHSET &
-                                  (~ESP32_WIRELESS_RESERVE_INT &
+                                  (~ESP32_WIFI_RESERVE_INT &
                                    ~ESP32_BLE_RESERVE_INT);
 #ifdef CONFIG_SMP
 static uint32_t g_cpu1_freeints = ESP32_CPUINT_PERIPHSET;
@@ -460,7 +449,7 @@ void up_irqinitialize(void)
 
   g_irqmap[XTENSA_IRQ_TIMER0] = IRQ_MKMAP(0, ESP32_CPUINT_TIMER0);
 
-#ifdef CONFIG_ESP32_WIRELESS
+#ifdef CONFIG_ESP32_WIFI
   g_irqmap[ESP32_IRQ_MAC] = IRQ_MKMAP(0, ESP32_CPUINT_MAC);
 #endif
 
@@ -479,7 +468,7 @@ void up_irqinitialize(void)
 
   /* Reserve CPU0 interrupt for some special drivers */
 
-#ifdef CONFIG_ESP32_WIRELESS
+#ifdef CONFIG_ESP32_WIFI
   g_cpu0_intmap[ESP32_CPUINT_MAC]  = CPUINT_ASSIGN(ESP32_IRQ_MAC);
   xtensa_enable_cpuint(&g_intenable[0], 1 << ESP32_CPUINT_MAC);
 #endif
@@ -508,6 +497,10 @@ void up_irqinitialize(void)
 
   esp32_gpioirqinitialize(0);
 #endif
+
+  /* Initialize RTCIO interrupt support */
+
+  esp32_rtcioirqinitialize();
 
 #ifndef CONFIG_SUPPRESS_INTERRUPTS
   /* And finally, enable interrupts.  Also clears PS.EXCM */

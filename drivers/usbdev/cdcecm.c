@@ -36,7 +36,6 @@
 #include <errno.h>
 #include <assert.h>
 #include <debug.h>
-#include <queue.h>
 
 #include <arpa/inet.h>
 
@@ -45,7 +44,6 @@
 #include <nuttx/irq.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/semaphore.h>
-#include <nuttx/net/arp.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/usb/usbdev.h>
 #include <nuttx/usb/cdc.h>
@@ -341,53 +339,15 @@ static int cdcecm_txpoll(FAR struct net_driver_s *dev)
   FAR struct cdcecm_driver_s *priv =
     (FAR struct cdcecm_driver_s *)dev->d_private;
 
-  /* If the polling resulted in data that should be sent out on the network,
-   * the field d_len is set to a value > 0.
+  /* Send the packet */
+
+  cdcecm_transmit(priv);
+
+  /* Check if there is room in the device to hold another packet. If
+   * not, return a non-zero value to terminate the poll.
    */
 
-  if (priv->dev.d_len > 0)
-    {
-      /* Look up the destination MAC address and add it to the Ethernet
-       * header.
-       */
-
-#ifdef CONFIG_NET_IPv4
-#ifdef CONFIG_NET_IPv6
-      if (IFF_IS_IPv4(priv->dev.d_flags))
-#endif
-        {
-          arp_out(&priv->dev);
-        }
-#endif /* CONFIG_NET_IPv4 */
-
-#ifdef CONFIG_NET_IPv6
-#ifdef CONFIG_NET_IPv4
-      else
-#endif
-        {
-          neighbor_out(&priv->dev);
-        }
-#endif /* CONFIG_NET_IPv6 */
-
-      if (!devif_loopback(&priv->dev))
-        {
-          /* Send the packet */
-
-          cdcecm_transmit(priv);
-
-          /* Check if there is room in the device to hold another packet. If
-           * not, return a non-zero value to terminate the poll.
-           */
-
-          return 1;
-        }
-    }
-
-  /* If zero is returned, the polling will continue until all connections
-   * have been examined.
-   */
-
-  return 0;
+  return 1;
 }
 
 /****************************************************************************
@@ -417,30 +377,6 @@ static void cdcecm_reply(struct cdcecm_driver_s *priv)
 
   if (priv->dev.d_len > 0)
     {
-      /* Update the Ethernet header with the correct MAC address */
-
-#ifdef CONFIG_NET_IPv4
-#ifdef CONFIG_NET_IPv6
-      /* Check for an outgoing IPv4 packet */
-
-      if (IFF_IS_IPv4(priv->dev.d_flags))
-#endif
-        {
-          arp_out(&priv->dev);
-        }
-#endif
-
-#ifdef CONFIG_NET_IPv6
-#ifdef CONFIG_NET_IPv4
-      /* Otherwise, it must be an outgoing IPv6 packet */
-
-      else
-#endif
-        {
-          neighbor_out(&priv->dev);
-        }
-#endif
-
       /* And send the packet */
 
       cdcecm_transmit(priv);
@@ -493,11 +429,8 @@ static void cdcecm_receive(FAR struct cdcecm_driver_s *self)
       ninfo("IPv4 frame\n");
       NETDEV_RXIPV4(&self->dev);
 
-      /* Handle ARP on input, then dispatch IPv4 packet to the network
-       * layer.
-       */
+      /* Receive an IPv4 packet from the network device */
 
-      arp_ipin(&self->dev);
       ipv4_input(&self->dev);
 
       /* Check for a reply to the IPv4 packet */
@@ -527,7 +460,7 @@ static void cdcecm_receive(FAR struct cdcecm_driver_s *self)
     {
       /* Dispatch ARP packet to the network layer */
 
-      arp_arpin(&self->dev);
+      arp_input(&self->dev);
       NETDEV_RXARP(&self->dev);
 
       /* If the above function invocation resulted in data that should be
@@ -1408,7 +1341,7 @@ static void cdcecm_mkepdesc(int epidx,
         break;
 
       default:
-        DEBUGASSERT(false);
+        DEBUGPANIC();
     }
 }
 
@@ -1420,11 +1353,29 @@ static void cdcecm_mkepdesc(int epidx,
  *
  ****************************************************************************/
 
+#ifdef CONFIG_USBDEV_DUALSPEED
+static int16_t cdcecm_mkcfgdesc(FAR uint8_t *desc,
+                                FAR struct usbdev_devinfo_s *devinfo,
+                                uint8_t speed, uint8_t type)
+#else
 static int16_t cdcecm_mkcfgdesc(FAR uint8_t *desc,
                                 FAR struct usbdev_devinfo_s *devinfo)
+#endif
 {
   FAR struct usb_cfgdesc_s *cfgdesc = NULL;
   int16_t len = 0;
+  bool is_high_speed = false;
+
+#ifdef CONFIG_USBDEV_DUALSPEED
+  is_high_speed = (speed == USB_SPEED_HIGH);
+
+  /* Check for switches between high and full speed */
+
+  if (type == USB_DESC_TYPE_OTHERSPEEDCONFIG)
+    {
+      is_high_speed = !is_high_speed;
+    }
+#endif
 
 #ifndef CONFIG_CDCECM_COMPOSITE
   if (desc)
@@ -1596,12 +1547,6 @@ static int16_t cdcecm_mkcfgdesc(FAR uint8_t *desc,
 
   len += USB_SIZEOF_IFDESC;
 
-  #ifdef CONFIG_USBDEV_DUALSPEED
-  bool is_high_speed = USB_SPEED_HIGH;
-  #else
-  bool is_high_speed = USB_SPEED_LOW;
-  #endif
-
   if (desc)
     {
       FAR struct usb_epdesc_s *epdesc = (FAR struct usb_epdesc_s *)desc;
@@ -1668,9 +1613,17 @@ static int cdcecm_getdescriptor(FAR struct cdcecm_driver_s *self,
       break;
 #endif
 
+#ifdef CONFIG_USBDEV_DUALSPEED
+    case USB_DESC_TYPE_OTHERSPEEDCONFIG:
+#endif /* CONFIG_USBDEV_DUALSPEED */
     case USB_DESC_TYPE_CONFIG:
       {
+#ifdef CONFIG_USBDEV_DUALSPEED
+        return cdcecm_mkcfgdesc((FAR uint8_t *)desc, &self->devinfo,
+                                self->usbdev.speed, type);
+#else
         return cdcecm_mkcfgdesc((FAR uint8_t *)desc, &self->devinfo);
+#endif
       }
       break;
 

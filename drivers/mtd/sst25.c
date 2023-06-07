@@ -1011,7 +1011,7 @@ static int sst25_erase(FAR struct mtd_dev_s *dev,
                        size_t nblocks)
 {
 #ifdef CONFIG_SST25_READONLY
-  return -EACESS
+  return -EACCES;
 #else
   FAR struct sst25_dev_s *priv = (FAR struct sst25_dev_s *)dev;
   size_t blocksleft = nblocks;
@@ -1167,6 +1167,8 @@ static int sst25_ioctl(FAR struct mtd_dev_s *dev, int cmd, unsigned long arg)
                                            ((uintptr_t)arg);
           if (geo)
             {
+              memset(geo, 0, sizeof(*geo));
+
               /* Populate the geometry structure with information need to
                * know the capacity and how to access the device.
                *

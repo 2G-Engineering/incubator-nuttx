@@ -72,12 +72,27 @@ int pthread_detach(pthread_t thread)
 
   /* Find the entry associated with this pthread. */
 
-  nxsem_wait_uninterruptible(&group->tg_joinsem);
+  nxmutex_lock(&group->tg_joinlock);
   pjoin = pthread_findjoininfo(group, (pid_t)thread);
   if (!pjoin)
     {
+      FAR struct tcb_s *tcb = nxsched_get_tcb((pid_t)thread);
+
       serr("ERROR: Could not find thread entry\n");
-      ret = EINVAL;
+
+      if (tcb == NULL)
+        {
+          ret = ESRCH;
+        }
+
+      /* The thread is still active but has no join info.  In that
+       * case, it must be a task and not a pthread.
+       */
+
+      else
+        {
+          ret = EINVAL;
+        }
     }
   else
     {
@@ -107,7 +122,7 @@ int pthread_detach(pthread_t thread)
         }
     }
 
-  pthread_sem_give(&group->tg_joinsem);
+  nxmutex_unlock(&group->tg_joinlock);
 
   sinfo("Returning %d\n", ret);
   return ret;

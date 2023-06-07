@@ -36,7 +36,6 @@ config LIBCXXMINI
 config LIBCXX
 	bool "LLVM libc++ C++ Standard Library"
 	select HAVE_CXXINITIALIZE
-	select LIBC_WCHAR
 	select LIBC_LOCALE
 	---help---
 		LLVM "libc++" C++ Standard Library
@@ -50,6 +49,18 @@ config UCLIBCXX
 		https://cxx.uclibc.org/
 
 endchoice
+
+if LIBCXXMINI
+
+config ETL
+	bool "Embedded Template Library (ETL)"
+	depends on ALLOW_MIT_COMPONENTS
+	---help---
+		ETL A C++ Template library for Embedded applications
+		Implements C++ templates such as containers, string
+		singleton math without C++ STL libraries
+
+endif
 
 if LIBCXX || UCLIBCXX
 
@@ -74,6 +85,13 @@ endchoice
 
 endif
 
+config CXX_STANDARD
+	string "Language standard"
+	default "gnu++17"
+	---help---
+		Possible values:
+		gnu++98/c++98, gnu++11/c++11, gnu++14/c++14, gnu++17/c++17 and gnu++20/c++20
+
 config CXX_EXCEPTION
 	bool "Enable Exception Support"
 
@@ -81,6 +99,10 @@ config CXX_RTTI
 	bool "Enable RTTI Support"
 
 if UCLIBCXX
+
+config UCLIBCXX_WCHAR
+	bool "Enable Wide Stream Support"
+	default n
 
 config UCLIBCXX_BUFSIZE
 	int "IO Stream/Container Buffer Size"

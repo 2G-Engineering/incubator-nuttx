@@ -44,15 +44,13 @@
  * Returned Value:
  *   0 if successful.  Otherwise, an error code.
  *
- * Assumptions:
- *
  ****************************************************************************/
 
 int pthread_mutexattr_init(FAR pthread_mutexattr_t *attr)
 {
   int ret = OK;
 
-  linfo("attr=0x%p\n", attr);
+  linfo("attr=%p\n", attr);
 
   if (!attr)
     {
@@ -63,7 +61,7 @@ int pthread_mutexattr_init(FAR pthread_mutexattr_t *attr)
       attr->pshared = 0;
 
 #ifdef CONFIG_PRIORITY_INHERITANCE
-#  ifdef PTHREAD_MUTEX_DEFAULT_PRIO_INHERIT
+#  ifdef CONFIG_PTHREAD_MUTEX_DEFAULT_PRIO_INHERIT
       attr->proto   = PTHREAD_PRIO_INHERIT;
 #  else
       attr->proto   = PTHREAD_PRIO_NONE;

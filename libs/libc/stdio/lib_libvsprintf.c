@@ -67,13 +67,9 @@
 #  undef CONFIG_LIBC_LONG_LONG
 #endif
 
-/* [Re]define putc() */
-
-#ifdef putc
-#  undef putc
-#endif
-
-#define putc(c,stream)  (total_len++, (stream)->put(stream, c))
+#define stream_putc(c,stream)  (total_len++, lib_stream_putc(stream, c))
+#define stream_puts(buf, len, stream) \
+        (total_len += len, lib_stream_puts(stream, buf, len))
 
 /* Order is relevant here and matches order in format string */
 
@@ -131,7 +127,7 @@ struct arg_s
   {
     unsigned int u;
     unsigned long ul;
-#ifdef CONFIG_LIBC_LONG_LONG
+#ifdef CONFIG_HAVE_LONG_LONG
     unsigned long long ull;
 #endif
     double d;
@@ -151,7 +147,8 @@ static const char g_nullstring[] = "(null)";
 
 static int vsprintf_internal(FAR struct lib_outstream_s *stream,
                              FAR struct arg_s *arglist, int numargs,
-                             FAR const IPTR char *fmt, va_list ap);
+                             FAR const IPTR char *fmt, va_list ap)
+           printf_like(4, 0);
 
 /****************************************************************************
  * Private Functions
@@ -228,10 +225,10 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
 #ifdef CONFIG_LIBC_NUMBERED_ARGS
           if (stream != NULL)
             {
-              putc(c, stream);
+              stream_putc(c, stream);
             }
 #else
-          putc(c, stream);
+          stream_putc(c, stream);
 #endif
         }
 
@@ -413,7 +410,7 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
                   /* The only known cases that the default will be hit are
                    * (1) the eZ80 which has sizeof(size_t) = 3 which is the
                    * same as the sizeof(int).  And (2) if
-                   * CONFIG_LIBC_LONG_LONG
+                   * CONFIG_HAVE_LONG_LONG
                    * is not enabled and sizeof(size_t) is equal to
                    * sizeof(unsigned long long).  This latter case is an
                    * error.
@@ -430,7 +427,7 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
                     c = 'l';
                     break;
 
-#if defined(CONFIG_LIBC_LONG_LONG) && ULLONG_MAX != ULONG_MAX
+#if defined(CONFIG_HAVE_LONG_LONG) && ULLONG_MAX != ULONG_MAX
                   case sizeof(unsigned long long):
                     c = 'l';
                     flags |= FL_LONG;
@@ -444,7 +441,7 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
             {
               /* Same as long long if available. Otherwise, long. */
 
-#ifdef CONFIG_LIBC_LONG_LONG
+#ifdef CONFIG_HAVE_LONG_LONG
               flags |= FL_REPD_TYPE;
 #endif
               flags |= FL_LONG;
@@ -458,8 +455,11 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
                 {
                   flags |= FL_REPD_TYPE;
                 }
+              else
+                {
+                  flags |= FL_LONG;
+                }
 
-              flags |= FL_LONG;
               flags &= ~FL_SHORT;
               continue;
             }
@@ -470,8 +470,11 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
                 {
                   flags |= FL_REPD_TYPE;
                 }
+              else
+                {
+                  flags |= FL_SHORT;
+                }
 
-              flags |= FL_SHORT;
               flags &= ~FL_LONG;
               continue;
             }
@@ -492,7 +495,7 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
 
           flags &= ~(FL_LONG | FL_REPD_TYPE);
 
-#ifdef CONFIG_LIBC_LONG_LONG
+#ifdef CONFIG_HAVE_LONG_LONG
           if (sizeof(void *) == sizeof(unsigned long long))
             {
               flags |= (FL_LONG | FL_REPD_TYPE);
@@ -579,7 +582,7 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
 
           flags &= ~FL_FLTUPP;
 
-          flt_oper:
+flt_oper:
           ndigs = 0;
           if ((flags & FL_PREC) == 0)
             {
@@ -654,7 +657,7 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
                     {
                       do
                         {
-                          putc(' ', stream);
+                          stream_putc(' ', stream);
                         }
                       while (--width);
                     }
@@ -666,7 +669,7 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
 
               if (sign)
                 {
-                  putc(sign, stream);
+                  stream_putc(sign, stream);
                 }
 
               p = "inf";
@@ -685,7 +688,7 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
                       ndigs += 'I' - 'i';
                     }
 
-                  putc(ndigs, stream);
+                  stream_putc(ndigs, stream);
                   p++;
                 }
 
@@ -759,21 +762,21 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
             {
               while (width)
                 {
-                  putc(' ', stream);
+                  stream_putc(' ', stream);
                   width--;
                 }
             }
 
           if (sign != 0)
             {
-              putc(sign, stream);
+              stream_putc(sign, stream);
             }
 
           if ((flags & FL_LPAD) == 0)
             {
               while (width)
                 {
-                  putc('0', stream);
+                  stream_putc('0', stream);
                   width--;
                 }
             }
@@ -797,7 +800,7 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
 
                   if (n == -1)
                     {
-                      putc('.', stream);
+                      stream_putc('.', stream);
                     }
 
                   /* Pull digits from buffer when in-range, otherwise use 0 */
@@ -815,13 +818,13 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
                     {
                       if ((flags & FL_ALT) != 0 && n == -1)
                         {
-                          putc('.', stream);
+                          stream_putc('.', stream);
                         }
 
                       break;
                     }
 
-                  putc(out, stream);
+                  stream_putc(out, stream);
                 }
               while (1);
 
@@ -831,7 +834,7 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
                   out = '1';
                 }
 
-              putc(out, stream);
+              stream_putc(out, stream);
             }
           else
             {
@@ -845,25 +848,26 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
                   _dtoa.flags &= ~DTOA_CARRY;
                 }
 
-              putc(_dtoa.digits[0], stream);
+              stream_putc(_dtoa.digits[0], stream);
               if (prec > 0)
                 {
                   uint8_t pos;
 
-                  putc('.', stream);
+                  stream_putc('.', stream);
                   for (pos = 1; pos < 1 + prec; pos++)
                     {
-                      putc(pos < ndigs ? _dtoa.digits[pos] : '0', stream);
+                      stream_putc(pos < ndigs ? _dtoa.digits[pos] : '0',
+                                  stream);
                     }
                 }
               else if ((flags & FL_ALT) != 0)
                 {
-                  putc('.', stream);
+                  stream_putc('.', stream);
                 }
 
               /* Exponent */
 
-              putc(flags & FL_FLTUPP ? 'E' : 'e', stream);
+              stream_putc(flags & FL_FLTUPP ? 'E' : 'e', stream);
               ndigs = '+';
               if (exp < 0 || (exp == 0 && (_dtoa.flags & DTOA_CARRY) != 0))
                 {
@@ -871,14 +875,13 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
                   ndigs = '-';
                 }
 
-              putc(ndigs, stream);
-              for (ndigs = '0'; exp >= 10; exp -= 10)
+              stream_putc(ndigs, stream);
+              c = __ultoa_invert(exp, (FAR char *)buf, 10) - (FAR char *)buf;
+              while (c > 0)
                 {
-                  ndigs += 1;
+                  stream_putc(buf[c - 1], stream);
+                  c--;
                 }
-
-              putc(ndigs, stream);
-              putc('0' + exp, stream);
             }
 
           goto tail;
@@ -936,33 +939,26 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
 
           size = strnlen(pnt, (flags & FL_PREC) ? prec : ~0);
 
-        str_lpad:
+str_lpad:
           if ((flags & FL_LPAD) == 0)
             {
               while (size < width)
                 {
-                  putc(' ', stream);
+                  stream_putc(' ', stream);
                   width--;
                 }
             }
 
-          while (size)
-            {
-              putc(*pnt++, stream);
-              if (width != 0)
-                {
-                  width -= 1;
-                }
-
-              size -= 1;
-            }
+          stream_puts(pnt, size, stream);
+          width = width >= size ? width - size : 0;
+          size = 0;
 
           goto tail;
         }
 
       if (c == 'd' || c == 'i')
         {
-#ifndef CONFIG_LIBC_LONG_LONG
+#ifndef CONFIG_HAVE_LONG_LONG
           long x;
 #else
           long long x;
@@ -1039,13 +1035,16 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
             }
           else
             {
+#if !defined(CONFIG_LIBC_LONG_LONG) && defined(CONFIG_HAVE_LONG_LONG)
+              DEBUGASSERT(x >= 0 && x <= ULONG_MAX);
+#endif
               c = __ultoa_invert(x, (FAR char *)buf, 10) - (FAR char *)buf;
             }
         }
       else
         {
           int base;
-#ifndef CONFIG_LIBC_LONG_LONG
+#ifndef CONFIG_HAVE_LONG_LONG
           unsigned long x;
 #else
           unsigned long long x;
@@ -1141,10 +1140,10 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
                       continue;
                     }
 
-#ifdef CONFIG_ALLSYMS
                   case 'S':
                   case 's':
                     {
+#ifdef CONFIG_ALLSYMS
                       FAR const struct symtab_s *symbol;
                       FAR void *addr = (FAR void *)(uintptr_t)x;
                       size_t symbolsize;
@@ -1155,7 +1154,7 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
                           pnt = symbol->sym_name;
                           while (*pnt != '\0')
                             {
-                              putc(*pnt++, stream);
+                              stream_putc(*pnt++, stream);
                             }
 
                           if (c == 'S')
@@ -1167,10 +1166,9 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
 
                           continue;
                         }
-
+#endif
                       break;
                     }
-#endif
 
                   default:
                     fmt_ungetc(fmt);
@@ -1200,8 +1198,8 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
               break;
 
             default:
-              putc('%', stream);
-              putc(c, stream);
+              stream_putc('%', stream);
+              stream_putc(c, stream);
               continue;
             }
 
@@ -1211,6 +1209,9 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
             }
           else
             {
+#if !defined(CONFIG_LIBC_LONG_LONG) && defined(CONFIG_HAVE_LONG_LONG)
+              DEBUGASSERT(x <= ULONG_MAX);
+#endif
               c = __ultoa_invert(x, (FAR char *)buf, base) - (FAR char *)buf;
             }
 
@@ -1266,7 +1267,7 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
 
           while (len < width)
             {
-              putc(' ', stream);
+              stream_putc(' ', stream);
               len++;
             }
         }
@@ -1275,10 +1276,10 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
 
       if ((flags & FL_ALT) != 0)
         {
-          putc('0', stream);
+          stream_putc('0', stream);
           if ((flags & FL_ALTHEX) != 0)
             {
-              putc(flags & FL_ALTUPP ? 'X' : 'x', stream);
+              stream_putc(flags & FL_ALTUPP ? 'X' : 'x', stream);
             }
         }
       else if ((flags & (FL_NEGATIVE | FL_PLUS | FL_SPACE)) != 0)
@@ -1294,18 +1295,18 @@ static int vsprintf_internal(FAR struct lib_outstream_s *stream,
               z = '-';
             }
 
-          putc(z, stream);
+          stream_putc(z, stream);
         }
 
       while (prec > c)
         {
-          putc('0', stream);
+          stream_putc('0', stream);
           prec--;
         }
 
       while (c)
         {
-          putc(buf[--c], stream);
+          stream_putc(buf[--c], stream);
         }
 
 tail:
@@ -1314,7 +1315,7 @@ tail:
 
       while (width)
         {
-          putc(' ', stream);
+          stream_putc(' ', stream);
           width--;
         }
     }
@@ -1344,7 +1345,7 @@ int lib_vsprintf(FAR struct lib_outstream_s *stream,
       switch (arglist[i].type)
         {
         case TYPE_LONG_LONG:
-#ifdef CONFIG_LIBC_LONG_LONG
+#ifdef CONFIG_HAVE_LONG_LONG
           arglist[i].value.ull = va_arg(ap, unsigned long long);
           break;
 #endif

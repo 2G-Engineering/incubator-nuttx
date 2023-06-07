@@ -33,11 +33,11 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <queue.h>
 #include <debug.h>
 
 #include <nuttx/irq.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/queue.h>
 #include <nuttx/wdog.h>
 #include <nuttx/arch.h>
 #include <nuttx/serial/serial.h>
@@ -471,9 +471,6 @@ static int cdcacm_recvpacket(FAR struct cdcacm_dev_s *priv,
 
   DEBUGASSERT(priv != NULL && rdcontainer != NULL);
 
-  uinfo("head=%d tail=%d nrdq=%d reqlen=%d\n",
-        priv->serdev.recv.head, priv->serdev.recv.tail, priv->nrdq, reqlen);
-
 #ifdef CONFIG_CDCACM_IFLOWCONTROL
   DEBUGASSERT(priv->rxenabled && !priv->iactive);
 #else
@@ -485,6 +482,9 @@ static int cdcacm_recvpacket(FAR struct cdcacm_dev_s *priv,
 
   reqbuf = &req->buf[rdcontainer->offset];
   reqlen = req->xfrd - rdcontainer->offset;
+
+  uinfo("head=%d tail=%d nrdq=%d reqlen=%d\n",
+        priv->serdev.recv.head, priv->serdev.recv.tail, priv->nrdq, reqlen);
 
   serdev = &priv->serdev;
   recv   = &serdev->recv;
@@ -1982,7 +1982,7 @@ static int cdcacm_setup(FAR struct usbdevclass_driver_s *driver,
 #ifndef CONFIG_CDCACM_COMPOSITE
       ret = EP_SUBMIT(dev->ep0, ctrlreq);
 #else
-      ret = composite_ep0submit(driver, dev, ctrlreq);
+      ret = composite_ep0submit(driver, dev, ctrlreq, ctrl);
 #endif
       if (ret < 0)
         {
@@ -2339,9 +2339,6 @@ static int cdcuart_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
         /* And update with flags from this layer */
 
-        termiosp->c_iflag = serdev->tc_iflag;
-        termiosp->c_oflag = serdev->tc_oflag;
-        termiosp->c_lflag = serdev->tc_lflag;
         termiosp->c_cflag =
             ((priv->linecoding.parity != CDC_PARITY_NONE) ? PARENB : 0) |
             ((priv->linecoding.parity == CDC_PARITY_ODD) ? PARODD : 0) |
@@ -2358,10 +2355,10 @@ static int cdcuart_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
         termiosp->c_cflag |= (priv->iflow) ? CRTS_IFLOW : 0;
 #endif
-      cfsetispeed(termiosp, (speed_t) priv->linecoding.baud[3] << 24 |
-                            (speed_t) priv->linecoding.baud[2] << 16 |
-                            (speed_t) priv->linecoding.baud[1] << 8  |
-                            (speed_t) priv->linecoding.baud[0]);
+        cfsetispeed(termiosp, (speed_t) priv->linecoding.baud[3] << 24 |
+                              (speed_t) priv->linecoding.baud[2] << 16 |
+                              (speed_t) priv->linecoding.baud[1] << 8  |
+                              (speed_t) priv->linecoding.baud[0]);
       }
       break;
 
@@ -2379,10 +2376,6 @@ static int cdcuart_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
           }
 
         /* Update the flags we keep at this layer */
-
-        serdev->tc_iflag = termiosp->c_iflag;
-        serdev->tc_oflag = termiosp->c_oflag;
-        serdev->tc_lflag = termiosp->c_lflag;
 
 #ifdef CONFIG_CDCACM_OFLOWCONTROL
         /* Handle changes to output flow control */

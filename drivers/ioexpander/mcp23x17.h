@@ -29,7 +29,7 @@
 
 #include <nuttx/wdog.h>
 #include <nuttx/clock.h>
-#include <nuttx/semaphore.h>
+#include <nuttx/mutex.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/ioexpander/ioexpander.h>
 #include <nuttx/ioexpander/mcp23x17.h>
@@ -121,7 +121,7 @@
 #define MCP23X17_IOCON_ODR              (1 << 2) /* Config INT pin as open-drain */
 #define MCP23X17_IOCON_HAEN             (1 << 3) /* HW Address enable bit */
 #define MCP23X17_IOCON_DISSLW           (1 << 4) /* Disable Slew Rate for SDA output */
-#define MCP23X17_IOCON_SEQOP            (1 << 5) /* Disable Sequencial Operation */
+#define MCP23X17_IOCON_SEQOP            (1 << 5) /* Disable Sequential Operation */
 #define MCP23X17_IOCON_MIRROR           (1 << 6) /* Mirror INT pins */
 #define MCP23X17_IOCON_BANK             (1 << 7) /* Configure how to address register */
 
@@ -152,9 +152,13 @@ struct mcp23x17_dev_s
   struct ioexpander_dev_s dev;          /* Nested structure to allow casting
                                          * as public gpio expander.
                                          */
+#ifdef CONFIG_MCP23X17_MULTIPLE
+  FAR struct mcp23x17_dev_s *flink;     /* Supports a singly linked list of drivers */
+#endif
+
   FAR struct mcp23x17_config_s *config; /* Board configuration data */
   FAR struct i2c_master_s *i2c;         /* Saved I2C driver instance */
-  sem_t exclsem;                        /* Mutual exclusion */
+  mutex_t lock;                         /* Mutual exclusion */
 
 #ifdef CONFIG_IOEXPANDER_INT_ENABLE
 #ifdef CONFIG_MCP23X17_INT_POLL

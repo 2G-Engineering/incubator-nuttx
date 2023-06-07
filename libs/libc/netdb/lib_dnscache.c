@@ -53,6 +53,7 @@ struct dns_cache_s
   char              name[CONFIG_NETDB_DNSCLIENT_NAMESIZE];
   uint8_t           naddr;      /* How many addresses per name */
   union dns_addr_u  addr[CONFIG_NETDB_MAX_IPADDR];
+  uint32_t          ttl;
 };
 
 /****************************************************************************
@@ -84,6 +85,7 @@ static struct dns_cache_s g_dns_cache[CONFIG_NETDB_DNSCLIENT_ENTRIES];
  *   hostname - The hostname string to be cached.
  *   addr     - The IP addresses associated with the hostname.
  *   naddr    - The count of the IP addresses.
+ *   ttl      - The TTL of the IP addresses.
  *
  * Returned Value:
  *   None
@@ -91,7 +93,8 @@ static struct dns_cache_s g_dns_cache[CONFIG_NETDB_DNSCLIENT_ENTRIES];
  ****************************************************************************/
 
 void dns_save_answer(FAR const char *hostname,
-                     FAR const union dns_addr_u *addr, int naddr)
+                     FAR const union dns_addr_u *addr, int naddr,
+                     uint32_t ttl)
 {
   FAR struct dns_cache_s *entry;
 #if CONFIG_NETDB_DNSCLIENT_LIFESEC > 0
@@ -105,7 +108,7 @@ void dns_save_answer(FAR const char *hostname,
 
   /* Get exclusive access to the DNS cache */
 
-  dns_semtake();
+  dns_lock();
 
   /* Get the index to the new head of the list */
 
@@ -145,11 +148,12 @@ void dns_save_answer(FAR const char *hostname,
   strlcpy(entry->name, hostname, CONFIG_NETDB_DNSCLIENT_NAMESIZE);
   memcpy(&entry->addr, addr, naddr * sizeof(*addr));
   entry->naddr = naddr;
+  entry->ttl = ttl;
 
   /* Save the updated head index */
 
   g_dns_head = next;
-  dns_semgive();
+  dns_unlock();
 }
 
 /****************************************************************************
@@ -167,14 +171,14 @@ void dns_clear_answer(void)
 {
   /* Get exclusive access to the DNS cache */
 
-  dns_semtake();
+  dns_lock();
 
   /* Reset the circular of DNS cache */
 
   g_dns_head = 0;
   g_dns_tail = 0;
 
-  dns_semgive();
+  dns_unlock();
 }
 
 /****************************************************************************
@@ -213,7 +217,7 @@ int dns_find_answer(FAR const char *hostname, FAR union dns_addr_u *addr,
 
   /* Get exclusive access to the DNS cache */
 
-  dns_semtake();
+  dns_lock();
 
 #if CONFIG_NETDB_DNSCLIENT_LIFESEC > 0
   /* Get the current time */
@@ -242,7 +246,8 @@ int dns_find_answer(FAR const char *hostname, FAR union dns_addr_u *addr,
        */
 
       elapsed = (uint32_t)now.tv_sec - (uint32_t)entry->ctime;
-      if (ret >= 0 && elapsed > CONFIG_NETDB_DNSCLIENT_LIFESEC)
+      if (ret >= 0 &&
+          (elapsed > CONFIG_NETDB_DNSCLIENT_LIFESEC || elapsed > entry->ttl))
         {
           /* This entry has expired.  Increment the tail index to exclude
            * this entry on future traversals.
@@ -274,7 +279,7 @@ int dns_find_answer(FAR const char *hostname, FAR union dns_addr_u *addr,
 
               memcpy(addr, &entry->addr, *naddr * sizeof(*addr));
 
-              dns_semgive();
+              dns_unlock();
               return OK;
             }
         }
@@ -282,7 +287,7 @@ int dns_find_answer(FAR const char *hostname, FAR union dns_addr_u *addr,
 
   ret = -ENOENT;
 
-  dns_semgive();
+  dns_unlock();
   return ret;
 }
 

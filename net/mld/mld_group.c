@@ -27,7 +27,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <queue.h>
 #include <assert.h>
 #include <debug.h>
 
@@ -36,6 +35,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/wdog.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/queue.h>
 #include <nuttx/net/net.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/ip.h>
@@ -58,6 +58,7 @@
  *
  ****************************************************************************/
 
+#ifndef CONFIG_NET_MLD_ROUTER
 static int mld_ngroups(FAR struct net_driver_s *dev)
 {
   FAR struct mld_group_s *group;
@@ -79,6 +80,7 @@ static int mld_ngroups(FAR struct net_driver_s *dev)
 
   return ngroups > 0 ? ngroups - 1 : 0;
 }
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -112,13 +114,7 @@ FAR struct mld_group_s *mld_grpalloc(FAR struct net_driver_s *dev,
       /* Initialize the non-zero elements of the group structure */
 
       net_ipv6addr_copy(group->grpaddr, addr);
-
-      /* This semaphore is used for signaling and, hence, should not have
-       * priority inheritance enabled.
-       */
-
       nxsem_init(&group->sem, 0, 0);
-      nxsem_set_protocol(&group->sem, SEM_PRIO_NONE);
 
       /* Save the interface index */
 

@@ -28,10 +28,10 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <queue.h>
 #include <debug.h>
 
 #include <nuttx/nuttx.h>
+#include <nuttx/queue.h>
 #include <nuttx/net/net.h>
 
 #include "socket/socket.h"
@@ -55,7 +55,7 @@ static int local_waitlisten(FAR struct local_conn_s *server)
     {
       /* No.. wait for a connection or a signal */
 
-      ret = net_lockedwait(&server->lc_waitsem);
+      ret = net_sem_wait(&server->lc_waitsem);
       if (ret < 0)
         {
           return ret;
@@ -96,12 +96,14 @@ static int local_waitlisten(FAR struct local_conn_s *server)
  ****************************************************************************/
 
 int local_accept(FAR struct socket *psock, FAR struct sockaddr *addr,
-                 FAR socklen_t *addrlen, FAR struct socket *newsock)
+                 FAR socklen_t *addrlen, FAR struct socket *newsock,
+                 int flags)
 {
   FAR struct local_conn_s *server;
   FAR struct local_conn_s *client;
   FAR struct local_conn_s *conn;
   FAR dq_entry_t *waiter;
+  bool nonblock = !!(flags & SOCK_NONBLOCK);
   int ret;
 
   /* Some sanity checks */
@@ -120,7 +122,7 @@ int local_accept(FAR struct socket *psock, FAR struct sockaddr *addr,
    * address
    */
 
-  server = (FAR struct local_conn_s *)psock->s_conn;
+  server = psock->s_conn;
 
   if (server->lc_proto != SOCK_STREAM ||
       server->lc_state != LOCAL_STATE_LISTENING ||
@@ -173,15 +175,14 @@ int local_accept(FAR struct socket *psock, FAR struct sockaddr *addr,
               client->lc_peer = conn;
 #endif /* CONFIG_NET_LOCAL_SCM */
 
-              strncpy(conn->lc_path, client->lc_path, UNIX_PATH_MAX - 1);
-              conn->lc_path[UNIX_PATH_MAX - 1] = '\0';
+              strlcpy(conn->lc_path, client->lc_path, sizeof(conn->lc_path));
               conn->lc_instance_id = client->lc_instance_id;
 
               /* Open the server-side write-only FIFO.  This should not
                * block.
                */
 
-              ret = local_open_server_tx(conn, false);
+              ret = local_open_server_tx(conn, nonblock);
               if (ret < 0)
                 {
                   nerr("ERROR: Failed to open write-only FIFOs for %s: %d\n",
@@ -200,7 +201,7 @@ int local_accept(FAR struct socket *psock, FAR struct sockaddr *addr,
                * for writing.
                */
 
-              ret = local_open_server_rx(conn, false);
+              ret = local_open_server_rx(conn, nonblock);
               if (ret < 0)
                 {
                    nerr("ERROR: Failed to open read-only FIFOs for %s: %d\n",
@@ -243,6 +244,12 @@ int local_accept(FAR struct socket *psock, FAR struct sockaddr *addr,
             }
 
           nxsem_post(&client->lc_waitsem);
+
+          if (ret == OK)
+            {
+              ret = net_sem_wait(&client->lc_donesem);
+            }
+
           return ret;
         }
 

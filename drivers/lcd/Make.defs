@@ -45,6 +45,10 @@ ifeq ($(CONFIG_LCD_LPM013M091A),y)
   CSRCS += lpm013m091a.c
 endif
 
+ifeq ($(CONFIG_LCD_APA102),y)
+  CSRCS += apa102.c
+endif
+
 ifeq ($(CONFIG_LCD_P14201),y)
   CSRCS += p14201.c
 endif
@@ -141,6 +145,10 @@ ifeq ($(CONFIG_LCD_GC9A01),y)
   CSRCS += gc9a01.c
 endif
 
+ifeq ($(CONFIG_LCD_JD9851),y)
+  CSRCS += jd9851.c
+endif
+
 endif # CONFIG_LCD
 
 ifeq ($(CONFIG_SLCD),y)
@@ -171,13 +179,13 @@ endif
 ifeq ($(CONFIG_LCD),y)
   DEPPATH += --dep-path lcd
   VPATH += :lcd
-  CFLAGS += ${shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)drivers$(DELIM)lcd}
+  CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)drivers$(DELIM)lcd
 else ifeq ($(CONFIG_SLCD),y)
   DEPPATH += --dep-path lcd
   VPATH += :lcd
-  CFLAGS += ${shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)drivers$(DELIM)lcd}
+  CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)drivers$(DELIM)lcd
 else ifeq ($(CONFIG_LCD_OTHER),y)
   DEPPATH += --dep-path lcd
   VPATH += :lcd
-  CFLAGS += ${shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)drivers$(DELIM)lcd}
+  CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)drivers$(DELIM)lcd
 endif

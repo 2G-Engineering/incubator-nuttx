@@ -25,7 +25,7 @@
  * Included Files
  ****************************************************************************/
 
-#include "riscv_internal.h"
+#include "riscv_common_memorymap.h"
 #include "hardware/mpfs_clint.h"
 #include "hardware/mpfs_memorymap.h"
 #include "hardware/mpfs_plic.h"
@@ -39,7 +39,7 @@
 /* Idle thread stack starts from _ebss */
 
 #ifndef __ASSEMBLY__
-#define MPFS_IDLESTACK_BASE  (uintptr_t)&_ebss
+#define MPFS_IDLESTACK_BASE  (uintptr_t)_ebss
 #else
 #define MPFS_IDLESTACK_BASE  _ebss
 #endif

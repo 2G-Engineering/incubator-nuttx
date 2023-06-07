@@ -47,9 +47,9 @@
  */
 
 #if defined(CONFIG_ARCH_HC12)
-# include <arch/hc12/irq.h>
+#  include <arch/hc12/irq.h>
 #elif defined(CONFIG_ARCH_HCS12)
-# include <arch/hcs12/irq.h>
+#  include <arch/hcs12/irq.h>
 #endif
 
 /****************************************************************************
@@ -68,6 +68,23 @@ extern "C"
 #else
 #define EXTERN extern
 #endif
+
+/****************************************************************************
+ * Inline functions
+ ****************************************************************************/
+
+/* Return the current value of the stack pointer */
+
+static inline uint16_t up_getsp(void)
+{
+  uint16_t ret;
+  __asm__
+  (
+    "\tsts %0\n"
+  : "=m"(ret) :
+  );
+  return ret;
+}
 
 /****************************************************************************
  * Public Data

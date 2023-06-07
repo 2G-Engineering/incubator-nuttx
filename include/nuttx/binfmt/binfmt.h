@@ -39,7 +39,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define BINFMT_NALLOC 3
+#define BINFMT_NALLOC 4
 
 /****************************************************************************
  * Public Types
@@ -82,11 +82,12 @@ struct binary_s
 #ifdef CONFIG_ARCH_ADDRENV
   /* Address environment.
    *
-   * addrenv - This is the handle created by up_addrenv_create() that can be
+   * addrenv - This is the handle created by addrenv_allocate() that can be
    *   used to manage the tasks address space.
    */
 
-  group_addrenv_t addrenv;             /* Task group address environment */
+  FAR addrenv_t *addrenv;              /* Address environment */
+  FAR addrenv_t *oldenv;               /* Saved address environment */
 #endif
 
   size_t mapsize;                      /* Size of the mapped address region (needed for munmap) */
@@ -97,6 +98,10 @@ struct binary_s
 
   uint8_t priority;                    /* Task execution priority */
   size_t stacksize;                    /* Size of the stack in bytes (unallocated) */
+
+#ifndef CONFIG_BUILD_KERNEL
+  FAR void *stackaddr;                 /* Task stack address */
+#endif
 
   /* Unload module callback */
 
@@ -134,7 +139,8 @@ struct binfmt_s
   /* Unload module callback */
 
   CODE int (*coredump)(FAR struct memory_region_s *regions,
-                       FAR struct lib_outstream_s *stream);
+                       FAR struct lib_outstream_s *stream,
+                       pid_t pid);
 };
 
 /****************************************************************************
@@ -204,7 +210,8 @@ int unregister_binfmt(FAR struct binfmt_s *binfmt);
  ****************************************************************************/
 
 int core_dump(FAR struct memory_region_s *regions,
-              FAR struct lib_outstream_s *stream);
+              FAR struct lib_outstream_s *stream,
+              pid_t pid);
 
 /****************************************************************************
  * Name: load_module
@@ -257,9 +264,10 @@ int unload_module(FAR struct binary_s *bin);
  *
  ****************************************************************************/
 
-int exec_module(FAR const struct binary_s *binp,
+int exec_module(FAR struct binary_s *binp,
                 FAR const char *filename, FAR char * const *argv,
-                FAR char * const *envp);
+                FAR char * const *envp,
+                FAR const posix_spawn_file_actions_t *actions);
 
 /****************************************************************************
  * Name: exec
@@ -350,6 +358,7 @@ int exec(FAR const char *filename, FAR char * const *argv,
  *              exported by the caller and made available for linking the
  *              module into the system.
  *   nexports - The number of symbols in the exports table.
+ *   actions  - The spawn file actions
  *   attr     - The spawn attributes.
  *
  * Returned Value:
@@ -361,7 +370,8 @@ int exec(FAR const char *filename, FAR char * const *argv,
 
 int exec_spawn(FAR const char *filename, FAR char * const *argv,
                FAR char * const *envp, FAR const struct symtab_s *exports,
-               int nexports, FAR const posix_spawnattr_t *attr);
+               int nexports, FAR const posix_spawn_file_actions_t *actions,
+               FAR const posix_spawnattr_t *attr);
 
 /****************************************************************************
  * Name: binfmt_exit

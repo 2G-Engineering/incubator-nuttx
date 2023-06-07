@@ -26,15 +26,14 @@
 
 #include <sys/types.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <string.h>
 #include <pthread.h>
 #include <sched.h>
 #include <debug.h>
 #include <assert.h>
 #include <errno.h>
-#include <queue.h>
 
+#include <nuttx/queue.h>
 #include <nuttx/sched.h>
 #include <nuttx/arch.h>
 #include <nuttx/semaphore.h>
@@ -86,14 +85,14 @@ const pthread_attr_t g_default_pthread_attr = PTHREAD_ATTR_INITIALIZER;
  ****************************************************************************/
 
 static inline void pthread_tcb_setup(FAR struct pthread_tcb_s *ptcb,
+                                     FAR struct tcb_s *parent,
                                      pthread_trampoline_t trampoline,
                                      pthread_addr_t arg)
 {
 #if CONFIG_TASK_NAME_SIZE > 0
   /* Copy the pthread name into the TCB */
 
-  snprintf(ptcb->cmn.name, CONFIG_TASK_NAME_SIZE,
-           "pt-%p", ptcb->cmn.entry.pthread);
+  strlcpy(ptcb->cmn.name, parent->name, CONFIG_TASK_NAME_SIZE);
 #endif /* CONFIG_TASK_NAME_SIZE */
 
   /* For pthreads, args are strictly pass-by-value; that actual
@@ -102,39 +101,6 @@ static inline void pthread_tcb_setup(FAR struct pthread_tcb_s *ptcb,
 
   ptcb->trampoline = trampoline;
   ptcb->arg        = arg;
-}
-
-/****************************************************************************
- * Name: pthread_addjoininfo
- *
- * Description:
- *   Add a join structure to the local data set.
- *
- * Input Parameters:
- *   pjoin
- *
- * Returned Value:
- *   None
- *
- * Assumptions:
- *   The caller has provided protection from re-entrancy.
- *
- ****************************************************************************/
-
-static inline void pthread_addjoininfo(FAR struct task_group_s *group,
-                                       FAR struct join_s *pjoin)
-{
-  pjoin->next = NULL;
-  if (!group->tg_jointail)
-    {
-      group->tg_joinhead = pjoin;
-    }
-  else
-    {
-      group->tg_jointail->next = pjoin;
-    }
-
-  group->tg_jointail = pjoin;
 }
 
 /****************************************************************************
@@ -151,9 +117,6 @@ static inline void pthread_addjoininfo(FAR struct task_group_s *group,
 static void pthread_start(void)
 {
   FAR struct pthread_tcb_s *ptcb = (FAR struct pthread_tcb_s *)this_task();
-  FAR struct join_s *pjoin = (FAR struct join_s *)ptcb->joininfo;
-
-  DEBUGASSERT(pjoin != NULL);
 
   /* The priority of this thread may have been boosted to avoid priority
    * inversion problems.  If that is the case, then drop to the correct
@@ -215,8 +178,8 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
                       pthread_startroutine_t entry, pthread_addr_t arg)
 {
   FAR struct pthread_tcb_s *ptcb;
-  FAR struct join_s *pjoin;
   struct sched_param param;
+  FAR struct tcb_s *parent;
   int policy;
   int errcode;
   pid_t pid;
@@ -256,7 +219,7 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
 #ifdef CONFIG_ARCH_ADDRENV
   /* Share the address environment of the parent task group. */
 
-  ret = up_addrenv_attach(ptcb->cmn.group, this_task());
+  ret = addrenv_join(this_task(), (FAR struct tcb_s *)ptcb);
   if (ret < 0)
     {
       errcode = -ret;
@@ -264,19 +227,9 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
     }
 #endif
 
-  /* Allocate a detachable structure to support pthread_join logic */
-
-  pjoin = (FAR struct join_s *)kmm_zalloc(sizeof(struct join_s));
-  if (!pjoin)
-    {
-      serr("ERROR: Failed to allocate join\n");
-      errcode = ENOMEM;
-      goto errout_with_tcb;
-    }
-
   if (attr->detachstate == PTHREAD_CREATE_DETACHED)
     {
-      pjoin->detached = true;
+      ptcb->cmn.flags |= TCB_FLAG_DETACHED;
     }
 
   if (attr->stackaddr)
@@ -297,7 +250,7 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
   if (ret != OK)
     {
       errcode = ENOMEM;
-      goto errout_with_join;
+      goto errout_with_tcb;
     }
 
   /* Initialize thread local storage */
@@ -306,7 +259,7 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
   if (ret != OK)
     {
       errcode = -ret;
-      goto errout_with_join;
+      goto errout_with_tcb;
     }
 
   /* Should we use the priority and scheduler specified in the pthread
@@ -324,7 +277,7 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
       if (ret < 0)
         {
           errcode = -ret;
-          goto errout_with_join;
+          goto errout_with_tcb;
         }
 
       /* Get the scheduler policy for this thread */
@@ -333,7 +286,7 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
       if (policy < 0)
         {
           errcode = -policy;
-          goto errout_with_join;
+          goto errout_with_tcb;
         }
     }
   else
@@ -372,7 +325,7 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
       if (repl_ticks < budget_ticks)
         {
           errcode = EINVAL;
-          goto errout_with_join;
+          goto errout_with_tcb;
         }
 
       /* Initialize the sporadic policy */
@@ -401,7 +354,7 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
       if (ret < 0)
         {
           errcode = -ret;
-          goto errout_with_join;
+          goto errout_with_tcb;
         }
     }
 #endif
@@ -413,17 +366,18 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
   if (ret != OK)
     {
       errcode = EBUSY;
-      goto errout_with_join;
+      goto errout_with_tcb;
     }
 
-#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
+#if defined(CONFIG_ARCH_ADDRENV) && \
+    defined(CONFIG_BUILD_KERNEL) && defined(CONFIG_ARCH_KERNEL_STACK)
   /* Allocate the kernel stack */
 
   ret = up_addrenv_kstackalloc(&ptcb->cmn);
   if (ret < 0)
     {
       errcode = ENOMEM;
-      goto errout_with_join;
+      goto errout_with_tcb;
     }
 #endif
 
@@ -441,11 +395,14 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
     }
 #endif
 
+  parent = this_task();
+  DEBUGASSERT(parent != NULL);
+
   /* Configure the TCB for a pthread receiving on parameter
    * passed by value
    */
 
-  pthread_tcb_setup(ptcb, trampoline, arg);
+  pthread_tcb_setup(ptcb, parent, trampoline, arg);
 
   /* Join the parent's task group */
 
@@ -453,14 +410,10 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
   if (ret < 0)
     {
       errcode = ENOMEM;
-      goto errout_with_join;
+      goto errout_with_tcb;
     }
 
   group_joined = true;
-
-  /* Attach the join info to the TCB. */
-
-  ptcb->joininfo = (FAR void *)pjoin;
 
   /* Set the appropriate scheduling policy in the TCB */
 
@@ -468,12 +421,12 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
   switch (policy)
     {
       default:
-        DEBUGPANIC();
       case SCHED_FIFO:
         ptcb->cmn.flags    |= TCB_FLAG_SCHED_FIFO;
         break;
 
 #if CONFIG_RR_INTERVAL > 0
+      case SCHED_OTHER:
       case SCHED_RR:
         ptcb->cmn.flags    |= TCB_FLAG_SCHED_RR;
         ptcb->cmn.timeslice = MSEC2TICK(CONFIG_RR_INTERVAL);
@@ -485,12 +438,6 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
         ptcb->cmn.flags    |= TCB_FLAG_SCHED_SPORADIC;
         break;
 #endif
-
-#if 0 /* Not supported */
-      case SCHED_OTHER:
-        ptcb->cmn.flags    |= TCB_FLAG_SCHED_OTHER;
-        break;
-#endif
     }
 
 #ifdef CONFIG_CANCELLATION_POINTS
@@ -500,35 +447,10 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
 #endif
 
   /* Get the assigned pid before we start the task (who knows what
-   * could happen to ptcb after this!).  Copy this ID into the join structure
-   * as well.
+   * could happen to ptcb after this!).
    */
 
   pid = ptcb->cmn.pid;
-  pjoin->thread = (pthread_t)pid;
-
-  /* Initialize the semaphore in the join structure to zero. */
-
-  ret = nxsem_init(&pjoin->exit_sem, 0, 0);
-
-  if (ret < 0)
-    {
-      ret = -ret;
-    }
-
-  /* Thse semaphore are used for signaling and, hence, should not have
-   * priority inheritance enabled.
-   */
-
-    if (ret == OK)
-      {
-        ret = nxsem_set_protocol(&pjoin->exit_sem, SEM_PRIO_NONE);
-      }
-
-    if (ret < 0)
-      {
-        ret = -ret;
-      }
 
   /* If the priority of the new pthread is lower than the priority of the
    * parent thread, then starting the pthread could result in both the
@@ -539,18 +461,12 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
    * so it has the same priority as the parent thread.
    */
 
-  if (ret == OK)
+  if (ptcb->cmn.sched_priority < parent->sched_priority)
     {
-      FAR struct tcb_s *parent = this_task();
-      DEBUGASSERT(parent != NULL);
-
-      if (ptcb->cmn.sched_priority < parent->sched_priority)
+      ret = nxsched_set_priority(&ptcb->cmn, parent->sched_priority);
+      if (ret < 0)
         {
-          ret = nxsched_set_priority(&ptcb->cmn, parent->sched_priority);
-          if (ret < 0)
-            {
-              ret = -ret;
-            }
+          ret = -ret;
         }
     }
 
@@ -559,9 +475,6 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
   sched_lock();
   if (ret == OK)
     {
-      nxsem_wait_uninterruptible(&ptcb->cmn.group->tg_joinsem);
-      pthread_addjoininfo(ptcb->cmn.group, pjoin);
-      pthread_sem_give(&ptcb->cmn.group->tg_joinsem);
       nxtask_activate((FAR struct tcb_s *)ptcb);
 
       /* Return the thread information to the caller */
@@ -576,18 +489,13 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
   else
     {
       sched_unlock();
-      dq_rem((FAR dq_entry_t *)ptcb, (FAR dq_queue_t *)&g_inactivetasks);
-      nxsem_destroy(&pjoin->exit_sem);
+      dq_rem((FAR dq_entry_t *)ptcb, &g_inactivetasks);
 
       errcode = EIO;
-      goto errout_with_join;
+      goto errout_with_tcb;
     }
 
   return ret;
-
-errout_with_join:
-  kmm_free(pjoin);
-  ptcb->joininfo = NULL;
 
 errout_with_tcb:
 

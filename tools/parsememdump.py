@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 # tools/parsememdump.py
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
@@ -101,7 +101,7 @@ if __name__ == "__main__":
         nargs=1,
     )
 
-    parser.add_argument("-o", "--output", help="output file,defult output shell")
+    parser.add_argument("-o", "--output", help="output file,default output shell")
 
     args = parser.parse_args()
     dump_file = open("%s" % args.file[0], "r")
@@ -115,10 +115,27 @@ if __name__ == "__main__":
     list.sort(key=lambda x: x.cnt, reverse=True)
 
     log = log_output(args)
+    total_dir = {}
+    for t in list:
+        if t.pid in total_dir:
+            total_dir[t.pid] += t.size
+        else:
+            total_dir.setdefault(t.pid, t.size)
+
+    log.output("total memory used for ervey pid\n")
+    log.output("pid       total size\n")
+    total_size = 0
+    for pid, size in sorted(total_dir.items(), key=lambda x: x[1]):
+        log.output("%-3d       %-6d\n" % (pid, size))
+        total_size += size
+    log.output("all used memory %-6d\n" % (total_size))
+
     log.output("cnt   size   pid   addr         mem\n")
     for t in list:
         memstr = ""
         log.output("%-4d  %-6d %-3d   %s   " % (t.cnt, t.size, t.pid, t.addr))
+        if t.mem == []:
+            continue
         for mem in t.mem:
             log.output("%s " % mem)
             memstr += mem + " "

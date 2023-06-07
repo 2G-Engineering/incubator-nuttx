@@ -31,12 +31,13 @@
 #include <sys/un.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <queue.h>
 #include <stdint.h>
 #include <poll.h>
 
 #include <nuttx/fs/fs.h>
+#include <nuttx/queue.h>
 #include <nuttx/net/net.h>
+#include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 
 #ifdef CONFIG_NET_LOCAL
@@ -48,17 +49,6 @@
 #define LOCAL_NPOLLWAITERS 2
 #define LOCAL_NCONTROLFDS  4
 
-/* Packet format in FIFO:
- *
- * 1. Sync bytes (7 at most)
- * 2. End/Start byte
- * 3. 16-bit packet length (in host order)
- * 4. Packet data (in host order)
- */
-
-#define LOCAL_SYNC_BYTE   0x42     /* Byte in sync sequence */
-#define LOCAL_END_BYTE    0xbd     /* End of sync sequence */
-
 /****************************************************************************
  * Public Type Definitions
  ****************************************************************************/
@@ -67,8 +57,7 @@
 
 enum local_type_e
 {
-  LOCAL_TYPE_UNTYPED = 0,      /* Type is not determined until the socket is bound */
-  LOCAL_TYPE_UNNAMED,          /* A Unix socket that is not bound to any name */
+  LOCAL_TYPE_UNNAMED = 0,      /* A Unix socket that is not bound to any name */
   LOCAL_TYPE_PATHNAME,         /* lc_path holds a null terminated string */
   LOCAL_TYPE_ABSTRACT          /* lc_path is length zero */
 };
@@ -139,12 +128,16 @@ struct local_conn_s
   uint16_t lc_cfpcount;          /* Control file pointer counter */
   FAR struct file *
      lc_cfps[LOCAL_NCONTROLFDS]; /* Socket message control filep */
+  struct ucred lc_cred;          /* The credentials of connection instance */
 #endif /* CONFIG_NET_LOCAL_SCM */
+
+  mutex_t lc_sendlock;           /* Make sending multi-thread safe */
 
 #ifdef CONFIG_NET_LOCAL_STREAM
   /* SOCK_STREAM fields common to both client and server */
 
   sem_t lc_waitsem;            /* Use to wait for a connection to be accepted */
+  sem_t lc_donesem;            /* Use to wait for client connected done */
   FAR struct socket *lc_psock; /* A reference to the socket structure */
 
   /* The following is a list if poll structures of threads waiting for
@@ -354,7 +347,8 @@ int local_listen(FAR struct socket *psock, int backlog);
 
 #ifdef CONFIG_NET_LOCAL_STREAM
 int local_accept(FAR struct socket *psock, FAR struct sockaddr *addr,
-                 FAR socklen_t *addrlen, FAR struct socket *newsock);
+                 FAR socklen_t *addrlen, FAR struct socket *newsock,
+                 int flags);
 #endif
 
 /****************************************************************************

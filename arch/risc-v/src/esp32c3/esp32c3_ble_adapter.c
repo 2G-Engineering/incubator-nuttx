@@ -44,6 +44,7 @@
 #include <nuttx/kthread.h>
 #include <nuttx/wdog.h>
 #include <nuttx/wqueue.h>
+#include <nuttx/semaphore.h>
 #include <nuttx/sched.h>
 #include <nuttx/signal.h>
 
@@ -360,24 +361,24 @@ extern void btdm_deep_sleep_mem_deinit(void);
 extern void btdm_ble_power_down_dma_copy(bool copy);
 extern uint8_t btdm_sleep_clock_sync(void);
 
-extern char _bss_start_btdm;
-extern char _bss_end_btdm;
-extern char _data_start_btdm;
-extern char _data_end_btdm;
-extern uint32_t _data_start_btdm_rom;
-extern uint32_t _data_end_btdm_rom;
+extern uint8_t _bss_start_btdm[];
+extern uint8_t _bss_end_btdm[];
+extern uint8_t _data_start_btdm[];
+extern uint8_t _data_end_btdm[];
+extern const uint32_t _data_start_btdm_rom;
+extern const uint32_t _data_end_btdm_rom;
 
-extern uint32_t _bt_bss_start;
-extern uint32_t _bt_bss_end;
-extern uint32_t _btdm_bss_start;
-extern uint32_t _btdm_bss_end;
-extern uint32_t _bt_data_start;
-extern uint32_t _bt_data_end;
-extern uint32_t _btdm_data_start;
-extern uint32_t _btdm_data_end;
+extern uint8_t _bt_bss_start[];
+extern uint8_t _bt_bss_end[];
+extern uint8_t _btdm_bss_start[];
+extern uint8_t _btdm_bss_end[];
+extern uint8_t _bt_data_start[];
+extern uint8_t _bt_data_end[];
+extern uint8_t _btdm_data_start[];
+extern uint8_t _btdm_data_end[];
 
-extern char _bt_tmp_bss_start;
-extern char _bt_tmp_bss_end;
+extern uint8_t _bt_tmp_bss_start[];
+extern uint8_t _bt_tmp_bss_end[];
 
 /****************************************************************************
  * Private Data
@@ -675,7 +676,7 @@ static void interrupt_handler_set_wrapper(int n, void *fn, void *arg)
 
 static void interrupt_on_wrapper(int intr_num)
 {
-  up_enable_irq(intr_num);
+  up_enable_irq(intr_num + ESP32C3_IRQ_FIRSTPERIPH);
 }
 
 /****************************************************************************
@@ -694,7 +695,7 @@ static void interrupt_on_wrapper(int intr_num)
 
 static void interrupt_off_wrapper(int intr_num)
 {
-  up_disable_irq(intr_num);
+  up_disable_irq(intr_num + ESP32C3_IRQ_FIRSTPERIPH);
 }
 
 /****************************************************************************
@@ -780,7 +781,7 @@ static void *semphr_create_wrapper(uint32_t max, uint32_t init)
   bt_sem = kmm_malloc(tmp);
   DEBUGASSERT(bt_sem);
 
-  ret = sem_init(&bt_sem->sem, 0, init);
+  ret = nxsem_init(&bt_sem->sem, 0, init);
   DEBUGASSERT(ret == OK);
 
 #ifdef CONFIG_ESP32C3_SPIFLASH
@@ -807,7 +808,7 @@ static void *semphr_create_wrapper(uint32_t max, uint32_t init)
 static void semphr_delete_wrapper(void *semphr)
 {
   struct bt_sem_s *bt_sem = (struct bt_sem_s *)semphr;
-  sem_destroy(&bt_sem->sem);
+  nxsem_destroy(&bt_sem->sem);
   kmm_free(bt_sem);
 }
 
@@ -827,7 +828,7 @@ static void semphr_delete_wrapper(void *semphr)
 
 static int semphr_take_from_isr_wrapper(void *semphr, void *hptw)
 {
-  DEBUGASSERT(0);
+  DEBUGPANIC();
   return false;
 }
 
@@ -1183,7 +1184,7 @@ static int IRAM_ATTR queue_send_from_isr_wrapper(void *queue,
 
 static int queue_recv_from_isr_wrapper(void *queue, void *item, void *hptw)
 {
-  DEBUGASSERT(0);
+  DEBUGPANIC();
   return false;
 }
 
@@ -1537,7 +1538,7 @@ static void btdm_sleep_enter_phase1_wrapper(uint32_t lpcycles)
   else
     {
       wlerr("timer start failed");
-      DEBUGASSERT(0);
+      DEBUGPANIC();
     }
 }
 
@@ -1566,7 +1567,7 @@ static void btdm_sleep_enter_phase2_wrapper(void)
         }
       else
         {
-          DEBUGASSERT(0);
+          DEBUGPANIC();
         }
 
       if (g_lp_stat.pm_lock_released == false)
@@ -1602,7 +1603,7 @@ static void btdm_sleep_exit_phase3_wrapper(void)
   if (btdm_sleep_clock_sync())
     {
       wlerr("sleep eco state err\n");
-      DEBUGASSERT(0);
+      DEBUGPANIC();
     }
 
   if (btdm_controller_get_sleep_mode() == ESP_BT_SLEEP_MODE_1)
@@ -2154,7 +2155,7 @@ int esp32c3_bt_controller_deinit(void)
     }
   else
     {
-      DEBUGASSERT(0);
+      DEBUGPANIC();
     }
 
 #ifdef CONFIG_PM
@@ -2230,7 +2231,7 @@ int esp32c3_bt_controller_disable(void)
     }
   else
     {
-      DEBUGASSERT(0);
+      DEBUGPANIC();
     }
 #endif
 

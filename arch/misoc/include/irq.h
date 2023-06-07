@@ -38,10 +38,10 @@
 #include <arch/chip/irq.h>
 
 #ifdef CONFIG_ARCH_CHIP_LM32
-# include <arch/lm32/irq.h>
+#  include <arch/lm32/irq.h>
 #endif
 #ifdef CONFIG_ARCH_CHIP_MINERVA
-# include <arch/minerva/irq.h>
+#  include <arch/minerva/irq.h>
 #endif
 
 /****************************************************************************
@@ -56,6 +56,21 @@ extern "C"
 #else
 #define EXTERN extern
 #endif
+
+/****************************************************************************
+ * Inline functions
+ ****************************************************************************/
+
+/* Return the current value of the stack pointer */
+
+static inline uint32_t up_getsp(void)
+{
+  register uint32_t sp;
+
+  __asm__ __volatile__("addi %0, sp, 0" : "=r" (sp));
+
+  return sp;
+}
 
 /****************************************************************************
  * Public Data
