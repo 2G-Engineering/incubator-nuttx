@@ -229,9 +229,10 @@
 #define CANIOC_BUSOFF_RECOVERY    _CANIOC(10)
 #define CANIOC_SET_NART           _CANIOC(11)
 #define CANIOC_SET_ABOM           _CANIOC(12)
+#define CANIOC_SET_BAUD           _CANIOC(13)
 
 #define CAN_FIRST                 0x0001         /* First common command */
-#define CAN_NCMDS                 12             /* Ten common commands */
+#define CAN_NCMDS                 13             /* Ten common commands */
 
 /* User defined ioctl commands are also supported. These will be forwarded
  * by the upper-half CAN driver to the lower-half CAN driver via the co_ioctl()

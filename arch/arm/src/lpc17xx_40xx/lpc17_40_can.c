@@ -161,6 +161,8 @@
 
 #define CAN_BIT_QUANTA (CONFIG_LPC17_40_CAN_TSEG1 + CONFIG_LPC17_40_CAN_TSEG2 + 1)
 
+#define CAN_BIT_QUANTA_MAX (CAN_BTR_TSEG1_MAX + CAN_BTR_TSEG2_MAX)
+
 /* Debug ********************************************************************/
 
 /* Non-standard debug that may be enabled just for testing CAN */
@@ -512,7 +514,7 @@ static void lpc17can_reset(struct can_dev_s *dev)
   irqstate_t flags;
   int ret;
 
-  caninfo("CAN%d\n", priv->port);
+  caninfo("CAN%d reset\n", priv->port);
 
   flags = enter_critical_section();
 
@@ -564,7 +566,7 @@ static int lpc17can_setup(struct can_dev_s *dev)
   struct up_dev_s *priv = (struct up_dev_s *)dev->cd_priv;
   int ret;
 
-  caninfo("CAN%d\n", priv->port);
+  caninfo("CAN%d setup\n", priv->port);
 
   ret = irq_attach(LPC17_40_IRQ_CAN, can12_interrupt, NULL);
   if (ret == OK)
@@ -774,6 +776,7 @@ static int lpc17can_ioctl(struct can_dev_s *dev, int cmd,
             uint32_t regval;
             uint32_t ier;
             irqstate_t flags;
+            int32_t timeout_counter;
 
             DEBUGASSERT(bt != NULL);
             DEBUGASSERT(bt->bt_baud < CAN_CLOCK_FREQUENCY(priv->divisor));
@@ -830,9 +833,14 @@ static int lpc17can_ioctl(struct can_dev_s *dev, int cmd,
             /* Save enabled interrupts */
             ier = can_getreg(priv, LPC17_40_CAN_IER_OFFSET);
 
+            //If we are getting a flood of incoming messages while we try to do this, the TS bit will never be cleared.
+            //Give up after 100ms and continue if it is still set, otherwise we'll hang forever.
+            timeout_counter = 100;//ms
+
             /* Disable the CAN and stop ongoing transmissions */
-            while (can_getreg(priv, LPC17_40_CAN_GSR_OFFSET) & CAN_GSR_TS) {
+            while ((can_getreg(priv, LPC17_40_CAN_GSR_OFFSET) & CAN_GSR_TS) && (timeout_counter-- > 0)) {
                 can_putreg(priv, LPC17_40_CAN_CMR_OFFSET, CAN_CMR_AT);  /* Abort transmission */
+                usleep(1 * USEC_PER_MSEC);
             }
             can_putreg(priv, LPC17_40_CAN_MOD_OFFSET, CAN_MOD_RM);  /* Enter Reset Mode */
             can_putreg(priv, LPC17_40_CAN_IER_OFFSET, 0);           /* Disable interrupts */
@@ -848,6 +856,44 @@ static int lpc17can_ioctl(struct can_dev_s *dev, int cmd,
 
             priv->baud  = CAN_CLOCK_FREQUENCY(priv->divisor) /
                 (brp * (bt->bt_tseg1 + bt->bt_tseg2 + 1));
+            ret = OK;
+          }
+          break;
+        case CANIOC_SET_BAUD:
+          {
+            uint32_t ier;
+            irqstate_t flags;
+            FAR const struct canioc_bittiming_s *bt =
+              (FAR const struct canioc_bittiming_s *)arg;
+
+            DEBUGASSERT(bt != NULL);
+            DEBUGASSERT(bt->bt_baud < CAN_CLOCK_FREQUENCY(priv->divisor));
+
+            priv->baud = bt->bt_baud;
+            /* Bit timing can only be configured in reset mode. */
+
+            flags = enter_critical_section();
+
+            /* Save enabled interrupts */
+            ier = can_getreg(priv, LPC17_40_CAN_IER_OFFSET);
+
+            /* Disable the CAN and stop ongoing transmissions */
+            while (can_getreg(priv, LPC17_40_CAN_GSR_OFFSET) & CAN_GSR_TS) {
+                can_putreg(priv, LPC17_40_CAN_CMR_OFFSET, CAN_CMR_AT);  /* Abort transmission */
+            }
+            can_putreg(priv, LPC17_40_CAN_MOD_OFFSET, CAN_MOD_RM);  /* Enter Reset Mode */
+            can_putreg(priv, LPC17_40_CAN_IER_OFFSET, 0);           /* Disable interrupts */
+            can_putreg(priv, LPC17_40_CAN_GSR_OFFSET, 0);           /* Clear status bits */
+
+//            can_putreg(priv, LPC17_40_CAN_BTR_OFFSET, regval);
+            can_bittiming(priv);
+
+            can_putreg(priv, LPC17_40_CAN_MOD_OFFSET, 0);           /* Leave Reset Mode */
+
+            can_putreg(priv, LPC17_40_CAN_IER_OFFSET, ier);         /* Restore enabled interrupts */
+
+            leave_critical_section(flags);
+
             ret = OK;
           }
           break;
@@ -1283,10 +1329,19 @@ static void can_interrupt(struct can_dev_s *dev)
    * bits)
    */
 
-  regval = can_getreg(priv, LPC17_40_CAN_ICR_OFFSET);
-  caninfo("CAN%d ICR: %08" PRIx32 "\n", priv->port, regval);
+#ifdef CONFIG_DEBUG_CAN_INFO
+  regval = can_getreg(priv, LPC17_40_CAN_IER_OFFSET);
+  caninfo("CAN%d IER: %08" PRIx32 "\n", priv->port, regval);
+  regval = can_getreg(priv, LPC17_40_CAN_GSR_OFFSET);
+  caninfo("CAN%d GSR: %08" PRIx32 "\n", priv->port, regval);
+  regval = getreg32(LPC17_40_CAN_RXSR);
+  caninfo("CAN%d RXSR: %08" PRIx32 "\n", priv->port, regval);
+#endif
 
   /* Check for a receive interrupt */
+
+  regval = can_getreg(priv, LPC17_40_CAN_ICR_OFFSET);
+  caninfo("CAN%d ICR: %08" PRIx32 "\n", priv->port, regval);
 
   if ((regval & CAN_ICR_RI) != 0)
     {
@@ -1460,7 +1515,7 @@ static int can12_interrupt(int irq, void *context, void *arg)
  *   Zero on success; a negated errno on failure
  *
  ****************************************************************************/
-
+#if 1
 static int can_bittiming(struct up_dev_s *priv)
 {
   uint32_t btr;
@@ -1469,7 +1524,10 @@ static int can_bittiming(struct up_dev_s *priv)
   uint32_t ts1;
   uint32_t ts2;
   uint32_t sjw;
-
+#ifdef LPC176x
+  caninfo("PCLKSEL0 = %"PRIx32"\n", getreg32(LPC17_40_SYSCON_PCLKSEL0));
+#endif
+  caninfo("PCON = %"PRIx32", %"PRIx32"\n", getreg32(LPC17_40_SYSCON_PCON), getreg32(LPC17_40_SYSCON_PCONP));
   caninfo("CAN%d PCLK: %" PRId32 " baud: %" PRId32 "\n", priv->port,
           (uint32_t)CAN_CLOCK_FREQUENCY(priv->divisor), priv->baud);
 
@@ -1488,6 +1546,7 @@ static int can_bittiming(struct up_dev_s *priv)
    */
 
   nclks = CAN_CLOCK_FREQUENCY(priv->divisor) / priv->baud;
+  caninfo("nclks = %"PRIu32"\n", nclks);
   if (nclks < CAN_BIT_QUANTA)
     {
       /* At the smallest brp value (1), there are already too few bit times
@@ -1521,11 +1580,12 @@ static int can_bittiming(struct up_dev_s *priv)
       DEBUGASSERT(brp >= 1 && brp <= CAN_BTR_BRP_MAX);
     }
 
-  sjw = 1;
+  sjw = 3;
 
   caninfo("TS1: %" PRId32 " TS2: %" PRId32
           " BRP: %" PRId32 " SJW= %" PRId32 "\n",
           ts1, ts2, brp, sjw);
+  caninfo("Actual baud: %" PRIu32" \n", (CAN_CLOCK_FREQUENCY(priv->divisor) / (brp)) / ((ts1) + (ts2) + (1)));
 
   /* Configure bit timing */
 
@@ -1546,6 +1606,93 @@ static int can_bittiming(struct up_dev_s *priv)
   can_putreg(priv, LPC17_40_CAN_BTR_OFFSET, btr);        /* Set bit timing */
   return OK;
 }
+#else
+static int can_bittiming(struct up_dev_s *priv)
+{
+  uint32_t btr;
+  uint32_t brp = 0;
+  uint32_t ts1;
+  uint32_t ts2;
+  uint32_t sjw = 3;
+  uint8_t can_bit_quanta;
+  uint32_t  quanta; //cbc
+  int i;
+  uint8_t NT;
+  uint32_t result = 0;
+
+
+    caninfo("Baud: %u  Divisor: %u\n", priv->baud, priv->divisor);
+    result = CAN_CLOCK_FREQUENCY(priv->divisor) / priv->baud;
+    caninfo("nclks: %u\n", result);
+
+    /* Calculate suitable nominal time value
+     * NT (nominal time) = (TSEG1 + TSEG2 + 3)
+     * NT <= 24
+     * TSEG1 >= 2*TSEG2 */
+
+    for (NT = 24; NT > 0; NT = NT - 2) {
+        if ((result % NT) == 0) {
+            brp = result / NT - 1;
+
+            NT--;
+
+            ts2 = (NT / 3) - 1;
+
+            ts1 = NT - (NT / 3) - 1;
+
+            break;
+        }
+    }
+    //If we weren't able to find an exact match, try again for an approximation
+    //this lets us use bauds like 800K
+    if (NT == 0) {
+        for (NT = 24; NT > 0; NT = NT - 1) {
+            if ((result % NT) == 0) {
+                brp = result / NT - 1;
+
+                NT--;
+
+                ts2 = (NT / 3) - 1;
+
+                ts1 = NT - (NT / 3) - 1;
+
+                break;
+            }
+        }
+    }
+    if (NT == 0) {
+        return EINVAL;
+    }
+
+    caninfo("TS1: %" PRId32 " TS2: %" PRId32
+            " BRP: %" PRId32 " SJW= %" PRId32 "\n",
+            ts1 + 1, ts2 + 1, brp + 1, sjw + 1);
+    caninfo("Actual baud: %" PRIu32" \n", (CAN_CLOCK_FREQUENCY(priv->divisor) / (brp + 1)) / ((ts1 + 1) + (ts2 + 1) + (1)));
+
+    if ((brp > 1023) || (sjw > 3) || (ts1 > 15) || (ts2 > 7)) {
+        canerr("Invalid timing register config\n");
+        return EINVAL;
+    }
+    /* Configure bit timing */
+
+    btr = (((brp) << CAN_BTR_BRP_SHIFT)   |
+           ((ts1) << CAN_BTR_TSEG1_SHIFT) |
+           ((ts2) << CAN_BTR_TSEG2_SHIFT) |
+           ((sjw) << CAN_BTR_SJW_SHIFT));
+
+#ifdef CONFIG_LPC17_40_CAN_SAM
+  /* The bus is sampled 3 times (recommended for low to medium speed buses
+   * to spikes on the bus-line).
+   */
+
+  btr |= CAN_BTR_SAM;
+#endif
+
+  caninfo("Setting CANxBTR= 0x%08" PRIx32 "\n", btr);
+  can_putreg(priv, LPC17_40_CAN_BTR_OFFSET, btr);        /* Set bit timing */
+  return OK;
+}
+#endif
 
 
 
@@ -1589,6 +1736,7 @@ static int lpc17can_add_extfilter(FAR struct up_dev_s *priv,
   DEBUGASSERT(priv != NULL && extconfig != NULL);
 
   CAN_EXT_ID_RANGE_ENTRY_T range_ext;
+  CAN_EXT_ID_ENTRY_T id_ext;
 
   /* save current CAN acceptance filter mode */
   uint32_t cur_mode = can_getcommon(LPC17_40_CANAF_AFMR);
@@ -1601,8 +1749,12 @@ static int lpc17can_add_extfilter(FAR struct up_dev_s *priv,
     range_ext.UpperID.ID_29 = extconfig->xf_id2;
     range_ext.LowerID.CtrlNo = priv->port - 1;
     range_ext.UpperID.CtrlNo = priv->port - 1;
+    result = can_setupEXTRangeSection((uint32_t*)LPC17_40_CANAFRAM_BASE, &range_ext, 1);
+  } else if (extconfig->xf_type == CAN_FILTER_MASK) {
+    id_ext.ID_29 = extconfig->xf_id1;
+    id_ext.CtrlNo = priv->port - 1;
+  } else {
   }
-  result = can_setupEXTRangeSection((uint32_t*)LPC17_40_CANAFRAM_BASE, &range_ext, 1);
 
   /* Return to previous mode */
   can_putcommon(LPC17_40_CANAF_AFMR, cur_mode);
@@ -1762,7 +1914,7 @@ int can_add_af_range(int port, uint32_t start_id, uint32_t end_id, bool extid) {
     return -1;//error
   }
   port -= 1;//convert to 0-indexed
-//  dump_af_ram();
+  dump_af_ram();
   if (extid) {
     range_ext.LowerID.ID_29 = start_id;
     range_ext.LowerID.CtrlNo = port;
@@ -1778,10 +1930,48 @@ int can_add_af_range(int port, uint32_t start_id, uint32_t end_id, bool extid) {
     range_std.UpperID.CtrlNo = port;
     result = can_setupSTDRangeSection((uint32_t*)LPC17_40_CANAFRAM_BASE, &range_std, 1);
   }
-//  dump_af_ram();
+  dump_af_ram();
   /* Return to previous mode */
   can_putcommon(LPC17_40_CANAF_AFMR, CurMode);
-  return 0;
+  caninfo("Current mode: %i\n", CurMode);
+  return OK;
+}
+
+int can_add_af_ids(int port, uint32_t ids[], uint32_t count, bool ext_id) {
+    int result;
+
+    /* save current CAN acceptance filter mode */
+    uint32_t CurMode = can_getcommon(LPC17_40_CANAF_AFMR);
+
+    /*  AF Off */
+    can_putcommon(LPC17_40_CANAF_AFMR, CANAF_AFMR_ACCOFF);
+
+    if (port > 2) {
+      return -1;//error
+    }
+    port -= 1;//convert to 0-indexed
+    dump_af_ram();
+    if (ext_id) {
+      CAN_EXT_ID_ENTRY_T ids_ext[count];
+      for (uint32_t i = 0; i < count; i += 1) {
+        ids_ext[i].ID_29 = ids[i];
+        ids_ext[i].CtrlNo = port;
+      }
+      result = can_setupEXTSection((uint32_t*)LPC17_40_CANAFRAM_BASE, ids_ext, count);
+    } else { //standard ID
+      CAN_STD_ID_ENTRY_T ids_std[count];
+      for (uint32_t i = 0; i < count; i += 1) {
+        ids_std[i].ID_11 = ids[i];
+        ids_std[i].Disable = false;
+        ids_std[i].CtrlNo = port;
+      }
+      result = can_setupSTDSection((uint32_t*)LPC17_40_CANAFRAM_BASE, ids_std, count, false);
+    }
+    dump_af_ram();
+    /* Return to previous mode */
+    can_putcommon(LPC17_40_CANAF_AFMR, CurMode);
+    caninfo("Current mode: %"PRIu32"\n", CurMode);
+    return OK;
 }
 
 /****************************************************************************
@@ -1828,28 +2018,43 @@ void can_set_af_mode(uint32_t can_mode) {
   can_mode &= CANAF_AFMR_MASK;
   /* set AF mode */
   can_putcommon(LPC17_40_CANAF_AFMR, can_mode);
+  caninfo("Set Mode %i\n", can_mode);
 }
 
-/*
- * Configure the acceptance filter address tables assuming only one entry in the CAN address range section
- * (either standard or extended.
- * Minimum required to support the functionality we're using in the actuator.
- */
-void can_configure_af_sections(bool extid) {
-  if (extid) {
-    can_putcommon(LPC17_40_CANAF_SFFSA, CANAF_ENDADDR(0));
-    can_putcommon(LPC17_40_CANAF_SFFGRPSA, CANAF_ENDADDR(0));
-    can_putcommon(LPC17_40_CANAF_EFFSA, CANAF_ENDADDR(0));
-    can_putcommon(LPC17_40_CANAF_EFFGRPSA, CANAF_ENDADDR(0));//extended ID range entry is two words wide
-    can_putcommon(LPC17_40_CANAF_EOT, CANAF_ENDADDR(3));
-  } else {
-    can_putcommon(LPC17_40_CANAF_SFFSA, CANAF_ENDADDR(0));
-    can_putcommon(LPC17_40_CANAF_SFFGRPSA, CANAF_ENDADDR(0));//standard ID range entry is one word wide
-    can_putcommon(LPC17_40_CANAF_EFFSA, CANAF_ENDADDR(1));
-    can_putcommon(LPC17_40_CANAF_EFFGRPSA, CANAF_ENDADDR(1));
-    can_putcommon(LPC17_40_CANAF_EOT, CANAF_ENDADDR(1));
-  }
+///*
+// * Configure the acceptance filter address tables assuming only one entry in the CAN address range section
+// * (either standard or extended.
+// * Minimum required to support the functionality we're using in the actuator.
+// */
+//void can_configure_af_sections(bool extid) {
+//  if (extid) {
+//    can_putcommon(LPC17_40_CANAF_SFFSA, CANAF_ENDADDR(0));
+//    can_putcommon(LPC17_40_CANAF_SFFGRPSA, CANAF_ENDADDR(0));
+//    can_putcommon(LPC17_40_CANAF_EFFSA, CANAF_ENDADDR(0));
+//    can_putcommon(LPC17_40_CANAF_EFFGRPSA, CANAF_ENDADDR(0));//extended ID range entry is two words wide
+//    can_putcommon(LPC17_40_CANAF_EOT, CANAF_ENDADDR(2));
+//  } else {
+//    can_putcommon(LPC17_40_CANAF_SFFSA, CANAF_ENDADDR(0));
+//    can_putcommon(LPC17_40_CANAF_SFFGRPSA, CANAF_ENDADDR(0));//standard ID range entry is one word wide
+//    can_putcommon(LPC17_40_CANAF_EFFSA, CANAF_ENDADDR(1));
+//    can_putcommon(LPC17_40_CANAF_EFFGRPSA, CANAF_ENDADDR(1));
+//    can_putcommon(LPC17_40_CANAF_EOT, CANAF_ENDADDR(1));
+//  }
 //  dump_af_ram();
+//}
+
+void can_configure_af_sections(uint16_t num_std_id, uint16_t num_std_grp, uint16_t num_ext_id, uint16_t num_ext_grp) {
+  uint32_t cur_addr = 0;
+  can_putcommon(LPC17_40_CANAF_SFFSA, CANAF_ENDADDR(cur_addr));
+  cur_addr += (num_std_id + 1) / 2; //single standard IDs require 1/2 word each; round up
+  can_putcommon(LPC17_40_CANAF_SFFGRPSA, CANAF_ENDADDR(cur_addr));
+  cur_addr += num_std_grp;
+  can_putcommon(LPC17_40_CANAF_EFFSA, CANAF_ENDADDR(cur_addr));
+  cur_addr += num_ext_id;
+  can_putcommon(LPC17_40_CANAF_EFFGRPSA, CANAF_ENDADDR(cur_addr));
+  cur_addr += num_ext_grp * 2;//extended groups require 2 words per group
+  can_putcommon(LPC17_40_CANAF_EOT, CANAF_ENDADDR(cur_addr));
+  dump_af_ram();
 }
 
 uint8_t get_can_tx_error_count(int port) {
@@ -1960,18 +2165,22 @@ static int can_setupSTDSection(uint32_t *pCANAFRamAddr, CAN_STD_ID_ENTRY_T *pStd
     for (i = 0; i < EntryCount; i += 2) {
         /* First Entry */
         if (CurID > pStdCANSec[i].ID_11) {
-            return -1;//error
+            canwarn("Not Adding %x when %x is current\n", pStdCANSec[i].ID_11, CurID);
+            return -EINVAL;//error
         }
         CurID = pStdCANSec[i].ID_11;
+        caninfo("Adding CAN ID %x\n", CurID);
         Entry = can_createStdIDEntry(&pStdCANSec[i], IsFullCANEntry);
         pCANAFRamAddr[EntryCnt] = Entry << 16;
 
         /* Second Entry */
         if ((i + 1) < EntryCount) {
             if (CurID > pStdCANSec[i + 1].ID_11) {
-                return -1;//error
+                canwarn("Not Adding %x when %x is current\n", pStdCANSec[i + 1].ID_11, CurID);
+                return -EINVAL;//error
             }
             CurID = pStdCANSec[i + 1].ID_11;
+            caninfo("Adding CAN ID %x\n", CurID);
             Entry = can_createStdIDEntry(&pStdCANSec[i + 1], IsFullCANEntry);
             pCANAFRamAddr[EntryCnt] |= Entry;
         }
@@ -1980,7 +2189,7 @@ static int can_setupSTDSection(uint32_t *pCANAFRamAddr, CAN_STD_ID_ENTRY_T *pStd
         }
         EntryCnt++;
     }
-    return 0;//success
+    return OK;//success
 }
 
 /* Setup the Group Standard ID section */
@@ -2011,14 +2220,14 @@ static int can_setupEXTSection(uint32_t *pCANAFRamAddr, CAN_EXT_ID_ENTRY_T *pExt
     /* Setup Extended ID section */
     for (i = 0; i < EntryCount; i++) {
         if (CurID > pExtCANSec[i].ID_29) {
-            return -1;//error
+            return -EINVAL;//error
         }
         CurID = pExtCANSec[i].ID_29;
         Entry = can_createExtIDEntry(&pExtCANSec[i]);
         pCANAFRamAddr[EntryCnt] = Entry;
         EntryCnt++;
     }
-    return 0;//success
+    return OK;//success
 
 }
 
@@ -2028,6 +2237,7 @@ static int can_setupEXTRangeSection(uint32_t *pCANAFRamAddr, CAN_EXT_ID_RANGE_EN
 }
 
 static void dump_af_ram(void) {
+#if CONFIG_DEBUG_CAN_INFO
   int i;
   uint32_t tmp32;
   syslog(LOG_INFO, "---------------------------\n\n");
@@ -2047,9 +2257,11 @@ static void dump_af_ram(void) {
   syslog(LOG_INFO, "LPC17_40_CANAF_EFFGRPSA %08x\n", tmp32);
   tmp32 = getreg32(LPC17_40_CANAF_EOT);
   syslog(LOG_INFO, "LPC17_40_CANAF_EOT      %08x\n", tmp32);
-  //Print AFMR
   tmp32 = getreg32(LPC17_40_CANAF_AFMR);
   syslog(LOG_INFO, "LPC17_40_CANAF_AFMR     %08x\n", tmp32);
+  tmp32 = getreg32(LPC17_40_CAN1_IER);
+  syslog(LOG_INFO, "CAN1 IER: %08" PRIx32 "\n", tmp32);
+#endif
 }
 
 

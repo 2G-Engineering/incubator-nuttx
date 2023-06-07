@@ -42,6 +42,21 @@
 #  error "The logic in this file applies only to the LPC176x family"
 #endif
 
+/* Get the SYSCON_PCLKSEL value for CAN1 the implements this divisor */
+#ifdef CONFIG_LPC17_40_CAN1
+#  if CONFIG_LPC17_40_CAN1_DIVISOR == 1
+#    define CAN1_CCLK_DIVISOR SYSCON_PCLKSEL_CCLK
+#  elif CONFIG_LPC17_40_CAN1_DIVISOR == 2
+#    define CAN1_CCLK_DIVISOR SYSCON_PCLKSEL_CCLK2
+#  elif CONFIG_LPC17_40_CAN1_DIVISOR == 4
+#    define CAN1_CCLK_DIVISOR SYSCON_PCLKSEL_CCLK4
+#  elif CONFIG_LPC17_40_CAN1_DIVISOR == 6
+#    define CAN1_CCLK_DIVISOR SYSCON_PCLKSEL_CCLK6
+#  else
+#    error "Unsupported value of CONFIG_LPC17_40_CAN1_DIVISOR"
+#  endif
+#endif
+
 /****************************************************************************
  * Public Data
  ****************************************************************************/
@@ -101,6 +116,17 @@ void lpc17_40_clockconfig(void)
   /* PLL0 is used to generate the CPU clock divider input (PLLCLK). */
 
 #ifdef CONFIG_LPC17_40_PLL0
+  uint32_t regval;
+
+  //Errata 3.11 PCLKSELx.1: Peripheral Clock Selection Registers must be set
+  //before enabling and connecting PLL0
+//  regval  = getreg32(LPC17_40_SYSCON_PCLKSEL0);
+//  regval &= ~(SYSCON_PCLKSEL0_CAN1_MASK | SYSCON_PCLKSEL0_CAN2_MASK | SYSCON_PCLKSEL0_ACF_MASK);
+//  regval |= (CAN1_CCLK_DIVISOR << SYSCON_PCLKSEL0_CAN1_SHIFT);
+//  regval |= (CAN1_CCLK_DIVISOR << SYSCON_PCLKSEL0_CAN2_SHIFT);
+//  regval |= (CAN1_CCLK_DIVISOR << SYSCON_PCLKSEL0_ACF_SHIFT);
+//  putreg32(regval, LPC17_40_SYSCON_PCLKSEL0);
+
   /* Select the PLL0 source clock, multiplier, and pre-divider values.
    * NOTE that a special "feed" sequence must be written to the PLL0FEED
    * register in order for changes to the PLL0CFG register to take effect.
@@ -192,8 +218,8 @@ void lpc17_40_clockconfig(void)
    * driver when the device driver is initialized.
    */
 
-  putreg32(0, LPC17_40_SYSCON_PCLKSEL0);
-  putreg32(0, LPC17_40_SYSCON_PCLKSEL1);
+//  putreg32(0, LPC17_40_SYSCON_PCLKSEL0);
+//  putreg32(0, LPC17_40_SYSCON_PCLKSEL1);
 
   /* Disable power to all peripherals (execpt GPIO).  Peripherals must be
    * re-powered one at a time by each device driver when the driver is
