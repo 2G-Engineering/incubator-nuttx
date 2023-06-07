@@ -3821,6 +3821,13 @@ config STM32H7_PWM_MULTICHAN
 		Specifies that the PWM driver supports multiple output
 		channels per timer.
 
+config STM32H7_PWM_TRGO
+  bool "TIM PWM TRGO support"
+  default n
+  depends on STM32H7_PWM
+  ---help---
+    Enable TRGO support for PWM driver
+
 config STM32H7_TIM1_ADC
 	bool "TIM1 ADC"
 	default n
@@ -4994,6 +5001,21 @@ config STM32H7_TIM17_CH1IDLE
 	depends on STM32H7_TIM17_CH1OUT
 	---help---
 		TIM17 Channel 1 output IDLE
+
+config STM32H7_TIM1_TRGO
+	int "TIM1 TRGO source"
+	default 0
+	range 0 15
+	depends on STM32H7_PWM_TRGO
+	depends on STM32H7_TIM1
+
+config STM32H7_TIM8_TRGO
+	int "TIM8 TRGO source"
+	default 0
+	range 0 15
+	depends on STM32H7_PWM_TRGO
+	depends on STM32H7_TIM8
+
 
 endmenu #STM32 TIMx Outputs Configuration
 

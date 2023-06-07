@@ -882,6 +882,27 @@ enum stm32_pwm_chanmode_e
 #endif
 };
 
+enum stm32_pwm_trgo_e
+  {
+  STM32_TRGO_RESET                   = 0,
+  STM32_TRGO_ENABLE                  = 1,
+  STM32_TRGO_UPDATE                  = 2,
+  STM32_TRGO_COMPARE                 = 3,
+  STM32_TRGO_OC1REF                  = 4,
+  STM32_TRGO_OC2REF                  = 5,
+  STM32_TRGO_OC3REF                  = 6,
+  STM32_TRGO_OC4REF                  = 7,
+  /* Only valid for TRGO2 */
+  STM32_TRGO_OC5REF                  = 8,
+  STM32_TRGO_OC6REF                  = 9,
+  STM32_TRGO_OC4REF_RISING_FALLING   = 10,
+  STM32_TRGO_OC6REF_RISING_FALLING   = 11,
+  STM32_TRGO_OC4REF_OC6REF_RISING    = 12,
+  STM32_TRGO_OC6REF_OC6REF_FALLING   = 13,
+  STM32_TRGO_OC5REF_OC6REF_RISING    = 14,
+  STM32_TRGO_OC5REF_OC6REF_FALLING   = 15,
+};
+
 /* PWM timer channel */
 
 enum stm32_pwm_chan_e

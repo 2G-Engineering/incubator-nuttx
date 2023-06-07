@@ -159,9 +159,9 @@
  *       supported capture/compare.
  */
 
-#if defined(CONFIG_STM32_TIM1_PWM) || defined(CONFIG_STM32_TIM8_PWM) || \
-  defined(CONFIG_STM32_TIM15_PWM) || defined(CONFIG_STM32_TIM16_PWM) || \
-  defined(CONFIG_STM32_TIM17_PWM)
+#if defined(CONFIG_STM32H7_TIM1_PWM) || defined(CONFIG_STM32H7_TIM8_PWM) || \
+  defined(CONFIG_STM32H7_TIM15_PWM) || defined(CONFIG_STM32H7_TIM16_PWM) || \
+  defined(CONFIG_STM32H7_TIM17_PWM)
 #  define HAVE_ADVTIM
 #else
 #  undef HAVE_ADVTIM
@@ -578,8 +578,8 @@ static struct stm32_pwmtimer_s g_pwm1dev =
 #ifdef HAVE_PWM_COMPLEMENTARY
   .deadtime    = CONFIG_STM32H7_TIM1_DEADTIME,
 #endif
-#if defined(HAVE_TRGO) && defined(STM32_TIM1_TRGO)
-  .trgo        = STM32_TIM1_TRGO,
+#if defined(HAVE_TRGO) && defined(CONFIG_STM32H7_TIM1_TRGO)
+  .trgo        = CONFIG_STM32H7_TIM1_TRGO,
 #endif
 #ifdef CONFIG_PWM_PULSECOUNT
   .irq         = STM32_IRQ_TIM1UP,
@@ -1138,8 +1138,8 @@ static struct stm32_pwmtimer_s g_pwm8dev =
 #ifdef HAVE_PWM_COMPLEMENTARY
   .deadtime    = CONFIG_STM32H7_TIM8_DEADTIME,
 #endif
-#if defined(HAVE_TRGO) && defined(STM32_TIM8_TRGO)
-  .trgo        = STM32_TIM8_TRGO,
+#if defined(HAVE_TRGO) && defined(CONFIG_STM32H7_TIM8_TRGO)
+  .trgo        = CONFIG_STM32H7_TIM8_TRGO,
 #endif
 #ifdef CONFIG_PWM_PULSECOUNT
   .irq         = STM32_IRQ_TIM8UP,
