@@ -28,12 +28,15 @@
 #include <nuttx/config.h>
 
 #include <stdint.h>
+#include <sys/param.h>
 #include <pthread.h>
-#include <queue.h>
 
+#include <nuttx/queue.h>
 #include <nuttx/video/fb.h>
 #include <nuttx/video/rfb.h>
 #include <nuttx/video/vnc.h>
+#include <nuttx/input/touchscreen.h>
+#include <nuttx/input/keyboard.h>
 #include <nuttx/net/net.h>
 #include <nuttx/semaphore.h>
 
@@ -147,16 +150,6 @@
 #define RFB_MAX_DISPLAYS    CONFIG_VNCSERVER_NDISPLAYS
 #define RFB_DISPLAY_PORT(d) (RFB_PORT_BASE + (d))
 
-/* Miscellaneous */
-
-#ifndef MIN
-#  define MIN(a,b)          (((a) < (b)) ? (a) : (b))
-#endif
-
-#ifndef MAX
-#  define MAX(a,b)          (((a) > (b)) ? (a) : (b))
-#endif
-
 /* Debug */
 
 #ifdef CONFIG_VNCSERVER_UPDATE_DEBUG
@@ -221,6 +214,14 @@ struct vnc_session_s
   vnc_kbdout_t kbdout;         /* Callout when keyboard input is received */
   vnc_mouseout_t mouseout;     /* Callout when keyboard input is received */
   FAR void *arg;               /* Argument that accompanies the callouts */
+
+#ifdef CONFIG_VNCSERVER_TOUCH
+  struct touch_lowerhalf_s touch; /* Touch driver instance */
+#endif
+
+#ifdef CONFIG_VNCSERVER_KBD
+  struct keyboard_lowerhalf_s kbd; /* Keyboard driver instance */
+#endif
 
   /* Updater information */
 
@@ -502,6 +503,87 @@ int vnc_raw(FAR struct vnc_session_s *session, FAR struct fb_area_s *rect);
 
 void vnc_key_map(FAR struct vnc_session_s *session, uint16_t keysym,
                  bool keydown);
+
+#ifdef CONFIG_VNCSERVER_TOUCH
+
+/****************************************************************************
+ * Name: vnc_touch_register
+ *
+ * Description:
+ *   Register touch device to fetch touch event from VNC client.
+ *
+ * Returned Value:
+ *   Driver instance
+ *
+ ****************************************************************************/
+
+int vnc_touch_register(FAR const char *devpath,
+                       FAR struct vnc_session_s *session);
+
+/****************************************************************************
+ * Name: vnc_touch_register
+ *
+ * Description:
+ *   Unregister touch device.
+ *
+ ****************************************************************************/
+
+void vnc_touch_unregister(FAR struct vnc_session_s *session,
+                          FAR const char *devpath);
+
+/****************************************************************************
+ * Name: vnc_touch_event
+ *
+ * Description:
+ *   Report a touch event from vnc client.
+ *
+ ****************************************************************************/
+
+int vnc_touch_event(FAR void *arg, int16_t x, int16_t y, uint8_t buttons);
+
+#endif
+
+#ifdef CONFIG_VNCSERVER_KBD
+
+/****************************************************************************
+ * Name: vnc_kbd_register
+ *
+ * Description:
+ *   Register keyboard device to fetch keyboard event from VNC client.
+ *
+ * Returned Value:
+ *   Driver instance
+ *
+ ****************************************************************************/
+
+int vnc_kbd_register(FAR const char *devpath,
+                     FAR struct vnc_session_s *session);
+
+/****************************************************************************
+ * Name: vnc_kbd_register
+ *
+ * Description:
+ *   Unregister keyboard device.
+ *
+ ****************************************************************************/
+
+void vnc_kbd_unregister(FAR struct vnc_session_s *session,
+                        FAR const char *devpath);
+
+/****************************************************************************
+ * Name: vnc_kbd_event
+ *
+ * Description:
+ *   Report a keyboard event from vnc client.
+ *   Same prototype with vnc_kbdout_t but different semantics
+ *   (to pass raw keycode).
+ *
+ ****************************************************************************/
+
+int vnc_kbd_event(FAR void *arg, uint8_t pressed,
+                  FAR const uint8_t *keycode);
+
+#endif
 
 /****************************************************************************
  * Name: vnc_convert_rgbNN

@@ -427,7 +427,7 @@ STM3210E-EVAL-specific Configuration Options
     CONFIG_STM32_SPI_INTERRUPTS - Select to enable interrupt driven SPI
       support. Non-interrupt-driven, poll-waiting is recommended if the
       interrupt rate would be to high in the interrupt driven case.
-    CONFIG_STM32_SPI_DMA - Use DMA to improve SPI transfer performance.
+    CONFIG_STM32_SPIx_DMA - Use DMA to improve SPIx transfer performance.
       Cannot be used with CONFIG_STM32_SPI_INTERRUPT.
 
     CONFIG_SDIO_DMA - Support DMA data transfers.  Requires CONFIG_STM32_SDIO
@@ -606,7 +606,7 @@ Where <subdir> is one of the following:
     focuses on general window controls, movement, mouse and keyboard
     input.
 
-      CONFIG_ARMV7M_TOOLCHAIN_GNU_EABI=y  : GNU EABI toolchain for Windows
+      CONFIG_ARM_TOOLCHAIN_GNU_EABI=y  : GNU EABI toolchain for Windows
       CONFIG_LCD_RPORTRAIT=y              : 240x320 reverse portrait
 
     NOTES:
@@ -624,7 +624,6 @@ Where <subdir> is one of the following:
        by default), then you would also need:
 
          CONFIG_EXAMPLES_NX_CLIENTPRIO=80
-         CONFIG_EXAMPLES_NX_NOTIFYSIGNO=4
          CONFIG_EXAMPLES_NX_SERVERPRIO=120
          CONFIG_EXAMPLES_NX_STACKSIZE=2048
 
@@ -704,7 +703,6 @@ Where <subdir> is one of the following:
             CONFIG_EXAMPLES_NXTEXT_STACKSIZE=2048
             CONFIG_EXAMPLES_NXTEXT_CLIENTPRIO=80
             CONFIG_EXAMPLES_NXTEXT_SERVERPRIO=120
-            CONFIG_EXAMPLES_NXTEXT_NOTIFYSIGNO=4
 
         c. Others could be similar configured:  apps/examples/nxhello,
             nximage, ...
@@ -729,7 +727,6 @@ Where <subdir> is one of the following:
 
            CONFIG_EXAMPLES_DJOYSTICK=y  # Enable the DJoystick example
            CONFIG_EXAMPLES_DJOYSTICK_DEVNAME="/dev/djoy0"
-           CONFIG_EXAMPLES_DJOYSTICK_SIGNO=13
 
        When running the configuration, you should see the built-in
        application 'djoy'.  Just type 'djoy' at the NSH command prompt.
@@ -772,7 +769,7 @@ Where <subdir> is one of the following:
 
          CONFIG_HOST_WINDOWS=y               : Windows
          CONFIG_WINDOWS_CYGWIN=y             : with Cygwin
-         CONFIG_ARMV7M_TOOLCHAIN_BUILDROOT=y : NuttX buildroot under Linux or Cygwin
+         CONFIG_ARM_TOOLCHAIN_BUILDROOT=y : NuttX buildroot under Linux or Cygwin
          CONFIG_LCD_LANDSCAPE=y              : 320x240 landscape
 
   pm:
@@ -800,7 +797,7 @@ Where <subdir> is one of the following:
 
          CONFIG_HOST_WINDOWS=y                   : Windows
          CONFIG_WINDOWS_CYGWIN=y                 : Cygwin
-         CONFIG_ARMV7M_TOOLCHAIN_GNU_EABI=y      : GNU EABI toolchain for Windows
+         CONFIG_ARM_TOOLCHAIN_GNU_EABI=y      : GNU EABI toolchain for Windows
 
     3. CONFIG_ARCH_CUSTOM_PMINIT and CONFIG_ARCH_IDLE_CUSTOM are necessary
        parts of the PM configuration:
@@ -845,7 +842,7 @@ Where <subdir> is one of the following:
     driver at examples/usbserial.  See examples/README.txt for
     more information.
 
-      CONFIG_ARMV7M_TOOLCHAIN_BUILDROOT=y      : NuttX buildroot under Linux or Cygwin
+      CONFIG_ARM_TOOLCHAIN_BUILDROOT=y      : NuttX buildroot under Linux or Cygwin
 
     USB debug output can be enabled as by changing the following
     settings in the configuration file:
@@ -906,4 +903,4 @@ Where <subdir> is one of the following:
     2. Build environment (can be easily reconfigured):
 
        CONFIG_HOST_LINUX=y                  : Linux (or Cygwin)
-       CONFIG_ARMV7M_TOOLCHAIN_BUILDROOT=y  : NuttX buildroot under Linux or Cygwin
+       CONFIG_ARM_TOOLCHAIN_BUILDROOT=y  : NuttX buildroot under Linux or Cygwin

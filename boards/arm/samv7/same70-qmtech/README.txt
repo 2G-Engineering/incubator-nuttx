@@ -700,7 +700,7 @@ NOTES:
        CONFIG_WINDOWS_CYGWIN=y             : Cywin under Windows
 
      System Type -> Toolchain:
-       CONFIG_ARMV7M_TOOLCHAIN_GNU_EABI=y  : GNU ARM EABI toolchain
+       CONFIG_ARM_TOOLCHAIN_GNU_EABI=y  : GNU ARM EABI toolchain
 
      NOTE: As of this writing, there are issues with using this tool at
      the -Os level of optimization.  This has not been proven to be a
@@ -718,7 +718,7 @@ Configuration sub-directories
     running application "adc" in NuttShell.
 
     The ADC is triggered by Timer/counter at 1 kHz frequency and uses
-    DMA to transfer samples. Number of transfered samples can be set
+    DMA to transfer samples. Number of transferred samples can be set
     by configuring CONFIG_SAMV7_AFEC_DMASAMPLES.
 
   nsh:

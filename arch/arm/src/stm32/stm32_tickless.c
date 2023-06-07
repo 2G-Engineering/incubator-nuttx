@@ -441,7 +441,7 @@ void up_timer_initialize(void)
 
         /* Basic timers not supported by this implementation */
 
-        DEBUGASSERT(0);
+        DEBUGPANIC();
         break;
 #endif
 
@@ -450,7 +450,7 @@ void up_timer_initialize(void)
 
         /* Basic timers not supported by this implementation */
 
-        DEBUGASSERT(0);
+        DEBUGPANIC();
         break;
 #endif
 
@@ -511,7 +511,7 @@ void up_timer_initialize(void)
 #endif
 
       default:
-        DEBUGASSERT(0);
+        DEBUGPANIC();
     }
 
   /* Get the TC frequency that corresponds to the requested resolution */
@@ -530,7 +530,7 @@ void up_timer_initialize(void)
   if (!g_tickless.tch)
     {
       tmrerr("ERROR: Failed to allocate TIM%d\n", g_tickless.timer);
-      DEBUGASSERT(0);
+      DEBUGPANIC();
     }
 
   STM32_TIM_SETCLOCK(g_tickless.tch, g_tickless.frequency);
@@ -685,7 +685,7 @@ int up_timer_gettime(struct timespec *ts)
 #ifdef CONFIG_CLOCK_TIMEKEEPING
 
 /****************************************************************************
- * Name: up_timer_getcounter
+ * Name: up_timer_gettick
  *
  * Description:
  *   To be provided
@@ -698,9 +698,9 @@ int up_timer_gettime(struct timespec *ts)
  *
  ****************************************************************************/
 
-int up_timer_getcounter(uint64_t *cycles)
+int up_timer_gettick(clock_t *ticks)
 {
-  *cycles = (uint64_t)STM32_TIM_GETCOUNTER(g_tickless.tch);
+  *ticks = (clock_t)STM32_TIM_GETCOUNTER(g_tickless.tch);
   return OK;
 }
 
@@ -718,7 +718,7 @@ int up_timer_getcounter(uint64_t *cycles)
  *
  ****************************************************************************/
 
-void up_timer_getmask(uint64_t *mask)
+void up_timer_getmask(clock_t *mask)
 {
   DEBUGASSERT(mask != NULL);
 #ifdef HAVE_32BIT_TICKLESS

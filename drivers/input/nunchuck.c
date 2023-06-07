@@ -43,6 +43,7 @@
 #include <debug.h>
 
 #include <nuttx/kmalloc.h>
+#include <nuttx/mutex.h>
 #include <nuttx/signal.h>
 #include <nuttx/random.h>
 #include <nuttx/fs/fs.h>
@@ -61,7 +62,7 @@ struct nunchuck_dev_s
 {
   FAR struct i2c_master_s *i2c_dev; /* I2C interface connected to Nunchuck */
   nunchuck_buttonset_t nck_sample;  /* Last sampled button states */
-  sem_t nck_exclsem;                /* Supports exclusive access to the device */
+  mutex_t nck_lock;                 /* Supports exclusive access to the device */
 
   /* The following is a singly linked list of open references to the
    * joystick device.
@@ -87,11 +88,6 @@ struct nunchuck_open_s
  * Private Function Prototypes
  ****************************************************************************/
 
-/* Semaphore helpers */
-
-static inline int nunchuck_takesem(sem_t *sem);
-#define nunchuck_givesem(s) nxsem_post(s);
-
 /* Character driver methods */
 
 static int     nunchuck_open(FAR struct file *filep);
@@ -114,7 +110,7 @@ static int     nunchuck_sample(FAR struct nunchuck_dev_s *priv,
  * Private Data
  ****************************************************************************/
 
-static const struct file_operations nunchuck_fops =
+static const struct file_operations g_nunchuck_fops =
 {
   nunchuck_open,  /* open */
   nunchuck_close, /* close */
@@ -122,10 +118,6 @@ static const struct file_operations nunchuck_fops =
   NULL,           /* write */
   NULL,           /* seek */
   nunchuck_ioctl, /* ioctl */
-  NULL            /* poll */
-#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-  , NULL          /* unlink */
-#endif
 };
 
 /****************************************************************************
@@ -192,7 +184,7 @@ static int nunchuck_sample(FAR struct nunchuck_dev_s *priv,
 {
   uint8_t cmd[2];
   uint8_t data[6];
-  static bool initialized = false;
+  static bool initialized;
 
   if (!initialized)
     {
@@ -273,15 +265,6 @@ static int nunchuck_sample(FAR struct nunchuck_dev_s *priv,
 }
 
 /****************************************************************************
- * Name: nunchuck_takesem
- ****************************************************************************/
-
-static inline int nunchuck_takesem(sem_t *sem)
-{
-  return nxsem_wait(sem);
-}
-
-/****************************************************************************
  * Name: nunchuck_open
  ****************************************************************************/
 
@@ -299,10 +282,10 @@ static int nunchuck_open(FAR struct file *filep)
 
   /* Get exclusive access to the driver structure */
 
-  ret = nunchuck_takesem(&priv->nck_exclsem);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
-      ierr("ERROR: nunchuck_takesem failed: %d\n", ret);
+      ierr("ERROR: nxmutex_lock failed: %d\n", ret);
       return ret;
     }
 
@@ -314,7 +297,7 @@ static int nunchuck_open(FAR struct file *filep)
     {
       ierr("ERROR: Failed to allocate open structure\n");
       ret = -ENOMEM;
-      goto errout_with_sem;
+      goto errout_with_lock;
     }
 
   /* Attach the open structure to the device */
@@ -327,8 +310,8 @@ static int nunchuck_open(FAR struct file *filep)
   filep->f_priv = (FAR void *)opriv;
   ret = OK;
 
-errout_with_sem:
-  nunchuck_givesem(&priv->nck_exclsem);
+errout_with_lock:
+  nxmutex_unlock(&priv->lock);
   return ret;
 }
 
@@ -377,10 +360,10 @@ static int nunchuck_close(FAR struct file *filep)
 
   /* Get exclusive access to the driver structure */
 
-  ret = nunchuck_takesem(&priv->nck_exclsem);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
-      ierr("ERROR: nunchuck_takesem failed: %d\n", ret);
+      ierr("ERROR: nxmutex_lock failed: %d\n", ret);
       return ret;
     }
 
@@ -395,7 +378,7 @@ static int nunchuck_close(FAR struct file *filep)
     {
       ierr("ERROR: Failed to find open entry\n");
       ret = -ENOENT;
-      goto errout_with_exclsem;
+      goto errout_with_lock;
     }
 
   /* Remove the structure from the device */
@@ -415,8 +398,8 @@ static int nunchuck_close(FAR struct file *filep)
 
   ret = OK;
 
-errout_with_exclsem:
-  nunchuck_givesem(&priv->nck_exclsem);
+errout_with_lock:
+  nxmutex_unlock(&priv->lock);
   return ret;
 }
 
@@ -450,10 +433,10 @@ static ssize_t nunchuck_read(FAR struct file *filep, FAR char *buffer,
 
   /* Get exclusive access to the driver structure */
 
-  ret = nunchuck_takesem(&priv->nck_exclsem);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
-      ierr("ERROR: nunchuck_takesem failed: %d\n", ret);
+      ierr("ERROR: nxmutex_lock failed: %d\n", ret);
       return ret;
     }
 
@@ -465,7 +448,7 @@ static ssize_t nunchuck_read(FAR struct file *filep, FAR char *buffer,
       ret = sizeof(struct nunchuck_sample_s);
     }
 
-  nunchuck_givesem(&priv->nck_exclsem);
+  nxmutex_unlock(&priv->lock);
   return (ssize_t)ret;
 }
 
@@ -486,10 +469,10 @@ static int nunchuck_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   /* Get exclusive access to the driver structure */
 
-  ret = nunchuck_takesem(&priv->nck_exclsem);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
-      ierr("ERROR: nunchuck_takesem failed: %d\n", ret);
+      ierr("ERROR: nxmutex_lock failed: %d\n", ret);
       return ret;
     }
 
@@ -525,7 +508,7 @@ static int nunchuck_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
       break;
     }
 
-  nunchuck_givesem(&priv->nck_exclsem);
+  nxmutex_unlock(&priv->lock);
   return ret;
 }
 
@@ -577,11 +560,11 @@ int nunchuck_register(FAR const char *devname, FAR struct i2c_master_s *i2c)
 
   /* Initialize the new nunchuck driver instance */
 
-  nxsem_init(&priv->nck_exclsem, 0, 1);
+  nxmutex_init(&priv->nck_lock);
 
   /* And register the nunchuck driver */
 
-  ret = register_driver(devname, &nunchuck_fops, 0666, priv);
+  ret = register_driver(devname, &g_nunchuck_fops, 0666, priv);
   if (ret < 0)
     {
       ierr("ERROR: register_driver failed: %d\n", ret);
@@ -591,7 +574,7 @@ int nunchuck_register(FAR const char *devname, FAR struct i2c_master_s *i2c)
   return OK;
 
 errout_with_priv:
-  nxsem_destroy(&priv->nck_exclsem);
+  nxmutex_destroy(&priv->nck_lock);
   kmm_free(priv);
   return ret;
 }

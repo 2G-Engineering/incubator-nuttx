@@ -60,6 +60,12 @@
 #  endif
 #endif
 
+/* Values for seeking */
+
+#define SEEK_SET    0  /* From the start of the file */
+#define SEEK_CUR    1  /* From the current file offset */
+#define SEEK_END    2  /* From the end of the file */
+
 #ifndef CONFIG_SMP_NCPUS
 #  define CONFIG_SMP_NCPUS 1
 #endif
@@ -77,7 +83,7 @@
 #define SCHED_PRIORITY_MIN       1
 #define SCHED_PRIORITY_IDLE      0
 
-#if defined(CONFIG_FS_LARGEFILE) && defined(CONFIG_HAVE_LONG_LONG)
+#if defined(CONFIG_FS_LARGEFILE)
 #  define fsblkcnt64_t           fsblkcnt_t
 #  define fsfilcnt64_t           fsfilcnt_t
 #  define blkcnt64_t             blkcnt_t
@@ -131,7 +137,7 @@ typedef int16_t      gid_t;
 
 /* dev_t is used for device IDs */
 
-typedef uint16_t     dev_t;
+typedef uint32_t     dev_t;
 
 /* ino_t is used for file serial numbers */
 
@@ -187,7 +193,7 @@ typedef int wint_t;
 
 typedef int wctype_t;
 
-#if defined(CONFIG_FS_LARGEFILE) && defined(CONFIG_HAVE_LONG_LONG)
+#if defined(CONFIG_FS_LARGEFILE)
 /* Large file versions */
 
 typedef uint64_t     fsblkcnt_t;
@@ -300,10 +306,29 @@ enum
   OK = 0,
 };
 
-#endif /* __ASSEMBLY__ */
-
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
+
+#ifdef __cplusplus
+#define EXTERN extern "C"
+extern "C"
+{
+#else
+#define EXTERN extern
+#endif
+
+/* This entry point must be supplied by the application */
+
+#ifdef CONFIG_INIT_ENTRYPOINT
+int CONFIG_INIT_ENTRYPOINT(int argc, FAR char *argv[]);
+#endif
+
+#undef EXTERN
+#if defined(__cplusplus)
+}
+#endif
+
+#endif /* __ASSEMBLY__ */
 
 #endif /* __INCLUDE_SYS_TYPES_H */

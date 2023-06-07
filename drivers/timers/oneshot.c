@@ -34,7 +34,7 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
 #include <nuttx/fs/fs.h>
-#include <nuttx/semaphore.h>
+#include <nuttx/mutex.h>
 #include <nuttx/timers/oneshot.h>
 
 #ifdef CONFIG_ONESHOT
@@ -48,7 +48,7 @@
 struct oneshot_dev_s
 {
   FAR struct oneshot_lowerhalf_s *od_lower;    /* Lower-half driver state */
-  sem_t od_exclsem;                            /* Supports mutual exclusion */
+  mutex_t od_lock;                             /* Supports mutual exclusion */
 
   /* Oneshot timer expiration notification information */
 
@@ -83,10 +83,6 @@ static const struct file_operations g_oneshot_ops =
   oneshot_write, /* write */
   NULL,          /* seek */
   oneshot_ioctl, /* ioctl */
-  NULL           /* poll */
-#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-  , NULL         /* unlink */
-#endif
 };
 
 /****************************************************************************
@@ -169,7 +165,7 @@ static int oneshot_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   /* Get exclusive access to the device structures */
 
-  ret = nxsem_wait(&priv->od_exclsem);
+  ret = nxmutex_lock(&priv->od_lock);
   if (ret < 0)
     {
       return ret;
@@ -213,7 +209,7 @@ static int oneshot_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
           pid = start->pid;
           if (pid == 0)
             {
-              pid = getpid();
+              pid = nxsched_getpid();
             }
 
           priv->od_pid = pid;
@@ -264,7 +260,7 @@ static int oneshot_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         break;
     }
 
-  nxsem_post(&priv->od_exclsem);
+  nxmutex_unlock(&priv->od_lock);
   return ret;
 }
 
@@ -316,7 +312,7 @@ int oneshot_register(FAR const char *devname,
   /* Initialize the new oneshot timer driver instance */
 
   priv->od_lower = lower;
-  nxsem_init(&priv->od_exclsem, 0, 1);
+  nxmutex_init(&priv->od_lock);
 
   /* And register the oneshot timer driver */
 
@@ -324,7 +320,7 @@ int oneshot_register(FAR const char *devname,
   if (ret < 0)
     {
       tmrerr("ERROR: register_driver failed: %d\n", ret);
-      nxsem_destroy(&priv->od_exclsem);
+      nxmutex_destroy(&priv->od_lock);
       kmm_free(priv);
     }
 

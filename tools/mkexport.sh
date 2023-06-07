@@ -250,6 +250,7 @@ echo "HOSTCFLAGS       = ${HOSTCFLAGS}" >>"${EXPORTDIR}/scripts/Make.defs"
 echo "HOSTLDFLAGS      = ${HOSTLDFLAGS}" >>"${EXPORTDIR}/scripts/Make.defs"
 echo "HOSTEXEEXT       = ${HOSTEXEEXT}" >>"${EXPORTDIR}/scripts/Make.defs"
 echo "LDNAME           = ${LDNAME}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "LDELFFLAGS       = ${LDELFFLAGS}" >>"${EXPORTDIR}/scripts/Make.defs"
 
 # Additional compilation options when the kernel is built
 
@@ -418,7 +419,7 @@ cd "${TOPDIR}" || \
   { echo "MK: 'cd ${TOPDIR}' failed"; exit 1; }
 
 if [ -e "${APPDIR}/Makefile" ]; then
-  "${MAKE}" -C "${APPDIR}" EXPORTDIR="$(cd "${EXPORTSUBDIR}" ; pwd )" TOPDIR="${TOPDIR}" export || \
+  ${MAKE} -C "${APPDIR}" EXPORTDIR="$(cd "${EXPORTSUBDIR}" ; pwd )" TOPDIR="${TOPDIR}" export || \
       { echo "MK: call make export for APPDIR not supported"; }
 fi
 

@@ -40,7 +40,6 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/fat.h>
-#include <nuttx/fs/dirent.h>
 
 #include "inode/inode.h"
 #include "fs_fat32.h"
@@ -67,9 +66,12 @@ static int     fat_fstat(FAR const struct file *filep,
 static int     fat_truncate(FAR struct file *filep, off_t length);
 
 static int     fat_opendir(FAR struct inode *mountpt,
-                 FAR const char *relpath, FAR struct fs_dirent_s *dir);
-static int     fat_readdir(FAR struct inode *mountpt,
+                 FAR const char *relpath, FAR struct fs_dirent_s **dir);
+static int     fat_closedir(FAR struct inode *mountpt,
                  FAR struct fs_dirent_s *dir);
+static int     fat_readdir(FAR struct inode *mountpt,
+                 FAR struct fs_dirent_s *dir,
+                 FAR struct dirent *entry);
 static int     fat_rewinddir(FAR struct inode *mountpt,
                  FAR struct fs_dirent_s *dir);
 
@@ -105,7 +107,7 @@ static int     fat_stat(struct inode *mountpt, const char *relpath,
  * with any compiler.
  */
 
-const struct mountpt_operations fat_operations =
+const struct mountpt_operations g_fat_operations =
 {
   fat_open,          /* open */
   fat_close,         /* close */
@@ -113,15 +115,15 @@ const struct mountpt_operations fat_operations =
   fat_write,         /* write */
   fat_seek,          /* seek */
   fat_ioctl,         /* ioctl */
-
+  NULL,              /* mmap */
+  fat_truncate,      /* truncate */
   fat_sync,          /* sync */
   fat_dup,           /* dup */
   fat_fstat,         /* fstat */
   NULL,              /* fchstat */
-  fat_truncate,      /* truncate */
 
   fat_opendir,       /* opendir */
-  NULL,              /* closedir */
+  fat_closedir,      /* closedir */
   fat_readdir,       /* readdir */
   fat_rewinddir,     /* rewinddir */
 
@@ -170,7 +172,7 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
 
   /* Check if the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -179,7 +181,7 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
   ret = fat_checkmount(fs);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Initialize the directory info structure */
@@ -206,7 +208,7 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
           /* It is the root directory */
 
           ret = -EISDIR;
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
 
       direntry = &fs->fs_buffer[dirinfo.fd_seq.ds_offset];
@@ -215,7 +217,7 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
           /* It is a regular directory */
 
           ret = -EISDIR;
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
 
       /* It would be an error if we are asked to create it exclusively */
@@ -225,7 +227,7 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
           /* Already exists -- can't create it exclusively */
 
           ret = -EEXIST;
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
 
       /* Check if the caller has sufficient privileges to open the file */
@@ -234,7 +236,7 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
       if (((oflags & O_WRONLY) != 0) && readonly)
         {
           ret = -EACCES;
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
 
       /* If O_TRUNC is specified and the file is opened for writing,
@@ -250,7 +252,7 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
           ret = fat_dirtruncate(fs, direntry);
           if (ret < 0)
             {
-              goto errout_with_semaphore;
+              goto errout_with_lock;
             }
         }
 
@@ -270,7 +272,7 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
           /* No.. then we fail with -ENOENT */
 
           ret = -ENOENT;
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
 
       /* Yes.. create the file */
@@ -278,7 +280,7 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
       ret = fat_dircreate(fs, &dirinfo);
       if (ret < 0)
         {
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
 
       /* Fall through to finish the file open operation */
@@ -294,7 +296,7 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
        * such as if an invalid path were provided.
        */
 
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Create an instance of the file private date to describe the opened
@@ -305,7 +307,7 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
   if (!ff)
     {
       ret = -ENOMEM;
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Create a file buffer to support partial sector accesses */
@@ -351,7 +353,7 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
   ff->ff_next = fs->fs_head;
   fs->fs_head = ff;
 
-  fat_semgive(fs);
+  nxmutex_unlock(&fs->fs_lock);
 
   /* In write/append mode, we need to set the file pointer to the end of
    * the file.
@@ -376,8 +378,8 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
 errout_with_struct:
   kmm_free(ff);
 
-errout_with_semaphore:
-  fat_semgive(fs);
+errout_with_lock:
+  nxmutex_unlock(&fs->fs_lock);
   return ret;
 }
 
@@ -502,7 +504,7 @@ static ssize_t fat_read(FAR struct file *filep, FAR char *buffer,
 
   /* Make sure that the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -511,7 +513,7 @@ static ssize_t fat_read(FAR struct file *filep, FAR char *buffer,
   ret = fat_checkmount(fs);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Check if the file was opened with read access */
@@ -519,7 +521,7 @@ static ssize_t fat_read(FAR struct file *filep, FAR char *buffer,
   if ((ff->ff_oflags & O_RDOK) == 0)
     {
       ret = -EACCES;
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Get the number of bytes left in the file */
@@ -546,7 +548,7 @@ static ssize_t fat_read(FAR struct file *filep, FAR char *buffer,
       ret = fat_currentsector(fs, ff, filep->f_pos);
       if (ret < 0)
         {
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
     }
 
@@ -574,7 +576,7 @@ static ssize_t fat_read(FAR struct file *filep, FAR char *buffer,
           if (cluster < 2 || cluster >= fs->fs_nclusters)
             {
               ret = -EINVAL; /* Not the right error */
-              goto errout_with_semaphore;
+              goto errout_with_lock;
             }
 
           /* Setup to read the first sector from the new cluster */
@@ -639,7 +641,7 @@ fat_read_restart:
                 }
 #endif /* CONFIG_FAT_DIRECT_RETRY */
 
-              goto errout_with_semaphore;
+              goto errout_with_lock;
             }
 
           ff->ff_sectorsincluster -= nsectors;
@@ -658,7 +660,7 @@ fat_read_restart:
           ret = fat_ffcacheread(fs, ff, ff->ff_currentsector);
           if (ret < 0)
             {
-              goto errout_with_semaphore;
+              goto errout_with_lock;
             }
 
           /* Copy the requested part of the sector into the user buffer */
@@ -690,11 +692,11 @@ fat_read_restart:
       sectorindex   = filep->f_pos & SEC_NDXMASK(fs);
     }
 
-  fat_semgive(fs);
+  nxmutex_unlock(&fs->fs_lock);
   return readsize;
 
-errout_with_semaphore:
-  fat_semgive(fs);
+errout_with_lock:
+  nxmutex_unlock(&fs->fs_lock);
   return ret;
 }
 
@@ -720,21 +722,7 @@ static ssize_t fat_write(FAR struct file *filep, FAR const char *buffer,
   bool force_indirect = false;
 #endif
 
-  /* Sanity checks.  I have seen the following assertion misfire if
-   * CONFIG_DEBUG_MM is enabled while re-directing output to a
-   * file.  In this case, the debug output can get generated while
-   * the file is being opened,  FAT data structures are being allocated,
-   * and things are generally in a perverse state.
-   */
-
-#ifdef CONFIG_DEBUG_MM
-  if (filep->f_priv == NULL || filep->f_inode == NULL)
-    {
-      return -ENXIO;
-    }
-#else
   DEBUGASSERT(filep->f_priv != NULL && filep->f_inode != NULL);
-#endif
 
   /* Recover our private data from the struct file instance */
 
@@ -754,7 +742,7 @@ static ssize_t fat_write(FAR struct file *filep, FAR const char *buffer,
 
   /* Make sure that the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -763,7 +751,7 @@ static ssize_t fat_write(FAR struct file *filep, FAR const char *buffer,
   ret = fat_checkmount(fs);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Check if the file was opened for write access */
@@ -771,7 +759,7 @@ static ssize_t fat_write(FAR struct file *filep, FAR const char *buffer,
   if ((ff->ff_oflags & O_WROK) == 0)
     {
       ret = -EACCES;
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Check if the file size would exceed the range of off_t */
@@ -779,7 +767,7 @@ static ssize_t fat_write(FAR struct file *filep, FAR const char *buffer,
   if (ff->ff_size + buflen < ff->ff_size)
     {
       ret = -EFBIG;
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Get the first sector to write to. */
@@ -804,7 +792,7 @@ static ssize_t fat_write(FAR struct file *filep, FAR const char *buffer,
       ret = fat_currentsector(fs, ff, filep->f_pos);
       if (ret < 0)
         {
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
     }
 
@@ -835,12 +823,12 @@ static ssize_t fat_write(FAR struct file *filep, FAR const char *buffer,
           if (cluster < 0)
             {
               ret = cluster;
-              goto errout_with_semaphore;
+              goto errout_with_lock;
             }
           else if (cluster < 2 || cluster >= fs->fs_nclusters)
             {
               ret = -ENOSPC;
-              goto errout_with_semaphore;
+              goto errout_with_lock;
             }
 
           /* Setup to write the first sector from the new cluster */
@@ -905,7 +893,7 @@ fat_write_restart:
                 }
 #endif /* CONFIG_FAT_DIRECT_RETRY */
 
-              goto errout_with_semaphore;
+              goto errout_with_lock;
             }
 
           ff->ff_sectorsincluster -= nsectors;
@@ -939,7 +927,7 @@ fat_write_restart:
               ret = fat_ffcacheflush(fs, ff);
               if (ret < 0)
                 {
-                  goto errout_with_semaphore;
+                  goto errout_with_lock;
                 }
 
               /* Now mark the clean cache buffer as the current sector. */
@@ -955,7 +943,7 @@ fat_write_restart:
               ret = fat_ffcacheread(fs, ff, ff->ff_currentsector);
               if (ret < 0)
                 {
-                  goto errout_with_semaphore;
+                  goto errout_with_lock;
                 }
             }
 
@@ -1005,11 +993,11 @@ fat_write_restart:
       ff->ff_size = filep->f_pos;
     }
 
-  fat_semgive(fs);
+  nxmutex_unlock(&fs->fs_lock);
   return byteswritten;
 
-errout_with_semaphore:
-  fat_semgive(fs);
+errout_with_lock:
+  nxmutex_unlock(&fs->fs_lock);
   return ret;
 }
 
@@ -1088,7 +1076,7 @@ static off_t fat_seek(FAR struct file *filep, off_t offset, int whence)
 
   /* Make sure that the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -1097,7 +1085,7 @@ static off_t fat_seek(FAR struct file *filep, off_t offset, int whence)
   ret = fat_checkmount(fs);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Check if there is unwritten data in the file buffer */
@@ -1105,7 +1093,7 @@ static off_t fat_seek(FAR struct file *filep, off_t offset, int whence)
   ret = fat_ffcacheflush(fs, ff);
   if (ret < 0)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Attempts to set the position beyond the end of file will
@@ -1140,7 +1128,7 @@ static off_t fat_seek(FAR struct file *filep, off_t offset, int whence)
       if (cluster < 0)
         {
           ret = cluster;
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
 
       ff->ff_startcluster = cluster;
@@ -1198,7 +1186,7 @@ static off_t fat_seek(FAR struct file *filep, off_t offset, int whence)
               /* An error occurred getting the cluster */
 
               ret = cluster;
-              goto errout_with_semaphore;
+              goto errout_with_lock;
             }
 
           /* Zero means that there is no further clusters available
@@ -1218,7 +1206,7 @@ static off_t fat_seek(FAR struct file *filep, off_t offset, int whence)
           if (cluster >= fs->fs_nclusters)
             {
               ret = -ENOSPC;
-              goto errout_with_semaphore;
+              goto errout_with_lock;
             }
 
           /* Otherwise, update the position and continue looking */
@@ -1248,7 +1236,7 @@ static off_t fat_seek(FAR struct file *filep, off_t offset, int whence)
           ret = fat_ffcacheread(fs, ff, ff->ff_currentsector);
           if (ret < 0)
             {
-              goto errout_with_semaphore;
+              goto errout_with_lock;
             }
         }
     }
@@ -1261,11 +1249,11 @@ static off_t fat_seek(FAR struct file *filep, off_t offset, int whence)
       ff->ff_bflags |= FFBUFF_MODIFIED;
     }
 
-  fat_semgive(fs);
+  nxmutex_unlock(&fs->fs_lock);
   return OK;
 
-errout_with_semaphore:
-  fat_semgive(fs);
+errout_with_lock:
+  nxmutex_unlock(&fs->fs_lock);
   return ret;
 }
 
@@ -1301,7 +1289,7 @@ static int fat_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   /* Make sure that the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -1310,13 +1298,13 @@ static int fat_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   ret = fat_checkmount(fs);
   if (ret != OK)
     {
-      fat_semgive(fs);
+      nxmutex_unlock(&fs->fs_lock);
       return ret;
     }
 
   /* ioctl calls are just passed through to the contained block driver */
 
-  fat_semgive(fs);
+  nxmutex_unlock(&fs->fs_lock);
   return -ENOSYS;
 }
 
@@ -1358,7 +1346,7 @@ static int fat_sync(FAR struct file *filep)
 
   /* Make sure that the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -1367,7 +1355,7 @@ static int fat_sync(FAR struct file *filep)
   ret = fat_checkmount(fs);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Check if the has been modified in any way */
@@ -1381,7 +1369,7 @@ static int fat_sync(FAR struct file *filep)
       ret = fat_ffcacheflush(fs, ff);
       if (ret < 0)
         {
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
 
       /* Update the directory entry.  First read the directory
@@ -1391,7 +1379,7 @@ static int fat_sync(FAR struct file *filep)
       ret = fat_fscacheread(fs, ff->ff_dirsector);
       if (ret < 0)
         {
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
 
       /* Recover a pointer to the specific directory entry
@@ -1438,8 +1426,8 @@ static int fat_sync(FAR struct file *filep)
       ret          = fat_updatefsinfo(fs);
     }
 
-errout_with_semaphore:
-  fat_semgive(fs);
+errout_with_lock:
+  nxmutex_unlock(&fs->fs_lock);
   return ret;
 }
 
@@ -1484,7 +1472,7 @@ static int fat_dup(FAR const struct file *oldp, FAR struct file *newp)
 
   /* Check if the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -1493,7 +1481,7 @@ static int fat_dup(FAR const struct file *oldp, FAR struct file *newp)
   ret = fat_checkmount(fs);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Create a new instance of the file private date to describe the
@@ -1504,7 +1492,7 @@ static int fat_dup(FAR const struct file *oldp, FAR struct file *newp)
   if (!newff)
     {
       ret = -ENOMEM;
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Create a file buffer to support partial sector accesses */
@@ -1559,7 +1547,7 @@ static int fat_dup(FAR const struct file *oldp, FAR struct file *newp)
   newff->ff_next = fs->fs_head;
   fs->fs_head = newff;
 
-  fat_semgive(fs);
+  nxmutex_unlock(&fs->fs_lock);
   return OK;
 
   /* Error exits -- goto's are nasty things, but they sure can make error
@@ -1569,8 +1557,8 @@ static int fat_dup(FAR const struct file *oldp, FAR struct file *newp)
 errout_with_struct:
   kmm_free(newff);
 
-errout_with_semaphore:
-  fat_semgive(fs);
+errout_with_lock:
+  nxmutex_unlock(&fs->fs_lock);
   return ret;
 }
 
@@ -1582,8 +1570,9 @@ errout_with_semaphore:
  ****************************************************************************/
 
 static int fat_opendir(FAR struct inode *mountpt, FAR const char *relpath,
-                       FAR struct fs_dirent_s *dir)
+                       FAR struct fs_dirent_s **dir)
 {
+  FAR struct fat_dirent_s *fdir;
   FAR struct fat_mountpt_s *fs;
   FAR struct fat_dirinfo_s  dirinfo;
   uint8_t *direntry;
@@ -1597,18 +1586,24 @@ static int fat_opendir(FAR struct inode *mountpt, FAR const char *relpath,
 
   fs = mountpt->i_private;
 
+  fdir = kmm_zalloc(sizeof(struct fat_dirent_s));
+  if (fdir == NULL)
+    {
+      return -ENOMEM;
+    }
+
   /* Make sure that the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
-      return ret;
+      goto errout_with_fdir;
     }
 
   ret = fat_checkmount(fs);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Find the requested directory */
@@ -1616,7 +1611,7 @@ static int fat_opendir(FAR struct inode *mountpt, FAR const char *relpath,
   ret = fat_finddirentry(fs, &dirinfo, relpath);
   if (ret < 0)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Check if this is the root directory */
@@ -1627,10 +1622,10 @@ static int fat_opendir(FAR struct inode *mountpt, FAR const char *relpath,
        * fat_finddirentry() above.
        */
 
-      dir->u.fat.fd_startcluster = dirinfo.dir.fd_startcluster;
-      dir->u.fat.fd_currcluster  = dirinfo.dir.fd_currcluster;
-      dir->u.fat.fd_currsector   = dirinfo.dir.fd_currsector;
-      dir->u.fat.fd_index        = dirinfo.dir.fd_index;
+      fdir->dir.fd_startcluster = dirinfo.dir.fd_startcluster;
+      fdir->dir.fd_currcluster  = dirinfo.dir.fd_currcluster;
+      fdir->dir.fd_currsector   = dirinfo.dir.fd_currsector;
+      fdir->dir.fd_index        = dirinfo.dir.fd_index;
     }
   else
     {
@@ -1645,27 +1640,47 @@ static int fat_opendir(FAR struct inode *mountpt, FAR const char *relpath,
           /* The entry is not a directory */
 
           ret = -ENOTDIR;
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
       else
         {
           /* The entry is a directory (but not the root directory) */
 
-          dir->u.fat.fd_startcluster =
+          fdir->dir.fd_startcluster =
               ((uint32_t)DIR_GETFSTCLUSTHI(direntry) << 16) |
                          DIR_GETFSTCLUSTLO(direntry);
-          dir->u.fat.fd_currcluster  = dir->u.fat.fd_startcluster;
-          dir->u.fat.fd_currsector   = fat_cluster2sector(fs,
-                                         dir->u.fat.fd_currcluster);
-          dir->u.fat.fd_index        = 2;
+          fdir->dir.fd_currcluster  = fdir->dir.fd_startcluster;
+          fdir->dir.fd_currsector   = fat_cluster2sector(fs,
+                                      fdir->dir.fd_currcluster);
+          fdir->dir.fd_index        = 2;
         }
     }
 
-  ret = OK;
+  *dir = (FAR struct fs_dirent_s *)fdir;
+  nxmutex_unlock(&fs->fs_lock);
+  return OK;
 
-errout_with_semaphore:
-  fat_semgive(fs);
+errout_with_lock:
+  nxmutex_unlock(&fs->fs_lock);
+
+errout_with_fdir:
+  kmm_free(fdir);
   return ret;
+}
+
+/****************************************************************************
+ * Name: fat_closedir
+ *
+ * Description: Close directory
+ *
+ ****************************************************************************/
+
+static int fat_closedir(FAR struct inode *mountpt,
+                        FAR struct fs_dirent_s *dir)
+{
+  DEBUGASSERT(dir);
+  kmm_free(dir);
+  return 0;
 }
 
 /****************************************************************************
@@ -1700,7 +1715,7 @@ static int fat_fstat(FAR const struct file *filep, FAR struct stat *buf)
 
   /* Check if the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -1709,7 +1724,7 @@ static int fat_fstat(FAR const struct file *filep, FAR struct stat *buf)
   ret = fat_checkmount(fs);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Recover our private data from the struct file instance */
@@ -1723,7 +1738,7 @@ static int fat_fstat(FAR const struct file *filep, FAR struct stat *buf)
   ret = fat_fscacheread(fs, ff->ff_dirsector);
   if (ret < 0)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Recover a pointer to the specific directory entry in the sector using
@@ -1739,8 +1754,8 @@ static int fat_fstat(FAR const struct file *filep, FAR struct stat *buf)
 
   ret = fat_stat_file(fs, direntry, buf);
 
-errout_with_semaphore:
-  fat_semgive(fs);
+errout_with_lock:
+  nxmutex_unlock(&fs->fs_lock);
   return ret;
 }
 
@@ -1781,7 +1796,7 @@ static int fat_truncate(FAR struct file *filep, off_t length)
 
   /* Make sure that the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -1790,7 +1805,7 @@ static int fat_truncate(FAR struct file *filep, off_t length)
   ret = fat_checkmount(fs);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Check if the file was opened for write access */
@@ -1798,7 +1813,7 @@ static int fat_truncate(FAR struct file *filep, off_t length)
   if ((ff->ff_oflags & O_WROK) == 0)
     {
       ret = -EACCES;
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Are we shrinking the file?  Or extending it? */
@@ -1823,7 +1838,7 @@ static int fat_truncate(FAR struct file *filep, off_t length)
       ret = fat_fscacheread(fs, ff->ff_dirsector);
       if (ret < 0)
         {
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
 
       /* Recover a pointer to the specific directory entry in the sector
@@ -1879,8 +1894,8 @@ static int fat_truncate(FAR struct file *filep, off_t length)
         }
     }
 
-errout_with_semaphore:
-  fat_semgive(fs);
+errout_with_lock:
+  nxmutex_unlock(&fs->fs_lock);
   return ret;
 }
 
@@ -1892,8 +1907,10 @@ errout_with_semaphore:
  ****************************************************************************/
 
 static int fat_readdir(FAR struct inode *mountpt,
-                       FAR struct fs_dirent_s *dir)
+                       FAR struct fs_dirent_s *dir,
+                       FAR struct dirent *entry)
 {
+  FAR struct fat_dirent_s *fdir;
   FAR struct fat_mountpt_s *fs;
   unsigned int dirindex;
   FAR uint8_t *direntry;
@@ -1909,12 +1926,13 @@ static int fat_readdir(FAR struct inode *mountpt,
   /* Recover our private data from the inode instance */
 
   fs = mountpt->i_private;
+  fdir = (FAR struct fat_dirent_s *)dir;
 
   /* Make sure that the mount is still healthy.
    * REVISIT: What if a forced unmount was done since opendir() was called?
    */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -1923,25 +1941,25 @@ static int fat_readdir(FAR struct inode *mountpt,
   ret = fat_checkmount(fs);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Read the next directory entry */
 
-  dir->fd_dir.d_name[0] = '\0';
+  entry->d_name[0] = '\0';
   found = false;
 
-  while (dir->u.fat.fd_currsector && !found)
+  while (fdir->dir.fd_currsector && !found)
     {
-      ret = fat_fscacheread(fs, dir->u.fat.fd_currsector);
+      ret = fat_fscacheread(fs, fdir->dir.fd_currsector);
       if (ret < 0)
         {
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
 
       /* Get a reference to the current directory entry */
 
-      dirindex = (dir->u.fat.fd_index & DIRSEC_NDXMASK(fs)) * DIR_SIZE;
+      dirindex = (fdir->dir.fd_index & DIRSEC_NDXMASK(fs)) * DIR_SIZE;
       direntry = &fs->fs_buffer[dirindex];
 
       /* Has it reached to end of the directory */
@@ -1954,7 +1972,7 @@ static int fat_readdir(FAR struct inode *mountpt,
            */
 
           ret = -ENOENT;
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
 
       /* No, is the current entry a valid entry? */
@@ -1974,7 +1992,7 @@ static int fat_readdir(FAR struct inode *mountpt,
            * several directory entries.
            */
 
-          ret = fat_dirname2path(fs, dir);
+          ret = fat_dirname2path(fs, dir, entry);
           if (ret == OK)
             {
               /* The name was successfully extracted.  Re-read the
@@ -1993,8 +2011,8 @@ static int fat_readdir(FAR struct inode *mountpt,
                * entry.
                */
 
-              dirindex = (dir->u.fat.fd_index & DIRSEC_NDXMASK(fs)) *
-                          DIR_SIZE;
+              dirindex = (fdir->dir.fd_index & DIRSEC_NDXMASK(fs)) *
+                         DIR_SIZE;
               direntry = &fs->fs_buffer[dirindex];
 
               /* Then re-read the attributes from the short file name entry */
@@ -2005,11 +2023,11 @@ static int fat_readdir(FAR struct inode *mountpt,
 
               if ((attribute & FATATTR_DIRECTORY) == 0)
                 {
-                  dir->fd_dir.d_type = DTYPE_FILE;
+                  entry->d_type = DTYPE_FILE;
                 }
               else
                 {
-                  dir->fd_dir.d_type = DTYPE_DIRECTORY;
+                  entry->d_type = DTYPE_DIRECTORY;
                 }
 
               /* Mark the entry found.  We will set up the next directory
@@ -2022,18 +2040,18 @@ static int fat_readdir(FAR struct inode *mountpt,
 
       /* Set up the next directory index */
 
-      if (fat_nextdirentry(fs, &dir->u.fat) != OK)
+      if (fat_nextdirentry(fs, &fdir->dir) != OK)
         {
           ret = -ENOENT;
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
     }
 
-  fat_semgive(fs);
+  nxmutex_unlock(&fs->fs_lock);
   return OK;
 
-errout_with_semaphore:
-  fat_semgive(fs);
+errout_with_lock:
+  nxmutex_unlock(&fs->fs_lock);
   return ret;
 }
 
@@ -2047,6 +2065,7 @@ errout_with_semaphore:
 static int fat_rewinddir(FAR struct inode *mountpt,
                          FAR struct fs_dirent_s *dir)
 {
+  FAR struct fat_dirent_s *fdir;
   FAR struct fat_mountpt_s *fs;
   int ret;
 
@@ -2057,12 +2076,13 @@ static int fat_rewinddir(FAR struct inode *mountpt,
   /* Recover our private data from the inode instance */
 
   fs = mountpt->i_private;
+  fdir = (FAR struct fat_dirent_s *)dir;
 
   /* Make sure that the mount is still healthy
    * REVISIT: What if a forced unmount was done since opendir() was called?
    */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -2071,7 +2091,7 @@ static int fat_rewinddir(FAR struct inode *mountpt,
   ret = fat_checkmount(fs);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Check if this is the root directory.  If it is the root directory, we
@@ -2079,22 +2099,22 @@ static int fat_rewinddir(FAR struct inode *mountpt,
    */
 
   if (fs->fs_type != FSTYPE_FAT32 &&
-      dir->u.fat.fd_startcluster == 0)
+      fdir->dir.fd_startcluster == 0)
     {
       /* Handle the FAT12/16 root directory */
 
-      dir->u.fat.fd_currcluster  = 0;
-      dir->u.fat.fd_currsector   = fs->fs_rootbase;
-      dir->u.fat.fd_index        = 0;
+      fdir->dir.fd_currcluster  = 0;
+      fdir->dir.fd_currsector   = fs->fs_rootbase;
+      fdir->dir.fd_index        = 0;
     }
   else if (fs->fs_type == FSTYPE_FAT32 &&
-           dir->u.fat.fd_startcluster == fs->fs_rootbase)
+           fdir->dir.fd_startcluster == fs->fs_rootbase)
     {
       /* Handle the FAT32 root directory */
 
-      dir->u.fat.fd_currcluster = dir->u.fat.fd_startcluster;
-      dir->u.fat.fd_currsector  = fat_cluster2sector(fs, fs->fs_rootbase);
-      dir->u.fat.fd_index       = 0;
+      fdir->dir.fd_currcluster = fdir->dir.fd_startcluster;
+      fdir->dir.fd_currsector  = fat_cluster2sector(fs, fs->fs_rootbase);
+      fdir->dir.fd_index       = 0;
     }
 
   /* This is not the root directory.  Here the fd_index is set to 2, skipping
@@ -2103,17 +2123,17 @@ static int fat_rewinddir(FAR struct inode *mountpt,
 
   else
     {
-      dir->u.fat.fd_currcluster  = dir->u.fat.fd_startcluster;
-      dir->u.fat.fd_currsector   = fat_cluster2sector(fs,
-                                     dir->u.fat.fd_currcluster);
-      dir->u.fat.fd_index        = 2;
+      fdir->dir.fd_currcluster  = fdir->dir.fd_startcluster;
+      fdir->dir.fd_currsector   = fat_cluster2sector(fs,
+                                  fdir->dir.fd_currcluster);
+      fdir->dir.fd_index        = 2;
     }
 
-  fat_semgive(fs);
+  nxmutex_unlock(&fs->fs_lock);
   return OK;
 
-errout_with_semaphore:
-  fat_semgive(fs);
+errout_with_lock:
+  nxmutex_unlock(&fs->fs_lock);
   return ERROR;
 }
 
@@ -2161,7 +2181,7 @@ static int fat_bind(FAR struct inode *blkdriver, FAR const void *data,
    */
 
   fs->fs_blkdriver = blkdriver;   /* Save the block driver reference */
-  nxsem_init(&fs->fs_sem, 0, 0);  /* Initialize the semaphore that controls access */
+  nxmutex_init(&fs->fs_lock);     /* Initialize the mutex that controls access */
 
   /* Then get information about the FAT32 filesystem on the devices managed
    * by this block driver.
@@ -2170,13 +2190,12 @@ static int fat_bind(FAR struct inode *blkdriver, FAR const void *data,
   ret = fat_mount(fs, true);
   if (ret != 0)
     {
-      nxsem_destroy(&fs->fs_sem);
+      nxmutex_destroy(&fs->fs_lock);
       kmm_free(fs);
       return ret;
     }
 
   *handle = (FAR void *)fs;
-  fat_semgive(fs);
   return OK;
 }
 
@@ -2201,7 +2220,7 @@ static int fat_unbind(FAR void *handle, FAR struct inode **blkdriver,
 
   /* Check if there are sill any files opened on the filesystem. */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -2236,7 +2255,7 @@ static int fat_unbind(FAR void *handle, FAR struct inode **blkdriver,
            * options.
            */
 
-          fat_semgive(fs);
+          nxmutex_unlock(&fs->fs_lock);
           return (flags != 0) ? -ENOSYS : -EBUSY;
         }
     }
@@ -2273,7 +2292,7 @@ static int fat_unbind(FAR void *handle, FAR struct inode **blkdriver,
       fat_io_free(fs->fs_buffer, fs->fs_hwsectorsize);
     }
 
-  nxsem_destroy(&fs->fs_sem);
+  nxmutex_destroy(&fs->fs_lock);
   kmm_free(fs);
   return OK;
 }
@@ -2300,7 +2319,7 @@ static int fat_statfs(FAR struct inode *mountpt, FAR struct statfs *buf)
 
   /* Check if the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -2309,7 +2328,7 @@ static int fat_statfs(FAR struct inode *mountpt, FAR struct statfs *buf)
   ret = fat_checkmount(fs);
   if (ret < 0)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Fill in the statfs info */
@@ -2339,8 +2358,8 @@ static int fat_statfs(FAR struct inode *mountpt, FAR struct statfs *buf)
 #endif
     }
 
-errout_with_semaphore:
-  fat_semgive(fs);
+errout_with_lock:
+  nxmutex_unlock(&fs->fs_lock);
   return ret;
 }
 
@@ -2366,7 +2385,7 @@ static int fat_unlink(FAR struct inode *mountpt, FAR const char *relpath)
 
   /* Check if the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -2388,7 +2407,7 @@ static int fat_unlink(FAR struct inode *mountpt, FAR const char *relpath)
       ret = fat_remove(fs, relpath, false);
     }
 
-  fat_semgive(fs);
+  nxmutex_unlock(&fs->fs_lock);
   return ret;
 }
 
@@ -2424,7 +2443,7 @@ static int fat_mkdir(FAR struct inode *mountpt, FAR const char *relpath,
 
   /* Check if the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -2433,7 +2452,7 @@ static int fat_mkdir(FAR struct inode *mountpt, FAR const char *relpath,
   ret = fat_checkmount(fs);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Find the directory where the new directory should be created. */
@@ -2454,7 +2473,7 @@ static int fat_mkdir(FAR struct inode *mountpt, FAR const char *relpath,
           ret = -EEXIST;
         }
 
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* What we want to see is for fat_finddirentry to fail with -ENOENT.
@@ -2465,7 +2484,7 @@ static int fat_mkdir(FAR struct inode *mountpt, FAR const char *relpath,
 
   if (ret != -ENOENT)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* NOTE: There is no check that dirinfo.fd_name contains the final
@@ -2478,7 +2497,7 @@ static int fat_mkdir(FAR struct inode *mountpt, FAR const char *relpath,
   ret = fat_allocatedirentry(fs, &dirinfo);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   parentsector = fs->fs_currentsector;
@@ -2489,19 +2508,19 @@ static int fat_mkdir(FAR struct inode *mountpt, FAR const char *relpath,
   if (dircluster < 0)
     {
       ret = dircluster;
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
   else if (dircluster < 2)
     {
       ret = -ENOSPC;
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   dirsector = fat_cluster2sector(fs, dircluster);
   if (dirsector < 0)
     {
       ret = dirsector;
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Flush any existing, dirty data in fs_buffer (because we need
@@ -2511,7 +2530,7 @@ static int fat_mkdir(FAR struct inode *mountpt, FAR const char *relpath,
   ret = fat_fscacheflush(fs);
   if (ret < 0)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Get a pointer to the first directory entry in the sector */
@@ -2532,7 +2551,7 @@ static int fat_mkdir(FAR struct inode *mountpt, FAR const char *relpath,
       ret = fat_hwwrite(fs, direntry, ++dirsector, 1);
       if (ret < 0)
         {
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
     }
 
@@ -2582,7 +2601,7 @@ static int fat_mkdir(FAR struct inode *mountpt, FAR const char *relpath,
   ret = fat_fscacheread(fs, parentsector);
   if (ret < 0)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Write the new entry directory entry in the parent directory */
@@ -2590,7 +2609,7 @@ static int fat_mkdir(FAR struct inode *mountpt, FAR const char *relpath,
   ret = fat_dirwrite(fs, &dirinfo, FATATTR_DIRECTORY, crtime);
   if (ret < 0)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Set subdirectory start cluster. We assume that fat_dirwrite() did not
@@ -2607,14 +2626,14 @@ static int fat_mkdir(FAR struct inode *mountpt, FAR const char *relpath,
   ret = fat_updatefsinfo(fs);
   if (ret < 0)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
-  fat_semgive(fs);
+  nxmutex_unlock(&fs->fs_lock);
   return OK;
 
-errout_with_semaphore:
-  fat_semgive(fs);
+errout_with_lock:
+  nxmutex_unlock(&fs->fs_lock);
   return ret;
 }
 
@@ -2625,7 +2644,7 @@ errout_with_semaphore:
  *
  ****************************************************************************/
 
-int fat_rmdir(FAR struct inode *mountpt, FAR const char *relpath)
+static int fat_rmdir(FAR struct inode *mountpt, FAR const char *relpath)
 {
   FAR struct fat_mountpt_s *fs;
   int ret;
@@ -2640,7 +2659,7 @@ int fat_rmdir(FAR struct inode *mountpt, FAR const char *relpath)
 
   /* Check if the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -2662,7 +2681,7 @@ int fat_rmdir(FAR struct inode *mountpt, FAR const char *relpath)
       ret = fat_remove(fs, relpath, true);
     }
 
-  fat_semgive(fs);
+  nxmutex_unlock(&fs->fs_lock);
   return ret;
 }
 
@@ -2673,8 +2692,8 @@ int fat_rmdir(FAR struct inode *mountpt, FAR const char *relpath)
  *
  ****************************************************************************/
 
-int fat_rename(FAR struct inode *mountpt, FAR const char *oldrelpath,
-               FAR const char *newrelpath)
+static int fat_rename(FAR struct inode *mountpt, FAR const char *oldrelpath,
+                      FAR const char *newrelpath)
 {
   FAR struct fat_mountpt_s *fs;
   FAR struct fat_dirinfo_s dirinfo;
@@ -2693,7 +2712,7 @@ int fat_rename(FAR struct inode *mountpt, FAR const char *oldrelpath,
 
   /* Check if the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -2702,7 +2721,7 @@ int fat_rename(FAR struct inode *mountpt, FAR const char *oldrelpath,
   ret = fat_checkmount(fs);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Find the directory entry for the oldrelpath (there may be multiple
@@ -2714,7 +2733,7 @@ int fat_rename(FAR struct inode *mountpt, FAR const char *oldrelpath,
     {
       /* Some error occurred -- probably -ENOENT */
 
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* One more check:  Make sure that the oldrelpath does not refer to the
@@ -2724,7 +2743,7 @@ int fat_rename(FAR struct inode *mountpt, FAR const char *oldrelpath,
   if (dirinfo.fd_root)
     {
       ret = -EXDEV;
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Save the information that will need to recover the directory sector and
@@ -2760,7 +2779,7 @@ int fat_rename(FAR struct inode *mountpt, FAR const char *oldrelpath,
           ret = -EEXIST;
         }
 
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Reserve a directory entry. If long file name support is enabled, then
@@ -2772,7 +2791,7 @@ int fat_rename(FAR struct inode *mountpt, FAR const char *oldrelpath,
   ret = fat_allocatedirentry(fs, &dirinfo);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Then write the new file name into the directory entry.  This, of course,
@@ -2784,7 +2803,7 @@ int fat_rename(FAR struct inode *mountpt, FAR const char *oldrelpath,
   ret = fat_dirnamewrite(fs, &dirinfo);
   if (ret < 0)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Copy the unchanged information into the new short file name entry. */
@@ -2801,7 +2820,7 @@ int fat_rename(FAR struct inode *mountpt, FAR const char *oldrelpath,
   ret = fat_freedirentry(fs, &dirseq);
   if (ret < 0)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Write the old entry to disk and update FSINFO if necessary */
@@ -2809,14 +2828,14 @@ int fat_rename(FAR struct inode *mountpt, FAR const char *oldrelpath,
   ret = fat_updatefsinfo(fs);
   if (ret < 0)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
-  fat_semgive(fs);
+  nxmutex_unlock(&fs->fs_lock);
   return OK;
 
-errout_with_semaphore:
-  fat_semgive(fs);
+errout_with_lock:
+  nxmutex_unlock(&fs->fs_lock);
   return ret;
 }
 
@@ -2961,7 +2980,7 @@ static int fat_stat(FAR struct inode *mountpt, FAR const char *relpath,
 
   /* Check if the mount is still healthy */
 
-  ret = fat_semtake(fs);
+  ret = nxmutex_lock(&fs->fs_lock);
   if (ret < 0)
     {
       return ret;
@@ -2970,7 +2989,7 @@ static int fat_stat(FAR struct inode *mountpt, FAR const char *relpath,
   ret = fat_checkmount(fs);
   if (ret != OK)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Find the directory entry corresponding to relpath. */
@@ -2981,7 +3000,7 @@ static int fat_stat(FAR struct inode *mountpt, FAR const char *relpath,
 
   if (ret < 0)
     {
-      goto errout_with_semaphore;
+      goto errout_with_lock;
     }
 
   /* Get the FAT attribute and map it so some meaningful mode_t values */
@@ -3003,8 +3022,8 @@ static int fat_stat(FAR struct inode *mountpt, FAR const char *relpath,
       ret = fat_stat_file(fs, direntry, buf);
     }
 
-errout_with_semaphore:
-  fat_semgive(fs);
+errout_with_lock:
+  nxmutex_unlock(&fs->fs_lock);
   return ret;
 }
 

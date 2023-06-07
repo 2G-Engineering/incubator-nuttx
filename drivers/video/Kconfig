@@ -58,6 +58,10 @@ config VIDEO_STREAM
 
 if VIDEO_STREAM
 
+config VIDEO_REQBUFS_COUNT_MAX
+	int "Maximum Video reqbuf buffers count"
+	default 3
+
 config VIDEO_SCENE_BACKLIGHT
 	bool "Enable backlight scene"
 	default y
@@ -150,6 +154,16 @@ config VIDEO_ISX012
 	default n
 	select I2C
 
+if VIDEO_ISX012
+
+config VIDEO_ISX012_REGDEBUG
+	bool "Enable to read registers of ISX012 for test"
+	default n
+	---help---
+		Enable to read registers of ISX012 for test.
+
+endif
+
 config VIDEO_ISX019
 	bool "ISX019 Image sensor"
 	default n
@@ -182,6 +196,20 @@ config VIDEO_ISX019_INITIAL_JPEG_QUALITY
 	range 1 100
 	---help---
 		The initial JPEG quality.
+
+config VIDEO_ISX019_NAME_WITH_VERSION
+	bool "ISX019 Image sensor name with version number"
+	default n
+	---help---
+		ISX019 Camera board has FPGA for encoding JPEG image.
+		This FPGA has a version number for the circuit.
+		This option enables to report FPGA version with driver name.
+
+config VIDEO_ISX019_REGDEBUG
+	bool "Enable to read registers of ISX019 for test"
+	default n
+	---help---
+		Enable to read registers of ISX019 for test.
 
 endif
 
@@ -294,5 +322,6 @@ config OV2640_REGDEBUG
 endif
 
 source "drivers/video/vnc/Kconfig"
+source "drivers/video/mipidsi/Kconfig"
 
 endif # DRIVERS_VIDEO

@@ -46,10 +46,6 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#ifndef SBI_PLATFORM_DEFAULT_HART_STACK_SIZE
-#define SBI_PLATFORM_DEFAULT_HART_STACK_SIZE 8192
-#endif
-
 /****************************************************************************
  * Public Symbols
  ****************************************************************************/
@@ -72,7 +68,7 @@ mpfs_global_pointer:
  *   mtvec, global pointer and the stack (per hart) for the OpenSBI.
  *   mpfs_global_pointer is used to store the real __global_pointer$ as
  *   seen in the .map file.  Loading gp, _global_pointer$ would default to
- *   mv gp, gp -instruction which isn't what we want. External libraties seem
+ *   mv gp, gp -instruction which isn't what we want. External libraries seem
  *   to link relative to gp. When trapping from the kernel, the gp has been
  *   utilized for other purposes, so we need to save and restore gp at all
  *   times.
@@ -100,12 +96,12 @@ mpfs_opensbi_prepare_hart:
   la   t0, mpfs_global_pointer
   ld   gp, 0(t0)
 
-  /* Setup stacks per hart */
+  /* Setup stacks per hart, the stack top is the end of the hart's scratch */
 
   csrr a0, mhartid
-  li   t1, SBI_PLATFORM_DEFAULT_HART_STACK_SIZE
+  li   t1, SBI_SCRATCH_SIZE
   mul  t0, a0, t1
-  la   sp, g_hart_stacks
+  la   sp, g_scratches
   add  sp, sp, t0
   jal  mpfs_opensbi_setup
 

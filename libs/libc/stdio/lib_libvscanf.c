@@ -123,7 +123,8 @@ static FAR const char *findscanset(FAR const char *fmt,
     {
       set[c / 8] |= (1 << (c % 8));     /* Take character c */
 
-    doswitch:n = fmt_char(fmt++);       /* Examine the next */
+doswitch:
+      n = fmt_char(fmt++);       /* Examine the next */
       switch (n)
         {
         case 0:                /* Format ended too soon */
@@ -215,7 +216,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
   int base = 10;
   char tmp[MAXLN];
 
-#ifdef CONFIG_LIBC_LONG_LONG
+#ifdef CONFIG_HAVE_LONG_LONG
   FAR unsigned long long *plonglong = NULL;
 #endif
   FAR unsigned long *plong = NULL;
@@ -255,7 +256,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
 
   /* Get first character, we keep always the next character in c */
 
-  c = obj->get(obj);
+  c = lib_stream_getc(obj);
 
   while (fmt_char(fmt))
     {
@@ -265,7 +266,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
         {
           while (isspace(c))
             {
-              c = obj->get(obj);
+              c = lib_stream_getc(obj);
             }
         }
 
@@ -317,7 +318,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
               else if (fmt_char(fmt) == 'j')
                 {
                   /* Same as long long if available. Otherwise, long. */
-#ifdef CONFIG_LIBC_LONG_LONG
+#ifdef CONFIG_HAVE_LONG_LONG
                   modifier = LL_MOD;
 #else
                   modifier = L_MOD;
@@ -337,8 +338,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                 {
                   for (tc = fmt; isdigit(fmt_char(fmt)); fmt++)
                     ;
-                  strncpy(tmp, tc, fmt - tc);
-                  tmp[fmt - tc] = '\0';
+                  strlcpy(tmp, tc, fmt - tc + 1);
                   width = atoi(tmp);
                   fmt--;
                 }
@@ -366,7 +366,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
 
               while (isspace(c))
                 {
-                  c = obj->get(obj);
+                  c = lib_stream_getc(obj);
                 }
 
               /* But we only perform the data conversion is we still have
@@ -390,7 +390,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                         }
 
                       fwidth++;
-                      c = obj->get(obj);
+                      c = lib_stream_getc(obj);
                     }
 
                   if (!noassign)
@@ -445,7 +445,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                         }
 
                       fwidth++;
-                      c = obj->get(obj);
+                      c = lib_stream_getc(obj);
                     }
 
                   if (!fwidth)
@@ -509,7 +509,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                         }
 
                       fwidth++;
-                      c = obj->get(obj);
+                      c = lib_stream_getc(obj);
                     }
 
                   if (fwidth != width)
@@ -569,7 +569,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                       *plong = 0;
                       break;
 
-#ifdef CONFIG_LIBC_LONG_LONG
+#ifdef CONFIG_HAVE_LONG_LONG
                     case LL_MOD:
                       plonglong = va_arg(ap, FAR unsigned long long *);
                       *plonglong = 0;
@@ -582,7 +582,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
 
               while (isspace(c))
                 {
-                  c = obj->get(obj);
+                  c = lib_stream_getc(obj);
                 }
 
               /* But we only perform the data conversion if we still have
@@ -596,7 +596,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                   bool stopconv;
                   int errsave;
                   unsigned long tmplong = 0;
-#ifdef CONFIG_LIBC_LONG_LONG
+#ifdef CONFIG_HAVE_LONG_LONG
                   unsigned long long tmplonglong = 0;
 #endif
                   /* Copy the real string into a temporary working buffer. */
@@ -641,7 +641,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                           if (!stopconv)
                             {
                               tmp[fwidth++] = c;
-                              c = obj->get(obj);
+                              c = lib_stream_getc(obj);
                             }
                         }
 
@@ -691,7 +691,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                           if (!stopconv)
                             {
                               tmp[fwidth++] = c;
-                              c = obj->get(obj);
+                              c = lib_stream_getc(obj);
                             }
                         }
 
@@ -716,7 +716,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                           if (!stopconv)
                             {
                               tmp[fwidth++] = c;
-                              c = obj->get(obj);
+                              c = lib_stream_getc(obj);
                             }
                         }
 
@@ -741,7 +741,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                           if (!stopconv)
                             {
                               tmp[fwidth++] = c;
-                              c = obj->get(obj);
+                              c = lib_stream_getc(obj);
                             }
                         }
 
@@ -796,7 +796,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                           if (!stopconv)
                             {
                               tmp[fwidth++] = c;
-                              c = obj->get(obj);
+                              c = lib_stream_getc(obj);
                             }
                         }
                       break;
@@ -815,7 +815,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
 
                   switch (modifier)
                     {
-#ifndef CONFIG_LIBC_LONG_LONG
+#ifndef CONFIG_HAVE_LONG_LONG
                     case LL_MOD:
 #endif
                     case HH_MOD:
@@ -832,15 +832,23 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                         }
                       break;
 
-#ifdef CONFIG_LIBC_LONG_LONG
+#ifdef CONFIG_HAVE_LONG_LONG
                     case LL_MOD:
                       if (sign)
                         {
+#  ifdef CONFIG_LIBC_LONG_LONG
                           tmplonglong = strtoll(tmp, &endptr, base);
+#  else
+                          tmplonglong = strtol(tmp, &endptr, base);
+#  endif
                         }
                       else
                         {
+#  ifdef CONFIG_LIBC_LONG_LONG
                           tmplonglong = strtoull(tmp, &endptr, base);
+#  else
+                          tmplonglong = strtoul(tmp, &endptr, base);
+#  endif
                         }
                       break;
 #endif
@@ -864,31 +872,31 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                       switch (modifier)
                         {
                         case HH_MOD:
-                          linfo("Return %ld to 0x%p\n", tmplong, pchar);
+                          linfo("Return %ld to %p\n", tmplong, pchar);
                           *pchar = (unsigned char)tmplong;
                           break;
 
                         case H_MOD:
-                          linfo("Return %ld to 0x%p\n", tmplong, pshort);
+                          linfo("Return %ld to %p\n", tmplong, pshort);
                           *pshort = (unsigned short)tmplong;
                           break;
 
                         case NO_MOD:
-                          linfo("Return %ld to 0x%p\n", tmplong, pint);
+                          linfo("Return %ld to %p\n", tmplong, pint);
                           *pint = (unsigned int)tmplong;
                           break;
 
-#ifndef CONFIG_LIBC_LONG_LONG
+#ifndef CONFIG_HAVE_LONG_LONG
                         case L_MOD:
 #endif
                         default:
-                          linfo("Return %ld to 0x%p\n", tmplong, plong);
+                          linfo("Return %ld to %p\n", tmplong, plong);
                           *plong = tmplong;
                           break;
 
-#ifdef CONFIG_LIBC_LONG_LONG
+#ifdef CONFIG_HAVE_LONG_LONG
                         case LL_MOD:
-                          linfo("Return %lld to 0x%p\n", tmplonglong,
+                          linfo("Return %lld to %p\n", tmplonglong,
                                 plonglong);
                           *plonglong = tmplonglong;
                           break;
@@ -946,7 +954,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
 
               while (isspace(c))
                 {
-                  c = obj->get(obj);
+                  c = lib_stream_getc(obj);
                 }
 
               /* But we only perform the data conversion is we still have
@@ -1030,7 +1038,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                       if (!stopconv)
                         {
                           tmp[fwidth++] = c;
-                          c = obj->get(obj);
+                          c = lib_stream_getc(obj);
                         }
                     }
 
@@ -1141,7 +1149,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                       *plong = (unsigned long)nchars;
                       break;
 
-#ifdef CONFIG_LIBC_LONG_LONG
+#ifdef CONFIG_HAVE_LONG_LONG
                     case LL_MOD:
                       plonglong = va_arg(ap, FAR unsigned long long *);
                       *plonglong = (unsigned long long)nchars;
@@ -1160,7 +1168,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
                 }
               else
                 {
-                  c = obj->get(obj);
+                  c = lib_stream_getc(obj);
                 }
             }
 
@@ -1180,7 +1188,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
 
           while (isspace(c))
             {
-              c = obj->get(obj);
+              c = lib_stream_getc(obj);
             }
 #endif
 
@@ -1193,7 +1201,7 @@ int lib_vscanf(FAR struct lib_instream_s *obj, FAR int *lastc,
           else
             {
               fmt++;
-              c = obj->get(obj);
+              c = lib_stream_getc(obj);
             }
         }
       else

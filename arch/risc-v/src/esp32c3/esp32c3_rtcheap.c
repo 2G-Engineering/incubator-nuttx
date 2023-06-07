@@ -53,16 +53,16 @@ void esp32c3_rtcheap_initialize(void)
   void  *start;
   size_t size;
 
-  /* These values come from the linker scripts (esp32c3.ld and
-   * flat.template.ld).
+  /* These values come from the linker scripts
+   * (<legacy/mcuboot>_sections.ld and flat_memory.ld).
    * Check boards/risc-v/esp32c3.
    */
 
-  extern uint8_t *_srtcheap;
-  extern uint8_t *_ertcheap;
+  extern uint8_t _srtcheap[];
+  extern uint8_t _ertcheap[];
 
-  start = (void *)&_srtcheap;
-  size  = (size_t)((uintptr_t)&_ertcheap - (uintptr_t)&_srtcheap);
+  start = (void *)_srtcheap;
+  size  = (size_t)(_ertcheap - _srtcheap);
   g_rtcheap = mm_initialize("rtcheap", start, size);
 }
 

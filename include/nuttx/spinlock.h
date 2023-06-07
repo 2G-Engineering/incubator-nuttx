@@ -33,9 +33,7 @@
 #include <nuttx/irq.h>
 
 #ifndef CONFIG_SPINLOCK
-typedef struct
-{
-} spinlock_t;
+typedef uint8_t spinlock_t;
 #else
 
 /* The architecture specific spinlock.h header file must also provide the
@@ -129,25 +127,6 @@ static inline spinlock_t up_testset(volatile FAR spinlock_t *lock)
   return ret;
 }
 #endif
-
-/****************************************************************************
- * Name: spin_initialize
- *
- * Description:
- *   Initialize a non-reentrant spinlock object to its initial,
- *   unlocked state.
- *
- * Input Parameters:
- *   lock  - A reference to the spinlock object to be initialized.
- *   state - Initial state of the spinlock {SP_LOCKED or SP_UNLOCKED)
- *
- * Returned Value:
- *   None.
- *
- ****************************************************************************/
-
-/* void spin_initialize(FAR spinlock_t *lock, spinlock_t state); */
-#define spin_initialize(l,s) do { *(l) = (s); } while (0)
 
 /****************************************************************************
  * Name: spin_lock
@@ -354,6 +333,26 @@ void spin_clrbit(FAR volatile cpu_set_t *set, unsigned int cpu,
 #endif /* CONFIG_SPINLOCK */
 
 /****************************************************************************
+ * Name: spin_initialize
+ *
+ * Description:
+ *   Initialize a non-reentrant spinlock object to its initial,
+ *   unlocked state.
+ *
+ * Input Parameters:
+ *   lock  - A reference to the spinlock object to be initialized.
+ *   state - Initial state of the spinlock {SP_LOCKED or SP_UNLOCKED)
+ *
+ * Returned Value:
+ *   None.
+ *
+ ****************************************************************************/
+
+/* void spin_initialize(FAR spinlock_t *lock, spinlock_t state); */
+
+#define spin_initialize(l,s) do { *(l) = (s); } while (0)
+
+/****************************************************************************
  * Name: spin_lock_irqsave
  *
  * Description:
@@ -393,6 +392,16 @@ irqstate_t spin_lock_irqsave(spinlock_t *lock);
 #endif
 
 /****************************************************************************
+ * Name: spin_lock_irqsave_wo_note
+ ****************************************************************************/
+
+#if defined(CONFIG_SMP)
+irqstate_t spin_lock_irqsave_wo_note(spinlock_t *lock);
+#else
+#  define spin_lock_irqsave_wo_note(l) ((void)(l), up_irq_save())
+#endif
+
+/****************************************************************************
  * Name: spin_unlock_irqrestore
  *
  * Description:
@@ -425,6 +434,16 @@ irqstate_t spin_lock_irqsave(spinlock_t *lock);
 void spin_unlock_irqrestore(spinlock_t *lock, irqstate_t flags);
 #else
 #  define spin_unlock_irqrestore(l, f) up_irq_restore(f)
+#endif
+
+/****************************************************************************
+ * Name: spin_unlock_irqrestore_wo_note
+ ****************************************************************************/
+
+#if defined(CONFIG_SMP)
+void spin_unlock_irqrestore_wo_note(spinlock_t *lock, irqstate_t flags);
+#else
+#  define spin_unlock_irqrestore_wo_note(l, f) up_irq_restore(f)
 #endif
 
 #endif /* __INCLUDE_NUTTX_SPINLOCK_H */

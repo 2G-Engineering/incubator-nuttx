@@ -55,13 +55,13 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <queue.h>
 #include <debug.h>
 
 #include <nuttx/irq.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/kthread.h>
 #include <nuttx/arch.h>
+#include <nuttx/queue.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/usb/usb.h>
 #include <nuttx/usb/storage.h>
@@ -816,7 +816,7 @@ static int usbmsc_setup(FAR struct usbdevclass_driver_s *driver,
 #ifndef CONFIG_USBMSC_COMPOSITE
       ret = EP_SUBMIT(dev->ep0, ctrlreq);
 #else
-      ret = composite_ep0submit(driver, dev, ctrlreq);
+      ret = composite_ep0submit(driver, dev, ctrlreq, ctrl);
 #endif
       if (ret < 0)
         {
@@ -1219,6 +1219,7 @@ void usbmsc_rdcomplete(FAR struct usbdev_ep_s *ep,
 
 void usbmsc_deferredresponse(FAR struct usbmsc_dev_s *priv, bool failed)
 {
+#ifndef CONFIG_USBMSC_COMPOSITE
   FAR struct usbdev_s *dev;
   FAR struct usbdev_req_s *ctrlreq;
   int ret;
@@ -1260,6 +1261,7 @@ void usbmsc_deferredresponse(FAR struct usbmsc_dev_s *priv, bool failed)
       usbtrace(TRACE_CLSERROR(USBMSC_TRACEERR_DEFERREDRESPSTALLED), 0);
       EP_STALL(dev->ep0);
     }
+#endif
 }
 
 /****************************************************************************
@@ -1326,18 +1328,11 @@ int usbmsc_configure(unsigned int nluns, void **handle)
   priv = &alloc->dev;
   memset(priv, 0, sizeof(struct usbmsc_dev_s));
 
-  /* Initialize semaphores */
+  /* Initialize semaphores & mutex */
 
   nxsem_init(&priv->thsynch, 0, 0);
-  nxsem_init(&priv->thlock, 0, 1);
+  nxmutex_init(&priv->thlock);
   nxsem_init(&priv->thwaitsem, 0, 0);
-
-  /* The thsynch and thwaitsem semaphores are used for signaling and, hence,
-   * should not have priority inheritance enabled.
-   */
-
-  nxsem_set_protocol(&priv->thsynch, SEM_PRIO_NONE);
-  nxsem_set_protocol(&priv->thwaitsem, SEM_PRIO_NONE);
 
   sq_init(&priv->wrreqlist);
   priv->nluns = nluns;
@@ -1514,7 +1509,12 @@ int usbmsc_bindlun(FAR void *handle, FAR const char *drvrpath,
 
   if (!priv->iobuffer)
     {
+#ifdef CONFIG_USBMSC_WRMULTIPLE
+      priv->iobuffer = (FAR uint8_t *)kmm_malloc(geo.geo_sectorsize *
+                                                 CONFIG_USBMSC_NWRREQS);
+#else
       priv->iobuffer = (FAR uint8_t *)kmm_malloc(geo.geo_sectorsize);
+#endif
       if (!priv->iobuffer)
         {
           usbtrace(TRACE_CLSERROR(USBMSC_TRACEERR_ALLOCIOBUFFER),
@@ -1522,7 +1522,11 @@ int usbmsc_bindlun(FAR void *handle, FAR const char *drvrpath,
           return -ENOMEM;
         }
 
+#ifdef CONFIG_USBMSC_WRMULTIPLE
+      priv->iosize = geo.geo_sectorsize * CONFIG_USBMSC_NWRREQS;
+#else
       priv->iosize = geo.geo_sectorsize;
+#endif
     }
   else if (priv->iosize < geo.geo_sectorsize)
     {
@@ -1605,7 +1609,7 @@ int usbmsc_unbindlun(FAR void *handle, unsigned int lunno)
 #endif
 
   lun = &priv->luntab[lunno];
-  ret = usbmsc_scsi_lock(priv);
+  ret = nxmutex_lock(&priv->thlock);
   if (ret < 0)
     {
       return ret;
@@ -1626,7 +1630,7 @@ int usbmsc_unbindlun(FAR void *handle, unsigned int lunno)
       ret = OK;
     }
 
-  usbmsc_scsi_unlock(priv);
+  nxmutex_unlock(&priv->thlock);
   return ret;
 }
 
@@ -1677,7 +1681,7 @@ int usbmsc_exportluns(FAR void *handle)
    * some protection against re-entrant usage.
    */
 
-  ret = usbmsc_scsi_lock(priv);
+  ret = nxmutex_lock(&priv->thlock);
   if (ret < 0)
     {
       return ret;
@@ -1733,7 +1737,7 @@ int usbmsc_exportluns(FAR void *handle)
   leave_critical_section(flags);
 
 errout_with_lock:
-  usbmsc_scsi_unlock(priv);
+  nxmutex_unlock(&priv->thlock);
   return ret;
 }
 
@@ -1838,9 +1842,9 @@ void usbmsc_uninitialize(FAR void *handle)
 
       do
         {
-          ret = usbmsc_scsi_lock(priv);
+          ret = nxmutex_lock(&priv->thlock);
 
-          /* usbmsc_scsi_lock() will fail with ECANCELED, only
+          /* nxmutex_lock() will fail with ECANCELED, only
            * if this thread is canceled.  At this point, we
            * have no option but to continue with the teardown.
            */
@@ -1861,7 +1865,7 @@ void usbmsc_uninitialize(FAR void *handle)
           leave_critical_section(flags);
         }
 
-      usbmsc_scsi_unlock(priv);
+      nxmutex_unlock(&priv->thlock);
 
       /* Wait for the thread to exit */
 
@@ -1906,7 +1910,7 @@ void usbmsc_uninitialize(FAR void *handle)
   /* Uninitialize and release the driver structure */
 
   nxsem_destroy(&priv->thsynch);
-  nxsem_destroy(&priv->thlock);
+  nxmutex_destroy(&priv->thlock);
   nxsem_destroy(&priv->thwaitsem);
 
 #ifndef CONFIG_USBMSC_COMPOSITE

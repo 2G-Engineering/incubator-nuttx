@@ -29,6 +29,7 @@
 
 #include <stdint.h>
 
+#include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 
 #include "chip.h"
@@ -137,7 +138,7 @@ struct nrf52_radio_pktcfg_s
   uint8_t pl_len;               /* Preamble length */
   uint8_t term_len;             /* TERM length */
   bool    crcinc;               /* LENGTH includes CRC */
-  bool    endian;               /* On air endianess of packet:
+  bool    endian;               /* On air endianness of packet:
                                  * 0 - little
                                  * 1 - big
                                  */
@@ -252,7 +253,7 @@ struct nrf52_radio_dev_s
   uint16_t                    txbuf_len; /* TX buffer length */
   uint8_t                     *rxbuf;    /* RX buffer */
   uint8_t                     *txbuf;    /* TX buffer */
-  sem_t                       sem_excl;  /* Mutual exclusion semaphore */
+  mutex_t                     lock;      /* Mutual exclusion mutex */
   sem_t                       sem_isr;   /* Interrupt wait semaphore */
   uint16_t                    tifs;      /* Interframe spacing time */
   uint8_t                     txpower;   /* TX power */

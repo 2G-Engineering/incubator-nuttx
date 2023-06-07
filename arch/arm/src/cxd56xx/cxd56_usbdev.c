@@ -665,19 +665,6 @@ static inline void cxd56_cableconnected(bool connected)
 }
 
 /****************************************************************************
- * Name: cxd56_iscableconnected
- *
- * Description:
- *   Return the cable status. (true is connected)
- *
- ****************************************************************************/
-
-static inline bool cxd56_iscableconnected(void)
-{
-  return getreg32(CXD56_TOPREG_USB_VBUS) & VBUS_DET;
-}
-
-/****************************************************************************
  * Name: cxd56_rqdequeue
  *
  * Description:
@@ -757,14 +744,6 @@ static int cxd56_epwrite(struct cxd56_ep_s *privep, uint8_t *buf,
   /* Set Poll bit to ready to send */
 
   ctrl = getreg32(CXD56_USB_IN_EP_CONTROL(epphy));
-
-  /* Send NULL packet request */
-
-  if (privep->txnullpkt)
-    {
-      ctrl |= USB_SENDNULL;
-    }
-
   putreg32(ctrl | USB_P | USB_CNAK, CXD56_USB_IN_EP_CONTROL(epphy));
 
   return nbytes;
@@ -3363,7 +3342,7 @@ int cxd56_usbdev_setsigno(int signo)
   uinfo("signo = %d\n", signo);
 
   priv->signo = signo;
-  priv->pid   = getpid();
+  priv->pid   = nxsched_getpid();
 
   return OK;
 }

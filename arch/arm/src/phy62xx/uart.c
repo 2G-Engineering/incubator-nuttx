@@ -346,12 +346,12 @@ int hal_uart_txint_en(UART_INDEX_e uart_index, bool en)
   return 0;
 }
 
-extern uint32_t sysclk_get_clk(void);
+extern uint32_t timer_sysclk_get_clk(void);
 
 int uart_hw_init(UART_INDEX_e uart_index)
 {
   uart_Cfg_t *pcfg;
-  int pclk = sysclk_get_clk();
+  int pclk = timer_sysclk_get_clk();
   uint32_t dll;
   AP_UART_TypeDef *cur_uart = AP_UART0;
   MODULE_e mod = MOD_UART0;
@@ -727,10 +727,10 @@ static void pplus_uart_detach(struct uart_dev_s *dev)
  * Name: pplus_uart_interrupt
  *
  * Description:
- *   This is the UART status interrupt handler.  It will be invoked when an
- *   interrupt received on the 'irq'  It should call uart_transmitchars or
- *   uart_receivechar to perform the appropriate data transfers.  The
- *   interrupt handling logic must be able to map the 'irq' number into the
+ *   This is the UART interrupt handler.  It will be invoked when an
+ *   interrupt is received on the 'irq'.  It should call uart_xmitchars or
+ *   uart_recvchars to perform the appropriate data transfers.  The
+ *   interrupt handling logic must be able to map the 'arg' to the
  *   appropriate uart_dev_s structure in order to call these functions.
  *
  ****************************************************************************/
@@ -756,7 +756,7 @@ static int pplus_uart_interrupt(int irq, void *context, void *arg)
           break;
 
       case BUSY_IRQ:
-         priv->reg->USR;
+         (void)priv->reg->USR;
          break;
 
       default:

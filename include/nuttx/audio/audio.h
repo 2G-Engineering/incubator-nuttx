@@ -42,10 +42,9 @@
 #include <nuttx/compiler.h>
 
 #include <nuttx/fs/ioctl.h>
-#include <nuttx/semaphore.h>
+#include <nuttx/mutex.h>
 #include <nuttx/spi/spi.h>
-
-#include <queue.h>
+#include <nuttx/queue.h>
 
 #ifdef CONFIG_AUDIO
 
@@ -112,6 +111,7 @@
 #define AUDIOIOC_UNREGISTERMQ       _AUDIOIOC(15)
 #define AUDIOIOC_HWRESET            _AUDIOIOC(16)
 #define AUDIOIOC_SETBUFFERINFO      _AUDIOIOC(17)
+#define AUDIOIOC_SETPARAMTER        _AUDIOIOC(18)
 
 /* Audio Device Types *******************************************************/
 
@@ -205,11 +205,12 @@
 #define AUDIO_SAMP_RATE_32K         0x0010
 #define AUDIO_SAMP_RATE_44K         0x0020
 #define AUDIO_SAMP_RATE_48K         0x0040
-#define AUDIO_SAMP_RATE_96K         0x0080
-#define AUDIO_SAMP_RATE_128K        0x0100
-#define AUDIO_SAMP_RATE_160K        0x0200
-#define AUDIO_SAMP_RATE_172K        0x0400
-#define AUDIO_SAMP_RATE_192K        0x0800
+#define AUDIO_SAMP_RATE_88K         0x0080
+#define AUDIO_SAMP_RATE_96K         0x0100
+#define AUDIO_SAMP_RATE_128K        0x0200
+#define AUDIO_SAMP_RATE_160K        0x0400
+#define AUDIO_SAMP_RATE_172K        0x0800
+#define AUDIO_SAMP_RATE_192K        0x1000
 
 /* Audio Sub-sampling Ratios  ***********************************************/
 
@@ -232,6 +233,26 @@
 #define AUDIO_BIT_RATE_160K         0x20
 #define AUDIO_BIT_RATE_172K         0x40
 #define AUDIO_BIT_RATE_192K         0x80
+
+/* Audio Volume Limits ******************************************************/
+
+/* As nxplayer passes a value in the range (0..1000) to the ioctl, all audio
+ * drivers that implement volume expect a value from 0 to 1000 from the ioctl
+ */
+
+#define AUDIO_VOLUME_MAX            1000
+#define AUDIO_VOLUME_MIN            0
+
+/* Audio Balance Limits *****************************************************/
+
+/* As nxplayer passes a value in the range (0..1000) to the ioctl, all audio
+ * drivers that implement balance expect a value from 0 to 1000 from the
+ * ioctl
+ */
+
+#define AUDIO_BALANCE_RIGHT          1000
+#define AUDIO_BALANCE_CENTER         500
+#define AUDIO_BALANCE_LEFT           0
 
 /* Supported Feature Units controls *****************************************/
 
@@ -312,6 +333,7 @@
 #define AUDIO_MSG_WAKEUP            9
 #define AUDIO_MSG_COMMAND          10
 #define AUDIO_MSG_SLIENCE          11
+#define AUDIO_MSG_UNDERRUN         12
 #define AUDIO_MSG_USER             64
 
 /* Audio Pipeline Buffer flags */
@@ -340,7 +362,8 @@ struct audio_caps_s
   uint8_t ac_len;           /* Length of the structure */
   uint8_t ac_type;          /* Capabilities (device) type */
   uint8_t ac_subtype;       /* Capabilities sub-type, if needed */
-  uint8_t ac_channels;      /* Number of channels (1, 2, 3, ... 8) */
+  uint8_t ac_channels;      /* Number of channels (1, 2, 3, ... 15) upper 4 bits for minimum channels,
+                             * lower 4 bits for maximum channels */
   uint8_t ac_chmap;         /* Channel map, each ch for each bit,
                              * zero means don't care */
   uint8_t reserved;         /* Reserved for future use */
@@ -413,7 +436,7 @@ struct ap_buffer_s
   apb_samp_t            nmaxbytes;  /* The maximum number of bytes */
   apb_samp_t            nbytes;     /* The number of bytes used */
   apb_samp_t            curbyte;    /* Next byte to be processed */
-  sem_t                 sem;        /* Reference locking semaphore */
+  mutex_t               lock;       /* Reference locking mutex */
   uint16_t              flags;      /* Buffer flags */
   uint16_t              crefs;      /* Number of reference counts */
   FAR uint8_t           *samp;      /* Offset of the first sample */
@@ -462,7 +485,7 @@ struct audio_buf_desc_s
 #ifdef CONFIG_AUDIO_MULTI_SESSION
   FAR void            *session;           /* Associated channel */
 #endif
-  uint16_t            numbytes;           /* Number of bytes to allocate */
+  apb_samp_t          numbytes;           /* Number of bytes to allocate */
   union
   {
     FAR struct ap_buffer_s  *buffer;     /* Buffer to free / enqueue */

@@ -31,8 +31,6 @@
 
 #include <nuttx/config.h>
 
-#include <arch/arch.h>
-
 #ifndef __ASSEMBLY__
 #  include <stdint.h>
 #endif
@@ -64,8 +62,6 @@
  * return from a SYS call in kernel mode. The first four syscall values must,
  * therefore, be reserved (0 is not used).
  */
-
-#define SYS_save_context          (0)
 
 /* SYS call 1:
  *

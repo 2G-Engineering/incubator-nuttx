@@ -56,7 +56,7 @@
  * character specified by the current locale.
  */
 
-#define MB_CUR_MAX 1
+#define MB_CUR_MAX 4
 
 /* The environ variable, normally 'char **environ;' is not implemented as a
  * function call.  However, get_environ_ptr() can be used in its place.
@@ -68,7 +68,7 @@
 #  define environ get_environ_ptr()
 #endif
 
-#if defined(CONFIG_FS_LARGEFILE) && defined(CONFIG_HAVE_LONG_LONG)
+#if defined(CONFIG_FS_LARGEFILE)
 #  define mkstemp64            mkstemp
 #  define mkostemp64           mkostemp
 #  define mkstemps64           mkstemps
@@ -132,12 +132,26 @@ extern "C"
 
 void      srand(unsigned int seed);
 int       rand(void);
+void      lcong48(FAR unsigned short int param[7]);
+FAR unsigned short int *seed48(FAR unsigned short int seed16v[3]);
+void      srand48(long int seedval);
+#ifdef CONFIG_HAVE_LONG_LONG
+long int  jrand48(FAR unsigned short int xsubi[3]);
+long int  lrand48(void);
+long int  mrand48(void);
+long int  nrand48(FAR unsigned short int xsubi[3]);
+#  ifdef CONFIG_HAVE_DOUBLE
+double    drand48(void);
+double    erand48(FAR unsigned short int xsubi[3]);
+#  endif
+#endif
 
 #define   srandom(s) srand(s)
 long      random(void);
 
 #ifdef CONFIG_CRYPTO_RANDOM_POOL
 void      arc4random_buf(FAR void *bytes, size_t nbytes);
+uint32_t  arc4random(void);
 #endif
 
 /* Environment variable support */
@@ -152,8 +166,10 @@ int       unsetenv(FAR const char *name);
 /* Process exit functions */
 
 void      exit(int status) noreturn_function;
+void      quick_exit(int status) noreturn_function;
 void      abort(void) noreturn_function;
 int       atexit(CODE void (*func)(void));
+int       at_quick_exit(CODE void (*func)(void));
 int       on_exit(CODE void (*func)(int, FAR void *), FAR void *arg);
 
 /* _Exit() is a stdlib.h equivalent to the unistd.h _exit() function */
@@ -204,24 +220,22 @@ FAR char *itoa(int val, FAR char *str, int base);
 
 /* Wide character operations */
 
-#ifdef CONFIG_LIBC_WCHAR
 int       mblen(FAR const char *s, size_t n);
 int       mbtowc(FAR wchar_t *pwc, FAR const char *s, size_t n);
 size_t    mbstowcs(FAR wchar_t *dst, FAR const char *src, size_t len);
 int       wctomb(FAR char *s, wchar_t wchar);
 size_t    wcstombs(FAR char *dst, FAR const wchar_t *src, size_t len);
-#endif
 
 /* Memory Management */
 
-FAR void *malloc(size_t);
-FAR void *valloc(size_t);
+FAR void *malloc(size_t) malloc_like1(1);
+FAR void *valloc(size_t) malloc_like1(1);
 void      free(FAR void *);
-FAR void *realloc(FAR void *, size_t);
-FAR void *memalign(size_t, size_t);
-FAR void *zalloc(size_t);
-FAR void *calloc(size_t, size_t);
-FAR void *aligned_alloc(size_t, size_t);
+FAR void *realloc(FAR void *, size_t) realloc_like(2);
+FAR void *memalign(size_t, size_t) malloc_like1(2);
+FAR void *zalloc(size_t) malloc_like1(1);
+FAR void *calloc(size_t, size_t) malloc_like2(1, 2);
+FAR void *aligned_alloc(size_t, size_t) malloc_like1(2);
 int       posix_memalign(FAR void **, size_t, size_t);
 
 /* Pseudo-Terminals */
@@ -271,6 +285,11 @@ FAR void  *bsearch(FAR const void *key, FAR const void *base, size_t nel,
 /* Current program name manipulation */
 
 FAR const char *getprogname(void);
+
+/* Registers a destructor function to be called by exit() */
+
+int __cxa_atexit(CODE void (*func)(FAR void *), FAR void *arg,
+                 FAR void *dso_handle);
 
 #undef EXTERN
 #if defined(__cplusplus)

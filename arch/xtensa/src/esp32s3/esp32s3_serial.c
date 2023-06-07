@@ -77,7 +77,7 @@
 #    define CONSOLE_DEV         g_uart0_dev     /* UART0 is console */
 #    define TTYS0_DEV           g_uart0_dev     /* UART0 is ttyS0 */
 #    define UART0_ASSIGNED      1
-# elif defined(CONFIG_UART1_SERIAL_CONSOLE)
+#  elif defined(CONFIG_UART1_SERIAL_CONSOLE)
 #    define CONSOLE_DEV         g_uart1_dev  /* UART1 is console */
 #    define TTYS0_DEV           g_uart1_dev  /* UART1 is ttyS0 */
 #    define UART1_ASSIGNED      1
@@ -242,7 +242,7 @@ static uart_dev_t g_uart1_dev =
  *
  * Description:
  *   This is the UART interrupt handler.  It will be invoked when an
- *   interrupt is received on the 'irq'  It should call uart_xmitchars or
+ *   interrupt is received on the 'irq'.  It should call uart_xmitchars or
  *   uart_recvchars to perform the appropriate data transfers.  The
  *   interrupt handling logic must be able to map the 'irq' number into the
  *   appropriate uart_dev_s structure in order to call these functions.
@@ -1035,7 +1035,7 @@ static bool esp32s3_rxflowcontrol(struct uart_dev_s *dev,
  *   Performs the low level UART initialization early in debug so that the
  *   serial console will be available during bootup.  This must be called
  *   before xtensa_serialinit.  NOTE:  This function depends on GPIO pin
- *   configuration performed in up_consoleinit() and main clock
+ *   configuration performed in xtensa_consoleinit() and main clock
  *   initialization performed in up_clkinitialize().
  *
  ****************************************************************************/
@@ -1118,10 +1118,10 @@ int up_putc(int ch)
     {
       /* Add CR */
 
-      up_lowputc('\r');
+      xtensa_lowputc('\r');
     }
 
-  up_lowputc((char)ch);
+  xtensa_lowputc((char)ch);
 
 #ifdef CONSOLE_UART
   esp32s3_lowputc_restore_all_uart_int(CONSOLE_DEV.priv, &int_status);
@@ -1155,10 +1155,10 @@ int up_putc(int ch)
     {
       /* Add CR */
 
-      up_lowputc('\r');
+      xtensa_lowputc('\r');
     }
 
-  up_lowputc(ch);
+  xtensa_lowputc(ch);
 
 #ifdef CONSOLE_UART
   esp32s3_lowputc_restore_all_uart_int(CONSOLE_DEV.priv, &int_status);

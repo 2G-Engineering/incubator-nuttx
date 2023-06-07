@@ -30,6 +30,7 @@
 #include <assert.h>
 #include <debug.h>
 
+#include <nuttx/addrenv.h>
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
 
@@ -43,7 +44,11 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: do_stackcheck
+ * Public Functions
+ ****************************************************************************/
+
+/****************************************************************************
+ * Name: arm_stack_check
  *
  * Description:
  *   Determine (approximately) how much stack has been used by searching the
@@ -59,7 +64,7 @@
  *
  ****************************************************************************/
 
-static size_t do_stackcheck(void *stackbase, size_t nbytes)
+size_t arm_stack_check(void *stackbase, size_t nbytes)
 {
   uintptr_t start;
   uintptr_t end;
@@ -135,10 +140,6 @@ static size_t do_stackcheck(void *stackbase, size_t nbytes)
 }
 
 /****************************************************************************
- * Public Functions
- ****************************************************************************/
-
-/****************************************************************************
  * Name: arm_stack_color
  *
  * Description:
@@ -171,7 +172,7 @@ void arm_stack_color(void *stackbase, size_t nbytes)
     }
 
   stkend = STACK_ALIGN_DOWN(stkend);
-  nwords = (stkend - (uintptr_t)stackbase) >> 2;
+  nwords = (stkend - (uintptr_t)stkptr) >> 2;
 
   /* Set the entire stack to the coloration value */
 
@@ -182,7 +183,7 @@ void arm_stack_color(void *stackbase, size_t nbytes)
 }
 
 /****************************************************************************
- * Name: up_check_stack and friends
+ * Name: up_check_tcbstack and friends
  *
  * Description:
  *   Determine (approximately) how much stack has been used be searching the
@@ -199,39 +200,34 @@ void arm_stack_color(void *stackbase, size_t nbytes)
 
 size_t up_check_tcbstack(struct tcb_s *tcb)
 {
-  return do_stackcheck(tcb->stack_base_ptr, tcb->adj_stack_size);
-}
+  size_t size;
 
-ssize_t up_check_tcbstack_remain(struct tcb_s *tcb)
-{
-  return tcb->adj_stack_size - up_check_tcbstack(tcb);
-}
+#ifdef CONFIG_ARCH_ADDRENV
+  FAR struct addrenv_s *oldenv;
 
-size_t up_check_stack(void)
-{
-  return up_check_tcbstack(this_task());
-}
+  if (tcb->addrenv_own != NULL)
+    {
+      addrenv_select(tcb->addrenv_own, &oldenv);
+    }
+#endif
 
-ssize_t up_check_stack_remain(void)
-{
-  return up_check_tcbstack_remain(this_task());
+  size = arm_stack_check(tcb->stack_base_ptr, tcb->adj_stack_size);
+
+#ifdef CONFIG_ARCH_ADDRENV
+  if (tcb->addrenv_own != NULL)
+    {
+      addrenv_restore(oldenv);
+    }
+#endif
+
+  return size;
 }
 
 #if CONFIG_ARCH_INTERRUPTSTACK > 3
 size_t up_check_intstack(void)
 {
-#ifdef CONFIG_SMP
-  return do_stackcheck((void *)arm_intstack_alloc(),
-                        STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK));
-#else
-  return do_stackcheck((void *)&g_intstackalloc,
-                        STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK));
-#endif
-}
-
-size_t up_check_intstack_remain(void)
-{
-  return STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK) - up_check_intstack();
+  return arm_stack_check((void *)up_get_intstackbase(),
+                         STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK));
 }
 #endif
 

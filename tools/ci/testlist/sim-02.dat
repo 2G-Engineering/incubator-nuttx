@@ -6,9 +6,19 @@
 -Darwin,sim:rpserver
 -Darwin,sim:sotest32
 
+# clang doesn't -fsanitize=kernel-address
+-Darwin,sim:ostest
+
 # macOS doesn't support --wrap flag
 # ld: unknown option: --wrap
 -Darwin,sim:segger
 
 # macOS doesn't have X11
 -Darwin,sim:touchscreen
+
+# Do not build Windows configs
+-,sim:windows
+
+# macOS doesn't support simusb simhost
+-Darwin,sim:usbdev
+-Darwin,sim:usbhost

@@ -36,6 +36,7 @@
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
+#include <nuttx/drivers/drivers.h>
 
 #include "bch.h"
 
@@ -104,7 +105,7 @@ int bchlib_setup(const char *blkdev, bool readonly, FAR void **handle)
 
   /* Save the geometry info and complete initialization of the structure */
 
-  nxsem_init(&bch->sem, 0, 1);
+  nxmutex_init(&bch->lock);
   bch->nsectors = geo.geo_nsectors;
   bch->sectsize = geo.geo_sectorsize;
   bch->sector   = (size_t)-1;

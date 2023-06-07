@@ -33,7 +33,7 @@
 #include <errno.h>
 
 #include <nuttx/fs/fs.h>
-#include <nuttx/semaphore.h>
+#include <nuttx/mutex.h>
 
 #include "pipe_common.h"
 
@@ -61,11 +61,13 @@ static const struct file_operations g_pipe_fops =
   pipecommon_write,    /* write */
   NULL,                /* seek */
   pipecommon_ioctl,    /* ioctl */
+  NULL,                /* mmap */
+  NULL,                /* truncate */
   pipecommon_poll      /* poll */
 };
 
-static sem_t g_pipesem = SEM_INITIALIZER(1);
-static int   g_pipeno;
+static mutex_t g_pipelock = NXMUTEX_INITIALIZER;
+static int     g_pipeno;
 
 /****************************************************************************
  * Private Functions
@@ -79,7 +81,7 @@ static inline int pipe_allocate(void)
 {
   int ret;
 
-  ret = nxsem_wait(&g_pipesem);
+  ret = nxmutex_lock(&g_pipelock);
   if (ret < 0)
     {
       return ret;
@@ -91,7 +93,7 @@ static inline int pipe_allocate(void)
       g_pipeno = 0;
     }
 
-  nxsem_post(&g_pipesem);
+  nxmutex_unlock(&g_pipelock);
   return ret;
 }
 
@@ -167,19 +169,15 @@ static int pipe_register(size_t bufsize, int flags,
  ****************************************************************************/
 
 /****************************************************************************
- * Name: nx_pipe
+ * Name: file_pipe
  *
  * Description:
- *   nx_pipe() creates a pair of file descriptors, pointing to a pipe inode,
- *   and  places them in the array pointed to by 'fd'. fd[0] is for reading,
- *   fd[1] is for writing.
- *
- *   NOTE: nx_pipe is a special, non-standard, NuttX-only interface.  Since
- *   the NuttX FIFOs are based in in-memory, circular buffers, the ability
- *   to control the size of those buffers is critical for system tuning.
+ *   file_pipe() creates a pair of file descriptors, pointing to a pipe
+ *   inode, and places them in the array pointed to by 'filep'. filep[0]
+ *   is for reading, filep[1] is for writing.
  *
  * Input Parameters:
- *   fd[2] - The user provided array in which to catch the pipe file
+ *   filep[2] - The user provided array in which to catch the pipe file
  *   descriptors
  *   bufsize - The size of the in-memory, circular buffer in bytes.
  *   flags - The file status flags.
@@ -194,6 +192,7 @@ int file_pipe(FAR struct file *filep[2], size_t bufsize, int flags)
 {
   char devname[32];
   int ret;
+  bool blocking;
 
   /* Register a new pipe device */
 
@@ -203,12 +202,27 @@ int file_pipe(FAR struct file *filep[2], size_t bufsize, int flags)
       return ret;
     }
 
+  /* Check for the O_NONBLOCK bit on flags */
+
+  blocking = (flags & O_NONBLOCK) == 0;
+
   /* Get a write file descriptor */
 
-  ret = file_open(filep[1], devname, O_WRONLY | flags);
+  ret = file_open(filep[1], devname, O_WRONLY | O_NONBLOCK | flags);
   if (ret < 0)
     {
       goto errout_with_driver;
+    }
+
+  /* Clear O_NONBLOCK if it was set previously */
+
+  if (blocking)
+    {
+      ret = file_fcntl(filep[1], F_SETFL, flags & (~O_NONBLOCK));
+      if (ret < 0)
+        {
+          goto errout_with_driver;
+        }
     }
 
   /* Get a read file descriptor */
@@ -232,34 +246,68 @@ errout_with_driver:
   return ret;
 }
 
-int nx_pipe(int fd[2], size_t bufsize, int flags)
+/****************************************************************************
+ * Name: pipe2
+ *
+ * Description:
+ *   pipe2() creates a pair of file descriptors, pointing to a pipe inode,
+ *   and  places them in the array pointed to by 'fd'. fd[0] is for reading,
+ *   fd[1] is for writing.
+ *
+ * Input Parameters:
+ *   fd[2] - The user provided array in which to catch the pipe file
+ *   descriptors
+ *   flags - The file status flags.
+ *
+ * Returned Value:
+ *   0 is returned on success; -1 (ERROR) is returned on a failure
+ *   with the errno value set appropriately.
+ *
+ ****************************************************************************/
+
+int pipe2(int fd[2], int flags)
 {
   char devname[32];
   int ret;
+  bool blocking;
 
   /* Register a new pipe device */
 
-  ret = pipe_register(bufsize, flags, devname, sizeof(devname));
+  ret = pipe_register(CONFIG_DEV_PIPE_SIZE, flags, devname, sizeof(devname));
   if (ret < 0)
     {
-      return ret;
+      set_errno(-ret);
+      return ERROR;
     }
 
-  /* Get a write file descriptor */
+  /* Check for the O_NONBLOCK bit on flags */
 
-  fd[1] = nx_open(devname, O_WRONLY | flags);
+  blocking = (flags & O_NONBLOCK) == 0;
+
+  /* Get a write file descriptor setting O_NONBLOCK temporarily */
+
+  fd[1] = open(devname, O_WRONLY | O_NONBLOCK | flags);
   if (fd[1] < 0)
     {
-      ret = fd[1];
       goto errout_with_driver;
+    }
+
+  /* Clear O_NONBLOCK if it was set previously */
+
+  if (blocking)
+    {
+      ret = fcntl(fd[1], F_SETFL, flags & (~O_NONBLOCK));
+      if (ret < 0)
+        {
+          goto errout_with_driver;
+        }
     }
 
   /* Get a read file descriptor */
 
-  fd[0] = nx_open(devname, O_RDONLY | flags);
+  fd[0] = open(devname, O_RDONLY | flags);
   if (fd[0] < 0)
     {
-      ret = fd[0];
       goto errout_with_wrfd;
     }
 
@@ -273,7 +321,7 @@ errout_with_wrfd:
 
 errout_with_driver:
   unregister_driver(devname);
-  return ret;
+  return ERROR;
 }
 
 #endif /* CONFIG_DEV_PIPE_SIZE > 0 */

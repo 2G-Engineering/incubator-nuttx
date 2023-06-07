@@ -77,17 +77,19 @@
 
 void up_schedule_sigaction(struct tcb_s *tcb, sig_deliver_t sigdeliver)
 {
-  sinfo("tcb=0x%p sigdeliver=0x%p\n", tcb, sigdeliver);
+  sinfo("tcb=%p sigdeliver=%p\n", tcb, sigdeliver);
 
   /* Refuse to handle nested signal actions */
 
   if (!tcb->xcp.sigdeliver)
     {
+      tcb->xcp.sigdeliver = sigdeliver;
+
       /* First, handle some special cases when the signal is
        * being delivered to the currently executing task.
        */
 
-      sinfo("rtcb=0x%p CURRENT_REGS=0x%p\n", this_task(), CURRENT_REGS);
+      sinfo("rtcb=%p CURRENT_REGS=%p\n", this_task(), CURRENT_REGS);
 
       if (tcb == this_task())
         {
@@ -100,6 +102,7 @@ void up_schedule_sigaction(struct tcb_s *tcb, sig_deliver_t sigdeliver)
               /* In this case just deliver the signal now. */
 
               sigdeliver(tcb);
+              tcb->xcp.sigdeliver = NULL;
             }
 
           /* CASE 2:  We are in an interrupt handler AND the
@@ -121,8 +124,6 @@ void up_schedule_sigaction(struct tcb_s *tcb, sig_deliver_t sigdeliver)
                * the signals have been delivered.
                */
 
-              tcb->xcp.sigdeliver    = sigdeliver;
-
               /* And make sure that the saved context in the TCB
                * is the same as the interrupt return context.
                */
@@ -135,12 +136,12 @@ void up_schedule_sigaction(struct tcb_s *tcb, sig_deliver_t sigdeliver)
                */
 
               CURRENT_REGS           = (void *)((uint32_t)CURRENT_REGS -
-                                       (uint32_t)XCPTCONTEXT_SIZE);
+                                                          XCPTCONTEXT_SIZE);
               memcpy((uint32_t *)CURRENT_REGS, tcb->xcp.saved_regs,
                      XCPTCONTEXT_SIZE);
 
               CURRENT_REGS[REG_SP]   = (uint32_t)CURRENT_REGS +
-                                       (uint32_t)XCPTCONTEXT_SIZE;
+                                                 XCPTCONTEXT_SIZE;
 
               /* Then set up to vector to the trampoline with interrupts
                * disabled
@@ -165,8 +166,6 @@ void up_schedule_sigaction(struct tcb_s *tcb, sig_deliver_t sigdeliver)
            * the signals have been delivered.
            */
 
-          tcb->xcp.sigdeliver     = sigdeliver;
-
           /* Save the current register context location */
 
           tcb->xcp.saved_regs     = tcb->xcp.regs;
@@ -177,11 +176,11 @@ void up_schedule_sigaction(struct tcb_s *tcb, sig_deliver_t sigdeliver)
            */
 
           tcb->xcp.regs           = (void *)((uint32_t)tcb->xcp.regs -
-                                    (uint32_t)XCPTCONTEXT_SIZE);
+                                                       XCPTCONTEXT_SIZE);
           memcpy(tcb->xcp.regs, tcb->xcp.saved_regs, XCPTCONTEXT_SIZE);
 
           tcb->xcp.regs[REG_SP]   = (uint32_t)tcb->xcp.regs +
-                                    (uint32_t)XCPTCONTEXT_SIZE;
+                                              XCPTCONTEXT_SIZE;
 
           /* Then set up to vector to the trampoline with interrupts
            * disabled

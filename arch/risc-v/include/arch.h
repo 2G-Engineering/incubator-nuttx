@@ -40,65 +40,18 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#ifdef __ASSEMBLY__
-#  define __STR(s)  s
-#else
-#  define __STR(s)  #s
-#endif
-#define __XSTR(s)   __STR(s)
-
-#if defined(CONFIG_ARCH_QPFPU)
-#  define FLOAD     __STR(flq)
-#  define FSTORE    __STR(fsq)
-#elif defined(CONFIG_ARCH_DPFPU)
-#  define FLOAD     __STR(fld)
-#  define FSTORE    __STR(fsd)
-#else
-#  define FLOAD     __STR(flw)
-#  define FSTORE    __STR(fsw)
-#endif
-
-#ifdef CONFIG_ARCH_RV32
-#  define REGLOAD   __STR(lw)
-#  define REGSTORE  __STR(sw)
-#else
-#  define REGLOAD   __STR(ld)
-#  define REGSTORE  __STR(sd)
-#endif
-
 /* Provide the maximum amount of page table levels per MMU type */
 
 #ifdef CONFIG_ARCH_MMU_TYPE_SV39
 #  define ARCH_PGT_MAX_LEVELS (3)
+#elif CONFIG_ARCH_MMU_TYPE_SV32
+#  define ARCH_PGT_MAX_LEVELS (2)
 #endif
 
 /* Amount of static page tables allocated for an address environment */
 
 #ifdef CONFIG_ARCH_ADDRENV
 #  define ARCH_SPGTS          (ARCH_PGT_MAX_LEVELS - 1)
-#endif
-
-/****************************************************************************
- * Inline functions
- ****************************************************************************/
-
-#ifndef __ASSEMBLY__
-
-/****************************************************************************
- * Name: up_getsp
- ****************************************************************************/
-
-static inline uintptr_t up_getsp(void)
-{
-  register uintptr_t sp;
-  __asm__
-  (
-    "\tadd  %0, x0, x2\n"
-    : "=r"(sp)
-  );
-  return sp;
-}
-
 #endif
 
 /****************************************************************************
@@ -123,7 +76,7 @@ static inline uintptr_t up_getsp(void)
  *   which gives access to 2MB of memory. This is plenty for many tasks.
  */
 
-struct group_addrenv_s
+struct arch_addrenv_s
 {
   /* Pointers to MAX_LEVELS-1 tables here, one of each are allocated for the
    * task when it is created.
@@ -149,13 +102,7 @@ struct group_addrenv_s
   uintptr_t satp;
 };
 
-typedef struct group_addrenv_s group_addrenv_t;
-
-/* If an address environment needs to be saved, saving the satp register
- * will suffice. The register width is architecture dependent
- */
-
-typedef uintptr_t save_addrenv_t;
+typedef struct arch_addrenv_s arch_addrenv_t;
 #endif /* __ASSEMBLY__ */
 #endif /* CONFIG_ARCH_ADDRENV */
 

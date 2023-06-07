@@ -114,10 +114,6 @@ static const struct file_operations g_mfrc522fops =
   mfrc522_write,  /* write */
   NULL,           /* seek */
   mfrc522_ioctl,  /* ioctl */
-  NULL            /* poll */
-#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-  , NULL          /* unlink */
-#endif
 };
 
 /****************************************************************************
@@ -1395,7 +1391,7 @@ int mfrc522_selftest(FAR struct mfrc522_dev_s *dev)
     {
       for (j = 0, k = 0; j < 8; j++, k += 3)
         {
-          sprintf(&outbuf[k], " %02x", result[i + j]);
+          snprintf(&outbuf[k], sizeof(outbuf) - k, " %02x", result[i + j]);
         }
 
       ctlsinfo("  %02x:%s\n", i, outbuf);

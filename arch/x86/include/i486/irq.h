@@ -76,7 +76,7 @@
 
 #define IRQ0    32 /* System timer (cannot be changed) */
 #define IRQ1    33 /* Keyboard controller (cannot be changed) */
-#define IRQ2    34 /* Cascaded signals from IRQs 8–15 */
+#define IRQ2    34 /* Cascaded signals from IRQs 8-15 */
 #define IRQ3    35 /* Serial port controller for COM2/4 */
 #define IRQ4    36 /* serial port controller for COM1/3 */
 #define IRQ5    37 /* LPT port 2 or sound card */
@@ -180,6 +180,58 @@ struct xcptcontext
  ****************************************************************************/
 
 #ifndef __ASSEMBLY__
+
+/* Return stack pointer */
+
+static inline uint32_t up_getsp(void)
+{
+  uint32_t regval;
+
+  asm volatile(
+    "\tmovl %%esp, %0\n"
+    : "=rm" (regval)
+    :
+    : "memory");
+  return regval;
+}
+
+/* Get segment registers */
+
+static inline uint32_t up_getds(void)
+{
+  uint32_t regval;
+
+  asm volatile(
+    "\tmov %%ds, %0\n"
+    : "=rm" (regval)
+    :
+    : "memory");
+  return regval;
+}
+
+static inline uint32_t up_getcs(void)
+{
+  uint32_t regval;
+
+  asm volatile(
+    "\tmov %%cs, %0\n"
+    : "=rm" (regval)
+    :
+    : "memory");
+  return regval;
+}
+
+static inline uint32_t up_getss(void)
+{
+  uint32_t regval;
+
+  asm volatile(
+    "\tmov %%ss, %0\n"
+    : "=rm" (regval)
+    :
+    : "memory");
+  return regval;
+}
 
 /* Name: up_irq_save, up_irq_restore, and friends.
  *

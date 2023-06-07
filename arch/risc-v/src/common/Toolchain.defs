@@ -27,7 +27,9 @@
 # command-line selection.
 #
 
-ifeq ($(filter y, $(CONFIG_RISCV_TOOLCHAIN_GNU_RVG)),y)
+ifeq ($(filter y, $(CONFIG_RISCV_TOOLCHAIN_GNU_RV64)),y)
+  CONFIG_RISCV_TOOLCHAIN ?= GNU_RVG
+else ifeq ($(filter y, $(CONFIG_RISCV_TOOLCHAIN_GNU_RV32)),y)
   CONFIG_RISCV_TOOLCHAIN ?= GNU_RVG
 endif
 
@@ -63,7 +65,11 @@ ifeq ($(CONFIG_STACK_CANARIES),y)
   ARCHOPTIMIZATION += -fstack-protector-all
 endif
 
-ifeq ($(CONFIG_ARCH_COVERAGE),y)
+ifeq ($(CONFIG_STACK_USAGE),y)
+  ARCHOPTIMIZATION += -fstack-usage
+endif
+
+ifeq ($(CONFIG_ARCH_COVERAGE_ALL),y)
   ARCHOPTIMIZATION += -fprofile-generate -ftest-coverage
 endif
 
@@ -72,6 +78,10 @@ ARCHCXXFLAGS += -fno-common -nostdinc++
 
 ARCHCFLAGS += -Wall -Wstrict-prototypes -Wshadow -Wundef
 ARCHCXXFLAGS += -Wall -Wshadow -Wundef
+
+ifneq ($(CONFIG_CXX_STANDARD),)
+  ARCHCXXFLAGS += -std=$(CONFIG_CXX_STANDARD)
+endif
 
 ifneq ($(CONFIG_CXX_EXCEPTION),y)
   ARCHCXXFLAGS += -fno-exceptions -fcheck-new
@@ -103,7 +113,6 @@ ifeq ($(CONFIG_DEBUG_LINK_MAP),y)
 endif
 
 ifeq ($(CONFIG_DEBUG_SYMBOLS),y)
-  LDFLAGS          += -g
   ARCHOPTIMIZATION += -g
 endif
 
@@ -113,7 +122,11 @@ ifeq ($(CONFIG_RISCV_TOOLCHAIN),GNU_RVG)
 
   # Generic GNU RVG toolchain
 
-  CROSSDEV ?= riscv64-unknown-elf-
+  ifeq ($(CONFIG_RISCV_TOOLCHAIN_GNU_RV32),y)
+    CROSSDEV ?= riscv32-unknown-elf-
+  else
+    CROSSDEV ?= riscv64-unknown-elf-
+  endif
 
   # Detect cpu ISA support flags
 
@@ -124,7 +137,7 @@ ifeq ($(CONFIG_RISCV_TOOLCHAIN),GNU_RVG)
   ifeq ($(CONFIG_ARCH_RV_ISA_A),y)
     ARCHRVISAA = a
   endif
-  
+
   ifeq ($(CONFIG_ARCH_RV_ISA_C),y)
     ARCHRVISAC = c
   endif
@@ -134,7 +147,7 @@ ifeq ($(CONFIG_RISCV_TOOLCHAIN),GNU_RVG)
   endif
 
   ifeq ($(CONFIG_ARCH_DPFPU),y)
-      ARCHRVISAD = d
+    ARCHRVISAD = d
   endif
 
   # Detect abi type
@@ -142,29 +155,67 @@ ifeq ($(CONFIG_RISCV_TOOLCHAIN),GNU_RVG)
   ifeq ($(CONFIG_ARCH_RV32),y)
     ARCHTYPE = rv32
     ARCHABITYPE = ilp32
+    LLVM_ARCHTYPE := riscv32
   else ifeq ($(CONFIG_ARCH_RV64),y)
     ARCHTYPE = rv64
     ARCHABITYPE = lp64
+    LLVM_ARCHTYPE := riscv64
   endif
 
   # Construct arch flags
 
-  ARCHCPUFLAGS = -march=$(ARCHTYPE)i$(ARCHRVISAM)$(ARCHRVISAA)$(ARCHRVISAF)$(ARCHRVISAD)$(ARCHRVISAC)
+  ARCHCPUEXTFLAGS = i$(ARCHRVISAM)$(ARCHRVISAA)$(ARCHRVISAF)$(ARCHRVISAD)$(ARCHRVISAC)
+  ARCHCPUFLAGS = -march=$(ARCHTYPE)$(ARCHCPUEXTFLAGS)
 
   # Construct arch abi flags
 
   ifeq ($(CONFIG_ARCH_DPFPU),y)
     ARCHCPUFLAGS += -mabi=$(ARCHABITYPE)d
+    LLVM_ABITYPE := $(ARCHABITYPE)d
   else ifeq ($(CONFIG_ARCH_FPU),y)
     ARCHCPUFLAGS += -mabi=$(ARCHABITYPE)f
+    LLVM_ABITYPE := $(ARCHABITYPE)f
   else
     ARCHCPUFLAGS += -mabi=$(ARCHABITYPE)
+    LLVM_ABITYPE := $(ARCHABITYPE)
   endif
 
 endif
 
-ifeq ($(CONFIG_MM_KASAN),y)
+# RISCV has a modular instruction set. It's hard to define cpu-model to support all toolchain.
+# For Zig, cpu model is this formal: generic_rv[32|64][i][m][a][f][d][c]
+# For Rust, cpu model is this formal: riscv[32|64][i][m][a][f][d][c]
+# So, it's better to map the NuttX config to LLVM builtin cpu model, these models supported by
+# all LLVM based toolchain.
+# Refer to : https://github.com/llvm/llvm-project/blob/release/15.x/llvm/lib/Target/RISCV/RISCV.td
+# These models can't cover all implementation of RISCV, but it's enough for most cases.
+
+ifeq ($(CONFIG_ARCH_RV32),y)
+  ifeq ($(ARCHCPUEXTFLAGS), imc)
+    LLVM_CPUTYPE := sifive-e20
+  else ifeq ($(ARCHCPUEXTFLAGS), imac)
+    LLVM_CPUTYPE := sifive-e31
+  else ifeq ($(ARCHCPUEXTFLAGS), imafc)
+    LLVM_CPUTYPE := sifive-e76
+  endif
+else
+  ifeq ($(ARCHCPUEXTFLAGS), imac)
+    LLVM_CPUTYPE := sifive-s51
+  else ifeq ($(ARCHCPUEXTFLAGS), imafdc)
+    LLVM_CPUTYPE := sifive-u54
+  endif
+endif
+
+ifeq ($(CONFIG_MM_KASAN_ALL),y)
   ARCHOPTIMIZATION += -fsanitize=kernel-address
+endif
+
+ifeq ($(CONFIG_MM_UBSAN_ALL),y)
+  ARCHOPTIMIZATION += $(CONFIG_MM_UBSAN_OPTION)
+endif
+
+ifeq ($(CONFIG_MM_UBSAN_TRAP_ON_ERROR),y)
+  ARCHOPTIMIZATION += -fsanitize-undefined-trap-on-error
 endif
 
 # Default toolchain
@@ -196,7 +247,7 @@ endif
 
 EXTRA_LIBS += $(wildcard $(shell $(CC) $(ARCHCPUFLAGS) --print-libgcc-file-name))
 
-ifneq ($(CONFIG_LIBM),y)
+ifeq ($(CONFIG_LIBM_TOOLCHAIN),y)
   EXTRA_LIBS += $(wildcard $(shell $(CC) $(ARCHCPUFLAGS) --print-file-name=libm.a))
 endif
 
@@ -207,3 +258,11 @@ endif
 ifeq ($(CONFIG_ARCH_COVERAGE),y)
   EXTRA_LIBS += $(wildcard $(shell $(CC) $(ARCHCPUFLAGS) --print-file-name=libgcov.a))
 endif
+
+# Zig toolchain
+
+include $(TOPDIR)/tools/Zig.defs
+
+# Rust toolchain
+
+include $(TOPDIR)/tools/Rust.defs

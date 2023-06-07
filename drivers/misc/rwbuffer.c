@@ -68,51 +68,24 @@ static ssize_t rwb_read_(FAR struct rwbuffer_s *rwb, off_t startblock,
  ****************************************************************************/
 
 /****************************************************************************
- * Name: rwb_semtake
+ * Name: rwb_lock
  ****************************************************************************/
 
-#if defined(CONFIG_DRVR_WRITEBUFFER) && CONFIG_DRVR_WRDELAY != 0
-static int rwb_semtake(FAR sem_t *sem)
-{
-  return nxsem_wait_uninterruptible(sem);
-}
+#if defined(CONFIG_DRVR_WRITEBUFFER)
+#  define rwb_lock(l) nxmutex_lock(l)
+#else
+#  define rwb_lock(l) OK
 #endif
 
 /****************************************************************************
- * Name: rwb_forcetake
+ * Name: rwb_unlock
  ****************************************************************************/
 
-#if defined(CONFIG_DRVR_WRITEBUFFER) && CONFIG_DRVR_WRDELAY != 0
-static int rwb_forcetake(FAR sem_t *sem)
-{
-  int result;
-  int ret = OK;
-
-  do
-    {
-      result = rwb_semtake(sem);
-
-      /* The only expected failure is if the thread is canceled */
-
-      DEBUGASSERT(result == OK || result == -ECANCELED);
-      if (ret == OK && result < 0)
-        {
-          /* Remember the first error */
-
-          ret = result;
-        }
-    }
-  while (result < 0);
-
-  return ret;
-}
+#if defined(CONFIG_DRVR_WRITEBUFFER)
+#  define rwb_unlock(l) nxmutex_unlock(l)
+#else
+#  define rwb_unlock(l)
 #endif
-
-/****************************************************************************
- * Name: rwb_semgive
- ****************************************************************************/
-
-#define rwb_semgive(s) nxsem_post(s)
 
 /****************************************************************************
  * Name: rwb_overlap
@@ -144,7 +117,7 @@ static inline bool rwb_overlap(off_t blockstart1, size_t nblocks1,
 #ifdef CONFIG_DRVR_WRITEBUFFER
 static inline void rwb_resetwrbuffer(FAR struct rwbuffer_s *rwb)
 {
-  /* We assume that the caller holds the wrsem */
+  /* We assume that the caller holds the wrlock */
 
   rwb->wrnblocks    = 0;
   rwb->wrblockstart = -1;
@@ -155,7 +128,7 @@ static inline void rwb_resetwrbuffer(FAR struct rwbuffer_s *rwb)
  * Name: rwb_wrflush
  *
  * Assumptions:
- *   The caller holds the wrsem semaphore.
+ *   The caller holds the wrlock mutex.
  *
  ****************************************************************************/
 
@@ -216,9 +189,9 @@ static void rwb_wrtimeout(FAR void *arg)
    * worker thread.
    */
 
-  rwb_forcetake(&rwb->wrsem);
+  rwb_lock(&rwb->wrlock);
   rwb_wrflush(rwb);
-  rwb_semgive(&rwb->wrsem);
+  rwb_unlock(&rwb->wrlock);
 }
 #endif
 
@@ -235,7 +208,7 @@ static void rwb_wrstarttimeout(FAR struct rwbuffer_s *rwb)
    */
 
   int ticks = MSEC2TICK(CONFIG_DRVR_WRDELAY);
-  work_queue(LPWORK, &rwb->work, rwb_wrtimeout, (FAR void *)rwb, ticks);
+  work_queue(LPWORK, &rwb->work, rwb_wrtimeout, rwb, ticks);
 #endif
 }
 #endif
@@ -418,7 +391,7 @@ static ssize_t rwb_writebuffer(FAR struct rwbuffer_s *rwb,
 #ifdef CONFIG_DRVR_READAHEAD
 static inline void rwb_resetrhbuffer(FAR struct rwbuffer_s *rwb)
 {
-  /* We assume that the caller holds the readAheadBufferSemphore */
+  /* We assume that the caller holds the readAheadBufferSemaphore */
 
   rwb->rhnblocks    = 0;
   rwb->rhblockstart = -1;
@@ -436,9 +409,10 @@ rwb_bufferread(FAR struct rwbuffer_s *rwb,  off_t startblock,
 {
   FAR uint8_t *rhbuffer;
 
-  /* We assume that (1) the caller holds the readAheadBufferSemphore, and (2)
-   * that the caller already knows that all of the blocks are in the
-   * read-ahead buffer.
+  /* We assume that:
+   * (1) the caller holds the readAheadBufferSemaphore, and
+   * (2) the caller already knows that all of the blocks are in the
+   *     read-ahead buffer.
    */
 
   /* Convert the units from blocks to bytes */
@@ -543,7 +517,7 @@ int rwb_invalidate_writebuffer(FAR struct rwbuffer_s *rwb,
       finfo("startblock=%" PRIdOFF " blockcount=%zu\n",
             startblock, blockcount);
 
-      ret = rwb_semtake(&rwb->wrsem);
+      ret = rwb_lock(&rwb->wrlock);
       if (ret < 0)
         {
           return ret;
@@ -656,7 +630,7 @@ int rwb_invalidate_writebuffer(FAR struct rwbuffer_s *rwb,
           ret = OK;
         }
 
-      rwb_semgive(&rwb->wrsem);
+      rwb_unlock(&rwb->wrlock);
     }
 
   return ret;
@@ -685,7 +659,7 @@ int rwb_invalidate_readahead(FAR struct rwbuffer_s *rwb,
       finfo("startblock=%" PRIdOFF " blockcount=%zu\n",
             startblock, blockcount);
 
-      ret = rwb_semtake(&rwb->rhsem);
+      ret = rwb_lock(&rwb->rhlock);
       if (ret < 0)
         {
           return ret;
@@ -775,7 +749,7 @@ int rwb_invalidate_readahead(FAR struct rwbuffer_s *rwb,
           rwb->rhnblocks    = nkeep;
         }
 
-      rwb_semgive(&rwb->rhsem);
+      rwb_unlock(&rwb->rhlock);
     }
 
   return ret;
@@ -825,9 +799,9 @@ int rwb_initialize(FAR struct rwbuffer_s *rwb)
       DEBUGASSERT(rwb->wralignblocks <= rwb->wrmaxblocks &&
                   rwb->wrmaxblocks % rwb->wralignblocks == 0);
 
-      /* Initialize the write buffer access semaphore */
+      /* Initialize the write buffer access mutex */
 
-      nxsem_init(&rwb->wrsem, 0, 1);
+      nxmutex_init(&rwb->wrlock);
 
       /* Initialize write buffer parameters */
 
@@ -840,6 +814,7 @@ int rwb_initialize(FAR struct rwbuffer_s *rwb)
       if (!rwb->wrbuffer)
         {
           ferr("Write buffer kmm_malloc(%" PRIu32 ") failed\n", allocsize);
+          nxmutex_destroy(&rwb->wrlock);
           return -ENOMEM;
         }
 
@@ -852,9 +827,9 @@ int rwb_initialize(FAR struct rwbuffer_s *rwb)
     {
       finfo("Initialize the read-ahead buffer\n");
 
-      /* Initialize the read-ahead buffer access semaphore */
+      /* Initialize the read-ahead buffer access mutex */
 
-      nxsem_init(&rwb->rhsem, 0, 1);
+      nxmutex_init(&rwb->rhlock);
 
       /* Initialize read-ahead buffer parameters */
 
@@ -868,6 +843,19 @@ int rwb_initialize(FAR struct rwbuffer_s *rwb)
         {
           ferr("Read-ahead buffer kmm_malloc(%" PRIu32 ") failed\n",
           allocsize);
+          nxmutex_destroy(&rwb->rhlock);
+#ifdef CONFIG_DRVR_WRITEBUFFER
+          if (rwb->wrmaxblocks > 0)
+            {
+              nxmutex_destroy(&rwb->wrlock);
+            }
+
+          if (rwb->wrbuffer != NULL)
+            {
+              kmm_free(rwb->wrbuffer);
+            }
+#endif
+
           return -ENOMEM;
         }
 
@@ -889,7 +877,7 @@ void rwb_uninitialize(FAR struct rwbuffer_s *rwb)
     {
       rwb_wrcanceltimeout(rwb);
       rwb_wrflush(rwb);
-      nxsem_destroy(&rwb->wrsem);
+      nxmutex_destroy(&rwb->wrlock);
       if (rwb->wrbuffer)
         {
           kmm_free(rwb->wrbuffer);
@@ -900,7 +888,7 @@ void rwb_uninitialize(FAR struct rwbuffer_s *rwb)
 #ifdef CONFIG_DRVR_READAHEAD
   if (rwb->rhmaxblocks > 0)
     {
-      nxsem_destroy(&rwb->rhsem);
+      nxmutex_destroy(&rwb->rhlock);
       if (rwb->rhbuffer)
         {
           kmm_free(rwb->rhbuffer);
@@ -923,7 +911,7 @@ static ssize_t rwb_read_(FAR struct rwbuffer_s *rwb, off_t startblock,
     {
       size_t remaining;
 
-      ret = nxsem_wait(&rwb->rhsem);
+      ret = nxmutex_lock(&rwb->rhlock);
       if (ret < 0)
         {
           return ret;
@@ -970,7 +958,7 @@ static ssize_t rwb_read_(FAR struct rwbuffer_s *rwb, off_t startblock,
                   ferr("ERROR: Failed to fill the read-ahead buffer: %d\n",
                        ret);
 
-                  rwb_semgive(&rwb->rhsem);
+                  rwb_unlock(&rwb->rhlock);
                   return ret;
                 }
             }
@@ -981,7 +969,7 @@ static ssize_t rwb_read_(FAR struct rwbuffer_s *rwb, off_t startblock,
        * driver read method
        */
 
-      rwb_semgive(&rwb->rhsem);
+      rwb_unlock(&rwb->rhlock);
       ret = nblocks;
     }
   else
@@ -1017,7 +1005,7 @@ ssize_t rwb_read(FAR struct rwbuffer_s *rwb, off_t startblock,
 
   if (rwb->wrmaxblocks > 0)
     {
-      ret = nxsem_wait(&rwb->wrsem);
+      ret = nxmutex_lock(&rwb->wrlock);
       if (ret < 0)
         {
           return ret;
@@ -1037,7 +1025,7 @@ ssize_t rwb_read(FAR struct rwbuffer_s *rwb, off_t startblock,
               ret = rwb_read_(rwb, startblock, rdblocks, rdbuffer);
               if (ret < 0)
                 {
-                  rwb_semgive(&rwb->wrsem);
+                  rwb_unlock(&rwb->wrlock);
                   return ret;
                 }
 
@@ -1063,7 +1051,7 @@ ssize_t rwb_read(FAR struct rwbuffer_s *rwb, off_t startblock,
           readblocks += rdblocks;
         }
 
-      rwb_semgive(&rwb->wrsem);
+      rwb_unlock(&rwb->wrlock);
     }
 #endif
 
@@ -1094,7 +1082,7 @@ ssize_t rwb_write(FAR struct rwbuffer_s *rwb, off_t startblock,
        * streaming applications.
        */
 
-      ret = nxsem_wait(&rwb->rhsem);
+      ret = nxmutex_lock(&rwb->rhlock);
       if (ret < 0)
         {
           return ret;
@@ -1110,7 +1098,7 @@ ssize_t rwb_write(FAR struct rwbuffer_s *rwb, off_t startblock,
           if (ret < 0)
             {
               ferr("ERROR: rwb_invalidate_readahead failed: %d\n", ret);
-              rwb_semgive(&rwb->rhsem);
+              rwb_unlock(&rwb->rhlock);
               return ret;
             }
 #else
@@ -1118,7 +1106,7 @@ ssize_t rwb_write(FAR struct rwbuffer_s *rwb, off_t startblock,
 #endif
         }
 
-      rwb_semgive(&rwb->rhsem);
+      rwb_unlock(&rwb->rhlock);
     }
 #endif
 
@@ -1127,14 +1115,14 @@ ssize_t rwb_write(FAR struct rwbuffer_s *rwb, off_t startblock,
     {
       finfo("startblock=%" PRIdOFF " wrbuffer=%p\n", startblock, wrbuffer);
 
-      ret = nxsem_wait(&rwb->wrsem);
+      ret = nxmutex_lock(&rwb->wrlock);
       if (ret < 0)
         {
           return ret;
         }
 
       ret = rwb_writebuffer(rwb, startblock, nblocks, wrbuffer);
-      rwb_semgive(&rwb->wrsem);
+      rwb_unlock(&rwb->wrlock);
 
       /* On success, return the number of blocks that we were requested to
        * write.  This is for compatibility with the normal return of a block
@@ -1194,31 +1182,33 @@ ssize_t rwb_readbytes(FAR struct rwbuffer_s *dev, off_t offset,
 #ifdef CONFIG_DRVR_REMOVABLE
 int rwb_mediaremoved(FAR struct rwbuffer_s *rwb)
 {
+  int ret;
+
 #ifdef CONFIG_DRVR_WRITEBUFFER
   if (rwb->wrmaxblocks > 0)
     {
-      ret = rwb_semtake(&rwb->wrsem);
+      ret = rwb_lock(&rwb->wrlock);
       if (ret < 0)
         {
           return ret;
         }
 
       rwb_resetwrbuffer(rwb);
-      rwb_semgive(&rwb->wrsem);
+      rwb_unlock(&rwb->wrlock);
     }
 #endif
 
 #ifdef CONFIG_DRVR_READAHEAD
   if (rwb->rhmaxblocks > 0)
     {
-      ret = rwb_semtake(&rwb->rhsem);
+      ret = rwb_lock(&rwb->rhlock);
       if (ret < 0)
         {
           return ret;
         }
 
       rwb_resetrhbuffer(rwb);
-      rwb_semgive(&rwb->rhsem);
+      rwb_unlock(&rwb->rhlock);
     }
 #endif
 
@@ -1275,10 +1265,10 @@ int rwb_flush(FAR struct rwbuffer_s *rwb)
 {
   int ret;
 
-  ret = rwb_forcetake(&rwb->wrsem);
+  ret = rwb_lock(&rwb->wrlock);
   rwb_wrcanceltimeout(rwb);
   rwb_wrflush(rwb);
-  rwb_semgive(&rwb->wrsem);
+  rwb_unlock(&rwb->wrlock);
 
   return ret;
 }

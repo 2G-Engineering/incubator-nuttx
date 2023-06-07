@@ -65,10 +65,10 @@ static int local_sendctl(FAR struct local_conn_s *conn,
   FAR struct file *filep2;
   FAR struct file *filep;
   struct cmsghdr *cmsg;
-  int count;
+  int count = 0;
   int *fds;
   int ret;
-  int i;
+  int i = 0;
 
   net_lock();
 
@@ -176,7 +176,7 @@ static ssize_t local_send(FAR struct socket *psock,
           /* Local TCP packet send */
 
           DEBUGASSERT(psock && psock->s_conn && buf);
-          peer = (FAR struct local_conn_s *)psock->s_conn;
+          peer = psock->s_conn;
 
           /* Verify that this is a connected peer socket and that it has
            * opened the outgoing FIFO for write-only access.
@@ -196,7 +196,16 @@ static ssize_t local_send(FAR struct socket *psock,
 
           /* Send the packet */
 
+          ret = nxmutex_lock(&peer->lc_sendlock);
+          if (ret < 0)
+            {
+              /* May fail because the task was canceled. */
+
+              return ret;
+            }
+
           ret = local_send_packet(&peer->lc_outfile, buf, len, false);
+          nxmutex_unlock(&peer->lc_sendlock);
         }
         break;
 #endif /* CONFIG_NET_LOCAL_STREAM */
@@ -206,7 +215,7 @@ static ssize_t local_send(FAR struct socket *psock,
         {
           /* Local UDP packet send */
 
-#warning Missing logic
+          /* #warning Missing logic */
 
           ret = -ENOSYS;
         }
@@ -259,7 +268,7 @@ static ssize_t local_sendto(FAR struct socket *psock,
                             socklen_t tolen)
 {
 #ifdef CONFIG_NET_LOCAL_DGRAM
-  FAR struct local_conn_s *conn = (FAR struct local_conn_s *)psock->s_conn;
+  FAR struct local_conn_s *conn = psock->s_conn;
   FAR struct sockaddr_un *unaddr = (FAR struct sockaddr_un *)to;
   ssize_t ret;
 
@@ -296,7 +305,7 @@ static ssize_t local_sendto(FAR struct socket *psock,
 
   /* The outgoing FIFO should not be open */
 
-  DEBUGASSERT(conn->lc_outfile.f_inode == 0);
+  DEBUGASSERT(conn->lc_outfile.f_inode == NULL);
 
   /* At present, only standard pathname type address are support */
 
@@ -334,6 +343,16 @@ static ssize_t local_sendto(FAR struct socket *psock,
       goto errout_with_halfduplex;
     }
 
+  /* Make sure that dgram is sent safely */
+
+  ret = nxmutex_lock(&conn->lc_sendlock);
+  if (ret < 0)
+    {
+      /* May fail because the task was canceled. */
+
+      goto errout_with_sender;
+    }
+
   /* Send the packet */
 
   ret = local_send_packet(&conn->lc_outfile, buf, len, true);
@@ -341,6 +360,10 @@ static ssize_t local_sendto(FAR struct socket *psock,
     {
       nerr("ERROR: Failed to send the packet: %zd\n", ret);
     }
+
+  nxmutex_unlock(&conn->lc_sendlock);
+
+errout_with_sender:
 
   /* Now we can close the write-only socket descriptor */
 
@@ -352,7 +375,6 @@ errout_with_halfduplex:
   /* Release our reference to the half duplex FIFO */
 
   local_release_halfduplex(conn);
-
   return ret;
 #else
   return -EISCONN;
@@ -390,7 +412,7 @@ ssize_t local_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
   size_t len = msg->msg_iovlen;
 #ifdef CONFIG_NET_LOCAL_SCM
   FAR struct local_conn_s *conn = psock->s_conn;
-  int count;
+  int count = 0;
 
   if (msg->msg_control &&
       msg->msg_controllen > sizeof(struct cmsghdr))

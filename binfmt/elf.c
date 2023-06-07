@@ -24,6 +24,7 @@
 
 #include <nuttx/config.h>
 
+#include <sys/param.h>
 #include <sys/types.h>
 #include <stdint.h>
 #include <string.h>
@@ -55,13 +56,9 @@
 #endif
 
 #ifdef CONFIG_ELF_DUMPBUFFER
-# define elf_dumpbuffer(m,b,n) binfodumpbuffer(m,b,n)
+#  define elf_dumpbuffer(m,b,n) binfodumpbuffer(m,b,n)
 #else
-# define elf_dumpbuffer(m,b,n)
-#endif
-
-#ifndef MIN
-#  define MIN(a,b) (a < b ? a : b)
+#  define elf_dumpbuffer(m,b,n)
 #endif
 
 /****************************************************************************
@@ -74,7 +71,8 @@ static int elf_loadbinary(FAR struct binary_s *binp,
                           int nexports);
 #ifdef CONFIG_ELF_COREDUMP
 static int elf_dumpbinary(FAR struct memory_region_s *regions,
-                          FAR struct lib_outstream_s *stream);
+                          FAR struct lib_outstream_s *stream,
+                          pid_t pid);
 #endif
 #if defined(CONFIG_DEBUG_FEATURES) && defined(CONFIG_DEBUG_BINFMT)
 static void elf_dumploadinfo(FAR struct elf_loadinfo_s *loadinfo);
@@ -164,7 +162,7 @@ static void elf_dumploadinfo(FAR struct elf_loadinfo_s *loadinfo)
     }
 }
 #else
-# define elf_dumploadinfo(i)
+#  define elf_dumploadinfo(i)
 #endif
 
 /****************************************************************************
@@ -205,7 +203,7 @@ static void elf_dumpentrypt(FAR struct binary_s *binp,
 #endif
 }
 #else
-# define elf_dumpentrypt(b,l)
+#  define elf_dumpentrypt(b,l)
 #endif
 
 /****************************************************************************
@@ -249,16 +247,40 @@ static int elf_loadbinary(FAR struct binary_s *binp,
 
   /* Bind the program to the exported symbol table */
 
-  ret = elf_bind(&loadinfo, exports, nexports);
-  if (ret != 0)
+  if (loadinfo.ehdr.e_type == ET_REL)
     {
-      berr("Failed to bind symbols program binary: %d\n", ret);
-      goto errout_with_load;
+      ret = elf_bind(&loadinfo, exports, nexports);
+      if (ret != 0)
+        {
+          berr("Failed to bind symbols program binary: %d\n", ret);
+          goto errout_with_load;
+        }
+
+      binp->entrypt = (main_t)(loadinfo.textalloc + loadinfo.ehdr.e_entry);
+    }
+  else if (loadinfo.ehdr.e_type == ET_EXEC)
+    {
+      if (nexports > 0)
+        {
+          berr("Cannot bind exported symbols to a "\
+                                    "fully linked executable\n");
+          ret = -ENOEXEC;
+          goto errout_with_load;
+        }
+
+      /* The entrypoint for a fully linked executable can be found directly */
+
+      binp->entrypt = (main_t)(loadinfo.ehdr.e_entry);
+    }
+
+  else
+    {
+        berr("Unexpected elf type %d\n", loadinfo.ehdr.e_type);
+        ret = -ENOEXEC;
     }
 
   /* Return the load information */
 
-  binp->entrypt   = (main_t)(loadinfo.textalloc + loadinfo.ehdr.e_entry);
   binp->stacksize = CONFIG_ELF_STACKSIZE;
 
   /* Add the ELF allocation to the alloc[] only if there is no address
@@ -274,12 +296,14 @@ static int elf_loadbinary(FAR struct binary_s *binp,
    * needed when the module is executed.
    */
 
-  up_addrenv_clone(&loadinfo.addrenv, &binp->addrenv);
+  binp->addrenv = loadinfo.addrenv;
+
 #else
   binp->alloc[0]  = (FAR void *)loadinfo.textalloc;
+  binp->alloc[1]  = (FAR void *)loadinfo.dataalloc;
 #ifdef CONFIG_BINFMT_CONSTRUCTORS
-  binp->alloc[1]  = loadinfo.ctoralloc;
-  binp->alloc[2]  = loadinfo.dtoralloc;
+  binp->alloc[2]  = loadinfo.ctoralloc;
+  binp->alloc[3]  = loadinfo.dtoralloc;
 #endif
 #endif
 
@@ -317,12 +341,14 @@ errout_with_init:
 
 #ifdef CONFIG_ELF_COREDUMP
 static int elf_dumpbinary(FAR struct memory_region_s *regions,
-                          FAR struct lib_outstream_s *stream)
+                          FAR struct lib_outstream_s *stream,
+                          pid_t pid)
 {
   struct elf_dumpinfo_s dumpinfo;
 
   dumpinfo.regions = regions;
   dumpinfo.stream  = stream;
+  dumpinfo.pid     = pid;
 
   return elf_coredump(&dumpinfo);
 }

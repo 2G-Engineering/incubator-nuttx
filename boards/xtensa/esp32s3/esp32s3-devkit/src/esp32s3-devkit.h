@@ -35,6 +35,11 @@
 
 /* ESP32-S3-DEVKIT GPIOs ****************************************************/
 
+/* LCD pins, i.e. used by ST7735 */
+
+#define GPIO_LCD_DC         14
+#define GPIO_LCD_RST        9
+
 /* BOOT Button */
 
 #define BUTTON_BOOT  0
@@ -79,6 +84,65 @@ int esp32s3_bringup(void);
 
 #ifdef CONFIG_ESP32S3_SPIFLASH
 int board_spiflash_init(void);
+#endif
+
+/****************************************************************************
+ * Name: board_i2c_init
+ *
+ * Description:
+ *   Configure the I2C driver.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; A negated errno value is returned
+ *   to indicate the nature of any failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_I2C_DRIVER
+int board_i2c_init(void);
+#endif
+
+/****************************************************************************
+ * Name: board_bmp180_initialize
+ *
+ * Description:
+ *   Initialize and register the BMP180 Pressure Sensor driver.
+ *
+ * Input Parameters:
+ *   devno - The device number, used to build the device path as /dev/pressN
+ *   busno - The I2C bus number
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_SENSORS_BMP180
+int board_bmp180_initialize(int devno, int busno);
+#endif
+
+/****************************************************************************
+ * Name: esp32s3_djoy_initialize
+ *
+ * Description:
+ *   Initialize and register the discrete joystick driver
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_INPUT_DJOYSTICK
+int esp32s3_djoy_initialize(void);
+#endif
+
+/****************************************************************************
+ * Name: esp32s3_ledc_setup
+ *
+ * Description:
+ *   Initialize LEDC PWM and register the PWM device.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ESP32S3_LEDC
+int esp32s3_pwm_setup(void);
 #endif
 
 #endif /* __ASSEMBLY__ */

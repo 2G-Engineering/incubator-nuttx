@@ -74,10 +74,6 @@ static const struct file_operations g_stub_drvrops =
   phyplus_stub_write,  /* write */
   phyplus_stub_seek,   /* seek */
   phyplus_stub_ioctl,  /* ioctl */
-  NULL                 /* poll */
-#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-  , NULL               /* unlink */
-#endif
 };
 
 /* static struct gpio_dev_s stub_dev; */
@@ -524,7 +520,7 @@ static int phyplus_parse_params_and_action(char *buff)
           return -1;
         }
     }
-#if 0  
+#if 0
   else if (0 == strncmp(buff, "reg_timer", 9))
     {
       p += 10;

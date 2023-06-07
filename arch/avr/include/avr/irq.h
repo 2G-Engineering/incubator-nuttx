@@ -79,8 +79,10 @@
 #define REG_PC0          35 /* PC */
 #define REG_PC1          36
 #if AVR_PC_SIZE > 16
-# define REG_PC2         37
+#  define REG_PC2        37
 #endif
+
+#define XCPTCONTEXT_SIZE XCPTCONTEXT_REGS
 
 /****************************************************************************
  * Public Types
@@ -145,6 +147,24 @@ static inline irqstate_t getsreg(void)
 static inline void putsreg(irqstate_t sreg)
 {
   asm volatile ("out __SREG__, %s" : : "r" (sreg) :);
+}
+
+/* Return the current value of the stack pointer */
+
+static inline uint16_t up_getsp(void)
+{
+  uint8_t spl;
+  uint8_t sph;
+
+  __asm__ __volatile__
+  (
+    "in %0, __SP_L__\n\t"
+    "in %1, __SP_H__\n"
+    : "=r" (spl), "=r" (sph)
+    :
+  );
+
+  return (uint16_t)sph << 8 | spl;
 }
 
 /* Interrupt enable/disable */

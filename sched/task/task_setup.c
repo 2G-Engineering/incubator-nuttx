@@ -83,6 +83,7 @@ static int nxtask_assign_pid(FAR struct tcb_s *tcb)
   FAR struct tcb_s **pidhash;
   pid_t next_pid;
   int   hash_ndx;
+  void *temp;
   int   i;
 
   /* NOTE:
@@ -160,8 +161,9 @@ retry:
 
   /* Release resource for original g_pidhash, using new g_pidhash */
 
-  kmm_free(g_pidhash);
+  temp = g_pidhash;
   g_pidhash = pidhash;
+  kmm_free(temp);
 
   /* Let's try every allowable pid again */
 
@@ -370,6 +372,7 @@ static int nxthread_setup_scheduler(FAR struct tcb_s *tcb, int priority,
                                     start_t start, CODE void *entry,
                                     uint8_t ttype)
 {
+  FAR struct tcb_s *rtcb = this_task();
   int ret;
 
   /* Assign a unique task ID to the task. */
@@ -432,7 +435,7 @@ static int nxthread_setup_scheduler(FAR struct tcb_s *tcb, int priority,
        * inherit the signal mask of the parent thread.
        */
 
-      nxsig_procmask(SIG_SETMASK, NULL, &tcb->sigprocmask);
+      tcb->sigprocmask = rtcb->sigprocmask;
 
       /* Initialize the task state.  It does not get a valid state
        * until it is activated.
@@ -454,7 +457,7 @@ static int nxthread_setup_scheduler(FAR struct tcb_s *tcb, int priority,
       /* Add the task to the inactive task list */
 
       sched_lock();
-      dq_addfirst((FAR dq_entry_t *)tcb, (FAR dq_queue_t *)&g_inactivetasks);
+      dq_addfirst((FAR dq_entry_t *)tcb, &g_inactivetasks);
       tcb->task_state = TSTATE_TASK_INACTIVE;
       sched_unlock();
     }
@@ -483,8 +486,7 @@ static void nxtask_setup_name(FAR struct task_tcb_s *tcb,
 {
   /* Copy the name into the TCB */
 
-  strncpy(tcb->cmn.name, name, CONFIG_TASK_NAME_SIZE);
-  tcb->cmn.name[CONFIG_TASK_NAME_SIZE] = '\0';
+  strlcpy(tcb->cmn.name, name, sizeof(tcb->cmn.name));
 }
 #else
 #  define nxtask_setup_name(t,n)
@@ -545,6 +547,7 @@ static int nxtask_setup_stackargs(FAR struct task_tcb_s *tcb,
            */
 
           strtablen += (strlen(argv[argc]) + 1);
+          DEBUGASSERT(strtablen < tcb->cmn.adj_stack_size);
           if (strtablen >= tcb->cmn.adj_stack_size)
             {
               return -ENAMETOOLONG;
@@ -556,6 +559,7 @@ static int nxtask_setup_stackargs(FAR struct task_tcb_s *tcb,
            * happens in normal usage.
            */
 
+          DEBUGASSERT(argc <= MAX_STACK_ARGS);
           if (++argc > MAX_STACK_ARGS)
             {
               return -E2BIG;
@@ -589,8 +593,9 @@ static int nxtask_setup_stackargs(FAR struct task_tcb_s *tcb,
 
   stackargv[0] = str;
   nbytes       = strlen(name) + 1;
-  strcpy(str, name);
+  strlcpy(str, name, strtablen);
   str         += nbytes;
+  strtablen   -= nbytes;
 
   /* Copy each argument */
 
@@ -603,8 +608,9 @@ static int nxtask_setup_stackargs(FAR struct task_tcb_s *tcb,
 
       stackargv[i + 1] = str;
       nbytes           = strlen(argv[i]) + 1;
-      strcpy(str, argv[i]);
+      strlcpy(str, argv[i], strtablen);
       str             += nbytes;
+      strtablen       -= nbytes;
     }
 
   /* Put a terminator entry at the end of the argv[] array.  Then save the

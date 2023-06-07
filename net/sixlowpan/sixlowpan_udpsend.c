@@ -186,7 +186,7 @@ ssize_t psock_6lowpan_udp_sendto(FAR struct socket *psock,
 
   /* Get the underlying UDP "connection" structure */
 
-  conn = (FAR struct udp_conn_s *)psock->s_conn;
+  conn = psock->s_conn;
   DEBUGASSERT(conn != NULL);
 
   /* Route outgoing message to the correct device */
@@ -227,7 +227,7 @@ ssize_t psock_6lowpan_udp_sendto(FAR struct socket *psock,
   ipv6udp.ipv6.tcf    = 0x00;
   ipv6udp.ipv6.flow   = 0x00;
   ipv6udp.ipv6.proto  = IP_PROTO_UDP;
-  ipv6udp.ipv6.ttl    = conn->ttl;
+  ipv6udp.ipv6.ttl    = conn->sconn.ttl;
 
   /* The IPv6 header length field does not include the size of IPv6 IP
    * header.
@@ -351,7 +351,7 @@ ssize_t psock_6lowpan_udp_send(FAR struct socket *psock, FAR const void *buf,
 
   /* Get the underlying UDP "connection" structure */
 
-  conn = (FAR struct udp_conn_s *)psock->s_conn;
+  conn = psock->s_conn;
 
   /* Was the UDP socket connected via connect()? */
 
@@ -459,7 +459,7 @@ void sixlowpan_udp_send(FAR struct net_driver_s *dev,
           if (hdrlen > dev->d_len)
             {
               nwarn("WARNING:  Dropping small UDP packet: %u < %u\n",
-                    buflen, hdrlen);
+                    dev->d_len, hdrlen);
             }
           else
             {

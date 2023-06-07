@@ -1,5 +1,5 @@
 ############################################################################
-# arch/sparc/src/sparc/Toolchain.defs
+# arch/sparc/src/sparc_v8/Toolchain.defs
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -52,6 +52,8 @@ ifeq ($(CONFIG_ARCH_CHIP_BM3803),y)
   ARCHCPUFLAGS += -mcpu=leon
 else ifeq ($(CONFIG_ARCH_CHIP_BM3823),y)
   ARCHCPUFLAGS += -mcpu=leon -mflat
+else ifeq ($(CONFIG_ARCH_CHIP_S698PM),y)
+  ARCHCPUFLAGS += -mcpu=leon3
 endif
 
 ifeq ($(CONFIG_DEBUG_CUSTOMOPT),y)
@@ -71,7 +73,6 @@ else
 endif
 
 ifeq ($(CONFIG_DEBUG_SYMBOLS),y)
-  LDFLAGS         += -g
   ARCHOPTIMIZATION += -g
 endif
 
@@ -80,6 +81,10 @@ ARCHCXXFLAGS += -fno-common -nostdinc++
 
 ARCHCFLAGS += -Wall -Wstrict-prototypes -Wshadow -Wundef
 ARCHCXXFLAGS += -Wall -Wshadow -Wundef
+
+ifneq ($(CONFIG_CXX_STANDARD),)
+  ARCHCXXFLAGS += -std=$(CONFIG_CXX_STANDARD)
+endif
 
 ifneq ($(CONFIG_CXX_EXCEPTION),y)
   ARCHCXXFLAGS += -fno-exceptions -fcheck-new

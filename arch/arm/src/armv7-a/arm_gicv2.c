@@ -219,7 +219,7 @@ void arm_gic_initialize(void)
    *
    * NOTE: Only for processors that operate in both secure and non-secure
    * state.
-   * REVISIT: This is here only for superstituous reasons.  I don't think
+   * REVISIT: This is here only for superstitious reasons.  I don't think
    * I need this setting in this configuration.
    */
 
@@ -244,16 +244,17 @@ void arm_gic_initialize(void)
   iccicr |= GIC_ICCICRS_CBPR;
 #endif
 
-#if defined(CONFIG_ARCH_TRUSTZONE_SECURE) || defined(CONFIG_ARCH_TRUSTZONE_BOTH)
+#ifdef CONFIG_ARMV7A_GIC_EOIMODE
+#  if defined(CONFIG_ARCH_TRUSTZONE_SECURE) || defined(CONFIG_ARCH_TRUSTZONE_BOTH)
   /* Set EnableS=1 to enable CPU interface to signal secure interrupts.
    *
    * NOTE:  Only for processors that operate in secure state.
    */
 
   iccicr |= GIC_ICCICRS_EOIMODES;
-#endif
+#  endif
 
-#if defined(CONFIG_ARCH_TRUSTZONE_NONSECURE)
+#  if defined(CONFIG_ARCH_TRUSTZONE_NONSECURE)
   /* Set EnableNS=1 to enable the CPU to signal non-secure interrupts.
    *
    * NOTE:  Only for processors that operate in non-secure state.
@@ -261,13 +262,14 @@ void arm_gic_initialize(void)
 
   iccicr |= GIC_ICCICRS_EOIMODENS;
 
-#elif defined(CONFIG_ARCH_TRUSTZONE_BOTH)
+#  elif defined(CONFIG_ARCH_TRUSTZONE_BOTH)
   /* Set EnableNS=1 to enable the CPU to signal non-secure interrupts.
    *
    * NOTE:  Only for processors that operate in non-secure state.
    */
 
   iccicr |= GIC_ICCICRU_EOIMODENS;
+#  endif
 #endif
 
  #ifdef CONFIG_ARCH_TRUSTZONE_BOTH
@@ -370,6 +372,10 @@ uint32_t *arm_decodeirq(uint32_t *regs)
   regval = getreg32(GIC_ICCIAR);
   irq    = (regval & GIC_ICCIAR_INTID_MASK) >> GIC_ICCIAR_INTID_SHIFT;
 
+#ifdef CONFIG_ARMV7A_GIC_EOIMODE
+  putreg32(regval, GIC_ICCEOIR);
+#endif
+
   /* Ignore spurions IRQs.  ICCIAR will report 1023 if there is no pending
    * interrupt.
    */
@@ -384,7 +390,11 @@ uint32_t *arm_decodeirq(uint32_t *regs)
 
   /* Write to the end-of-interrupt register */
 
+#ifdef CONFIG_ARMV7A_GIC_EOIMODE
+  putreg32(regval, GIC_ICCDIR);
+#else
   putreg32(regval, GIC_ICCEOIR);
+#endif
   return regs;
 }
 
@@ -502,6 +512,69 @@ int up_prioritize_irq(int irq, int priority)
     }
 
   return -EINVAL;
+}
+
+/****************************************************************************
+ * Name: up_affinity_irq
+ *
+ * Description:
+ *   Set an IRQ affinity by software.
+ *
+ ****************************************************************************/
+
+void up_affinity_irq(int irq, cpu_set_t cpuset)
+{
+  if (irq >= GIC_IRQ_SPI && irq < NR_IRQS)
+    {
+      uintptr_t regaddr;
+      uint32_t regval;
+
+      /* Write the new cpuset to the corresponding field in the in the
+       * distributor Interrupt Processor Target Register (GIC_ICDIPTR).
+       */
+
+      regaddr = GIC_ICDIPTR(irq);
+      regval  = getreg32(regaddr);
+      regval &= ~GIC_ICDIPTR_ID_MASK(irq);
+      regval |= GIC_ICDIPTR_ID(irq, cpuset);
+      putreg32(regval, regaddr);
+    }
+}
+
+/****************************************************************************
+ * Name: up_trigger_irq
+ *
+ * Description:
+ *   Perform a Software Generated Interrupt (SGI).  If CONFIG_SMP is
+ *   selected, then the SGI is sent to all CPUs specified in the CPU set.
+ *   That set may include the current CPU.
+ *
+ *   If CONFIG_SMP is not selected, the cpuset is ignored and SGI is sent
+ *   only to the current CPU.
+ *
+ * Input Parameters
+ *   irq    - The SGI interrupt ID (0-15)
+ *   cpuset - The set of CPUs to receive the SGI
+ *
+ ****************************************************************************/
+
+void up_trigger_irq(int irq, cpu_set_t cpuset)
+{
+  if (irq >= 0 && irq <= GIC_IRQ_SGI15)
+    {
+      arm_cpu_sgi(irq, cpuset);
+    }
+  else if (irq >= 0 && irq < NR_IRQS)
+    {
+      uintptr_t regaddr;
+
+      /* Write '1' to the corresponding bit in the distributor Interrupt
+       * Set-Pending (ICDISPR)
+       */
+
+      regaddr = GIC_ICDISPR(irq);
+      putreg32(GIC_ICDISPR_INT(irq), regaddr);
+    }
 }
 
 /****************************************************************************

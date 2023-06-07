@@ -39,22 +39,6 @@
 #if defined(CONFIG_NET) && defined(CONFIG_NET_LOCAL)
 
 /****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-#define LOCAL_PREAMBLE_SIZE 8
-
-/****************************************************************************
- * Private Data
- ****************************************************************************/
-
-static const uint8_t g_preamble[LOCAL_PREAMBLE_SIZE] =
-{
-  LOCAL_SYNC_BYTE, LOCAL_SYNC_BYTE, LOCAL_SYNC_BYTE, LOCAL_SYNC_BYTE,
-  LOCAL_SYNC_BYTE, LOCAL_SYNC_BYTE, LOCAL_SYNC_BYTE, LOCAL_END_BYTE
-};
-
-/****************************************************************************
  * Private Functions
  ****************************************************************************/
 
@@ -86,13 +70,19 @@ static int local_fifo_write(FAR struct file *filep, FAR const uint8_t *buf,
       ret = file_write(filep, buf + nwritten, len - nwritten);
       if (ret < 0)
         {
-          if (ret != -EINTR)
+          if (ret == -EINTR)
+            {
+              continue;
+            }
+          else if (ret == -EAGAIN)
+            {
+              break;
+            }
+          else
             {
               nerr("ERROR: file_write failed: %zd\n", ret);
               break;
             }
-
-          continue;
         }
 
       nwritten += ret;
@@ -133,14 +123,6 @@ int local_send_packet(FAR struct file *filep, FAR const struct iovec *buf,
 
   if (preamble)
     {
-      /* Send the packet preamble */
-
-      ret = local_fifo_write(filep, g_preamble, LOCAL_PREAMBLE_SIZE);
-      if (ret != LOCAL_PREAMBLE_SIZE)
-        {
-          return ret;
-        }
-
       /* Send the packet length */
 
       for (len16 = 0, iov = buf; iov != end; iov++)
@@ -174,7 +156,7 @@ int local_send_packet(FAR struct file *filep, FAR const struct iovec *buf,
         }
     }
 
-  return (len16 > 0) ? len16 : ret;
+  return len16 > 0 ? len16 : ret;
 }
 
 #endif /* CONFIG_NET && CONFIG_NET_LOCAL */

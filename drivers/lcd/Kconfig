@@ -100,6 +100,30 @@ config LCD_MAXPOWER
 
 comment "Graphic LCD Devices"
 
+config LCD_APA102
+	bool "APA102 RGB LED MATRIX as LCD"
+	depends on SPI
+	default n
+
+if LCD_APA102
+	config LCD_APA102_XRES
+		int "APA102 X Resolution"
+		default 16
+		---help---
+			Specifies the X resolution of the LCD.
+
+	config LCD_APA102_YRES
+		int "APA102 Y Resolution"
+		default 16
+		---help---
+			Specifies the Y resolution of the LCD.
+
+	config LCD_APA102_FREQUENCY
+		int "SPI Frequency"
+		default 1000000
+
+endif # LCD_APA102
+
 config LCD_P14201
 	bool "Rit P1402 series display"
 	default n
@@ -333,23 +357,23 @@ config LCD_SSD1306_CUSTOM
 
 if LCD_SSD1306_CUSTOM
 
-config LCD_SSD1306_CUSTOM_DEV_NATIVE_XRES 
+config LCD_SSD1306_CUSTOM_DEV_NATIVE_XRES
 	int "Custom LCD native X-resolution"
 	default 128
 
-config LCD_SSD1306_CUSTOM_DEV_NATIVE_YRES 
+config LCD_SSD1306_CUSTOM_DEV_NATIVE_YRES
 	int "Custom LCD native Y-resolution"
 	default 32
 
-config LCD_SSD1306_CUSTOM_DEV_XOFFSET 
+config LCD_SSD1306_CUSTOM_DEV_XOFFSET
 	int "Custom LCD X-offset"
 	default 0
 
-config LCD_SSD1306_CUSTOM_DEV_PAGES 
+config LCD_SSD1306_CUSTOM_DEV_PAGES
 	int "Custom LCD number of pages"
 	default 4
 
-config LCD_SSD1306_CUSTOM_DEV_CMNPAD 
+config LCD_SSD1306_CUSTOM_DEV_CMNPAD
 	int "Custom LCD COM configuration (cmnpad)"
 	default 2
 
@@ -630,7 +654,7 @@ if LCD_ST7735
 
 	endchoice
 
-if  !LCD_ST7735_GM00 && !LCD_ST7735_GM01 && !LCD_ST7735_GM11
+if !LCD_ST7735_GM00 && !LCD_ST7735_GM01 && !LCD_ST7735_GM11
 
 	config LCD_ST7735_XRES
 	int "ST7735 X Resolution"
@@ -705,6 +729,21 @@ if LCD_ST7789
 		---help---
 			Specifies the Y offset of the LCD.
 
+	config LCD_ST7789_MIRRORX
+		bool "ST7789 Mirror X"
+		default n
+
+	config LCD_ST7789_MIRRORY
+		bool "ST7789 Mirror Y"
+		default n
+
+	config LCD_ST7789_INVCOLOR
+		bool "ST7789 Invert Color"
+		default y
+		---help---
+			Invert colors of the LCD display. This is useful for implementations
+			that assume that that colors are inverted by default.
+
 	config LCD_ST7789_BPP
 		int "Bit Per Pixel (12 or 16)"
 		default 16
@@ -765,6 +804,61 @@ if LCD_GC9A01
 		default 1000000
 
 endif # LCD_GC9A01
+
+config LCD_JD9851
+	bool "Fitipower JD9851 TFT Controller"
+	default n
+
+if LCD_JD9851
+	config LCD_JD9851_XRES
+		int "JD9851 X Resolution"
+		default 240
+		---help---
+			Specifies the X resolution of the LCD.
+
+	config LCD_JD9851_YRES
+		int "JD9851 Y Resolution"
+		default 320
+		---help---
+			Specifies the Y resolution of the LCD.
+
+	config LCD_JD9851_XOFFSET
+		int "JD9851 X Offset"
+		default 0
+		---help---
+			Specifies the X offset of the LCD.
+
+	config LCD_JD9851_YOFFSET
+		int "JD9851 Y Offset"
+		default 0
+		---help---
+			Specifies the Y offset of the LCD.
+
+	config LCD_JD9851_BGR
+		bool "Swap R & B channel"
+		default n
+
+	config LCD_JD9851_BPP
+		int "Bit Per Pixel (16)"
+		default 16
+
+	config LCD_JD9851_SPIMODE
+		int "SPI Mode"
+		default 0
+
+	config LCD_JD9851_FREQUENCY
+		int "SPI Frequency"
+		default 1000000
+
+	config LCD_JD9851_INVERT
+		bool "Enter into display inversion mode"
+		default n
+
+	config LCD_JD9851_TE
+		bool "Tearing effect line on"
+		default n
+
+endif # LCD_JD9851
 
 config LCD_PCD8544
 	bool "Nokia 5110 LCD Display (Philips PCD8544)"
@@ -1014,6 +1108,11 @@ config MEMLCD_LS013B7DH03
 	bool "LS013B7DH03"
 	---help---
 		Selects the LS013B7DH03 model
+
+config MEMLCD_LS027B7DH01A
+	bool "LS027B7DH01A"
+	---help---
+		Selects the LS027B7DH01A model
 
 endchoice
 
@@ -1368,7 +1467,7 @@ config LCD_LCDDRV_SPIIF
 		a normal SPI port.
 
 config LCD_LCDDRV_SPEED
-        int "Generic SPI Interface speed"
+	int "Generic SPI Interface speed"
 	default 10000000
 	depends on LCD_LCDDRV_SPIIF
 	---help---
@@ -1532,18 +1631,18 @@ if LCD_SSD1680
 
 choice
 	prompt "Display type and size"
-	default LCD_SSD1680_2_9
+	default LCD_SSD1680_2_90
 
-config LCD_SSD1680_2_13
-	bool "2.13 inch 122/250 mono"
+config LCD_SSD1680_2_13_V2
+	bool "2.13 inch 122/250 mono v2"
 
 config LCD_SSD1680_2_13_RED
 	bool "2.13 inch 122/250 tri color (red)"
 
-config LCD_SSD1680_2_9
+config LCD_SSD1680_2_90
 	bool "2.9 inch 128/296 mono"
 
-config LCD_SSD1680_2_9_RED
+config LCD_SSD1680_2_90_RED
 	bool "2.9 inch 128/296 tri color (red)"
 
 endchoice # Display size
@@ -1557,10 +1656,10 @@ config SSD1680_SPIMODE
 
 config SSD1680_FREQUENCY
 	int "SSD1680 SPI Frequency"
-	default 2000000
-	range 100000 2000000
+	default 5000000
+	range 100000 20000000
 	---help---
-		Selects the SPI bus frequency used with the SSD1680 device. 
+		Selects the SPI bus frequency used with the SSD1680 device.
 		Max for read mode is 2.5 MHz, for write mode is 20 HHz
 endif # LCD_SSD1680
 

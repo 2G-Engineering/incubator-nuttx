@@ -35,6 +35,7 @@
 #include <nuttx/signal.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/kthread.h>
+#include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/i2c/i2c_master.h>
 #include <nuttx/sensors/sensor.h>
@@ -84,20 +85,20 @@ struct ms5611_dev_s
   FAR struct sensor_lowerhalf_s sensor_lower;
 
 #ifdef CONFIG_MS5611_I2C
-  FAR struct i2c_master_s  *i2c;       /* I2C interface */
-  uint8_t                   addr;      /* I2C address */
+  FAR struct i2c_master_s *i2c;       /* I2C interface */
+  uint8_t                  addr;      /* I2C address */
 #endif
 
 #ifdef CONFIG_MS5611_SPI
-  FAR struct spi_dev_s     *spi;       /* SPI interface */
+  FAR struct spi_dev_s    *spi;       /* SPI interface */
 #endif
 
-  uint32_t                  freq;      /* Bus Frequency I2C/SPI */
-  struct ms5611_calib_s     calib;     /* Calib. params from ROM */
-  unsigned int              interval;  /* Polling interval */
-  bool                      enabled;   /* Enable/Disable MS5611 */
-  sem_t                     run;       /* Locks measure cycle */
-  sem_t                     exclsem;   /* Manages exclusive to device */
+  uint32_t                 freq;      /* Bus Frequency I2C/SPI */
+  struct ms5611_calib_s    calib;     /* Calib. params from ROM */
+  unsigned long            interval;  /* Polling interval */
+  bool                     enabled;   /* Enable/Disable MS5611 */
+  sem_t                    run;       /* Locks measure cycle */
+  mutex_t                  lock;      /* Manages exclusive to device */
 };
 
 /****************************************************************************
@@ -121,9 +122,10 @@ static unsigned long ms5611_curtime(void);
 /* Sensor methods */
 
 static int ms5611_set_interval(FAR struct sensor_lowerhalf_s *lower,
-                               FAR unsigned int *period_us);
+                               FAR struct file *filep,
+                               FAR unsigned long *period_us);
 static int ms5611_activate(FAR struct sensor_lowerhalf_s *lower,
-                           bool enable);
+                           FAR struct file *filep, bool enable);
 
 #if 0 /* Please read below */
 static int ms5611_fetch(FAR struct sensor_lowerhalf_s *lower,
@@ -250,7 +252,7 @@ static int ms5611_read24(FAR struct ms5611_dev_s *priv, uint8_t *regval)
 }
 
 static inline void baro_measure_read(FAR struct ms5611_dev_s *priv,
-                                     FAR struct sensor_event_baro *baro)
+                                     FAR struct sensor_baro *baro)
 {
   uint32_t press;
   uint32_t temp;
@@ -260,7 +262,7 @@ static inline void baro_measure_read(FAR struct ms5611_dev_s *priv,
 
   /* Enforce exclusive access */
 
-  ret = nxsem_wait(&priv->exclsem);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return;
@@ -340,9 +342,9 @@ static inline void baro_measure_read(FAR struct ms5611_dev_s *priv,
          (uint32_t) buffer[1] << 8 |
          (uint32_t) buffer[2];
 
-  /* Release the semaphore */
+  /* Release the mutex */
 
-  nxsem_post(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
 
   /* Compensate the temp/press with calibration data */
 
@@ -370,7 +372,7 @@ static int ms5611_thread(int argc, char **argv)
   FAR struct ms5611_dev_s *priv = (FAR struct ms5611_dev_s *)
         ((uintptr_t)strtoul(argv[1], NULL, 0));
 
-  struct sensor_event_baro baro_data;
+  struct sensor_baro baro_data;
 
   while (true)
     {
@@ -390,7 +392,7 @@ static int ms5611_thread(int argc, char **argv)
        baro_measure_read(priv, &baro_data);
 
        priv->sensor_lower.push_event(priv->sensor_lower.priv, &baro_data,
-                                     sizeof(struct sensor_event_baro));
+                                     sizeof(struct sensor_baro));
 
       /* Sleeping thread before fetching the next sensor data */
 
@@ -540,7 +542,8 @@ static uint32_t ms5611_compensate_press(FAR struct ms5611_dev_s *priv,
  ****************************************************************************/
 
 static int ms5611_set_interval(FAR struct sensor_lowerhalf_s *lower,
-                               FAR unsigned int *period_us)
+                               FAR struct file *filep,
+                               FAR unsigned long *period_us)
 {
   FAR struct ms5611_dev_s *priv = container_of(lower,
                                                FAR struct ms5611_dev_s,
@@ -555,7 +558,7 @@ static int ms5611_set_interval(FAR struct sensor_lowerhalf_s *lower,
  ****************************************************************************/
 
 static int ms5611_activate(FAR struct sensor_lowerhalf_s *lower,
-                           bool enable)
+                           FAR struct file *filep, bool enable)
 {
   bool start_thread = false;
   struct ms5611_dev_s *priv = (FAR struct ms5611_dev_s *)lower;
@@ -596,7 +599,7 @@ static int ms5611_fetch(FAR struct sensor_lowerhalf_s *lower,
   FAR struct ms5611_dev_s *priv = container_of(lower,
                                                FAR struct ms5611_dev_s,
                                                sensor_lower);
-  struct sensor_event_baro baro_data;
+  struct sensor_baro baro_data;
 
   if (buflen != sizeof(baro_data))
     {
@@ -655,7 +658,7 @@ int ms5611_register(FAR struct i2c_master_s *i2c, int devno, uint8_t addr)
   priv->interval = 1000000; /* Default interval 1s */
 
   nxsem_init(&priv->run, 0, 0);
-  nxsem_init(&priv->exclsem, 0, 1);
+  nxmutex_init(&priv->lock);
 
   priv->sensor_lower.ops = &g_sensor_ops;
   priv->sensor_lower.type = SENSOR_TYPE_BAROMETER;
@@ -664,6 +667,8 @@ int ms5611_register(FAR struct i2c_master_s *i2c, int devno, uint8_t addr)
   if (ret < 0)
     {
       snerr("Failed to initialize physical device ms5611:%d\n", ret);
+      nxmutex_destroy(&priv->lock);
+      nxsem_destroy(&priv->run);
       kmm_free(priv);
       return ret;
     }
@@ -674,6 +679,8 @@ int ms5611_register(FAR struct i2c_master_s *i2c, int devno, uint8_t addr)
   if (ret < 0)
     {
       snerr("Failed to register driver: %d\n", ret);
+      nxmutex_destroy(&priv->lock);
+      nxsem_destroy(&priv->run);
       kmm_free(priv);
       return ret;
     }
@@ -690,6 +697,8 @@ int ms5611_register(FAR struct i2c_master_s *i2c, int devno, uint8_t addr)
     {
       snerr("Failed to create the notification kthread!\n");
       sensor_unregister(&priv->sensor_lower, devno);
+      nxmutex_destroy(&priv->lock);
+      nxsem_destroy(&priv->run);
       kmm_free(priv);
       return ret;
     }

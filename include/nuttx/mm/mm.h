@@ -86,17 +86,29 @@
 #  define MM_KERNEL_USRHEAP_INIT 1
 #endif
 
-/* The kernel heap is never accessible from user code */
+/* When building the Userspace image under CONFIG_BUILD_KERNEL or
+ * CONFIG_BUILD_PROTECTED (i.e. !defined(__KERNEL__)), CONFIG_MM_KERNEL_HEAP
+ * must be undefined to ensure the kernel heap is never accessible from user
+ * code.
+ */
 
-#ifndef __KERNEL__
-#  undef CONFIG_MM_KERNEL_HEAP
+#if defined(CONFIG_BUILD_KERNEL) || defined(CONFIG_BUILD_PROTECTED)
+#  ifndef __KERNEL__
+#    undef CONFIG_MM_KERNEL_HEAP
+#  endif
 #endif
+
+#define MM_BACKTRACE_INVALID_PID ((pid_t)-4)
+#define MM_BACKTRACE_MEMPOOL_PID ((pid_t)-3)
+#define MM_BACKTRACE_FREE_PID    ((pid_t)-2)
+#define MM_BACKTRACE_ALLOC_PID   ((pid_t)-1)
 
 /****************************************************************************
  * Public Types
  ****************************************************************************/
 
 struct mm_heap_s; /* Forward reference */
+struct mm_memdump_s;
 
 /****************************************************************************
  * Public Data
@@ -180,17 +192,17 @@ void kmm_addregion(FAR void *heapstart, size_t heapsize);
 
 /* Functions contained in mm_malloc.c ***************************************/
 
-FAR void *mm_malloc(FAR struct mm_heap_s *heap, size_t size);
+FAR void *mm_malloc(FAR struct mm_heap_s *heap, size_t size) malloc_like1(2);
 
 /* Functions contained in kmm_malloc.c **************************************/
 
 #ifdef CONFIG_MM_KERNEL_HEAP
-FAR void *kmm_malloc(size_t size);
+FAR void *kmm_malloc(size_t size) malloc_like1(1);
 #endif
 
 /* Functions contained in mm_malloc_size.c **********************************/
 
-size_t mm_malloc_size(FAR void *mem);
+size_t mm_malloc_size(FAR struct mm_heap_s *heap, FAR void *mem);
 
 /* Functions contained in kmm_malloc_size.c *********************************/
 
@@ -211,43 +223,50 @@ void kmm_free(FAR void *mem);
 /* Functions contained in mm_realloc.c **************************************/
 
 FAR void *mm_realloc(FAR struct mm_heap_s *heap, FAR void *oldmem,
-                     size_t size);
+                     size_t size) realloc_like(3);
 
 /* Functions contained in kmm_realloc.c *************************************/
 
 #ifdef CONFIG_MM_KERNEL_HEAP
-FAR void *kmm_realloc(FAR void *oldmem, size_t newsize);
+FAR void *kmm_realloc(FAR void *oldmem, size_t newsize) realloc_like(2);
 #endif
 
 /* Functions contained in mm_calloc.c ***************************************/
 
-FAR void *mm_calloc(FAR struct mm_heap_s *heap, size_t n, size_t elem_size);
+FAR void *mm_calloc(FAR struct mm_heap_s *heap, size_t n,
+                    size_t elem_size) malloc_like2(2, 3);
 
 /* Functions contained in kmm_calloc.c **************************************/
 
 #ifdef CONFIG_MM_KERNEL_HEAP
-FAR void *kmm_calloc(size_t n, size_t elem_size);
+FAR void *kmm_calloc(size_t n, size_t elem_size) malloc_like2(1, 2);
 #endif
 
 /* Functions contained in mm_zalloc.c ***************************************/
 
-FAR void *mm_zalloc(FAR struct mm_heap_s *heap, size_t size);
+FAR void *mm_zalloc(FAR struct mm_heap_s *heap, size_t size) malloc_like1(2);
 
 /* Functions contained in kmm_zalloc.c **************************************/
 
 #ifdef CONFIG_MM_KERNEL_HEAP
-FAR void *kmm_zalloc(size_t size);
+FAR void *kmm_zalloc(size_t size) malloc_like1(1);
+#endif
+
+/* Functions contained in kmm_memdump.c *************************************/
+
+#ifdef CONFIG_MM_KERNEL_HEAP
+void kmm_memdump(FAR const struct mm_memdump_s *dump);
 #endif
 
 /* Functions contained in mm_memalign.c *************************************/
 
 FAR void *mm_memalign(FAR struct mm_heap_s *heap, size_t alignment,
-                      size_t size);
+                      size_t size) malloc_like1(3);
 
 /* Functions contained in kmm_memalign.c ************************************/
 
 #ifdef CONFIG_MM_KERNEL_HEAP
-FAR void *kmm_memalign(size_t alignment, size_t size);
+FAR void *kmm_memalign(size_t alignment, size_t size) malloc_like1(2);
 #endif
 
 /* Functions contained in mm_heapmember.c ***********************************/
@@ -297,24 +316,23 @@ void kmm_extend(FAR void *mem, size_t size, int region);
 
 struct mallinfo; /* Forward reference */
 int mm_mallinfo(FAR struct mm_heap_s *heap, FAR struct mallinfo *info);
-#ifdef CONFIG_MM_BACKTRACE
 struct mallinfo_task; /* Forward reference */
-int mm_mallinfo_task(FAR struct mm_heap_s *heap,
-                     FAR struct mallinfo_task *info);
-#endif
+struct mallinfo_task mm_mallinfo_task(FAR struct mm_heap_s *heap,
+                                      FAR const struct mm_memdump_s *dump);
 
 /* Functions contained in kmm_mallinfo.c ************************************/
 
 #ifdef CONFIG_MM_KERNEL_HEAP
 struct mallinfo kmm_mallinfo(void);
-#  ifdef CONFIG_MM_BACKTRACE
-struct mallinfo_task kmm_mallinfo_task(pid_t pid);
+#  if CONFIG_MM_BACKTRACE >= 0
+struct mallinfo_task kmm_mallinfo_task(FAR const struct mm_memdump_s *dump);
 #  endif
 #endif
 
 /* Functions contained in mm_memdump.c **************************************/
 
-void mm_memdump(FAR struct mm_heap_s *heap, pid_t pid);
+void mm_memdump(FAR struct mm_heap_s *heap,
+                FAR const struct mm_memdump_s *dump);
 
 #ifdef CONFIG_DEBUG_MM
 /* Functions contained in mm_checkcorruption.c ******************************/
@@ -324,6 +342,10 @@ void mm_checkcorruption(FAR struct mm_heap_s *heap);
 /* Functions contained in umm_checkcorruption.c *****************************/
 
 FAR void umm_checkcorruption(void);
+
+/* Functions contained in umm_memdump.c *************************************/
+
+void umm_memdump(FAR const struct mm_memdump_s *dump);
 
 /* Functions contained in kmm_checkcorruption.c *****************************/
 

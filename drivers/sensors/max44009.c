@@ -33,6 +33,7 @@
 #include <nuttx/fs/fs.h>
 #include <nuttx/i2c/i2c_master.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/mutex.h>
 #include <nuttx/random.h>
 
 #include <nuttx/sensors/max44009.h>
@@ -73,7 +74,7 @@
 struct max44009_dev_s
 {
   FAR struct max44009_config_s *config;
-  sem_t dev_sem;
+  mutex_t dev_lock;
   FAR struct i2c_master_s *i2c;
   uint8_t addr;
   uint8_t cref;
@@ -111,10 +112,9 @@ static const struct file_operations g_alsops =
   max44009_write,  /* write */
   NULL,            /* seek */
   max44009_ioctl,  /* ioctl */
+  NULL,            /* mmap */
+  NULL,            /* truncate */
   max44009_poll    /* poll */
-#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-  , NULL           /* unlink */
-#endif
 };
 
 /****************************************************************************
@@ -221,7 +221,7 @@ static int max44009_open(FAR struct file *filep)
   DEBUGASSERT(inode && inode->i_private);
   priv = (FAR struct max44009_dev_s *)inode->i_private;
 
-  ret = nxsem_wait_uninterruptible(&priv->dev_sem);
+  ret = nxmutex_lock(&priv->dev_lock);
   if (ret < 0)
     {
       return ret;
@@ -236,7 +236,7 @@ static int max44009_open(FAR struct file *filep)
       if (ret < 0)
         {
           max44009_dbg("Cannot power on sensor: %d\n", ret);
-          goto out_sem;
+          goto out_lock;
         }
 
       priv->config->irq_enable(priv->config, true);
@@ -252,8 +252,8 @@ static int max44009_open(FAR struct file *filep)
 
   max44009_dbg("Sensor is powered on\n");
 
-out_sem:
-  nxsem_post(&priv->dev_sem);
+out_lock:
+  nxmutex_unlock(&priv->dev_lock);
   return ret;
 }
 
@@ -270,7 +270,7 @@ static int max44009_close(FAR struct file *filep)
   DEBUGASSERT(inode && inode->i_private);
   priv = (FAR struct max44009_dev_s *)inode->i_private;
 
-  ret = nxsem_wait_uninterruptible(&priv->dev_sem);
+  ret = nxmutex_lock(&priv->dev_lock);
   if (ret < 0)
     {
       return ret;
@@ -294,7 +294,7 @@ static int max44009_close(FAR struct file *filep)
     }
 
   max44009_dbg("CLOSED\n");
-  nxsem_post(&priv->dev_sem);
+  nxmutex_unlock(&priv->dev_lock);
   return OK;
 }
 
@@ -313,7 +313,7 @@ static ssize_t max44009_read(FAR struct file *filep, FAR char *buffer,
   DEBUGASSERT(inode && inode->i_private);
   priv = (FAR struct max44009_dev_s *)inode->i_private;
 
-  ret = nxsem_wait_uninterruptible(&priv->dev_sem);
+  ret = nxmutex_lock(&priv->dev_lock);
   if (ret < 0)
     {
       return (ssize_t)ret;
@@ -335,7 +335,7 @@ static ssize_t max44009_read(FAR struct file *filep, FAR char *buffer,
         }
     }
 
-  nxsem_post(&priv->dev_sem);
+  nxmutex_unlock(&priv->dev_lock);
   return length;
 }
 
@@ -717,7 +717,7 @@ static int max44009_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   DEBUGASSERT(inode && inode->i_private);
   priv = (FAR struct max44009_dev_s *)inode->i_private;
 
-  ret = nxsem_wait_uninterruptible(&priv->dev_sem);
+  ret = nxmutex_lock(&priv->dev_lock);
   if (ret < 0)
     {
       return ret;
@@ -748,7 +748,7 @@ static int max44009_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
       break;
     }
 
-  nxsem_post(&priv->dev_sem);
+  nxmutex_unlock(&priv->dev_lock);
   return ret;
 }
 
@@ -769,9 +769,7 @@ static void max44009_notify(FAR struct max44009_dev_s *priv)
       FAR struct pollfd *fds = priv->fds[i];
       if (fds)
         {
-          fds->revents |= POLLIN;
-          max44009_dbg("Report events: %08" PRIx32 "\n", fds->revents);
-          nxsem_post(fds->sem);
+          poll_notify(&fds, 1, POLLIN);
           priv->int_pending = false;
         }
     }
@@ -791,7 +789,7 @@ static int max44009_poll(FAR struct file *filep, FAR struct pollfd *fds,
   DEBUGASSERT(inode && inode->i_private);
   priv = (FAR struct max44009_dev_s *)inode->i_private;
 
-  ret = nxsem_wait_uninterruptible(&priv->dev_sem);
+  ret = nxmutex_lock(&priv->dev_lock);
   if (ret < 0)
     {
       return ret;
@@ -851,8 +849,7 @@ static int max44009_poll(FAR struct file *filep, FAR struct pollfd *fds,
     }
 
 out:
-
-  nxsem_post(&priv->dev_sem);
+  nxmutex_unlock(&priv->dev_lock);
   return ret;
 }
 
@@ -892,12 +889,13 @@ int max44009_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
   priv->addr = addr;
   priv->i2c = i2c;
   priv->config = config;
-  nxsem_init(&priv->dev_sem, 0, 1);
+  nxmutex_init(&priv->dev_lock);
 
   ret = register_driver(devpath, &g_alsops, 0666, priv);
   max44009_dbg("Registered with %d\n", ret);
   if (ret < 0)
     {
+      nxmutex_destroy(&priv->dev_lock);
       kmm_free(priv);
       max44009_dbg("Error occurred during the driver registering\n");
       return ret;
