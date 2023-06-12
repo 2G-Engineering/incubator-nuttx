@@ -25,7 +25,8 @@
 #include <errno.h>
 
 #include <nuttx/kmalloc.h>
-#include <nuttx/semaphore.h>
+#include <nuttx/mutex.h>
+#include <nuttx/lib/lib.h>
 
 #include "tls.h"
 
@@ -37,7 +38,7 @@
  * Name: task_init_info
  *
  * Description:
- *   Allocate and initilize task_info_s structure.
+ *   Allocate and initialize task_info_s structure.
  *
  * Input Parameters:
  *   - group: The group of new task
@@ -59,10 +60,16 @@ int task_init_info(FAR struct task_group_s *group)
       return -ENOMEM;
     }
 
-  /* Initialize user space semaphore */
+  /* Initialize user space mutex */
 
-  nxsem_init(&info->ta_sem, 0, 1);
+  nxmutex_init(&info->ta_lock);
   group->tg_info = info;
+
+#ifdef CONFIG_FILE_STREAM
+  /* Initialize file streams for the task group */
+
+  lib_stream_initialize(group);
+#endif
 
   return OK;
 }

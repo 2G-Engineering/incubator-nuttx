@@ -47,7 +47,7 @@
  */
 
 #ifdef CONFIG_ARCH_MIPS32
-# include <arch/mips32/irq.h>
+#  include <arch/mips32/irq.h>
 #endif
 
 /****************************************************************************
@@ -66,6 +66,23 @@ extern "C"
 #else
 #define EXTERN extern
 #endif
+
+/****************************************************************************
+ * Inline functions
+ ****************************************************************************/
+
+/* Return the current value of the stack pointer */
+
+static inline uint32_t up_getsp(void)
+{
+  register uint32_t sp;
+  __asm__
+  (
+    "\tadd  %0, $0, $29\n"
+    : "=r"(sp)
+  );
+  return sp;
+}
 
 /****************************************************************************
  * Public Data

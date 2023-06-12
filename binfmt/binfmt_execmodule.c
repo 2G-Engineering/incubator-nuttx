@@ -31,10 +31,11 @@
 #include <debug.h>
 #include <errno.h>
 
+#include <nuttx/addrenv.h>
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/sched.h>
-#include <nuttx/mm/shm.h>
+#include <nuttx/spawn.h>
 #include <nuttx/binfmt/binfmt.h>
 
 #include "binfmt.h"
@@ -111,15 +112,17 @@ static void exec_ctors(FAR void *arg)
  *
  ****************************************************************************/
 
-int exec_module(FAR const struct binary_s *binp,
+int exec_module(FAR struct binary_s *binp,
                 FAR const char *filename, FAR char * const *argv,
-                FAR char * const *envp)
+                FAR char * const *envp,
+                FAR const posix_spawn_file_actions_t *actions)
 {
   FAR struct task_tcb_s *tcb;
 #if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
-  save_addrenv_t oldenv;
+  FAR struct arch_addrenv_s *addrenv = &binp->addrenv->addrenv;
   FAR void *vheap;
 #endif
+  FAR void *stackaddr = NULL;
   pid_t pid;
   int ret;
 
@@ -142,39 +145,36 @@ int exec_module(FAR const struct binary_s *binp,
       return -ENOMEM;
     }
 
-  if (argv)
+  ret = binfmt_copyargv(&argv, argv);
+  if (ret < 0)
     {
-      argv = binfmt_copyargv(argv);
-      if (!argv)
-        {
-          ret = -ENOMEM;
-          goto errout_with_tcb;
-        }
+      goto errout_with_tcb;
     }
 
   /* Make a copy of the environment here */
 
-  if (envp || (envp = environ))
+  if (envp == NULL)
     {
-      envp = binfmt_copyenv(envp);
-      if (!envp)
-        {
-          ret = -ENOMEM;
-          goto errout_with_args;
-        }
+      envp = environ;
+    }
+
+  ret = binfmt_copyenv(&envp, envp);
+  if (ret < 0)
+    {
+      goto errout_with_args;
     }
 
 #if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
   /* Instantiate the address environment containing the user heap */
 
-  ret = up_addrenv_select(&binp->addrenv, &oldenv);
+  ret = addrenv_select(binp->addrenv, &binp->oldenv);
   if (ret < 0)
     {
-      berr("ERROR: up_addrenv_select() failed: %d\n", ret);
+      berr("ERROR: addrenv_select() failed: %d\n", ret);
       goto errout_with_envp;
     }
 
-  ret = up_addrenv_vheap(&binp->addrenv, &vheap);
+  ret = up_addrenv_vheap(addrenv, &vheap);
   if (ret < 0)
     {
       berr("ERROR: up_addrenv_vheap() failed: %d\n", ret);
@@ -182,8 +182,8 @@ int exec_module(FAR const struct binary_s *binp,
     }
 
   binfo("Initialize the user heap (heapsize=%zu)\n",
-        up_addrenv_heapsize(&binp->addrenv));
-  umm_initialize(vheap, up_addrenv_heapsize(&binp->addrenv));
+        up_addrenv_heapsize(addrenv));
+  umm_initialize(vheap, up_addrenv_heapsize(addrenv));
 #endif
 
   /* Note that tcb->flags are not modified.  0=normal task */
@@ -192,14 +192,18 @@ int exec_module(FAR const struct binary_s *binp,
 
   /* Initialize the task */
 
+#ifndef CONFIG_BUILD_KERNEL
+  stackaddr = binp->stackaddr;
+#endif
+
   if (argv && argv[0])
     {
-      ret = nxtask_init(tcb, argv[0], binp->priority, NULL,
+      ret = nxtask_init(tcb, argv[0], binp->priority, stackaddr,
                         binp->stacksize, binp->entrypt, &argv[1], envp);
     }
   else
     {
-      ret = nxtask_init(tcb, filename, binp->priority, NULL,
+      ret = nxtask_init(tcb, filename, binp->priority, stackaddr,
                         binp->stacksize, binp->entrypt, argv, envp);
     }
 
@@ -214,6 +218,17 @@ int exec_module(FAR const struct binary_s *binp,
   binfmt_freeargv(argv);
   binfmt_freeenv(envp);
 
+  /* Perform file actions */
+
+  if (actions != NULL)
+    {
+      ret = spawn_file_actions(&tcb->cmn, actions);
+      if (ret < 0)
+        {
+          goto errout_with_tcbinit;
+        }
+    }
+
 #if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_ARCH_KERNEL_STACK)
   /* Allocate the kernel stack */
 
@@ -221,17 +236,6 @@ int exec_module(FAR const struct binary_s *binp,
   if (ret < 0)
     {
       berr("ERROR: up_addrenv_kstackalloc() failed: %d\n", ret);
-      goto errout_with_tcbinit;
-    }
-#endif
-
-#ifdef CONFIG_MM_SHM
-  /* Initialize the shared memory virtual page allocator */
-
-  ret = shm_group_initialize(tcb->cmn.group);
-  if (ret < 0)
-    {
-      berr("ERROR: shm_group_initialize() failed: %d\n", ret);
       goto errout_with_tcbinit;
     }
 #endif
@@ -249,18 +253,14 @@ int exec_module(FAR const struct binary_s *binp,
 #endif
 
 #ifdef CONFIG_ARCH_ADDRENV
-  /* Assign the address environment to the new task group */
+  /* Attach the address environment to the new task */
 
-  ret = up_addrenv_clone(&binp->addrenv, &tcb->cmn.group->tg_addrenv);
+  ret = addrenv_attach((FAR struct tcb_s *)tcb, binp->addrenv);
   if (ret < 0)
     {
-      berr("ERROR: up_addrenv_clone() failed: %d\n", ret);
+      berr("ERROR: addrenv_attach() failed: %d\n", ret);
       goto errout_with_tcbinit;
     }
-
-  /* Mark that this group has an address environment */
-
-  tcb->cmn.group->tg_flags |= GROUP_FLAG_ADDRENV;
 #endif
 
 #ifdef CONFIG_BINFMT_CONSTRUCTORS
@@ -286,26 +286,30 @@ int exec_module(FAR const struct binary_s *binp,
 #if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
   /* Restore the address environment of the caller */
 
-  ret = up_addrenv_restore(&oldenv);
+  ret = addrenv_restore(binp->oldenv);
   if (ret < 0)
     {
-      berr("ERROR: up_addrenv_restore() failed: %d\n", ret);
+      berr("ERROR: addrenv_restore() failed: %d\n", ret);
       goto errout_with_tcbinit;
     }
 #endif
 
   return (int)pid;
 
-#if defined(CONFIG_ARCH_ADDRENV) || defined(CONFIG_MM_SHM)
 errout_with_tcbinit:
-  tcb->cmn.stack_alloc_ptr = NULL;
-  nxsched_release_tcb(&tcb->cmn, TCB_FLAG_TTYPE_TASK);
-  return ret;
+#ifndef CONFIG_BUILD_KERNEL
+  if (binp->stackaddr != NULL)
+    {
+      tcb->cmn.stack_alloc_ptr = NULL;
+    }
 #endif
+
+  nxtask_uninit(tcb);
+  return ret;
 
 errout_with_addrenv:
 #if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
-  up_addrenv_restore(&oldenv);
+  addrenv_restore(binp->oldenv);
 errout_with_envp:
 #endif
   binfmt_freeenv(envp);

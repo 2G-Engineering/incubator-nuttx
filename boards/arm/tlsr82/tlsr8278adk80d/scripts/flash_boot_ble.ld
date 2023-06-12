@@ -61,7 +61,6 @@ SECTIONS
         *libarch.a:arm_doirq.o(.text .text.*)
         *libarch.a:arm_unblocktask.o(.text .text.*)
         *libarch.a:arm_blocktask.o(.text .text.*)
-        *libarch.a:arm_releasepending.o(.text .text.*)
 
         *libsched.a:nx_start.o(.rodata .rodata.g_tasklisttable)
         *libsched.a:sem_post.o(.text .text.*)
@@ -147,7 +146,7 @@ SECTIONS
     PROVIDE(_rstored_ = . );
     PROVIDE(_code_size_ = .);
 
-    /* __LOAD_FLASH for MCU RUN IN Flash 0x100 alighned, must greater
+    /* __LOAD_FLASH for MCU RUN IN Flash 0x100 aligned, must greater
      * than or equal to : 0x808000 + ram_code_size + irq_vector(0x100) +
      * IC_tag(0x100) + IC_cache(0x800) == 0x808a00 + ram_code_size
      *
@@ -181,6 +180,9 @@ SECTIONS
         PROVIDE(_start_data_ = . );
         *(.data);
         *(.data.*);
+        . = ALIGN(4);
+        KEEP(*(.info));
+        KEEP(*(.info.*));
         . = ALIGN(4);
         PROVIDE(_end_data_ = . );
     }

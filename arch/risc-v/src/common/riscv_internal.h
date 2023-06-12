@@ -29,15 +29,37 @@
 
 #ifndef __ASSEMBLY__
 #  include <nuttx/compiler.h>
-#  include <nuttx/arch.h>
 #  include <sys/types.h>
 #  include <stdint.h>
 #  include <syscall.h>
 #endif
 
+#include <nuttx/irq.h>
+
+#include "riscv_common_memorymap.h"
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+#if defined(CONFIG_ARCH_QPFPU)
+#  define FLOAD     __STR(flq)
+#  define FSTORE    __STR(fsq)
+#elif defined(CONFIG_ARCH_DPFPU)
+#  define FLOAD     __STR(fld)
+#  define FSTORE    __STR(fsd)
+#else
+#  define FLOAD     __STR(flw)
+#  define FSTORE    __STR(fsw)
+#endif
+
+#ifdef CONFIG_ARCH_RV32
+#  define REGLOAD   __STR(lw)
+#  define REGSTORE  __STR(sw)
+#else
+#  define REGLOAD   __STR(ld)
+#  define REGSTORE  __STR(sd)
+#endif
 
 /* This is the value used to mark the stack for subsequent stack monitoring
  * logic.
@@ -72,18 +94,6 @@
 
 #define riscv_savestate(regs) (regs = (uintptr_t *)CURRENT_REGS)
 #define riscv_restorestate(regs) (CURRENT_REGS = regs)
-
-#define _START_TEXT  &_stext
-#define _END_TEXT    &_etext
-#define _START_BSS   &_sbss
-#define _END_BSS     &_ebss
-#define _DATA_INIT   &_eronly
-#define _START_DATA  &_sdata
-#define _END_DATA    &_edata
-#define _START_TDATA &_stdata
-#define _END_TDATA   &_etdata
-#define _START_TBSS  &_stbss
-#define _END_TBSS    &_etbss
 
 /* Determine which (if any) console driver to use.  If a console is enabled
  * and no other console device is specified, then a serial console is
@@ -164,46 +174,6 @@ extern "C"
 #define EXTERN extern
 #endif
 
-#ifndef __ASSEMBLY__
-EXTERN uintptr_t g_idle_topstack;
-
-/* Address of per-cpu idle stack base */
-
-EXTERN const uint8_t * const g_cpu_basestack[CONFIG_SMP_NCPUS];
-
-/* Address of the saved user stack pointer */
-
-#if CONFIG_ARCH_INTERRUPTSTACK > 15
-EXTERN uint32_t g_intstackalloc; /* Allocated stack base */
-EXTERN uint32_t g_intstacktop;   /* Initial top of interrupt stack */
-#endif
-
-/* These 'addresses' of these values are setup by the linker script.  They
- * are not actual uint32_t storage locations! They are only used meaningfully
- * in the following way:
- *
- *  - The linker script defines, for example, the symbol_sdata.
- *  - The declaration extern uint32_t _sdata; makes C happy.  C will believe
- *    that the value _sdata is the address of a uint32_t variable _data (it
- *    is not!).
- *  - We can recover the linker value then by simply taking the address of
- *    of _data.  like:  uint32_t *pdata = &_sdata;
- */
-
-EXTERN uint32_t _stext;           /* Start of .text */
-EXTERN uint32_t _etext;           /* End_1 of .text + .rodata */
-EXTERN const uint32_t _eronly;    /* End+1 of read only section (.text + .rodata) */
-EXTERN uint32_t _sdata;           /* Start of .data */
-EXTERN uint32_t _edata;           /* End+1 of .data */
-EXTERN uint32_t _sbss;            /* Start of .bss */
-EXTERN uint32_t _ebss;            /* End+1 of .bss */
-EXTERN uint32_t _stdata;          /* Start of .tdata */
-EXTERN uint32_t _etdata;          /* End+1 of .tdata */
-EXTERN uint32_t _stbss;           /* Start of .tbss */
-EXTERN uint32_t _etbss;           /* End+1 of .tbss */
-
-#endif /* __ASSEMBLY__ */
-
 /****************************************************************************
 * Public Function Prototypes
   ***************************************************************************/
@@ -218,18 +188,17 @@ void modifyreg32(uintptr_t addr, uint32_t clearbits, uint32_t setbits);
 #if CONFIG_MM_REGIONS > 1
 void riscv_addregion(void);
 #else
-# define riscv_addregion()
+#  define riscv_addregion()
 #endif
 
 /* IRQ initialization *******************************************************/
 
 void riscv_ack_irq(int irq);
 
-void riscv_copystate(uintptr_t *dest, uintptr_t *src);
-
 void riscv_sigdeliver(void);
 int riscv_swint(int irq, void *context, void *arg);
 uintptr_t riscv_get_newintctx(void);
+void riscv_set_idleintctx(void);
 void riscv_exception_attach(void);
 
 #ifdef CONFIG_ARCH_FPU
@@ -262,6 +231,12 @@ void riscv_pminitialize(void);
 #  define riscv_pminitialize()
 #endif
 
+/* DMA **********************************************************************/
+
+#ifdef CONFIG_ARCH_DMA
+void weak_function riscv_dma_initialize(void);
+#endif
+
 /* Low level serial output **************************************************/
 
 void riscv_lowputc(char ch);
@@ -285,7 +260,7 @@ void riscv_earlyserialinit(void);
 #if defined(CONFIG_NET) && !defined(CONFIG_NETDEV_LATEINIT)
 void riscv_netinitialize(void);
 #else
-# define riscv_netinitialize()
+#  define riscv_netinitialize()
 #endif
 
 /* Exception Handler ********************************************************/
@@ -297,6 +272,7 @@ int riscv_misaligned(int irq, void *context, void *arg);
 /* Debug ********************************************************************/
 
 #ifdef CONFIG_STACK_COLORATION
+size_t riscv_stack_check(uintptr_t alloc, size_t size);
 void riscv_stack_color(void *stackbase, size_t nbytes);
 #endif
 

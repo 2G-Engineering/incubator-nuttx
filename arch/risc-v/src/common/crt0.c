@@ -22,14 +22,13 @@
  * Included Files
  ****************************************************************************/
 
-#include <arch/arch.h>
-#include <arch/syscall.h>
-
+#include <nuttx/arch.h>
 #include <nuttx/addrenv.h>
 #include <nuttx/compiler.h>
 #include <nuttx/config.h>
 
 #include <sys/types.h>
+#include <syscall.h>
 #include <stdlib.h>
 
 #include "riscv_internal.h"
@@ -94,14 +93,16 @@ static void sig_trampoline(void)
 
 /* Linker defined symbols to .ctors and .dtors */
 
-extern void (*_sctors)(void);
-extern void (*_ectors)(void);
-extern void (*_sdtors)(void);
-extern void (*_edtors)(void);
+extern initializer_t _sctors[];
+extern initializer_t _ectors[];
+extern initializer_t _sdtors[];
+extern initializer_t _edtors[];
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+#ifdef CONFIG_HAVE_CXX
 
 /****************************************************************************
  * Name: exec_ctors
@@ -113,7 +114,7 @@ extern void (*_edtors)(void);
 
 static void exec_ctors(void)
 {
-  for (void (**ctor)(void) = &_sctors; ctor != &_ectors; ctor++)
+  for (initializer_t *ctor = _sctors; ctor != _ectors; ctor++)
     {
       (*ctor)();
     }
@@ -129,11 +130,13 @@ static void exec_ctors(void)
 
 static void exec_dtors(void)
 {
-  for (void (**dtor)(void) = &_sdtors; dtor != &_edtors; dtor++)
+  for (initializer_t *dtor = _sdtors; dtor != _edtors; dtor++)
     {
       (*dtor)();
     }
 }
+
+#endif
 
 /****************************************************************************
  * Public Functions

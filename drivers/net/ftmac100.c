@@ -33,16 +33,15 @@
 #include <errno.h>
 #include <assert.h>
 #include <debug.h>
-#include <crc32.h>
 
 #include <arpa/inet.h>
 
+#include <nuttx/crc32.h>
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/wdog.h>
 #include <nuttx/wqueue.h>
-#include <nuttx/net/arp.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/ftmac100.h>
 
@@ -78,12 +77,16 @@
  */
 
 #ifndef CONFIG_FTMAC100_NINTERFACES
-# define CONFIG_FTMAC100_NINTERFACES 1
+#  define CONFIG_FTMAC100_NINTERFACES 1
 #endif
 
 /* TX timeout = 1 minute */
 
 #define FTMAC100_TXTIMEOUT (60*CLK_TCK)
+
+/* Packet buffer size */
+
+#define PKTBUF_SIZE (MAX_NETDEV_PKTSIZE + CONFIG_NET_GUARDSIZE)
 
 /* This is a helper pointer for accessing the contents of the Ethernet
  * header.
@@ -99,24 +102,24 @@
 #define ETH_ZLEN 60
 
 #if defined(CONFIG_NET_MCASTGROUP) || defined(CONFIG_NET_ICMPv6)
-# define MACCR_ENABLE_ALL (FTMAC100_MACCR_XMT_EN  | \
-                           FTMAC100_MACCR_RCV_EN  | \
-                           FTMAC100_MACCR_XDMA_EN | \
-                           FTMAC100_MACCR_RDMA_EN | \
-                           FTMAC100_MACCR_CRC_APD | \
-                           FTMAC100_MACCR_FULLDUP | \
-                           FTMAC100_MACCR_RX_RUNT | \
-                           FTMAC100_MACCR_HT_MULTI_EN | \
-                           FTMAC100_MACCR_RX_BROADPKT)
+#  define MACCR_ENABLE_ALL (FTMAC100_MACCR_XMT_EN  | \
+                            FTMAC100_MACCR_RCV_EN  | \
+                            FTMAC100_MACCR_XDMA_EN | \
+                            FTMAC100_MACCR_RDMA_EN | \
+                            FTMAC100_MACCR_CRC_APD | \
+                            FTMAC100_MACCR_FULLDUP | \
+                            FTMAC100_MACCR_RX_RUNT | \
+                            FTMAC100_MACCR_HT_MULTI_EN | \
+                            FTMAC100_MACCR_RX_BROADPKT)
 #else
-# define MACCR_ENABLE_ALL (FTMAC100_MACCR_XMT_EN  | \
-                           FTMAC100_MACCR_RCV_EN  | \
-                           FTMAC100_MACCR_XDMA_EN | \
-                           FTMAC100_MACCR_RDMA_EN | \
-                           FTMAC100_MACCR_CRC_APD | \
-                           FTMAC100_MACCR_FULLDUP | \
-                           FTMAC100_MACCR_RX_RUNT | \
-                           FTMAC100_MACCR_RX_BROADPKT)
+#  define MACCR_ENABLE_ALL (FTMAC100_MACCR_XMT_EN  | \
+                            FTMAC100_MACCR_RCV_EN  | \
+                            FTMAC100_MACCR_XDMA_EN | \
+                            FTMAC100_MACCR_RDMA_EN | \
+                            FTMAC100_MACCR_CRC_APD | \
+                            FTMAC100_MACCR_FULLDUP | \
+                            FTMAC100_MACCR_RX_RUNT | \
+                            FTMAC100_MACCR_RX_BROADPKT)
 #endif
 
 #define MACCR_DISABLE_ALL 0
@@ -171,7 +174,8 @@ struct ftmac100_driver_s
 
 /* A single packet buffer is used */
 
-static uint8_t g_pktbuf[MAX_NETDEV_PKTSIZE + CONFIG_NET_GUARDSIZE];
+static uint16_t g_pktbuf[CONFIG_FTMAC100_NINTERFACES]
+                        [(PKTBUF_SIZE + 1) / 2];
 
 /* Driver state structure. */
 
@@ -340,45 +344,9 @@ static int ftmac100_txpoll(struct net_driver_s *dev)
   FAR struct ftmac100_driver_s *priv =
     (FAR struct ftmac100_driver_s *)dev->d_private;
 
-  /* If the polling resulted in data that should be sent out on the network,
-   * the field d_len is set to a value > 0.
-   */
+  /* Send the packet */
 
-  if (priv->ft_dev.d_len > 0)
-    {
-      /* Look up the destination MAC address and add it to the Ethernet
-       * header.
-       */
-
-#ifdef CONFIG_NET_IPv4
-#ifdef CONFIG_NET_IPv6
-      if (IFF_IS_IPv4(priv->ft_dev.d_flags))
-#endif
-        {
-          arp_out(&priv->ft_dev);
-        }
-#endif /* CONFIG_NET_IPv4 */
-
-#ifdef CONFIG_NET_IPv6
-#ifdef CONFIG_NET_IPv4
-      else
-#endif
-        {
-          neighbor_out(&priv->ft_dev);
-        }
-#endif /* CONFIG_NET_IPv6 */
-
-      if (!devif_loopback(&priv->ft_dev))
-        {
-          /* Send the packet */
-
-          ftmac100_transmit(priv);
-
-          /* Check if there is room in the device to hold another packet.  If
-           * not, return a non-zero value to terminate the poll.
-           */
-        }
-    }
+  ftmac100_transmit(priv);
 
   /* If zero is returned, the polling will continue until all connections
    * have been examined.
@@ -682,11 +650,8 @@ static void ftmac100_receive(FAR struct ftmac100_driver_s *priv)
         {
           ninfo("IPv4 frame\n");
 
-          /* Handle ARP on input then give the IPv4 packet to the network
-           * layer
-           */
+          /* Receive an IPv4 packet from the network device */
 
-          arp_ipin(&priv->ft_dev);
           ipv4_input(&priv->ft_dev);
 
           /* If the above function invocation resulted in data that should be
@@ -696,21 +661,6 @@ static void ftmac100_receive(FAR struct ftmac100_driver_s *priv)
 
           if (priv->ft_dev.d_len > 0)
             {
-              /* Update the Ethernet header with the correct MAC address */
-
-#ifdef CONFIG_NET_IPv6
-              if (IFF_IS_IPv4(priv->ft_dev.d_flags))
-#endif
-                {
-                  arp_out(&priv->ft_dev);
-                }
-#ifdef CONFIG_NET_IPv6
-              else
-                {
-                  neighbor_out(&priv->ft_dev);
-                }
-#endif
-
               /* And send the packet */
 
               ftmac100_transmit(priv);
@@ -734,21 +684,6 @@ static void ftmac100_receive(FAR struct ftmac100_driver_s *priv)
 
           if (priv->ft_dev.d_len > 0)
             {
-              /* Update the Ethernet header with the correct MAC address */
-
-#ifdef CONFIG_NET_IPv4
-              if (IFF_IS_IPv4(priv->ft_dev.d_flags))
-                {
-                  arp_out(&priv->ft_dev);
-                }
-              else
-#endif
-#ifdef CONFIG_NET_IPv6
-                {
-                  neighbor_out(&priv->ft_dev);
-                }
-#endif
-
               /* And send the packet */
 
               ftmac100_transmit(priv);
@@ -759,7 +694,7 @@ static void ftmac100_receive(FAR struct ftmac100_driver_s *priv)
 #ifdef CONFIG_NET_ARP
       if (BUF->type == HTONS(ETHTYPE_ARP))
         {
-          arp_arpin(&priv->ft_dev);
+          arp_input(&priv->ft_dev);
 
           /* If the above function invocation resulted in data that should be
            * sent out on the network, the field  d_len will set to a value
@@ -1103,8 +1038,8 @@ static int ftmac100_ifup(struct net_driver_s *dev)
 
 #ifdef CONFIG_NET_IPv4
   ninfo("Bringing up: %d.%d.%d.%d\n",
-        dev->d_ipaddr & 0xff, (dev->d_ipaddr >> 8) & 0xff,
-        (dev->d_ipaddr >> 16) & 0xff, dev->d_ipaddr >> 24);
+        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
+        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
 #endif
 #ifdef CONFIG_NET_IPv6
   ninfo("Bringing up: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -1488,15 +1423,15 @@ int ftmac100_initialize(int intf)
   /* Initialize the driver structure */
 
   memset(priv, 0, sizeof(struct ftmac100_driver_s));
-  priv->ft_dev.d_buf     = g_pktbuf;          /* Single packet buffer */
-  priv->ft_dev.d_ifup    = ftmac100_ifup;     /* I/F up (new IP address) callback */
-  priv->ft_dev.d_ifdown  = ftmac100_ifdown;   /* I/F down callback */
-  priv->ft_dev.d_txavail = ftmac100_txavail;  /* New TX data callback */
+  priv->ft_dev.d_buf     = (FAR uint8_t *)g_pktbuf[intf]; /* Single packet buffer */
+  priv->ft_dev.d_ifup    = ftmac100_ifup;                 /* I/F up (new IP address) callback */
+  priv->ft_dev.d_ifdown  = ftmac100_ifdown;               /* I/F down callback */
+  priv->ft_dev.d_txavail = ftmac100_txavail;              /* New TX data callback */
 #ifdef CONFIG_NET_MCASTGROUP
-  priv->ft_dev.d_addmac  = ftmac100_addmac;   /* Add multicast MAC address */
-  priv->ft_dev.d_rmmac   = ftmac100_rmmac;    /* Remove multicast MAC address */
+  priv->ft_dev.d_addmac  = ftmac100_addmac;               /* Add multicast MAC address */
+  priv->ft_dev.d_rmmac   = ftmac100_rmmac;                /* Remove multicast MAC address */
 #endif
-  priv->ft_dev.d_private = g_ftmac100;        /* Used to recover private state from dev */
+  priv->ft_dev.d_private = g_ftmac100;                    /* Used to recover private state from dev */
   priv->iobase           = CONFIG_FTMAC100_BASE;
 
   /* Put the interface in the down state.  This usually amounts to resetting

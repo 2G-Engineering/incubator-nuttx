@@ -30,6 +30,7 @@
  ****************************************************************************/
 
 #include <arch/setjmp.h>
+#include <sys/types.h>
 #ifndef __ASSEMBLY__
 #  include <stdbool.h>
 #endif
@@ -53,13 +54,6 @@ struct xcptcontext
   void *sigdeliver; /* Actual type is sig_deliver_t */
   jmp_buf regs;
 };
-#endif
-
-/****************************************************************************
- * Public Function Prototypes
- ****************************************************************************/
-
-#ifndef __ASSEMBLY__
 
 #ifdef __cplusplus
 #define EXTERN extern "C"
@@ -68,6 +62,27 @@ extern "C"
 #else
 #define EXTERN extern
 #endif
+
+/****************************************************************************
+ * Public Data
+ ****************************************************************************/
+
+/* g_current_regs[] holds a references to the current interrupt level
+ * register storage structure.  If is non-NULL only during interrupt
+ * processing.  Access to g_current_regs[] must be through the macro
+ * CURRENT_REGS for portability.
+ */
+
+/* For the case of architectures with multiple CPUs, then there must be one
+ * such value for each processor that can receive an interrupt.
+ */
+
+EXTERN volatile void *g_current_regs[CONFIG_SMP_NCPUS];
+#define CURRENT_REGS (g_current_regs[up_cpu_index()])
+
+/****************************************************************************
+ * Public Function Prototypes
+ ****************************************************************************/
 
 /****************************************************************************
  * Name: up_cpu_index
@@ -100,8 +115,26 @@ int up_cpu_index(void);
  * leave_critical section(), are probably what you really want.
  */
 
+irqstate_t up_irq_flags(void);
 irqstate_t up_irq_save(void);
 void up_irq_restore(irqstate_t flags);
+
+/****************************************************************************
+ * Inline functions
+ ****************************************************************************/
+
+/* Return the current value of the stack pointer */
+
+static inline uintptr_t up_getsp(void)
+{
+#ifdef _MSC_VER
+  uintptr_t regval;
+  __asm mov regval, esp;
+  return regval;
+#else
+  return (uintptr_t)__builtin_frame_address(0);
+#endif
+}
 
 /****************************************************************************
  * Name: up_interrupt_context
@@ -112,7 +145,20 @@ void up_irq_restore(irqstate_t flags);
  *
  ****************************************************************************/
 
-bool up_interrupt_context(void);
+static inline bool up_interrupt_context(void)
+{
+#ifdef CONFIG_SMP
+  irqstate_t flags = up_irq_save();
+#endif
+
+  bool ret = CURRENT_REGS != NULL;
+
+#ifdef CONFIG_SMP
+  up_irq_restore(flags);
+#endif
+
+  return ret;
+}
 
 #undef EXTERN
 #ifdef __cplusplus

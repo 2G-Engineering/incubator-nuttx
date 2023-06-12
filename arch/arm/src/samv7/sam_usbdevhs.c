@@ -51,6 +51,7 @@
 
 #include <nuttx/config.h>
 
+#include <sys/param.h>
 #include <sys/types.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -271,16 +272,6 @@
 #define SAM_TRACEINTID_UPSTRRES           0x0025
 #define SAM_TRACEINTID_WAKEUP             0x0026
 
-/* Ever-present MIN and MAX macros */
-
-#ifndef MIN
-#  define MIN(a,b) (a < b ? a : b)
-#endif
-
-#ifndef MAX
-#  define MAX(a,b) (a > b ? a : b)
-#endif
-
 /* Byte ordering in host-based values */
 
 #ifdef CONFIG_ENDIAN_BIG
@@ -464,7 +455,7 @@ static void   sam_dumpep(struct sam_usbdev_s *priv, int epno);
 #else
 static inline uint32_t sam_getreg(uintptr_t regaddr);
 static inline void sam_putreg(uint32_t regval, uintptr_t regaddr);
-# define sam_dumpep(priv,epno)
+#  define sam_dumpep(priv,epno)
 #endif
 
 /* Suspend/Resume Helpers ***************************************************/
@@ -533,8 +524,6 @@ static inline struct sam_ep_s *
 static inline void
               sam_ep_unreserve(struct sam_usbdev_s *priv,
                 struct sam_ep_s *privep);
-static inline bool
-              sam_ep_reserved(struct sam_usbdev_s *priv, int epno);
 static int    sam_ep_configure_internal(struct sam_ep_s *privep,
                 const struct usb_epdesc_s *desc);
 static inline int
@@ -914,7 +903,7 @@ static void sam_dumpep(struct sam_usbdev_s *priv, int epno)
  * Description:
  *   Allocate a DMA transfer descriptor by removing it from the free list
  *
- * Assumption:  Caller holds the exclsem
+ * Assumption:  Caller holds the lock
  *
  ****************************************************************************/
 
@@ -942,7 +931,7 @@ static struct sam_dtd_s *sam_dtd_alloc(struct sam_usbdev_s *priv)
  * Description:
  *   Free a DMA transfer descriptor by returning it to the free list
  *
- * Assumption:  Caller holds the exclsem
+ * Assumption:  Caller holds the lock
  *
  ****************************************************************************/
 
@@ -3590,21 +3579,6 @@ sam_ep_unreserve(struct sam_usbdev_s *priv, struct sam_ep_s *privep)
   irqstate_t flags = enter_critical_section();
   priv->epavail   |= SAM_EP_BIT(USB_EPNO(privep->ep.eplog));
   leave_critical_section(flags);
-}
-
-/****************************************************************************
- *
- * Name: sam_ep_reserved
- *
- * Description:
- *   Check if the endpoint has already been allocated.
- *
- ****************************************************************************/
-
-static inline bool
-sam_ep_reserved(struct sam_usbdev_s *priv, int epno)
-{
-  return ((priv->epavail & SAM_EP_BIT(epno)) == 0);
 }
 
 /****************************************************************************

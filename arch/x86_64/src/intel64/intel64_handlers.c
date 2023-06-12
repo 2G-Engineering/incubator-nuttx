@@ -25,6 +25,7 @@
 #include <nuttx/config.h>
 #include <nuttx/compiler.h>
 
+#include <nuttx/addrenv.h>
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
 #include <nuttx/signal.h>
@@ -35,7 +36,7 @@
 #include <syscall.h>
 #include <arch/board/board.h>
 
-#include "up_internal.h"
+#include "x86_64_internal.h"
 #include "sched/sched.h"
 
 /****************************************************************************
@@ -99,7 +100,7 @@ static uint64_t *common_handler(int irq, uint64_t *regs)
        * thread at the head of the ready-to-run list.
        */
 
-      group_addrenv(NULL);
+      addrenv_switch(NULL);
 #endif
     }
 #endif
@@ -132,8 +133,6 @@ static uint64_t *common_handler(int irq, uint64_t *regs)
  *   This gets called from ISR vector handling logic in broadwell_vectors.S
  *
  ****************************************************************************/
-
-#define SIGFPE 8
 
 uint64_t *isr_handler(uint64_t *regs, uint64_t irq)
 {
@@ -170,7 +169,7 @@ uint64_t *isr_handler(uint64_t *regs, uint64_t irq)
                "with error code %" PRId64 ":\n",
                irq, regs[REG_ERRCODE]);
 
-        up_registerdump(regs);
+        up_dump_register(regs);
 
         up_trash_cpu();
         break;

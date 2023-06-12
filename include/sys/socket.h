@@ -92,6 +92,10 @@
                                  * required to read an entire packet with each read
                                  * system call.
                                  */
+#define SOCK_CTRL      6        /* SOCK_CTRL is the preferred socket type to use
+                                 * when we just want a socket for performing driver
+                                 * ioctls. This definition is not POSIX compliant.
+                                 */
 #define SOCK_PACKET   10        /* Obsolete and should not be used in new programs */
 
 #define SOCK_CLOEXEC  02000000  /* Atomically set close-on-exec flag for the new
@@ -108,22 +112,25 @@
  * recognized by Linux, not all are supported by NuttX.
  */
 
-#define MSG_OOB        0x0001 /* Process out-of-band data.  */
-#define MSG_PEEK       0x0002 /* Peek at incoming messages.  */
-#define MSG_DONTROUTE  0x0004 /* Don't use local routing.  */
-#define MSG_CTRUNC     0x0008 /* Control data lost before delivery.  */
-#define MSG_PROXY      0x0010 /* Supply or ask second address.  */
-#define MSG_TRUNC      0x0020
-#define MSG_DONTWAIT   0x0040 /* Enable nonblocking IO.  */
-#define MSG_EOR        0x0080 /* End of record.  */
-#define MSG_WAITALL    0x0100 /* Wait for a full request.  */
-#define MSG_FIN        0x0200
-#define MSG_SYN        0x0400
-#define MSG_CONFIRM    0x0800 /* Confirm path validity.  */
-#define MSG_RST        0x1000
-#define MSG_ERRQUEUE   0x2000 /* Fetch message from error queue.  */
-#define MSG_NOSIGNAL   0x4000 /* Do not generate SIGPIPE.  */
-#define MSG_MORE       0x8000 /* Sender will send more.  */
+#define MSG_OOB          0x000001 /* Process out-of-band data.  */
+#define MSG_PEEK         0x000002 /* Peek at incoming messages.  */
+#define MSG_DONTROUTE    0x000004 /* Don't use local routing.  */
+#define MSG_CTRUNC       0x000008 /* Control data lost before delivery.  */
+#define MSG_PROXY        0x000010 /* Supply or ask second address.  */
+#define MSG_TRUNC        0x000020
+#define MSG_DONTWAIT     0x000040 /* Enable nonblocking IO.  */
+#define MSG_EOR          0x000080 /* End of record.  */
+#define MSG_WAITALL      0x000100 /* Wait for a full request.  */
+#define MSG_FIN          0x000200
+#define MSG_SYN          0x000400
+#define MSG_CONFIRM      0x000800 /* Confirm path validity.  */
+#define MSG_RST          0x001000
+#define MSG_ERRQUEUE     0x002000 /* Fetch message from error queue.  */
+#define MSG_NOSIGNAL     0x004000 /* Do not generate SIGPIPE.  */
+#define MSG_MORE         0x008000 /* Sender will send more.  */
+#define MSG_CMSG_CLOEXEC 0x100000 /* Set close_on_exit for file
+                                   * descriptor received through SCM_RIGHTS.
+                                   */
 
 /* Protocol levels supported by get/setsockopt(): */
 
@@ -200,6 +207,11 @@
 #define SO_TIMESTAMP    16 /* Generates a timestamp for each incoming packet
                             * arg: integer value
                             */
+#define SO_BINDTODEVICE 17 /* Bind this socket to a specific network device.
+                            */
+#define SO_PEERCRED     18 /* Return the credentials of the peer process
+                            * connected to this socket.
+                            */
 
 /* The options are unsupported but included for compatibility
  * and portability
@@ -266,8 +278,7 @@
   (CMSG_ALIGN(sizeof(struct cmsghdr)) + (len))
 
 #define __CMSG_FIRSTHDR(ctl, len) \
-  ((len) >= sizeof(struct cmsghdr) ? (FAR struct cmsghdr *)(ctl) : \
-   (FAR struct cmsghdr *)NULL)
+  ((len) >= sizeof(struct cmsghdr) ? (FAR struct cmsghdr *)(ctl) : NULL)
 #define CMSG_FIRSTHDR(msg) \
   __CMSG_FIRSTHDR((msg)->msg_control, (msg)->msg_controllen)
 #define CMSG_OK(mhdr, cmsg) ((cmsg)->cmsg_len >= sizeof(struct cmsghdr) && \
@@ -285,6 +296,12 @@
 #define SCM_CREDENTIALS 0x02    /* rw: struct ucred */
 #define SCM_SECURITY    0x03    /* rw: security label */
 
+/* Desired design of maximum size and alignment (see RFC2553) */
+
+#define SS_MAXSIZE      128  /* Implementation specific max size */
+#define SS_ALIGNSIZE    (sizeof(FAR struct sockaddr *))
+                             /* Implementation specific desired alignment */
+
 /****************************************************************************
  * Type Definitions
  ****************************************************************************/
@@ -298,9 +315,10 @@
 
 struct sockaddr_storage
 {
-  sa_family_t ss_family;       /* Address family */
-  char        ss_data[126];    /* 126-bytes of address data */
-};
+  sa_family_t ss_family;     /* Address family */
+  char        ss_data[SS_MAXSIZE - sizeof(sa_family_t)];
+}
+aligned_data(SS_ALIGNSIZE);  /* Force desired alignment */
 
 /* The sockaddr structure is used to define a socket address which is used
  * in the bind(), connect(), getpeername(), getsockname(), recvfrom(), and
@@ -339,6 +357,13 @@ struct cmsghdr
   int cmsg_type;                /* Protocol-specific type */
 };
 
+struct ucred
+{
+  pid_t pid;
+  uid_t uid;
+  gid_t gid;
+};
+
 /****************************************************************************
  * Inline Functions
  ****************************************************************************/
@@ -347,14 +372,15 @@ static inline FAR struct cmsghdr *__cmsg_nxthdr(FAR void *__ctl,
                                                 unsigned int __size,
                                                 FAR struct cmsghdr *__cmsg)
 {
-  FAR struct cmsghdr *__ptr;
+  size_t len = CMSG_ALIGN(__cmsg->cmsg_len);
+  FAR struct cmsghdr *__ptr =
+               (FAR struct cmsghdr *)(((FAR char *)__cmsg) + len);
 
-  __ptr = (FAR struct cmsghdr *)
-    (((FAR char *)__cmsg) + CMSG_ALIGN(__cmsg->cmsg_len));
+  if (len < sizeof(*__cmsg) ||
+      (unsigned long)((FAR char *)(__ptr + 1) - (FAR char *)__ctl) > __size)
 
-  if ((unsigned long)((FAR char *)(__ptr + 1) - (FAR char *)__ctl) > __size)
     {
-      return (FAR struct cmsghdr *)NULL;
+      return NULL;
     }
 
   return __ptr;
@@ -386,6 +412,8 @@ int connect(int sockfd, FAR const struct sockaddr *addr, socklen_t addrlen);
 
 int listen(int sockfd, int backlog);
 int accept(int sockfd, FAR struct sockaddr *addr, FAR socklen_t *addrlen);
+int accept4(int sockfd, FAR struct sockaddr *addr, FAR socklen_t *addrlen,
+            int flags);
 
 ssize_t send(int sockfd, FAR const void *buf, size_t len, int flags);
 ssize_t sendto(int sockfd, FAR const void *buf, size_t len, int flags,

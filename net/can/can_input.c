@@ -132,6 +132,72 @@ const uint8_t len_to_can_dlc[65] =
  ****************************************************************************/
 
 /****************************************************************************
+ * Name: can_in
+ *
+ * Description:
+ *   Handle incoming packet input
+ *
+ * Input Parameters:
+ *   dev - The device driver structure containing the received packet
+ *
+ * Returned Value:
+ *   OK     The packet has been processed  and can be deleted
+ *  -EAGAIN There is a matching connection, but could not dispatch the packet
+ *          yet.  Useful when a packet arrives before a recv call is in
+ *          place.
+ *
+ * Assumptions:
+ *   This function can be called from an interrupt.
+ *
+ ****************************************************************************/
+
+static int can_in(struct net_driver_s *dev)
+{
+  FAR struct can_conn_s *conn = NULL;
+  int ret = OK;
+  uint16_t buflen = dev->d_len;
+
+  do
+    {
+      conn = can_nextconn(conn);
+
+      if (conn && (conn->dev == NULL || dev == conn->dev))
+        {
+          uint16_t flags;
+
+          /* Setup for the application callback */
+
+          dev->d_appdata = dev->d_buf;
+          dev->d_sndlen  = 0;
+          dev->d_len     = buflen;
+
+          /* Perform the application callback */
+
+          flags = can_callback(dev, conn, CAN_NEWDATA);
+
+          /* If the operation was successful, the CAN_NEWDATA flag is removed
+           * and thus the packet can be deleted (OK will be returned).
+           */
+
+          if ((flags & CAN_NEWDATA) != 0)
+            {
+              /* No.. the packet was not processed now.  Return -EAGAIN so
+               * that the driver may retry again later.  We still need to
+               * set d_len to zero so that the driver is aware that there
+               * is nothing to be sent.
+               */
+
+               nwarn("WARNING: Packet not processed\n");
+               ret = -EAGAIN;
+            }
+        }
+    }
+  while (conn);
+
+  return ret;
+}
+
+/****************************************************************************
  * Name: can_input
  *
  * Description:
@@ -151,54 +217,26 @@ const uint8_t len_to_can_dlc[65] =
  *
  ****************************************************************************/
 
-int can_input(struct net_driver_s *dev)
+int can_input(FAR struct net_driver_s *dev)
 {
-  FAR struct can_conn_s *conn = NULL;
-  int ret = OK;
+  FAR uint8_t *buf;
+  int ret;
 
-  do
+  if (dev->d_iob != NULL)
     {
-      /* FIXME Support for multiple sockets??? */
+      buf = dev->d_buf;
 
-      conn = can_nextconn(conn);
-    }
-  while (conn && conn->dev != 0 && dev != conn->dev);
+      /* Set the device buffer to l2 */
 
-  if (conn)
-    {
-      uint16_t flags;
+      dev->d_buf = NETLLBUF;
+      ret = can_in(dev);
 
-      /* Setup for the application callback */
+      dev->d_buf = buf;
 
-      dev->d_appdata = dev->d_buf;
-      dev->d_sndlen  = 0;
-
-      /* Perform the application callback */
-
-      flags = can_callback(dev, conn, CAN_NEWDATA);
-
-      /* If the operation was successful, the CAN_NEWDATA flag is removed
-       * and thus the packet can be deleted (OK will be returned).
-       */
-
-      if ((flags & CAN_NEWDATA) != 0)
-        {
-          /* No.. the packet was not processed now.  Return -EAGAIN so
-           * that the driver may retry again later.  We still need to
-           * set d_len to zero so that the driver is aware that there
-           * is nothing to be sent.
-           */
-
-           nwarn("WARNING: Packet not processed\n");
-           ret = -EAGAIN;
-        }
-    }
-  else
-    {
-      ninfo("No CAN listener\n");
+      return ret;
     }
 
-  return ret;
+  return netdev_input(dev, can_in, false);
 }
 
 #endif /* CONFIG_NET && CONFIG_NET_CAN */

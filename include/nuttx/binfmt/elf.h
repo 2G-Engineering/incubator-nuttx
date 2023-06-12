@@ -117,15 +117,13 @@ struct elf_loadinfo_s
 
   /* Address environment.
    *
-   * addrenv - This is the handle created by up_addrenv_create() that can be
+   * addrenv - This is the handle created by addrenv_allocate() that can be
    *   used to manage the tasks address space.
-   * oldenv  - This is a value returned by up_addrenv_select() that must be
-   *   used to restore the current address environment.
    */
 
 #ifdef CONFIG_ARCH_ADDRENV
-  group_addrenv_t    addrenv;    /* Task group address environment */
-  save_addrenv_t     oldenv;     /* Saved address environment */
+  FAR addrenv_t     *addrenv;    /* Address environment */
+  FAR addrenv_t     *oldenv;     /* Saved address environment */
 #endif
 
   uint16_t           symtabidx;  /* Symbol table section index */
@@ -143,6 +141,7 @@ struct elf_dumpinfo_s
 {
   FAR struct memory_region_s *regions;
   FAR struct lib_outstream_s *stream;
+  pid_t                       pid;
 };
 #endif
 

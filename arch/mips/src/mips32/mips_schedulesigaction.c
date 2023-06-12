@@ -80,17 +80,19 @@ void up_schedule_sigaction(struct tcb_s *tcb, sig_deliver_t sigdeliver)
 {
   uint32_t status;
 
-  sinfo("tcb=0x%p sigdeliver=0x%p\n", tcb, sigdeliver);
+  sinfo("tcb=%p sigdeliver=%p\n", tcb, sigdeliver);
 
   /* Refuse to handle nested signal actions */
 
   if (!tcb->xcp.sigdeliver)
     {
+      tcb->xcp.sigdeliver = sigdeliver;
+
       /* First, handle some special cases when the signal is
        * being delivered to the currently executing task.
        */
 
-      sinfo("rtcb=0x%p CURRENT_REGS=0x%p\n",
+      sinfo("rtcb=%p CURRENT_REGS=%p\n",
             this_task(), CURRENT_REGS);
 
       if (tcb == this_task())
@@ -104,6 +106,7 @@ void up_schedule_sigaction(struct tcb_s *tcb, sig_deliver_t sigdeliver)
               /* In this case just deliver the signal now. */
 
               sigdeliver(tcb);
+              tcb->xcp.sigdeliver = NULL;
             }
 
           /* CASE 2:  We are in an interrupt handler AND the
@@ -125,7 +128,6 @@ void up_schedule_sigaction(struct tcb_s *tcb, sig_deliver_t sigdeliver)
                * been delivered.
                */
 
-              tcb->xcp.sigdeliver       = sigdeliver;
               tcb->xcp.saved_epc        = CURRENT_REGS[REG_EPC];
               tcb->xcp.saved_status     = CURRENT_REGS[REG_STATUS];
 
@@ -133,17 +135,17 @@ void up_schedule_sigaction(struct tcb_s *tcb, sig_deliver_t sigdeliver)
                * disabled
                */
 
-              CURRENT_REGS[REG_EPC]      = (uint32_t)up_sigdeliver;
-              status                     = CURRENT_REGS[REG_STATUS];
-              status                    &= ~CP0_STATUS_INT_MASK;
-              status                    |= CP0_STATUS_INT_SW0;
-              CURRENT_REGS[REG_STATUS]   = status;
+              CURRENT_REGS[REG_EPC]     = (uint32_t)mips_sigdeliver;
+              status                    = CURRENT_REGS[REG_STATUS];
+              status                   &= ~CP0_STATUS_INT_MASK;
+              status                   |= CP0_STATUS_INT_SW0;
+              CURRENT_REGS[REG_STATUS]  = status;
 
               /* And make sure that the saved context in the TCB
                * is the same as the interrupt return context.
                */
 
-              up_savestate(tcb->xcp.regs);
+              mips_savestate(tcb->xcp.regs);
 
               sinfo("PC/STATUS Saved: %08" PRIx32 "/%08" PRIx32
                     " New: %08" PRIx32 "/%08" PRIx32 "\n",
@@ -165,15 +167,14 @@ void up_schedule_sigaction(struct tcb_s *tcb, sig_deliver_t sigdeliver)
            * been delivered.
            */
 
-          tcb->xcp.sigdeliver       = sigdeliver;
-          tcb->xcp.saved_epc        = tcb->xcp.regs[REG_EPC];
-          tcb->xcp.saved_status     = tcb->xcp.regs[REG_STATUS];
+          tcb->xcp.saved_epc         = tcb->xcp.regs[REG_EPC];
+          tcb->xcp.saved_status      = tcb->xcp.regs[REG_STATUS];
 
           /* Then set up to vector to the trampoline with interrupts
            * disabled
            */
 
-          tcb->xcp.regs[REG_EPC]     = (uint32_t)up_sigdeliver;
+          tcb->xcp.regs[REG_EPC]     = (uint32_t)mips_sigdeliver;
           status                     = tcb->xcp.regs[REG_STATUS];
           status                    &= ~CP0_STATUS_INT_MASK;
           status                    |= CP0_STATUS_INT_SW0;

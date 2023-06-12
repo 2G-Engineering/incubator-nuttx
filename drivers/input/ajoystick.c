@@ -127,7 +127,7 @@ static int     ajoy_poll(FAR struct file *filep, FAR struct pollfd *fds,
  * Private Data
  ****************************************************************************/
 
-static const struct file_operations ajoy_fops =
+static const struct file_operations g_ajoy_fops =
 {
   ajoy_open,  /* open */
   ajoy_close, /* close */
@@ -135,10 +135,9 @@ static const struct file_operations ajoy_fops =
   NULL,       /* write */
   NULL,       /* seek */
   ajoy_ioctl, /* ioctl */
+  NULL,       /* mmap */
+  NULL,       /* truncate */
   ajoy_poll   /* poll */
-#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-  , NULL      /* unlink */
-#endif
 };
 
 /****************************************************************************
@@ -223,7 +222,6 @@ static void ajoy_sample(FAR struct ajoy_upperhalf_s *priv)
   ajoy_buttonset_t press;
   ajoy_buttonset_t release;
   irqstate_t flags;
-  int i;
 
   DEBUGASSERT(priv);
   lower = priv->au_lower;
@@ -265,19 +263,8 @@ static void ajoy_sample(FAR struct ajoy_upperhalf_s *priv)
 
           /* Yes.. Notify all waiters */
 
-          for (i = 0; i < CONFIG_INPUT_AJOYSTICK_NPOLLWAITERS; i++)
-            {
-              FAR struct pollfd *fds = opriv->ao_fds[i];
-              if (fds)
-                {
-                  fds->revents |= (fds->events & POLLIN);
-                  if (fds->revents != 0)
-                    {
-                      iinfo("Report events: %08" PRIx32 "\n", fds->revents);
-                      nxsem_post(fds->sem);
-                    }
-                }
-            }
+          poll_notify(opriv->ao_fds, CONFIG_INPUT_AJOYSTICK_NPOLLWAITERS,
+                      POLLIN);
         }
 
       /* Have any signal events occurred? */
@@ -570,7 +557,7 @@ static int ajoy_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
             opriv->ao_notify.an_press   = notify->an_press;
             opriv->ao_notify.an_release = notify->an_release;
             opriv->ao_notify.an_event   = notify->an_event;
-            opriv->ao_pid               = getpid();
+            opriv->ao_pid               = nxsched_getpid();
 
             /* Enable/disable interrupt handling */
 
@@ -635,12 +622,7 @@ static int ajoy_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
               if (opriv->ao_pollpending)
                 {
-                  fds->revents |= (fds->events & POLLIN);
-                  if (fds->revents != 0)
-                    {
-                      iinfo("Report events: %08" PRIx32 "\n", fds->revents);
-                      nxsem_post(fds->sem);
-                    }
+                  poll_notify(&fds, 1, POLLIN);
                 }
 
               break;
@@ -738,7 +720,7 @@ int ajoy_register(FAR const char *devname,
 
   /* And register the ajoystick driver */
 
-  ret = register_driver(devname, &ajoy_fops, 0666, priv);
+  ret = register_driver(devname, &g_ajoy_fops, 0666, priv);
   if (ret < 0)
     {
       ierr("ERROR: register_driver failed: %d\n", ret);

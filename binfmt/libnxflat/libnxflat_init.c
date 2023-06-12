@@ -49,9 +49,9 @@
 #endif
 
 #ifdef CONFIG_NXFLAT_DUMPBUFFER
-# define nxflat_dumpbuffer(m,b,n) binfodumpbuffer(m,b,n)
+#  define nxflat_dumpbuffer(m,b,n) binfodumpbuffer(m,b,n)
 #else
-# define nxflat_dumpbuffer(m,b,n)
+#  define nxflat_dumpbuffer(m,b,n)
 #endif
 
 /****************************************************************************
@@ -168,7 +168,7 @@ int nxflat_init(const char *filename, struct nxflat_loadinfo_s *loadinfo)
    */
 
   loadinfo->relocstart  = NTOHL(loadinfo->header.h_relocstart);
-  loadinfo->reloccount  = ntohs(loadinfo->header.h_reloccount);
+  loadinfo->reloccount  = NTOHS(loadinfo->header.h_reloccount);
 
   return 0;
 }

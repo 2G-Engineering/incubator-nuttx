@@ -47,7 +47,7 @@
  ****************************************************************************/
 
 #define SYS_NAMELEN      21
-#define VERSION_NAMELEN  41
+#define VERSION_NAMELEN  51
 
 /****************************************************************************
  * Public Types
@@ -73,9 +73,27 @@ struct utsname
 };
 
 /****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#undef EXTERN
+#if defined(__cplusplus)
+#define EXTERN extern "C"
+extern "C"
+{
+#else
+#define EXTERN extern
+#endif
+
+/****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
 
 int uname(FAR struct utsname *name);
+
+#undef EXTERN
+#if defined(__cplusplus)
+}
+#endif
 
 #endif /* __INCLUDE_SYS_UTSNAME_H */

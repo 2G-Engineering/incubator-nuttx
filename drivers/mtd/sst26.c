@@ -183,11 +183,11 @@
 /* Debug ********************************************************************/
 
 #ifdef CONFIG_SST26_DEBUG
-# define ssterr(format, ...)    _err(format, ##__VA_ARGS__)
-# define sstinfo(format, ...)   _info(format, ##__VA_ARGS__)
+#  define ssterr(format, ...)    _err(format, ##__VA_ARGS__)
+#  define sstinfo(format, ...)   _info(format, ##__VA_ARGS__)
 #else
-# define ssterr(x...)
-# define sstinfo(x...)
+#  define ssterr(x...)
+#  define sstinfo(x...)
 #endif
 
 /****************************************************************************
@@ -877,6 +877,8 @@ static int sst26_ioctl(FAR struct mtd_dev_s *dev, int cmd, unsigned long arg)
             (FAR struct mtd_geometry_s *)((uintptr_t)arg);
           if (geo != NULL)
             {
+              memset(geo, 0, sizeof(*geo));
+
               /* Populate the geometry structure with information need to
                * know  the capacity and how to access the device.
                *

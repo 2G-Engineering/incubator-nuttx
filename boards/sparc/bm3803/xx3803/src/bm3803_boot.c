@@ -28,7 +28,7 @@
 
 #include <arch/board/board.h>
 
-#include "up_internal.h"
+#include "sparc_internal.h"
 #include "bm3803.h"
 #include "xx3803.h"
 
@@ -49,7 +49,7 @@
  *
  * Description:
  *   All bm3803 architectures must provide the following entry point.
- *   This entry point is called early in the intitialization -- after all
+ *   This entry point is called early in the initialization -- after all
  *   memory has been configured and mapped but before any devices have been
  *   initialized.
  *

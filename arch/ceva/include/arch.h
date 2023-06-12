@@ -31,7 +31,6 @@
 
 #include <nuttx/config.h>
 
-#include <arch/irq.h>
 #include <arch/chip/chip.h>
 
 /****************************************************************************
@@ -84,8 +83,6 @@
 #else
 #  define MM_HEAP(i) UMM_HEAP(i)
 #endif
-
-#define PM_IDLE_DOMAIN                0
 
 /****************************************************************************
  * Public Data

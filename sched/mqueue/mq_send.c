@@ -22,18 +22,19 @@
  * Included Files
  ****************************************************************************/
 
-#include  <nuttx/config.h>
+#include <nuttx/config.h>
 
-#include  <sys/types.h>
-#include  <mqueue.h>
-#include  <errno.h>
-#include  <debug.h>
+#include <assert.h>
+#include <debug.h>
+#include <errno.h>
+#include <mqueue.h>
+#include <sys/types.h>
 
-#include  <nuttx/irq.h>
-#include  <nuttx/arch.h>
-#include  <nuttx/cancelpt.h>
+#include <nuttx/arch.h>
+#include <nuttx/cancelpt.h>
+#include <nuttx/irq.h>
 
-#include  "mqueue/mqueue.h"
+#include "mqueue/mqueue.h"
 
 /****************************************************************************
  * Public Functions
@@ -91,7 +92,7 @@ int file_mq_send(FAR struct file *mq, FAR const char *msg, size_t msglen,
    * - Immediately if we are called from an interrupt handler.
    * - Immediately if the message queue is not full, or
    * - After successfully waiting for the message queue to become
-   *   non-FULL.  This would fail with EAGAIN, EINTR, or ETIMEOUT.
+   *   non-FULL.  This would fail with EAGAIN, EINTR, or ETIMEDOUT.
    */
 
   flags = enter_critical_section();
@@ -117,6 +118,7 @@ int file_mq_send(FAR struct file *mq, FAR const char *msg, size_t msglen,
       /* Now allocate the message. */
 
       mqmsg = nxmq_alloc_msg();
+      DEBUGASSERT(mqmsg != NULL);
 
       /* Check if the message was successfully allocated */
 
@@ -129,8 +131,7 @@ int file_mq_send(FAR struct file *mq, FAR const char *msg, size_t msglen,
        * to be exceeded in that case.
        */
 
-      ret = (mqmsg == NULL) ? -ENOMEM :
-            nxmq_do_send(msgq, mqmsg, msg, msglen, prio);
+      ret = nxmq_do_send(msgq, mqmsg, msg, msglen, prio);
     }
 
   leave_critical_section(flags);

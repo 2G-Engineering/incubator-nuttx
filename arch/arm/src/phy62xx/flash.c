@@ -43,7 +43,7 @@
 #define SPIF_STATUS_WAIT_IDLE(n)                    \
     do                                              \
     {                                               \
-        while ((AP_SPIF->fcmd &0x02)==0x02);         \
+        while ((AP_SPIF->fcmd &0x02)==0x02)         \
         {                                           \
             volatile int delay_cycle = n;           \
             while (delay_cycle--){;}                \
@@ -184,7 +184,7 @@ void __RAMRUN hal_spif_init(void)
   *(volatile uint32_t *) 0x4000c804 = 0x41220eb;    /* Device Read Instruction Register */
   return;
 
-  /* load defualt configure */
+  /* load default configure */
 
   while (1)
     {

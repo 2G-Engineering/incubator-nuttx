@@ -699,8 +699,8 @@ Configurations
      that is easily reconfigured:
 
      System Type -> Toolchain:
-       CONFIG_ARMV7M_TOOLCHAIN_BUILDROOT=y : Buildroot toolchain
-       CONFIG_ARMV7M_OABI_TOOLCHAIN=y      : Older, OABI toolchain
+       CONFIG_ARM_TOOLCHAIN_BUILDROOT=y : Buildroot toolchain
+       CONFIG_ARM_TOOLCHAIN_BUILDROOT_OABI=y      : Older, OABI toolchain
 
      If you want to use the Atmel GCC toolchain, here are the steps to
      do so:
@@ -710,7 +710,7 @@ Configurations
        CONFIG_HOST_CYGWIN=y    : Using Cygwin or other POSIX environment
 
      System Type -> Toolchain:
-       CONFIG_ARMV7M_TOOLCHAIN_GNU_EABI=y  : General GCC EABI toolchain under windows
+       CONFIG_ARM_TOOLCHAIN_GNU_EABI=y  : General GCC EABI toolchain under windows
 
      This re-configuration should be done before making NuttX or else the
      subsequent 'make' will fail.  If you have already attempted building
@@ -861,3 +861,9 @@ Configuration sub-directories
 
        STATUS:
        2013-7-2:  TSC is not responding.  All 0's received on SPI.
+
+  nsh-leds:
+    This configuration directory will build the NuttX Shell and enable the user
+    LEDS (/dev/userleds). It will also enable the LED example program (leds).
+    Running the leds command will start up an LED daemon which will light up the 
+    L (user), TX, and RX LEDs in a binary sequence. 

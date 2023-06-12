@@ -73,7 +73,6 @@ struct icmpv6_neighbor_s
  ****************************************************************************/
 
 static uint16_t icmpv6_neighbor_eventhandler(FAR struct net_driver_s *dev,
-                                             FAR void *pvconn,
                                              FAR void *priv, uint16_t flags)
 {
   FAR struct icmpv6_neighbor_s *state = (FAR struct icmpv6_neighbor_s *)priv;
@@ -107,6 +106,13 @@ static uint16_t icmpv6_neighbor_eventhandler(FAR struct net_driver_s *dev,
 
           /* REVISIT: No timeout. Just wait for the next polling cycle */
 
+          return flags;
+        }
+
+      /* Prepare device buffer */
+
+      if (netdev_iob_prepare(dev, false, 0) != OK)
+        {
           return flags;
         }
 
@@ -250,21 +256,14 @@ int icmpv6_neighbor(const net_ipv6addr_t ipaddr)
       goto errout_with_lock;
     }
 
-  /* Initialize the state structure with the network locked.
-   *
-   * This semaphore is used for signaling and, hence, should not have
-   * priority inheritance enabled.
-   */
-
   nxsem_init(&state.snd_sem, 0, 0);        /* Doesn't really fail */
-  nxsem_set_protocol(&state.snd_sem, SEM_PRIO_NONE);
 
   state.snd_retries = 0;                       /* No retries yet */
   net_ipv6addr_copy(state.snd_ipaddr, lookup); /* IP address to query */
 
   /* Remember the routing device name */
 
-  strncpy((FAR char *)state.snd_ifname, (FAR const char *)dev->d_ifname,
+  strlcpy((FAR char *)state.snd_ifname, (FAR const char *)dev->d_ifname,
           IFNAMSIZ);
 
   /* Now loop, testing if the address mapping is in the Neighbor Table and
@@ -308,12 +307,12 @@ int icmpv6_neighbor(const net_ipv6addr_t ipaddr)
       netdev_txnotify_dev(dev);
 
       /* Wait for the send to complete or an error to occur.
-       * net_lockedwait will also terminate if a signal is received.
+       * net_sem_wait will also terminate if a signal is received.
        */
 
       do
         {
-          net_lockedwait(&state.snd_sem);
+          net_sem_wait(&state.snd_sem);
         }
       while (!state.snd_sent);
 

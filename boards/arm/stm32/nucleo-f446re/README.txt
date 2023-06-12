@@ -497,7 +497,6 @@ Shields
     CONFIG_NSH_ARCHINIT=y
     CONFIG_EXAMPLES_AJOYSTICK=y
     CONFIG_EXAMPLES_AJOYSTICK_DEVNAME="/dev/ajoy0"
-    CONFIG_EXAMPLES_AJOYSTICK_SIGNO=13
 
   STATUS:
   2014-12-04:
@@ -535,7 +534,7 @@ Configurations
        for Linux.  That can easily be reconfigured, of course.
 
        CONFIG_HOST_LINUX=y                     : Builds under Linux
-       CONFIG_ARMV7M_TOOLCHAIN_GNU_EABI=y      : GNU EABI toolchain for Linux
+       CONFIG_ARM_TOOLCHAIN_GNU_EABI=y      : GNU EABI toolchain for Linux
 
     3. Although the default console is USART2 (which would correspond to
        the Virtual COM port) I have done all testing with the console

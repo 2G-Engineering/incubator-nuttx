@@ -82,6 +82,7 @@
 
 #define INTCONTEXT_REGS   8 /* r8-r12, lr, pc, sr */
 #define XCPTCONTEXT_REGS 17 /* Plus r0-r7, sp */
+#define XCPTCONTEXT_SIZE (4 * XCPTCONTEXT_REGS)
 
 /****************************************************************************
  * Public Types
@@ -154,6 +155,21 @@ static inline uint32_t avr32_evba(void)
     : "i" (AVR32_EVBA)
   );
   return evba;
+}
+
+/* Return the current value of the stack pointer */
+
+static inline uint32_t up_getsp(void)
+{
+  uint32_t retval;
+  __asm__ __volatile__
+    (
+      "mov\t%0,sp\n\t"
+      : "=r" (retval)
+      :
+    );
+
+  return retval;
 }
 
 /* Return the current interrupt enable state and disable all interrupts */

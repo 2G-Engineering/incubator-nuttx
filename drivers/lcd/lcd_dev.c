@@ -66,7 +66,7 @@ static int lcddev_ioctl(FAR struct file *filep, int cmd,
  * Private Data
  ****************************************************************************/
 
-static const struct file_operations lcddev_fops =
+static const struct file_operations g_lcddev_fops =
 {
   NULL,         /* open */
   NULL,         /* close */
@@ -74,10 +74,6 @@ static const struct file_operations lcddev_fops =
   NULL,         /* write */
   NULL,         /* seek */
   lcddev_ioctl, /* ioctl */
-  NULL          /* poll */
-#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-  , NULL        /* unlink */
-#endif
 };
 
 /****************************************************************************
@@ -121,6 +117,8 @@ static int lcddev_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
       {
         FAR struct lcddev_area_s *lcd_area =
             (FAR struct lcddev_area_s *)arg;
+        size_t cols = lcd_area->col_end - lcd_area->col_start + 1;
+        size_t row_size = cols * (priv->planeinfo.bpp >> 3);
 
         if (priv->planeinfo.getarea)
           {
@@ -129,27 +127,27 @@ static int lcddev_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
                                           lcd_area->row_end,
                                           lcd_area->col_start,
                                           lcd_area->col_end,
-                                          lcd_area->data);
+                                          lcd_area->data,
+                                          row_size);
           }
         else
           {
             /* Emulate getarea() using getrun() */
 
             uint8_t *buf = lcd_area->data;
-            size_t npixels = (lcd_area->col_end - lcd_area->col_start + 1);
             int row;
 
             for (row = lcd_area->row_start; row <= lcd_area->row_end; row++)
               {
                 ret = priv->planeinfo.getrun(priv->lcd_ptr, row,
                                              lcd_area->col_start, buf,
-                                             npixels);
+                                             cols);
                 if (ret < 0)
                   {
                     break;
                   }
 
-                buf += npixels * (priv->planeinfo.bpp >> 3);
+                buf += row_size;
               }
           }
       }
@@ -158,6 +156,8 @@ static int lcddev_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
       {
         FAR const struct lcddev_area_s *lcd_area =
             (FAR const struct lcddev_area_s *)arg;
+        size_t cols = lcd_area->col_end - lcd_area->col_start + 1;
+        size_t row_size = cols * (priv->planeinfo.bpp >> 3);
 
         if (priv->planeinfo.putarea)
           {
@@ -166,27 +166,27 @@ static int lcddev_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
                                           lcd_area->row_end,
                                           lcd_area->col_start,
                                           lcd_area->col_end,
-                                          lcd_area->data);
+                                          lcd_area->data,
+                                          row_size);
           }
         else
           {
             /* Emulate putarea() using putrun() */
 
             uint8_t *buf = lcd_area->data;
-            size_t npixels = (lcd_area->col_end - lcd_area->col_start + 1);
             int row;
 
             for (row = lcd_area->row_start; row <= lcd_area->row_end; row++)
               {
                 ret = priv->planeinfo.putrun(priv->lcd_ptr, row,
                                              lcd_area->col_start, buf,
-                                             npixels);
+                                             cols);
                 if (ret < 0)
                   {
                     break;
                   }
 
-                buf += npixels * (priv->planeinfo.bpp >> 3);
+                buf += row_size;
               }
           }
       }
@@ -322,7 +322,7 @@ int lcddev_register(int devno)
     }
 
   snprintf(devname, sizeof(devname), "/dev/lcd%i", devno);
-  ret = register_driver(devname, &lcddev_fops, 0666, priv);
+  ret = register_driver(devname, &g_lcddev_fops, 0666, priv);
   if (ret < 0)
     {
       goto err;

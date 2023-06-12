@@ -28,14 +28,26 @@
 #include <sys/ipc.h>
 #include <unistd.h>
 #include <string.h>
+#include <debug.h>
 #include <errno.h>
 
 #include <nuttx/pgalloc.h>
-#include <nuttx/mm/shm.h>
+#include <nuttx/sched.h>
 
 #include "shm/shm.h"
 
 #ifdef CONFIG_MM_SHM
+
+/****************************************************************************
+ * Public Data
+ ****************************************************************************/
+
+/* State of the all shared memory */
+
+struct shm_info_s g_shminfo =
+{
+  NXMUTEX_INITIALIZER
+};
 
 /****************************************************************************
  * Private Functions
@@ -106,7 +118,7 @@ static int shm_reserve(key_t key, int shmflg)
           region->sr_key   = key;
           region->sr_flags = SRFLAG_INUSE;
 
-          nxsem_init(&region->sr_sem, 0, 1);
+          nxmutex_init(&region->sr_lock);
 
           /* Set the low-order nine bits of shm_perm.mode to the low-order
            * nine bits of shmflg.
@@ -151,7 +163,7 @@ static int shm_reserve(key_t key, int shmflg)
 
 static int shm_extend(int shmid, size_t size)
 {
-  FAR struct shm_region_s *region =  &g_shminfo.si_region[shmid];
+  FAR struct shm_region_s *region = &g_shminfo.si_region[shmid];
   unsigned int pgalloc;
   unsigned int pgneeded;
 
@@ -257,7 +269,7 @@ static int shm_create(key_t key, size_t size, int shmflg)
   /* Save the process ID of the creator */
 
   region = &g_shminfo.si_region[shmid];
-  region->sr_ds.shm_cpid = getpid();
+  region->sr_ds.shm_cpid = _SCHED_GETPID();
 
   /* Return the shared memory ID */
 
@@ -365,7 +377,7 @@ int shmget(key_t key, size_t size, int shmflg)
 
   /* Get exclusive access to the global list of shared memory regions */
 
-  ret = nxsem_wait(&g_shminfo.si_sem);
+  ret = nxmutex_lock(&g_shminfo.si_lock);
   if (ret < 0)
     {
       goto errout;
@@ -388,7 +400,7 @@ int shmget(key_t key, size_t size, int shmflg)
           if (ret < 0)
             {
               shmerr("ERROR: shm_create failed: %d\n", ret);
-              goto errout_with_semaphore;
+              goto errout_with_lock;
             }
 
           /* Return the shared memory ID */
@@ -399,7 +411,7 @@ int shmget(key_t key, size_t size, int shmflg)
         {
           /* Fail with ENOENT */
 
-          goto errout_with_semaphore;
+          goto errout_with_lock;
         }
     }
 
@@ -431,7 +443,7 @@ int shmget(key_t key, size_t size, int shmflg)
               if (ret < 0)
                 {
                   shmerr("ERROR: shm_create failed: %d\n", ret);
-                  goto errout_with_semaphore;
+                  goto errout_with_lock;
                 }
             }
           else
@@ -439,7 +451,7 @@ int shmget(key_t key, size_t size, int shmflg)
               /* Fail with EINVAL */
 
               ret = -EINVAL;
-              goto errout_with_semaphore;
+              goto errout_with_lock;
             }
         }
 
@@ -454,11 +466,11 @@ int shmget(key_t key, size_t size, int shmflg)
 
   /* Release our lock on the shared memory region list */
 
-  nxsem_post(&g_shminfo.si_sem);
+  nxmutex_unlock(&g_shminfo.si_lock);
   return shmid;
 
-errout_with_semaphore:
-  nxsem_post(&g_shminfo.si_sem);
+errout_with_lock:
+  nxmutex_unlock(&g_shminfo.si_lock);
 
 errout:
   set_errno(-ret);

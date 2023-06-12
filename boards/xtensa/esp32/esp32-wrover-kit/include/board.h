@@ -27,49 +27,14 @@
 
 /* Clocking *****************************************************************/
 
-/* The ESP32 Ethernet kit board V2 is fitted with either a 26 or a 40MHz
- * crystal
- */
+/* The ESP32 Wrover kit board uses a 40MHz crystal oscillator. */
 
-#ifdef CONFIG_ESP32_XTAL_26MHz
-#  define BOARD_XTAL_FREQUENCY  26000000
-#else
-#  define BOARD_XTAL_FREQUENCY  40000000
-#endif
+#define BOARD_XTAL_FREQUENCY  40000000
 
-/* Clock reconfiguration is currently disabled, so the CPU will be running
- * at the XTAL frequency or at two times the XTAL frequency, depending upon
- * how we load the code:
- *
- * - If we load the code into FLASH at address 0x1000 where it is started by
- *   the second level bootloader, then the frequency is the crystal
- *   frequency.
- * - If we load the code into IRAM after the second level bootloader has run
- *   this frequency will be  twice the crystal frequency.
- *
- * Don't ask me for an explanation.
- */
-
-/* Note: The bootloader (esp-idf bootloader.bin) configures:
- *
- * - CPU frequency to 80MHz
- * - The XTAL frequency according to the SDK config CONFIG_ESP32_XTAL_FREQ,
- *   which is 40MHz by default.
- *
- * Reference:
- *     https://github.com/espressif/esp-idf/blob
- *           /6fd855ab8d00d23bad4660216bc2122c2285d5be/components
- *           /bootloader_support/src/bootloader_clock.c#L38-L62
- */
-
-#ifdef CONFIG_ESP32_RUN_IRAM
-#  define BOARD_CLOCK_FREQUENCY (2 * BOARD_XTAL_FREQUENCY)
-#else
 #ifdef CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ
 #  define BOARD_CLOCK_FREQUENCY (CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ * 1000000)
 #else
 #  define BOARD_CLOCK_FREQUENCY 80000000
-#endif
 #endif
 
 /* GPIO definitions *********************************************************/
@@ -88,17 +53,39 @@
 #define BOARD_LED1        0
 #define BOARD_LED2        1
 #define BOARD_LED3        2
-#define BOARD_NLEDS       3
 
-#define BOARD_LED_RED     BOARD_LED1
-#define BOARD_LED_GREEN   BOARD_LED2
-#define BOARD_LED_BLUE    BOARD_LED3
+#define BOARD_LED_RED     BOARD_LED1    /* GPIO 0 */
+#define BOARD_LED_GREEN   BOARD_LED2    /* GPIO 2 */
+#define BOARD_LED_BLUE    BOARD_LED3    /* GPIO 4 */
 
 /* LED bits for use with autoleds */
 
 #define BOARD_LED1_BIT    (1 << BOARD_LED1)
 #define BOARD_LED2_BIT    (1 << BOARD_LED2)
 #define BOARD_LED3_BIT    (1 << BOARD_LED3)
+
+/* GPIO 2 is used by MMCSD driver as MISO, therefore, it can't be used as
+ * USER LED
+ */
+#ifdef CONFIG_MMCSD
+
+/* GPIO 0 is used by BUTTONS, it can't be used as USER LED */
+#ifdef CONFIG_INPUT_BUTTONS
+#  define BOARD_NLEDS       1
+#else
+#  define BOARD_NLEDS       2
+#endif
+
+#else  /* MMCSD */
+
+/* GPIO 0 is used by BUTTONS, it can't be used as USER LED */
+#ifdef CONFIG_INPUT_BUTTONS
+#  define BOARD_NLEDS       2
+#else
+#  define BOARD_NLEDS       3
+#endif
+
+#endif
 
 /* If CONFIG_ARCH_LEDs is defined, then NuttX will control the 3 LEDs on
  * board the ESP-WROVER-KIT.  The following definitions describe how

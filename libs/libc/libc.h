@@ -27,15 +27,17 @@
 
 #include <nuttx/config.h>
 
-#include <sys/types.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <limits.h>
-#include <semaphore.h>
+#ifndef __ASSEMBLY__
+#  include <sys/types.h>
+#  include <stdbool.h>
+#  include <stdio.h>
+#  include <stdlib.h>
+#  include <limits.h>
+#  include <semaphore.h>
 
-#include <nuttx/lib/lib.h>
-#include <nuttx/streams.h>
+#  include <nuttx/lib/lib.h>
+#  include <nuttx/streams.h>
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -48,10 +50,16 @@
  */
 
 #ifndef CONFIG_LIBC_HOMEDIR
-# define CONFIG_LIBC_HOMEDIR "/"
+#  define CONFIG_LIBC_HOMEDIR "/"
 #endif
 
 #define LIB_BUFLEN_UNKNOWN INT_MAX
+
+#if defined(CONFIG_BUILD_FLAT) || \
+    ((!defined(CONFIG_LIBC_PREVENT_STRING_USER) && !defined(__KERNEL__))  || \
+     (!defined(CONFIG_LIBC_PREVENT_STRING_KERNEL) && defined(__KERNEL__)))
+#  define LIBC_BUILD_STRING
+#endif
 
 /****************************************************************************
  * Public Types
@@ -60,6 +68,8 @@
 /****************************************************************************
  * Public Data
  ****************************************************************************/
+
+#ifndef __ASSEMBLY__
 
 #undef EXTERN
 #if defined(__cplusplus)
@@ -74,19 +84,17 @@ extern "C"
  * Public Function Prototypes
  ****************************************************************************/
 
-/* Defined in lib_streamsem.c */
-
-#ifdef CONFIG_FILE_STREAM
-void  lib_stream_semtake(FAR struct streamlist *list);
-void  lib_stream_semgive(FAR struct streamlist *list);
-#endif
-
 /* Defined in lib_dtoa.c */
 
 #ifdef CONFIG_LIBC_FLOATINGPOINT
 FAR char *__dtoa(double d, int mode, int ndigits, FAR int *decpt,
                  FAR int *sign, FAR char **rve);
 #endif
+
+/* Defined in lib_getfullpath.c */
+
+int lib_getfullpath(int dirfd, FAR const char *path,
+                    FAR char *fullpath, size_t fulllen);
 
 /* Defined in lib_fopen.c */
 
@@ -99,6 +107,11 @@ ssize_t lib_fwrite(FAR const void *ptr, size_t count, FAR FILE *stream);
 /* Defined in lib_libfread.c */
 
 ssize_t lib_fread(FAR void *ptr, size_t count, FAR FILE *stream);
+
+/* Defined in lib_libgets.c */
+
+FAR char *lib_dgets(FAR char *buf, size_t buflen, int fd,
+                    bool keepnl, bool consume);
 
 /* Defined in lib_libfgets.c */
 
@@ -133,19 +146,6 @@ bool lib_isbasedigit(int ch, int base, FAR int *value);
 
 int lib_checkbase(int base, FAR const char **pptr);
 
-/* Defined in lib_expi.c */
-
-#ifdef CONFIG_LIBM
-float  lib_expif(size_t n);
-double lib_expi(size_t n);
-#endif
-
-/* Defined in lib_libsqrtapprox.c */
-
-#ifdef CONFIG_LIBM
-float lib_sqrtapprox(float x);
-#endif
-
 /* Defined in lib_parsehostfile.c */
 
 #ifdef CONFIG_NETDB_HOSTFILE
@@ -166,5 +166,7 @@ void lib_cxx_initialize(void);
 #if defined(__cplusplus)
 }
 #endif
+
+#endif /* __ASSEMBLY__ */
 
 #endif /* __LIBS_LIBC_LIBC_H */

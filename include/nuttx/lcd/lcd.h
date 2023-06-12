@@ -80,6 +80,10 @@ struct lcd_planeinfo_s
    *  col_end   - Ending column to write to
    *              (range: col_start <= col_end < xres)
    *  buffer    - The buffer containing the area to be written to the LCD
+   *  stride    - Length of a line in bytes. This parameter may be necessary
+   *              to allow the LCD driver to calculate the offset for partial
+   *              writes when the buffer needs to be splited for row-by-row
+   *              writing.
    *
    * NOTE: this operation may not be supported by the device, in which case
    * the callback pointer will be NULL. In that case, putrun() should be
@@ -88,7 +92,8 @@ struct lcd_planeinfo_s
 
   int (*putarea)(FAR struct lcd_dev_s *dev, fb_coord_t row_start,
                  fb_coord_t row_end, fb_coord_t col_start,
-                 fb_coord_t col_end, FAR const uint8_t *buffer);
+                 fb_coord_t col_end, FAR const uint8_t *buffer,
+                 fb_coord_t stride);
 
   /* This method can be used to read a partial raster line from the LCD:
    *
@@ -113,6 +118,7 @@ struct lcd_planeinfo_s
    *  col_end   - Ending column to read from
    *              (range: col_start <= col_end < xres)
    *  buffer    - The buffer where the data will be written
+   *  stride    - Length of a line in bytes.
    *
    * NOTE: this operation may not be supported by the device, in which case
    * the callback pointer will be NULL. In that case, getrun() should be
@@ -121,7 +127,23 @@ struct lcd_planeinfo_s
 
   int (*getarea)(FAR struct lcd_dev_s *dev, fb_coord_t row_start,
                  fb_coord_t row_end, fb_coord_t col_start,
-                 fb_coord_t col_end, FAR uint8_t *buffer);
+                 fb_coord_t col_end, FAR uint8_t *buffer,
+                 fb_coord_t stride);
+
+  /* This method can be used to redraw display's content.
+   *
+   *  dev       - LCD interface to redraw its memory content
+   *
+   * NOTE: In case of non e-ink dispalys redrawing is cheap and can be done
+   * after each memory modification. Redrawing e-ink display is time and
+   * energy consuming.
+   * In order to avoid such operation (time and energy consumption) we can
+   * implement callback function putrun without redrawing the screen.
+   * Function putrun is called many times unless the function putarea is
+   * implemented.
+   */
+
+  int (*redraw)(FAR struct lcd_dev_s *dev);
 
   /* Plane color characteristics ********************************************/
 

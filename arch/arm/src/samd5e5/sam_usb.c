@@ -66,6 +66,7 @@
 
 #include <nuttx/config.h>
 
+#include <sys/param.h>
 #include <sys/types.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -78,6 +79,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/irq.h>
+#include <nuttx/mutex.h>
 #include <nuttx/usb/usb.h>
 #include <nuttx/usb/usbdev.h>
 #include <nuttx/usb/usbdev_trace.h>
@@ -231,16 +233,6 @@
 #define SAM_TRACEINTID_EPTRCPT0_LEN       0x002b
 #define SAM_TRACEINTID_PENDING_PIPE       0x002c
 #define SAM_TRACEINTID_PIPENO             0x002d
-
-/* Ever-present MIN and MAX macros */
-
-#ifndef MIN
-#  define MIN(a,b) (a < b ? a : b)
-#endif
-
-#ifndef MAX
-#  define MAX(a,b) (a > b ? a : b)
-#endif
 
 /* Byte ordering in host-based values */
 
@@ -649,7 +641,7 @@ struct sam_usbhost_s
   uint8_t           hoststate; /* State of the device (see enum sam_hoststate_e) */
   uint8_t           prevstate; /* Previous state of the device before SUSPEND */
   uint16_t          epavail;   /* Bitset of available endpoints */
-  sem_t             exclsem;   /* Support mutually exclusive access */
+  mutex_t           lock;      /* Support mutually exclusive access */
   bool              connected; /* Connected to device */
   bool              change;    /* Connection change */
   bool              pscwait;   /* True: Thread is waiting for a port event */
@@ -671,6 +663,8 @@ struct sam_usbhost_s
 
   volatile struct usbhost_hubport_s *hport;
 #endif
+
+  struct usbhost_devaddr_s devgen;  /* Address generation data */
 
   /* The pipe list */
 
@@ -717,21 +711,14 @@ static inline uint32_t sam_getreg16(uintptr_t regaddr);
 static inline void sam_putreg16(uint16_t regval, uintptr_t regaddr);
 static inline uint32_t sam_getreg8(uintptr_t regaddr);
 static inline void sam_putreg8(uint8_t regval, uintptr_t regaddr);
-# define sam_dumpep(priv, epno)
+#  define sam_dumpep(priv, epno)
 #ifdef CONFIG_USBHOST
-# define sam_dumppipe(priv, epno)
+#  define sam_dumppipe(priv, epno)
 #endif
 #endif
 static inline void sam_modifyreg8(uint32_t clrbits,
                                   uint32_t setbits,
                                   uintptr_t regaddr);
-
-/* Semaphores */
-
-static void sam_takesem(sem_t *sem);
-#define sam_givesem(s) nxsem_post(s);
-#ifdef CONFIG_USBHOST
-#endif
 
 /* Clks */
 
@@ -783,8 +770,6 @@ static inline struct sam_ep_s *
 static inline void
               sam_ep_unreserve(struct sam_usbdev_s *priv,
                 struct sam_ep_s *privep);
-static inline bool
-              sam_ep_reserved(struct sam_usbdev_s *priv, int epno);
 static int    sam_ep_configure_internal(struct sam_ep_s *privep,
                 const struct usb_epdesc_s *desc);
 
@@ -1010,14 +995,18 @@ static void sam_add_sof_user(struct sam_usbhost_s *priv);
  * instance.
  */
 
-static struct sam_usbhost_s g_usbhost;
+static struct sam_usbhost_s g_usbhost =
+{
+  .lock = NXMUTEX_INITIALIZER,
+  .pscsem = SEM_INITIALIZER(0),
+};
 
 /* This is the connection/enumeration interface */
 
 static struct usbhost_connection_s g_usbconn =
 {
-  .wait             = sam_wait,
-  .enumerate        = sam_enumerate,
+  .wait      = sam_wait,
+  .enumerate = sam_enumerate,
 };
 #endif
 
@@ -1176,34 +1165,6 @@ const struct trace_msg_t g_usb_trace_strings_intdecode[] =
  ****************************************************************************/
 
 /****************************************************************************
- * Name: sam_takesem
- *
- * Description:
- *   This is just a wrapper to handle the annoying behavior of semaphore
- *   waits that return due to the receipt of a signal.
- *
- ****************************************************************************/
-
-static void sam_takesem(sem_t *sem)
-{
-  int ret;
-
-  do
-    {
-      /* Take the semaphore (perhaps waiting) */
-
-      ret = nxsem_wait(sem);
-
-      /* The only case that an error should occur here is if the wait was
-       * awakened by a signal.
-       */
-
-      DEBUGASSERT(ret == OK || ret == -EINTR);
-    }
-  while (ret == -EINTR);
-}
-
-/****************************************************************************
  * Register Operations
  ****************************************************************************/
 
@@ -1335,7 +1296,7 @@ static void sam_putreg32(uint32_t regval, uintptr_t regaddr)
   putreg32(regval, regaddr);
 }
 #else
-static inline void sam_putreg32(uint32_t regval, uint32_t regaddr)
+static inline void sam_putreg32(uint32_t regval, uintptr_t regaddr)
 {
   putreg32(regval, regaddr);
 }
@@ -1388,7 +1349,7 @@ static void sam_putreg16(uint16_t regval, uintptr_t regaddr)
   putreg16(regval, regaddr);
 }
 #else
-static inline void sam_putreg16(uint16_t regval, uint32_t regaddr)
+static inline void sam_putreg16(uint16_t regval, uintptr_t regaddr)
 {
   putreg16(regval, regaddr);
 }
@@ -1441,7 +1402,7 @@ static void sam_putreg8(uint8_t regval, uintptr_t regaddr)
   putreg8(regval, regaddr);
 }
 #else
-static inline void sam_putreg8(uint8_t regval, uint32_t regaddr)
+static inline void sam_putreg8(uint8_t regval, uintptr_t regaddr)
 {
   putreg8(regval, regaddr);
 }
@@ -1914,7 +1875,6 @@ static int sam_req_read(struct sam_usbdev_s *priv, struct sam_ep_s *privep,
                         uint16_t recvsize)
 {
   struct sam_req_s *privreq;
-  uint32_t packetsize;
   int epno;
 
   DEBUGASSERT(priv && privep && privep->epstate == USB_EPSTATE_IDLE);
@@ -1987,10 +1947,6 @@ static int sam_req_read(struct sam_usbdev_s *priv, struct sam_ep_s *privep,
   privreq->inflight = privreq->req.len;
   priv->eplist[epno].descb[0]->addr = (uint32_t) privreq->req.buf;
   uinfo("addr=%p\n", privreq->req.buf);
-  packetsize        = priv->eplist[epno].descb[0]->pktsize;
-  packetsize       &= ~USBDEV_PKTSIZE_BCNT_MASK;
-  packetsize       &= ~USBDEV_PKTSIZE_MPKTSIZE_MASK;
-  packetsize       |=  USBDEV_PKTSIZE_MPKTSIZE(privreq->inflight);
   sam_putreg8(USBDEV_EPSTATUS_BK0RDY, SAM_USBDEV_EPSTATUSCLR(epno));
 
   return OK;
@@ -2256,20 +2212,6 @@ sam_ep_unreserve(struct sam_usbdev_s *priv, struct sam_ep_s *privep)
 }
 
 /****************************************************************************
- * Name: sam_ep_reserved
- *
- * Description:
- *   Check if the endpoint has already been allocated.
- *
- ****************************************************************************/
-
-static inline bool
-sam_ep_reserved(struct sam_usbdev_s *priv, int epno)
-{
-  return ((priv->epavail & SAM_EP_BIT(epno)) == 0);
-}
-
-/****************************************************************************
  * Endpoint operations
  ****************************************************************************/
 
@@ -2383,14 +2325,13 @@ static struct usbdev_req_s *sam_ep_allocreq(struct usbdev_ep_s *ep)
 
   usbtrace(TRACE_EPALLOCREQ, USB_EPNO(ep->eplog));
 
-  privreq = (struct sam_req_s *)kmm_malloc(sizeof(struct sam_req_s));
+  privreq = (struct sam_req_s *)kmm_zalloc(sizeof(struct sam_req_s));
   if (!privreq)
     {
       usbtrace(TRACE_DEVERROR(SAM_TRACEERR_ALLOCFAIL), 0);
       return NULL;
     }
 
-  memset(privreq, 0, sizeof(struct sam_req_s));
   return &privreq->req;
 }
 
@@ -3185,16 +3126,16 @@ static void sam_setdevaddr(struct sam_usbdev_s *priv, uint8_t address)
 
 static void sam_ep0_setup(struct sam_usbdev_s *priv)
 {
-  struct sam_ep_s     *ep0 = &priv->eplist[EP0];
-  struct sam_ep_s     *privep;
-  union wb_u           value;
-  union wb_u           index;
-  union wb_u           len;
-  union wb_u           response;
-  enum sam_ep0setup_e  ep0result;
-  uint8_t              epno;
-  int                  nbytes = 0; /* Assume zero-length packet */
-  int                  ret;
+  struct sam_ep_s    *ep0 = &priv->eplist[EP0];
+  struct sam_ep_s    *privep;
+  union wb_u          value;
+  union wb_u          index;
+  union wb_u          len;
+  union wb_u          response;
+  enum sam_ep0setup_e ep0result;
+  uint8_t             epno;
+  int                 nbytes = 0; /* Assume zero-length packet */
+  int                 ret;
 
   /* Terminate any pending requests */
 
@@ -5185,7 +5126,7 @@ static void sam_pipe_wakeup(struct sam_usbhost_s *priv,
                                      SAM_VTRACE2_PIPEWAKEUP_OUT,
                           pipe->epno, pipe->result);
 
-          sam_givesem(&pipe->waitsem);
+          nxsem_post(&pipe->waitsem);
           pipe->waiter = false;
         }
 
@@ -6104,7 +6045,7 @@ static int sam_ctrl_recvdata(struct sam_usbhost_s *priv,
   uinfo("pipe%d buffer:%p buflen:%d ADDR=0x%x PKTSIZE=0x%x\n",
         pipe->idx, buffer, buflen,
         pipe->descb[0]->addr,
-        pipe->descb[0]->pktsize)
+        pipe->descb[0]->pktsize);
 
   uinfo("EXTREG=0x%x STATUSBK=0x%x CTRLPIPE=0x%x STATUSPIPE=0x%x\n",
         pipe->descb[0]->extreg,
@@ -6717,7 +6658,7 @@ static void sam_gint_connected(struct sam_usbhost_s *priv)
       priv->smstate = SMSTATE_ATTACHED;
       if (priv->pscwait)
         {
-          sam_givesem(&priv->pscsem);
+          nxsem_post(&priv->pscsem);
           priv->pscwait = false;
         }
     }
@@ -6767,7 +6708,7 @@ static void sam_gint_disconnected(struct sam_usbhost_s *priv)
 
       if (priv->pscwait)
         {
-          sam_givesem(&priv->pscsem);
+          nxsem_post(&priv->pscsem);
           priv->pscwait = false;
         }
     }
@@ -6859,7 +6800,7 @@ static int sam_wait(struct usbhost_connection_s *conn,
       /* Wait for the next connection event */
 
       priv->pscwait = true;
-      sam_takesem(&priv->pscsem);
+      nxsem_wait_uninterruptible(&priv->pscsem);
     }
 }
 
@@ -7044,7 +6985,7 @@ static int sam_ep0configure(struct usbhost_driver_s *drvr,
    * hardware and state structures
    */
 
-  sam_takesem(&priv->exclsem);
+  nxmutex_lock(&priv->lock);
 
   /* Configure the EP0 pipe */
 
@@ -7054,8 +6995,7 @@ static int sam_ep0configure(struct usbhost_driver_s *drvr,
   pipe->maxpacket = maxpacketsize;
   sam_pipe_configure(priv, pipe->idx);
 
-  sam_givesem(&priv->exclsem);
-
+  nxmutex_unlock(&priv->lock);
   return OK;
 }
 
@@ -7102,7 +7042,7 @@ static int sam_epalloc(struct usbhost_driver_s *drvr,
    * host hardware and state structures
    */
 
-  sam_takesem(&priv->exclsem);
+  nxmutex_lock(&priv->lock);
 
   /* Handler control pipes differently from other endpoint types.  This is
    * because the normal, "transfer" endpoints are unidirectional an require
@@ -7119,7 +7059,7 @@ static int sam_epalloc(struct usbhost_driver_s *drvr,
       ret = sam_xfrep_alloc(priv, epdesc, ep);
     }
 
-  sam_givesem(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
   return ret;
 }
 
@@ -7153,13 +7093,13 @@ static int sam_epfree(struct usbhost_driver_s *drvr, usbhost_ep_t ep)
    * USB host hardware and state structures
    */
 
-  sam_takesem(&priv->exclsem);
+  nxmutex_lock(&priv->lock);
 
   /* Halt the pipe and mark the pipe available */
 
   sam_pipe_free(priv, (intptr_t)ep);
 
-  sam_givesem(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
   return OK;
 }
 
@@ -7406,7 +7346,7 @@ static int sam_ctrlin(struct usbhost_driver_s *drvr, usbhost_ep_t ep0,
    * host hardware and state structures
    */
 
-  sam_takesem(&priv->exclsem);
+  nxmutex_lock(&priv->lock);
 
   /* Loop, retrying until the retry time expires */
 
@@ -7446,7 +7386,7 @@ static int sam_ctrlin(struct usbhost_driver_s *drvr, usbhost_ep_t ep0,
                 {
                   /* All success transactions exit here */
 
-                  sam_givesem(&priv->exclsem);
+                  nxmutex_unlock(&priv->lock);
                   return OK;
                 }
 
@@ -7465,7 +7405,7 @@ static int sam_ctrlin(struct usbhost_driver_s *drvr, usbhost_ep_t ep0,
    * and timeouts have been exhausted
    */
 
-  sam_givesem(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
   return -ETIMEDOUT;
 }
 
@@ -7498,7 +7438,7 @@ static int sam_ctrlout(struct usbhost_driver_s *drvr, usbhost_ep_t ep0,
    * USB host hardware and state structures
    */
 
-  sam_takesem(&priv->exclsem);
+  nxmutex_lock(&priv->lock);
 
   /* Loop, retrying until the retry time expires */
 
@@ -7541,7 +7481,7 @@ static int sam_ctrlout(struct usbhost_driver_s *drvr, usbhost_ep_t ep0,
                 {
                   /* All success transactins exit here */
 
-                  sam_givesem(&priv->exclsem);
+                  nxmutex_unlock(&priv->lock);
                   return OK;
                 }
 
@@ -7560,7 +7500,7 @@ static int sam_ctrlout(struct usbhost_driver_s *drvr, usbhost_ep_t ep0,
    * and timeouts have been exhausted
    */
 
-  sam_givesem(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
   return -ETIMEDOUT;
 }
 
@@ -7613,7 +7553,7 @@ static ssize_t sam_transfer(struct usbhost_driver_s *drvr,
   unsigned int idx = (unsigned int)ep;
   ssize_t nbytes;
 
-  uwarn("pipe%d buffer:0x%p buflen:%d\n",  idx, buffer, buflen);
+  uwarn("pipe%d buffer:%p buflen:%d\n",  idx, buffer, buflen);
 
   DEBUGASSERT(priv && buffer && idx < SAM_USB_NENDPOINTS && buflen > 0);
   pipe = &priv->pipelist[idx];
@@ -7622,7 +7562,7 @@ static ssize_t sam_transfer(struct usbhost_driver_s *drvr,
    * USB host hardware and state structures
    */
 
-  sam_takesem(&priv->exclsem);
+  nxmutex_lock(&priv->lock);
 
   /* Handle IN and OUT transfer slightly differently */
 
@@ -7635,7 +7575,7 @@ static ssize_t sam_transfer(struct usbhost_driver_s *drvr,
       nbytes = sam_out_transfer(priv, pipe, buffer, buflen);
     }
 
-  sam_givesem(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
   return nbytes;
 }
 
@@ -7694,7 +7634,7 @@ static int sam_asynch(struct usbhost_driver_s *drvr, usbhost_ep_t ep,
    * USB host hardware and state structures
    */
 
-  sam_takesem(&priv->exclsem);
+  nxmutex_lock(&priv->lock);
 
   /* Handle IN and OUT transfer slightly differently */
 
@@ -7707,7 +7647,7 @@ static int sam_asynch(struct usbhost_driver_s *drvr, usbhost_ep_t ep,
       ret = sam_out_asynch(priv, pipe, buffer, buflen, callback, arg);
     }
 
-  sam_givesem(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
   return ret;
 }
 #endif /* CONFIG_USBHOST_ASYNCH */
@@ -7766,7 +7706,7 @@ static int sam_cancel(struct usbhost_driver_s *drvr, usbhost_ep_t ep)
 
       /* Wake'em up! */
 
-      sam_givesem(&pipe->waitsem);
+      nxsem_post(&pipe->waitsem);
       pipe->waiter = false;
     }
 
@@ -7843,7 +7783,7 @@ static int sam_connect(struct usbhost_driver_s *drvr,
   if (priv->pscwait)
     {
       priv->pscwait = false;
-      sam_givesem(&priv->pscsem);
+      nxsem_post(&priv->pscsem);
     }
 
   leave_critical_section(flags);
@@ -8505,13 +8445,6 @@ static inline void sam_sw_initialize(struct sam_usbhost_s *priv)
   struct usbhost_hubport_s *hport;
   int epno;
 
-  /* Initialize the device state structure.  NOTE: many fields
-   * have the initial value of zero and, hence, are not explicitly
-   * initialized here.
-   */
-
-  memset(priv, 0, sizeof(struct sam_usbhost_s));
-
   /* Initialize the device operations */
 
   drvr                 = &priv->drvr;
@@ -8546,7 +8479,8 @@ static inline void sam_sw_initialize(struct sam_usbhost_s *priv)
 
   /* Initialize function address generation logic */
 
-  usbhost_devaddr_initialize(&priv->rhport);
+  usbhost_devaddr_initialize(&priv->devgen);
+  priv->rhport.pdevgen = &priv->devgen;
 
   /* Initialize the pipe list */
 
@@ -8554,7 +8488,6 @@ static inline void sam_sw_initialize(struct sam_usbhost_s *priv)
     {
       priv->pipelist[epno].idx = epno;
       nxsem_init(&priv->pipelist[epno].waitsem, 0, 0);
-      sem_setprotocol(&priv->pipelist[epno].waitsem, SEM_PRIO_NONE);
 
       sam_putreg8(USBHOST_PSTATUS_PFREEZE, SAM_USBHOST_PSTATUSSET(epno));
 
@@ -8565,17 +8498,6 @@ static inline void sam_sw_initialize(struct sam_usbhost_s *priv)
     }
 
   sam_reset_pipes(priv, false);
-
-  /* Initialize semaphores */
-
-  nxsem_init(&priv->pscsem,  0, 0);
-  nxsem_init(&priv->exclsem, 0, 1);
-
-  /* The pscsem semaphore is used for signaling and, hence, should not have
-   * priority inheritance enabled.
-   */
-
-  sem_setprotocol(&priv->pscsem, SEM_PRIO_NONE);
 
   /* Initialize the driver state data */
 

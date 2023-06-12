@@ -27,6 +27,8 @@
 #include <errno.h>
 #include <stdio.h>
 
+#include <sys/param.h>
+
 #include <nuttx/ioexpander/ioe_rpmsg.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/nuttx.h>
@@ -36,10 +38,6 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-#ifndef ARRAY_SIZE
-#  define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
-#endif
 
 #define IOE_RPMSG_EPT_FORMAT   "rpmsg-ioe-%s"
 
@@ -63,8 +61,7 @@ struct ioe_rpmsg_cookie_s
 
 begin_packed_struct struct ioe_rpmsg_header_s
 {
-  uint32_t                     command : 31;
-  uint32_t                     response : 1;
+  uint32_t                     command;
   int32_t                      result;
   uint64_t                     cookie;
 } end_packed_struct;
@@ -143,9 +140,12 @@ struct ioe_rpmsg_client_s
  * Private Function Prototypes
  ****************************************************************************/
 
-static int ioe_rpmsg_ept_cb(FAR struct rpmsg_endpoint *ept,
-                            FAR void *data, size_t len,
-                            uint32_t src, FAR void *priv_);
+static int ioe_rpmsg_client_ept_cb(FAR struct rpmsg_endpoint *ept,
+                                   FAR void *data, size_t len,
+                                   uint32_t src, FAR void *priv_);
+static int ioe_rpmsg_server_ept_cb(FAR struct rpmsg_endpoint *ept,
+                                   FAR void *data, size_t len,
+                                   uint32_t src, FAR void *priv_);
 
 static int ioe_rpmsg_direction_handler(FAR struct rpmsg_endpoint *ept,
                                        FAR void *data, size_t len,
@@ -202,7 +202,6 @@ static const rpmsg_ept_cb g_ioe_rpmsg_handler[] =
 #ifdef CONFIG_IOEXPANDER_INT_ENABLE
   [IOE_RPMSG_ATTACH]    = ioe_rpmsg_attach_handler,
   [IOE_RPMSG_DETACH]    = ioe_rpmsg_detach_handler,
-  [IOE_RPMSG_IRQ]       = ioe_rpmsg_irq_handler,
 #endif
 };
 
@@ -268,26 +267,23 @@ static int ioe_rpmsg_sendrecv(FAR struct rpmsg_endpoint *ept,
     }
 
   nxsem_init(&cookie.sem, 0, 0);
-  nxsem_set_protocol(&cookie.sem, SEM_PRIO_NONE);
 
   msg->command = command;
-  msg->response = 0;
   msg->result = -ENXIO;
   msg->cookie = (uintptr_t)&cookie;
 
   ret = rpmsg_send(ept, msg, len);
-  if (ret < 0)
+  if (ret >= 0)
     {
-      return ret;
+      ret = rpmsg_wait(ept, &cookie.sem);
+      if (ret >= 0)
+        {
+          ret = cookie.result;
+        }
     }
 
-  ret = rpmsg_wait(ept, &cookie.sem);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  return cookie.result;
+  nxsem_destroy(&cookie.sem);
+  return ret;
 }
 
 static int ioe_rpmsg_direction(FAR struct ioexpander_dev_s *dev, uint8_t pin,
@@ -453,7 +449,7 @@ static void ioe_rpmsg_irqworker(FAR void *priv_)
   msg.cbarg  = cb->cbarg;
 
   msg.header.command  = IOE_RPMSG_IRQ;
-  msg.header.response = 0;
+  msg.header.cookie   = 0;
   rpmsg_send(cb->ept, &msg, sizeof(msg));
 
   cb->pendset = 0;
@@ -538,30 +534,27 @@ static int ioe_rpmsg_irq_handler(FAR struct rpmsg_endpoint *ept,
 
 #endif
 
-static int ioe_rpmsg_ept_cb(FAR struct rpmsg_endpoint *ept, FAR void *data,
-                            size_t len, uint32_t src, FAR void *priv_)
+static int ioe_rpmsg_client_ept_cb(FAR struct rpmsg_endpoint *ept,
+                                   FAR void *data, size_t len,
+                                   uint32_t src, FAR void *priv_)
 {
   FAR struct ioe_rpmsg_header_s *msg = data;
-  uint32_t cmd = msg->command;
-  int ret = -EINVAL;
-
   struct ioe_rpmsg_cookie_s *cookie =
               (struct ioe_rpmsg_cookie_s *)(uintptr_t)msg->cookie;
 
-  if (msg->response && cookie)
+  if (cookie)
     {
       cookie->result = msg->result;
       rpmsg_post(ept, &cookie->sem);
-      ret = 0;
     }
-  else if (cmd < ARRAY_SIZE(g_ioe_rpmsg_handler)
-           && g_ioe_rpmsg_handler[cmd])
+#ifdef CONFIG_IOEXPANDER_INT_ENABLE
+  else if (msg->command == IOE_RPMSG_IRQ)
     {
-      msg->response = 1;
-      ret = g_ioe_rpmsg_handler[cmd](ept, data, len, src, priv_);
+      ioe_rpmsg_irq_handler(ept, data, len, src, priv_);
     }
+#endif
 
-  return ret;
+  return 0;
 }
 
 static void ioe_rpmsg_client_created(FAR struct rpmsg_device *rdev,
@@ -576,7 +569,7 @@ static void ioe_rpmsg_client_created(FAR struct rpmsg_device *rdev,
 
       priv->ept.priv = priv;
       rpmsg_create_ept(&priv->ept, rdev, eptname, RPMSG_ADDR_ANY,
-                       RPMSG_ADDR_ANY, ioe_rpmsg_ept_cb, NULL);
+                       RPMSG_ADDR_ANY, ioe_rpmsg_client_ept_cb, NULL);
 
       rpmsg_post(&priv->ept, &priv->sem);
     }
@@ -594,11 +587,39 @@ static void ioe_rpmsg_client_destroy(FAR struct rpmsg_device *rdev,
     }
 }
 
+static int ioe_rpmsg_server_ept_cb(FAR struct rpmsg_endpoint *ept,
+                                   FAR void *data, size_t len,
+                                   uint32_t src, FAR void *priv_)
+{
+  FAR struct ioe_rpmsg_header_s *msg = data;
+  uint32_t cmd = msg->command;
+
+  if (cmd < nitems(g_ioe_rpmsg_handler) && g_ioe_rpmsg_handler[cmd])
+    {
+      return g_ioe_rpmsg_handler[cmd](ept, data, len, src, priv_);
+    }
+
+  return 0;
+}
+
 static void ioe_rpmsg_server_unbind(FAR struct rpmsg_endpoint *ept)
 {
   rpmsg_destroy_ept(ept);
 
   kmm_free(ept);
+}
+
+static bool ioe_rpmsg_server_match(FAR struct rpmsg_device *rdev,
+                                   FAR void *priv_,
+                                   FAR const char *name,
+                                   uint32_t dest)
+{
+  FAR struct ioe_rpmsg_server_s *priv = priv_;
+  char eptname[RPMSG_NAME_SIZE];
+
+  snprintf(eptname, RPMSG_NAME_SIZE, IOE_RPMSG_EPT_FORMAT, priv->name);
+
+  return !strcmp(name, eptname);
 }
 
 static void ioe_rpmsg_server_bind(FAR struct rpmsg_device *rdev,
@@ -607,25 +628,18 @@ static void ioe_rpmsg_server_bind(FAR struct rpmsg_device *rdev,
                                   uint32_t dest)
 {
   FAR struct ioe_rpmsg_server_s *priv = priv_;
-  char eptname[RPMSG_NAME_SIZE];
+  FAR struct rpmsg_endpoint *ept;
 
-  snprintf(eptname, RPMSG_NAME_SIZE, IOE_RPMSG_EPT_FORMAT, priv->name);
-
-  if (!strcmp(name, eptname))
+  ept = kmm_zalloc(sizeof(struct rpmsg_endpoint));
+  if (!ept)
     {
-      FAR struct rpmsg_endpoint *ept;
-
-      ept = kmm_zalloc(sizeof(struct rpmsg_endpoint));
-      if (!ept)
-        {
-          return;
-        }
-
-      ept->priv = priv;
-
-      rpmsg_create_ept(ept, rdev, name, RPMSG_ADDR_ANY, RPMSG_ADDR_ANY,
-                       ioe_rpmsg_ept_cb, ioe_rpmsg_server_unbind);
+      return;
     }
+
+  ept->priv = priv;
+
+  rpmsg_create_ept(ept, rdev, name, RPMSG_ADDR_ANY, RPMSG_ADDR_ANY,
+                   ioe_rpmsg_server_ept_cb, ioe_rpmsg_server_unbind);
 }
 
 /****************************************************************************
@@ -660,7 +674,9 @@ int ioe_rpmsg_server_initialize(FAR const char *name,
   priv->name = name;
   priv->ioe  = ioe;
 
-  ret = rpmsg_register_callback(priv, NULL, NULL, ioe_rpmsg_server_bind);
+  ret = rpmsg_register_callback(priv, NULL, NULL,
+                                ioe_rpmsg_server_match,
+                                ioe_rpmsg_server_bind);
   if (ret < 0)
     {
       kmm_free(priv);
@@ -700,7 +716,7 @@ ioe_rpmsg_client_initialize(FAR const char *cpuname, FAR const char *name)
 
   nxsem_init(&priv->sem, 0, 0);
   ret = rpmsg_register_callback(priv, ioe_rpmsg_client_created,
-                                ioe_rpmsg_client_destroy, NULL);
+                                ioe_rpmsg_client_destroy, NULL, NULL);
   if (ret < 0)
     {
       kmm_free(priv);

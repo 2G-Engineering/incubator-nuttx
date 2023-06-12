@@ -44,7 +44,6 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/procfs.h>
-#include <nuttx/fs/dirent.h>
 
 #include "mount/mount.h"
 
@@ -102,7 +101,7 @@ struct mount_info_s
 /* Helpers */
 
 static void    mount_sprintf(FAR struct mount_info_s *info,
-                 FAR const char *fmt, ...);
+                 FAR const char *fmt, ...) printf_like(2, 3);
 #ifndef CONFIG_FS_PROCFS_EXCLUDE_MOUNT
 static int     mount_entry(FAR const char *mountpoint,
                  FAR struct statfs *statbuf, FAR void *arg);
@@ -138,7 +137,7 @@ static int     mount_stat(FAR const char *relpath, FAR struct stat *buf);
  * with any compiler.
  */
 
-const struct procfs_operations mount_procfsoperations =
+const struct procfs_operations g_mount_operations =
 {
   mount_open,          /* open */
   mount_close,         /* close */
@@ -256,7 +255,7 @@ static int blocks_entry(FAR const char *mountpoint,
 
   /* Generate blocks list one line at a time */
 
-  mount_sprintf(info, "%6lu %10" PRIuOFF " %10" PRIuOFF
+  mount_sprintf(info, "%6zu %10" PRIuOFF " %10" PRIuOFF
                 "  %10" PRIuOFF " %s\n",
                 statbuf->f_bsize, statbuf->f_blocks,
                 statbuf->f_blocks - statbuf->f_bavail, statbuf->f_bavail,
@@ -283,15 +282,9 @@ static int usage_entry(FAR const char *mountpoint,
 {
   FAR struct mount_info_s *info = (FAR struct mount_info_s *)arg;
   FAR const char *fstype;
-#ifdef CONFIG_HAVE_LONG_LONG
-  uint64_t size;
-  uint64_t used;
-  uint64_t free;
-#else
-  uint32_t size;
-  uint32_t used;
-  uint32_t free;
-#endif
+  fsblkcnt_t size;
+  fsblkcnt_t used;
+  fsblkcnt_t free;
   int which;
   char sizelabel;
   char freelabel;
@@ -316,15 +309,9 @@ static int usage_entry(FAR const char *mountpoint,
 
   fstype = fs_gettype(statbuf);
 
-#ifdef CONFIG_HAVE_LONG_LONG
-  size = (uint64_t)statbuf->f_bsize * statbuf->f_blocks;
-  free = (uint64_t)statbuf->f_bsize * statbuf->f_bavail;
-  used = (uint64_t)size - free;
-#else
   size = statbuf->f_bsize * statbuf->f_blocks;
   free = statbuf->f_bsize * statbuf->f_bavail;
   used = size - free;
-#endif
 
   /* Find the label for size */
 
@@ -361,15 +348,9 @@ static int usage_entry(FAR const char *mountpoint,
 
   /* Generate usage list one line at a time */
 
-#ifdef CONFIG_HAVE_LONG_LONG
-  mount_sprintf(info, "  %-10s %6llu%c %8llu%c  %8llu%c %s\n", fstype,
-                size, sizelabel, used, usedlabel, free, freelabel,
-                mountpoint);
-#else
-  mount_sprintf(info, "  %-10s %6ld%c %8ld%c  %8ld%c %s\n", fstype,
-                size, sizelabel, used, usedlabel, free, freelabel,
-                mountpoint);
-#endif
+  mount_sprintf(info,
+    "  %-10s %" PRIuOFF "%c %8" PRIuOFF "%c  %8" PRIuOFF "%c %s\n",
+    fstype, size, sizelabel, used, usedlabel, free, freelabel, mountpoint);
 
   return (info->totalsize >= info->buflen) ? 1 : 0;
 }

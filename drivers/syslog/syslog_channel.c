@@ -31,6 +31,7 @@
 
 #include <nuttx/syslog/syslog.h>
 #include <nuttx/compiler.h>
+#include <nuttx/mutex.h>
 
 #ifdef CONFIG_RAMLOG_SYSLOG
 #  include <nuttx/syslog/ramlog.h>
@@ -41,7 +42,7 @@
 #endif
 
 #ifdef CONFIG_SYSLOG_RTT
-#  include <nuttx/syslog/syslog_rtt.h>
+#  include <nuttx/segger/rtt.h>
 #endif
 
 #ifdef CONFIG_ARCH_LOWPUTC
@@ -217,18 +218,16 @@ static ssize_t syslog_default_write(FAR struct syslog_channel_s *channel,
                                     FAR const char *buffer, size_t buflen)
 {
 #if defined(CONFIG_ARCH_LOWPUTC)
-  static sem_t sem = SEM_INITIALIZER(1);
-  size_t nwritten;
+  static mutex_t lock = NXMUTEX_INITIALIZER;
 
-  nxsem_wait(&sem);
-  for (nwritten = 0; nwritten < buflen; nwritten++)
-    {
-      up_putc(buffer[nwritten]);
-    }
+  nxmutex_lock(&lock);
 
-  nxsem_post(&sem);
+  up_nputs(buffer, buflen);
+
+  nxmutex_unlock(&lock);
 #endif
 
+  UNUSED(channel);
   return buflen;
 }
 #endif

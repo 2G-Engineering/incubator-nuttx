@@ -229,7 +229,9 @@ static void *create_image(struct elf_file *elf, int core, char *savename,
   Elf32_Sym *sym;
   char *name;
   int snlen;
-  int nphs, psize, imgsize;
+  int nphs;
+  int psize;
+  int imgsize;
   int i;
   int j;
   uint32_t offset;
@@ -344,7 +346,7 @@ int main(int argc, char **argv)
 
   size += 16;                   /* Extend CMAC size */
 
-  snprintf(footer, 16, "MKSPK_BN_HOOTER");
+  snprintf(footer, 16, "MKSPK_BN_FOOTER");
   footer[15] = '\0';
 
   fp = fopen(args->outputfile, "wb");

@@ -107,19 +107,12 @@ extern "C"
 struct task_group_s;
 void lib_stream_initialize(FAR struct task_group_s *group);
 void lib_stream_release(FAR struct task_group_s *group);
-#endif
 
-/* Functions defined in lib_filesem.c ***************************************/
+/* Functions contained in lib_getstreams.c **********************************/
 
-#ifdef CONFIG_STDIO_DISABLE_BUFFERING
-#  define lib_sem_initialize(s)
-#  define lib_take_semaphore(s)
-#  define lib_give_semaphore(s)
-#else
-void lib_sem_initialize(FAR struct file_struct *stream);
-void lib_take_semaphore(FAR struct file_struct *stream);
-void lib_give_semaphore(FAR struct file_struct *stream);
-#endif
+FAR struct streamlist *lib_get_streams(void);
+FAR struct file_struct *lib_get_stream(int fd);
+#endif /* CONFIG_FILE_STREAM */
 
 /* Functions defined in lib_srand.c *****************************************/
 

@@ -5,19 +5,24 @@
 
 menuconfig SENSORS
 	bool "Sensor Device Support"
-	select MM_CIRCBUF
 	default n
 	---help---
 		Drivers for various sensors
 
 if SENSORS
 
-config SENSORS_NPOLLWAITERS
-	int "Number of poll threads"
-	default 2
+config USENSOR
+	bool "Usensor Device Support"
+	default n
 	---help---
-		Maximum number of threads than can be waiting for POLL events.
-		Default: 2
+		Allow application to register user sensor by /dev/usensor.
+
+config SENSORS_RPMSG
+	bool "Sensor rpmsg Support"
+	default n
+	depends on RPTUN
+	---help---
+		Allow application to read or control remote sensor device by rpmsg.
 
 config SENSORS_WTGAHRS2
 	bool "Wtgahrs2 Sensor Support"
@@ -55,6 +60,32 @@ config APDS9960_I2C_FREQUENCY
 	default 400000
 	depends on SENSORS_APDS9960
 
+config SENSORS_APDS9922
+	bool "Broadcom APDS-9922 Proximity and Ambient Light Sensor"
+	default n
+	select I2C
+	---help---
+		Enable driver support for the Broadcom APDS-9922 proximity and ambient light sensor.
+
+config APDS9922_I2C_FREQUENCY
+	int "APDS-9922 I2C frequency"
+	default 400000
+	depends on SENSORS_APDS9922
+
+config APDS9922_ALS_NPOLLWAITERS
+	int "APDS-9922 - number of ALS poll waiters"
+	default 2
+	depends on SENSORS_APDS9922
+	---help---
+		Sets the number of poll waiters for the ambient light sensor
+
+config APDS9922_PS_NPOLLWAITERS
+	int "APDS-9922 - number of PS poll waiters"
+	default 2
+	depends on SENSORS_APDS9922  
+	---help---
+		Sets the number of poll waiters for the proximity sensor
+
 config SENSORS_AK09912
 	bool "Asahi AK09911/AK09912 Compass Sensor"
 	default n
@@ -85,6 +116,13 @@ config SENSORS_AS726X
 	depends on ALLOW_BSD_COMPONENTS
 	---help---
 		Enable driver support for the AS726X Spectral Sensor.
+
+config SENSORS_BH1749NUC
+	bool "Rohm BH1749NUC Color Sensor support"
+	default n
+	select I2C
+	---help---
+		Enable driver support for the Rohm BH1749NUC color sensor.
 
 config SENSORS_BH1750FVI
 	bool "Rohm BH1750FVI Ambient Light Sensor support"
@@ -141,7 +179,7 @@ config BMI160_I2C_ADDR_68
 	bool "0x68"
 	---help---
 		Default address.
-		If SDO pin is pulled to VDDIO, use 0x69
+		If SDO pin is pulled to GND, use 0x68
 
 config BMI160_I2C_ADDR_69
 	bool "0x69"
@@ -149,6 +187,35 @@ config BMI160_I2C_ADDR_69
 		If SDO pin is pulled to VDDIO, use 0x69
 
 endchoice
+endif
+
+config SENSORS_BMI270
+	bool "Bosch BMI270 Inertial Measurement Sensor support"
+	default n
+	---help---
+		Enable driver support for the Bosch BMI270 Inertial
+		Measurement sensor
+
+if SENSORS_BMI270
+
+choice
+	prompt "BMI270 Interface"
+	default SENSORS_BMI270_SPI
+
+config SENSORS_BMI270_I2C
+	bool "BMI270 I2C Interface"
+	select I2C
+	---help---
+		Enables support for the I2C interface
+
+config SENSORS_BMI270_SPI
+	bool "BMI270 SPI Interface"
+	select SPI
+	---help---
+		Enables support for the SPI interface
+
+endchoice
+
 endif
 
 config SENSORS_BMP180
@@ -159,11 +226,11 @@ config SENSORS_BMP180
 		Enable driver support for the Bosch BMP180 barometer sensor.
 
 config SENSORS_BMP280
-	bool "Bosch BMP280 Barometic Pressure Sensor"
+	bool "Bosch BMP280 Barometric Pressure Sensor"
 	default n
 	select I2C
 	---help---
-		Enable driver for the Bosch BMP280 barometic pressure sensor.
+		Enable driver for the Bosch BMP280 barometric pressure sensor.
 
 if SENSORS_BMP280
 
@@ -511,11 +578,11 @@ config INA219_I2C_FREQUENCY
 	depends on SENSORS_INA219
 
 config SENSORS_INA226
-	bool "INA226 current and voltage monitor"
+	bool "INA226/INA230 current and voltage monitor"
 	default n
 	select I2C
 	---help---
-		Enable driver support for the Texas Instruments INA226 power monitor.
+		Enable driver support for the Texas Instruments INA226/INA230 power monitor.
 
 config INA226_I2C_FREQUENCY
 	int "INA226 I2C frequency"
@@ -750,7 +817,157 @@ config MPU60X0_EXTI
 		to the sampling rate chosen during operation.
 		Default:  No interrupts or blocking, i.e. user-driven sampling.
 
+config MPU60X0_EXT_SYNC_SET
+	int "MPU60x0 frame sync bit position"
+	default 0
+	---help---
+		EXT_SYNC_SET[2..0]
+		EXT_SYNC_SET: frame sync bit position
+		(see datasheet, it's ... complicated)
+
+config MPU60X0_DLPF_CFG
+	int "MPU60x0 digital low-pass filter bandwidth"
+	default 1
+	---help---
+		DLPF_CFG[2..0]
+		DLPF_CFG: digital low-pass filter bandwidth
+		(see datasheet, it's ... complicated)
+
+config MPU60X0_GYRO_FS_SEL
+	int "MPU60x0 Gyro FS_SEL"
+	default 2
+	---help---
+		Sets the @fs_sel bit in GYRO_CONFIG to the value provided. Per
+		the datasheet, the meaning of @fs_sel is as follows:
+		GYRO_CONFIG(0x1b) :   XG_ST YG_ST ZG_ST FS_SEL1 FS_SEL0 x  x  x
+		XG_ST, YG_ST, ZG_ST  :  self-test (unsupported in this driver)
+				1 -> activate self-test on X, Y, and/or Z gyros
+		FS_SEL[10] : full-scale range select
+				0 -> ±  250 deg/sec
+				1 -> ±  500 deg/sec
+				2 -> ± 1000 deg/sec
+				3 -> ± 2000 deg/sec
+
+config MPU60X0_ACCEL_AFS_SEL
+	int "MPU60x0 Accelerometer AFS_SEL"
+	default 2
+	---help---
+		Sets the @afs_sel bit in ACCEL_CONFIG to the value provided. Per
+		the datasheet, the meaning of @afs_sel is as follows:
+		ACCEL_CONFIG(0x1c) :   XA_ST YA_ST ZA_ST AFS_SEL1 AFS_SEL0 x  x  x
+		XA_ST, YA_ST, ZA_ST  :  self-test (unsupported in this driver)
+				1 -> activate self-test on X, Y, and/or Z accelerometers
+		AFS_SEL[10] : full-scale range select
+				0 -> ±  2 g
+				1 -> ±  4 g
+				2 -> ±  8 g
+				3 -> ± 16 g
+
 endif # SENSORS_MPU60X0
+
+config SENSORS_MPU9250
+	bool "Invensense MPU9250 Sensor support"
+	default n
+	---help---
+		Enable driver support for Invensense MPU9250 MotionTracker device.
+
+if SENSORS_MPU9250
+
+choice
+	prompt "MPU9250 Interface"
+	default MPU9250_SPI
+
+config MPU9250_SPI
+	bool "MPU9250 SPI Interface"
+	select SPI
+	---help---
+		Enables support for the SPI interface
+
+config MPU9250_I2C
+	bool "MPU9250 I2C Interface"
+	select I2C
+	---help---
+		Enables support for the I2C interface
+
+endchoice
+
+config MPU9250_I2C_FREQ
+	int "MPU9250 I2C Frequency"
+	depends on MPU9250_I2C
+	default 400000
+
+config MPU9250_MEASURE_FREQ
+	int "Default data output rate in Hz"
+	default 1000
+	---help---
+		Default data output rate in Hz
+
+config MPU9250_THREAD_STACKSIZE
+	int "Worker thread stack size"
+	default 1024
+	---help---
+		The stack size for the worker thread
+
+config MPU9250_EXT_SYNC_SET
+	int "MPU9250 frame sync bit position"
+	default 0
+	---help---
+		EXT_SYNC_SET[2..0]
+		EXT_SYNC_SET: frame sync bit position
+
+config MPU9250_DLPF_CFG
+	int "MPU9250 gyroscope and temperature low-pass filter setting"
+	default 1
+	---help---
+		DLPF_CFG[2..0]
+		DLPF_CFG: digital low-pass filter bandwidth
+
+config MPU9250_ACCEL_FCHOICE_B
+	int "Inverted version of accel_fchoice"
+	default 0
+	---help---
+		The data output rate of the DLPF filter block can be further
+		reduced by a factor of 1/(1+SMPLRT_DIV).
+		where SMPLRT_DIV is an 8-bit integer
+
+config MPU9250_A_DLPF_CFG
+	int "MPU9250 Accelerometer low pass filter setting"
+	default 1
+	---help---
+		A_DLPF_CFG[2..0]
+		A_DLPF_CFG: Accelerometer digital low-pass filter bandwidth
+
+config MPU9250_GYRO_FS_SEL
+	int "MPU9250 Gyro FS_SEL"
+	default 2
+	---help---
+		Sets the @fs_sel bit in GYRO_CONFIG to the value provided. Per
+		the datasheet, the meaning of @fs_sel is as follows:
+		GYRO_CONFIG(0x1b) :   XG_ST YG_ST ZG_ST FS_SEL1 FS_SEL0 x  x  x
+		XG_ST, YG_ST, ZG_ST  :  self-test (unsupported in this driver)
+				1 -> activate self-test on X, Y, and/or Z gyros
+		FS_SEL[10] : full-scale range select
+				0 -> ±  250 deg/sec
+				1 -> ±  500 deg/sec
+				2 -> ± 1000 deg/sec
+				3 -> ± 2000 deg/sec
+
+config MPU9250_ACCEL_AFS_SEL
+	int "MPU9250 Accelerometer AFS_SEL"
+	default 2
+	---help---
+		Sets the @afs_sel bit in ACCEL_CONFIG to the value provided. Per
+		the datasheet, the meaning of @afs_sel is as follows:
+		ACCEL_CONFIG(0x1c) :   XA_ST YA_ST ZA_ST AFS_SEL1 AFS_SEL0 x  x  x
+		XA_ST, YA_ST, ZA_ST  :  self-test (unsupported in this driver)
+				1 -> activate self-test on X, Y, and/or Z accelerometers
+		AFS_SEL[10] : full-scale range select
+				0 -> ±  2 g
+				1 -> ±  4 g
+				2 -> ±  8 g
+				3 -> ± 16 g
+
+endif # SENSORS_MPU9250
 
 config SENSORS_MAX44009
 	bool "Maxim MAX44009 ALS sensor"
@@ -1105,4 +1322,36 @@ config HDC1008_DEBUG
 		Enables debug features for the HDC1008
 
 endif # SENSORS_HDC1008
+
+config SENSORS_LTR308
+	bool "LTR308 Lite-On ambient light sensor"
+	default n
+	select I2C
+	---help---
+		Enable driver support for the LTR308 Lite-on ambient light sensor.
+
+if SENSORS_LTR308
+
+config SENSORS_LTR308_I2C_FREQUENCY
+	int "LTR308 I2C frequency"
+	default 400000
+	range 1 400000
+
+config SENSORS_LTR308_POLL_INTERVAL
+	int "Polling interval in microseconds, default 1 sec"
+	depends on SENSORS_LTR308
+	default 1000000
+	range 0 4294967295
+	---help---
+		The interval until a new sensor measurement will be triggered.
+
+config SENSORS_LTR308_THREAD_STACKSIZE
+	int "Worker thread stack size"
+	depends on SENSORS_LTR308
+	default 1024
+	---help---
+		The stack size for the worker thread.
+
+endif # SENSORS_LTR308
+
 endif # SENSORS

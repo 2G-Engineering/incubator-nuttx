@@ -438,12 +438,16 @@ config CDCACM_EPINTIN_FSSIZE
 		Max package size for the interrupt IN endpoint if full speed mode.
 		Default 64.
 
+if USBDEV_DUALSPEED
+
 config CDCACM_EPINTIN_HSSIZE
 	int "Interrupt IN high speed MAXPACKET size"
 	default 64
 	---help---
 		Max package size for the interrupt IN endpoint if high speed mode.
 		Default 64.
+
+endif # USBDEV_DUALSPEED
 
 if !CDCACM_COMPOSITE
 
@@ -466,12 +470,16 @@ config CDCACM_EPBULKOUT_FSSIZE
 		Max package size for the bulk OUT endpoint if full speed mode.
 		Default 64.
 
+if USBDEV_DUALSPEED
+
 config CDCACM_EPBULKOUT_HSSIZE
 	int "Bulk OUT out high speed  MAXPACKET size"
 	default 512
 	---help---
 		Max package size for the bulk OUT endpoint if high speed mode.
 		Default 512.
+
+endif # USBDEV_DUALSPEED
 
 if !CDCACM_COMPOSITE
 
@@ -494,12 +502,16 @@ config CDCACM_EPBULKIN_FSSIZE
 		Max package size for the bulk IN endpoint if full speed mode.
 		Default 64.
 
+if USBDEV_DUALSPEED
+
 config CDCACM_EPBULKIN_HSSIZE
 	int "Bulk IN high speed  MAXPACKET size"
 	default 512
 	---help---
 		Max package size for the bulk IN endpoint if high speed mode.
 		Default 512.
+
+endif # USBDEV_DUALSPEED
 
 config CDCACM_NRDREQS
 	int "Number of read requests that can be in flight"
@@ -642,12 +654,16 @@ config USBADB_EPBULKOUT_FSSIZE
 		Max package size for the bulk OUT endpoint if full speed mode.
 		Default 64.
 
+if USBDEV_DUALSPEED
+
 config USBADB_EPBULKOUT_HSSIZE
 	int "Bulk OUT out high speed  MAXPACKET size"
 	default 512
 	---help---
 		Max package size for the bulk OUT endpoint if high speed mode.
 		Default 512.
+
+endif # USBDEV_DUALSPEED
 
 config USBADB_EPBULKIN_FSSIZE
 	int "Bulk IN full speed  MAXPACKET size"
@@ -656,12 +672,16 @@ config USBADB_EPBULKIN_FSSIZE
 		Max package size for the bulk IN endpoint if full speed mode.
 		Default 64.
 
+if USBDEV_DUALSPEED
+
 config USBADB_EPBULKIN_HSSIZE
 	int "Bulk IN high speed  MAXPACKET size"
 	default 512
 	---help---
 		Max package size for the bulk IN endpoint if high speed mode.
 		Default 512.
+
+endif # USBDEV_DUALSPEED
 
 config USBADB_NRDREQS
 	int "Number of read requests that can be in flight"
@@ -700,7 +720,7 @@ config USBADB_PRODUCTSTR
 config USBADB_BOARD_SERIALSTR
 	bool "Enable board unique ID to USBADB serial string"
 	default n
-        select BOARD_USBDEV_SERIALSTR
+	select BOARD_USBDEV_SERIALSTR
 	---help---
 		Use board unique serial number to iSerialNumber in the device descriptor.
 
@@ -760,16 +780,16 @@ config USBMSC_COMPOSITE
 		Configure the mass storage driver as part of a composite driver
 		(only if USBDEV_COMPOSITE is also defined)
 
+if !USBMSC_COMPOSITE
+
+# In a composite device the EP-Number and STR-Number is configured
+# dynamically via composite_initialize
+
 config USBMSC_EP0MAXPACKET
 	int "Max packet size for endpoint 0"
 	default 64
 	---help---
 		Max packet size for endpoint 0
-
-if !USBMSC_COMPOSITE
-
-# In a composite device the EP-Number and STR-Number is configured
-# dynamically via composite_initialize
 
 config USBMSC_EPBULKOUT
 	int "Bulk OUT endpoint number"
@@ -798,6 +818,20 @@ config USBMSC_NRDREQS
 	default 4
 	---help---
 		The number of write/read requests that can be in flight
+
+config USBMSC_WRMULTIPLE
+	bool "Write multiple blocks at once if possible"
+	default n
+	---help---
+		Store multiple blocks and write them in a single request.  This
+		speeds up the writing significantly with eMMC devices, for example,
+		because writing 512 bytes may be as fast as writing the complete
+		SUPER_PAGE_SIZE (see extended CSD [225] bits 0-3), which may be up
+		to 64Kb.  Real-life example with different block sizes, using the
+		dd command with argument bs=512, bs=8k (USBMSC_NWRREQS = 4, and 16):
+		512b: 470 kb/s, 8k: 5.3 Mb/s.  This is more than a tenfold increase
+		in the throughput.  Without this option enabled, the block driver's
+		block size is always used, which is usually 512 bytes.
 
 config USBMSC_BULKINREQLEN
 	int "Bulk IN request size"
@@ -871,7 +905,7 @@ config USBMSC_PRODUCTSTR
 config USBMSC_BOARD_SERIALSTR
 	bool "Enable board unique ID to mass storage serial string"
 	default n
-        select BOARD_USBDEV_SERIALSTR
+	select BOARD_USBDEV_SERIALSTR
 	---help---
 		Use board unique serial number to iSerialNumber in the device descriptor.
 
@@ -988,7 +1022,20 @@ config RNDIS_VERSIONNO
 	hex "RNDIS Version Number"
 	default 0x0001
 
+config RNDIS_EPBULKIN
+	int "RNDIS bulk in endpoint number"
+	default 1
+
+config RNDIS_EPBULKOUT
+	int "RNDIS bulk out endpoint number"
+	default 2
+
+config RNDIS_EPINTIN
+	int "RNDIS interrupt in endpoint number"
+	default 3
+
 endif # !RNDIS_COMPOSITE
+
 endif # RNDIS
 
 menuconfig DFU

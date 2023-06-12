@@ -64,6 +64,14 @@
  *   debug the PWM driver.
  */
 
+/* Channel Numbers **********************************************************/
+
+/* PWM channels should use numbers from 1 to CONFIG_PWM_NCHANNELS. Channel
+ * number 0 indicates the channel not used and therefore is skipped by
+ * the driver (its output remains at the value defined by the peripheral),
+ * number -1 indicates the channel and all following channels are not used.
+ */
+
 /* IOCTL Commands ***********************************************************/
 
 /* The PWM module uses a standard character driver framework.  However, since
@@ -120,6 +128,14 @@
 struct pwm_chan_s
 {
   ub16_t duty;
+#ifdef CONFIG_PWM_OVERWRITE
+  bool ch_outp_ovrwr;
+  bool ch_outp_ovrwr_val;
+#endif
+#ifdef CONFIG_PWM_DEADTIME
+  ub16_t dead_time_a;
+  ub16_t dead_time_b;
+#endif
   int8_t channel;
 };
 #endif
@@ -139,11 +155,18 @@ struct pwm_info_s
   ub16_t             duty;      /* Duty of the pulse train, "1"-to-"0" duration.
                                  * Maximum: 65535/65536 (0x0000ffff)
                                  * Minimum:     1/65536 (0x00000001) */
+#ifdef CONFIG_PWM_DEADTIME
+  ub16_t dead_time_a;           /* Dead time value for main output */
+  ub16_t dead_time_b;           /* Dead time value for complementary output */
+#endif
 #  ifdef CONFIG_PWM_PULSECOUNT
   uint32_t           count;     /* The number of pulse to generate.  0 means to
                                  * generate an indefinite number of pulses */
 #  endif
 #endif /* CONFIG_PWM_MULTICHAN */
+
+  FAR void           *arg;      /* User provided argument to be used in the
+                                 * lower half */
 };
 
 /* This structure is a set a callback functions used to call from the upper-

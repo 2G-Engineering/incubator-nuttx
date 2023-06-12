@@ -110,7 +110,11 @@ int rexec_af(FAR char **ahost, int inport, FAR const char *user,
 
   /* ignore second connection(fd2p always is NULL) */
 
-  write(sock, "", 1);
+  ret = write(sock, "", 1);
+  if (ret < 0)
+    {
+      goto conn_out;
+    }
 
   /* Send username */
 
@@ -173,7 +177,7 @@ addr_out:
  *   standard name of the host. If a username and password are both
  *   specified, then these are used to authenticate to the foreign host;
  *   otherwise the environment and then the .netrc file in user's home
- *   direcotry are searched for appropiate information. If all the fails,
+ *   directory are searched for appropiate information. If all that fails,
  *   the user is prompted for the information.
  *
  *   The port inport specifies which well-known DARPA Internet port to

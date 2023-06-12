@@ -19,69 +19,30 @@
 ############################################################################
 
 include chip/Bootloader.mk
+include common/Make.defs
 
 # The start-up, "head", file.  May be either a .S or a .c file.
 
-HEAD_ASRC  = xtensa_vectors.S xtensa_window_vector.S xtensa_windowspill.S
-HEAD_ASRC += xtensa_int_handlers.S  xtensa_user_handler.S
 HEAD_CSRC  = esp32_start.c esp32_wdt.c
 
-# Common XTENSA files (arch/xtensa/src/common)
-
-CMN_ASRCS  = xtensa_context.S xtensa_cpuint.S xtensa_panic.S
-
-CMN_CSRCS  = xtensa_assert.c xtensa_blocktask.c
-CMN_CSRCS += xtensa_cpenable.c xtensa_createstack.c xtensa_exit.c
-CMN_CSRCS += xtensa_initialize.c xtensa_initialstate.c
-CMN_CSRCS += xtensa_irqdispatch.c xtensa_lowputs.c xtensa_mdelay.c
-CMN_CSRCS += xtensa_modifyreg8.c xtensa_modifyreg16.c xtensa_modifyreg32.c
-CMN_CSRCS += xtensa_puts.c xtensa_releasepending.c xtensa_releasestack.c
-CMN_CSRCS += xtensa_reprioritizertr.c xtensa_schedsigaction.c
-CMN_CSRCS += xtensa_sigdeliver.c xtensa_stackframe.c xtensa_udelay.c
-CMN_CSRCS += xtensa_unblocktask.c xtensa_usestack.c xtensa_swint.c
-CMN_CSRCS += xtensa_saveusercontext.c
-
-# Configuration-dependent common XTENSA files
-
-ifeq ($(CONFIG_DEBUG_TCBINFO),y)
-  CMN_CSRCS += xtensa_tcbinfo.c
+ifeq ($(CONFIG_XTENSA_HAVE_WINDOW_EXCEPTION_HOOKS),y)
+HEAD_ASRC += esp32_window_hooks.S
 endif
 
-ifeq ($(CONFIG_DEBUG_ALERT),y)
-  CMN_CSRCS += xtensa_dumpstate.c
-endif
-
-ifeq ($(CONFIG_ARCH_FPU),y)
-  CMN_CSRCS += xtensa_fpucmp.c
-endif
-
-ifeq ($(CONFIG_SPINLOCK),y)
-  CMN_CSRCS += xtensa_testset.c
-endif
-
-ifeq ($(CONFIG_SMP),y)
-  CMN_CSRCS += xtensa_cpupause.c
-endif
-
-ifeq ($(CONFIG_STACK_COLORATION),y)
-  CMN_CSRCS += xtensa_checkstack.c
-endif
-
-ifeq ($(CONFIG_XTENSA_SEMIHOSTING_HOSTFS),y)
-  CMN_ASRCS += xtensa_simcall.S
-  CMN_CSRCS += xtensa_hostfs.c
-endif
-
-# Required ESP32 files (arch/xtensa/src/lx6)
+# Required ESP32 files (arch/xtensa/src/esp32)
 
 CHIP_CSRCS  = esp32_allocateheap.c esp32_clockconfig.c esp32_gpio.c
 CHIP_CSRCS += esp32_systemreset.c esp32_resetcause.c
-CHIP_CSRCS += esp32_irq.c esp32_region.c
-CHIP_CSRCS += esp32_user.c
+CHIP_CSRCS += esp32_irq.c esp32_region.c esp32_rtc_gpio.c
+CHIP_CSRCS += esp32_user.c esp32_libc_stubs.c
 CHIP_CSRCS += esp32_dma.c
 
 ifneq ($(CONFIG_ARCH_IDLE_CUSTOM),y)
 CHIP_CSRCS += esp32_idle.c
+endif
+
+ifeq ($(CONFIG_BUILD_PROTECTED),y)
+CHIP_CSRCS += esp32_userspace.c
 endif
 
 ifeq ($(CONFIG_SCHED_TICKLESS),y)
@@ -97,8 +58,6 @@ endif
 CHIP_CSRCS += esp32_pm.c
 endif
 
-CHIP_CSRCS += esp32_rtc.c
-
 ifeq ($(CONFIG_XTENSA_IMEM_USE_SEPARATE_HEAP),y)
 CHIP_CSRCS += esp32_imm.c
 endif
@@ -111,8 +70,16 @@ ifeq ($(CONFIG_ESP32_I2C),y)
 CHIP_CSRCS += esp32_i2c.c
 endif
 
+ifeq ($(CONFIG_ESP32_I2S),y)
+CHIP_CSRCS += esp32_i2s.c
+endif
+
 ifeq ($(CONFIG_ESP32_TWAI),y)
 CHIP_CSRCS += esp32_twai.c
+endif
+
+ifeq ($(CONFIG_ESP32_PCNT_AS_QE),y)
+CHIP_CSRCS += esp32_qencoder.c
 endif
 
 ifeq ($(CONFIG_ESP32_SPI),y)
@@ -138,6 +105,7 @@ ifeq ($(CONFIG_ESP32_SPIRAM),y)
 CHIP_CSRCS += esp32_spiram.c
 CHIP_CSRCS += esp32_psram.c
 CHIP_CSRCS += esp32_himem.c
+CHIP_CSRCS += esp32_himem_chardev.c
 endif
 
 ifeq ($(CONFIG_ESP32_EFUSE),y)
@@ -205,19 +173,25 @@ endif
 
 ifeq ($(CONFIG_ARCH_USE_TEXT_HEAP),y)
 CHIP_CSRCS += esp32_textheap.c
-CMN_ASRCS  += xtensa_loadstore.S
 endif
 
 ifeq ($(CONFIG_ESP32_RT_TIMER),y)
 CHIP_CSRCS += esp32_rt_timer.c
 endif
 
+ifeq ($(CONFIG_ESP32_TOUCH),y)
+CHIP_CSRCS += esp32_touch.c
+endif
+
 ifeq ($(CONFIG_ESP32_AES_ACCELERATOR),y)
 CHIP_CSRCS += esp32_aes.c
 endif
 
+ifeq ($(CONFIG_ESP32_RTC),y)
+CHIP_CSRCS += esp32_rtc.c
 ifeq ($(CONFIG_RTC_DRIVER),y)
 CHIP_CSRCS += esp32_rtc_lowerhalf.c
+endif
 endif
 
 ifeq ($(CONFIG_ESP32_WIRELESS),y)
@@ -227,8 +201,7 @@ WIRELESS_DRV_ZIP     = $(WIRELESS_DRV_ID).zip
 WIRELESS_DRV_URL     = https://github.com/espressif/esp-wireless-drivers-3rdparty/archive
 
 $(WIRELESS_DRV_ZIP):
-	$(Q) echo "Downloading: ESP Wireless Drivers"
-	$(Q) curl -L $(WIRELESS_DRV_URL)/$(WIRELESS_DRV_ZIP) -o chip/$(WIRELESS_DRV_ZIP)
+	$(call DOWNLOAD,$(WIRELESS_DRV_URL),$(WIRELESS_DRV_ZIP),chip/$(WIRELESS_DRV_ZIP))
 
 chip/$(WIRELESS_DRV_UNPACK): $(WIRELESS_DRV_ZIP)
 	$(Q) echo "Unpacking: ESP Wireless Drivers"
@@ -236,18 +209,36 @@ chip/$(WIRELESS_DRV_UNPACK): $(WIRELESS_DRV_ZIP)
 	$(Q) mv chip/$(WIRELESS_DRV_UNPACK)-$(WIRELESS_DRV_ID)* chip/$(WIRELESS_DRV_UNPACK)
 	$(Q) touch chip/$(WIRELESS_DRV_UNPACK)
 
+ifeq ($(wildcard chip/$(WIRELESS_DRV_UNPACK)/.git),)
 context:: chip/$(WIRELESS_DRV_UNPACK)
 
 distclean::
 	$(call DELFILE, chip/$(WIRELESS_DRV_ZIP))
 	$(call DELDIR, chip/$(WIRELESS_DRV_UNPACK))
+endif
 
 INCLUDES += $(shell $(INCDIR) "$(CC)" $(ARCH_SRCDIR)$(DELIM)chip$(DELIM)esp-wireless-drivers-3rdparty$(DELIM)include)
 INCLUDES += $(shell $(INCDIR) "$(CC)" $(ARCH_SRCDIR)$(DELIM)chip$(DELIM)esp-wireless-drivers-3rdparty$(DELIM)include$(DELIM)esp32)
-CHIP_CSRCS += esp32_wlan.c esp32_wifi_utils.c esp32_wifi_adapter.c
 
 EXTRA_LIBPATHS += -L $(ARCH_SRCDIR)$(DELIM)chip$(DELIM)esp-wireless-drivers-3rdparty$(DELIM)libs$(DELIM)esp32
-EXTRA_LIBS += -lcore -lrtc -lnet80211 -lpp -lsmartconfig -lespnow -lphy -lwpa_supplicant
+EXTRA_LIBS += -lphy -lrtc
+
+# Wireless interfaces.
+
+CHIP_CSRCS += esp32_wireless.c
+endif
+
+ifeq ($(CONFIG_ESP32_WIFI),y)
+CHIP_CSRCS += esp32_wlan.c esp32_wifi_utils.c esp32_wifi_adapter.c
+EXTRA_LIBS += -lcore -lnet80211 -lpp -lsmartconfig -lespnow -lwpa_supplicant
+
+ifeq ($(GCCVER),)
+  export GCCVER := $(shell $(CC) --version | grep gcc | sed -r 's/.* ([0-9]+\.[0-9]+).*/\1/')
+endif
+ifeq ($(GCCVER),12.2)
+  chip/esp32_wifi_adapter.c_CFLAGS += -Wno-maybe-uninitialized
+endif
+endif
 
 ifeq ($(CONFIG_ESP32_BLE),y)
 CHIP_CSRCS += esp32_ble_adapter.c esp32_ble.c
@@ -255,9 +246,4 @@ EXTRA_LIBS += -lbtdm_app
   ifeq ($(CONFIG_ESP32_WIFI_BT_COEXIST),y)
     EXTRA_LIBS += -lcoexist
   endif
-endif
-
-# Wireless interfaces.
-
-CHIP_CSRCS += esp32_wireless.c
 endif

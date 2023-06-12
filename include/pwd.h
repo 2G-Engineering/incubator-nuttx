@@ -35,9 +35,9 @@
  ****************************************************************************/
 
 #ifdef CONFIG_LIBC_PASSWD_LINESIZE
-# define NSS_BUFLEN_PASSWD CONFIG_LIBC_PASSWD_LINESIZE
+#  define NSS_BUFLEN_PASSWD CONFIG_LIBC_PASSWD_LINESIZE
 #else
-# define NSS_BUFLEN_PASSWD 256
+#  define NSS_BUFLEN_PASSWD 256
 #endif
 
 /****************************************************************************
@@ -49,6 +49,7 @@ struct passwd
   FAR char *pw_name;
   uid_t     pw_uid;
   gid_t     pw_gid;
+  FAR char *pw_gecos;
   FAR char *pw_dir;
   FAR char *pw_shell;
 };

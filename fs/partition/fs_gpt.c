@@ -22,11 +22,13 @@
  * Included Files
  ****************************************************************************/
 
-#include <crc32.h>
 #include <ctype.h>
 #include <debug.h>
 #include <endian.h>
+#include <inttypes.h>
+#include <sys/param.h>
 
+#include <nuttx/crc32.h>
 #include <nuttx/kmalloc.h>
 
 #include "partition.h"
@@ -38,17 +40,7 @@
 #define GPT_BLOCK_SIZE                  512
 #define GPT_HEADER_SIGNATURE            0x5452415020494645ull
 #define GPT_PARTNAME_MAX_SIZE           (72 / sizeof(uint16_t))
-#define GPT_LBA_TO_BLOCK(lba, blk)      ((le64toh(lba) * 512 + (blk) -1) / (blk))
-#define GPT_MIN(x, y)                   (((x) < (y)) ? (x) : (y))
-
-/* Helper macro for printing lba addresses according to the  sys/types.h */
-#if defined(CONFIG_FS_LARGEFILE) && defined(CONFIG_HAVE_LONG_LONG)
-#define PRIxLBA PRIx64
-#define PRIdLBA PRId64
-#else
-#define PRIxLBA PRIx32
-#define PRIdLBA PRId32
-#endif
+#define GPT_LBA_TO_BLOCK(lba, blk)      ((le64toh(lba) * 512 + (blk) - 1) / (blk))
 
 /****************************************************************************
  * Private Types
@@ -212,7 +204,7 @@ gpt_alloc_verify_entries(FAR struct partition_state_s *state,
       return NULL;
     }
 
-  blk = (size + (state->blocksize -1)) / state->blocksize;
+  blk = (size + (state->blocksize - 1)) / state->blocksize;
   pte = kmm_zalloc(blk * state->blocksize);
   if (!pte)
     {
@@ -296,7 +288,7 @@ static int gpt_header_is_valid(FAR struct partition_state_s *state,
 
   if (le64toh(gpt->my_lba) != lba)
     {
-      ferr("GPT: my_lba incorrect: %" PRIx64 " != %" PRIxLBA "\n",
+      ferr("GPT: my_lba incorrect: %" PRIx64 " != %" PRIxOFF "\n",
            le64toh(gpt->my_lba), lba);
       return -EINVAL;
     }
@@ -306,14 +298,14 @@ static int gpt_header_is_valid(FAR struct partition_state_s *state,
   lastlba = gpt_last_lba(state);
   if (le64toh(gpt->first_usable_lba) > lastlba)
     {
-      ferr("GPT: first_usable_lba incorrect: %" PRId64 " > %" PRIdLBA "\n",
+      ferr("GPT: first_usable_lba incorrect: %" PRId64 " > %" PRIdOFF "\n",
            le64toh(gpt->first_usable_lba), lastlba);
       return -EINVAL;
     }
 
   if (le64toh(gpt->last_usable_lba) > lastlba)
     {
-      ferr("GPT: last_usable_lba incorrect: %" PRId64 " > %" PRIdLBA "\n",
+      ferr("GPT: last_usable_lba incorrect: %" PRId64 " > %" PRIdOFF "\n",
            le64toh(gpt->last_usable_lba), lastlba);
       return -EINVAL;
     }
@@ -398,6 +390,7 @@ int parse_gpt_partition(FAR struct partition_state_s *state,
   FAR struct gpt_header_s *gpt;
   FAR struct gpt_entry_s *ptes;
   struct partition_s pentry;
+  blkcnt_t lastlba;
   int nb_part;
   int count;
   int ret;
@@ -470,12 +463,20 @@ int parse_gpt_partition(FAR struct partition_state_s *state,
       goto err;
     }
 
+  lastlba = gpt_last_lba(state);
   nb_part = le32toh(gpt->num_partition_entries);
   for (pentry.index = 0; pentry.index < nb_part; pentry.index++)
     {
+      /* Skip the empty or invalid entries */
+
+      if (!gpt_pte_is_valid(&ptes[pentry.index], lastlba))
+        {
+          continue;
+        }
+
       pentry.firstblock = GPT_LBA_TO_BLOCK(ptes[pentry.index].starting_lba,
                                            state->blocksize);
-      pentry.nblocks = GPT_LBA_TO_BLOCK(ptes[pentry.index].ending_lba,
+      pentry.nblocks = GPT_LBA_TO_BLOCK(ptes[pentry.index].ending_lba + 1,
                                         state->blocksize) -
                        pentry.firstblock;
       pentry.blocksize = state->blocksize;

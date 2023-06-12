@@ -39,7 +39,7 @@ LEDs
   include/board.h and src/stm32_autoleds.c. The LEDs are used to encode OS
   related events as follows when the LEDs are available:
 
-  SYMBOL                Meaning                  RED  GREEN 
+  SYMBOL                Meaning                  RED  GREEN
   -------------------  -----------------------   ---  -----
 
   LED_STARTED          NuttX has been started    OFF  OFF
@@ -107,15 +107,15 @@ TrustedFirmware-M
 =================
 
   You should study [UM2671] STMicroelectronics. UM2671: Getting started with
-  STM32CubeL5 TFM application, 2nd edition, July 2020.
+  STM32CubeL5 TFM application, 3rd edition, June 2021.
 
-  I was using STM32CubeL5 v1.3.1
-  (https://github.com/STMicroelectronics/STM32CubeL5/tree/v1.3.1).
+  I was using STM32CubeL5 v1.5.0
+  (https://github.com/STMicroelectronics/STM32CubeL5/tree/v1.5.0).
 
   Changes required to STM32CubeL5's TFM
   -------------------------------------
 
-  The following two changes to TFM have to be applied to be able to run NuttX.
+  The following three changes to TFM have to be applied to be able to run NuttX.
 
   The first one is required since NuttX issues SVC instructions while interrupts
   are disabled, which causes HardFaults.  NuttX then detects this situation in
@@ -127,7 +127,7 @@ TrustedFirmware-M
   @@ -306,6 +306,9 @@ void jumper(struct arm_vector_table *vector)
      /* set the secure vector */
      SCB->VTOR = (uint32_t)vector;
-   
+
   +  /* Stay in Non-Secure mode for BusFault, HardFault, and NMI exceptions */
   +  SCB->AIRCR = (SCB->AIRCR & 0x0000FFFF) | 0x05FA0000 | SCB_AIRCR_BFHFNMINS_Msk;
   +
@@ -145,6 +145,22 @@ TrustedFirmware-M
   +  nvic_interrupt_target_state_cfg();
      return TFM_PLAT_ERR_SUCCESS;
    }
+
+  The third chage is required, since current NuttX does not support lazy FPU
+  register stacking any longer.  Thus, this must be disabled for the TF-M secure
+  code as well:
+
+  --- a/Projects/STM32L562E-DK/Applications/TFM/TFM_Appli/Secure/Src/target_cfg.c
+  +++ b/Projects/STM32L562E-DK/Applications/TFM/TFM_Appli/Secure/Src/target_cfg.c
+  @@ -134,7 +134,7 @@ void sau_and_idau_cfg(void)
+     SCB->NSACR = (SCB->NSACR & ~(SCB_NSACR_CP10_Msk | SCB_NSACR_CP11_Msk)) |
+                  ((SCB_NSACR_CP10_11_VAL << SCB_NSACR_CP10_Pos) & (SCB_NSACR_CP10_Msk | SCB_NSACR_CP11_Msk));
+
+  -  FPU->FPCCR = (FPU->FPCCR & ~(FPU_FPCCR_TS_Msk | FPU_FPCCR_CLRONRETS_Msk | FPU_FPCCR_CLRONRET_Msk)) |
+  +  FPU->FPCCR = (FPU->FPCCR & ~(FPU_FPCCR_TS_Msk | FPU_FPCCR_CLRONRETS_Msk | FPU_FPCCR_CLRONRET_Msk | FPU_FPCCR_LSPEN_Msk)) |
+                  ((FPU_FPCCR_TS_VAL        << FPU_FPCCR_TS_Pos) & FPU_FPCCR_TS_Msk) |
+                  ((FPU_FPCCR_CLRONRETS_VAL << FPU_FPCCR_CLRONRETS_Pos) & FPU_FPCCR_CLRONRETS_Msk) |
+                  ((FPU_FPCCR_CLRONRET_VAL  << FPU_FPCCR_CLRONRET_Pos) & FPU_FPCCR_CLRONRET_Msk);
 
   Encrypting and Signing the NuttX Binary
   ---------------------------------------
@@ -235,7 +251,7 @@ Configurations
        CONFIG_HOST_LINUX=y                 : Linux environment
 
      System Type -> Toolchain:
-       CONFIG_ARMV8M_TOOLCHAIN_GNU_EABI=y : GNU ARM EABI toolchain
+       CONFIG_ARM_TOOLCHAIN_GNU_EABI=y : GNU ARM EABI toolchain
 
   Configuration sub-directories
   -----------------------------

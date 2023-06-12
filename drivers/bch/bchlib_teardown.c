@@ -31,6 +31,7 @@
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
+#include <nuttx/drivers/drivers.h>
 
 #include "bch.h"
 
@@ -75,7 +76,7 @@ int bchlib_teardown(FAR void *handle)
       kmm_free(bch->buffer);
     }
 
-  nxsem_destroy(&bch->sem);
+  nxmutex_destroy(&bch->lock);
   kmm_free(bch);
   return OK;
 }

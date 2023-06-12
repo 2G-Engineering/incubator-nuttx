@@ -25,6 +25,7 @@
 #include <nuttx/config.h>
 #if defined(CONFIG_NET) && defined(CONFIG_NET_LOCAL)
 
+#include <sys/param.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <inttypes.h>
@@ -39,14 +40,7 @@
 
 #include "socket/socket.h"
 #include "local/local.h"
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-#ifndef MIN
-#  define MIN(a,b) ((a) < (b) ? (a) : (b))
-#endif
+#include "utils/utils.h"
 
 /****************************************************************************
  * Private Functions
@@ -64,7 +58,7 @@
 static int psock_fifo_read(FAR struct socket *psock, FAR void *buf,
                            FAR size_t *readlen, bool once)
 {
-  FAR struct local_conn_s *conn = (FAR struct local_conn_s *)psock->s_conn;
+  FAR struct local_conn_s *conn = psock->s_conn;
   int ret;
 
   ret = local_fifo_read(&conn->lc_infile, buf, readlen, once);
@@ -121,24 +115,14 @@ static int psock_fifo_read(FAR struct socket *psock, FAR void *buf,
 
 #ifdef CONFIG_NET_LOCAL_SCM
 static void local_recvctl(FAR struct local_conn_s *conn,
-                          FAR struct msghdr *msg)
+                          FAR struct msghdr *msg, int flags)
 {
   FAR struct local_conn_s *peer;
-  struct cmsghdr *cmsg;
   int count;
   int *fds;
   int i;
 
   net_lock();
-
-  cmsg  = CMSG_FIRSTHDR(msg);
-  count = (cmsg->cmsg_len - sizeof(struct cmsghdr)) / sizeof(int);
-  cmsg->cmsg_len = 0;
-
-  if (count == 0)
-    {
-      goto out;
-    }
 
   if (conn->lc_peer == NULL)
     {
@@ -158,13 +142,17 @@ static void local_recvctl(FAR struct local_conn_s *conn,
       goto out;
     }
 
-  fds = (int *)CMSG_DATA(cmsg);
+  fds = cmsg_append(msg, SOL_SOCKET, SCM_RIGHTS, NULL,
+                    sizeof(int) * peer->lc_cfpcount);
+  if (fds == NULL)
+    {
+      goto out;
+    }
 
-  count = count > peer->lc_cfpcount ?
-                  peer->lc_cfpcount : count;
+  count = peer->lc_cfpcount;
   for (i = 0; i < count; i++)
     {
-      fds[i] = file_dup(peer->lc_cfps[i], 0);
+      fds[i] = file_dup(peer->lc_cfps[i], 0, !!(flags & MSG_CMSG_CLOEXEC));
       file_close(peer->lc_cfps[i]);
       kmm_free(peer->lc_cfps[i]);
       peer->lc_cfps[i] = NULL;
@@ -183,10 +171,6 @@ static void local_recvctl(FAR struct local_conn_s *conn,
           memmove(peer->lc_cfps[0], peer->lc_cfps[i],
                   sizeof(FAR void *) * peer->lc_cfpcount);
         }
-
-      cmsg->cmsg_len   = CMSG_LEN(sizeof(int) * i);
-      cmsg->cmsg_level = SOL_SOCKET;
-      cmsg->cmsg_type  = SCM_RIGHTS;
     }
 
 out:
@@ -222,13 +206,14 @@ psock_stream_recvfrom(FAR struct socket *psock, FAR void *buf, size_t len,
                       int flags, FAR struct sockaddr *from,
                       FAR socklen_t *fromlen)
 {
-  FAR struct local_conn_s *conn = (FAR struct local_conn_s *)psock->s_conn;
+  FAR struct local_conn_s *conn = psock->s_conn;
   size_t readlen = len;
   int ret;
 
   /* Verify that this is a connected peer socket */
 
-  if (conn->lc_state != LOCAL_STATE_CONNECTED)
+  if (conn->lc_state != LOCAL_STATE_CONNECTED ||
+      conn->lc_infile.f_inode == NULL)
     {
       if (conn->lc_state == LOCAL_STATE_CONNECTING)
         {
@@ -238,10 +223,6 @@ psock_stream_recvfrom(FAR struct socket *psock, FAR void *buf, size_t len,
       nerr("ERROR: not connected\n");
       return -ENOTCONN;
     }
-
-  /* The incoming FIFO should be open */
-
-  DEBUGASSERT(conn->lc_infile.f_inode != NULL);
 
   /* Read the packet */
 
@@ -293,7 +274,7 @@ psock_dgram_recvfrom(FAR struct socket *psock, FAR void *buf, size_t len,
                      int flags, FAR struct sockaddr *from,
                      FAR socklen_t *fromlen)
 {
-  FAR struct local_conn_s *conn = (FAR struct local_conn_s *)psock->s_conn;
+  FAR struct local_conn_s *conn = psock->s_conn;
   uint16_t pktlen;
   size_t readlen;
   int ret;
@@ -337,7 +318,6 @@ psock_dgram_recvfrom(FAR struct socket *psock, FAR void *buf, size_t len,
       nerr("ERROR: Failed to open FIFO for %s: %d\n",
            conn->lc_path, ret);
       goto errout_with_halfduplex;
-      return ret;
     }
 
   /* Sync to the start of the next packet in the stream and get the size of
@@ -507,7 +487,7 @@ ssize_t local_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
   if (len >= 0 && msg->msg_control &&
       msg->msg_controllen > sizeof(struct cmsghdr))
     {
-      local_recvctl(psock->s_conn, msg);
+      local_recvctl(psock->s_conn, msg, flags);
     }
 #endif /* CONFIG_NET_LOCAL_SCM */
 

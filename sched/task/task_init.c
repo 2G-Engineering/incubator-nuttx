@@ -27,11 +27,11 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <sched.h>
-#include <queue.h>
 #include <assert.h>
 #include <errno.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/queue.h>
 #include <nuttx/sched.h>
 
 #include "sched/sched.h"
@@ -96,6 +96,15 @@ int nxtask_init(FAR struct task_tcb_s *tcb, const char *name, int priority,
   DEBUGASSERT(tcb && ttype != TCB_FLAG_TTYPE_PTHREAD);
 #endif
 
+#ifdef CONFIG_ARCH_ADDRENV
+  /* Kernel threads do not own any address environment */
+
+  if ((ttype & TCB_FLAG_TTYPE_MASK) == TCB_FLAG_TTYPE_KERNEL)
+    {
+      tcb->cmn.addrenv_own = NULL;
+    }
+#endif
+
   /* Create a new task group */
 
   ret = group_allocate(tcb, tcb->cmn.flags);
@@ -157,7 +166,11 @@ int nxtask_init(FAR struct task_tcb_s *tcb, const char *name, int priority,
 
   /* Setup to pass parameters to the new task */
 
-  nxtask_setup_arguments(tcb, name, argv);
+  ret = nxtask_setup_arguments(tcb, name, argv);
+  if (ret < OK)
+    {
+      goto errout_with_group;
+    }
 
   /* Now we have enough in place that we can join the group */
 
@@ -186,6 +199,7 @@ errout_with_group:
     }
 
   group_leave(&tcb->cmn);
+
   return ret;
 }
 
@@ -214,7 +228,7 @@ void nxtask_uninit(FAR struct task_tcb_s *tcb)
    * nxtask_setup_scheduler().
    */
 
-  dq_rem((FAR dq_entry_t *)tcb, (FAR dq_queue_t *)&g_inactivetasks);
+  dq_rem((FAR dq_entry_t *)tcb, &g_inactivetasks);
 
   /* Release all resources associated with the TCB... Including the TCB
    * itself.

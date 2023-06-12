@@ -53,6 +53,33 @@ static int stdsistream_getc(FAR struct lib_sistream_s *this)
 }
 
 /****************************************************************************
+ * Name: stdsistream_gets
+ ****************************************************************************/
+
+static int stdsistream_gets(FAR struct lib_instream_s *this,
+                            FAR void *buffer, int len)
+{
+  FAR struct lib_stdsistream_s *sthis = (FAR struct lib_stdsistream_s *)this;
+  int nread = 0;
+
+  DEBUGASSERT(this);
+
+  /* Get the buffer from the incoming stream */
+
+  nread = fread(buffer, len, 1, sthis->stream);
+  if (nread >= 0)
+    {
+      this->nget += nread;
+    }
+  else
+    {
+      nread = _NX_GETERRVAL(nread);
+    }
+
+  return nread;
+}
+
+/****************************************************************************
  * Name: stdsistream_seek
  ****************************************************************************/
 
@@ -89,7 +116,8 @@ static off_t stdsistream_seek(FAR struct lib_sistream_s *this, off_t offset,
 void lib_stdsistream(FAR struct lib_stdsistream_s *instream,
                      FAR FILE *stream)
 {
-  instream->public.get  = stdsistream_getc;
+  instream->public.getc = stdsistream_getc;
+  instream->public.gets = stdsistream_gets;
   instream->public.seek = stdsistream_seek;
   instream->public.nget = 0;
   instream->stream      = stream;

@@ -111,7 +111,7 @@ g_intstacktop:
  *
  * Exit Conditions:
  *   This macro will use registers a2, a3 and a4.
- *   a2 - Points to the, possbily, new register save area.
+ *   a2 - Points to the, possibly, new register save area.
  *
  ****************************************************************************/
 
@@ -157,13 +157,20 @@ g_intstacktop:
 
 	mov		a2, RETVAL
 
-#if CONFIG_ARCH_INTERRUPTSTACK < 15
-	addi	sp, sp, XCPTCONTEXT_SIZE
-#endif
+	j		2f
 
 	/* Done */
 
 1:
+	/* No pending interrupts, simply copy the register save area pointer to
+	 * fulfill the macro exit condition.
+	 */
+
+	mov 	a2, a12
+2:
+#if CONFIG_ARCH_INTERRUPTSTACK < 15
+	addi	sp, sp, XCPTCONTEXT_SIZE
+#endif
 	.endm
 
 /****************************************************************************
@@ -516,6 +523,55 @@ _xtensa_level6_handler:
 	rfi		6
 
 #endif /* XCHAL_EXCM_LEVEL >= 6 */
+
+#if XCHAL_HAVE_NMI
+	.section HANDLER_SECTION, "ax"
+	.type	_xtensa_nmi_handler, @function
+	.global	_xtensa_nmi_handler
+	.align	4
+
+_xtensa_nmi_handler:
+	/* For now, just panic */
+
+	exception_entry XCHAL_NMILEVEL
+
+	movi	a2, XTENSA_NMI_EXCEPTION		/* Argument 1: Error code */
+	call0	_xtensa_panic					/* Does not return */
+
+	.size	_xtensa_nmi_handler, . -_xtensa_nmi_handler
+
+#endif /* XCHAL_HAVE_NMI */
+
+#if XCHAL_HAVE_DEBUG
+	.section HANDLER_SECTION, "ax"
+	.type	_xtensa_debug_handler, @function
+	.global	_xtensa_debug_handler
+	.align	4
+
+_xtensa_debug_handler:
+
+	exception_entry XCHAL_DEBUGLEVEL
+
+	movi	a2, XTENSA_DEBUG_EXCEPTION		/* Argument 1: Error code */
+	call0	_xtensa_panic					/* Does not return */
+
+	.size	_xtensa_debug_handler, . -_xtensa_debug_handler
+
+#endif /* XCHAL_HAVE_DEBUG */
+
+	.section HANDLER_SECTION, "ax"
+	.type	_xtensa_kernel_handler, @function
+	.global	_xtensa_kernel_handler
+	.align	4
+
+_xtensa_kernel_handler:
+
+	exception_entry 1
+
+	movi	a2, XTENSA_KERNEL_EXCEPTION		/* Argument 1: Error code */
+	call0	_xtensa_panic					/* Does not return */
+
+	.size	_xtensa_kernel_handler, . -_xtensa_kernel_handler
 
 /****************************************************************************
  * HIGH PRIORITY (LEVEL > XCHAL_EXCM_LEVEL) LOW-LEVEL HANDLERS

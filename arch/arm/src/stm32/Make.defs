@@ -175,6 +175,10 @@ ifeq ($(CONFIG_STM32_PWM),y)
 CHIP_CSRCS += stm32_pwm.c
 endif
 
+ifeq ($(CONFIG_STM32_CAP),y)
+CHIP_CSRCS += stm32_capture_lowerhalf.c
+endif
+
 ifeq ($(CONFIG_SENSORS_QENCODER),y)
 CHIP_CSRCS += stm32_qencoder.c
 endif
@@ -215,6 +219,10 @@ endif
 
 ifeq ($(CONFIG_STM32_AES),y)
 CHIP_CSRCS += stm32_aes.c
+endif
+
+ifeq ($(CONFIG_CRYPTO_CRYPTODEV_HARDWARE),y)
+CHIP_CSRCS += stm32_crypto.c
 endif
 
 ifeq ($(CONFIG_STM32_BBSRAM),y)

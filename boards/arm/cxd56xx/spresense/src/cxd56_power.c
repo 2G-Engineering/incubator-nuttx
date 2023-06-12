@@ -32,7 +32,7 @@
 #include <debug.h>
 
 #include <nuttx/arch.h>
-#include <nuttx/semaphore.h>
+#include <nuttx/mutex.h>
 
 #include "chip.h"
 #include "arm_internal.h"
@@ -46,6 +46,8 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+#define BOARD_GPO_MAX_PIN_NUM 7
+
 /****************************************************************************
  * Private Types
  ****************************************************************************/
@@ -54,7 +56,7 @@
  * Private Data
  ****************************************************************************/
 
-static sem_t g_ltsem = SEM_INITIALIZER(1);
+static mutex_t g_ltlock = NXMUTEX_INITIALIZER;
 static bool g_used_lna = false;
 static bool g_used_tcxo = true;
 #ifdef CONFIG_BOARDCTL_RESET
@@ -62,6 +64,7 @@ static struct pm_cpu_freqlock_s g_hv_lock =
   PM_CPUFREQLOCK_INIT(PM_CPUFREQLOCK_TAG('B', 'P', 0),
                       PM_CPUFREQLOCK_FLAG_HV);
 #endif
+static uint8_t g_reset_gpo_targets = 0xff;
 
 /****************************************************************************
  * Public Data
@@ -127,21 +130,41 @@ int board_pmic_write(uint8_t addr, void *buf, uint32_t size)
 
 int board_power_setup(int status)
 {
+  int      pin;
 #ifdef CONFIG_BOARD_USB_DISABLE_IN_DEEP_SLEEPING
   int      ret;
   uint8_t  val = 0;
+#endif
   uint32_t bootcause;
-
-  /* Enable USB after wakeup from deep sleeping */
 
   bootcause = up_pm_get_bootcause();
 
   switch (bootcause)
     {
+      case PM_BOOT_POR_NORMAL:
+      case PM_BOOT_POR_DEADBATT:
+      case PM_BOOT_WDT_REBOOT:
+      case PM_BOOT_WDT_RESET:
+        /* Power off Hi-Z of GPO switches (except for GPO0)
+         * in first boot-up stage
+         */
+
+        for (pin = 1; pin <= BOARD_GPO_MAX_PIN_NUM; pin++)
+          {
+            if (cxd56_pmic_get_gpo_hiz(PMIC_GET_CH(PMIC_GPO(pin))) == -1)
+              {
+                board_power_control(PMIC_GPO(pin), false);
+              }
+          }
+        break;
+#ifdef CONFIG_BOARD_USB_DISABLE_IN_DEEP_SLEEPING
       case PM_BOOT_DEEP_WKUPL:
       case PM_BOOT_DEEP_WKUPS:
       case PM_BOOT_DEEP_RTC:
       case PM_BOOT_DEEP_OTHERS:
+
+        /* Enable USB after wakeup from deep sleeping */
+
         ret = cxd56_pmic_read(PMIC_REG_CNT_USB2, &val, sizeof(val));
         if ((ret == 0) && (val & PMIC_SET_CHGOFF))
           {
@@ -149,10 +172,10 @@ int board_power_setup(int status)
             cxd56_pmic_write(PMIC_REG_CNT_USB2, &val, sizeof(val));
           }
         break;
+#endif
       default:
         break;
     }
-#endif
 
   /* Disable unused DDC/LDO permanently */
 
@@ -162,14 +185,13 @@ int board_power_setup(int status)
 
   board_power_control(POWER_AUDIO_DVDD, false);
 
-  /* Power off all of GPO switches (except for GPO0) in boot-up stage */
-
-  board_power_control(PMIC_GPO(1) | PMIC_GPO(2) | PMIC_GPO(3) | PMIC_GPO(4) |
-                      PMIC_GPO(5) | PMIC_GPO(6) | PMIC_GPO(7), false);
-
   /* Set GPO0 to Hi-Z */
 
   cxd56_pmic_set_gpo_hiz(PMIC_GET_CH(PMIC_GPO(0)));
+
+  /* Initialize reset GPO targets (reset all) */
+
+  g_reset_gpo_targets = 0xff;
 
   return 0;
 }
@@ -200,6 +222,9 @@ int board_power_control(int target, bool en)
       pfunc = cxd56_pmic_set_ddc_ldo;
       break;
 #endif /* CONFIG_CXD56_PMIC */
+    case CHIP_TYPE_GPIO:
+      board_gpio_write(PMIC_GET_CH(target), en ? 1 : 0);
+      break;
     default:
       break;
     }
@@ -253,6 +278,10 @@ int board_power_control_tristate(int target, int value)
           usleep(1);
         }
     }
+  else if (PMIC_GET_TYPE(target) == CHIP_TYPE_GPIO)
+    {
+      board_gpio_write(PMIC_GET_CH(target), value);
+    }
   else
     {
       en = value ? true : false;
@@ -274,6 +303,7 @@ bool board_power_monitor(int target)
 {
   bool ret = false;
   bool (*pfunc)(uint8_t chset) = NULL;
+  int  status;
 
   switch (PMIC_GET_TYPE(target))
     {
@@ -288,6 +318,10 @@ bool board_power_monitor(int target)
       pfunc = cxd56_pmic_get_ddc_ldo;
       break;
 #endif /* CONFIG_CXD56_PMIC */
+    case CHIP_TYPE_GPIO:
+      status = board_gpio_read(PMIC_GET_CH(target));
+      ret = (status == 1);
+      break;
     default:
       break;
     }
@@ -395,7 +429,7 @@ int board_xtal_power_control(bool en)
 
   /* Get exclusive access to the lna / tcxo power control */
 
-  nxsem_wait_uninterruptible(&g_ltsem);
+  nxmutex_lock(&g_ltlock);
 
   if (en)
     {
@@ -421,8 +455,7 @@ int board_xtal_power_control(bool en)
       g_used_tcxo = false;
     }
 
-  nxsem_post(&g_ltsem);
-
+  nxmutex_unlock(&g_ltlock);
   return ret;
 }
 
@@ -453,7 +486,7 @@ int board_lna_power_control(bool en)
 
   /* Get exclusive access to the lna / tcxo power control */
 
-  nxsem_wait_uninterruptible(&g_ltsem);
+  nxmutex_lock(&g_ltlock);
 
   if (en)
     {
@@ -479,8 +512,7 @@ int board_lna_power_control(bool en)
       g_used_lna = false;
     }
 
-  nxsem_post(&g_ltsem);
-
+  nxmutex_unlock(&g_ltlock);
   return ret;
 }
 
@@ -509,6 +541,8 @@ int board_lna_power_control(bool en)
 #ifdef CONFIG_BOARDCTL_RESET
 int board_reset(int status)
 {
+  board_power_control(PMIC_TYPE_GPO | g_reset_gpo_targets, false);
+
   /* Restore the original state for bootup after power cycle  */
 
   if (!up_interrupt_context())
@@ -553,11 +587,7 @@ int board_power_off(int status)
   enum pm_sleepmode_e mode;
   uint8_t val;
 
-  /* Power off explicitly because GPOs are kept during deep sleeping */
-
-  board_power_control(PMIC_GPO(0) | PMIC_GPO(1) | PMIC_GPO(2) | PMIC_GPO(3) |
-                      PMIC_GPO(4) | PMIC_GPO(5) | PMIC_GPO(6) | PMIC_GPO(7),
-                      false);
+  board_power_control(PMIC_TYPE_GPO | g_reset_gpo_targets, false);
 
   /* Set DDC_ANA output to HiZ before sleeping for power saving */
 
@@ -595,3 +625,43 @@ int board_power_off(int status)
   return 0;
 }
 #endif
+
+/****************************************************************************
+ * Name: board_set_reset_gpo
+ *
+ * Description:
+ *   Set gpo to off when power off the board.
+ *
+ ****************************************************************************/
+
+int board_set_reset_gpo(int target)
+{
+  if ((PMIC_GET_TYPE(target) & PMIC_TYPE_GPO) == 0)
+    {
+      return -1;
+    }
+
+  g_reset_gpo_targets |= PMIC_GET_CH(target);
+
+  return 0;
+}
+
+/****************************************************************************
+ * Name: board_unset_reset_gpo
+ *
+ * Description:
+ *   Keep gpo status when power off the board.
+ *
+ ****************************************************************************/
+
+int board_unset_reset_gpo(int target)
+{
+  if ((PMIC_GET_TYPE(target) & PMIC_TYPE_GPO) == 0)
+    {
+      return -1;
+    }
+
+  g_reset_gpo_targets &= ~PMIC_GET_CH(target);
+
+  return 0;
+}

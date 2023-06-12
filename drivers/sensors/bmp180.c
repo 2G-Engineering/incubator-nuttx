@@ -146,12 +146,6 @@ static const struct file_operations g_bmp180fops =
   NULL,                         /* close */
   bmp180_read,                  /* read */
   bmp180_write,                 /* write */
-  NULL,                         /* seek */
-  NULL,                         /* ioctl */
-  NULL                          /* poll */
-#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-  , NULL                        /* unlink */
-#endif
 };
 
 /****************************************************************************
@@ -282,8 +276,6 @@ static void bmp180_putreg8(FAR struct bmp180_dev_s *priv, uint8_t regaddr,
       snerr("ERROR: i2c_write failed: %d\n", ret);
       return;
     }
-
-  return;
 }
 
 /****************************************************************************

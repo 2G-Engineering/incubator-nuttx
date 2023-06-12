@@ -95,6 +95,7 @@ struct sam_xdmach_s
   uint8_t chan;                   /* DMA channel number (0-15) */
   bool inuse;                     /* TRUE: The DMA channel is in use */
   bool rx;                        /* TRUE: Peripheral to memory transfer */
+  bool circular;                  /* TRUE: Circular buffer is used */
   uint32_t flags;                 /* DMA channel flags */
   uint32_t base;                  /* DMA register channel base address */
   uint32_t cc;                    /* Pre-calculated CC register for transfer */
@@ -110,9 +111,9 @@ struct sam_xdmach_s
 
 struct sam_xdmac_s
 {
-  /* These semaphores protect the DMA channel and descriptor tables */
+  /* These mutex protect the DMA channel and descriptor tables */
 
-  sem_t chsem;                       /* Protects channel table */
+  mutex_t chlock;                    /* Protects channel table */
   sem_t dsem;                        /* Protects descriptor table */
 };
 
@@ -188,7 +189,7 @@ static const struct sam_pidmap_s g_xdmac_txchan[] =
 
 /* This array describes the available link list descriptors */
 
-struct chnext_view1_s g_lldesc[CONFIG_SAMV7_NLLDESC];
+static struct chnext_view1_s g_lldesc[CONFIG_SAMV7_NLLDESC];
 
 /* This array describes the state of each XDMAC channel 0 */
 
@@ -342,47 +343,15 @@ static struct sam_xdmach_s g_xdmach[SAMV7_NDMACHAN] =
 
 /* This describes the overall state of DMA controller */
 
-static struct sam_xdmac_s g_xdmac;
+static struct sam_xdmac_s g_xdmac =
+{
+  .chlock     = NXMUTEX_INITIALIZER,
+  .dsem       = SEM_INITIALIZER(SAMV7_NDMACHAN),
+};
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: sam_takechsem() and sam_givechsem()
- *
- * Description:
- *   Used to get exclusive access to the DMA channel table
- *
- ****************************************************************************/
-
-static int sam_takechsem(struct sam_xdmac_s *xdmac)
-{
-  return nxsem_wait_uninterruptible(&xdmac->chsem);
-}
-
-static inline void sam_givechsem(struct sam_xdmac_s *xdmac)
-{
-  nxsem_post(&xdmac->chsem);
-}
-
-/****************************************************************************
- * Name: sam_takedsem() and sam_givedsem()
- *
- * Description:
- *   Used to wait for availability of descriptors in the descriptor table.
- *
- ****************************************************************************/
-
-static int sam_takedsem(struct sam_xdmac_s *xdmac)
-{
-  return nxsem_wait_uninterruptible(&xdmac->dsem);
-}
-
-static inline void sam_givedsem(struct sam_xdmac_s *xdmac)
-{
-  nxsem_post(&xdmac->dsem);
-}
 
 /****************************************************************************
  * Name: sam_getdmac
@@ -992,7 +961,7 @@ sam_allocdesc(struct sam_xdmach_s *xdmach, struct chnext_view1_s *prev,
        * there is at least one free descriptor in the table and it is ours.
        */
 
-      ret = sam_takedsem(xdmac);
+      ret = nxsem_wait_uninterruptible(&xdmac->dsem);
       if (ret < 0)
         {
           return NULL;
@@ -1004,10 +973,10 @@ sam_allocdesc(struct sam_xdmach_s *xdmach, struct chnext_view1_s *prev,
        * that is an atomic operation.
        */
 
-      ret = sam_takechsem(xdmac);
+      ret = nxmutex_lock(&xdmac->chlock);
       if (ret < 0)
         {
-          sam_givedsem(xdmac);
+          nxsem_post(&xdmac->dsem);
           return NULL;
         }
 
@@ -1076,7 +1045,7 @@ sam_allocdesc(struct sam_xdmach_s *xdmach, struct chnext_view1_s *prev,
        * search loop should always be successful.
        */
 
-      sam_givechsem(xdmac);
+      nxmutex_unlock(&xdmac->chlock);
       DEBUGASSERT(descr != NULL);
     }
 
@@ -1122,7 +1091,7 @@ static void sam_freelinklist(struct sam_xdmach_s *xdmach)
        */
 
       memset(descr, 0, sizeof(struct chnext_view1_s));
-      sam_givedsem(xdmac);
+      nxsem_post(&xdmac->dsem);
 
       /* Get the virtual address of the next descriptor in the list */
 
@@ -1527,7 +1496,17 @@ static int sam_xdmac_interrupt(int irq, void *context, void *arg)
             {
               /* Yes.. Terminate the transfer with success */
 
-              sam_dmaterminate(xdmach, OK);
+              if (!xdmach->circular)
+                {
+                  sam_dmaterminate(xdmach, OK);
+                }
+              else
+                {
+                  if (xdmach->callback)
+                    {
+                      xdmach->callback((DMA_HANDLE)xdmach, xdmach->arg, OK);
+                    }
+                }
             }
 
           /* Else what? */
@@ -1568,17 +1547,6 @@ void sam_dmainitialize(struct sam_xdmac_s *xdmac)
   /* Disable all DMA channels */
 
   sam_putdmac(xdmac, XDMAC_CHAN_ALL, SAM_XDMAC_GD_OFFSET);
-
-  /* Initialize semaphores */
-
-  nxsem_init(&xdmac->chsem, 0, 1);
-  nxsem_init(&xdmac->dsem, 0, SAMV7_NDMACHAN);
-
-  /* The 'dsem' is used for signaling rather than mutual exclusion and,
-   * hence, should not have priority inheritance enabled.
-   */
-
-  nxsem_set_protocol(&xdmac->dsem, SEM_PRIO_NONE);
 }
 
 /****************************************************************************
@@ -1646,7 +1614,7 @@ DMA_HANDLE sam_dmachannel(uint8_t dmacno, uint32_t chflags)
    */
 
   xdmach = NULL;
-  ret = sam_takechsem(xdmac);
+  ret = nxmutex_lock(&xdmac->chlock);
   if (ret < 0)
     {
       return NULL;
@@ -1679,7 +1647,7 @@ DMA_HANDLE sam_dmachannel(uint8_t dmacno, uint32_t chflags)
         }
     }
 
-  sam_givechsem(xdmac);
+  nxmutex_unlock(&xdmac->chlock);
 
   /* Show the result of the allocation */
 
@@ -1784,6 +1752,8 @@ int sam_dmatxsetup(DMA_HANDLE handle, uint32_t paddr, uint32_t maddr,
   DEBUGASSERT(xdmach);
   dmainfo("llhead: %p lltail: %p\n", xdmach->llhead, xdmach->lltail);
 
+  xdmach->circular = false;
+
   /* The maximum transfer size in bytes depends upon the maximum number of
    * transfers and the number of bytes per transfer.
    */
@@ -1863,6 +1833,8 @@ int sam_dmarxsetup(DMA_HANDLE handle, uint32_t paddr, uint32_t maddr,
   DEBUGASSERT(xdmach);
   dmainfo("llhead: %p lltail: %p\n", xdmach->llhead, xdmach->lltail);
 
+  xdmach->circular = false;
+
   /* The maximum transfer size in bytes depends upon the maximum number of
    * transfers and the number of bytes per transfer.
    */
@@ -1919,6 +1891,130 @@ int sam_dmarxsetup(DMA_HANDLE handle, uint32_t paddr, uint32_t maddr,
 
   up_clean_dcache(maddr, maddr + nbytes);
   return ret;
+}
+
+/****************************************************************************
+ * Name: sam_dmarxsetup_circular
+ *
+ * Description:
+ *   Configure DMA for receipt of two circular buffers for peripheral to
+ *   memory transfer. Function sam_dmastart_circular() needs to be called
+ *   to start the transfer. Only peripheral to memory transfer is currently
+ *   supported.
+ *
+ * Input Parameters:
+ *   handle - DMA handler
+ *   descr - array with DMA descriptors
+ *   maddr - array of memory addresses (i.e. destination addresses)
+ *   paddr - peripheral address (i.e. source address)
+ *   nbytes - number of bytes to transfer
+ *   ndescrs - number of descriptors (i.e. the lenght of descr array)
+ *
+ ****************************************************************************/
+
+int sam_dmarxsetup_circular(DMA_HANDLE handle,
+                            struct chnext_view1_s *descr[],
+                            uint32_t maddr[],
+                            uint32_t paddr,
+                            size_t nbytes,
+                            uint8_t ndescrs)
+{
+  struct sam_xdmach_s *xdmach = (struct sam_xdmach_s *)handle;
+  uint32_t cubc;
+  uint8_t nextdescr;
+  int i;
+
+  /* Set circular as true */
+
+  xdmach->circular = true;
+
+  xdmach->cc = sam_rxcc(xdmach);
+
+  /* Calculate the number of transfers for CUBC */
+
+  cubc  = sam_cubc(xdmach, nbytes);
+  cubc |= (CHNEXT_UBC_NDE | CHNEXT_UBC_NVIEW_1 | CHNEXT_UBC_NDEN |
+           CHNEXT_UBC_NSEN);
+
+  nextdescr = 0;
+
+  for (i = ndescrs - 1; i >= 0; i--)
+    {
+      descr[i]->cnda  = (uint32_t)descr[nextdescr];   /* Next Descriptor Address */
+      descr[i]->cubc  = cubc;                         /* Channel Microblock Control Register */
+      descr[i]->csa   = paddr;                        /* Source address */
+      descr[i]->cda   = maddr[i];                     /* Destination address */
+
+      /* Clean data cache */
+
+      up_clean_dcache((uintptr_t)descr[i],
+                      (uintptr_t)descr[i] +
+                       sizeof(struct chnext_view1_s));
+      up_clean_dcache((uintptr_t)maddr[i], (uintptr_t)maddr[i] + nbytes);
+      nextdescr = i;
+    }
+
+  /* Settup of llhead and lltail does not really matter in this case */
+
+  xdmach->llhead = descr[0];
+  xdmach->lltail = descr[0];
+
+  return OK;
+}
+
+/****************************************************************************
+ * Name: sam_dmastart_circular
+ *
+ * Description:
+ *   Start the DMA transfer with circular buffers.
+ *
+ ****************************************************************************/
+
+int sam_dmastart_circular(DMA_HANDLE handle, dma_callback_t callback,
+                          void *arg)
+{
+  struct sam_xdmach_s *xdmach = (struct sam_xdmach_s *)handle;
+  struct sam_xdmac_s *xdmac = sam_controller(xdmach);
+  struct chnext_view1_s *llhead = xdmach->llhead;
+  uintptr_t paddr;
+  uint32_t regval;
+
+  /* Save the callback info.  This will be invoked when the DMA
+   * completes
+   */
+
+  xdmach->callback = callback;
+  xdmach->arg      = arg;
+
+  /* Clear pending interrupts */
+
+  sam_getdmach(xdmach, SAM_XDMACH_CIS_OFFSET);
+
+  sam_putdmach(xdmach, xdmach->cc, SAM_XDMACH_CC_OFFSET);
+
+  /* Setup next descriptor */
+
+  regval = (XDMACH_CNDC_NDE | XDMACH_CNDC_NDVIEW_NDV1 |
+            XDMACH_CNDC_NDDUP | XDMACH_CNDC_NDSUP);
+  sam_putdmach(xdmach, regval, SAM_XDMACH_CNDC_OFFSET);
+
+  /* Use llhead (first descriptor) as initial buffer */
+
+  paddr = sam_physramaddr((uintptr_t)llhead);
+  sam_putdmach(xdmach, (uint32_t)paddr, SAM_XDMACH_CNDA_OFFSET);
+
+  /* Enable end of block interrupt */
+
+  sam_putdmach(xdmach, XDMAC_CHINT_BI | XDMAC_CHINT_ERRORS,
+               SAM_XDMACH_CIE_OFFSET);
+
+  /* Enable channel */
+
+  sam_putdmac(xdmac, XDMAC_CHAN(xdmach->chan), SAM_XDMAC_GIE_OFFSET);
+
+  sam_putdmac(xdmac, XDMAC_CHAN(xdmach->chan), SAM_XDMAC_GE_OFFSET);
+
+  return OK;
 }
 
 /****************************************************************************
@@ -1996,6 +2092,25 @@ void sam_dmastop(DMA_HANDLE handle)
   flags = enter_critical_section();
   sam_dmaterminate(xdmach, -EINTR);
   leave_critical_section(flags);
+}
+
+/****************************************************************************
+ * Name: sam_destaddr
+ *
+ * Description:
+ *   Returns the pointer to the destination address, i.e the last address
+ *   data were written by DMA.
+ *
+ * Assumptions:
+ *   - DMA handle allocated by sam_dmachannel()
+ *
+ ****************************************************************************/
+
+size_t sam_destaddr(DMA_HANDLE handle)
+{
+  struct sam_xdmach_s *xdmach = (struct sam_xdmach_s *)handle;
+
+  return sam_getdmach(xdmach, SAM_XDMACH_CDA_OFFSET);
 }
 
 /****************************************************************************

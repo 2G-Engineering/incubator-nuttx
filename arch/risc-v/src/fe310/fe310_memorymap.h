@@ -25,7 +25,7 @@
  * Included Files
  ****************************************************************************/
 
-#include "riscv_internal.h"
+#include "riscv_common_memorymap.h"
 #include "hardware/fe310_memorymap.h"
 #include "hardware/fe310_uart.h"
 #include "hardware/fe310_clint.h"
@@ -40,7 +40,7 @@
 /* Idle thread stack starts from _ebss */
 
 #ifndef __ASSEMBLY__
-#define FE310_IDLESTACK_BASE  (uintptr_t)&_ebss
+#define FE310_IDLESTACK_BASE  (uintptr_t)_ebss
 #else
 #define FE310_IDLESTACK_BASE  _ebss
 #endif

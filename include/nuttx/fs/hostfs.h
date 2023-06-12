@@ -82,8 +82,10 @@
 #define NUTTX_O_TRUNC           (1 << 5)  /* Delete contents */
 #define NUTTX_O_NONBLOCK        (1 << 6)  /* Don't wait for data */
 #define NUTTX_O_SYNC            (1 << 7)  /* Synchronize output on write */
-#define NUTTX_O_BINARY          (1 << 8)  /* Open the file in binary mode. */
+#define NUTTX_O_TEXT            (1 << 8)  /* Open the file in text (translated) mode. */
 #define NUTTX_O_DIRECT          (1 << 9)  /* Avoid caching, write directly to hardware */
+#define NUTTX_O_CLOEXEC         (1 << 10) /* Close on execute */
+#define NUTTX_O_DIRECTORY       (1 << 11) /* Must be a directory */
 
 #define NUTTX_O_RDWR            (NUTTX_O_RDONLY | NUTTX_O_WRONLY)
 
@@ -108,7 +110,7 @@
 typedef int16_t      nuttx_blksize_t;
 typedef int16_t      nuttx_gid_t;
 typedef int16_t      nuttx_uid_t;
-typedef uint16_t     nuttx_dev_t;
+typedef uint32_t     nuttx_dev_t;
 typedef uint16_t     nuttx_ino_t;
 typedef uint16_t     nuttx_nlink_t;
 #ifdef CONFIG_FS_LARGEFILE
@@ -198,7 +200,7 @@ void          host_rewinddir(void *dirp);
 int           host_closedir(void *dirp);
 int           host_statfs(const char *path, struct nuttx_statfs_s *buf);
 int           host_unlink(const char *pathname);
-int           host_mkdir(const char *pathname, mode_t mode);
+int           host_mkdir(const char *pathname, nuttx_mode_t mode);
 int           host_rmdir(const char *pathname);
 int           host_rename(const char *oldpath, const char *newpath);
 int           host_stat(const char *path, struct nuttx_stat_s *buf);
@@ -222,7 +224,7 @@ void          host_rewinddir(void *dirp);
 int           host_closedir(void *dirp);
 int           host_statfs(const char *path, struct statfs *buf);
 int           host_unlink(const char *pathname);
-int           host_mkdir(const char *pathname, mode_t mode);
+int           host_mkdir(const char *pathname, int mode);
 int           host_rmdir(const char *pathname);
 int           host_rename(const char *oldpath, const char *newpath);
 int           host_stat(const char *path, struct stat *buf);

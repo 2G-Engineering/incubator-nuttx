@@ -26,6 +26,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <assert.h>
 
 #include <nuttx/usb/usbhost_trace.h>
@@ -45,10 +46,6 @@
 #define TR_FMT2 true
 
 #define TRENTRY(id,ehci,fmt1,string) {string}
-
-#ifndef NULL
-#  define NULL ((void *)0)
-#endif
 
 /****************************************************************************
  * Private Types

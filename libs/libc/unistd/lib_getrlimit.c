@@ -44,6 +44,8 @@
 
 int getrlimit(int resource, FAR struct rlimit *rlp)
 {
+  UNUSED(resource);
+
   if (rlp == NULL)
     {
       set_errno(EINVAL);
@@ -53,5 +55,19 @@ int getrlimit(int resource, FAR struct rlimit *rlp)
   /* This is a dummy realization to make the compiler happy */
 
   memset(rlp, 0, sizeof(*rlp));
+
+  switch (resource)
+    {
+      case RLIMIT_NOFILE:
+        {
+          rlp->rlim_cur = OPEN_MAX;
+          rlp->rlim_max = OPEN_MAX;
+        }
+        break;
+
+      default:
+        break;
+    }
+
   return OK;
 }

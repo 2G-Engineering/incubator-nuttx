@@ -26,13 +26,13 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout nuttx repo
         uses: actions/checkout@v3
         with:
-          repository: apache/incubator-nuttx
+          repository: apache/nuttx
           path: nuttx
           fetch-depth: 0
 
@@ -42,5 +42,5 @@ jobs:
           cd nuttx
           commits="${{ github.event.pull_request.base.sha }}..HEAD"
           git log --oneline $commits
-          echo "../nuttx/tools/checkpatch.sh -m -g $commits"
-          ../nuttx/tools/checkpatch.sh -m -g $commits
+          echo "../nuttx/tools/checkpatch.sh -u -m -g $commits"
+          ../nuttx/tools/checkpatch.sh -u -m -g $commits

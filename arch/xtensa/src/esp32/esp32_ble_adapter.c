@@ -447,24 +447,24 @@ extern int coex_register_bt_cb(coex_func_cb_t cb);
 extern void coex_bb_reset_unlock(uint32_t restore);
 extern uint32_t coex_bb_reset_lock(void);
 
-extern char _bss_start_btdm;
-extern char _bss_end_btdm;
-extern char _data_start_btdm;
-extern char _data_end_btdm;
-extern uint32_t _data_start_btdm_rom;
-extern uint32_t _data_end_btdm_rom;
+extern uint8_t _bss_start_btdm[];
+extern uint8_t _bss_end_btdm[];
+extern uint8_t _data_start_btdm[];
+extern uint8_t _data_end_btdm[];
+extern const uint32_t _data_start_btdm_rom;
+extern const uint32_t _data_end_btdm_rom;
 
-extern uint32_t _bt_bss_start;
-extern uint32_t _bt_bss_end;
-extern uint32_t _btdm_bss_start;
-extern uint32_t _btdm_bss_end;
-extern uint32_t _bt_data_start;
-extern uint32_t _bt_data_end;
-extern uint32_t _btdm_data_start;
-extern uint32_t _btdm_data_end;
+extern uint8_t _bt_bss_start[];
+extern uint8_t _bt_bss_end[];
+extern uint8_t _btdm_bss_start[];
+extern uint8_t _btdm_bss_end[];
+extern uint8_t _bt_data_start[];
+extern uint8_t _bt_data_end[];
+extern uint8_t _btdm_data_start[];
+extern uint8_t _btdm_data_end[];
 
-extern char _bt_tmp_bss_start;
-extern char _bt_tmp_bss_end;
+extern uint8_t _bt_tmp_bss_start[];
+extern uint8_t _bt_tmp_bss_end[];
 
 void intr_matrix_set(int cpu_no, uint32_t model_num, uint32_t intr_num);
 
@@ -884,8 +884,9 @@ static void esp32_ints_on(uint32_t mask)
       bit = 1 << i;
       if (bit & mask)
       {
-        wlinfo("Enabled bit %d\n", i);
-        up_enable_irq(i);
+        int irq = i + XTENSA_IRQ_FIRSTPERIPH;
+        wlinfo("Enabled bit %d\n", irq);
+        up_enable_irq(irq);
       }
     }
 }
@@ -1142,7 +1143,7 @@ static void *semphr_create_wrapper(uint32_t max, uint32_t init)
       return NULL;
     }
 
-  ret = sem_init(sem, 0, init);
+  ret = nxsem_init(sem, 0, init);
   if (ret)
     {
       wlerr("ERROR: Failed to initialize sem error=%d\n", ret);
@@ -1170,7 +1171,7 @@ static void *semphr_create_wrapper(uint32_t max, uint32_t init)
 static void semphr_delete_wrapper(void *semphr)
 {
   sem_t *sem = (sem_t *)semphr;
-  sem_destroy(sem);
+  nxsem_destroy(sem);
   kmm_free(sem);
 }
 
@@ -1923,7 +1924,7 @@ static void btdm_sleep_enter_phase1_wrapper(uint32_t lpcycles)
   else
     {
       wlerr("timer start failed");
-      DEBUGASSERT(0);
+      DEBUGPANIC();
     }
 }
 
@@ -1952,7 +1953,7 @@ static void btdm_sleep_enter_phase2_wrapper(void)
         }
       else
         {
-          DEBUGASSERT(0);
+          DEBUGPANIC();
         }
 
       if (g_lp_stat.pm_lock_released == false)
@@ -1988,7 +1989,7 @@ static void btdm_sleep_exit_phase3_wrapper(void)
   if (btdm_sleep_clock_sync())
     {
       wlerr("sleep eco state err\n");
-      DEBUGASSERT(0);
+      DEBUGPANIC();
     }
 
   if (btdm_controller_get_sleep_mode() == ESP_BT_SLEEP_MODE_1)
@@ -2027,11 +2028,11 @@ static void btdm_controller_mem_init(void)
 
   /* initialise .data section */
 
-  memcpy(&_data_start_btdm, (void *)_data_start_btdm_rom,
-         &_data_end_btdm - &_data_start_btdm);
+  memcpy(_data_start_btdm, (void *)_data_start_btdm_rom,
+         _data_end_btdm - _data_start_btdm);
 
   wlinfo(".data initialise [0x%08x] <== [0x%08x]\n",
-         (uint32_t)&_data_start_btdm, _data_start_btdm_rom);
+         (uint32_t)_data_start_btdm, _data_start_btdm_rom);
 
   /* initial em, .bss section */
 
@@ -2464,7 +2465,7 @@ int esp32_bt_controller_deinit(void)
     }
   else
     {
-      DEBUGASSERT(0);
+      DEBUGPANIC();
     }
 
 #ifdef CONFIG_PM
@@ -2540,7 +2541,7 @@ int esp32_bt_controller_disable(void)
     }
   else
     {
-      DEBUGASSERT(0);
+      DEBUGPANIC();
     }
 #endif
 
@@ -2723,8 +2724,6 @@ static void async_wakeup_request_end(int event)
     {
       btdm_wakeup_request_end();
     }
-
-  return;
 }
 
 /****************************************************************************
@@ -2763,7 +2762,6 @@ static bool coex_bt_wakeup_request(void)
 static void coex_bt_wakeup_request_end(void)
 {
   async_wakeup_request_end(BTDM_ASYNC_WAKEUP_REQ_COEX);
-  return;
 }
 
 /****************************************************************************
@@ -2882,4 +2880,3 @@ void coex_bb_reset_unlock_wrapper(uint32_t restore)
   coex_bb_reset_unlock(restore);
 #endif
 }
-

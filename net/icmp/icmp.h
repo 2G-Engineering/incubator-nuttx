@@ -29,7 +29,6 @@
 
 #include <sys/types.h>
 #include <stdint.h>
-#include <queue.h>
 #include <assert.h>
 
 #include <nuttx/mm/iob.h>
@@ -70,6 +69,7 @@ struct devif_callback_s;         /* Forward reference */
 struct icmp_poll_s
 {
   FAR struct socket *psock;        /* IPPROTO_ICMP socket structure */
+  FAR struct net_driver_s *dev;    /* Needed to free the callback structure */
   FAR struct pollfd *fds;          /* Needed to handle poll events */
   FAR struct devif_callback_s *cb; /* Needed to teardown the poll */
 };
@@ -103,6 +103,16 @@ struct icmp_conn_s
 
   struct icmp_poll_s pollinfo[CONFIG_NET_ICMP_NPOLLWAITERS];
 };
+#endif
+
+#ifdef CONFIG_NET_IPv4
+struct icmp_pmtu_entry
+{
+  in_addr_t daddr;
+  uint16_t pmtu;
+  clock_t time;
+};
+
 #endif
 
 /****************************************************************************
@@ -390,14 +400,44 @@ void icmp_reply(FAR struct net_driver_s *dev, int type, int code);
  *   conn     The ICMP connection of interest
  *   cmd      The ioctl command
  *   arg      The argument of the ioctl cmd
- *   arglen   The length of 'arg'
  *
  ****************************************************************************/
 
 #ifdef CONFIG_NET_ICMP_SOCKET
-int icmp_ioctl(FAR struct socket *psock,
-               int cmd, FAR void *arg, size_t arglen);
+int icmp_ioctl(FAR struct socket *psock, int cmd, unsigned long arg);
 #endif
+
+/****************************************************************************
+ * Name: icmpv4_find_pmtu_entry
+ *
+ * Description:
+ *   Search for a ipv4 destination cache entry
+ *
+ * Parameters:
+ *   destipaddr   the IPv4 address of the destination
+ *
+ * Return:
+ *   not null is success; null is failure
+ ****************************************************************************/
+
+FAR struct icmp_pmtu_entry *icmpv4_find_pmtu_entry(in_addr_t destipaddr);
+
+/****************************************************************************
+ * Name: icmpv4_add_pmtu_entry
+ *
+ * Description:
+ *   Create a new ipv4 destination cache entry. If no unused entry is found,
+ *   will recycle oldest entry
+ *
+ * Parameters:
+ *   destipaddr   the IPv4 address of the destination
+ *   mtu          MTU
+ *
+ * Return:
+ *   void
+ ****************************************************************************/
+
+void icmpv4_add_pmtu_entry(in_addr_t destipaddr, int mtu);
 
 #undef EXTERN
 #ifdef __cplusplus

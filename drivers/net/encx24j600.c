@@ -39,18 +39,17 @@
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
-#include <queue.h>
 
 #include <arpa/inet.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
+#include <nuttx/queue.h>
 #include <nuttx/wdog.h>
 #include <nuttx/spi/spi.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/clock.h>
 #include <nuttx/net/net.h>
-#include <nuttx/net/arp.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/encx24j600.h>
 
@@ -158,6 +157,10 @@
 
 #define ENC_NTXDESCR ((PKTMEM_RX_START - PKTMEM_START) / PKTMEM_ALIGNED_BUFSIZE)
 
+/* Packet buffer size */
+
+#define PKTBUF_SIZE (MAX_NETDEV_PKTSIZE + CONFIG_NET_GUARDSIZE)
+
 /* This is a helper pointer for accessing the contents of Ethernet header */
 
 #define BUF ((FAR struct eth_hdr_s *)priv->dev.d_buf)
@@ -253,7 +256,8 @@ struct enc_driver_s
 
 /* A single packet buffer is used */
 
-static uint8_t g_pktbuf[MAX_NETDEV_PKTSIZE + CONFIG_NET_GUARDSIZE];
+static uint16_t g_pktbuf[CONFIG_ENCX24J600_NINTERFACES]
+                        [(PKTBUF_SIZE + 1) / 2];
 
 /* Driver status structure */
 
@@ -1141,51 +1145,8 @@ static int enc_txenqueue(FAR struct enc_driver_s *priv)
 static int enc_txpoll(struct net_driver_s *dev)
 {
   FAR struct enc_driver_s *priv = (FAR struct enc_driver_s *)dev->d_private;
-  int ret = OK;
 
-  /* If the polling resulted in data that should be sent out on the network,
-   * the field d_len is set to a value > 0.
-   */
-
-  ninfo("Poll result: d_len=%d\n", priv->dev.d_len);
-
-  if (priv->dev.d_len > 0)
-    {
-      /* Look up the destination MAC address and add it to the Ethernet
-       * header.
-       */
-
-#ifdef CONFIG_NET_IPv4
-#ifdef CONFIG_NET_IPv6
-      if (IFF_IS_IPv4(priv->dev.d_flags))
-#endif
-        {
-          arp_out(&priv->dev);
-        }
-#endif /* CONFIG_NET_IPv4 */
-
-#ifdef CONFIG_NET_IPv6
-#ifdef CONFIG_NET_IPv4
-      else
-#endif
-        {
-          neighbor_out(&priv->dev);
-        }
-#endif /* CONFIG_NET_IPv6 */
-
-      if (!devif_loopback(&priv->dev))
-        {
-          /* Send the packet */
-
-          ret = enc_txenqueue(priv);
-        }
-    }
-
-  /* If zero is returned, the polling will continue until all connections
-   * have been examined.
-   */
-
-  return ret;
+  return enc_txenqueue(priv);
 }
 
 /****************************************************************************
@@ -1470,11 +1431,8 @@ static void enc_rxdispatch(FAR struct enc_driver_s *priv)
           ninfo("IPv4 frame\n");
           NETDEV_RXIPV4(&priv->dev);
 
-          /* Handle ARP on input then give the IPv4 packet to the network
-           * layer
-           */
+          /* Receive an IPv4 packet from the network device */
 
-          arp_ipin(&priv->dev);
           ipv4_input(&priv->dev);
 
           /* Free the packet */
@@ -1488,21 +1446,6 @@ static void enc_rxdispatch(FAR struct enc_driver_s *priv)
 
           if (priv->dev.d_len > 0)
             {
-              /* Update the Ethernet header with the correct MAC address */
-
-#ifdef CONFIG_NET_IPv6
-              if (IFF_IS_IPv4(priv->dev.d_flags))
-#endif
-                {
-                  arp_out(&priv->dev);
-                }
-#ifdef CONFIG_NET_IPv6
-              else
-                {
-                  neighbor_out(&priv->dev);
-                }
-#endif
-
               /* And send the packet */
 
               enc_txenqueue(priv);
@@ -1531,21 +1474,6 @@ static void enc_rxdispatch(FAR struct enc_driver_s *priv)
 
           if (priv->dev.d_len > 0)
             {
-              /* Update the Ethernet header with the correct MAC address */
-
-#ifdef CONFIG_NET_IPv4
-              if (IFF_IS_IPv4(priv->dev.d_flags))
-                {
-                  arp_out(&priv->dev);
-                }
-              else
-#endif
-#ifdef CONFIG_NET_IPv6
-                {
-                  neighbor_out(&priv->dev);
-                }
-#endif
-
               /* And send the packet */
 
               enc_txenqueue(priv);
@@ -1559,7 +1487,7 @@ static void enc_rxdispatch(FAR struct enc_driver_s *priv)
           ninfo("ARP packet received (%02x)\n", BUF->type);
           NETDEV_RXARP(&priv->dev);
 
-          arp_arpin(&priv->dev);
+          arp_input(&priv->dev);
 
           /* ARP packets are freed immediately */
 
@@ -1760,7 +1688,7 @@ static void enc_rxabtif(FAR struct enc_driver_s *priv)
       descr = (FAR struct enc_descr_s *)sq_next(descr);
     }
 
-  DEBUGASSERT(false);
+  DEBUGPANIC();
 #endif
 
   descr = (FAR struct enc_descr_s *)sq_peek(&priv->rxqueue);
@@ -2115,8 +2043,8 @@ static int enc_ifup(struct net_driver_s *dev)
   int ret;
 
   ninfo("Bringing up: %d.%d.%d.%d\n",
-        dev->d_ipaddr & 0xff, (dev->d_ipaddr >> 8) & 0xff,
-        (dev->d_ipaddr >> 16) & 0xff, dev->d_ipaddr >> 24);
+        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
+        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
 
   /* Lock the SPI bus so that we have exclusive access */
 
@@ -2183,8 +2111,8 @@ static int enc_ifdown(struct net_driver_s *dev)
   int ret;
 
   ninfo("Taking down: %d.%d.%d.%d\n",
-        dev->d_ipaddr & 0xff, (dev->d_ipaddr >> 8) & 0xff,
-        (dev->d_ipaddr >> 16) & 0xff, dev->d_ipaddr >> 24);
+        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
+        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
 
   /* Lock the SPI bus so that we have exclusive access */
 
@@ -2300,12 +2228,12 @@ static int enc_addmac(struct net_driver_s *dev, FAR const uint8_t *mac)
 
   /* Add the MAC address to the hardware multicast routing table */
 
-#warning "Multicast MAC support not implemented"
+  /* #warning "Multicast MAC support not implemented" */
 
   /* Un-lock the SPI bus */
 
   enc_unlock(priv);
-  return OK;
+  return -ENOSYS;
 }
 #endif
 
@@ -2338,12 +2266,12 @@ static int enc_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac)
 
   /* Add the MAC address to the hardware multicast routing table */
 
-#warning "Multicast MAC support not implemented"
+  /* #warning "Multicast MAC support not implemented" */
 
   /* Un-lock the SPI bus */
 
   enc_unlock(priv);
-  return OK;
+  return -ENOSYS;
 }
 #endif
 
@@ -2711,17 +2639,17 @@ int enc_initialize(FAR struct spi_dev_s *spi,
   memset(g_encx24j600, 0,
          CONFIG_ENCX24J600_NINTERFACES * sizeof(struct enc_driver_s));
 
-  priv->dev.d_buf     = g_pktbuf;     /* Single packet buffer */
-  priv->dev.d_ifup    = enc_ifup;     /* I/F up (new IP address) callback */
-  priv->dev.d_ifdown  = enc_ifdown;   /* I/F down callback */
-  priv->dev.d_txavail = enc_txavail;  /* New TX data callback */
+  priv->dev.d_buf     = (FAR uint8_t *)g_pktbuf[devno]; /* Single packet buffer */
+  priv->dev.d_ifup    = enc_ifup;                       /* I/F up (new IP address) callback */
+  priv->dev.d_ifdown  = enc_ifdown;                     /* I/F down callback */
+  priv->dev.d_txavail = enc_txavail;                    /* New TX data callback */
 #ifdef CONFIG_NET_MCASTGROUP
-  priv->dev.d_addmac  = enc_addmac;   /* Add multicast MAC address */
-  priv->dev.d_rmmac   = enc_rmmac;    /* Remove multicast MAC address */
+  priv->dev.d_addmac  = enc_addmac;                     /* Add multicast MAC address */
+  priv->dev.d_rmmac   = enc_rmmac;                      /* Remove multicast MAC address */
 #endif
-  priv->dev.d_private = priv;         /* Used to recover private state from dev */
-  priv->spi           = spi;          /* Save the SPI instance */
-  priv->lower         = lower;        /* Save the low-level MCU interface */
+  priv->dev.d_private = priv;                           /* Used to recover private state from dev */
+  priv->spi           = spi;                            /* Save the SPI instance */
+  priv->lower         = lower;                          /* Save the low-level MCU interface */
 
   /* The interface should be in the down state.  However, this function is
    * called too early in initialization to perform the ENCX24J600 reset in
