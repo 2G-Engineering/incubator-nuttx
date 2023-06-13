@@ -245,8 +245,8 @@ static struct lpc17_40_sspdev_s g_ssp0dev =
   .dmaconfigtx       = SSP0_TXDMA_CONFIG,
   .dmaconfigrx       = SSP0_RXDMA_CONFIG,
 #endif
-};
   .lock              = NXMUTEX_INITIALIZER,
+};
 #endif /* CONFIG_LPC17_40_SSP0 */
 
 #ifdef CONFIG_LPC17_40_SSP1
