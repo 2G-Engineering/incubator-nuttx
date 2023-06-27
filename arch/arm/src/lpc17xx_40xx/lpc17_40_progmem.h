@@ -72,6 +72,9 @@
 #define LPC17_40_IAP_CMD_PREPARE_SECTORS_FOR_WRITE_OPERATION    50
 #define LPC17_40_IAP_CMD_COPY_RAM_TO_FLASH                      51
 #define LPC17_40_IAP_CMD_ERASE_SECTORS                          52
+#define LPC17_40_IAP_CMD_READ_PART_ID                           54
+#define LPC17_40_IAP_CMD_READ_SN                                58
+#define LPC17_40_IAP_CMD_REINVOKE_ISP                           57
 
 /* IAP return codes */
 

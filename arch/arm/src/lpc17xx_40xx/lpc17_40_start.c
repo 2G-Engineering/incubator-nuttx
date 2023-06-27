@@ -39,6 +39,7 @@
 #include "lpc17_40_lowputc.h"
 #include "lpc17_40_userspace.h"
 #include "lpc17_40_start.h"
+#include "lpc17_40_boot_safety.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -118,6 +119,10 @@ void __start(void)
 
   __asm__ volatile("sub r10, sp, %0" : :
                    "r"(CONFIG_IDLETHREAD_STACKSIZE - 64) :);
+#endif
+
+#ifdef CONFIG_BOOT_SAFETY_CHECK
+  lpc17_40_check_cpu_type();
 #endif
 
   /* Configure the uart so that we can get debug output as soon as possible */

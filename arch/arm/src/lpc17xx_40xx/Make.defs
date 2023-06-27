@@ -124,3 +124,7 @@ endif
 ifeq ($(CONFIG_LPC17_40_PROGMEM),y)
 CHIP_CSRCS += lpc17_40_progmem.c
 endif
+
+ifeq ($(CONFIG_BOOT_SAFETY_CHECK),y)
+CHIP_CSRCS += lpc17_40_boot_safety.c
+endif

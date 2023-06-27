@@ -1209,3 +1209,12 @@ config LPC17_40_USBHOST_REGDEBUG
 		also CONFIG_DEBUG_USB_INFO.
 
 endmenu
+
+config BOOT_SAFETY_CHECK
+  bool "Exit to bootloader if wrong CPU type detected on boot"
+  default y
+  ---help---
+  Checks CPU family (LPC176x or LPC40xx) on boot.  If the detected
+  type does not match the type for which the firmware was built, jump to
+  the bootloader rather than continuing to boot and likely bricking
+  the unit.
