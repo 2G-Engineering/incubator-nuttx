@@ -1425,6 +1425,7 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
     case TCSETS:
       {
         struct termios *termiosp = (struct termios *)arg;
+        irqstate_t flags;
 #  ifndef CONFIG_LPC17_40_UART_USE_FRACTIONAL_DIVIDER
         uint32_t           lcr;  /* Holds current values of line control register */
         uint16_t           dl;   /* Divisor latch */
@@ -1463,6 +1464,7 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
          *          following?
          */
 
+        flags = enter_critical_section();
         lcr = getreg32(priv->uartbase + LPC17_40_UART_LCR_OFFSET);
         up_serialout(priv, LPC17_40_UART_LCR_OFFSET, (lcr | UART_LCR_DLAB));
 
@@ -1479,6 +1481,7 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
         /* Clear DLAB */
 
         up_serialout(priv, LPC17_40_UART_LCR_OFFSET, lcr);
+        leave_critical_section(flags);
 #  endif
       }
       break;
