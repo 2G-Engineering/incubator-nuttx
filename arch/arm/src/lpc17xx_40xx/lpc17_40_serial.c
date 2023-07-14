@@ -1136,7 +1136,11 @@ static int up_setup(struct uart_dev_s *dev)
   /* Set the BAUD divisor */
 
 #ifdef CONFIG_LPC17_40_UART_USE_FRACTIONAL_DIVIDER
+#ifdef LPC176x
   up_setbaud(priv->uartbase, LPC17_40_CCLK / priv->cclkdiv, priv->baud);
+#else
+  up_setbaud(priv->uartbase, BOARD_PCLK_FREQUENCY, priv->baud);
+#endif
 #else
 #  ifdef LPC176x
   dl = lpc17_40_uartdl(priv->baud, priv->cclkdiv);
@@ -1444,8 +1448,12 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
          */
 
 #  ifdef CONFIG_LPC17_40_UART_USE_FRACTIONAL_DIVIDER
+#ifdef LPC176x
         up_setbaud(priv->uartbase, LPC17_40_CCLK / \
                    priv->cclkdiv, priv->baud);
+#else
+        up_setbaud(priv->uartbase, BOARD_PCLK_FREQUENCY, priv->baud);
+#endif
 #  else
 #    if 0 /* ifdef LPC176x */
         priv->cclkdiv = lpc17_40_uartcclkdiv(priv->baud);
@@ -1498,7 +1506,6 @@ static int up_receive(struct uart_dev_s *dev, unsigned int *status)
 {
   struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
   uint32_t rbr;
-
   *status = up_serialin(priv, LPC17_40_UART_LSR_OFFSET);
   rbr     = up_serialin(priv, LPC17_40_UART_RBR_OFFSET);
   return rbr;
