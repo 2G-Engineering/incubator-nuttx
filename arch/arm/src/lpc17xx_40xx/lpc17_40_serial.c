@@ -559,6 +559,7 @@ void up_setbaud(uintptr_t uartbase, uint32_t basefreq, uint32_t baud)
   uint32_t cmul;     /* Candidate FDR MULVALL value */
   uint32_t cdivadd;  /* Candidate FDR DIVADDVAL value */
   uint32_t errval;   /* Error value associated with the candidate */
+  irqstate_t flags;
 
   /* The UART baud is given by:
    *
@@ -645,6 +646,7 @@ void up_setbaud(uintptr_t uartbase, uint32_t basefreq, uint32_t baud)
   DEBUGASSERT(dl > 0);
 
   /* Enter DLAB=1 */
+  flags = enter_critical_section();
 
   lcr = getreg32(uartbase + LPC17_40_UART_LCR_OFFSET);
   putreg32(lcr | UART_LCR_DLAB, uartbase + LPC17_40_UART_LCR_OFFSET);
@@ -657,6 +659,7 @@ void up_setbaud(uintptr_t uartbase, uint32_t basefreq, uint32_t baud)
   /* Clear DLAB */
 
   putreg32(lcr & ~UART_LCR_DLAB, uartbase + LPC17_40_UART_LCR_OFFSET);
+  leave_critical_section(flags);
 
   /* Then save the fractional divider values */
 
