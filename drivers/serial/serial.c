@@ -1042,6 +1042,7 @@ static ssize_t uart_read(FAR struct file *filep,
 
 #ifdef CONFIG_SERIAL_TERMIOS
                   dev->minrecv = MIN(buflen - recvd, dev->minread - recvd);
+                  leave_critical_section(flags);
                   if (dev->timeout)
                     {
                       ret = nxsem_tickwait(&dev->recvsem,
