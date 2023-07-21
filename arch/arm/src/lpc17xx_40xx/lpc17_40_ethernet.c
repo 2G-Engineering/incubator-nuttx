@@ -2312,7 +2312,7 @@ static inline int lpc17_40_phyautoneg(uint8_t phyaddr)
 
   /* Wait for autonegotiation to complete */
 
-  for (timeout = MII_BIG_TIMEOUT; timeout > 0; timeout--)
+  for (timeout = CONFIG_LPC17_40_ETH_UP_TIMEOUT / 5; timeout > 0; timeout--)
     {
       /* For some motive a large delay is necessary for some PHYs */
 
