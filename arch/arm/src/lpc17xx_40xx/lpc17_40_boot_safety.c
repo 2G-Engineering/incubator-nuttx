@@ -64,7 +64,7 @@ static const uint32_t part_ids_lpc40xx[] = {
 };
 #endif
 
-#if defined(CONFIG_ARCH_FAMILY_LPC177x) || defined(CONFIG_ARCH_FAMILY_LPC178x)
+#if defined(CONFIG_ARCH_FAMILY_LPC177X) || defined(CONFIG_ARCH_FAMILY_LPC178X)
 static const uint32_t part_ids_lpc177x_178x[] = {
     PART_ID_LPC1788,
     PART_ID_LPC1787,
@@ -77,7 +77,7 @@ static const uint32_t part_ids_lpc177x_178x[] = {
 };
 #endif
 
-#if defined(CONFIG_ARCH_FAMILY_LPC175x) || defined(CONFIG_ARCH_FAMILY_LPC176x)
+#if defined(CONFIG_ARCH_FAMILY_LPC175X) || defined(CONFIG_ARCH_FAMILY_LPC176X)
 static const uint32_t part_ids_lpc175x_176x[] = {
     PART_ID_LPC1769,
     PART_ID_LPC1768,
@@ -119,14 +119,14 @@ void lpc17_40_check_cpu_type(void) {
             return;
         }
     }
-#elif defined(CONFIG_ARCH_FAMILY_LPC177x) || defined(CONFIG_ARCH_FAMILY_LPC178x)
+#elif defined(CONFIG_ARCH_FAMILY_LPC177X) || defined(CONFIG_ARCH_FAMILY_LPC178X)
     for (int i = 0; i < array_size(part_ids_lpc177x_178x); i+= 1) {
         if (inout[1] == part_ids_lpc177x_178x[i]) {
             //CPU type is in the correct family, return and continue with the normal boot process
             return;
         }
     }
-#elif defined(CONFIG_ARCH_FAMILY_LPC175x) || defined(CONFIG_ARCH_FAMILY_LPC176x)
+#elif defined(CONFIG_ARCH_FAMILY_LPC175X) || defined(CONFIG_ARCH_FAMILY_LPC176X)
     for (int i = 0; i < array_size(part_ids_lpc175x_176x); i+= 1) {
         if (inout[1] == part_ids_lpc175x_176x[i]) {
             //CPU type is in the correct family, return and continue with the normal boot process
