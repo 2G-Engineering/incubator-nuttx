@@ -3440,32 +3440,35 @@ static int stm32_phyinit(struct stm32_ethmac_s *priv)
    */
 
 #ifdef CONFIG_STM32H7_PHYSR_ALTCONFIG
-  switch (phyval & CONFIG_STM32H7_PHYSR_ALTMODE)
+if ((phyval & CONFIG_STM32H7_PHYSR_ALTMODE) == 0)
     {
-      default:
         nerr("ERROR: Unrecognized PHY status setting\n");
+    }
+  else
+    {
+      if ((phyval & CONFIG_STM32H7_PHYSR_10HD) == CONFIG_STM32H7_PHYSR_10HD)
+        {
+          priv->fduplex = 0;
+          priv->mbps100 = 0;
+        }
 
-      /* Falls through */
+      if ((phyval &  CONFIG_STM32H7_PHYSR_100HD) == CONFIG_STM32H7_PHYSR_10HD)
+        {
+          priv->fduplex = 0;
+          priv->mbps100 = 1;
+        }
 
-      case CONFIG_STM32H7_PHYSR_10HD:
-        priv->fduplex = 0;
-        priv->mbps100 = 0;
-        break;
+      if ((phyval &  CONFIG_STM32H7_PHYSR_10FD) == CONFIG_STM32H7_PHYSR_10FD)
+        {
+          priv->fduplex = 1;
+          priv->mbps100 = 0;
+        }
 
-      case CONFIG_STM32H7_PHYSR_100HD:
-        priv->fduplex = 0;
-        priv->mbps100 = 1;
-        break;
-
-      case CONFIG_STM32H7_PHYSR_10FD:
-        priv->fduplex = 1;
-        priv->mbps100 = 0;
-        break;
-
-      case CONFIG_STM32H7_PHYSR_100FD:
-        priv->fduplex = 1;
-        priv->mbps100 = 1;
-        break;
+      if ((phyval &  CONFIG_STM32H7_PHYSR_100FD) == CONFIG_STM32H7_PHYSR_100FD)
+        {
+          priv->fduplex = 1;
+          priv->mbps100 = 1;
+        }
     }
 
   /* Different PHYs present speed and mode information in different ways.
