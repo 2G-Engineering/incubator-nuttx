@@ -584,6 +584,10 @@ static inline void rcc_enableapb4(void)
   regval |= RCC_APB4ENR_SPI6EN;
 #endif
 
+#ifdef CONFIG_STM32H7_LPUART
+  regval |= RCC_APB4ENR_LPUART1EN;
+#endif
+
   /* TODO: ... */
 
   putreg32(regval, STM32_RCC_APB4ENR);   /* Enable peripherals */
@@ -1005,6 +1009,15 @@ void stm32_stdclockconfig(void)
       regval &= ~RCC_D2CCIP1R_FDCANSEL_MASK;
       regval |= STM32_RCC_D2CCIP1R_FDCANSEL;
       putreg32(regval, STM32_RCC_D2CCIP1R);
+#endif
+
+      /* Configure UART source clock */
+
+#if defined(STM32_RCC_D3CCIPR_LPUART1SEL)
+      regval = getreg32(STM32_RCC_D3CCIPR);
+      regval &= ~RCC_D3CCIPR_LPUART1SEL_MASK;
+      regval |= STM32_RCC_D3CCIPR_LPUART1SEL;
+      putreg32(regval, STM32_RCC_D3CCIPR);
 #endif
 
 #if defined(CONFIG_STM32H7_IWDG) || defined(CONFIG_STM32H7_RTC_LSICLOCK)

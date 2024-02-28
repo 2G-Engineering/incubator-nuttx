@@ -195,6 +195,25 @@
 #        define STM32_CONSOLE_RS485_DIR_POLARITY true
 #      endif
 #    endif
+#  elif defined(CONFIG_LPUART1_SERIAL_CONSOLE)
+#    define STM32_CONSOLE_BASE     STM32_LPUART1_BASE
+#    define STM32_APBCLOCK         STM32_PCLK3_FREQUENCY
+#    define STM32_CONSOLE_APBREG   STM32_RCC_APB4ENR
+#    define STM32_CONSOLE_APBEN    RCC_APB4ENR_LPUART1EN
+#    define STM32_CONSOLE_BAUD     CONFIG_LPUART1_BAUD
+#    define STM32_CONSOLE_BITS     CONFIG_LPUART1_BITS
+#    define STM32_CONSOLE_PARITY   CONFIG_LPUART1_PARITY
+#    define STM32_CONSOLE_2STOP    CONFIG_LPUART1_2STOP
+#    define STM32_CONSOLE_TX       GPIO_LPUART1_TX
+#    define STM32_CONSOLE_RX       GPIO_LPUART1_RX
+#    ifdef CONFIG_LPUART_RS485
+#      define STM32_CONSOLE_RS485_DIR GPIO_LPUART_RS485_DIR
+#      if (CONFIG_LPUART_RS485_DIR_POLARITY == 0)
+#        define STM32_CONSOLE_RS485_DIR_POLARITY false
+#      else
+#        define STM32_CONSOLE_RS485_DIR_POLARITY true
+#      endif
+#    endif
 #  endif
 
   /* CR1 settings */
@@ -266,13 +285,24 @@
    *
    *   baud    = 2 * fCK / UARTDIV
    *   UARTDIV = 2 * fCK / baud
+   *
+   * For LPUART:
+   *   baud    = 256 * fCK / UARTDIV
+   *   UARTDIV = 256 * fCK / baud
+   *   Avoiding overflow assuming a max clock value of 120MHz:
+   *   UARTDUV =   8 * fCK / (baud / 32)
    */
 
 #  define STM32_USARTDIV8 \
     (((STM32_APBCLOCK << 1) + (STM32_CONSOLE_BAUD >> 1)) / STM32_CONSOLE_BAUD)
 #  define STM32_USARTDIV16 \
     ((STM32_APBCLOCK + (STM32_CONSOLE_BAUD >> 1)) / STM32_CONSOLE_BAUD)
+#  define STM32_USARTDIVLP \
+    (((STM32_APBCLOCK << 3) + (STM32_CONSOLE_BAUD >> 1)) / (STM32_CONSOLE_BAUD >> 5))
 
+#  ifdef CONFIG_LPUART1_SERIAL_CONSOLE
+#    define STM32_BRR_VALUE STM32_USARTDIVLP
+#else
   /* Use oversampling by 8 only if the divisor is small.  But what is
    * small?
    */
@@ -284,6 +314,7 @@
 #    define STM32_BRR_VALUE \
       ((STM32_USARTDIV8 & 0xfff0) | ((STM32_USARTDIV8 & 0x000f) >> 1))
 #  endif
+#endif
 #endif /* HAVE_CONSOLE */
 
 /****************************************************************************

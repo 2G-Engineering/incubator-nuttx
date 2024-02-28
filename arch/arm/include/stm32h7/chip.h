@@ -131,6 +131,7 @@
 #  define STM32H7_NSAI                    (4)         /* (4) SAI1-4*/
 #  define STM32H7_NCAN                    (2)         /* (2) CAN1-2 */
 #  define STM32H7_NSDIO                   (2)         /* (2) SDIO */
+#  define STM32H7_NLPUART                 (1)         /* (1) LPUART1 */
 #elif defined(CONFIG_STM32H7_STM32H7B3XX)
 /* Memory */
 
@@ -185,6 +186,7 @@
 #  define STM32H7_NSAI                    (4)         /* (4) SAI1-4*/
 #  define STM32H7_NCAN                    (2)         /* (2) CAN1-2 */
 #  define STM32H7_NSDIO                   (2)         /* (2) SDIO */
+#  define STM32H7_NLPUART                 (1)         /* (1) LPUART1 */
 #elif defined(CONFIG_STM32H7_STM32H7X7XX)
 /* Memory */
 
@@ -222,6 +224,7 @@
 #  define STM32H7_NSAI                    (4)         /* (4) SAI1-4*/
 #  define STM32H7_NCAN                    (2)         /* (2) CAN1-2 */
 #  define STM32H7_NSDIO                   (2)         /* (2) SDIO */
+#  define STM32H7_NLPUART                 (1)         /* (1) LPUART1 */
 #else
 #  error STM32 H7 chip Family not identified
 #endif

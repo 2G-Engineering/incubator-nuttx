@@ -941,6 +941,13 @@ config STM32H7_UART8
 	select UART8_SERIALDRIVER
 	select STM32H7_USART
 
+config STM32H7_LPUART
+  bool "LPUART"
+  default n
+  select LPUART1_SERIALDRIVER
+  select ARCH_HAVE_SERIAL_TERMIOS
+  select STM32H7_USART
+
 endmenu # STM32H7 U[S]ART Selection
 endmenu # STM32H7 Peripheral Selection
 
@@ -1546,10 +1553,48 @@ config UART8_RXFIFO_THRES
 
 endif # STM32H7_UART8
 
+if STM32H7_LPUART
+
+config LPUART_RS485
+  bool "RS-485 on LPUART"
+  default n
+  ---help---
+    Enable RS-485 interface on LPUART. Your board config will have to
+    provide GPIO_UART8_RS485_DIR pin definition.
+
+config LPUART_RS485_DIR_POLARITY
+  int "LPUART RS-485 DIR pin polarity"
+  default 1
+  range 0 1
+  depends on LPUART_RS485
+  ---help---
+    Polarity of DIR pin for RS-485 on LPUART. Set to state on DIR pin which
+    enables TX (0 - low / nTXEN, 1 - high / TXEN).
+
+config LPUART_RXFIFO_THRES
+  int "LPUART Rx FIFO Threshold"
+  default 3
+  range 0 5
+  ---help---
+    Select the Rx FIFO threshold:
+
+      0 -> 1/8 full
+      1 -> 1/4 full
+      2 -> 1/2 full
+      3 -> 3/4 full
+      4 -> 7/8 full
+      5 -> Full
+
+    Higher values mean lower interrupt rates and better CPU performance.
+    Lower values may be needed at high BAUD rates to prevent Rx data
+    overrun errors.
+
+endif # STM32H7_LPUART
+
 config STM32H7_SERIAL_RXDMA_BUFFER_SIZE
 	int "Rx DMA buffer size"
 	default 32
-	depends on USART1_RXDMA || USART2_RXDMA || USART3_RXDMA || UART4_RXDMA || UART5_RXDMA || USART6_RXDMA || UART7_RXDMA || UART8_RXDMA
+	depends on USART1_RXDMA || USART2_RXDMA || USART3_RXDMA || UART4_RXDMA || UART5_RXDMA || USART6_RXDMA || UART7_RXDMA || UART8_RXDMA || LPUART_RXDMA
 	---help---
 		The DMA buffer size when using RX DMA to emulate a FIFO.
 

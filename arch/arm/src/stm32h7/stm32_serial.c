@@ -62,7 +62,7 @@
 
 /* Total number of possible serial devices */
 
-#define STM32_NSERIAL (STM32H7_NUSART + STM32H7_NUART)
+#define STM32_NSERIAL (STM32H7_NUSART + STM32H7_NUART + STM32H7_NLPUART)
 
 /* DMA configuration */
 
@@ -447,6 +447,14 @@
 #  define UART8_TXBUFSIZE_ALGN TXDMA_BUF_ALIGN
 #endif
 
+#if !defined(CONFIG_LPUART1_TXDMA)
+#  define LPUART_TXBUFSIZE_ADJUSTED  CONFIG_LPUART1_TXBUFSIZE
+#  define LPUART_TXBUFSIZE_ALGN
+#else
+#  define LPUART_TXBUFSIZE_ADJUSTED TXDMA_BUF_SIZE(CONFIG_LPUART1_TXBUFSIZE)
+#  define LPUART_TXBUFSIZE_ALGN TXDMA_BUF_ALIGN
+#endif
+
 #ifdef SERIAL_HAVE_TXDMA
 /* DMA priority */
 
@@ -557,6 +565,11 @@
 #    warning "RXDMA and IFLOWCONTROL both enabled for UART8. \
               This combination can lead to data loss."
 #  endif
+
+#  if defined(CONFIG_LPUART_RXDMA) && defined(CONFIG_LPUART_IFLOWCONTROL)
+#    warning "RXDMA and IFLOWCONTROL both enabled for LPUART. \
+              This combination can lead to data loss."
+#  endif
 #endif /* CONFIG_STM32H7_FLOWCONTROL_BROKEN */
 
 /****************************************************************************
@@ -596,6 +609,7 @@ struct up_dev_s
 #ifdef CONFIG_SERIAL_OFLOWCONTROL
   bool              oflow;     /* output flow control (CTS) enabled */
 #endif
+  bool              baud256;   /* UART uses special * 256 baud math (only LPUART1) */
   uint32_t          baud;      /* Configured baud */
 #else
   const uint8_t     rxftcfg;   /* Rx FIFO threshold level */
@@ -610,7 +624,6 @@ struct up_dev_s
 #endif
   const uint32_t    baud;      /* Configured baud */
 #endif
-
   const uint8_t     irq;       /* IRQ associated with this USART */
   const uint32_t    apbclock;  /* PCLK 1 or 2 frequency */
   const uint32_t    usartbase; /* Base address of USART registers */
@@ -863,6 +876,11 @@ static char g_uart8rxfifo[RXDMA_BUFFER_SIZE]
   aligned_data(ARMV7M_DCACHE_LINESIZE);
 #endif
 
+#ifdef CONFIG_LPUART_RXDMA
+static char lpuartrxfifo[RXDMA_BUFFER_SIZE]
+  aligned_data(ARMV7M_DCACHE_LINESIZE);
+#endif
+
 /* Receive/Transmit buffers */
 
 #ifdef CONFIG_STM32H7_USART1
@@ -913,6 +931,12 @@ static char g_uart8txbuffer[UART8_TXBUFSIZE_ADJUSTED] \
   UART8_TXBUFSIZE_ALGN;
 #endif
 
+#ifdef CONFIG_STM32H7_LPUART
+static char g_lpuartrxbuffer[CONFIG_LPUART1_RXBUFSIZE];
+static char g_lpuarttxbuffer[LPUART_TXBUFSIZE_ADJUSTED] \
+  LPUART_TXBUFSIZE_ALGN;
+#endif
+
 /* This describes the state of the STM32 USART1 ports. */
 
 #ifdef CONFIG_STM32H7_USART1
@@ -950,6 +974,7 @@ static struct up_dev_s g_usart1priv =
   .parity        = CONFIG_USART1_PARITY,
   .bits          = CONFIG_USART1_BITS,
   .stopbits2     = CONFIG_USART1_2STOP,
+  .baud256       = false,
   .baud          = CONFIG_USART1_BAUD,
   .apbclock      = STM32_PCLK2_FREQUENCY,
   .usartbase     = STM32_USART1_BASE,
@@ -1020,6 +1045,7 @@ static struct up_dev_s g_usart2priv =
   .parity        = CONFIG_USART2_PARITY,
   .bits          = CONFIG_USART2_BITS,
   .stopbits2     = CONFIG_USART2_2STOP,
+  .baud256       = false,
   .baud          = CONFIG_USART2_BAUD,
   .apbclock      = STM32_PCLK1_FREQUENCY,
   .usartbase     = STM32_USART2_BASE,
@@ -1090,6 +1116,7 @@ static struct up_dev_s g_usart3priv =
   .parity        = CONFIG_USART3_PARITY,
   .bits          = CONFIG_USART3_BITS,
   .stopbits2     = CONFIG_USART3_2STOP,
+  .baud256       = false,
   .baud          = CONFIG_USART3_BAUD,
   .apbclock      = STM32_PCLK1_FREQUENCY,
   .usartbase     = STM32_USART3_BASE,
@@ -1168,6 +1195,7 @@ static struct up_dev_s g_uart4priv =
   .iflow         = true,
   .rts_gpio      = GPIO_UART4_RTS,
 #endif
+  .baud256       = false,
   .baud          = CONFIG_UART4_BAUD,
   .apbclock      = STM32_PCLK1_FREQUENCY,
   .usartbase     = STM32_UART4_BASE,
@@ -1238,6 +1266,7 @@ static struct up_dev_s g_uart5priv =
   .iflow         = true,
   .rts_gpio      = GPIO_UART5_RTS,
 #endif
+  .baud256       = false,
   .baud          = CONFIG_UART5_BAUD,
   .apbclock      = STM32_PCLK1_FREQUENCY,
   .usartbase     = STM32_UART5_BASE,
@@ -1300,6 +1329,7 @@ static struct up_dev_s g_usart6priv =
   .parity        = CONFIG_USART6_PARITY,
   .bits          = CONFIG_USART6_BITS,
   .stopbits2     = CONFIG_USART6_2STOP,
+  .baud256       = false,
   .baud          = CONFIG_USART6_BAUD,
   .apbclock      = STM32_PCLK2_FREQUENCY,
   .usartbase     = STM32_USART6_BASE,
@@ -1370,6 +1400,7 @@ static struct up_dev_s g_uart7priv =
   .parity        = CONFIG_UART7_PARITY,
   .bits          = CONFIG_UART7_BITS,
   .stopbits2     = CONFIG_UART7_2STOP,
+  .baud256       = false,
   .baud          = CONFIG_UART7_BAUD,
   .apbclock      = STM32_PCLK1_FREQUENCY,
   .usartbase     = STM32_UART7_BASE,
@@ -1440,6 +1471,7 @@ static struct up_dev_s g_uart8priv =
   .parity        = CONFIG_UART8_PARITY,
   .bits          = CONFIG_UART8_BITS,
   .stopbits2     = CONFIG_UART8_2STOP,
+  .baud256       = false,
   .baud          = CONFIG_UART8_BAUD,
   .apbclock      = STM32_PCLK1_FREQUENCY,
   .usartbase     = STM32_UART8_BASE,
@@ -1465,6 +1497,77 @@ static struct up_dev_s g_uart8priv =
 #ifdef CONFIG_UART8_RS485
   .rs485_dir_gpio = GPIO_UART8_RS485_DIR,
 #  if (CONFIG_UART8_RS485_DIR_POLARITY == 0)
+  .rs485_dir_polarity = false,
+#  else
+  .rs485_dir_polarity = true,
+#  endif
+#endif
+};
+#endif
+
+/* This describes the state of the STM32 LPUART port. */
+
+#ifdef CONFIG_STM32H7_LPUART
+static struct up_dev_s g_lpuartpriv =
+{
+  .dev =
+  {
+#if CONSOLE_UART == 9
+    .isconsole   = true,
+#endif
+    .recv        =
+    {
+      .size      = sizeof(g_lpuartrxbuffer),
+      .buffer    = g_lpuartrxbuffer,
+    },
+    .xmit        =
+    {
+      .size      = sizeof(g_lpuarttxbuffer),
+      .buffer    = g_lpuarttxbuffer,
+    },
+#if defined(CONFIG_LPUART_RXDMA) && defined(CONFIG_LPUART_TXDMA)
+    .ops         = &g_uart_rxtxdma_ops,
+#elif defined(CONFIG_LPUART_RXDMA) && !defined(CONFIG_LPUART_TXDMA)
+    .ops         = &g_uart_rxdma_ops,
+#elif !defined(CONFIG_LPUART_RXDMA) && defined(CONFIG_LPUART_TXDMA)
+    .ops         = &g_uart_txdma_ops,
+#else
+    .ops         = &g_uart_ops,
+#endif
+    .priv        = &g_lpuartpriv,
+  },
+
+  .irq           = STM32_IRQ_LPUART,
+  .rxftcfg       = CONFIG_LPUART_RXFIFO_THRES,
+  .parity        = CONFIG_LPUART1_PARITY,
+  .bits          = CONFIG_LPUART1_BITS,
+  .stopbits2     = CONFIG_LPUART1_2STOP,
+  .baud256       = true,
+  .baud          = CONFIG_LPUART1_BAUD,
+  .apbclock      = STM32_PCLK3_FREQUENCY,
+  .usartbase     = STM32_LPUART1_BASE,
+  .tx_gpio       = GPIO_LPUART1_TX,
+  .rx_gpio       = GPIO_LPUART1_RX,
+#if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART_OFLOWCONTROL)
+  .oflow         = true,
+  .cts_gpio      = GPIO_LPUART1_CTS,
+#endif
+#if defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_LPUART_IFLOWCONTROL)
+  .iflow         = true,
+  .rts_gpio      = GPIO_LPUART1_RTS,
+#endif
+#ifdef CONFIG_LPUART_TXDMA
+  .txdma_channel = DMAMAP_LPUART_TX,
+  .txdmasem      = SEM_INITIALIZER(1),
+#endif
+#ifdef CONFIG_LPUART_RXDMA
+  .rxdma_channel = DMAMAP_LPUART_RX,
+  .rxfifo        = g_lpuartrxfifo,
+#endif
+
+#ifdef CONFIG_LPUART_RS485
+  .rs485_dir_gpio = GPIO_LPUART_RS485_DIR,
+#  if (CONFIG_LPUART_RS485_DIR_POLARITY == 0)
   .rs485_dir_polarity = false,
 #  else
   .rs485_dir_polarity = true,
@@ -1500,6 +1603,9 @@ static struct up_dev_s * const g_uart_devs[STM32_NSERIAL] =
 #endif
 #ifdef CONFIG_STM32H7_UART8
   [7] = &g_uart8priv,
+#endif
+#ifdef CONFIG_STM32H7_LPUART
+  [8] = &g_lpuartpriv,
 #endif
 };
 
@@ -1691,47 +1797,65 @@ static void up_set_format(struct uart_dev_s *dev)
 
   up_serialout(priv, STM32_USART_CR1_OFFSET, cr1);
 
-  /* In case of oversampling by 8, the equation is:
-   *
-   *   baud      = 2 * fCK / usartdiv8
-   *   usartdiv8 = 2 * fCK / baud
-   */
-
-  usartdiv8 = ((priv->apbclock << 1) + (priv->baud >> 1)) / priv->baud;
-
-  /* Baud rate for standard USART (SPI mode included):
-   *
-   * In case of oversampling by 16, the equation is:
-   *   baud       = fCK / usartdiv16
-   *   usartdiv16 = fCK / baud
-   *              = 2 * usartdiv8
-   */
-
-  /* Use oversamply by 8 only if the divisor is small.  But what is small? */
-
-  if (usartdiv8 > 100)
+  if (priv->baud256)
     {
-      /* Use usartdiv16 */
-
-      brr  = (usartdiv8 + 1) >> 1;
-
-      /* Clear oversampling by 8 to enable oversampling by 16 */
+      /* LPUART does not have an 8x oversampling mode */
 
       cr1 &= ~USART_CR1_OVER8;
+
+      /* In case of LPUART, the equation is:
+       *
+       *   baud      = 256 * fCK / usartdiv
+       *   usartdiv  = 256 * fCK / baud
+       * Avoiding overflow of numerator, assuming a max clock value of 120MHz:
+       *   usartdiv  =   8 * fCK / (baud / 32)
+       */
+
+      brr = ((priv->apbclock << 3) + (priv->baud >> 1)) / (priv->baud >> 5);
+    } else {
+
+
+      /* In case of oversampling by 8, the equation is:
+       *
+       *   baud      = 2 * fCK / usartdiv8
+       *   usartdiv8 = 2 * fCK / baud
+       */
+
+      usartdiv8 = ((priv->apbclock << 1) + (priv->baud >> 1)) / priv->baud;
+
+      /* Baud rate for standard USART (SPI mode included):
+       *
+       * In case of oversampling by 16, the equation is:
+       *   baud       = fCK / usartdiv16
+       *   usartdiv16 = fCK / baud
+       *              = 2 * usartdiv8
+       */
+
+      /* Use oversamply by 8 only if the divisor is small.  But what is small? */
+
+      if (usartdiv8 > 100)
+        {
+          /* Use usartdiv16 */
+
+          brr  = (usartdiv8 + 1) >> 1;
+
+          /* Clear oversampling by 8 to enable oversampling by 16 */
+
+          cr1 &= ~USART_CR1_OVER8;
+        }
+      else
+        {
+          DEBUGASSERT(usartdiv8 >= 8);
+
+          /* Perform mysterious operations on bits 0-3 */
+
+          brr  = ((usartdiv8 & 0xfff0) | ((usartdiv8 & 0x000f) >> 1));
+
+          /* Set oversampling by 8 */
+
+          cr1 |= USART_CR1_OVER8;
+        }
     }
-  else
-    {
-      DEBUGASSERT(usartdiv8 >= 8);
-
-      /* Perform mysterious operations on bits 0-3 */
-
-      brr  = ((usartdiv8 & 0xfff0) | ((usartdiv8 & 0x000f) >> 1));
-
-      /* Set oversampling by 8 */
-
-      cr1 |= USART_CR1_OVER8;
-    }
-
   up_serialout(priv, STM32_USART_CR1_OFFSET, cr1);
   up_serialout(priv, STM32_USART_BRR_OFFSET, brr);
 
@@ -2033,6 +2157,12 @@ static void up_set_apb_clock(struct uart_dev_s *dev, bool on)
     case STM32_UART8_BASE:
       rcc_en = RCC_APB1LENR_UART8EN;
       regaddr = STM32_RCC_APB1LENR;
+      break;
+#endif
+#ifdef CONFIG_STM32H7_LPUART
+    case STM32_LPUART1_BASE:
+      rcc_en = RCC_APB4ENR_LPUART1EN;
+      regaddr = STM32_RCC_APB4ENR;
       break;
 #endif
     }
@@ -2789,6 +2919,10 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
     case TCSETS:
       {
         struct termios *termiosp = (struct termios *)arg;
+        bool new_settings = false;
+        bool tmp_stopbits2;
+        uint8_t tmp_parity;
+        uint32_t tmp_baud;
 
         if (!termiosp)
           {
@@ -2813,14 +2947,15 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
 
         if (termiosp->c_cflag & PARENB)
           {
-            priv->parity = (termiosp->c_cflag & PARODD) ? 1 : 2;
+            tmp_parity = (termiosp->c_cflag & PARODD) ? 1 : 2;
           }
         else
           {
-            priv->parity = 0;
+            tmp_parity = 0;
           }
 
-        priv->stopbits2 = (termiosp->c_cflag & CSTOPB) != 0;
+        tmp_stopbits2 = (termiosp->c_cflag & CSTOPB) != 0;
+
 #ifdef CONFIG_SERIAL_OFLOWCONTROL
         priv->oflow = (termiosp->c_cflag & CCTS_OFLOW) != 0;
 #endif
@@ -2837,13 +2972,28 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
          * that only one speed is supported.
          */
 
-        priv->baud = cfgetispeed(termiosp);
+        tmp_baud = cfgetispeed(termiosp);
+
+        if (tmp_parity != priv->parity) {
+            new_settings = true;
+            priv->parity = tmp_parity;
+        }
+
+        if (tmp_stopbits2 != priv->stopbits2) {
+            new_settings = true;
+            priv->stopbits2 = tmp_stopbits2;
+        }
+        if (tmp_baud != priv->baud) {
+            new_settings = true;
+            priv->baud = tmp_baud;
+        }
 
         /* Effect the changes immediately - note that we do not implement
          * TCSADRAIN / TCSAFLUSH
          */
-
-        up_set_format(dev);
+        if (new_settings) {
+            up_set_format(dev);
+        }
       }
       break;
 #endif /* CONFIG_SERIAL_TERMIOS */
