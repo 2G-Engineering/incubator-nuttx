@@ -63,6 +63,20 @@
 #define MX25R_CE          0xc7  /* Chip erase               */
 #define MX25R_CE_ALT      0x60  /* Chip erase (alternate)   */
 
+#define MX25R_EN4B        0xb7  /* Enter 4-byte mode         */
+#define MX25R_EX4B        0xe9  /* Exit 4-byte mode          */
+#define MX25R_READ4B      0x13  /* Read data (4 Byte mode)   */
+#define MX25R_FAST_READ4B 0x0c  /* Higher speed read    (4B) */
+#define MX25R_2READ4B     0xbc  /* 2 x I/O read command (4B) */
+#define MX25R_DREAD4B     0x3c  /* 1I / 2O read command (4B) */
+#define MX25R_4READ4B     0xec  /* 4 x I/O read command (4B) */
+#define MX25R_QREAD4B     0x6c  /* 1I / 4O read command (4B) */
+#define MX25R_4PP4B       0x3e  /* Quad page program    (4B) */
+#define MX25R_SE4B        0x21  /* 4Kb Sector erase     (4B) */
+#define MX25R_BE32K4B     0x5c  /* 32Kbit block Erase   (4B) */
+#define MX25R_BE64K4B     0xdc  /* 64Kbit block Erase   (4B) */
+#define MX25R_PP4B        0x12  /* Page program         (4B) */
+
 #define MX25R_WREN        0x06  /* Write Enable             */
 #define MX25R_WRDI        0x04  /* Write Disable            */
 #define MX25R_RDSR        0x05  /* Read status register     */
@@ -107,21 +121,31 @@
 #endif
 #define MX25R_JEDEC_MX25R6435F_CAPACITY  0x17  /* MX25R6435F memory capacity */
 #define MX25R_JEDEC_MX25R8035F_CAPACITY  0x14  /* MX25R8035F memory capacity */
+#define MX25R_JEDEC_MX25L25645G_CAPACITY 0x19  /* MX25L25645G memory capacity */
 
 /* Supported chips parameters */
 
-/* MX25R6435F (64 MB) memory capacity */
+/* MX25R6435F (64 Mb) memory capacity */
 
 #define MX25R6435F_SECTOR_SIZE      (4*1024)
 #define MX25R6435F_SECTOR_SHIFT     (12)
 #define MX25R6435F_SECTOR_COUNT     (2048)
 #define MX25R6435F_PAGE_SIZE        (256)
+#define MX25R6435F_ADDRESS_BYTES    (3)
 
 #ifdef CONFIG_MX25RXX_PAGE128
 #  define MX25R6435F_PAGE_SHIFT       (7)
 #else
 #  define MX25R6435F_PAGE_SHIFT       (8)
 #endif
+
+/* MX25L25645G (256 Mb) memory capacity */
+#define MX25L25645G_SECTOR_SIZE      (4*1024)
+#define MX25L25645G_SECTOR_SHIFT     (12)
+#define MX25L25645G_SECTOR_COUNT     (8192)
+#define MX25L25645G_PAGE_SIZE        (256)
+#define MX25L25645G_PAGE_SHIFT       (8)
+#define MX25L25645G_ADDRESS_BYTES    (4)
 
 /* Status register bit definitions */
 
@@ -177,6 +201,7 @@ struct mx25rxx_dev_s
 
   uint8_t                sectorshift; /* Log2 of sector size */
   uint8_t                pageshift;   /* Log2 of page size */
+  uint8_t                addressbytes;/* Number of address bytes required */
   uint16_t               nsectors;    /* Number of erase sectors */
 
 #ifdef CONFIG_MX25RXX_SECTOR512
@@ -356,13 +381,13 @@ int mx25rxx_read_byte(FAR struct mx25rxx_dev_s *dev, FAR uint8_t *buffer,
   finfo("address: %08lx nbytes: %d\n", (long)address, (int)buflen);
 
   meminfo.flags   = QSPIMEM_READ | QSPIMEM_QUADIO;
-  meminfo.addrlen = 3;
+  meminfo.addrlen = dev->addressbytes;
 
   /* Ignore performance enhanced mode => 2+4 dummies */
 
   meminfo.dummies = 6;
   meminfo.buflen  = buflen;
-  meminfo.cmd     = MX25R_4READ;
+  meminfo.cmd     = dev->addressbytes == 4 ? MX25R_4READ4B : MX25R_4READ;
   meminfo.addr    = address;
   meminfo.buffer  = buffer;
 
@@ -387,8 +412,8 @@ int mx25rxx_write_page(struct mx25rxx_dev_s *priv, FAR const uint8_t *buffer,
   /* Set up non-varying parts of transfer description */
 
   meminfo.flags   = QSPIMEM_WRITE | QSPIMEM_QUADIO;
-  meminfo.cmd     = MX25R_4PP;
-  meminfo.addrlen = 3;
+  meminfo.cmd     = priv->addressbytes == 4 ? MX25R_4PP4B : MX25R_4PP;
+  meminfo.addrlen = priv->addressbytes;
   meminfo.buflen  = pagesize;
   meminfo.dummies = 0;
 
@@ -446,7 +471,7 @@ int mx25rxx_erase_sector(struct mx25rxx_dev_s *priv, off_t sector)
   /* Send the sector erase command */
 
   mx25rxx_write_enable(priv, true);
-  mx25rxx_command_address(priv->qspi, MX25R_SE, address, 3);
+  mx25rxx_command_address(priv->qspi, priv->addressbytes == 4 ? MX25R_SE4B : MX25R_SE, address, priv->addressbytes);
 
   /* Wait for erasure to finish */
 
@@ -471,7 +496,7 @@ int mx25rxx_erase_block(struct mx25rxx_dev_s *priv, off_t block)
   /* Send the 64k block erase command */
 
   mx25rxx_write_enable(priv, true);
-  mx25rxx_command_address(priv->qspi, MX25R_BE64, block << 16, 3);
+  mx25rxx_command_address(priv->qspi, dev->addressbytes == 4 ? MX25R_BE644B : MX25R_BE64, block << 16, dev->addressbytes);
 
   /* Wait for erasure to finish */
 
@@ -853,8 +878,14 @@ int mx25rxx_readid(struct mx25rxx_dev_s *dev)
         dev->sectorshift = MX25R6435F_SECTOR_SHIFT;
         dev->pageshift   = MX25R6435F_PAGE_SHIFT;
         dev->nsectors    = MX25R6435F_SECTOR_COUNT;
+        dev->addressbytes= MX25R6435F_ADDRESS_BYTES;
         break;
-
+      case MX25R_JEDEC_MX25L25645G_CAPACITY:
+        dev->sectorshift = MX25L25645G_SECTOR_SHIFT;
+        dev->pageshift   = MX25L25645G_PAGE_SHIFT;
+        dev->nsectors    = MX25L25645G_SECTOR_COUNT;
+        dev->addressbytes= MX25L25645G_ADDRESS_BYTES;
+        break;
       default:
         ferr("ERROR: Unsupported memory capacity: %02x\n", dev->cmdbuf[2]);
         return -ENODEV;
