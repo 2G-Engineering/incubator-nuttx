@@ -579,11 +579,7 @@
 #define ETH_DMAINT_XMIT_ENABLE    (ETH_DMACIER_NIE | ETH_DMACIER_TIE)
 #define ETH_DMAINT_XMIT_DISABLE   (ETH_DMACIER_TIE)
 
-#ifdef CONFIG_DEBUG_NET
-#  define ETH_DMAINT_ERROR_ENABLE (ETH_DMACIER_AIE | ETH_DMAINT_ABNORMAL)
-#else
-#  define ETH_DMAINT_ERROR_ENABLE (0)
-#endif
+#define ETH_DMAINT_ERROR_ENABLE (ETH_DMACIER_AIE | ETH_DMAINT_ABNORMAL)
 
 /* Helpers ******************************************************************/
 
@@ -2032,7 +2028,7 @@ static void stm32_freeframe(struct stm32_ethmac_s *priv)
       up_invalidate_dcache((uintptr_t)txdesc,
                            (uintptr_t)txdesc + sizeof(struct eth_desc_s));
 
-      for (i = 0; (txdesc->des3 & ETH_TDES3_RD_OWN) == 0; i++)
+      while ((txdesc->des3 & ETH_TDES3_RD_OWN) == 0)
         {
           /* There should be a buffer assigned to all in-flight
            * TX descriptors.
@@ -2247,21 +2243,27 @@ static void stm32_interrupt_work(void *arg)
 
       stm32_putreg(ETH_DMACSR_AIS, STM32_ETH_DMACSR);
 
-      /* As per the datasheet's recommendation, the MAC
-       * needs to be reset for all abnormal events. The
-       * scheduled job will take the interface down and
-       * up again.
-       */
+      /* In case of any error that stops the DMA, reset the MAC. */
 
-      work_queue(ETHWORK, &priv->irqwork, stm32_txtimeout_work, priv, 0);
+      if (dmasr & (ETH_DMACIER_CDEE | ETH_DMACSR_FBE |
+          ETH_DMACSR_RPS | ETH_DMACSR_TPS))
+        {
+          /* As per the datasheet's recommendation, the MAC
+           * needs to be reset for all fatal errors. The
+           * scheduled job will take the interface down and
+           * up again.
+           */
 
-      /* Interrupts need to remain disabled, no other
-       * processing will take place. After reset
-       * everything will be restored.
-       */
+          work_queue(ETHWORK, &priv->irqwork, stm32_txtimeout_work, priv, 0);
 
-      net_unlock();
-      return;
+          /* Interrupts need to remain disabled, no other
+           * processing will take place. After reset
+           * everything will be restored.
+           */
+
+          net_unlock();
+          return;
+        }
     }
 
   net_unlock();
@@ -3329,7 +3331,7 @@ static int stm32_phyinit(struct stm32_ethmac_s *priv)
   to = PHY_RESET_DELAY;
   do
     {
-      up_mdelay(10);
+      nxsig_usleep(10);
       to -= 10;
       ret = stm32_phyread(CONFIG_STM32H7_PHYADDR, MII_MCR, &phyval);
     }
@@ -3452,19 +3454,19 @@ if ((phyval & CONFIG_STM32H7_PHYSR_ALTMODE) == 0)
           priv->mbps100 = 0;
         }
 
-      if ((phyval &  CONFIG_STM32H7_PHYSR_100HD) == CONFIG_STM32H7_PHYSR_10HD)
+      if ((phyval & CONFIG_STM32H7_PHYSR_100HD) == CONFIG_STM32H7_PHYSR_100HD)
         {
           priv->fduplex = 0;
           priv->mbps100 = 1;
         }
 
-      if ((phyval &  CONFIG_STM32H7_PHYSR_10FD) == CONFIG_STM32H7_PHYSR_10FD)
+      if ((phyval & CONFIG_STM32H7_PHYSR_10FD) == CONFIG_STM32H7_PHYSR_10FD)
         {
           priv->fduplex = 1;
           priv->mbps100 = 0;
         }
 
-      if ((phyval &  CONFIG_STM32H7_PHYSR_100FD) == CONFIG_STM32H7_PHYSR_100FD)
+      if ((phyval & CONFIG_STM32H7_PHYSR_100FD) == CONFIG_STM32H7_PHYSR_100FD)
         {
           priv->fduplex = 1;
           priv->mbps100 = 1;
@@ -3507,7 +3509,7 @@ if ((phyval & CONFIG_STM32H7_PHYSR_ALTMODE) == 0)
       return ret;
     }
 
-  up_mdelay(PHY_CONFIG_DELAY);
+  nxsig_usleep(PHY_CONFIG_DELAY);
 
   /* Remember the selected speed and duplex modes */
 
