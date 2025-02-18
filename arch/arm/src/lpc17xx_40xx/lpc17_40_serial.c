@@ -1429,6 +1429,7 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
       {
         struct termios *termiosp = (struct termios *)arg;
         irqstate_t flags;
+        speed_t tmp_baud;
 #  ifndef CONFIG_LPC17_40_UART_USE_FRACTIONAL_DIVIDER
         uint32_t           lcr;  /* Holds current values of line control register */
         uint16_t           dl;   /* Divisor latch */
@@ -1444,8 +1445,9 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
          * Note that only cfgetispeed is used because we have knowledge
          * that only one speed is supported.
          */
-
-        priv->baud = cfgetispeed(termiosp);
+        tmp_baud = cfgetispeed(termiosp);
+        if (tmp_baud != priv->baud) {
+          priv->baud = tmp_baud;
 
         /* TODO: Re-calculate the optimal CCLK divisor for the new baud and
          * and reset the divider in the CLKSEL0/1 register.
@@ -1453,39 +1455,40 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
 
 #  ifdef CONFIG_LPC17_40_UART_USE_FRACTIONAL_DIVIDER
 #ifdef LPC176x
-        up_setbaud(priv->uartbase, LPC17_40_CCLK / \
+          up_setbaud(priv->uartbase, LPC17_40_CCLK / \
                    priv->cclkdiv, priv->baud);
 #else
-        up_setbaud(priv->uartbase, BOARD_PCLK_FREQUENCY, priv->baud);
+          up_setbaud(priv->uartbase, BOARD_PCLK_FREQUENCY, priv->baud);
 #endif
 #  else
 #    if 0 /* ifdef LPC176x */
-        priv->cclkdiv = lpc17_40_uartcclkdiv(priv->baud);
+          priv->cclkdiv = lpc17_40_uartcclkdiv(priv->baud);
 #    endif
-        /* DLAB open latch
-         * REVISIT: Shouldn't we just call up_setup() to do all of the
-         *          following?
-         */
+          /* DLAB open latch
+           * REVISIT: Shouldn't we just call up_setup() to do all of the
+           *          following?
+           */
 
-        flags = enter_critical_section();
-        lcr = getreg32(priv->uartbase + LPC17_40_UART_LCR_OFFSET);
-        up_serialout(priv, LPC17_40_UART_LCR_OFFSET, (lcr | UART_LCR_DLAB));
+          flags = enter_critical_section();
+          lcr = getreg32(priv->uartbase + LPC17_40_UART_LCR_OFFSET);
+          up_serialout(priv, LPC17_40_UART_LCR_OFFSET, (lcr | UART_LCR_DLAB));
 
-        /* Set the BAUD divisor */
+          /* Set the BAUD divisor */
 
 #    ifdef LPC176x
-        dl = lpc17_40_uartdl(priv->baud, priv->cclkdiv);
+          dl = lpc17_40_uartdl(priv->baud, priv->cclkdiv);
 #    else
-        dl = lpc17_40_uartdl(priv->baud);
+          dl = lpc17_40_uartdl(priv->baud);
 #    endif
-        up_serialout(priv, LPC17_40_UART_DLM_OFFSET, dl >> 8);
-        up_serialout(priv, LPC17_40_UART_DLL_OFFSET, dl & 0xff);
+          up_serialout(priv, LPC17_40_UART_DLM_OFFSET, dl >> 8);
+          up_serialout(priv, LPC17_40_UART_DLL_OFFSET, dl & 0xff);
 
-        /* Clear DLAB */
+          /* Clear DLAB */
 
-        up_serialout(priv, LPC17_40_UART_LCR_OFFSET, lcr);
-        leave_critical_section(flags);
+          up_serialout(priv, LPC17_40_UART_LCR_OFFSET, lcr);
+          leave_critical_section(flags);
 #  endif
+        }
       }
       break;
 #endif
