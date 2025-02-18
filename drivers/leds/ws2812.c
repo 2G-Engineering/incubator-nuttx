@@ -92,9 +92,9 @@
 #elif CONFIG_WS2812_FREQUENCY >= 5900000 && CONFIG_WS2812_FREQUENCY <= 9000000
 #  define WS2812_ZERO_BYTE  0b01100000 /* 222ns at 9 MHz, 339ns at 5.9 MHz */
 #  define WS2812_ONE_BYTE   0b01111100 /* 556ns at 9 MHz, 847ns at 5.9 MHz */
-#elif CONFIG_WS2812_FREQUENCY == 2400000
-#  define WS2812_ZERO_SYMBOL  0b100 /* 417ns at 2.4MHz */
-#  define WS2812_ONE_SYMBOL   0b110 /* 833ns at 2.4MHz */
+#elif CONFIG_WS2812_FREQUENCY >= 2400000 && CONFIG_WS2812_FREQUENCY <= 3000000
+#  define WS2812_ZERO_SYMBOL  0b100 /* 417ns at 2.4MHz, 333ns at 3MHz */
+#  define WS2812_ONE_SYMBOL   0b110 /* 833ns at 2.4MHz, 666ns at 3MHz*/
 #  define WS2812_DENSE_PACKING
 #else
 #  error "Unsupported SPI Frequency"
