@@ -572,6 +572,16 @@
 #  endif
 #endif /* CONFIG_STM32H7_FLOWCONTROL_BROKEN */
 
+/* USART Feature bits */
+#define USART_FEATURE_BAUD256       (1 << 0)
+#define USART_FEATURE_SYNCHRONOUS   (1 << 1)
+#define USART_FEATURE_SMARTCARD     (1 << 2)
+
+/* USART Unconfigure bits */
+#define USART_UNCONFIGURE_RX        (1 << 0)
+#define USART_UNCONFIGURE_TX        (1 << 1)
+#define USART_UNCONFIGURE_DIR       (1 << 2)
+
 /****************************************************************************
  * Private Types
  ****************************************************************************/
@@ -579,7 +589,7 @@
 struct up_dev_s
 {
   struct uart_dev_s dev;       /* Generic UART device */
-  uint16_t          ie;        /* Saved interrupt mask bits value */
+  uint32_t          ie;        /* Saved interrupt mask bits value */
   uint16_t          sr;        /* Saved status bits */
 
   /* Has been initialized and HW is setup. */
@@ -591,7 +601,7 @@ struct up_dev_s
 
   /* Interrupt mask value stored before suspending for stop mode. */
 
-  uint16_t          suspended_ie;
+  uint32_t          suspended_ie;
 #endif
 
   /* If termios are supported, then the following fields may vary at
@@ -609,7 +619,6 @@ struct up_dev_s
 #ifdef CONFIG_SERIAL_OFLOWCONTROL
   bool              oflow;     /* output flow control (CTS) enabled */
 #endif
-  bool              baud256;   /* UART uses special * 256 baud math (only LPUART1) */
   uint32_t          baud;      /* Configured baud */
 #else
   const uint8_t     rxftcfg;   /* Rx FIFO threshold level */
@@ -629,6 +638,12 @@ struct up_dev_s
   const uint32_t    usartbase; /* Base address of USART registers */
   const uint32_t    tx_gpio;   /* U[S]ART TX GPIO pin configuration */
   const uint32_t    rx_gpio;   /* U[S]ART RX GPIO pin configuration */
+#ifdef CONFIG_STM32H7_USART_SYNCHRONOUS
+  const uint32_t    clk_gpio;  /* USART clock GPIO pin configuration */
+  const uint32_t    nss_gpio;  /* USART slave select GPIO pin configuration */
+  const bool        clk;       /* USART has clock pin */
+  const bool        nss;       /* USART has nss pin */
+#endif
 #ifdef CONFIG_SERIAL_IFLOWCONTROL
   const uint32_t    rts_gpio;  /* U[S]ART RTS GPIO pin configuration */
 #endif
@@ -663,8 +678,11 @@ struct up_dev_s
 
 #ifdef HAVE_RS485
   const uint32_t    rs485_dir_gpio;     /* U[S]ART RS-485 DIR GPIO pin configuration */
-  const bool        rs485_dir_polarity; /* U[S]ART RS-485 DIR pin state for TX enabled */
+  uint8_t           rs485_flags;        /* U[S]ART RS-485 flags (compatible with struct serial_rs485) */
 #endif
+  const uint8_t     features;      /* Supported features on this USART */
+  const uint8_t     unconfigure;   /* Unconfigure pins on close */
+  const bool        use_idle_irq;  /* Idle interrupt is enabled on this USART */
 };
 
 #ifdef CONFIG_PM
@@ -700,6 +718,7 @@ static void up_send(struct uart_dev_s *dev, int ch);
 static void up_txint(struct uart_dev_s *dev, bool enable);
 #endif
 static bool up_txready(struct uart_dev_s *dev);
+static bool up_txempty(struct uart_dev_s *dev);
 
 #ifdef SERIAL_HAVE_TXDMA
 static void up_dma_send(struct uart_dev_s *dev);
@@ -754,7 +773,7 @@ static const struct uart_ops_s g_uart_ops =
   .send           = up_send,
   .txint          = up_txint,
   .txready        = up_txready,
-  .txempty        = up_txready,
+  .txempty        = up_txempty,
 };
 #endif
 
@@ -775,7 +794,7 @@ static const struct uart_ops_s g_uart_rxtxdma_ops =
   .send           = up_send,
   .txint          = up_dma_txint,
   .txready        = up_txready,
-  .txempty        = up_txready,
+  .txempty        = up_txempty,
   .dmatxavail     = up_dma_txavailable,
   .dmasend        = up_dma_send,
 };
@@ -798,7 +817,7 @@ static const struct uart_ops_s g_uart_rxdma_ops =
   .send           = up_send,
   .txint          = up_txint,
   .txready        = up_txready,
-  .txempty        = up_txready,
+  .txempty        = up_txempty,
 };
 #endif
 
@@ -819,7 +838,7 @@ static const struct uart_ops_s g_uart_txdma_ops =
   .send           = up_send,
   .txint          = up_dma_txint,
   .txready        = up_txready,
-  .txempty        = up_txready,
+  .txempty        = up_txempty,
   .dmatxavail     = up_dma_txavailable,
   .dmasend        = up_dma_send,
 };
@@ -974,12 +993,19 @@ static struct up_dev_s g_usart1priv =
   .parity        = CONFIG_USART1_PARITY,
   .bits          = CONFIG_USART1_BITS,
   .stopbits2     = CONFIG_USART1_2STOP,
-  .baud256       = false,
   .baud          = CONFIG_USART1_BAUD,
   .apbclock      = STM32_PCLK2_FREQUENCY,
   .usartbase     = STM32_USART1_BASE,
   .tx_gpio       = GPIO_USART1_TX,
   .rx_gpio       = GPIO_USART1_RX,
+#ifdef CONFIG_USART1_HAS_CLOCK_PIN
+  .clk           = true,
+  .clk_gpio      = GPIO_USART1_CK,
+#endif
+#ifdef CONFIG_USART1_HAS_NSS_PIN
+  .nss           = true,
+  .nss_gpio      = GPIO_USART1_NSS,
+#endif
 #if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_USART1_OFLOWCONTROL)
   .oflow         = true,
   .cts_gpio      = GPIO_USART1_CTS,
@@ -999,11 +1025,26 @@ static struct up_dev_s g_usart1priv =
 
 #ifdef CONFIG_USART1_RS485
   .rs485_dir_gpio = GPIO_USART1_RS485_DIR,
-#  if (CONFIG_USART1_RS485_DIR_POLARITY == 0)
-  .rs485_dir_polarity = false,
-#  else
-  .rs485_dir_polarity = true,
-#  endif
+#if (CONFIG_USART1_RS485_DIR_POLARITY == 0)
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_AFTER_SEND,
+#else
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_ON_SEND,
+#endif
+#endif
+  .features      = USART_FEATURE_SYNCHRONOUS | USART_FEATURE_SMARTCARD,
+  .unconfigure = 0
+#if defined(CONFIG_USART1_UNCONFIG_RX_ON_CLOSE)
+                 | USART_UNCONFIGURE_RX
+#endif
+#if defined(CONFIG_USART1_UNCONFIG_TX_ON_CLOSE)
+                 | USART_UNCONFIGURE_TX
+#endif
+#if defined(CONFIG_USART1_UNCONFIG_DIR_ON_CLOSE)
+                 | USART_UNCONFIGURE_DIR
+#endif
+  ,
+#ifdef CONFIG_USART1_USE_IDLE_IRQ
+  .use_idle_irq  = true,
 #endif
 };
 #endif
@@ -1045,12 +1086,19 @@ static struct up_dev_s g_usart2priv =
   .parity        = CONFIG_USART2_PARITY,
   .bits          = CONFIG_USART2_BITS,
   .stopbits2     = CONFIG_USART2_2STOP,
-  .baud256       = false,
   .baud          = CONFIG_USART2_BAUD,
   .apbclock      = STM32_PCLK1_FREQUENCY,
   .usartbase     = STM32_USART2_BASE,
   .tx_gpio       = GPIO_USART2_TX,
   .rx_gpio       = GPIO_USART2_RX,
+#ifdef CONFIG_USART2_HAS_CLOCK_PIN
+  .clk           = true,
+  .clk_gpio      = GPIO_USART2_CK,
+#endif
+#ifdef CONFIG_USART2_HAS_NSS_PIN
+  .nss           = true,
+  .nss_gpio      = GPIO_USART2_NSS,
+#endif
 #if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_USART2_OFLOWCONTROL)
   .oflow         = true,
   .cts_gpio      = GPIO_USART2_CTS,
@@ -1070,11 +1118,26 @@ static struct up_dev_s g_usart2priv =
 
 #ifdef CONFIG_USART2_RS485
   .rs485_dir_gpio = GPIO_USART2_RS485_DIR,
-#  if (CONFIG_USART2_RS485_DIR_POLARITY == 0)
-  .rs485_dir_polarity = false,
-#  else
-  .rs485_dir_polarity = true,
-#  endif
+#if (CONFIG_USART2_RS485_DIR_POLARITY == 0)
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_AFTER_SEND,
+#else
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_ON_SEND,
+#endif
+#endif
+  .features      = USART_FEATURE_SYNCHRONOUS | USART_FEATURE_SMARTCARD,
+  .unconfigure = 0
+#if defined(CONFIG_USART2_UNCONFIG_RX_ON_CLOSE)
+                 | USART_UNCONFIGURE_RX
+#endif
+#if defined(CONFIG_USART2_UNCONFIG_TX_ON_CLOSE)
+                 | USART_UNCONFIGURE_TX
+#endif
+#if defined(CONFIG_USART2_UNCONFIG_DIR_ON_CLOSE)
+                 | USART_UNCONFIGURE_DIR
+#endif
+  ,
+#ifdef CONFIG_USART2_USE_IDLE_IRQ
+  .use_idle_irq  = true,
 #endif
 };
 #endif
@@ -1116,12 +1179,19 @@ static struct up_dev_s g_usart3priv =
   .parity        = CONFIG_USART3_PARITY,
   .bits          = CONFIG_USART3_BITS,
   .stopbits2     = CONFIG_USART3_2STOP,
-  .baud256       = false,
   .baud          = CONFIG_USART3_BAUD,
   .apbclock      = STM32_PCLK1_FREQUENCY,
   .usartbase     = STM32_USART3_BASE,
   .tx_gpio       = GPIO_USART3_TX,
   .rx_gpio       = GPIO_USART3_RX,
+#ifdef CONFIG_USART3_HAS_CLOCK_PIN
+  .clk           = true,
+  .clk_gpio      = GPIO_USART3_CK,
+#endif
+#ifdef CONFIG_USART3_HAS_NSS_PIN
+  .nss           = true,
+  .nss_gpio      = GPIO_USART3_NSS,
+#endif
 #if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_USART3_OFLOWCONTROL)
   .oflow         = true,
   .cts_gpio      = GPIO_USART3_CTS,
@@ -1141,11 +1211,26 @@ static struct up_dev_s g_usart3priv =
 
 #ifdef CONFIG_USART3_RS485
   .rs485_dir_gpio = GPIO_USART3_RS485_DIR,
-#  if (CONFIG_USART3_RS485_DIR_POLARITY == 0)
-  .rs485_dir_polarity = false,
-#  else
-  .rs485_dir_polarity = true,
-#  endif
+#if (CONFIG_USART3_RS485_DIR_POLARITY == 0)
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_AFTER_SEND,
+#else
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_ON_SEND,
+#endif
+#endif
+  .features      = USART_FEATURE_SYNCHRONOUS | USART_FEATURE_SMARTCARD,
+  .unconfigure = 0
+#if defined(CONFIG_USART3_UNCONFIG_RX_ON_CLOSE)
+                 | USART_UNCONFIGURE_RX
+#endif
+#if defined(CONFIG_USART3_UNCONFIG_TX_ON_CLOSE)
+                 | USART_UNCONFIGURE_TX
+#endif
+#if defined(CONFIG_USART3_UNCONFIG_DIR_ON_CLOSE)
+                 | USART_UNCONFIGURE_DIR
+#endif
+  ,
+#ifdef CONFIG_USART3_USE_IDLE_IRQ
+  .use_idle_irq  = true,
 #endif
 };
 #endif
@@ -1195,7 +1280,6 @@ static struct up_dev_s g_uart4priv =
   .iflow         = true,
   .rts_gpio      = GPIO_UART4_RTS,
 #endif
-  .baud256       = false,
   .baud          = CONFIG_UART4_BAUD,
   .apbclock      = STM32_PCLK1_FREQUENCY,
   .usartbase     = STM32_UART4_BASE,
@@ -1212,11 +1296,26 @@ static struct up_dev_s g_uart4priv =
 
 #ifdef CONFIG_UART4_RS485
   .rs485_dir_gpio = GPIO_UART4_RS485_DIR,
-#  if (CONFIG_UART4_RS485_DIR_POLARITY == 0)
-  .rs485_dir_polarity = false,
-#  else
-  .rs485_dir_polarity = true,
-#  endif
+#if (CONFIG_UART4_RS485_DIR_POLARITY == 0)
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_AFTER_SEND,
+#else
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_ON_SEND,
+#endif
+#endif
+  .features      = 0,
+  .unconfigure = 0
+#if defined(CONFIG_UART4_UNCONFIG_RX_ON_CLOSE)
+                 | USART_UNCONFIGURE_RX
+#endif
+#if defined(CONFIG_UART4_UNCONFIG_TX_ON_CLOSE)
+                 | USART_UNCONFIGURE_TX
+#endif
+#if defined(CONFIG_UART4_UNCONFIG_DIR_ON_CLOSE)
+                 | USART_UNCONFIGURE_DIR
+#endif
+  ,
+#ifdef CONFIG_UART4_USE_IDLE_IRQ
+  .use_idle_irq  = true,
 #endif
 };
 #endif
@@ -1266,7 +1365,6 @@ static struct up_dev_s g_uart5priv =
   .iflow         = true,
   .rts_gpio      = GPIO_UART5_RTS,
 #endif
-  .baud256       = false,
   .baud          = CONFIG_UART5_BAUD,
   .apbclock      = STM32_PCLK1_FREQUENCY,
   .usartbase     = STM32_UART5_BASE,
@@ -1283,11 +1381,26 @@ static struct up_dev_s g_uart5priv =
 
 #ifdef CONFIG_UART5_RS485
   .rs485_dir_gpio = GPIO_UART5_RS485_DIR,
-#  if (CONFIG_UART5_RS485_DIR_POLARITY == 0)
-  .rs485_dir_polarity = false,
-#  else
-  .rs485_dir_polarity = true,
-#  endif
+#if (CONFIG_UART5_RS485_DIR_POLARITY == 0)
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_AFTER_SEND,
+#else
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_ON_SEND,
+#endif
+#endif
+  .features      = 0,
+  .unconfigure = 0
+#if defined(CONFIG_UART5_UNCONFIG_RX_ON_CLOSE)
+                 | USART_UNCONFIGURE_RX
+#endif
+#if defined(CONFIG_UART5_UNCONFIG_TX_ON_CLOSE)
+                 | USART_UNCONFIGURE_TX
+#endif
+#if defined(CONFIG_UART5_UNCONFIG_DIR_ON_CLOSE)
+                 | USART_UNCONFIGURE_DIR
+#endif
+  ,
+#ifdef CONFIG_UART5_USE_IDLE_IRQ
+  .use_idle_irq  = true,
 #endif
 };
 #endif
@@ -1329,12 +1442,19 @@ static struct up_dev_s g_usart6priv =
   .parity        = CONFIG_USART6_PARITY,
   .bits          = CONFIG_USART6_BITS,
   .stopbits2     = CONFIG_USART6_2STOP,
-  .baud256       = false,
   .baud          = CONFIG_USART6_BAUD,
   .apbclock      = STM32_PCLK2_FREQUENCY,
   .usartbase     = STM32_USART6_BASE,
   .tx_gpio       = GPIO_USART6_TX,
   .rx_gpio       = GPIO_USART6_RX,
+#ifdef CONFIG_USART6_HAS_CLOCK_PIN
+  .clk           = true,
+  .clk_gpio      = GPIO_USART1_CK,
+#endif
+#ifdef CONFIG_USART6_HAS_NSS_PIN
+  .nss           = true,
+  .nss_gpio      = GPIO_USART1_NSS,
+#endif
 #if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_USART6_OFLOWCONTROL)
   .oflow         = true,
   .cts_gpio      = GPIO_USART6_CTS,
@@ -1354,11 +1474,26 @@ static struct up_dev_s g_usart6priv =
 
 #ifdef CONFIG_USART6_RS485
   .rs485_dir_gpio = GPIO_USART6_RS485_DIR,
-#  if (CONFIG_USART6_RS485_DIR_POLARITY == 0)
-  .rs485_dir_polarity = false,
-#  else
-  .rs485_dir_polarity = true,
-#  endif
+#if (CONFIG_USART6_RS485_DIR_POLARITY == 0)
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_AFTER_SEND,
+#else
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_ON_SEND,
+#endif
+#endif
+  .features      = USART_FEATURE_SYNCHRONOUS | USART_FEATURE_SMARTCARD,
+  .unconfigure = 0
+#if defined(CONFIG_USART6_UNCONFIG_RX_ON_CLOSE)
+                 | USART_UNCONFIGURE_RX
+#endif
+#if defined(CONFIG_USART6_UNCONFIG_TX_ON_CLOSE)
+                 | USART_UNCONFIGURE_TX
+#endif
+#if defined(CONFIG_USART6_UNCONFIG_DIR_ON_CLOSE)
+                 | USART_UNCONFIGURE_DIR
+#endif
+  ,
+#ifdef CONFIG_USART6_USE_IDLE_IRQ
+  .use_idle_irq  = true,
 #endif
 };
 #endif
@@ -1400,7 +1535,6 @@ static struct up_dev_s g_uart7priv =
   .parity        = CONFIG_UART7_PARITY,
   .bits          = CONFIG_UART7_BITS,
   .stopbits2     = CONFIG_UART7_2STOP,
-  .baud256       = false,
   .baud          = CONFIG_UART7_BAUD,
   .apbclock      = STM32_PCLK1_FREQUENCY,
   .usartbase     = STM32_UART7_BASE,
@@ -1425,11 +1559,26 @@ static struct up_dev_s g_uart7priv =
 
 #ifdef CONFIG_UART7_RS485
   .rs485_dir_gpio = GPIO_UART7_RS485_DIR,
-#  if (CONFIG_UART7_RS485_DIR_POLARITY == 0)
-  .rs485_dir_polarity = false,
-#  else
-  .rs485_dir_polarity = true,
-#  endif
+#if (CONFIG_UART7_RS485_DIR_POLARITY == 0)
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_AFTER_SEND,
+#else
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_ON_SEND,
+#endif
+#endif
+  .features      = 0,
+  .unconfigure = 0
+#if defined(CONFIG_UART7_UNCONFIG_RX_ON_CLOSE)
+                 | USART_UNCONFIGURE_RX
+#endif
+#if defined(CONFIG_UART7_UNCONFIG_TX_ON_CLOSE)
+                 | USART_UNCONFIGURE_TX
+#endif
+#if defined(CONFIG_UART7_UNCONFIG_DIR_ON_CLOSE)
+                 | USART_UNCONFIGURE_DIR
+#endif
+  ,
+#ifdef CONFIG_UART7_USE_IDLE_IRQ
+  .use_idle_irq  = true,
 #endif
 };
 #endif
@@ -1471,7 +1620,6 @@ static struct up_dev_s g_uart8priv =
   .parity        = CONFIG_UART8_PARITY,
   .bits          = CONFIG_UART8_BITS,
   .stopbits2     = CONFIG_UART8_2STOP,
-  .baud256       = false,
   .baud          = CONFIG_UART8_BAUD,
   .apbclock      = STM32_PCLK1_FREQUENCY,
   .usartbase     = STM32_UART8_BASE,
@@ -1496,11 +1644,26 @@ static struct up_dev_s g_uart8priv =
 
 #ifdef CONFIG_UART8_RS485
   .rs485_dir_gpio = GPIO_UART8_RS485_DIR,
-#  if (CONFIG_UART8_RS485_DIR_POLARITY == 0)
-  .rs485_dir_polarity = false,
-#  else
-  .rs485_dir_polarity = true,
-#  endif
+#if (CONFIG_UART8_RS485_DIR_POLARITY == 0)
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_AFTER_SEND,
+#else
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_ON_SEND,
+#endif
+#endif
+  .features      = 0,
+  .unconfigure = 0
+#if defined(CONFIG_UART8_UNCONFIG_RX_ON_CLOSE)
+                 | USART_UNCONFIGURE_RX
+#endif
+#if defined(CONFIG_UART8_UNCONFIG_TX_ON_CLOSE)
+                 | USART_UNCONFIGURE_TX
+#endif
+#if defined(CONFIG_UART8_UNCONFIG_DIR_ON_CLOSE)
+                 | USART_UNCONFIGURE_DIR
+#endif
+  ,
+#ifdef CONFIG_UART8_USE_IDLE_IRQ
+  .use_idle_irq  = true,
 #endif
 };
 #endif
@@ -1542,7 +1705,6 @@ static struct up_dev_s g_lpuartpriv =
   .parity        = CONFIG_LPUART1_PARITY,
   .bits          = CONFIG_LPUART1_BITS,
   .stopbits2     = CONFIG_LPUART1_2STOP,
-  .baud256       = true,
   .baud          = CONFIG_LPUART1_BAUD,
   .apbclock      = STM32_PCLK3_FREQUENCY,
   .usartbase     = STM32_LPUART1_BASE,
@@ -1567,11 +1729,26 @@ static struct up_dev_s g_lpuartpriv =
 
 #ifdef CONFIG_LPUART_RS485
   .rs485_dir_gpio = GPIO_LPUART_RS485_DIR,
-#  if (CONFIG_LPUART_RS485_DIR_POLARITY == 0)
-  .rs485_dir_polarity = false,
-#  else
-  .rs485_dir_polarity = true,
-#  endif
+#if (CONFIG_LPUART_RS485_DIR_POLARITY == 0)
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_AFTER_SEND,
+#else
+  .rs485_flags = SER_RS485_ENABLED | SER_RS485_RTS_ON_SEND,
+#endif
+#endif
+  .features      = USART_FEATURE_BAUD256,
+  .unconfigure = 0
+#if defined(CONFIG_LPUART_UNCONFIG_RX_ON_CLOSE)
+                 | USART_UNCONFIGURE_RX
+#endif
+#if defined(CONFIG_LPUART_UNCONFIG_TX_ON_CLOSE)
+                 | USART_UNCONFIGURE_TX
+#endif
+#if defined(CONFIG_LPUART_UNCONFIG_DIR_ON_CLOSE)
+                 | USART_UNCONFIGURE_DIR
+#endif
+  ,
+#ifdef CONFIG_LPUART_USE_IDLE_IRQ
+  .use_idle_irq  = true,
 #endif
 };
 #endif
@@ -1645,7 +1822,7 @@ static inline void up_serialout(struct up_dev_s *priv, int offset,
  * Name: up_setusartint
  ****************************************************************************/
 
-static inline void up_setusartint(struct up_dev_s *priv, uint16_t ie)
+static inline void up_setusartint(struct up_dev_s *priv, uint32_t ie)
 {
   uint32_t cr;
 
@@ -1661,13 +1838,15 @@ static inline void up_setusartint(struct up_dev_s *priv, uint16_t ie)
   cr &= ~(USART_CR1_USED_INTS);
   cr |= (ie & (USART_CR1_USED_INTS));
 #ifdef SERIAL_HAVE_RXDMA
-  cr |= USART_CR1_IDLEIE;
+  if (priv->use_idle_irq) {
+      cr |= USART_CR1_IDLEIE;
+  }
 #endif
   up_serialout(priv, STM32_USART_CR1_OFFSET, cr);
 
   cr = up_serialin(priv, STM32_USART_CR3_OFFSET);
   cr &= ~USART_CR3_EIE;
-  cr |= (ie & USART_CR3_EIE);
+  cr |= (ie & (USART_CR3_EIE | USART_CR3_RXFTIE));
   up_serialout(priv, STM32_USART_CR3_OFFSET, cr);
 }
 
@@ -1677,7 +1856,7 @@ static inline void up_setusartint(struct up_dev_s *priv, uint16_t ie)
 
 #if !defined(SERIAL_HAVE_ONLY_DMA) || defined(CONFIG_PM) || \
     defined(HAVE_RS485)
-static void up_restoreusartint(struct up_dev_s *priv, uint16_t ie)
+static void up_restoreusartint(struct up_dev_s *priv, uint32_t ie)
 {
   irqstate_t flags;
 
@@ -1693,7 +1872,7 @@ static void up_restoreusartint(struct up_dev_s *priv, uint16_t ie)
  * Name: up_disableusartint
  ****************************************************************************/
 
-static void up_disableusartint(struct up_dev_s *priv, uint16_t *ie)
+static void up_disableusartint(struct up_dev_s *priv, uint32_t *ie)
 {
   irqstate_t flags;
 
@@ -1797,7 +1976,7 @@ static void up_set_format(struct uart_dev_s *dev)
 
   up_serialout(priv, STM32_USART_CR1_OFFSET, cr1);
 
-  if (priv->baud256)
+  if (priv->features & USART_FEATURE_BAUD256)
     {
       /* LPUART does not have an 8x oversampling mode */
 
@@ -2234,10 +2413,10 @@ static int up_setup(struct uart_dev_s *dev)
 #endif
 
 #ifdef HAVE_RS485
-  if (priv->rs485_dir_gpio != 0)
+  if ((priv->rs485_flags & SER_RS485_ENABLED) != 0)
     {
       stm32_configgpio(priv->rs485_dir_gpio);
-      stm32_gpiowrite(priv->rs485_dir_gpio, !priv->rs485_dir_polarity);
+      stm32_gpiowrite(priv->rs485_dir_gpio, (bool) (priv->rs485_flags & SER_RS485_RTS_AFTER_SEND));
     }
 #endif
 
@@ -2295,7 +2474,9 @@ static int up_setup(struct uart_dev_s *dev)
   regval  = up_serialin(priv, STM32_USART_CR1_OFFSET);
   regval |= (USART_CR1_UE | USART_CR1_TE | USART_CR1_RE);
 #ifdef SERIAL_HAVE_RXDMA
-  regval |= USART_CR1_IDLEIE;
+  if (priv->use_idle_irq) {
+      regval |= USART_CR1_IDLEIE;
+  }
 #endif
 
   regval |= USART_CR1_FIFOEN;
@@ -2436,13 +2617,16 @@ static void up_shutdown(struct uart_dev_s *dev)
    * "If the serial-attached device is powered down, the TX
    * pin causes back-powering, potentially confusing the device
    * to the point of complete lock-up."
-   *
-   * REVISIT:  Is unconfiguring the pins appropriate for all device?
-   *  If not, then this may need to be a configuration option.
    */
 
-  stm32_unconfiggpio(priv->tx_gpio);
-  stm32_unconfiggpio(priv->rx_gpio);
+  if (priv->unconfigure & USART_UNCONFIGURE_TX)
+    {
+      stm32_unconfiggpio(priv->tx_gpio);
+    }
+  if (priv->unconfigure & USART_UNCONFIGURE_RX)
+    {
+      stm32_unconfiggpio(priv->rx_gpio);
+    }
 
 #ifdef CONFIG_SERIAL_OFLOWCONTROL
   if (priv->cts_gpio != 0)
@@ -2461,7 +2645,10 @@ static void up_shutdown(struct uart_dev_s *dev)
 #ifdef HAVE_RS485
   if (priv->rs485_dir_gpio != 0)
     {
-      stm32_unconfiggpio(priv->rs485_dir_gpio);
+      if (priv->unconfigure & USART_UNCONFIGURE_DIR)
+        {
+          stm32_unconfiggpio(priv->rs485_dir_gpio);
+        }
     }
 #endif
 }
@@ -2632,7 +2819,7 @@ static int up_interrupt(int irq, void *context, void *arg)
       (priv->ie & USART_CR1_TCIE) != 0 &&
       (priv->ie & USART_CR1_TXEIE) == 0)
     {
-      stm32_gpiowrite(priv->rs485_dir_gpio, !priv->rs485_dir_polarity);
+      stm32_gpiowrite(priv->rs485_dir_gpio, (bool) (priv->rs485_flags & SER_RS485_RTS_AFTER_SEND));
       up_restoreusartint(priv, priv->ie & ~USART_CR1_TCIE);
     }
 #endif
@@ -2653,7 +2840,7 @@ static int up_interrupt(int irq, void *context, void *arg)
   /* Handle incoming, receive bytes. */
 
   if ((priv->sr & USART_ISR_RXNE) != 0 &&
-      (priv->ie & USART_CR1_RXNEIE) != 0)
+      (priv->ie & (USART_CR1_RXNEIE | USART_CR3_RXFTIE)) != 0)
     {
       /* Received data ready... process incoming bytes.
        *  NOTE the check for RXNEIE:  We cannot call uart_recvchards of
@@ -2690,6 +2877,102 @@ static int up_interrupt(int irq, void *context, void *arg)
 
   return OK;
 }
+
+
+/****************************************************************************
+ * Name: up_set_rs485_mode
+ *
+ * Description:
+ *   Handle mode set ioctl (TIOCSRS485) to enable
+ *   and disable RS-485 mode.  This is part of the serial ioctl logic.
+ *
+ *
+ ****************************************************************************/
+
+#ifdef HAVE_RS485
+static inline int up_set_rs485_mode(struct up_dev_s *priv,
+                                    const struct serial_rs485 *mode)
+{
+  irqstate_t flags;
+
+  DEBUGASSERT(priv && mode);
+  if (priv->rs485_dir_gpio == 0) {
+      //Can't configure RS485 dir pin if pin is not defined
+      return -ENOTTY;
+  }
+  flags = enter_critical_section();
+  priv->sr = up_serialin(priv, STM32_USART_ISR_OFFSET);
+
+  priv->rs485_flags = mode->flags &
+                    (SER_RS485_ENABLED |
+                     SER_RS485_RTS_ON_SEND |
+                     SER_RS485_RTS_AFTER_SEND |
+                     SER_RS485_RX_DURING_TX);
+/* Cases:
+ * Disabling 485 enabled:
+ * just unconfigure the pin unconditionally
+ * Enabling, serial transfer currently in progress:
+ *  Set the pin to the transfer in progress state and let the interrupt take care of it
+ * Enabling, no serial transfer currently in progress:
+ *  Set the pin to the no transfer in progress state.
+ */
+  if (mode->flags & SER_RS485_ENABLED) {
+      stm32_configgpio(priv->rs485_dir_gpio);
+      if ((priv->sr & USART_ISR_TC) != 0)
+        {
+          /* Transmission is complete, set to "after send' state */
+          stm32_gpiowrite(priv->rs485_dir_gpio, (bool) (priv->rs485_flags & SER_RS485_RTS_AFTER_SEND));
+        } else {
+          /* Transmission is currently in progress, set to "on send" state */
+          stm32_gpiowrite(priv->rs485_dir_gpio, (bool) (priv->rs485_flags & SER_RS485_RTS_ON_SEND));
+        }
+  }
+  else
+  {
+      if (priv->unconfigure & USART_UNCONFIGURE_DIR)
+        {
+          stm32_unconfiggpio(priv->rs485_dir_gpio);
+        }
+  }
+
+  leave_critical_section(flags);
+  return OK;
+}
+#endif
+
+/****************************************************************************
+ * Name: up_get_rs485_mode
+ *
+ * Description:
+ *   Handle RS485 mode get ioctl (TIOCGRS485) to get the
+ *   current RS-485 mode.
+ *
+ ****************************************************************************/
+
+#ifdef HAVE_RS485
+static inline int up_get_rs485_mode(struct up_dev_s *priv,
+                                    struct serial_rs485 *mode)
+{
+  irqstate_t flags;
+
+  DEBUGASSERT(priv && mode);
+  flags = enter_critical_section();
+
+  /* Assume disabled */
+
+  memset(mode, 0, sizeof(struct serial_rs485));
+
+  mode->flags = priv->rs485_flags &
+              (SER_RS485_ENABLED |
+               SER_RS485_RTS_ON_SEND |
+               SER_RS485_RTS_AFTER_SEND |
+               SER_RS485_RX_DURING_TX);
+
+  leave_critical_section(flags);
+  return OK;
+}
+#endif
+
 
 /****************************************************************************
  * Name: up_ioctl
@@ -3060,6 +3343,234 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
 #  endif
 #endif
 
+#ifdef CONFIG_STM32H7_USART_SYNCHRONOUS
+    case TIOCSSYNCHRONOUS:
+      {
+        uint32_t cr1;
+        uint32_t cr1_ue;
+        irqstate_t flags;
+
+        /* Make sure this peripheral supports synchronous mode */
+        if (!(priv->features & USART_FEATURE_SYNCHRONOUS))
+          {
+            ret = -EINVAL;
+            break;
+          }
+
+        flags = enter_critical_section();
+
+        /* Get the original state of UE */
+
+        cr1    = up_serialin(priv, STM32_USART_CR1_OFFSET);
+        cr1_ue = cr1 & USART_CR1_UE;
+        cr1   &= ~USART_CR1_UE;
+
+        /* Disable UE, synchronous mode bits can only be written when UE=0 */
+
+        up_serialout(priv, STM32_USART_CR1_OFFSET, cr1);
+
+        /* Configure synchronous mode. */
+
+        uint32_t cr = up_serialin(priv, STM32_USART_CR2_OFFSET);
+
+        if (arg & SER_SYNCHRONOUS_CLKEN)
+          {
+            cr |= USART_CR2_CLKEN;
+          }
+        else
+          {
+            cr &= ~USART_CR2_CLKEN;
+          }
+        if (arg & SER_SYNCHRONOUS_CPOL)
+          {
+            cr |= USART_CR2_CPOL;
+          }
+        else
+          {
+            cr &= ~USART_CR2_CPOL;
+          }
+        if (arg & SER_SYNCHRONOUS_CPHA)
+          {
+            cr |= USART_CR2_CPHA;
+          }
+        else
+          {
+            cr &= ~USART_CR2_CPHA;
+          }
+        if (arg & SER_SYNCHRONOUS_LBCL)
+          {
+            cr |= USART_CR2_LBCL;
+          }
+        else
+          {
+            cr &= ~USART_CR2_LBCL;
+          }
+        if (arg & SER_SYNCHRONOUS_SLVEN)
+          {
+            cr |= USART_CR2_SLVEN;
+          }
+        else
+          {
+            cr &= ~USART_CR2_SLVEN;
+          }
+        if (arg & SER_SYNCHRONOUS_DISNSS)
+          {
+            cr |= USART_CR2_DISNSS;
+          }
+        else
+          {
+            cr &= ~USART_CR2_DISNSS;
+          }
+
+        up_serialout(priv, STM32_USART_CR2_OFFSET, cr);
+
+        /* Re-enable UE if appropriate */
+
+        up_serialout(priv, STM32_USART_CR1_OFFSET, cr1 | cr1_ue);
+        leave_critical_section(flags);
+        if (priv->clk) {
+          if (arg & SER_SYNCHRONOUS_CLKEN)
+            {
+              stm32_configgpio(priv->clk_gpio);
+            } else {
+              stm32_unconfiggpio(priv->clk_gpio);
+            }
+        }
+        if (priv->nss) {
+          if (arg & SER_SYNCHRONOUS_DISNSS == 0)
+            {
+              stm32_configgpio(priv->nss_gpio);
+            } else {
+                stm32_unconfiggpio(priv->nss_gpio);
+            }
+        }
+      }
+      break;
+    case TIOCGSYNCHRONOUS:
+      {
+        uint32_t *argv = (uint32_t *)arg;
+        uint32_t cr;
+
+        if (!argv)
+          {
+            ret = -EINVAL;
+            break;
+          }
+        if (!(priv->features & USART_FEATURE_SYNCHRONOUS))
+          {
+            ret = -EINVAL;
+            break;
+          }
+
+       cr = up_serialin(priv, STM32_USART_CR2_OFFSET);
+
+       *argv = 0;
+
+       if (cr & USART_CR2_MSBFIRST)
+         {
+           *argv |= SER_MSB_FIRST;
+         }
+      }
+      break;
+#endif
+
+#ifdef CONFIG_STM32H7_USART_BITORDER
+    case TIOCSBITORDER:
+      {
+        uint32_t cr1;
+        uint32_t cr1_ue;
+        irqstate_t flags;
+
+        flags = enter_critical_section();
+
+        /* Get the original state of UE */
+
+        cr1    = up_serialin(priv, STM32_USART_CR1_OFFSET);
+        cr1_ue = cr1 & USART_CR1_UE;
+        cr1   &= ~USART_CR1_UE;
+
+        /* Disable UE, MSBFIRST can only be written when UE=0 */
+
+        up_serialout(priv, STM32_USART_CR1_OFFSET, cr1);
+
+        /* Configure bit order. */
+
+        uint32_t cr = up_serialin(priv, STM32_USART_CR2_OFFSET);
+
+        if (arg & SER_MSB_FIRST)
+          {
+            cr |= USART_CR2_MSBFIRST;
+          }
+        else
+          {
+            cr &= ~USART_CR2_MSBFIRST;
+          }
+
+        up_serialout(priv, STM32_USART_CR2_OFFSET, cr);
+
+        /* Re-enable UE if appropriate */
+
+        up_serialout(priv, STM32_USART_CR1_OFFSET, cr1 | cr1_ue);
+        leave_critical_section(flags);
+      }
+      break;
+    case TIOCGBITORDER:
+      {
+        uint32_t *argv = (uint32_t *)arg;
+        uint32_t cr;
+
+        if (!argv)
+          {
+            ret = -EINVAL;
+            break;
+          }
+
+       cr = up_serialin(priv, STM32_USART_CR2_OFFSET);
+
+       *argv = 0;
+
+       if (cr & USART_CR2_CLKEN)
+         {
+           *argv |= SER_SYNCHRONOUS_CLKEN;
+         }
+       if (cr & USART_CR2_CPOL)
+         {
+           *argv |= SER_SYNCHRONOUS_CPOL;
+         }
+       if (cr & USART_CR2_CPHA)
+         {
+           *argv |= SER_SYNCHRONOUS_CPHA;
+         }
+       if (cr & USART_CR2_LBCL)
+         {
+           *argv |= SER_SYNCHRONOUS_LBCL;
+         }
+       if (cr & USART_CR2_SLVEN)
+         {
+           *argv |= SER_SYNCHRONOUS_SLVEN;
+         }
+       if (cr & USART_CR2_DISNSS)
+         {
+           *argv |= SER_SYNCHRONOUS_DISNSS;
+         }
+      }
+      break;
+#endif
+#ifdef HAVE_RS485
+    case TIOCSRS485:  /* Set RS485 mode, arg: pointer to struct serial_rs485 */
+      {
+        ret = up_set_rs485_mode(
+          priv, (const struct serial_rs485 *)((uintptr_t)arg));
+      }
+      break;
+
+    case TIOCGRS485:  /* Get RS485 mode, arg: pointer to struct serial_rs485 */
+      {
+        ret = up_get_rs485_mode(
+          priv, (struct serial_rs485 *)((uintptr_t)arg));
+      }
+      break;
+#endif
     default:
       ret = -ENOTTY;
       break;
@@ -3112,7 +3623,7 @@ static void up_rxint(struct uart_dev_s *dev, bool enable)
 {
   struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
   irqstate_t flags;
-  uint16_t ie;
+  uint32_t ie;
 
   /* USART receive interrupts:
    *
@@ -3142,13 +3653,17 @@ static void up_rxint(struct uart_dev_s *dev, bool enable)
 #ifdef CONFIG_USART_ERRINTS
       ie |= (USART_CR1_RXNEIE | USART_CR1_PEIE | USART_CR3_EIE);
 #else
-      ie |= USART_CR1_RXNEIE;
+      ie |= USART_CR3_RXFTIE;
+      if (priv->use_idle_irq)
+        {
+          ie |= USART_CR1_RXNEIE;
+        }
 #endif
 #endif
     }
   else
     {
-      ie &= ~(USART_CR1_RXNEIE | USART_CR1_PEIE | USART_CR3_EIE);
+      ie &= ~(USART_CR1_RXNEIE | USART_CR1_PEIE | USART_CR3_EIE | USART_CR3_RXFTIE);
     }
 
   /* Then set the new interrupt state */
@@ -3277,6 +3792,7 @@ static bool up_rxflowcontrol(struct uart_dev_s *dev,
  *   Called (usually) from the interrupt level to receive one
  *   character from the USART.  Error bits associated with the
  *   receipt are provided in the return 'status'.
+ *
  *
  ****************************************************************************/
 
@@ -3593,9 +4109,9 @@ static void up_send(struct uart_dev_s *dev, int ch)
   struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
 
 #ifdef HAVE_RS485
-  if (priv->rs485_dir_gpio != 0)
+  if ((priv->rs485_flags & SER_RS485_ENABLED) != 0)
     {
-      stm32_gpiowrite(priv->rs485_dir_gpio, priv->rs485_dir_polarity);
+      stm32_gpiowrite(priv->rs485_dir_gpio, (bool) (priv->rs485_flags & SER_RS485_RTS_ON_SEND));
     }
 #endif
 
@@ -3655,14 +4171,14 @@ static void up_txint(struct uart_dev_s *dev, bool enable)
       /* Set to receive an interrupt when the TX data register is empty */
 
 #ifndef CONFIG_SUPPRESS_SERIAL_INTS
-      uint16_t ie = priv->ie | USART_CR1_TXEIE;
+      uint32_t ie = priv->ie | USART_CR1_TXEIE;
 
       /* If RS-485 is supported on this U[S]ART, then also enable the
        * transmission complete interrupt.
        */
 
 #  ifdef HAVE_RS485
-      if (priv->rs485_dir_gpio != 0)
+      if ((priv->rs485_flags & SER_RS485_ENABLED) != 0)
         {
           ie |= USART_CR1_TCIE;
         }
@@ -3709,6 +4225,21 @@ static bool up_txready(struct uart_dev_s *dev)
 {
   struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
   return ((up_serialin(priv, STM32_USART_ISR_OFFSET) & USART_ISR_TXE) != 0);
+}
+
+/****************************************************************************
+ * Name: up_txempty
+ *
+ * Description:
+ *   Return true if the transmit data register and internal shift registers
+ *   are completely empty
+ *
+ ****************************************************************************/
+
+static bool up_txempty(struct uart_dev_s *dev)
+{
+  struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
+  return ((up_serialin(priv, STM32_USART_ISR_OFFSET) & USART_ISR_TC) != 0);
 }
 
 /****************************************************************************
@@ -4158,7 +4689,7 @@ int up_putc(int ch)
 {
 #if CONSOLE_UART > 0
   struct up_dev_s *priv = g_uart_devs[CONSOLE_UART - 1];
-  uint16_t ie;
+  uint32_t ie;
 
   up_disableusartint(priv, &ie);
 

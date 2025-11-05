@@ -1285,6 +1285,38 @@ config USART1_RXFIFO_THRES
 		Lower values may be needed at high BAUD rates to prevent Rx data
 		overrun errors.
 
+config USART1_UNCONFIG_RX_ON_CLOSE
+	bool "Unconfigure USART1 RX pin on close"
+	default y
+
+config USART1_UNCONFIG_TX_ON_CLOSE
+	bool "Unconfigure USART1 TX pin on close"
+	default y
+
+if USART1_RS485
+
+config USART1_UNCONFIG_DIR_ON_CLOSE
+	bool "Unconfigure USART1 DIR pin on close"
+	default y
+
+endif
+
+if STM32H7_USART_SYNCHRONOUS
+
+config USART1_HAS_CLOCK_PIN
+	bool "USART1 has clock pin"
+	default n
+
+config USART1_HAS_NSS_PIN
+	bool "USART1 has NSS pin"
+	default n
+
+endif #STM32H7_USART_SYNCHRONOUS
+
+config USART1_USE_IDLE_IRQ
+	bool "USART1 use IDLE IRQ"
+	default y
+
 endif # STM32H7_USART1
 
 if STM32H7_USART2
@@ -1322,6 +1354,38 @@ config USART2_RXFIFO_THRES
 		Higher values mean lower interrupt rates and better CPU performance.
 		Lower values may be needed at high BAUD rates to prevent Rx data
 		overrun errors.
+
+config USART2_UNCONFIG_RX_ON_CLOSE
+	bool "Unconfigure USART2 RX pin on close"
+	default y
+
+config USART2_UNCONFIG_TX_ON_CLOSE
+	bool "Unconfigure USART2 TX pin on close"
+	default y
+
+if USART2_RS485
+
+config USART2_UNCONFIG_DIR_ON_CLOSE
+	bool "Unconfigure USART2 DIR pin on close"
+	default y
+
+endif
+
+if STM32H7_USART_SYNCHRONOUS
+
+config USART2_HAS_CLOCK_PIN
+	bool "USART2 has clock pin"
+	default n
+
+config USART2_HAS_NSS_PIN
+	bool "USART2 has NSS pin"
+	default n
+
+endif #STM32H7_USART_SYNCHRONOUS
+
+config USART2_USE_IDLE_IRQ
+	bool "USART2 use IDLE IRQ"
+	default y
 
 endif # STM32H7_USART2
 
@@ -1361,6 +1425,38 @@ config USART3_RXFIFO_THRES
 		Lower values may be needed at high BAUD rates to prevent Rx data
 		overrun errors.
 
+config USART3_UNCONFIG_RX_ON_CLOSE
+	bool "Unconfigure USART3 RX pin on close"
+	default y
+
+config USART3_UNCONFIG_TX_ON_CLOSE
+	bool "Unconfigure USART3 TX pin on close"
+	default y
+
+if USART3_RS485
+
+config USART3_UNCONFIG_DIR_ON_CLOSE
+	bool "Unconfigure USART3 DIR pin on close"
+	default y
+
+endif
+
+if STM32H7_USART_SYNCHRONOUS
+
+config USART3_HAS_CLOCK_PIN
+	bool "USART3 has clock pin"
+	default n
+
+config USART3_HAS_NSS_PIN
+	bool "USART3_has NSS pin"
+	default n
+
+endif #STM32H7_USART_SYNCHRONOUS
+
+config USART3_USE_IDLE_IRQ
+	bool "USART3 use IDLE IRQ"
+	default y
+
 endif # STM32H7_USART3
 
 if STM32H7_UART4
@@ -1398,6 +1494,26 @@ config UART4_RXFIFO_THRES
 		Higher values mean lower interrupt rates and better CPU performance.
 		Lower values may be needed at high BAUD rates to prevent Rx data
 		overrun errors.
+
+config UART4_UNCONFIG_RX_ON_CLOSE
+	bool "Unconfigure UART4 RX pin on close"
+	default y
+
+config UART4_UNCONFIG_TX_ON_CLOSE
+	bool "Unconfigure UART4 TX pin on close"
+	default y
+
+if UART4_RS485
+
+config UART4_UNCONFIG_DIR_ON_CLOSE
+	bool "Unconfigure UART4 DIR pin on close"
+	default y
+
+endif
+
+config UART4_USE_IDLE_IRQ
+	bool "UART4 use IDLE IRQ"
+	default y
 
 endif # STM32H7_UART4
 
@@ -1437,6 +1553,26 @@ config UART5_RXFIFO_THRES
 		Lower values may be needed at high BAUD rates to prevent Rx data
 		overrun errors.
 
+config UART5_UNCONFIG_RX_ON_CLOSE
+	bool "Unconfigure UART5 RX pin on close"
+	default y
+
+config UART5_UNCONFIG_TX_ON_CLOSE
+	bool "Unconfigure UART5 TX pin on close"
+	default y
+
+if UART4_RS485
+
+config UART4_UNCONFIG_DIR_ON_CLOSE
+	bool "Unconfigure UART4 DIR pin on close"
+	default y
+
+endif
+
+config UART5_USE_IDLE_IRQ
+	bool "UART5 use IDLE IRQ"
+	default y
+
 endif # STM32H7_UART5
 
 if STM32H7_USART6
@@ -1475,7 +1611,39 @@ config USART6_RXFIFO_THRES
 		Lower values may be needed at high BAUD rates to prevent Rx data
 		overrun errors.
 
-endif # STM32H7_USART
+config USART6_UNCONFIG_RX_ON_CLOSE
+	bool "Unconfigure UASRT6 RX pin on close"
+	default y
+
+config USART6_UNCONFIG_TX_ON_CLOSE
+	bool "Unconfigure USART6 TX pin on close"
+	default y
+
+if USART6_RS485
+
+config USART6_UNCONFIG_DIR_ON_CLOSE
+	bool "Unconfigure USART6 DIR pin on close"
+	default y
+
+endif
+
+if STM32H7_USART_SYNCHRONOUS
+
+config USART6_HAS_CLOCK_PIN
+	bool "USART6 has clock pin"
+	default n
+
+config USART6_HAS_NSS_PIN
+	bool "USART6_has NSS pin"
+	default n
+
+endif #STM32H7_USART_SYNCHRONOUS
+
+config USART6_USE_IDLE_IRQ
+	bool "USART6 use IDLE IRQ"
+	default y
+
+endif # STM32H7_USART6
 
 if STM32H7_UART7
 
@@ -1512,6 +1680,26 @@ config UART7_RXFIFO_THRES
 		Higher values mean lower interrupt rates and better CPU performance.
 		Lower values may be needed at high BAUD rates to prevent Rx data
 		overrun errors.
+
+config UART7_UNCONFIG_RX_ON_CLOSE
+	bool "Unconfigure UART7 RX pin on close"
+	default y
+
+config UART7_UNCONFIG_TX_ON_CLOSE
+	bool "Unconfigure UART7 TX pin on close"
+	default y
+
+if UART7_RS485
+
+config UART7_UNCONFIG_DIR_ON_CLOSE
+	bool "Unconfigure UART7 DIR pin on close"
+	default y
+
+endif
+
+config UART7_USE_IDLE_IRQ
+	bool "UART7 use IDLE IRQ"
+	default y
 
 endif # STM32H7_UART7
 
@@ -1551,6 +1739,26 @@ config UART8_RXFIFO_THRES
 		Lower values may be needed at high BAUD rates to prevent Rx data
 		overrun errors.
 
+config UART8_UNCONFIG_RX_ON_CLOSE
+	bool "Unconfigure UART8 RX pin on close"
+	default y
+
+config UART8_UNCONFIG_TX_ON_CLOSE
+	bool "Unconfigure UART8 TX pin on close"
+	default y
+
+if UART8_RS485
+
+config UART8_UNCONFIG_DIR_ON_CLOSE
+	bool "Unconfigure UART8 DIR pin on close"
+	default y
+
+endif
+
+config UART8_USE_IDLE_IRQ
+	bool "UART8 use IDLE IRQ"
+	default y
+
 endif # STM32H7_UART8
 
 if STM32H7_LPUART
@@ -1588,6 +1796,26 @@ config LPUART_RXFIFO_THRES
     Higher values mean lower interrupt rates and better CPU performance.
     Lower values may be needed at high BAUD rates to prevent Rx data
     overrun errors.
+
+config LPUART_UNCONFIG_RX_ON_CLOSE
+	bool "Unconfigure LPUART RX pin on close"
+	default y
+
+config LPUART_UNCONFIG_TX_ON_CLOSE
+	bool "Unconfigure LPUART TX pin on close"
+	default y
+
+if LPUART_RS485
+
+config LPUART_UNCONFIG_DIR_ON_CLOSE
+	bool "Unconfigure LPUART DIR pin on close"
+	default y
+
+endif
+
+config LPUART_USE_IDLE_IRQ
+	bool "LPUART use IDLE IRQ"
+	default y
 
 endif # STM32H7_LPUART
 
@@ -1669,6 +1897,22 @@ config STM32H7_USART_SWAP
 	---help---
 		Enable RX/TX pin swapping support. The option enables support for the
 		TIOCSSWAP ioctl in the STM32H7 serial driver.
+
+config STM32H7_USART_SYNCHRONOUS
+	bool "Synchronous mode support"
+	default n
+	depends on STM32H7_USART
+	---help---
+		Enable synchronous mode for USARTs. The option enables support for the
+		TIOCSSYNCHRONOUS ioctl in the STM32H7 serial driver.
+
+config STM32H7_USART_BITORDER
+	bool "Set bit order support"
+	default n
+	depends on STM32H7_USART
+	---help---
+		Enable setting bit order (MSB first/LSB first) for U(S)ARTs. The option
+		enables support for the TIOCSBITORDER ioctl in the STM32H7 serial driver.
 
 if PM
 
@@ -5194,6 +5438,237 @@ endmenu #STM32 TIMx Outputs Configuration
 
 endmenu # Timer Configuration
 
+
+menu "ADC Configuration"
+  depends on STM32H7_ADC
+
+config STM32H7_ADC1_RESOLUTION
+  int "ADC1 resolution"
+  depends on STM32H7_ADC1
+  default 0
+  range 0 5
+  ---help---
+    ADC1 resolution. 0 - 16 bit, 1 - 14 bit, 2 - 12 bit, 3 - 10 bit, 4 - 8 bit, 5 - 6 bit
+
+config STM32H7_ADC2_RESOLUTION
+  int "ADC2 resolution"
+  depends on STM32H7_ADC2
+  default 0
+  range 0 4
+  ---help---
+    ADC2 resolution. 0 - 16 bit, 1 - 14 bit, 2 - 12 bit, 3 - 10 bit, 4 - 8 bit, 5 - 6 bit
+
+config STM32H7_ADC3_RESOLUTION
+  int "ADC3 resolution"
+  depends on STM32H7_ADC3
+  default 0
+  range 0 4
+  ---help---
+    ADC3 resolution. 0 - 16 bit, 1 - 14 bit, 2 - 12 bit, 3 - 10 bit, 4 - 8 bit, 5 - 6 bit
+
+config STM32H7_ADC_MAX_SAMPLES
+  int "The maximum number of channels that can be sampled"
+  default 16
+  ---help---
+    The maximum number of samples which can be handled without
+    overrun depends on various factors. This is the user's
+    responsibility to correctly select this value.
+    Since the interface to update the sampling time is available
+    for all supported devices, the user can change the default
+    values in the board initialization logic and avoid ADC overrun.
+
+config STM32H7_ADC_NO_STARTUP_CONV
+  bool "Do not start conversion when opening ADC device"
+  default n
+  ---help---
+    Do not start conversion when opening ADC device.
+
+config STM32H7_ADC_NOIRQ
+  bool "Do not use default ADC interrupts"
+  default n
+  ---help---
+    Do not use default ADC interrupts handlers.
+
+config STM32H7_ADC_LL_OPS
+  bool "ADC low-level operations"
+  default n
+  ---help---
+    Enable low-level ADC ops.
+
+config STM32H7_ADC_CHANGE_SAMPLETIME
+  bool "ADC sample time configuration"
+  default n
+  depends on STM32H7_ADC_LL_OPS
+  ---help---
+    Enable ADC sample time configuration (SMPRx registers).
+
+config STM32H7_ADC1_DMA
+  bool "ADC1 DMA"
+  depends on STM32H7_ADC1 && STM32H7_HAVE_ADC1_DMA
+  default n
+  ---help---
+    If DMA is selected, then the ADC may be configured to support
+    DMA transfer, which is necessary if multiple channels are read
+    or if very high trigger frequencies are used.
+
+config STM32H7_ADC1_SCAN
+  bool "ADC1 scan mode"
+  depends on STM32H7_ADC1
+  default y if STM32H7_ADC1_DMA
+  default n
+
+config STM32H7_ADC1_DMA_CFG
+  int "ADC1 DMA configuration"
+  depends on STM32H7_ADC1_DMA
+  range 0 1
+  default 0
+  ---help---
+    0 - ADC1 DMA in One Shot Mode, 1 - ADC1 DMA in Circular Mode
+
+config STM32H7_ADC1_ANIOC_TRIGGER
+  int "ADC1 software trigger (ANIOC_TRIGGER) configuration"
+  depends on STM32H7_ADC1
+  range 1 3
+  default 3
+  ---help---
+    1 - ANIOC_TRIGGER only starts regular conversion
+    2 - ANIOC_TRIGGER only starts injected conversion
+    3 - ANIOC_TRIGGER starts both regular and injected conversions
+
+config STM32H7_ADC2_DMA
+  bool "ADC2 DMA"
+  depends on STM32H7_ADC2 && STM32H7_HAVE_ADC2_DMA
+  default n
+  ---help---
+    If DMA is selected, then the ADC may be configured to support
+    DMA transfer, which is necessary if multiple channels are read
+    or if very high trigger frequencies are used.
+
+config STM32H7_ADC2_SCAN
+  bool "ADC2 scan mode"
+  depends on STM32H7_ADC2
+  default y if STM32H7_ADC2_DMA
+  default n
+
+config STM32H7_ADC2_DMA_CFG
+  int "ADC2 DMA configuration"
+  depends on STM32H7_ADC2_DMA
+  range 0 1
+  default 0
+  ---help---
+    0 - ADC2 DMA in One Shot Mode, 1 - ADC2 DMA in Circular Mode
+
+config STM32H7_ADC2_ANIOC_TRIGGER
+  int "ADC2 software trigger (ANIOC_TRIGGER) configuration"
+  depends on STM32H7_ADC2
+  range 1 3
+  default 3
+  ---help---
+    1 - ANIOC_TRIGGER only starts regular conversion
+    2 - ANIOC_TRIGGER only starts injected conversion
+    3 - ANIOC_TRIGGER starts both regular and injected conversions
+
+config STM32H7_ADC3_DMA
+  bool "ADC3 DMA"
+  depends on STM32H7_ADC3 && STM32H7_HAVE_ADC3_DMA
+  default n
+  ---help---
+    If DMA is selected, then the ADC may be configured to support
+    DMA transfer, which is necessary if multiple channels are read
+    or if very high trigger frequencies are used.
+
+config STM32H7_ADC3_SCAN
+  bool "ADC3 scan mode"
+  depends on STM32H7_ADC3
+  default y if STM32H7_ADC3_DMA
+  default n
+
+config STM32H7_ADC3_DMA_CFG
+  int "ADC3 DMA configuration"
+  depends on STM32H7_ADC3_DMA
+  range 0 1
+  default 0
+  ---help---
+    0 - ADC3 DMA in One Shot Mode, 1 - ADC3 DMA in Circular Mode
+
+config STM32H7_ADC3_ANIOC_TRIGGER
+  int "ADC3 software trigger (ANIOC_TRIGGER) configuration"
+  depends on STM32H7_ADC3
+  range 1 3
+  default 3
+  ---help---
+    1 - ANIOC_TRIGGER only starts regular conversion
+    2 - ANIOC_TRIGGER only starts injected conversion
+    3 - ANIOC_TRIGGER starts both regular and injected conversions
+
+config STM32H7_ADC1_INJECTED_CHAN
+  int "ADC1 injected channels"
+  depends on STM32H7_ADC1
+  range 0 4
+  default 0
+  ---help---
+    Support for ADC1 injected channels.
+
+config STM32H7_ADC2_INJECTED_CHAN
+  int "ADC2 injected channels"
+  depends on STM32H7_ADC2
+  range 0 4
+  default 0
+  ---help---
+    Support for ADC2 injected channels.
+
+config STM32H7_ADC3_INJECTED_CHAN
+  int "ADC3 injected channels"
+  depends on STM32H7_ADC3
+  range 0 4
+  default 0
+  ---help---
+    Support for ADC3 injected channels.
+
+config STM32H7_ADC1_EXTSEL
+  bool "ADC1 external trigger for regular group"
+  depends on STM32H7_ADC1 && !STM32H7_HAVE_ADC1_TIMER
+  default n
+  ---help---
+    Enable EXTSEL for ADC1.
+
+config STM32H7_ADC2_EXTSEL
+  bool "ADC2 external trigger for regular group"
+  depends on STM32H7_ADC2 && !STM32H7_HAVE_ADC2_TIMER
+  default n
+  ---help---
+    Enable EXTSEL for ADC2.
+
+config STM32H7_ADC3_EXTSEL
+  bool "ADC3 external trigger for regular group"
+  depends on STM32H7_ADC3 && !STM32H7_HAVE_ADC3_TIMER
+  default n
+  ---help---
+    Enable EXTSEL for ADC3.
+
+config STM32H7_ADC1_JEXTSEL
+  bool "ADC1 external trigger for injected group"
+  depends on STM32H7_ADC1
+  default n
+  ---help---
+    Enable JEXTSEL for ADC1.
+
+config STM32H7_ADC2_JEXTSEL
+  bool "ADC2 external trigger for injected group"
+  depends on STM32H7_ADC2
+  default n
+  ---help---
+    Enable JEXTSEL for ADC2.
+
+config STM32H7_ADC3_JEXTSEL
+  bool "ADC3 external trigger for injected group"
+  depends on STM32H7_ADC3
+  default n
+  ---help---
+    Enable JEXTSEL for ADC3.
+
+endmenu # "ADC Configuration"
+
 menu "Ethernet MAC configuration"
 	depends on STM32H7_ETHMAC
 
@@ -5757,5 +6232,165 @@ endif # STM32_PROGMEM_OTA_PARTITION
 endif # STM32_HAVE_OTA_PARTITION
 
 endmenu # Progmem configuration
+
+
+menuconfig STM32H7_FOC
+  bool "STM32 lower-half FOC support"
+  default n
+  select ARCH_IRQPRIO
+  select STM32H7_PWM_MULTICHAN
+  select STM32H7_PWM_LL_OPS
+  select STM32H7_ADC_LL_OPS
+  select STM32H7_ADC_CHANGE_SAMPLETIME
+  select STM32H7_ADC_NO_STARTUP_CONV
+
+if STM32H7_FOC
+
+config STM32H7_FOC_FOC0
+  bool "FOC0 device (TIM1 for PWM modulation)"
+  default n
+  select STM32H7_FOC_USE_TIM1
+  ---help---
+    Enable support for FOC0 device that uses TIM1 for PWM modulation
+
+config STM32H7_FOC_FOC1
+  bool "FOC1 device (TIM8 for PWM modulation)"
+  default n
+  select STM32H7_FOC_USE_TIM8
+  ---help---
+    Enable support for FOC1 device that uses TIM8 for PWM modulation
+
+choice
+  prompt "FOC ADC trigger selection"
+  default STM32H7_FOC_ADC_TRGO
+
+config STM32H7_FOC_ADC_CCR4
+  bool "FOC uses CCR4 as ADC trigger"
+  ---help---
+    This option uses the software frequency prescaler and is
+    not possible for 4-phase output.
+
+config STM32H7_FOC_ADC_TRGO
+  bool "FOC uses TRGO as ADC trigger"
+  depends on !STM32H7_FOC_FOC1
+  select STM32H7_PWM_TRGO
+  ---help---
+    This option allows you to use higher PWM frequency and works for 4-phase output.
+    It is not possible for ADC IPv1 if FOC1 enabled (no T8TRGO in JEXTSEL).
+
+endchoice # "FOC ADC trigger selection"
+
+if STM32H7_FOC_FOC0
+
+choice
+  prompt "FOC0 device ADC selection"
+  default STM32H7_FOC_FOC0_ADC1
+
+config STM32H7_FOC_FOC0_ADC1
+  bool "FOC0 uses ADC1"
+  select STM32H7_FOC_USE_ADC1
+
+config STM32H7_FOC_FOC0_ADC2
+  bool "FOC0 uses ADC2"
+  select STM32H7_FOC_USE_ADC2
+
+config STM32H7_FOC_FOC0_ADC3
+  bool "FOC0 uses ADC3"
+  select STM32H7_FOC_USE_ADC3
+
+endchoice # "FOC0 device ADC selection"
+
+endif # STM32H7_FOC_FOC0
+
+if STM32H7_FOC_FOC1
+
+choice
+  prompt "FOC1 device ADC selection"
+  default STM32H7_FOC_FOC1_ADC2
+
+config STM32H7_FOC_FOC1_ADC1
+  bool "FOC1 uses ADC1"
+  select STM32H7_FOC_USE_ADC1
+
+config STM32H7_FOC_FOC1_ADC2
+  bool "FOC1 uses ADC2"
+  select STM32H7_FOC_USE_ADC2
+
+config STM32H7_FOC_FOC1_ADC3
+  bool "FOC1 uses ADC3"
+  select STM32H7_FOC_USE_ADC3
+
+endchoice # "FOC0 device ADC selection"
+
+endif # STM32H7_FOC_FOC1
+
+config STM32H7_FOC_HAS_PWM_COMPLEMENTARY
+  bool "FOC PWM has complementary outputs"
+  default n
+  ---help---
+    Enable complementary outputs for the FOC PWM (sometimes called 6-PWM mode)
+
+# hidden variables and automatic configuration
+
+config STM32H7_FOC_USE_TIM1
+  bool
+  default n
+  select STM32H7_TIM1
+  select STM32H7_TIM1_PWM
+  select STM32H7_TIM1_CHANNEL1
+  select STM32H7_TIM1_CHANNEL2
+  select STM32H7_TIM1_CHANNEL3
+  select STM32H7_TIM1_CHANNEL4 if STM32H7_FOC_ADC_CCR4
+  select STM32H7_TIM1_CH1OUT
+  select STM32H7_TIM1_CH2OUT
+  select STM32H7_TIM1_CH3OUT
+  select STM32H7_TIM1_CH4OUT if STM32H7_FOC_ADC_CCR4
+  select STM32H7_TIM1_CH1NOUT if STM32H7_FOC_HAS_PWM_COMPLEMENTARY
+  select STM32H7_TIM1_CH2NOUT if STM32H7_FOC_HAS_PWM_COMPLEMENTARY
+  select STM32H7_TIM1_CH3NOUT if STM32H7_FOC_HAS_PWM_COMPLEMENTARY
+  ---help---
+    The TIM1 generates PWM for the FOC
+
+config STM32H7_FOC_USE_TIM8
+  bool
+  default n
+  select STM32H7_TIM8
+  select STM32H7_TIM8_PWM
+  select STM32H7_TIM8_CHANNEL1
+  select STM32H7_TIM8_CHANNEL2
+  select STM32H7_TIM8_CHANNEL3
+  select STM32H7_TIM8_CHANNEL4 if STM32H7_FOC_ADC_CCR4
+  select STM32H7_TIM8_CH1OUT
+  select STM32H7_TIM8_CH2OUT
+  select STM32H7_TIM8_CH3OUT
+  select STM32H7_TIM8_CH4OUT if STM32H7_FOC_ADC_CCR4
+  select STM32H7_TIM8_CH1NOUT if STM32H7_FOC_HAS_PWM_COMPLEMENTARY
+  select STM32H7_TIM8_CH2NOUT if STM32H7_FOC_HAS_PWM_COMPLEMENTARY
+  select STM32H7_TIM8_CH3NOUT if STM32H7_FOC_HAS_PWM_COMPLEMENTARY
+  ---help---
+    The TIM8 generates PWM for the FOC
+
+config STM32H7_FOC_USE_ADC1
+  bool
+  default n
+  select STM32H7_ADC1
+  select STM32H7_ADC1_SCAN
+  select STM32H7_ADC1_JEXTSEL
+
+config STM32H7_FOC_USE_ADC2
+  bool
+  default n
+  select STM32H7_ADC2
+  select STM32H7_ADC2_SCAN
+  select STM32H7_ADC2_JEXTSEL
+
+config STM32H7_FOC_USE_ADC3
+  bool
+  default n
+  select STM32H7_ADC3
+  select STM32H7_ADC3_SCAN
+  select STM32H7_ADC3_JEXTSEL
+
+endif #STM32H7_FOC
 
 endif # ARCH_CHIP_STM32H7
