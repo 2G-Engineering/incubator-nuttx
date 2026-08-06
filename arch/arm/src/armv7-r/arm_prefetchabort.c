@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv7-r/arm_prefetchabort.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,8 +28,8 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 
 #include "sched/sched.h"
@@ -49,16 +51,15 @@
 
 uint32_t *arm_prefetchabort(uint32_t *regs, uint32_t ifar, uint32_t ifsr)
 {
-  /* Save the saved processor context in CURRENT_REGS where it can be
-   * accessed for register dumps and possibly context switching.
-   */
+  struct tcb_s *tcb = this_task();
 
-  CURRENT_REGS = regs;
+  tcb->xcp.regs = regs;
+  up_set_interrupt_context(true);
 
   /* Crash -- possibly showing diagnostic debug information. */
 
-  _alert("Prefetch abort. PC: %08x IFAR: %08x IFSR: %08x\n",
-        regs[REG_PC], ifar, ifsr);
+  _alert("Prefetch abort. PC: %08" PRIx32 " IFAR: %08" PRIx32 " IFSR: %08"
+         PRIx32 "\n", regs[REG_PC], ifar, ifsr);
   PANIC_WITH_REGS("panic", regs);
   return regs; /* To keep the compiler happy */
 }

@@ -1,6 +1,6 @@
-======
-SAM V7
-======
+================
+Microchip SAM V7
+================
 
 This page contains information regarding MCUs series SAM E70, SAM S70, SAM V70 and SAMV71 made
 by Microchip. The series is based around and ARM Cortex-M7 core running up to 300 MHz.
@@ -14,14 +14,19 @@ Supported MCUs
 
 The following list includes MCUs from SAM x7 series and indicates whether they are supported in NuttX
 
-=======  =======  ==============  =================
-MCU      Support  Core            Frequency
-=======  =======  ==============  =================
-SAM E70  Yes      Cortex-M7       300 MHz
-SAM S70  No       Cortex-M7       300 MHz
-SAM V70  No       Cortex-M7       300 MHz
-SAM V71  Yes      Cortex-M7       300 MHz
-=======  =======  ==============  =================
+============ =======  ==============  =================
+MCU          Support  Core            Frequency
+============ =======  ==============  =================
+SAM E70      Yes      Cortex-M7       300 MHz
+SAM S70      No       Cortex-M7       300 MHz
+SAM V70      No       Cortex-M7       300 MHz
+SAM V71      Yes      Cortex-M7       300 MHz
+PIC32CZ CA70 Yes      Cortex-M7       300 MHz
+============ =======  ==============  =================
+
+The code base also supports PIC32CZ CA70 series of microcontrollers. These
+are both pin to pin and binary compatible with SAM x7 series, but offer
+more RAM memory.
 
 Data and Instruction Cache
 ==========================
@@ -59,6 +64,7 @@ The following list indicates peripherals supported in NuttX:
 ==========  =======
 Peripheral  Support
 ==========  =======
+1Wire       Yes
 ACC         No
 AES         No
 AFEC        Yes
@@ -167,7 +173,6 @@ the SD slots can be enabled with the following settings:
    - ``CONFIG_SCHED_WORKQUEUE=y``              : Driver needs work queue support
 
 - Application Configuration -> NSH Library
-   - ``CONFIG_NSH_ARCHINIT=y``                 : NSH board-initialization, OR
    - ``CONFIG_BOARD_LATE_INITIALIZE=y``
 
 The lower-half of this driver is initialized by calling :c:func:`sdio_initialize`.
@@ -283,11 +288,33 @@ The peripheral implements four timer counter modules, each supporting three inde
 Universal Synchronous Asynchronous Receiver Transceiver (USART)
 ---------------------------------------------------------------
 
-The MCU supports both UART and USART controllers. USART can be also used in RS-485 mode (enabled
-by ``CONFIG_SAMV7_USARTx_RS485MODE`` option) or can be used with RX DMA support. For this purpose it
-is required to configure idle bus timeout value in ``CONFIG_SAMV7_SERIAL_DMA_TIMEOUT``. This option
-ensures data are read from the DMA buffer even if it is not full yet. TX DMA support is not implemented
-as well as entire DMA support for UART peripheral.
+The MCU supports both UART and USART controllers. These peripheral can be used with TX and RX DMA support.
+For RX DMA on USART, it is possible to configure idle bus timeout value in ``CONFIG_SAMV7_SERIAL_DMA_TIMEOUT``.
+This option ensures data are read from the DMA buffer even if it is not full yet. UART peripherals do not have
+this timeout support, therefore function :c:func:`sam_serial_dma_poll` should be called periodically to
+flush the DMA buffers. Boards can use common :c:func:`board_uart_rxdma_poll_init` function to initialize
+a timer triggering the poll.
+
+There are several modes in which USART peripheral can operate (ISO7816, IrDA, RS485, SPI, LIN and LON).
+Currently RS485 and SPI master are supported by NuttX.
+
+RS-485 mode is enabled by ``CONFIG_SAMV7_USARTx_RS485MODE`` option (``CONFIG_SAMV7_USART2_SERIALDRIVER``
+has to be true). In this case RTS pin is set to logical 1 before the serial driver is opened and board
+specific logic is required to set it to logical zero. This has to be done in board initialization. Once
+the driver is opened for the first time, architecture layer takes care of correct settings of RTS pin.
+There is no additional requirement for driver initialization, the process is the same as with serial mode.
+
+SPI master (host) mode is enabled by ``CONFIG_SAMV7_USARTx_SPI_MASTER`` option. In this mode USART emulates
+SPI peripheral with one slave (client) device (more slaves are not supported by the peripheral). The interface
+with the driver is the same as with other SPI drivers but BSP layer does not have to support chip selection.
+Command/data transfers are also not supported by the peripheral. Driver for SPI master mode is initialized
+by :c:func:`sam_serial_spi_initialize` with port number as an argument.
+
+USART/UART can be also used to emulate 1 wire interface. SAMv7 MCUs do not have build in support for
+1 wire, therefore external hardware as TX/RX connection or optical isolation might be required. Selecting
+``CONFIG_SAMV7_UARTx_1WIREDRIVER`` enables 1 wire driver and sets USART/UART peripheral to this mode.
+Output pins are configured as if serial mode was selected plus TX is open drain. SAMv7 part of the driver
+is initialized by :c:func:`sam_1wireinitialize` with port number as an argument.
 
 Watchdog Timer (WDT)
 ---------------------
@@ -303,11 +330,8 @@ peripheral to memory or memory to memory transfers.
 Supported Boards
 ================
 
-For board documentation please refer to ``board/arm/samv7`` section to separate README files.
+.. toctree::
+   :glob:
+   :maxdepth: 1
 
-..
-   .. toctree::
-      :glob:
-      :maxdepth: 1
-
-      boards/*/*
+   boards/*/*

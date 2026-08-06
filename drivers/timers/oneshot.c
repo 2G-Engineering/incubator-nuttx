@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/timers/oneshot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <stdbool.h>
 #include <fcntl.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -40,7 +42,7 @@
 #ifdef CONFIG_ONESHOT
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 /* This structure describes the state of the upper half driver */
@@ -52,9 +54,11 @@ struct oneshot_dev_s
 
   /* Oneshot timer expiration notification information */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   struct sigevent od_event;                    /* Signal info */
   struct sigwork_s od_work;                    /* Signal work */
   pid_t od_pid;                                /* PID to be notified */
+#endif
 };
 
 /****************************************************************************
@@ -68,8 +72,10 @@ static ssize_t oneshot_write(FAR struct file *filep, FAR const char *buffer,
 static int     oneshot_ioctl(FAR struct file *filep, int cmd,
                  unsigned long arg);
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
 static void    oneshot_callback(FAR struct oneshot_lowerhalf_s *lower,
                  FAR void *arg);
+#endif
 
 /****************************************************************************
  * Private Data
@@ -93,6 +99,7 @@ static const struct file_operations g_oneshot_ops =
  * Name: oneshot_callback
  ****************************************************************************/
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
 static void oneshot_callback(FAR struct oneshot_lowerhalf_s *lower,
                              FAR void *arg)
 {
@@ -105,12 +112,13 @@ static void oneshot_callback(FAR struct oneshot_lowerhalf_s *lower,
   nxsig_notification(priv->od_pid, &priv->od_event, SI_QUEUE,
                      &priv->od_work);
 }
+#endif
 
 /****************************************************************************
  * Name: oneshot_read
  *
  * Description:
- *   A dummy read method.  This is provided only to satsify the VFS layer.
+ *   A dummy read method.  This is provided only to satisfy the VFS layer.
  *
  ****************************************************************************/
 
@@ -120,7 +128,6 @@ static ssize_t oneshot_read(FAR struct file *filep, FAR char *buffer,
   /* Return zero -- usually meaning end-of-file */
 
   tmrinfo("buflen=%ld\n", (unsigned long)buflen);
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   return 0;
 }
 
@@ -128,7 +135,7 @@ static ssize_t oneshot_read(FAR struct file *filep, FAR char *buffer,
  * Name: oneshot_write
  *
  * Description:
- *   A dummy write method.  This is provided only to satsify the VFS layer.
+ *   A dummy write method.  This is provided only to satisfy the VFS layer.
  *
  ****************************************************************************/
 
@@ -138,7 +145,6 @@ static ssize_t oneshot_write(FAR struct file *filep, FAR const char *buffer,
   /* Return a failure */
 
   tmrinfo("buflen=%ld\n", (unsigned long)buflen);
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   return -EPERM;
 }
 
@@ -158,9 +164,8 @@ static int oneshot_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   tmrinfo("cmd=%d arg=%08lx\n", cmd, (unsigned long)arg);
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
-  priv  = (FAR struct oneshot_dev_s *)inode->i_private;
+  priv  = inode->i_private;
   DEBUGASSERT(priv != NULL);
 
   /* Get exclusive access to the device structures */
@@ -194,6 +199,7 @@ static int oneshot_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
        *               Argument: A reference to struct oneshot_start_s
        */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
       case OSIOC_START:
         {
           FAR struct oneshot_start_s *start;
@@ -216,8 +222,7 @@ static int oneshot_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
           /* Start the oneshot timer */
 
-          ret = ONESHOT_START(priv->od_lower, oneshot_callback, priv,
-                              &start->ts);
+          ret = ONESHOT_START(priv->od_lower, &start->ts);
         }
         break;
 
@@ -236,6 +241,7 @@ static int oneshot_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
           nxsig_cancel_notification(&priv->od_work);
         }
         break;
+#endif
 
       /* OSIOC_CURRENT - Get the current time
        *                 Argument: A reference to a struct timespec in
@@ -312,6 +318,12 @@ int oneshot_register(FAR const char *devname,
   /* Initialize the new oneshot timer driver instance */
 
   priv->od_lower = lower;
+
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
+  lower->callback = oneshot_callback;
+  lower->arg      = priv;
+#endif
+
   nxmutex_init(&priv->od_lock);
 
   /* And register the oneshot timer driver */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/ioexpander/ioe_dummy.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/wdog.h>
@@ -118,11 +120,11 @@ static int ioe_dummy_readpin(FAR struct ioexpander_dev_s *dev,
                              uint8_t pin, FAR bool *value);
 #ifdef CONFIG_IOEXPANDER_MULTIPIN
 static int ioe_dummy_multiwritepin(FAR struct ioexpander_dev_s *dev,
-                                   FAR uint8_t *pins, FAR bool *values,
-                                   int count);
+                                   FAR const uint8_t *pins,
+                                   FAR const bool *values, int count);
 static int ioe_dummy_multireadpin(FAR struct ioexpander_dev_s *dev,
-                                  FAR uint8_t *pins, FAR bool *values,
-                                  int count);
+                                  FAR const uint8_t *pins,
+                                  FAR bool *values, int count);
 #endif
 #ifdef CONFIG_IOEXPANDER_INT_ENABLE
 static FAR void *ioe_dummy_attach(FAR struct ioexpander_dev_s *dev,
@@ -441,8 +443,8 @@ static int ioe_dummy_readpin(FAR struct ioexpander_dev_s *dev,
 
 #ifdef CONFIG_IOEXPANDER_MULTIPIN
 static int ioe_dummy_multiwritepin(FAR struct ioexpander_dev_s *dev,
-                                   FAR uint8_t *pins, FAR bool *values,
-                                   int count)
+                                   FAR const uint8_t *pins,
+                                   FAR const bool *values, int count)
 {
   FAR struct ioe_dummy_dev_s *priv = (FAR struct ioe_dummy_dev_s *)dev;
   uint8_t pin;
@@ -491,8 +493,8 @@ static int ioe_dummy_multiwritepin(FAR struct ioexpander_dev_s *dev,
 
 #ifdef CONFIG_IOEXPANDER_MULTIPIN
 static int ioe_dummy_multireadpin(FAR struct ioexpander_dev_s *dev,
-                                  FAR uint8_t *pins, FAR bool *values,
-                                  int count)
+                                  FAR const uint8_t *pins,
+                                  FAR bool *values, int count)
 {
   FAR struct ioe_dummy_dev_s *priv = (FAR struct ioe_dummy_dev_s *)dev;
   ioe_pinset_t inval;
@@ -708,8 +710,7 @@ static ioe_pinset_t ioe_dummy_int_update(FAR struct ioe_dummy_dev_s *priv)
             }
         }
 
-      diff  >>= 1;
-      input >>= 1;
+      diff >>= 1;
     }
 
   return intstat;

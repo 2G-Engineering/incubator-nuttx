@@ -1,6 +1,8 @@
 ############################################################################
 # drivers/serial/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -22,8 +24,12 @@
 
 CSRCS += serial.c serial_io.c
 
-ifeq ($(CONFIG_UART_PL011),y)
-  CSRCS += serial_pl011.c
+ifeq ($(CONFIG_SERIAL_GDBSTUB),y)
+  CSRCS += serial_gdbstub.c
+endif
+
+ifeq ($(CONFIG_CMSDK_UART),y)
+  CSRCS += serial_cmsdk.c
 endif
 
 ifeq ($(CONFIG_SERIAL_RXDMA),y)
@@ -36,8 +42,24 @@ ifeq ($(CONFIG_16550_UART),y)
   CSRCS += uart_16550.c
 endif
 
+ifeq ($(CONFIG_UART_PL011),y)
+  CSRCS += uart_pl011.c
+endif
+
 ifeq ($(CONFIG_RPMSG_UART),y)
   CSRCS += uart_rpmsg.c
+endif
+
+ifeq ($(CONFIG_RPMSG_UART_RAW),y)
+  CSRCS += uart_rpmsg_raw.c
+endif
+
+ifeq ($(CONFIG_UART_HOSTFS),y)
+  CSRCS += uart_hostfs.c
+endif
+
+ifeq ($(CONFIG_UART_XLNXPS),y)
+  CSRCS += uart_xlnx_ps.c
 endif
 
 # Pseudo-terminal support
@@ -53,6 +75,24 @@ endif
 
 ifeq ($(CONFIG_UART_BTH4),y)
   CSRCS += uart_bth4.c
+endif
+
+# Bluetooth H:5 UART driver
+
+ifeq ($(CONFIG_UART_BTH5),y)
+  CSRCS += uart_bth5.c
+endif
+
+# RAM uart support
+
+ifeq ($(CONFIG_RAM_UART),y)
+  CSRCS += uart_ram.c
+endif
+
+# UART PCI drivers
+
+ifeq ($(CONFIG_16550_PCI_UART),y)
+  CSRCS += uart_pci_16550.c
 endif
 
 # Include serial build support

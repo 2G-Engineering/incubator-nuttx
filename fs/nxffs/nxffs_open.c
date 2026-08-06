@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/nxffs/nxffs_open.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,14 +32,15 @@
 #include <time.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/crc32.h>
-#include <nuttx/kmalloc.h>
+#include <nuttx/lib/lib.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/mtd/mtd.h>
 
 #include "nxffs.h"
+#include "fs_heap.h"
 
 /****************************************************************************
  * Private Data
@@ -490,7 +493,7 @@ static inline int nxffs_wropen(FAR struct nxffs_volume_s *volume,
   memset(wrfile, 0, sizeof(struct nxffs_wrfile_s));
 #else
   wrfile = (FAR struct nxffs_wrfile_s *)
-           kmm_zalloc(sizeof(struct nxffs_wrfile_s));
+           fs_heap_zalloc(sizeof(struct nxffs_wrfile_s));
   if (!wrfile)
     {
       ret = -ENOMEM;
@@ -507,7 +510,7 @@ static inline int nxffs_wropen(FAR struct nxffs_volume_s *volume,
 
   /* Save a copy of the inode name. */
 
-  wrfile->ofile.entry.name = strdup(name);
+  wrfile->ofile.entry.name = fs_heap_strdup(name);
   if (!wrfile->ofile.entry.name)
     {
       ret = -ENOMEM;
@@ -602,7 +605,7 @@ static inline int nxffs_wropen(FAR struct nxffs_volume_s *volume,
                 }
 
               /* Then just break out of the loop reporting success.  Note
-               * that the alllocated inode name string is retained; it
+               * that the allocated inode name string is retained; it
                * will be needed later to calculate the inode CRC.
                */
 
@@ -654,10 +657,10 @@ static inline int nxffs_wropen(FAR struct nxffs_volume_s *volume,
   return OK;
 
 errout_with_name:
-  kmm_free(wrfile->ofile.entry.name);
+  fs_heap_free(wrfile->ofile.entry.name);
 errout_with_ofile:
 #ifndef CONFIG_NXFFS_PREALLOCATED
-  kmm_free(wrfile);
+  fs_heap_free(wrfile);
 #endif
 
 errout_with_lock:
@@ -703,7 +706,7 @@ static inline int nxffs_rdopen(FAR struct nxffs_volume_s *volume,
        * Limitation:  Files cannot be open both for reading and writing.
        */
 
-      if ((ofile->oflags & O_WROK) != 0)
+      if ((ofile->oflags & O_ACCMODE) != O_RDONLY)
         {
           ferr("ERROR: File is open for writing\n");
           ret = -ENOSYS;
@@ -726,7 +729,7 @@ static inline int nxffs_rdopen(FAR struct nxffs_volume_s *volume,
       /* Not already open.. create a new open structure */
 
       ofile = (FAR struct nxffs_ofile_s *)
-              kmm_zalloc(sizeof(struct nxffs_ofile_s));
+              fs_heap_zalloc(sizeof(struct nxffs_ofile_s));
       if (!ofile)
         {
           ferr("ERROR: ofile allocation failed\n");
@@ -737,7 +740,7 @@ static inline int nxffs_rdopen(FAR struct nxffs_volume_s *volume,
       /* Initialize the open file state structure */
 
       ofile->crefs  = 1;
-      ofile->oflags = O_RDOK;
+      ofile->oflags = O_RDONLY;
 
       /* Find the file on this volume associated with this file name */
 
@@ -761,7 +764,7 @@ static inline int nxffs_rdopen(FAR struct nxffs_volume_s *volume,
   return OK;
 
 errout_with_ofile:
-  kmm_free(ofile);
+  fs_heap_free(ofile);
 errout_with_lock:
   nxmutex_unlock(&volume->lock);
 errout:
@@ -832,7 +835,7 @@ static inline void nxffs_freeofile(FAR struct nxffs_volume_s *volume,
   if ((FAR struct nxffs_wrfile_s *)ofile != &g_wrfile)
 #endif
     {
-      kmm_free(ofile);
+      fs_heap_free(ofile);
     }
 }
 
@@ -994,13 +997,13 @@ int nxffs_open(FAR struct file *filep, FAR const char *relpath,
 
   /* Sanity checks */
 
-  DEBUGASSERT(filep->f_priv == NULL && filep->f_inode != NULL);
+  DEBUGASSERT(filep->f_priv == NULL);
 
   /* Get the mountpoint private data from the NuttX inode reference in the
    * file structure
    */
 
-  volume = (FAR struct nxffs_volume_s *)filep->f_inode->i_private;
+  volume = filep->f_inode->i_private;
   DEBUGASSERT(volume != NULL);
 
   /* Limitation:  A file must be opened for reading or writing, but not both.
@@ -1010,22 +1013,21 @@ int nxffs_open(FAR struct file *filep, FAR const char *relpath,
    * extension is supported.
    */
 
-  switch (oflags & (O_WROK | O_RDOK))
+  switch (oflags & O_ACCMODE)
     {
-      case 0:
       default:
         ferr("ERROR: One of O_WRONLY/O_RDONLY must be provided\n");
         return -EINVAL;
 
-      case O_WROK:
+      case O_WRONLY:
         ret = nxffs_wropen(volume, relpath, oflags, &ofile);
         break;
 
-      case O_RDOK:
+      case O_RDONLY:
         ret = nxffs_rdopen(volume, relpath, &ofile);
         break;
 
-      case O_WROK | O_RDOK:
+      case O_RDWR:
         ferr("ERROR: O_RDWR is not supported\n");
         return -ENOSYS;
     }
@@ -1066,7 +1068,7 @@ int nxffs_dup(FAR const struct file *oldp, FAR struct file *newp)
    * file structure
    */
 
-  volume = (FAR struct nxffs_volume_s *)oldp->f_inode->i_private;
+  volume = oldp->f_inode->i_private;
   DEBUGASSERT(volume != NULL);
 #endif
 
@@ -1116,7 +1118,7 @@ int nxffs_close(FAR struct file *filep)
 
   /* Sanity checks */
 
-  DEBUGASSERT(filep->f_priv != NULL && filep->f_inode != NULL);
+  DEBUGASSERT(filep->f_priv != NULL);
 
   /* Recover the open file state from the struct file instance */
 
@@ -1124,7 +1126,7 @@ int nxffs_close(FAR struct file *filep)
 
   /* Recover the volume state from the open file */
 
-  volume = (FAR struct nxffs_volume_s *)filep->f_inode->i_private;
+  volume = filep->f_inode->i_private;
   DEBUGASSERT(volume != NULL);
 
   /* Get exclusive access to the volume.  Note that the volume lock
@@ -1153,7 +1155,7 @@ int nxffs_close(FAR struct file *filep)
 
       /* Handle special finalization of the write operation. */
 
-      if ((ofile->oflags & O_WROK) != 0)
+      if ((ofile->oflags & O_ACCMODE) != O_RDONLY)
         {
           ret = nxffs_wrclose(volume, (FAR struct nxffs_wrfile_s *)ofile);
         }

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/cxd56xx/common/src/cxd56_crashdump.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <time.h>
 
 #include <nuttx/kmalloc.h>
@@ -100,7 +102,7 @@ static void copy_reverse(stack_word_t *dest, stack_word_t *src, int size)
 
 void board_crashdump(uintptr_t sp, struct tcb_s *tcb,
                      const char *filename, int lineno,
-                     const char *msg)
+                     const char *msg, void *regs)
 {
   fullcontext_t *pdump;
 
@@ -145,29 +147,22 @@ void board_crashdump(uintptr_t sp, struct tcb_s *tcb,
    * fault.
    */
 
-  pdump->info.current_regs = (uintptr_t)CURRENT_REGS;
+  pdump->info.current_regs = (uintptr_t)running_regs();
 
   /* Save Context */
 
-#if CONFIG_TASK_NAME_SIZE > 0
-  strlcpy(pdump->info.name, tcb->name, sizeof(pdump->info.name));
-#endif
+  strlcpy(pdump->info.name, get_task_name(tcb), sizeof(pdump->info.name));
 
   pdump->info.pid = tcb->pid;
 
-  /* If  current_regs is not NULL then we are in an interrupt context
-   * and the user context is in current_regs else we are running in
-   * the users context
-   */
-
-  if (CURRENT_REGS)
+  if (up_interrupt_context())
     {
 #if CONFIG_ARCH_INTERRUPTSTACK > 3
       pdump->info.stacks.interrupt.sp = sp;
 #endif
-      pdump->info.flags |= (REGS_PRESENT | USERSTACK_PRESENT | \
+      pdump->info.flags |= (REGS_PRESENT | USERSTACK_PRESENT |
                             INTSTACK_PRESENT);
-      memcpy(pdump->info.regs, (void *)CURRENT_REGS,
+      memcpy(pdump->info.regs, running_regs(),
              sizeof(pdump->info.regs));
       pdump->info.stacks.user.sp = pdump->info.regs[REG_R13];
     }
@@ -186,12 +181,9 @@ void board_crashdump(uintptr_t sp, struct tcb_s *tcb,
 #if CONFIG_ARCH_INTERRUPTSTACK > 3
   /* Get the limits on the interrupt stack memory */
 
-#ifdef CONFIG_SMP
-  pdump->info.stacks.interrupt.top = (uint32_t)arm_intstack_top();
-#else
-  pdump->info.stacks.interrupt.top = (uint32_t)g_intstacktop;
-#endif
-  pdump->info.stacks.interrupt.size = (CONFIG_ARCH_INTERRUPTSTACK & ~3);
+  pdump->info.stacks.interrupt.top =
+    up_get_intstackbase(this_cpu()) + INTSTACK_SIZE;
+  pdump->info.stacks.interrupt.size = INTSTACK_SIZE;
 
   /* If In interrupt Context save the interrupt stack data centered
    * about the interrupt stack pointer

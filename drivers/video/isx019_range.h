@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/video/isx019_range.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -77,7 +79,7 @@
 #define STEP_AE       (1)
 
 #define MIN_EXPOSURETIME        (1)
-#define MAX_EXPOSURETIME        (102000)
+#define MAX_EXPOSURETIME        (2740)
 #define STEP_EXPOSURETIME       (1)
 
 #define MIN_WBMODE        (0)

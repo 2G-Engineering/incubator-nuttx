@@ -1,6 +1,8 @@
 ############################################################################
 # drivers/audio/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -22,13 +24,6 @@
 
 ifeq ($(CONFIG_DRIVERS_AUDIO),y)
 
-ifeq ($(CONFIG_AUDIO_CXD56),y)
-CSRCS += cxd56.c
-ifeq ($(CONFIG_AUDIO_CXD56_SRC),y)
-CSRCS += cxd56_src.c
-endif
-endif
-
 ifeq ($(CONFIG_AUDIO_VS1053),y)
 CSRCS += vs1053.c
 endif
@@ -46,6 +41,10 @@ endif
 
 ifeq ($(CONFIG_AUDIO_CS4344),y)
 CSRCS += cs4344.c
+endif
+
+ifeq ($(CONFIG_AUDIO_ES7210),y)
+CSRCS += es7210.c
 endif
 
 ifeq ($(CONFIG_AUDIO_ES8311),y)
@@ -90,6 +89,10 @@ endif
 
 ifeq ($(CONFIG_AUDIO_NULL),y)
 CSRCS += audio_null.c
+endif
+
+ifeq ($(CONFIG_AUDIO_FAKE),y)
+CSRCS += audio_fake.c
 endif
 
 ifeq ($(CONFIG_AUDIO_TONE),y)

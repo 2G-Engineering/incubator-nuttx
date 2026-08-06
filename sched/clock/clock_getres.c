@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/clock/clock_getres.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -22,14 +24,14 @@
  * Included Files
  ****************************************************************************/
 
-#include <nuttx/config.h>
-
 #include <stdint.h>
 #include <time.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
-#include "clock/clock.h"
+#include <nuttx/clock.h>
+#include <nuttx/fs/fs.h>
+#include <nuttx/timers/ptp_clock.h>
 
 /****************************************************************************
  * Public Functions
@@ -45,11 +47,12 @@
 
 int clock_getres(clockid_t clock_id, struct timespec *res)
 {
-  int      ret = OK;
+  clockid_t clock_type = clock_id & CLOCK_MASK;
+  int       ret = OK;
 
-  sinfo("clock_id=%d\n", clock_id);
+  sinfo("clock_id=%d, clock_type=%d\n", clock_id, clock_type);
 
-  switch (clock_id)
+  switch (clock_type)
     {
       default:
         serr("Returning ERROR\n");
@@ -60,15 +63,34 @@ int clock_getres(clockid_t clock_id, struct timespec *res)
       case CLOCK_MONOTONIC:
       case CLOCK_BOOTTIME:
       case CLOCK_REALTIME:
+      case CLOCK_PROCESS_CPUTIME_ID:
+      case CLOCK_THREAD_CPUTIME_ID:
 
         /* Form the timspec using clock resolution in nanoseconds */
 
         res->tv_sec  = 0;
         res->tv_nsec = NSEC_PER_TICK;
 
-        sinfo("Returning res=(%d,%d)\n", (int)res->tv_sec,
-                                         (int)res->tv_nsec);
+        sinfo("Returning res=(%jd,%ld)\n",
+              (intmax_t)res->tv_sec, res->tv_nsec);
         break;
+
+#ifdef CONFIG_PTP_CLOCK
+      case CLOCK_FD:
+        {
+          FAR struct file *filep;
+
+          ret = ptp_clockid_to_filep(clock_id, &filep);
+          if (ret < 0)
+            {
+              return ret;
+            }
+
+          ret = file_ioctl(filep, PTP_CLOCK_GETRES, res);
+          fs_putfilep(filep);
+        }
+        break;
+#endif
     }
 
   return ret;

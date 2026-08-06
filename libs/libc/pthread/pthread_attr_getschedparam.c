@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/pthread/pthread_attr_getschedparam.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <sched.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 /****************************************************************************

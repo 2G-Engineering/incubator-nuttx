@@ -1,6 +1,8 @@
 ############################################################################
 # drivers/sensors/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -25,19 +27,43 @@ ifeq ($(CONFIG_SENSORS),y)
 CSRCS += sensor.c
 
 ifeq ($(CONFIG_USENSOR),y)
-CSRCS += usensor.c
+  CSRCS += usensor.c
 endif
 
 ifeq ($(CONFIG_SENSORS_RPMSG),y)
-CSRCS += sensor_rpmsg.c
+  CSRCS += sensor_rpmsg.c
+endif
+
+ifeq ($(CONFIG_SENSORS_NAU7802),y)
+  CSRCS += nau7802.c
+endif
+
+ifeq ($(CONFIG_SENSORS_L86_XXX),y)
+  CSRCS += l86xxx_uorb.c
+endif
+
+ifeq ($(CONFIG_SENSORS_MONITOR),y)
+CSRCS += sensor_monitor.c
+endif
+
+ifeq ($(CONFIG_SENSORS_GNSS),y)
+  CSRCS += gnss_uorb.c
 endif
 
 ifeq ($(CONFIG_SENSORS_WTGAHRS2),y)
-  CSRCS += wtgahrs2.c
+  CSRCS += wtgahrs2_uorb.c
 endif
 
 ifeq ($(CONFIG_SENSORS_FAKESENSOR),y)
-  CSRCS += fakesensor.c
+  CSRCS += fakesensor_uorb.c
+endif
+
+ifeq ($(CONFIG_SENSORS_GOLDFISH_GNSS),y)
+  CSRCS += goldfish_gnss_uorb.c
+endif
+
+ifeq ($(CONFIG_SENSORS_GOLDFISH_SENSOR),y)
+  CSRCS += goldfish_sensor_uorb.c
 endif
 
 ifeq ($(CONFIG_SENSORS_HCSR04),y)
@@ -50,6 +76,35 @@ endif
 
 ifeq ($(CONFIG_SENSORS_DHTXX),y)
   CSRCS += dhtxx.c
+endif
+
+# These drivers can be used with sensor connected over SPI or I2C bus
+
+ifeq ($(CONFIG_SENSORS_BMI160),y)
+  CSRCS += bmi160_base.c
+ifeq ($(CONFIG_SENSORS_BMI160_UORB),y)
+  CSRCS += bmi160_uorb.c
+else
+  CSRCS += bmi160.c
+endif
+endif
+
+ifeq ($(CONFIG_SENSORS_BMI270),y)
+  CSRCS += bmi270_base.c
+ifeq ($(CONFIG_SENSORS_BMI270_UORB),y)
+  CSRCS += bmi270_uorb.c
+else
+  CSRCS += bmi270.c
+endif
+endif
+
+ifeq ($(CONFIG_SENSORS_BMI088),y)
+  CSRCS += bmi088_base.c
+ifeq ($(CONFIG_SENSORS_BMI088_UORB),y)
+  CSRCS += bmi088_uorb.c
+else
+  CSRCS += bmi088.c
+endif
 endif
 
 # These drivers depend on I2C support
@@ -81,7 +136,7 @@ ifeq ($(CONFIG_SENSORS_FXOS8700CQ),y)
 endif
 
 ifeq ($(CONFIG_SENSORS_HYT271),y)
-  CSRCS += hyt271.c
+  CSRCS += hyt271_uorb.c
 endif
 
 ifeq ($(CONFIG_SENSORS_KXTJ9),y)
@@ -104,8 +159,17 @@ ifeq ($(CONFIG_SENSORS_LSM6DSL),y)
   CSRCS += lsm6dsl.c
 endif
 
+ifeq ($(CONFIG_SENSORS_LSM6DSO32),y)
+  CSRCS += lsm6dso32_uorb.c
+endif
+
 ifeq ($(CONFIG_SENSORS_LSM9DS1),y)
-  CSRCS += lsm9ds1.c
+  CSRCS += lsm9ds1_base.c
+  ifeq ($(CONFIG_SENSORS_LSM9DS1_UORB),y)
+    CSRCS += lsm9ds1_uorb.c
+  else
+    CSRCS += lsm9ds1.c
+  endif
 endif
 
 ifeq ($(CONFIG_SENSORS_MSA301),y)
@@ -121,7 +185,12 @@ ifeq ($(CONFIG_ADXL345_I2C),y)
 endif
 
 ifeq ($(CONFIG_SENSORS_BH1749NUC),y)
+  CSRCS += bh1749nuc_base.c
+ifeq ($(CONFIG_SENSORS_BH1749NUC_UORB),y)
+  CSRCS += bh1749nuc_uorb.c
+else
   CSRCS += bh1749nuc.c
+endif
 endif
 
 ifeq ($(CONFIG_SENSORS_BH1750FVI),y)
@@ -132,20 +201,25 @@ ifeq ($(CONFIG_SENSORS_BMG160),y)
   CSRCS += bmg160.c
 endif
 
-ifeq ($(CONFIG_SENSORS_BMI160),y)
-  CSRCS += bmi160.c
-endif
-
-ifeq ($(CONFIG_SENSORS_BMI270),y)
-  CSRCS += bmi270.c
-endif
-
 ifeq ($(CONFIG_SENSORS_BMP180),y)
+  CSRCS += bmp180_base.c
+ifeq ($(CONFIG_SENSORS_BMP180_UORB),y)
+  CSRCS += bmp180_uorb.c
+else
   CSRCS += bmp180.c
+endif
 endif
 
 ifeq ($(CONFIG_SENSORS_BMP280),y)
-  CSRCS += bmp280.c
+  CSRCS += bmp280_uorb.c
+endif
+
+ifeq ($(CONFIG_SENSORS_BME680),y)
+  CSRCS += bme680_uorb.c
+endif
+
+ifeq ($(CONFIG_SENSORS_BME688),y)
+  CSRCS += bme688_uorb.c
 endif
 
 ifeq ($(CONFIG_SENSORS_ISL29023),y)
@@ -154,6 +228,10 @@ endif
 
 ifeq ($(CONFIG_SENSORS_HTS221),y)
   CSRCS += hts221.c
+endif
+
+ifeq ($(CONFIG_SENSORS_LIS2MDL),y)
+  CSRCS += lis2mdl_uorb.c
 endif
 
 ifeq ($(CONFIG_LM75_I2C),y)
@@ -172,6 +250,10 @@ ifeq ($(CONFIG_SENSORS_MB7040),y)
   CSRCS += mb7040.c
 endif
 
+ifeq ($(CONFIG_SENSORS_MCP9600),y)
+  CSRCS += mcp9600_uorb.c
+endif
+
 ifeq ($(CONFIG_SENSORS_MCP9844),y)
   CSRCS += mcp9844.c
 endif
@@ -184,8 +266,8 @@ ifeq ($(CONFIG_SENSORS_MLX90614),y)
   CSRCS += mlx90614.c
 endif
 
-ifeq ($(CONFIG_SENSORS_MS5611),y)
-  CSRCS += ms5611.c
+ifeq ($(CONFIG_SENSORS_MS56XX),y)
+  CSRCS += ms56xx_uorb.c
 endif
 
 ifeq ($(CONFIG_SENSORS_MS58XX),y)
@@ -232,6 +314,10 @@ ifeq ($(CONFIG_SENSORS_SHT3X),y)
   CSRCS += sht3x.c
 endif
 
+ifeq ($(CONFIG_SENSORS_SHT4X),y)
+  CSRCS += sht4x_uorb.c
+endif
+
 ifeq ($(CONFIG_SENSORS_SPS30),y)
   CSRCS += sps30.c
 endif
@@ -241,7 +327,23 @@ ifeq ($(CONFIG_SENSORS_T67XX),y)
 endif
 
 ifeq ($(CONFIG_SENSORS_LTR308),y)
-  CSRCS += ltr308.c
+  CSRCS += ltr308_uorb.c
+endif
+
+ifeq ($(CONFIG_SENSORS_FS3000),y)
+  CSRCS += fs3000_uorb.c
+endif
+
+ifeq ($(CONFIG_SENSORS_BMM150),y)
+  CSRCS += bmm150_uorb.c
+endif
+
+ifeq ($(CONFIG_SENSORS_AMG88XX),y)
+  CSRCS += amg88xx.c
+endif
+
+ifeq ($(CONFIG_SENSORS_TMP112),y)
+  CSRCS += tmp112.c
 endif
 
 endif # CONFIG_I2C
@@ -254,8 +356,16 @@ ifeq ($(CONFIG_ADXL345_SPI),y)
   CSRCS += adxl345_spi.c
 endif
 
+ifeq ($(CONFIG_SENSORS_ADXL362),y)
+  CSRCS += adxl362_uorb.c
+endif
+
 ifeq ($(CONFIG_SENSORS_ADXL372),y)
+ifeq ($(CONFIG_SENSORS_ADXL372_UORB),y)
+  CSRCS += adxl372_uorb.c
+else
   CSRCS += adxl372.c
+endif
 endif
 
 ifeq ($(CONFIG_LIS3DSH),y)
@@ -278,6 +388,10 @@ ifeq ($(CONFIG_SENSORS_MPL115A),y)
   CSRCS += mpl115a.c
 endif
 
+ifeq ($(CONFIG_SENSORS_MT6816),y)
+  CSRCS += mt6816.c
+endif
+
 ifeq ($(CONFIG_SENSORS_LIS3MDL),y)
   CSRCS += lis3mdl.c
 endif
@@ -287,7 +401,7 @@ ifeq ($(CONFIG_SENSORS_LSM330SPI),y)
 endif
 
 ifeq ($(CONFIG_SENSORS_L3GD20),y)
-  CSRCS += l3gd20.c
+  CSRCS += l3gd20_uorb.c
 endif
 
 ifeq ($(CONFIG_SENSORS_ADT7320),y)
@@ -305,7 +419,7 @@ endif # CONFIG_SPI
 ifeq ($(CONFIG_1WIRE),y)
 
 ifeq ($(CONFIG_SENSORS_DS18B20),y)
-  CSRCS += ds18b20.c
+  CSRCS += ds18b20_uorb.c
 endif
 
 endif # CONFIG_1WIRE
@@ -315,7 +429,13 @@ ifeq ($(CONFIG_SENSORS_MPU60X0),y)
 endif
 
 ifeq ($(CONFIG_SENSORS_MPU9250),y)
-  CSRCS += mpu9250.c
+  CSRCS += mpu9250_uorb.c
+endif
+
+# QMI8658 6-axis IMU
+
+ifeq ($(CONFIG_SENSORS_QMI8658),y)
+  CSRCS += qmi8658_uorb.c
 endif
 
 # Quadrature encoder upper half
@@ -358,6 +478,18 @@ endif
 
 ifeq ($(CONFIG_SENSORS_HDC1008),y)
   CSRCS += hdc1008.c
+endif
+
+# ANALOG MAX31865
+
+ifeq ($(CONFIG_SENSORS_MAX31865),y)
+  CSRCS += max31865.c
+endif
+
+# SONY CXD5602PWBIMU
+
+ifeq ($(CONFIG_SENSORS_CXD5602PWBIMU),y)
+  CSRCS += cxd5602pwbimu.c
 endif
 
 # Include sensor driver build support

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/imxrt/teensy-4.x/src/imxrt_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,8 +26,12 @@
 
 #include <nuttx/config.h>
 
+#include <sys/types.h>
+#include <syslog.h>
+
 #include <nuttx/board.h>
 #include <arch/board/board.h>
+#include <nuttx/leds/userled.h>
 
 #include "imxrt_start.h"
 #include "teensy-4.h"
@@ -62,7 +68,7 @@ void imxrt_ocram_initialize(void)
 
   putreg32(0xaa555555, IMXRT_IOMUXC_GPR_GPR17);
   regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
-  putreg32(regval | GPR_GPR16_FLEXRAM_BANK_CFG_SELF, IMXRT_IOMUXC_GPR_GPR16);
+  putreg32(regval | GPR_GPR16_FLEXRAM_BANK_CFG_SEL, IMXRT_IOMUXC_GPR_GPR16);
 
   for (src = (uint32_t *) (LOCATE_IN_SRC(g_boot_data.start) +
        g_boot_data.size),
@@ -111,8 +117,24 @@ void imxrt_boardinitialize(void)
 #ifdef CONFIG_BOARD_LATE_INITIALIZE
 void board_late_initialize(void)
 {
-  /* Perform board initialization */
+  int ret;
+#if !defined(CONFIG_ARCH_LEDS) && defined(CONFIG_USERLED_LOWER)
+  /* Register the LED driver */
+
+  ret = userled_lower_initialize(LED_DRIVER_PATH);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n", ret);
+    }
+#endif
+
+#if defined(CONFIG_IMXRT_LPSPI1) || defined(CONFIG_IMXRT_LPSPI2) || \
+    defined(CONFIG_IMXRT_LPSPI3) || defined(CONFIG_IMXRT_LPSPI4)
+  imxrt_spidev_initialize();
+#endif
 
   imxrt_bringup();
+
+  UNUSED(ret);
 }
-#endif                                 /* CONFIG_BOARD_LATE_INITIALIZE */
+#endif /* CONFIG_BOARD_LATE_INITIALIZE */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/mtd/rpmsgmtd.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,12 +32,12 @@
 #include <assert.h>
 #include <fcntl.h>
 #include <limits.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/mtd/mtd.h>
 #include <nuttx/mutex.h>
-#include <nuttx/rptun/openamp.h>
+#include <nuttx/rpmsg/rpmsg.h>
 
 #include "rpmsgmtd.h"
 
@@ -50,18 +52,18 @@ struct rpmsgmtd_s
   FAR const char       *remotecpu;   /* The server cpu name */
   FAR const char       *remotepath;  /* The device path in the server cpu */
   sem_t                 wait;        /* Wait sem, used for preventing any
-                                      * opreation until the connection
+                                      * operation until the connection
                                       * between two cpu established.
                                       */
   mutex_t               geolock;     /* Get mtd geometry operation mutex */
-  struct mtd_geometry_s geo;         /* MTD geomerty */
+  struct mtd_geometry_s geo;         /* MTD geometry */
 };
 
 /* Rpmsg device cookie used to handle the response from the remote cpu */
 
 struct rpmsgmtd_cookie_s
 {
-  sem_t     sem;     /* Semaphore used fo rpmsg */
+  sem_t     sem;     /* Semaphore used for rpmsg */
   int       result;  /* The return value of the remote call */
   FAR void *data;    /* The return data buffer of the remote call */
 };
@@ -74,7 +76,8 @@ struct rpmsgmtd_cookie_s
 
 static int     rpmsgmtd_erase(FAR struct mtd_dev_s *dev, off_t startblock,
                               size_t nblocks);
-static int     rpmsgmtd_get_geometry(FAR struct rpmsgmtd_s *dev);
+static int     rpmsgmtd_get_geometry(FAR struct rpmsgmtd_s *dev,
+                                     FAR struct mtd_geometry_s *geometry);
 static ssize_t rpmsgmtd_bread(FAR struct mtd_dev_s *dev, off_t startblock,
                               size_t nblocks, FAR uint8_t *buffer);
 static ssize_t rpmsgmtd_bwrite(FAR struct mtd_dev_s *dev, off_t startblock,
@@ -85,7 +88,7 @@ static ssize_t rpmsgmtd_read(FAR struct mtd_dev_s *dev, off_t offset,
 static ssize_t rpmsgmtd_write(FAR struct mtd_dev_s *dev, off_t offset,
                               size_t nbytes, FAR const uint8_t *buffer);
 #endif
-static size_t  rpmsgmtd_ioctl_arglen(int cmd);
+static ssize_t rpmsgmtd_ioctl_arglen(int cmd);
 static int     rpmsgmtd_ioctl(FAR struct mtd_dev_s *dev, int cmd,
                               unsigned long arg);
 
@@ -109,6 +112,9 @@ static int     rpmsgmtd_bread_handler(FAR struct rpmsg_endpoint *ept,
 static int     rpmsgmtd_read_handler(FAR struct rpmsg_endpoint *ept,
                                      FAR void *data, size_t len,
                                      uint32_t src, FAR void *priv);
+static int     rpmsgmtd_geometry_handler(FAR struct rpmsg_endpoint *ept,
+                                         FAR void *data, size_t len,
+                                         uint32_t src, FAR void *priv);
 static int     rpmsgmtd_ioctl_handler(FAR struct rpmsg_endpoint *ept,
                                       FAR void *data, size_t len,
                                       uint32_t src, FAR void *priv);
@@ -132,12 +138,13 @@ static void    rpmsgmtd_ns_bound(struct rpmsg_endpoint *ept);
 
 static const rpmsg_ept_cb g_rpmsgmtd_handler[] =
 {
-  [RPMSGMTD_ERASE]  = rpmsgmtd_default_handler,
-  [RPMSGMTD_BREAD]  = rpmsgmtd_bread_handler,
-  [RPMSGMTD_BWRITE] = rpmsgmtd_default_handler,
-  [RPMSGMTD_READ]   = rpmsgmtd_read_handler,
-  [RPMSGMTD_WRITE]  = rpmsgmtd_default_handler,
-  [RPMSGMTD_IOCTL]  = rpmsgmtd_ioctl_handler,
+  [RPMSGMTD_ERASE]    = rpmsgmtd_default_handler,
+  [RPMSGMTD_BREAD]    = rpmsgmtd_bread_handler,
+  [RPMSGMTD_BWRITE]   = rpmsgmtd_default_handler,
+  [RPMSGMTD_READ]     = rpmsgmtd_read_handler,
+  [RPMSGMTD_WRITE]    = rpmsgmtd_default_handler,
+  [RPMSGMTD_GEOMETRY] = rpmsgmtd_geometry_handler,
+  [RPMSGMTD_IOCTL]    = rpmsgmtd_ioctl_handler,
 };
 
 /****************************************************************************
@@ -191,25 +198,53 @@ static int rpmsgmtd_erase(FAR struct mtd_dev_s *dev, off_t startblock,
  *
  ****************************************************************************/
 
-static int rpmsgmtd_get_geometry(FAR struct rpmsgmtd_s *dev)
+static int rpmsgmtd_get_geometry(FAR struct rpmsgmtd_s *dev,
+                                 FAR struct mtd_geometry_s *geometry)
 {
+  FAR struct rpmsgmtd_s *priv = dev;
+  struct rpmsgmtd_geometry_s msg;
   int ret;
 
-  ret = nxmutex_lock(&dev->geolock);
+  /* Sanity checks */
+
+  DEBUGASSERT(priv != NULL);
+
+  ret = nxmutex_lock(&priv->geolock);
   if (ret < 0)
     {
       return ret;
     }
 
-  if (dev->geo.blocksize == 0)
-    {
-      /* Get the server mtd device geometry */
+  /* Return the previously got geometry */
 
-      ret = rpmsgmtd_ioctl(&dev->mtd, MTDIOC_GEOMETRY,
-                           (unsigned long)&dev->geo);
+  if (priv->geo.blocksize != 0)
+    {
+      if (geometry != NULL)
+        {
+          memcpy(geometry, &priv->geo, sizeof(*geometry));
+        }
+
+      goto out;
     }
 
-  nxmutex_unlock(&dev->geolock);
+  ret = rpmsgmtd_send_recv(priv, RPMSGMTD_GEOMETRY, true, &msg.header,
+                           sizeof(msg), NULL);
+
+  if (ret >= 0)
+    {
+      priv->geo.blocksize = msg.blocksize;
+      priv->geo.erasesize = msg.erasesize;
+      priv->geo.neraseblocks = msg.neraseblocks;
+      strlcpy(priv->geo.model, msg.model, sizeof(priv->geo.model));
+
+      if (geometry != NULL)
+        {
+          memcpy(geometry, &priv->geo, sizeof(*geometry));
+        }
+    }
+
+out:
+  nxmutex_unlock(&priv->geolock);
   return ret;
 }
 
@@ -250,7 +285,7 @@ static ssize_t rpmsgmtd_bread(FAR struct mtd_dev_s *dev, off_t startblock,
 
   /* Get the server mtd geometry */
 
-  ret = rpmsgmtd_get_geometry(priv);
+  ret = rpmsgmtd_get_geometry(priv, NULL);
   if (ret < 0)
     {
       ferr("Get geometry failed, ret=%d\n", ret);
@@ -314,7 +349,7 @@ static ssize_t rpmsgmtd_bwrite(FAR struct mtd_dev_s *dev, off_t startblock,
 
   /* Get the server mtd geometry */
 
-  ret = rpmsgmtd_get_geometry(priv);
+  ret = rpmsgmtd_get_geometry(priv, NULL);
   if (ret < 0)
     {
       ferr("Get geometry failed, ret=%d\n", ret);
@@ -548,17 +583,15 @@ out:
  *
  ****************************************************************************/
 
-static size_t rpmsgmtd_ioctl_arglen(int cmd)
+static ssize_t rpmsgmtd_ioctl_arglen(int cmd)
 {
   switch (cmd)
     {
-      case MTDIOC_GEOMETRY:
-        return sizeof(struct mtd_geometry_s);
       case MTDIOC_PROTECT:
       case MTDIOC_UNPROTECT:
         return sizeof(struct mtd_protect_s);
       default:
-        return 0;
+        return -ENOTTY;
     }
 }
 
@@ -584,8 +617,13 @@ static int rpmsgmtd_ioctl(FAR struct mtd_dev_s *dev, int cmd,
   FAR struct rpmsgmtd_s *priv = (FAR struct rpmsgmtd_s *)dev;
   FAR struct rpmsgmtd_ioctl_s *msg;
   uint32_t space;
-  size_t arglen;
+  ssize_t arglen;
   size_t msglen;
+
+  if (cmd == MTDIOC_GEOMETRY)
+    {
+      return rpmsgmtd_get_geometry(priv, (FAR struct mtd_geometry_s *)arg);
+    }
 
   /* Sanity checks */
 
@@ -594,6 +632,11 @@ static int rpmsgmtd_ioctl(FAR struct mtd_dev_s *dev, int cmd,
   /* Call our internal routine to perform the ioctl */
 
   arglen = rpmsgmtd_ioctl_arglen(cmd);
+  if (arglen < 0)
+    {
+      return arglen;
+    }
+
   msglen = sizeof(*msg) + arglen - 1;
 
   msg = rpmsgmtd_get_tx_payload_buffer(priv, &space);
@@ -624,7 +667,7 @@ static int rpmsgmtd_ioctl(FAR struct mtd_dev_s *dev, int cmd,
  *
  * Parameters:
  *   priv  - The rpmsg-mtd handle
- *   len   - The got memroy size
+ *   len   - The got memory size
  *
  * Returned Values:
  *   NULL     - failure
@@ -732,8 +775,8 @@ fail:
  *   ept  - The rpmsg endpoint
  *   data - The return message
  *   len  - The return message length
- *   src  - unknow
- *   priv - unknow
+ *   src  - unknown
+ *   priv - unknown
  *
  * Returned Values:
  *   Always OK
@@ -769,8 +812,8 @@ static int rpmsgmtd_default_handler(FAR struct rpmsg_endpoint *ept,
  *   ept  - The rpmsg endpoint
  *   data - The return message
  *   len  - The return message length
- *   src  - unknow
- *   priv - unknow
+ *   src  - unknown
+ *   priv - unknown
  *
  * Returned Values:
  *   Always OK
@@ -816,8 +859,8 @@ static int rpmsgmtd_bread_handler(FAR struct rpmsg_endpoint *ept,
  *   ept  - The rpmsg endpoint
  *   data - The return message
  *   len  - The return message length
- *   src  - unknow
- *   priv - unknow
+ *   src  - unknown
+ *   priv - unknown
  *
  * Returned Values:
  *   Always OK
@@ -850,6 +893,42 @@ static int rpmsgmtd_read_handler(FAR struct rpmsg_endpoint *ept,
 }
 
 /****************************************************************************
+ * Name: rpmsgmtd_geometry_handler
+ *
+ * Description:
+ *   Rpmsg-mtd geometry response handler, this function will be called to
+ *   process the return message of rpmsgmtd_get_geometry().
+ *
+ * Parameters:
+ *   ept  - The rpmsg endpoint
+ *   data - The return message
+ *   len  - The return message length
+ *   src  - unknown
+ *   priv - unknown
+ *
+ * Returned Values:
+ *   Always OK
+ *
+ ****************************************************************************/
+
+static int rpmsgmtd_geometry_handler(FAR struct rpmsg_endpoint *ept,
+                                     FAR void *data, size_t len,
+                                     uint32_t src, FAR void *priv)
+{
+  FAR struct rpmsgmtd_header_s *header = data;
+  FAR struct rpmsgmtd_cookie_s *cookie =
+      (FAR struct rpmsgmtd_cookie_s *)(uintptr_t)header->cookie;
+
+  if (cookie->result >= 0)
+    {
+      memcpy(cookie->data, data, len);
+    }
+
+  rpmsg_post(ept, &cookie->sem);
+  return 0;
+}
+
+/****************************************************************************
  * Name: rpmsgmtd_ioctl_handler
  *
  * Description:
@@ -860,8 +939,8 @@ static int rpmsgmtd_read_handler(FAR struct rpmsg_endpoint *ept,
  *   ept  - The rpmsg endpoint
  *   data - The return message
  *   len  - The return message length
- *   src  - unknow
- *   priv - unknow
+ *   src  - unknown
+ *   priv - unknown
  *
  * Returned Values:
  *   Always OK
@@ -980,8 +1059,8 @@ static void rpmsgmtd_device_destroy(FAR struct rpmsg_device *rdev,
  *   ept  - The rpmsg-mtd end point
  *   data - The received data
  *   len  - The received data length
- *   src  - unknow
- *   priv - unknow
+ *   src  - unknown
+ *   priv - unknown
  *
  * Returned Values:
  *   OK on success; A negated errno value is returned on any failure.
@@ -1018,7 +1097,7 @@ static int rpmsgmtd_ept_cb(FAR struct rpmsg_endpoint *ept,
  *   remotecpu  - the server cpu name
  *   remotepath - the device you want to access in the remote cpu
  *   localpath  - the device path in local cpu, if NULL, the localpath is
- *                same as the remotepath, provide this argument to supoort
+ *                same as the remotepath, provide this argument to support
  *                custom device path
  *
  * Returned Values:

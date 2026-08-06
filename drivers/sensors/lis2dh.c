@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/lis2dh.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -29,7 +44,7 @@
 #include <string.h>
 #include <errno.h>
 #include <poll.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
@@ -47,10 +62,6 @@
 #  define lis2dh_dbg(x, ...)        _info(x, ##__VA_ARGS__)
 #else
 #  define lis2dh_dbg(x, ...)        sninfo(x, ##__VA_ARGS__)
-#endif
-
-#ifndef CONFIG_LIS2DH_I2C_FREQUENCY
-#  define CONFIG_LIS2DH_I2C_FREQUENCY   400000
 #endif
 
 #ifdef CONFIG_LIS2DH_DRIVER_SELFTEST
@@ -72,7 +83,7 @@
 #define LIS2DH_COUNT_INTS
 
 /****************************************************************************
- * Private Data Types
+ * Private Types
  ****************************************************************************/
 
 enum interrupts
@@ -86,7 +97,7 @@ struct lis2dh_dev_s
   FAR struct i2c_master_s    *i2c;         /* I2C interface */
   uint8_t                    addr;         /* I2C address */
   FAR struct lis2dh_config_s *config;      /* Platform specific configuration */
-  struct lis2dh_setup        *setup;       /* User defined device operation mode setup */
+  FAR struct lis2dh_setup    *setup;       /* User defined device operation mode setup */
   struct lis2dh_vector_s     vector_data;  /* Latest read data read from lis2dh */
   int                        scale;        /* Full scale in milliG */
   mutex_t                    devlock;      /* Manages exclusive access to this structure */
@@ -97,7 +108,7 @@ struct lis2dh_dev_s
 #else
   volatile bool              int_pending;  /* Interrupt received but data not read, yet */
 #endif
-  struct pollfd              *fds[CONFIG_LIS2DH_NPOLLWAITERS];
+  FAR struct pollfd          *fds[CONFIG_LIS2DH_NPOLLWAITERS];
 };
 
 /****************************************************************************
@@ -108,38 +119,40 @@ static int            lis2dh_open(FAR struct file *filep);
 static int            lis2dh_close(FAR struct file *filep);
 static ssize_t        lis2dh_read(FAR struct file *, FAR char *, size_t);
 static ssize_t        lis2dh_write(FAR struct file *filep,
-                        FAR const char *buffer, size_t buflen);
+                                   FAR const char *buffer, size_t buflen);
 static int            lis2dh_ioctl(FAR struct file *filep, int cmd,
-                        unsigned long arg);
+                                   unsigned long arg);
 static int            lis2dh_access(FAR struct lis2dh_dev_s *dev,
-                        uint8_t subaddr, FAR uint8_t *buf, int length);
+                                    uint8_t subaddr, FAR uint8_t *buf,
+                                    int length);
 static int            lis2dh_get_reading(FAR struct lis2dh_dev_s *dev,
-                        FAR struct lis2dh_vector_s *res, bool force_read);
+                                         FAR struct lis2dh_vector_s *res,
+                                         bool force_read);
 static int            lis2dh_powerdown(FAR struct lis2dh_dev_s *dev);
 static int            lis2dh_reboot(FAR struct lis2dh_dev_s *dev);
 static int            lis2dh_poll(FAR struct file *filep,
-                        FAR struct pollfd *fds, bool setup);
+                                  FAR struct pollfd *fds, bool setup);
 static int            lis2dh_int_handler(int irq, FAR void *context,
-                        FAR void *arg);
+                                         FAR void *arg);
 static int            lis2dh_setup(FAR struct lis2dh_dev_s *dev,
-                        FAR struct lis2dh_setup *new_setup);
+                                   FAR struct lis2dh_setup *new_setup);
 static inline int16_t lis2dh_raw_to_mg(uint8_t raw_hibyte,
-                        uint8_t raw_lobyte, int scale);
+                                       uint8_t raw_lobyte, int scale);
 static int            lis2dh_read_temp(FAR struct lis2dh_dev_s *dev,
-                        FAR int16_t *temper);
+                                       FAR int16_t *temper);
 static int            lis2dh_clear_interrupts(FAR struct lis2dh_dev_s *priv,
-                        uint8_t interrupts);
+                                              uint8_t interrupts);
 static unsigned int   lis2dh_get_fifo_readings(FAR struct lis2dh_dev_s *priv,
-                        FAR struct lis2dh_result *res,
-                        unsigned int readcount,
-                        FAR int *perr);
+                                               FAR struct lis2dh_result *res,
+                                               unsigned int readcount,
+                                               FAR int *perr);
 #ifdef CONFIG_LIS2DH_DRIVER_SELFTEST
 static int            lis2dh_handle_selftest(FAR struct lis2dh_dev_s *priv);
 static int16_t        lis2dh_raw_convert_to_12bit(uint8_t raw_hibyte,
-                        uint8_t raw_lobyte);
+                                                  uint8_t raw_lobyte);
 static FAR const struct lis2dh_vector_s *
                        lis2dh_get_raw_readings(FAR struct lis2dh_dev_s *dev,
-                        FAR int *err);
+                                               FAR int *err);
 #endif
 
 /****************************************************************************
@@ -517,7 +530,7 @@ static ssize_t lis2dh_read(FAR struct file *filep, FAR char *buffer,
 static ssize_t lis2dh_write(FAR struct file *filep, FAR const char *buffer,
                             size_t buflen)
 {
-  DEBUGASSERT(filep != NULL && buffer != NULL && buflen > 0);
+  DEBUGASSERT(buffer != NULL && buflen > 0);
 
   return -ENOSYS;
 }
@@ -538,11 +551,10 @@ static int lis2dh_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   int ret;
   uint8_t buf;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct lis2dh_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   ret = nxmutex_lock(&dev->devlock);
   if (ret < 0)
@@ -627,13 +639,13 @@ static int lis2dh_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   case SNIOC_READ_TEMP:
     {
-      ret = lis2dh_read_temp(priv, (int16_t *)arg);
+      ret = lis2dh_read_temp(priv, (FAR int16_t *)arg);
     }
     break;
 
   case SNIOC_WHO_AM_I:
     {
-      ret = lis2dh_who_am_i(priv, (uint8_t *)arg);
+      ret = lis2dh_who_am_i(priv, (FAR uint8_t *)arg);
     }
     break;
 
@@ -665,11 +677,11 @@ static int lis2dh_poll(FAR struct file *filep, FAR struct pollfd *fds,
   int ret;
   int i;
 
-  DEBUGASSERT(filep && fds);
+  DEBUGASSERT(fds);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct lis2dh_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   ret = nxmutex_lock(&dev->devlock);
   if (ret < 0)
@@ -714,14 +726,14 @@ static int lis2dh_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
       if (priv->int_pending)
         {
-          poll_notify(priv->fds, CONFIG_LIS2DH_NPOLLWAITERS, POLLIN);
+          poll_notify(&fds, 1, POLLIN);
         }
     }
   else if (fds->priv)
     {
       /* This is a request to tear down the poll. */
 
-      struct pollfd **slot = (struct pollfd **)fds->priv;
+      FAR struct pollfd **slot = (FAR struct pollfd **)fds->priv;
       DEBUGASSERT(slot != NULL);
 
       /* Remove all memory of the poll setup */
@@ -1083,7 +1095,7 @@ static int lis2dh_handle_selftest(FAR struct lis2dh_dev_s *priv)
       goto out;
     }
 
-  nxsig_usleep(20000);
+  nxsched_usleep(20000);
 
   /* Now INT1 should have been latched high and INT2 should be still low */
 
@@ -1115,7 +1127,7 @@ static int lis2dh_handle_selftest(FAR struct lis2dh_dev_s *priv)
           goto out;
         }
 
-      nxsig_usleep(20000);
+      nxsched_usleep(20000);
 
       if (priv->config->read_int2_pin() != 1)
         {
@@ -1222,7 +1234,7 @@ static FAR const struct lis2dh_vector_s *
 
   while (--retries_left > 0)
     {
-      nxsig_usleep(20000);
+      nxsched_usleep(20000);
       if (lis2dh_data_available(dev))
         {
           if (lis2dh_access(dev, ST_LIS2DH_OUT_X_L_REG, retval,
@@ -1375,7 +1387,7 @@ static unsigned int lis2dh_get_fifo_readings(FAR struct lis2dh_dev_s *priv,
       struct lis2dh_vector_s sample;
     }
 
-    *buf = (void *)&res->measurements[res->header.meas_count];
+    *buf = (FAR void *)&res->measurements[res->header.meas_count];
 
   bool xy_axis_fixup = priv->setup->xy_axis_fixup;
   size_t buflen = readcount * 6;
@@ -1390,7 +1402,7 @@ static unsigned int lis2dh_get_fifo_readings(FAR struct lis2dh_dev_s *priv,
     }
 
   if (lis2dh_access(priv, ST_LIS2DH_OUT_X_L_REG,
-                   (void *)buf, buflen) != buflen)
+                    (FAR void *)buf, buflen) != buflen)
     {
       lis2dh_dbg("lis2dh: Failed to read FIFO (%d bytes, %d samples)\n",
                  buflen, readcount);
@@ -1400,7 +1412,7 @@ static unsigned int lis2dh_get_fifo_readings(FAR struct lis2dh_dev_s *priv,
 
   /* Add something to entropy pool. */
 
-  up_rngaddentropy(RND_SRC_SENSOR, (void *)buf, buflen / 4);
+  up_rngaddentropy(RND_SRC_SENSOR, (FAR void *)buf, buflen / 4);
 
   /* Convert raw values to mG */
 
@@ -1677,7 +1689,7 @@ static int lis2dh_reboot(FAR struct lis2dh_dev_s *dev)
           return -ETIMEDOUT;
         }
 
-       nxsig_usleep(1);
+       nxsched_usleep(1);
     }
   while (true);
 
@@ -2009,7 +2021,7 @@ int lis2dh_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
 
   DEBUGASSERT(devpath != NULL && i2c != NULL && config != NULL);
 
-  priv = (FAR struct lis2dh_dev_s *)kmm_zalloc(sizeof(struct lis2dh_dev_s));
+  priv = kmm_zalloc(sizeof(struct lis2dh_dev_s));
   if (!priv)
     {
       lis2dh_dbg("lis2dh: Failed to allocate instance\n");

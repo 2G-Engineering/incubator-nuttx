@@ -1,5 +1,7 @@
 /****************************************************************************
- * boards/risc-v/mpfs/icicle/scripts/ld-envm.script
+ * boards/risc-v/mpfs/icicle/scripts/ld-envm-opensbi.script
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -32,11 +34,18 @@ ENTRY(_stext)
 EXTERN(__start)
 SECTIONS
 {
+    PROVIDE(__l2lim_start = ORIGIN(l2lim));
+    PROVIDE(__l2lim_end   = ORIGIN(l2lim) + LENGTH(l2lim));
+
     .text.sbi : {
+      _ssbi_ram = ABSOLUTE(.);
       sbi*
       riscv_atomic*
       riscv_locks*
       riscv_asm*
+      _esbi_ram = ABSOLUTE(.);
+      . = ALIGN(0x2000);
+      . += 16k; /* OpenSBI heap, aligned, at least 16k */
     } > ddr
 
     .l2_scratchpad : ALIGN(0x10)
@@ -71,7 +80,8 @@ SECTIONS
 
     .init_section : ALIGN(4) {
         _sinit = ABSOLUTE(.);
-        KEEP(*(.init_array .init_array.*))
+        KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
+        KEEP(*(.init_array EXCLUDE_FILE(*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o) .ctors))
         _einit = ABSOLUTE(.);
     } > envm
 

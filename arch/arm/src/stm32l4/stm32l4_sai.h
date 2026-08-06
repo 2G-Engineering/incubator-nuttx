@@ -1,8 +1,9 @@
 /****************************************************************************
  * arch/arm/src/stm32l4/stm32l4_sai.h
  *
- *   Copyright (C) 2017 Gregory Nutt. All rights reserved.
- *   Copyright (c) 2016 Motorola Mobility, LLC. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2017 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2016 Motorola Mobility LLC. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -70,7 +71,7 @@ extern "C"
 #endif
 
 /****************************************************************************
- * Name: stm32l4_sai_initialize
+ * Name: stm32_sai_initialize
  *
  * Description:
  *   Initialize the selected SAI block
@@ -83,7 +84,7 @@ extern "C"
  *
  ****************************************************************************/
 
-struct i2s_dev_s *stm32l4_sai_initialize(int intf);
+struct i2s_dev_s *stm32_sai_initialize(int intf);
 
 #undef EXTERN
 #ifdef __cplusplus

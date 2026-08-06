@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wl5/stm32wl5_pwr.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -52,7 +54,7 @@ extern "C"
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32wl5_pwr_enablebkp
+ * Name: stm32_pwr_enablebkp
  *
  * Description:
  *   Enables access to the backup domain (RTC registers, RTC backup data
@@ -66,10 +68,10 @@ extern "C"
  *
  ****************************************************************************/
 
-bool stm32wl5_pwr_enablebkp(bool writable);
+bool stm32_pwr_enablebkp(bool writable);
 
 /****************************************************************************
- * Name: stm32wl5_pwr_boot_c2
+ * Name: stm32_pwr_boot_c2
  *
  * Description:
  *   Boots up CPU2 (cortex-m0) after reset or wakeup from stop or standby
@@ -77,7 +79,7 @@ bool stm32wl5_pwr_enablebkp(bool writable);
  *
  ****************************************************************************/
 
-void stm32wl5_pwr_boot_c2(void);
+void stm32_pwr_boot_c2(void);
 
 #undef EXTERN
 #if defined(__cplusplus)

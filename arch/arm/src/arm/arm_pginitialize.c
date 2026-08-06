@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/arm/arm_pginitialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,14 +26,14 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/sched.h>
 #include <nuttx/page.h>
 
 #include "arm_internal.h"
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -77,4 +79,4 @@ void arm_pginitialize(void)
    */
 }
 
-#endif /* CONFIG_PAGING */
+#endif /* CONFIG_LEGACY_PAGING */

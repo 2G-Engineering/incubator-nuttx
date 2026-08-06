@@ -28,7 +28,7 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/param.h>
@@ -37,31 +37,32 @@
 
 #include <nuttx/arch.h>
 #include <nuttx/init.h>
+#include <nuttx/kthread.h>
 #include <nuttx/mutex.h>
 #include <nuttx/mtd/mtd.h>
+#include <nuttx/signal.h>
+
+#include "sched/sched.h"
 
 #include "xtensa.h"
-#include "xtensa_attr.h"
 
 #include "rom/esp32_spiflash.h"
 
 #include "hardware/esp32_soc.h"
 #include "hardware/esp32_spi.h"
 #include "hardware/esp32_dport.h"
-#include "hardware/efuse_reg.h"
 
+#include "esp32_spicache.h"
 #ifdef CONFIG_ESP32_SPIRAM
 #include "esp32_spiram.h"
 #endif
+#include "esp_irq.h"
 
-#include "esp32_spicache.h"
 #include "esp32_spiflash.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-/* Used in spiflash_cachestate_s structure even when SMP is disabled. */
 
 #define SPI_FLASH_WRITE_BUF_SIZE    (32)
 #define SPI_FLASH_READ_BUF_SIZE     (64)
@@ -111,6 +112,7 @@ enum spiflash_op_code_e
   SPIFLASH_OP_CODE_WRITE = 0,
   SPIFLASH_OP_CODE_READ,
   SPIFLASH_OP_CODE_ERASE,
+  SPIFLASH_OP_CODE_SET_BANK,
   SPIFLASH_OP_CODE_ENCRYPT_READ,
   SPIFLASH_OP_CODE_ENCRYPT_WRITE
 };
@@ -173,16 +175,6 @@ struct spiflash_map_req
   uint32_t  page_cnt;
 };
 
-struct spiflash_cachestate_s
-{
-  int cpu;
-#ifdef CONFIG_SMP
-  int other;
-#endif
-  irqstate_t flags;
-  uint32_t val[CONFIG_SMP_NCPUS];
-};
-
 #ifdef CONFIG_ESP32_SPI_FLASH_SUPPORT_PSRAM_STACK
 /* SPI flash work operation arguments */
 
@@ -196,6 +188,7 @@ struct spiflash_work_arg
     uint32_t addr;
     uint8_t *buffer;
     uint32_t size;
+    uint32_t paddr;
   } op_arg;
 
   volatile int ret;
@@ -227,10 +220,12 @@ static inline void spi_reset_regbits(struct esp32_spiflash_s *priv,
 
 /* Misc. helpers */
 
+inline void IRAM_ATTR
+esp32_spiflash_opstart(void);
+inline void IRAM_ATTR
+esp32_spiflash_opdone(void);
 static inline void IRAM_ATTR
-esp32_spiflash_opstart(struct spiflash_cachestate_s *state);
-static inline void IRAM_ATTR
-esp32_spiflash_opdone(const struct spiflash_cachestate_s *state);
+esp32_spiflash_oposyield(void);
 
 static bool IRAM_ATTR spiflash_pagecached(uint32_t phypage);
 static void IRAM_ATTR spiflash_flushmapped(size_t start, size_t size);
@@ -287,6 +282,8 @@ static ssize_t esp32_bread_decrypt(struct mtd_dev_s *dev,
 #ifdef CONFIG_MTD_BYTE_WRITE
 static ssize_t esp32_write(struct mtd_dev_s *dev, off_t offset,
                            size_t nbytes, const uint8_t *buffer);
+static ssize_t esp32_write_encrypt(FAR struct mtd_dev_s *dev, off_t offset,
+                                   size_t nbytes, FAR const uint8_t *buffer);
 #endif
 static ssize_t esp32_bwrite(struct mtd_dev_s *dev, off_t startblock,
                             size_t nblocks, const uint8_t *buffer);
@@ -298,6 +295,9 @@ static int esp32_ioctl(struct mtd_dev_s *dev, int cmd,
                        unsigned long arg);
 static int esp32_ioctl_encrypt(struct mtd_dev_s *dev, int cmd,
                                unsigned long arg);
+#ifdef CONFIG_ESP32_SPIRAM
+static int esp32_set_mmu_map(int vaddr, int paddr, int num);
+#endif
 
 /****************************************************************************
  * Private Data
@@ -337,7 +337,7 @@ static struct esp32_spiflash_s g_esp32_spiflash1_encrypt =
             .read   = esp32_read_decrypt,
             .ioctl  = esp32_ioctl_encrypt,
 #ifdef CONFIG_MTD_BYTE_WRITE
-            .write  = NULL,
+            .write  = esp32_write_encrypt,
 #endif
             .name   = "esp32_mainflash_encrypt"
           },
@@ -346,11 +346,19 @@ static struct esp32_spiflash_s g_esp32_spiflash1_encrypt =
   .dummies = g_rom_spiflash_dummy_len_plus
 };
 
-/* Enxusre exculisve access to the driver */
+/* Ensure exclusive access to the driver */
 
 static mutex_t g_lock = NXMUTEX_INITIALIZER;
 #ifdef CONFIG_ESP32_SPI_FLASH_SUPPORT_PSRAM_STACK
 static struct work_s g_work;
+static mutex_t g_work_lock = NXMUTEX_INITIALIZER;
+#endif
+
+static volatile bool g_flash_op_can_start = false;
+static volatile bool g_flash_op_complete = false;
+static volatile bool g_sched_suspended[CONFIG_SMP_NCPUS];
+#ifdef CONFIG_SMP
+static sem_t g_disable_non_iram_isr_on_core[CONFIG_SMP_NCPUS];
 #endif
 
 /****************************************************************************
@@ -456,26 +464,54 @@ static inline void spi_reset_regbits(struct esp32_spiflash_s *priv,
  *
  ****************************************************************************/
 
-static inline void IRAM_ATTR
-esp32_spiflash_opstart(struct spiflash_cachestate_s *state)
+void esp32_spiflash_opstart(void)
 {
-  state->flags = enter_critical_section();
-
-  state->cpu = up_cpu_index();
+  struct tcb_s *tcb = this_task();
+  int saved_priority = tcb->sched_priority;
+  int cpu;
 #ifdef CONFIG_SMP
-  state->other = state->cpu ? 0 : 1;
+  int other_cpu;
+#endif
+  /* Temporary raise schedule priority */
+
+  nxsched_set_priority(tcb, SCHED_PRIORITY_MAX);
+
+  cpu = this_cpu();
+#ifdef CONFIG_SMP
+  other_cpu = cpu == 1 ? 0 : 1;
 #endif
 
-  DEBUGASSERT(state->cpu == 0 || state->cpu == 1);
+  DEBUGASSERT(cpu == 0 || cpu == 1);
+
 #ifdef CONFIG_SMP
-  DEBUGASSERT(state->other == 0 || state->other == 1);
-  DEBUGASSERT(state->other != state->cpu);
-  up_cpu_pause(state->other);
+  DEBUGASSERT(other_cpu == 0 || other_cpu == 1);
+  DEBUGASSERT(other_cpu != cpu);
+  if (OSINIT_OS_READY())
+    {
+      g_flash_op_can_start = false;
+
+      nxsem_post(&g_disable_non_iram_isr_on_core[other_cpu]);
+
+      while (!g_flash_op_can_start)
+        {
+          /* Busy loop and wait for spi_flash_op_block_task to disable cache
+           * on the other CPU
+           */
+        }
+    }
 #endif
 
-  spi_disable_cache(state->cpu, &state->val[state->cpu]);
+  g_sched_suspended[cpu] = true;
+
+  sched_lock();
+
+  nxsched_set_priority(tcb, saved_priority);
+
+  esp_intr_noniram_disable();
+
+  spi_disable_cache(cpu);
 #ifdef CONFIG_SMP
-  spi_disable_cache(state->other, &state->val[state->other]);
+  spi_disable_cache(other_cpu);
 #endif
 }
 
@@ -487,22 +523,43 @@ esp32_spiflash_opstart(struct spiflash_cachestate_s *state)
  *
  ****************************************************************************/
 
-static inline void IRAM_ATTR
-  esp32_spiflash_opdone(const struct spiflash_cachestate_s *state)
+void esp32_spiflash_opdone(void)
 {
-  DEBUGASSERT(state->cpu == 0 || state->cpu == 1);
+  const int cpu = this_cpu();
 #ifdef CONFIG_SMP
-  DEBUGASSERT(state->other == 0 || state->other == 1);
-  DEBUGASSERT(state->other != state->cpu);
+  const int other_cpu = cpu ? 0 : 1;
 #endif
 
-  spi_enable_cache(state->cpu, state->val[state->cpu]);
+  DEBUGASSERT(cpu == 0 || cpu == 1);
+
 #ifdef CONFIG_SMP
-  spi_enable_cache(state->other, state->val[state->other]);
-  up_cpu_resume(state->other);
+  DEBUGASSERT(other_cpu == 0 || other_cpu == 1);
+  DEBUGASSERT(other_cpu != cpu);
 #endif
 
-  leave_critical_section(state->flags);
+  spi_enable_cache(cpu);
+#ifdef CONFIG_SMP
+  spi_enable_cache(other_cpu);
+#endif
+
+  /* Signal to spi_flash_op_block_task that flash operation is complete */
+
+  g_flash_op_complete = true;
+
+  esp_intr_noniram_enable();
+
+  sched_unlock();
+
+  g_sched_suspended[cpu] = false;
+
+#ifdef CONFIG_SMP
+  while (g_sched_suspended[other_cpu])
+    {
+      /* Busy loop and wait for spi_flash_op_block_task to properly finish
+       * and resume scheduler
+       */
+    }
+#endif
 }
 
 /****************************************************************************
@@ -603,6 +660,28 @@ static void IRAM_ATTR spiflash_flushmapped(size_t start, size_t size)
 #endif
         }
     }
+}
+
+/****************************************************************************
+ * Name: esp32_spiflash_oposyield
+ *
+ * Description:
+ *   Yield to other tasks, called during erase operations.
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   None.
+ *
+ ****************************************************************************/
+
+static inline void IRAM_ATTR esp32_spiflash_oposyield(void)
+{
+  /* Delay 1 tick */
+
+  useconds_t us = TICK2USEC(1);
+  nxsched_usleep(us);
 }
 
 /****************************************************************************
@@ -901,7 +980,6 @@ static int IRAM_ATTR esp32_erasesector(struct esp32_spiflash_s *priv,
                                        uint32_t addr, uint32_t size)
 {
   uint32_t offset;
-  struct spiflash_cachestate_s state;
 
   esp32_set_write_opt(priv);
 
@@ -912,11 +990,16 @@ static int IRAM_ATTR esp32_erasesector(struct esp32_spiflash_s *priv,
 
   for (offset = 0; offset < size; offset += MTD_ERASESIZE(priv))
     {
-      esp32_spiflash_opstart(&state);
+      if (offset > 0)
+        {
+          esp32_spiflash_oposyield();
+        }
+
+      esp32_spiflash_opstart();
 
       if (esp32_enable_write(priv) != OK)
         {
-          esp32_spiflash_opdone(&state);
+          esp32_spiflash_opdone();
           return -EIO;
         }
 
@@ -929,16 +1012,16 @@ static int IRAM_ATTR esp32_erasesector(struct esp32_spiflash_s *priv,
 
       if (esp32_wait_idle(priv) != OK)
         {
-          esp32_spiflash_opdone(&state);
+          esp32_spiflash_opdone();
           return -EIO;
         }
 
-      esp32_spiflash_opdone(&state);
+      esp32_spiflash_opdone();
     }
 
-  esp32_spiflash_opstart(&state);
+  esp32_spiflash_opstart();
   spiflash_flushmapped(addr, size);
-  esp32_spiflash_opdone(&state);
+  esp32_spiflash_opdone();
 
   return 0;
 }
@@ -1041,7 +1124,6 @@ static int IRAM_ATTR esp32_writedata(struct esp32_spiflash_s *priv,
   uint32_t off = 0;
   uint32_t bytes;
   uint32_t tmp_buf[SPI_FLASH_WRITE_WORDS];
-  struct spiflash_cachestate_s state;
 
   esp32_set_write_opt(priv);
 
@@ -1060,9 +1142,9 @@ static int IRAM_ATTR esp32_writedata(struct esp32_spiflash_s *priv,
 
       memcpy(tmp_buf, &buffer[off], bytes);
 
-      esp32_spiflash_opstart(&state);
+      esp32_spiflash_opstart();
       ret = esp32_writeonce(priv, addr, tmp_buf, bytes);
-      esp32_spiflash_opdone(&state);
+      esp32_spiflash_opdone();
 
       if (ret)
         {
@@ -1074,9 +1156,9 @@ static int IRAM_ATTR esp32_writedata(struct esp32_spiflash_s *priv,
       off += bytes;
     }
 
-  esp32_spiflash_opstart(&state);
+  esp32_spiflash_opstart();
   spiflash_flushmapped(addr, size);
-  esp32_spiflash_opdone(&state);
+  esp32_spiflash_opdone();
 
   return OK;
 }
@@ -1109,18 +1191,17 @@ static int IRAM_ATTR esp32_writedata_encrypted(
   int blocks;
   int ret = OK;
   uint32_t tmp_buf[SPI_FLASH_ENCRYPT_WORDS];
-  struct spiflash_cachestate_s state;
 
   if (addr % SPI_FLASH_ENCRYPT_UNIT_SIZE)
     {
-      ferr("ERROR: address=0x%x is not %d-byte align\n",
+      ferr("ERROR: address=0x%" PRIx32 " is not %d-byte align\n",
            addr, SPI_FLASH_ENCRYPT_UNIT_SIZE);
       return -EINVAL;
     }
 
   if (size % SPI_FLASH_ENCRYPT_UNIT_SIZE)
     {
-      ferr("ERROR: size=%u is not %d-byte align\n",
+      ferr("ERROR: size=%" PRIu32 " is not %d-byte align\n",
            size, SPI_FLASH_ENCRYPT_UNIT_SIZE);
       return -EINVAL;
     }
@@ -1131,7 +1212,9 @@ static int IRAM_ATTR esp32_writedata_encrypted(
     {
       memcpy(tmp_buf, buffer, SPI_FLASH_ENCRYPT_UNIT_SIZE);
 
-      esp32_spiflash_opstart(&state);
+      esp32_set_write_opt(priv);
+
+      esp32_spiflash_opstart();
       esp_rom_spiflash_write_encrypted_enable();
 
       ret = esp_rom_spiflash_prepare_encrypted_data(addr, tmp_buf);
@@ -1145,27 +1228,28 @@ static int IRAM_ATTR esp32_writedata_encrypted(
                             SPI_FLASH_ENCRYPT_UNIT_SIZE);
       if (ret)
         {
-          ferr("ERROR: Failed to write encrypted data @ 0x%x\n", addr);
+          ferr("ERROR: Failed to write encrypted data @ 0x%" PRIx32 "\n",
+               addr);
           goto exit;
         }
 
       esp_rom_spiflash_write_encrypted_disable();
-      esp32_spiflash_opdone(&state);
+      esp32_spiflash_opdone();
 
       addr += SPI_FLASH_ENCRYPT_UNIT_SIZE;
       buffer += SPI_FLASH_ENCRYPT_UNIT_SIZE;
       size -= SPI_FLASH_ENCRYPT_UNIT_SIZE;
     }
 
-  esp32_spiflash_opstart(&state);
+  esp32_spiflash_opstart();
   spiflash_flushmapped(addr, size);
-  esp32_spiflash_opdone(&state);
+  esp32_spiflash_opdone();
 
   return 0;
 
 exit:
   esp_rom_spiflash_write_encrypted_disable();
-  esp32_spiflash_opdone(&state);
+  esp32_spiflash_opdone();
 
   return ret;
 }
@@ -1260,15 +1344,14 @@ static int IRAM_ATTR esp32_readdata(struct esp32_spiflash_s *priv,
   uint32_t off = 0;
   uint32_t bytes;
   uint32_t tmp_buf[SPI_FLASH_READ_WORDS];
-  struct spiflash_cachestate_s state;
 
   while (size > 0)
     {
       bytes = MIN(size, SPI_FLASH_READ_BUF_SIZE);
 
-      esp32_spiflash_opstart(&state);
+      esp32_spiflash_opstart();
       ret = esp32_readonce(priv, addr, tmp_buf, bytes);
-      esp32_spiflash_opdone(&state);
+      esp32_spiflash_opdone();
 
       if (ret)
         {
@@ -1312,10 +1395,9 @@ static int IRAM_ATTR esp32_mmap(struct esp32_spiflash_s *priv,
   int start_page;
   int flash_page;
   int page_cnt;
-  struct spiflash_cachestate_s state;
   bool flush = false;
 
-  esp32_spiflash_opstart(&state);
+  esp32_spiflash_opstart();
 
   for (start_page = DROM0_PAGES_START;
        start_page < DROM0_PAGES_END;
@@ -1368,7 +1450,7 @@ static int IRAM_ATTR esp32_mmap(struct esp32_spiflash_s *priv,
 #endif
     }
 
-  esp32_spiflash_opdone(&state);
+  esp32_spiflash_opdone();
 
   return ret;
 }
@@ -1392,9 +1474,8 @@ static void IRAM_ATTR esp32_ummap(struct esp32_spiflash_s *priv,
                                   const struct spiflash_map_req *req)
 {
   int i;
-  struct spiflash_cachestate_s state;
 
-  esp32_spiflash_opstart(&state);
+  esp32_spiflash_opstart();
 
   for (i = req->start_page; i < req->start_page + req->page_cnt; ++i)
     {
@@ -1411,7 +1492,7 @@ static void IRAM_ATTR esp32_ummap(struct esp32_spiflash_s *priv,
 #ifdef CONFIG_SMP
   cache_flush(1);
 #endif
-  esp32_spiflash_opdone(&state);
+  esp32_spiflash_opdone();
 }
 
 /****************************************************************************
@@ -1602,6 +1683,14 @@ static void esp32_spiflash_work(void *p)
                                         work_arg->op_arg.addr,
                                         work_arg->op_arg.size);
     }
+#ifdef CONFIG_ESP32_SPIRAM
+  else if (work_arg->op_code == SPIFLASH_OP_CODE_SET_BANK)
+    {
+      work_arg->ret = esp32_set_mmu_map(work_arg->op_arg.addr,
+                                        work_arg->op_arg.paddr,
+                                        work_arg->op_arg.size);
+    }
+#endif
   else if (work_arg->op_code == SPIFLASH_OP_CODE_ENCRYPT_READ)
     {
       esp32_set_read_opt(work_arg->op_arg.priv);
@@ -1644,7 +1733,8 @@ static int esp32_async_op(enum spiflash_op_code_e opcode,
                           struct esp32_spiflash_s *priv,
                           uint32_t addr,
                           const uint8_t *buffer,
-                          uint32_t size)
+                          uint32_t size,
+                          uint32_t paddr)
 {
   int ret;
   struct spiflash_work_arg work_arg =
@@ -1656,16 +1746,25 @@ static int esp32_async_op(enum spiflash_op_code_e opcode,
       .addr = addr,
       .buffer = (uint8_t *)buffer,
       .size = size,
+      .paddr = paddr,
     },
     .sem = NXSEM_INITIALIZER(0, 0)
   };
 
+  ret = nxmutex_lock(&g_work_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
   ret = work_queue(LPWORK, &g_work, esp32_spiflash_work, &work_arg, 0);
   if (ret == 0)
     {
-      nxsem_wait(&work_arg.sem);
+      nxsem_wait_uninterruptible(&work_arg.sem);
       ret = work_arg.ret;
     }
+
+  nxmutex_unlock(&g_work_lock);
 
   return ret;
 }
@@ -1713,7 +1812,8 @@ static int esp32_erase(struct mtd_dev_s *dev, off_t startblock,
 #ifdef CONFIG_ESP32_SPI_FLASH_SUPPORT_PSRAM_STACK
   if (stack_is_psram())
     {
-      ret = esp32_async_op(SPIFLASH_OP_CODE_ERASE, priv, addr, NULL, size);
+      ret = esp32_async_op(SPIFLASH_OP_CODE_ERASE, priv, addr, NULL,
+                           size, 0);
     }
   else
     {
@@ -1775,7 +1875,7 @@ static ssize_t esp32_read(struct mtd_dev_s *dev, off_t offset,
   if (stack_is_psram())
     {
       ret = esp32_async_op(SPIFLASH_OP_CODE_READ, priv,
-                           offset, buffer, nbytes);
+                           offset, buffer, nbytes, 0);
     }
   else
     {
@@ -1887,7 +1987,7 @@ static ssize_t esp32_read_decrypt(struct mtd_dev_s *dev,
   if (stack_is_psram())
     {
       ret = esp32_async_op(SPIFLASH_OP_CODE_ENCRYPT_READ, priv,
-                           offset, buffer, nbytes);
+                           offset, buffer, nbytes, 0);
     }
   else
     {
@@ -2002,7 +2102,7 @@ static ssize_t esp32_write(struct mtd_dev_s *dev, off_t offset,
   if (stack_is_psram())
     {
       ret = esp32_async_op(SPIFLASH_OP_CODE_WRITE, priv,
-                           offset, buffer, nbytes);
+                           offset, buffer, nbytes, 0);
     }
   else
     {
@@ -2020,6 +2120,74 @@ static ssize_t esp32_write(struct mtd_dev_s *dev, off_t offset,
 
 #ifdef CONFIG_ESP32_SPIFLASH_DEBUG
   finfo("esp32_write()=%d\n", ret);
+#endif
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: esp32_write_encrypt
+ *
+ * Description:
+ *   write data to SPI Flash at designated address by SPI Flash hardware
+ *   encryption.
+ *
+ * Input Parameters:
+ *   dev    - ESP32 MTD device data
+ *   offset - target address offset
+ *   nbytes - data number
+ *   buffer - data buffer pointer
+ *
+ * Returned Value:
+ *   Written bytes if success or a negative value if fail.
+ *
+ ****************************************************************************/
+
+static ssize_t esp32_write_encrypt(FAR struct mtd_dev_s *dev, off_t offset,
+                                   size_t nbytes, FAR const uint8_t *buffer)
+{
+  ssize_t ret;
+  struct esp32_spiflash_s *priv = MTD2PRIV(dev);
+
+  ASSERT(buffer);
+
+  if ((offset % SPI_FLASH_ENCRYPT_MIN_SIZE) ||
+    (nbytes % SPI_FLASH_ENCRYPT_MIN_SIZE))
+    {
+      return -EINVAL;
+    }
+
+#ifdef CONFIG_ESP32_SPIFLASH_DEBUG
+  finfo("esp32_write_encrypt(%p, 0x%x, %zu, %p)\n", dev, offset,
+        nbytes, buffer);
+#endif
+
+  /* Acquire the mutex. */
+
+  ret = nxmutex_lock(&g_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+#ifdef CONFIG_ESP32_SPI_FLASH_SUPPORT_PSRAM_STACK
+  if (stack_is_psram())
+    {
+      ret = esp32_async_op(SPIFLASH_OP_CODE_ENCRYPT_WRITE, priv,
+                           offset, buffer, nbytes, 0);
+    }
+  else
+    {
+      ret = esp32_writeblk_encrypted(priv, offset, buffer, nbytes);
+    }
+#else
+  ret = esp32_writeblk_encrypted(priv, offset, buffer, nbytes);
+#endif
+
+  nxmutex_unlock(&g_lock);
+
+#ifdef CONFIG_ESP32_SPIFLASH_DEBUG
+  finfo("esp32_write_encrypt()=%d\n", ret);
 #endif
 
   return ret;
@@ -2119,7 +2287,7 @@ static ssize_t esp32_bwrite_encrypt(struct mtd_dev_s *dev,
   if (stack_is_psram())
     {
       ret = esp32_async_op(SPIFLASH_OP_CODE_ENCRYPT_WRITE, priv,
-                           offset, buffer, nbytes);
+                           offset, buffer, nbytes, 0);
     }
   else
     {
@@ -2183,7 +2351,8 @@ static int esp32_ioctl(struct mtd_dev_s *dev, int cmd,
               geo->neraseblocks = MTD_SIZE(priv) / MTD_ERASESIZE(priv);
               ret               = OK;
 
-              finfo("blocksize: %d erasesize: %d neraseblocks: %d\n",
+              finfo("blocksize: %" PRIu32 " erasesize: %" PRIu32 ""
+                    " neraseblocks: %" PRIu32 "\n",
                     geo->blocksize, geo->erasesize, geo->neraseblocks);
             }
         }
@@ -2261,7 +2430,8 @@ static int esp32_ioctl_encrypt(struct mtd_dev_s *dev, int cmd,
               geo->neraseblocks = MTD_SIZE(priv) / geo->erasesize;
               ret               = OK;
 
-              finfo("blocksize: %d erasesize: %d neraseblocks: %d\n",
+              finfo("blocksize: %" PRIu32 " erasesize: %" PRIu32 ""
+                    " neraseblocks: %" PRIu32 "\n",
                     geo->blocksize, geo->erasesize, geo->neraseblocks);
             }
         }
@@ -2300,9 +2470,252 @@ static int esp32_ioctl_encrypt(struct mtd_dev_s *dev, int cmd,
   return ret;
 }
 
+#ifdef CONFIG_SMP
+
+/****************************************************************************
+ * Name: spi_flash_op_block_task
+ *
+ * Description:
+ *   Disable the non-IRAM interrupts on the other core (the one that isn't
+ *   handling the SPI flash operation) and notify that the SPI flash
+ *   operation can start. Wait on a busy loop until it's finished and then
+ *   re-enable the non-IRAM interrupts.
+ *
+ * Input Parameters:
+ *   argc          - Not used.
+ *   argv          - Not used.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success. A negated errno value is returned to
+ *   indicate the nature of any failure.
+ *
+ ****************************************************************************/
+
+static int spi_flash_op_block_task(int argc, char *argv[])
+{
+  struct tcb_s *tcb = this_task();
+  int cpu = this_cpu();
+
+  for (; ; )
+    {
+      DEBUGASSERT((1 << cpu) & tcb->affinity);
+      /* Wait for a SPI flash operation to take place and this (the other
+       * core) being asked to disable its non-IRAM interrupts.
+       */
+
+      nxsem_wait(&g_disable_non_iram_isr_on_core[cpu]);
+
+      sched_lock();
+
+      esp_intr_noniram_disable();
+
+      /* g_flash_op_complete flag is cleared on *this* CPU, otherwise the
+       * other CPU may reset the flag back to false before this task has a
+       * chance to check it (if it's preempted by an ISR taking non-trivial
+       * amount of time).
+       */
+
+      g_flash_op_complete = false;
+      g_flash_op_can_start = true;
+      while (!g_flash_op_complete)
+        {
+          /* Busy loop here and wait for the other CPU to finish the SPI
+           * flash operation.
+           */
+        }
+
+      /* Flash operation is complete, re-enable cache */
+
+      spi_enable_cache(cpu);
+
+      /* Restore interrupts that aren't located in IRAM */
+
+      esp_intr_noniram_enable();
+
+      sched_unlock();
+    }
+
+  return OK;
+}
+
+/****************************************************************************
+ * Name: spiflash_init_spi_flash_op_block_task
+ *
+ * Description:
+ *   Starts a kernel thread that waits for a semaphore indicating that a SPI
+ *   flash operation is going to take place in the other CPU. It disables
+ *   non-IRAM interrupts, indicates to the other core that the SPI flash
+ *   operation can start and waits for it to be finished in a busy loop.
+ *
+ * Input Parameters:
+ *   cpu - The CPU core that will run the created task to wait on a busy
+ *         loop while the SPI flash operation finishes
+ *
+ * Returned Value:
+ *   0 (OK) on success; A negated errno value on failure.
+ *
+ ****************************************************************************/
+
+int spiflash_init_spi_flash_op_block_task(int cpu)
+{
+  FAR struct tcb_s *tcb;
+  int ret;
+  char *argv[2];
+  char arg1[32];
+  cpu_set_t cpuset;
+
+  snprintf(arg1, sizeof(arg1), "%p", &cpu);
+  argv[0] = arg1;
+  argv[1] = NULL;
+
+  /* Allocate a TCB for the new task. */
+
+  tcb = kmm_zalloc(sizeof(struct tcb_s));
+  if (!tcb)
+    {
+      serr("ERROR: Failed to allocate TCB\n");
+      return -ENOMEM;
+    }
+
+  /* Setup the task type */
+
+  tcb->flags = TCB_FLAG_TTYPE_KERNEL | TCB_FLAG_FREE_TCB;
+
+  /* Initialize the task */
+
+  ret = nxtask_init(tcb, "spiflash_op",
+                    SCHED_PRIORITY_MAX,
+                    NULL, CONFIG_ESP32_SPIFLASH_OP_TASK_STACKSIZE,
+                    spi_flash_op_block_task, argv, environ, NULL);
+  if (ret < OK)
+    {
+      kmm_free(tcb);
+      return ret;
+    }
+
+  /* Set the affinity */
+
+  CPU_ZERO(&cpuset);
+  CPU_SET(cpu, &cpuset);
+  tcb->affinity = cpuset;
+
+  /* Activate the task */
+
+  nxtask_activate(tcb);
+
+  return ret;
+}
+#endif /* CONFIG_SMP */
+
+#ifdef CONFIG_ESP32_SPIRAM
+
+/****************************************************************************
+ * Name: esp32_set_mmu_map
+ *
+ * Description:
+ *   Set Ext-SRAM-Cache mmu mapping.
+ *
+ * Input Parameters:
+ *   vaddr - Virtual address in CPU address space
+ *   paddr - Physical address in Ext-SRAM
+ *   num   - Pages to be set
+ *
+ * Returned Value:
+ *   0 if success or a negative value if fail.
+ *
+ ****************************************************************************/
+
+static int esp32_set_mmu_map(int vaddr, int paddr, int num)
+{
+  int ret;
+  ret = cache_sram_mmu_set(0, 0, vaddr, paddr, 32, num);
+  DEBUGASSERT(ret == 0);
+  ret = cache_sram_mmu_set(1, 0, vaddr, paddr, 32, num);
+  return ret;
+}
+#endif
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+#ifdef CONFIG_ESP32_SPIRAM
+
+/****************************************************************************
+ * Name: esp32_set_bank
+ *
+ * Description:
+ *   Set Ext-SRAM-Cache mmu mapping.
+ *
+ * Input Parameters:
+ *   virt_bank - Beginning of the virtual bank
+ *   phys_bank - Beginning of the physical bank
+ *   ct        - Number of banks
+ *
+ * Returned Value:
+ *   None.
+ *
+ ****************************************************************************/
+
+void esp32_set_bank(int virt_bank, int phys_bank, int ct)
+{
+  int ret;
+  uint32_t vaddr = SOC_EXTRAM_DATA_LOW + CACHE_BLOCKSIZE * virt_bank;
+  uint32_t paddr = phys_bank * CACHE_BLOCKSIZE;
+#ifdef CONFIG_ESP32_SPI_FLASH_SUPPORT_PSRAM_STACK
+  if (stack_is_psram())
+    {
+      ret = esp32_async_op(SPIFLASH_OP_CODE_SET_BANK, NULL, vaddr, NULL,
+                           ct, paddr);
+    }
+  else
+#endif
+    {
+      ret = esp32_set_mmu_map(vaddr, paddr, ct);
+    }
+
+  DEBUGASSERT(ret == 0);
+  UNUSED(ret);
+}
+#endif
+
+/****************************************************************************
+ * Name: esp32_spiflash_init
+ *
+ * Description:
+ *   Initialize ESP32 SPI flash driver.
+ *
+ * Returned Value:
+ *   OK if success or a negative value if fail.
+ *
+ ****************************************************************************/
+
+int esp32_spiflash_init(void)
+{
+  int cpu;
+  int ret = OK;
+
+#ifdef CONFIG_SMP
+  sched_lock();
+
+  for (cpu = 0; cpu < CONFIG_SMP_NCPUS; cpu++)
+    {
+      nxsem_init(&g_disable_non_iram_isr_on_core[cpu], 0, 0);
+
+      ret = spiflash_init_spi_flash_op_block_task(cpu);
+      if (ret != OK)
+        {
+          return ret;
+        }
+    }
+
+  sched_unlock();
+#else
+  UNUSED(cpu);
+#endif
+
+  return ret;
+}
 
 /****************************************************************************
  * Name: esp32_spiflash_alloc_mtdpart
@@ -2344,12 +2757,12 @@ struct mtd_dev_s *esp32_spiflash_alloc_mtdpart(uint32_t mtd_offset,
   chip = priv->chip;
 
   finfo("ESP32 SPI Flash information:\n");
-  finfo("\tID = 0x%x\n", chip->device_id);
-  finfo("\tStatus mask = %x\n", chip->status_mask);
-  finfo("\tChip size = %d KB\n", chip->chip_size / 1024);
-  finfo("\tPage size = %d B\n", chip->page_size);
-  finfo("\tSector size = %d KB\n", chip->sector_size / 1024);
-  finfo("\tBlock size = %d KB\n", chip->block_size / 1024);
+  finfo("\tID = 0x%" PRIx32 "\n", chip->device_id);
+  finfo("\tStatus mask = %" PRIx32 "\n", chip->status_mask);
+  finfo("\tChip size = %" PRIu32 " KB\n", chip->chip_size / 1024);
+  finfo("\tPage size = %" PRIu32 " B\n", chip->page_size);
+  finfo("\tSector size = %" PRIu32 " KB\n", chip->sector_size / 1024);
+  finfo("\tBlock size = %" PRIu32 " KB\n", chip->block_size / 1024);
 
   ASSERT((mtd_offset + mtd_size) <= chip->chip_size);
   ASSERT((mtd_offset % chip->sector_size) == 0);
@@ -2364,8 +2777,8 @@ struct mtd_dev_s *esp32_spiflash_alloc_mtdpart(uint32_t mtd_offset,
       size = mtd_size;
     }
 
-  finfo("\tMTD offset = 0x%x\n", mtd_offset);
-  finfo("\tMTD size = 0x%x\n", size);
+  finfo("\tMTD offset = 0x%" PRIx32 "\n", mtd_offset);
+  finfo("\tMTD size = 0x%" PRIx32 "\n", size);
 
   startblock = MTD_SIZE2BLK(priv, mtd_offset);
   blocks = MTD_SIZE2BLK(priv, size);
@@ -2457,6 +2870,28 @@ bool esp32_flash_encryption_enabled(void)
     }
 
   return enabled;
+}
+
+/****************************************************************************
+ * Name: esp32_get_flash_address_mapped_as_text
+ *
+ * Description:
+ *   Get flash address which is currently mapped as text
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   flash address which is currently mapped as text
+ *
+ ****************************************************************************/
+
+uint32_t esp32_get_flash_address_mapped_as_text(void)
+{
+  uint32_t i = MMU_ADDR2PAGE((uint32_t)&_stext - SOC_IROM_MASK_LOW)
+               + IROM0_PAGES_START;
+  return (PRO_MMU_TABLE[i] & DPORT_MMU_ADDRESS_MASK)
+         * SPI_FLASH_MMU_PAGE_SIZE;
 }
 
 #endif /* CONFIG_ESP32_SPIFLASH */

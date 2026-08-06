@@ -1,6 +1,8 @@
 ############################################################################
 # boards/mips/pic32mx/sure-pic32mx/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -41,10 +43,6 @@ endif
 
 ifeq ($(CONFIG_LCD_LCD1602),y)
 CSRCS += pic32mx_lcd1602.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += pic32mx_appinit.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

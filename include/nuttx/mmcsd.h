@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/mmcsd.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -43,16 +45,36 @@
 #define MMC_IOC_MAX_CMDS        255
 #define mmc_ioc_cmd_set_data(ic, ptr) (ic).data_ptr = (uint64_t)(unsigned long)(ptr)
 
-/* rpmb request */
-
-#define MMC_RPMB_WRITE_KEY      0x01
-#define MMC_RPMB_READ_CNT       0x02
-#define MMC_RPMB_WRITE          0x03
-#define MMC_RPMB_READ           0x04
-
 /****************************************************************************
  * Public Types
  ****************************************************************************/
+
+/* rpmb request */
+
+enum rpmb_op_type
+{
+  MMC_RPMB_WRITE_KEY = 0x01,
+  MMC_RPMB_READ_CNT  = 0x02,
+  MMC_RPMB_WRITE     = 0x03,
+  MMC_RPMB_READ      = 0x04,
+
+  /* For internal usage only, do not use it directly */
+
+  MMC_RPMB_READ_RESP = 0x05
+};
+
+struct rpmb_frame
+{
+  uint8_t  stuff[196];
+  uint8_t  key_mac[32];
+  uint8_t  data[256];
+  uint8_t  nonce[16];
+  uint32_t write_counter;
+  uint16_t addr;
+  uint16_t block_count;
+  uint16_t result;
+  uint16_t req_resp;
+};
 
 struct mmc_ioc_cmd
 {
@@ -73,6 +95,21 @@ struct mmc_ioc_cmd
   unsigned int blksz;
   unsigned int blocks;
 
+  /* Sleep at least postsleep_min_us useconds, and at most
+   * postsleep_max_us useconds *after* issuing command.  Needed for
+   * some read commands for which cards have no other way of indicating
+   * they're ready for the next command (i.e. there is no equivalent of
+   * a "busy" indicator for read operations).
+   */
+
+  unsigned int postsleep_min_us;
+  unsigned int postsleep_max_us;
+
+  /* Override driver-computed timeouts.  Note the difference in units! */
+
+  unsigned int data_timeout_ns;
+  unsigned int cmd_timeout_ms;
+
   /* For 64-bit machines, the next member, ``uint64_t data_ptr``, wants to
    * be 8-byte aligned.  Make sure this struct is the same size when
    * built for 32-bit.
@@ -86,28 +123,15 @@ struct mmc_ioc_cmd
 };
 
 /* struct mmc_ioc_multi_cmd - multi command information
- * @num_of_cmds: Number of commands to send. Must be equal to or less than
+ * num_of_cmds: Number of commands to send. Must be equal to or less than
  * MMC_IOC_MAX_CMDS.
- * @cmds: Array of commands with length equal to 'num_of_cmds'
+ * cmds: Array of commands with length equal to 'num_of_cmds'
  */
 
 struct mmc_ioc_multi_cmd
 {
   uint64_t num_of_cmds;
   struct mmc_ioc_cmd cmds[1];
-};
-
-struct mmc_rpmb_frame_s
-{
-  uint8_t  stuff[196];
-  uint8_t  key_mac[32];
-  uint8_t  data[256];
-  uint8_t  nonce[16];
-  uint32_t write_counter;
-  uint16_t addr;
-  uint16_t block_count;
-  uint16_t result;
-  uint16_t req_resp;
 };
 
 /****************************************************************************

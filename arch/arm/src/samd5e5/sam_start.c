@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samd5e5/sam_start.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/init.h>
 
@@ -113,6 +115,7 @@ void __start(void) noinstrument_function;
  *
  ****************************************************************************/
 
+osentry_function
 void __start(void)
 {
 #if defined(CONFIG_BOOT_RUNFROMFLASH) || defined(CONFIG_ARCH_RAMFUNCS)
@@ -165,6 +168,10 @@ void __start(void)
     {
       *dest++ = *src++;
     }
+#endif
+
+#ifdef CONFIG_ARMV7M_STACKCHECK
+  arm_stack_check_init();
 #endif
 
   /* Initialize clocking and the FPU.  Configure the console UART so that

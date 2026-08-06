@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/neighbor/neighbor_ethernet_out.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/net/ethernet.h>
 #include <nuttx/net/ip.h>
@@ -77,7 +79,7 @@
  *   If the destination IPv6 address is in the local network (determined
  *   by logical ANDing of netmask and our IPv6 address), the function
  *   checks the Neighbor Table to see if an entry for the destination IPv6
- *   address is found.  If so, an Ethernet header is pre-pended at the
+ *   address is found.  If so, an Ethernet header is prepended at the
  *   beginning of the packet and the function returns.
  *
  *   If no Neighbor Table entry is found for the destination IPv6 address,
@@ -98,18 +100,6 @@ void neighbor_ethernet_out(FAR struct net_driver_s *dev)
   FAR struct ipv6_hdr_s *ip = IPv6BUF;
   struct neighbor_addr_s laddr;
 
-  /* Skip sending Neighbor Solicitations when the frame to be transmitted was
-   * written into a packet socket.
-   */
-
-  if (IFF_IS_NOARP(dev->d_flags))
-    {
-      /* Clear the indication and let the packet continue on its way. */
-
-      IFF_CLR_NOARP(dev->d_flags);
-      return;
-    }
-
   /* Find the destination IPv6 address in the Neighbor Table and construct
    * the Ethernet header. If the destination IPv6 address isn't on the local
    * network, we use the default router's IPv6 address instead.
@@ -126,8 +116,7 @@ void neighbor_ethernet_out(FAR struct net_driver_s *dev)
 
       /* Check if the destination address is on the local network. */
 
-      if (!net_ipv6addr_maskcmp(ip->destipaddr, dev->d_ipv6addr,
-                                dev->d_ipv6netmask))
+      if (!NETDEV_V6ADDR_ONLINK(dev, ip->destipaddr))
         {
           /* Destination address is not on the local network */
 
@@ -146,6 +135,12 @@ void neighbor_ethernet_out(FAR struct net_driver_s *dev)
 
           net_ipv6addr_copy(ipaddr, dev->d_ipv6draddr);
 #endif
+
+          if (net_is_addr_unspecified(ipaddr))
+            {
+              dev->d_len = 0;
+              return;
+            }
         }
       else
         {
@@ -160,8 +155,15 @@ void neighbor_ethernet_out(FAR struct net_driver_s *dev)
 
       if (neighbor_lookup(ipaddr, &laddr) < 0)
         {
-#ifdef CONFIG_NET_ICMPv6
-           ninfo("IPv6 Neighbor solicitation for IPv6\n");
+#ifdef NET_ICMPv6_HAVE_STACK
+          /* No ARP packet if this device do not support ARP */
+
+          if (IFF_IS_NOARP(dev->d_flags))
+            {
+              return;
+            }
+
+          ninfo("IPv6 Neighbor solicitation for IPv6\n");
 
           /* The destination address was not in our Neighbor Table, so we
            * overwrite the IPv6 packet with an ICMPv6 Neighbor Solicitation

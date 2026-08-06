@@ -44,8 +44,7 @@
 
 struct _reent;
 
-/**
- * @brief ESP32 ROM code contains implementations of some of C
+/* ESP32 ROM code contains implementations of some of C
  * library functions.
  * Whenever a function in ROM needs to use a syscall, it calls a
  * pointer to the corresponding syscall implementation defined in
@@ -73,7 +72,7 @@ struct syscall_stub_table
   void (* _abort)(void);
   int (* _system_r)(struct _reent *r, const char *);
   int (* _rename_r)(struct _reent *r, const char *, const char *);
-  clock_t (* _times_r)(struct _reent *r, struct tms *);
+  unsigned long (* _times_r)(struct _reent *r, struct tms *);
   int (* _gettimeofday_r) (struct _reent *r, struct timeval *, void *);
   void (* _raise_r)(struct _reent *r);
   int (* _unlink_r)(struct _reent *r, const char *);

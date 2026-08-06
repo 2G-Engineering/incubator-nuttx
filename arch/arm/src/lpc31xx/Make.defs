@@ -1,6 +1,8 @@
 ############################################################################
 # arch/arm/src/lpc31xx/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -19,6 +21,8 @@
 ############################################################################
 
 include arm/Make.defs
+
+CFLAGS += -Wno-array-bounds
 
 CGU_CSRCS  = lpc31_bcrndx.c lpc31_clkdomain.c lpc31_clkexten.c
 CGU_CSRCS += lpc31_clkfreq.c lpc31_clkinit.c lpc31_defclk.c

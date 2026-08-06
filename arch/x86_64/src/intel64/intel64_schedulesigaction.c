@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/x86_64/src/intel64/intel64_schedulesigaction.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,8 +28,8 @@
 
 #include <stdint.h>
 #include <sched.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 
@@ -70,98 +72,25 @@
  *
  ****************************************************************************/
 
-void up_schedule_sigaction(struct tcb_s *tcb, sig_deliver_t sigdeliver)
+void up_schedule_sigaction(struct tcb_s *tcb)
 {
-  sinfo("tcb=%p sigdeliver=%p\n", tcb, sigdeliver);
-  sinfo("rtcb=%p g_current_regs=%p\n", this_task(), g_current_regs);
+  sinfo("tcb=%p, rtcb=%p current_regs=%p\n", tcb,
+        this_task(), this_task()->xcp.regs);
 
-  /* Refuse to handle nested signal actions */
+  /* Save the return lr and cpsr and one scratch register
+   * These will be restored by the signal trampoline after
+   * the signals have been delivered.
+   */
 
-  if (!tcb->xcp.sigdeliver)
-    {
-      tcb->xcp.sigdeliver = sigdeliver;
+  tcb->xcp.saved_rip        = tcb->xcp.regs[REG_RIP];
+  tcb->xcp.saved_rsp        = tcb->xcp.regs[REG_RSP];
+  tcb->xcp.saved_rflags     = tcb->xcp.regs[REG_RFLAGS];
 
-      /* First, handle some special cases when the signal is being delivered
-       * to the currently executing task.
-       */
+  /* Then set up to vector to the trampoline with interrupts
+   * disabled
+   */
 
-      if (tcb == this_task())
-        {
-          /* CASE 1:  We are not in an interrupt handler and a task is
-           * signalling itself for some reason.
-           */
-
-          if (!g_current_regs)
-            {
-              /* In this case just deliver the signal with a function call
-               * now.
-               */
-
-              sigdeliver(tcb);
-              tcb->xcp.sigdeliver = NULL;
-            }
-
-          /* CASE 2:  We are in an interrupt handler AND the interrupted task
-           * is the same as the one that must receive the signal, then we
-           * will have to modify the return state as well as the state in the
-           * TCB.
-           *
-           * Hmmm... there looks like a latent bug here: The following logic
-           * would fail in the strange case where we are in an interrupt
-           * handler, the thread is signalling itself, but a context switch
-           * to another task has occurred so that g_current_regs does not
-           * refer to the thread of this_task()!
-           */
-
-          else
-            {
-              /* Save the return lr and cpsr and one scratch register. These
-               * will be restored by the signal trampoline after the signals
-               * have been delivered.
-               */
-
-              tcb->xcp.saved_rip         = g_current_regs[REG_RIP];
-              tcb->xcp.saved_rsp         = tcb->xcp.regs[REG_RSP];
-              tcb->xcp.saved_rflags      = g_current_regs[REG_RFLAGS];
-
-              /* Then set up to vector to the trampoline with interrupts
-               * disabled
-               */
-
-              g_current_regs[REG_RIP]    = (uint64_t)x86_64_sigdeliver;
-              g_current_regs[REG_RFLAGS] = 0;
-
-              /* And make sure that the saved context in the TCB
-               * is the same as the interrupt return context.
-               */
-
-              x86_64_savestate(tcb->xcp.regs);
-            }
-        }
-
-      /* Otherwise, we are (1) signaling a task is not running
-       * from an interrupt handler or (2) we are not in an
-       * interrupt handler and the running task is signalling
-       * some non-running task.
-       */
-
-      else
-        {
-          /* Save the return lr and cpsr and one scratch register
-           * These will be restored by the signal trampoline after
-           * the signals have been delivered.
-           */
-
-          tcb->xcp.saved_rip        = tcb->xcp.regs[REG_RIP];
-          tcb->xcp.saved_rsp        = tcb->xcp.regs[REG_RSP];
-          tcb->xcp.saved_rflags     = tcb->xcp.regs[REG_RFLAGS];
-
-          /* Then set up to vector to the trampoline with interrupts
-           * disabled
-           */
-
-          tcb->xcp.regs[REG_RIP]    = (uint64_t)x86_64_sigdeliver;
-          tcb->xcp.regs[REG_RFLAGS] = 0;
-        }
-    }
+  tcb->xcp.regs[REG_RIP]    = (uint64_t)x86_64_sigdeliver;
+  tcb->xcp.regs[REG_RSP]    = tcb->xcp.regs[REG_RSP] - 8;
+  tcb->xcp.regs[REG_RFLAGS] = 0;
 }

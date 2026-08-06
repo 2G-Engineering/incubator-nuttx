@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdlib/lib_llabs.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,6 @@
  * Public Functions
  ****************************************************************************/
 
-#ifdef CONFIG_HAVE_LONG_LONG
 long long int llabs(long long int j)
 {
   if (j < 0)
@@ -40,4 +41,3 @@ long long int llabs(long long int j)
 
   return j;
 }
-#endif

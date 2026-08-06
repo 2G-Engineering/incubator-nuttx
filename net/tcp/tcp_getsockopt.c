@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/tcp/tcp_getsockopt.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <netinet/tcp.h>
 
@@ -85,8 +87,7 @@ int tcp_getsockopt(FAR struct socket *psock, int option,
   FAR struct tcp_conn_s *conn;
   int ret;
 
-  DEBUGASSERT(psock != NULL && value != NULL && value_len != NULL &&
-              psock->s_conn != NULL);
+  DEBUGASSERT(value != NULL && value_len != NULL);
   conn = psock->s_conn;
 
   /* All of the TCP protocol options apply only TCP sockets.  The sockets
@@ -129,23 +130,6 @@ int tcp_getsockopt(FAR struct socket *psock, int option,
           {
             FAR int *keepalive = (FAR int *)value;
             *keepalive         = conn->keepalive;
-            *value_len         = sizeof(int);
-            ret                = OK;
-          }
-        break;
-
-      case TCP_NODELAY:  /* Avoid coalescing of small segments. */
-        if (*value_len < sizeof(int))
-          {
-            ret                = -EINVAL;
-          }
-        else
-          {
-            FAR int *nodelay   = (FAR int *)value;
-
-            /* Always true here since we do not support Nagle. */
-
-            *nodelay           = 1;
             *value_len         = sizeof(int);
             ret                = OK;
           }
@@ -218,6 +202,24 @@ int tcp_getsockopt(FAR struct socket *psock, int option,
           }
         break;
 #endif /* CONFIG_NET_TCP_KEEPALIVE */
+
+      case TCP_NODELAY:  /* Avoid coalescing of small segments. */
+      case TCP_CORK:     /* coalescing of small segments. */
+        if (*value_len < sizeof(int))
+          {
+            ret                = -EINVAL;
+          }
+        else
+          {
+            FAR int *nodelay   = (FAR int *)value;
+
+            /* Always true here since we do not support Nagle. */
+
+            *nodelay           = option == TCP_NODELAY ? 1 : 0;
+            *value_len         = sizeof(int);
+            ret                = OK;
+          }
+        break;
 
       case TCP_MAXSEG:   /* The maximum segment size */
         if (*value_len < sizeof(int))

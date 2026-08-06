@@ -1,6 +1,7 @@
 /****************************************************************************
  * include/nuttx/sensors/fxos8700cq.h
- * FXOS8700CQ Driver declaration
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -96,20 +97,8 @@ extern "C"
  *
  ****************************************************************************/
 
-#ifndef CONFIG_SENSORS_FXOS8700CQ_SCU
-
 int fxos8700cq_register(FAR const char *devpath,
                         FAR struct i2c_master_s *dev);
-
-#else /* CONFIG_SENSORS_FXOS8700CQ_SCU */
-
-int fxos8700cq_init(FAR struct i2c_master_s *dev, int port);
-int fxos8700cqgyro_register(FAR const char *devpath, int minor,
-                        FAR struct i2c_master_s *dev, int port);
-int fxos8700cqaccel_register(FAR const char *devpath, int minor,
-                         FAR struct i2c_master_s *dev, int port);
-
-#endif
 
 #undef EXTERN
 #ifdef __cplusplus

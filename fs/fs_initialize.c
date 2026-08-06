@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/fs_initialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,10 +26,13 @@
 
 #include <nuttx/config.h>
 #include <nuttx/reboot_notifier.h>
+#include <nuttx/trace.h>
 
 #include "rpmsgfs/rpmsgfs.h"
 #include "inode/inode.h"
 #include "aio/aio.h"
+#include "vfs/vfs.h"
+#include "fs_heap.h"
 
 /****************************************************************************
  * Private Functions
@@ -76,9 +81,15 @@ static struct notifier_block g_sync_nb =
 
 void fs_initialize(void)
 {
+  fs_trace_begin();
+
+  fs_heap_initialize();
+
   /* Initial inode, file, and VFS data structures */
 
   inode_initialize();
+
+  file_initlk();
 
 #ifdef CONFIG_FS_AIO
   /* Initialize for asynchronous I/O */
@@ -91,5 +102,10 @@ void fs_initialize(void)
   rpmsgfs_server_init();
 #endif
 
+#ifdef CONFIG_FS_NOTIFY
+  notify_initialize();
+#endif
+
   register_reboot_notifier(&g_sync_nb);
+  fs_trace_end();
 }

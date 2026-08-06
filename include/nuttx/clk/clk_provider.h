@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/clk/clk_provider.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -40,7 +42,7 @@
 #define CLK_SET_RATE_GATE               0x01
 #define CLK_SET_PARENT_GATE             0x02
 #define CLK_SET_RATE_PARENT             0x04
-#define CLK_SET_RATE_NO_REPARENT        0x08
+#define CLK_OPS_PARENT_ENABLE           0x08
 #define CLK_GET_RATE_NOCACHE            0x10
 #define CLK_NAME_IS_STATIC              0x20
 #define CLK_PARENT_NAME_IS_STATIC       0x40
@@ -71,6 +73,7 @@
 #define CLK_MUX_HIWORD_MASK             0x01
 #define CLK_MUX_READ_ONLY               0x02
 #define CLK_MUX_ROUND_CLOSEST           0x04
+#define CLK_MUX_SET_RATE_NO_REPARENT    0x08
 
 #define CLK_PHASE_HIWORD_MASK           0x01
 
@@ -92,6 +95,7 @@ struct clk_s
   FAR const char             *name;
   FAR const struct clk_ops_s *ops;
   FAR struct clk_s           *parent;
+  FAR struct clk_s           **parents;
   uint8_t                     num_parents;
   uint8_t                     new_parent_index;
   uint8_t                     enable_count;
@@ -113,10 +117,10 @@ struct clk_ops_s
   CODE int       (*is_enabled)(FAR struct clk_s *clk);
   CODE uint32_t  (*recalc_rate)(FAR struct clk_s *clk, uint32_t parent_rate);
   CODE uint32_t  (*round_rate)(FAR struct clk_s *clk,
-                               uint32_t rate, uint32_t *parent_rate);
+                               uint32_t rate, FAR uint32_t *parent_rate);
   CODE uint32_t  (*determine_rate)(FAR struct clk_s *clk, uint32_t rate,
-                                   uint32_t *best_parent_rate,
-                                   struct clk_s **best_parent_clk);
+                                   FAR uint32_t *best_parent_rate,
+                                   FAR struct clk_s **best_parent_clk);
   CODE int       (*set_parent)(FAR struct clk_s *clk, uint8_t index);
   CODE uint8_t   (*get_parent)(FAR struct clk_s *clk);
   CODE int       (*set_rate)(FAR struct clk_s *clk, uint32_t rate,
@@ -130,7 +134,7 @@ struct clk_ops_s
 
 struct clk_gate_s
 {
-  uint32_t            reg;
+  uintptr_t           reg;
   uint8_t             bit_idx;
   uint8_t             flags;
 };
@@ -149,7 +153,7 @@ struct clk_fixed_factor_s
 
 struct clk_divider_s
 {
-  uint32_t            reg;
+  uintptr_t           reg;
   uint8_t             shift;
   uint8_t             width;
   uint16_t            flags;
@@ -157,7 +161,7 @@ struct clk_divider_s
 
 struct clk_phase_s
 {
-  uint32_t            reg;
+  uintptr_t           reg;
   uint8_t             shift;
   uint8_t             width;
   uint8_t             flags;
@@ -165,7 +169,7 @@ struct clk_phase_s
 
 struct clk_fractional_divider_s
 {
-  uint32_t            reg;
+  uintptr_t           reg;
   uint8_t             mwidth;
   uint8_t             nwidth;
   uint8_t             mshift;
@@ -175,7 +179,7 @@ struct clk_fractional_divider_s
 
 struct clk_multiplier_s
 {
-  uint32_t            reg;
+  uintptr_t           reg;
   uint8_t             shift;
   uint8_t             width;
   uint8_t             flags;
@@ -183,7 +187,7 @@ struct clk_multiplier_s
 
 struct clk_mux_s
 {
-  uint32_t            reg;
+  uintptr_t           reg;
   uint8_t             width;
   uint8_t             shift;
   uint8_t             flags;
@@ -201,7 +205,7 @@ FAR struct clk_s *clk_register(FAR const char *name,
 
 FAR struct clk_s *clk_register_gate(FAR const char *name,
                                     FAR const char *parent_name,
-                                    uint8_t flags, uint32_t reg,
+                                    uint8_t flags, uintptr_t reg,
                                     uint8_t bit_idx,
                                     uint8_t clk_gate_flags);
 
@@ -217,34 +221,34 @@ FAR struct clk_s *clk_register_fixed_factor(FAR const char *name,
 
 FAR struct clk_s *clk_register_divider(FAR const char *name,
                                        FAR const char *parent_name,
-                                       uint8_t flags, uint32_t reg,
+                                       uint8_t flags, uintptr_t reg,
                                        uint8_t shift, uint8_t width,
                                        uint16_t clk_divider_flags);
 
 FAR struct clk_s *clk_register_phase(FAR const char *name,
                                      FAR const char *parent_name,
-                                     uint8_t flags, uint32_t reg,
+                                     uint8_t flags, uintptr_t reg,
                                      uint8_t shift, uint8_t width,
                                      uint8_t clk_phase_flags);
 
 FAR struct clk_s *
 clk_register_fractional_divider(FAR const char *name,
                                 FAR const char *parent_name,
-                                uint8_t flags, uint32_t reg,
+                                uint8_t flags, uintptr_t reg,
                                 uint8_t mshift, uint8_t mwidth,
                                 uint8_t nshift, uint8_t nwidth,
                                 uint8_t clk_divider_flags);
 
 FAR struct clk_s *clk_register_multiplier(FAR const char *name,
                                           FAR const char *parent_name,
-                                          uint8_t flags, uint32_t reg,
+                                          uint8_t flags, uintptr_t reg,
                                           uint8_t shift, uint8_t width,
                                           uint8_t clk_multiplier_flags);
 
 FAR struct clk_s *clk_register_mux(FAR const char *name,
-                                   const char * const *parent_names,
+                                   FAR const char * const *parent_names,
                                    uint8_t num_parents, uint8_t flags,
-                                   uint32_t reg, uint8_t shift,
+                                   uintptr_t reg, uint8_t shift,
                                    uint8_t width, uint8_t clk_mux_flags);
 
 #ifdef CONFIG_CLK_RPMSG

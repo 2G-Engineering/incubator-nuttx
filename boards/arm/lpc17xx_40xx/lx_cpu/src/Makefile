@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/lpc17xx_40xx/lx_cpu/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -28,10 +30,6 @@ ifeq ($(CONFIG_LPC17_40_EXTDRAM),y)
 endif
 
   CSRCS += lpc17_40_fpgainitialize.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-  CSRCS += lpc17_40_appinit.c
 endif
 
 ifeq ($(CONFIG_USBDEV_COMPOSITE),y)

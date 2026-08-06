@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv7-a/arm_dataabort.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,14 +28,15 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 
+#include "mmu.h"
 #include "sched/sched.h"
 #include "arm_internal.h"
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 #  include <nuttx/page.h>
 #  include "arm.h"
 #endif
@@ -48,8 +51,8 @@
  * Input Parameters:
  *   regs - The standard, ARM register save array.
  *
- * If CONFIG_PAGING is selected in the NuttX configuration file, then these
- * additional input values are expected:
+ * If CONFIG_LEGACY_PAGING is selected in the NuttX configuration file, then
+ * these additional input values are expected:
  *
  *   dfar - Fault address register.  On a data abort, the ARM MMU places the
  *     miss virtual address (MVA) into the DFAR register.  This is the
@@ -64,18 +67,17 @@
  *
  ****************************************************************************/
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 uint32_t *arm_dataabort(uint32_t *regs, uint32_t dfar, uint32_t dfsr)
 {
   struct tcb_s *tcb = this_task();
-  uint32_t *savestate;
+  uint32_t *saveregs;
+  bool savestate;
 
-  /* Save the saved processor context in CURRENT_REGS where it can be
-   * accessed for register dumps and possibly context switching.
-   */
-
-  savestate    = (uint32_t *)CURRENT_REGS;
-  CURRENT_REGS = regs;
+  savestate = up_interrupt_context();
+  saveregs = tcb->xcp.regs;
+  tcb->xcp.regs = regs;
+  up_set_interrupt_context(true);
 
   /* In the NuttX on-demand paging implementation, only the read-only, .text
    * section is paged.  However, the ARM compiler generated PC-relative data
@@ -91,7 +93,11 @@ uint32_t *arm_dataabort(uint32_t *regs, uint32_t dfar, uint32_t dfsr)
    */
 
   pginfo("DFSR: %08x DFAR: %08x\n", dfsr, dfar);
-  if ((dfsr & FSR_MASK) != FSR_PAGE)
+  if (FSR_FAULT(dfsr) == FSR_FAULT_DEBUG)
+    {
+      arm_dbgmonitor(0, (void *)dfar, regs);
+    }
+  else if((dfsr & FSR_MASK) != FSR_PAGE)
     {
       goto segfault;
     }
@@ -101,65 +107,75 @@ uint32_t *arm_dataabort(uint32_t *regs, uint32_t dfar, uint32_t dfsr)
    * (It has not yet been saved in the register context save area).
    */
 
-  pginfo("VBASE: %08x VEND: %08x\n", PG_PAGED_VBASE, PG_PAGED_VEND);
-  if (dfar < PG_PAGED_VBASE || dfar >= PG_PAGED_VEND)
+  else if (dfar < PG_PAGED_VBASE || dfar >= PG_PAGED_VEND)
     {
       goto segfault;
     }
+  else
+    {
+      pginfo("VBASE: %08x VEND: %08x\n", PG_PAGED_VBASE, PG_PAGED_VEND);
 
-  /* Save the offending data address as the fault address in the TCB of
-   * the currently task.  This fault address is also used by the prefetch
-   * abort handling; this will allow common paging logic for both
-   * prefetch and data aborts.
-   */
+      /* Save the offending data address as the fault address in the TCB of
+       * the currently task.  This fault address is also used by the prefetch
+       * abort handling; this will allow common paging logic for both
+       * prefetch and data aborts.
+       */
 
-  tcb->xcp.dfar = regs[REG_R15];
+      tcb->xcp.dfar = regs[REG_R15];
 
-  /* Call pg_miss() to schedule the page fill.  A consequences of this
-   * call are:
-   *
-   * (1) The currently executing task will be blocked and saved on
-   *     on the g_waitingforfill task list.
-   * (2) An interrupt-level context switch will occur so that when
-   *     this function returns, it will return to a different task,
-   *     most likely the page fill worker thread.
-   * (3) The page fill worker task has been signalled and should
-   *     execute immediately when we return from this exception.
-   */
+      /* Call pg_miss() to schedule the page fill.  A consequences of this
+       * call are:
+       *
+       * (1) The currently executing task will be blocked and saved on
+       *     on the g_waitingforfill task list.
+       * (2) An interrupt-level context switch will occur so that when
+       *     this function returns, it will return to a different task,
+       *     most likely the page fill worker thread.
+       * (3) The page fill worker task has been signalled and should
+       *     execute immediately when we return from this exception.
+       */
 
-  pg_miss();
+      pg_miss();
+    }
 
-  /* Restore the previous value of CURRENT_REGS.  NULL would indicate that
-   * we are no longer in an interrupt handler.  It will be non-NULL if we
-   * are returning from a nested interrupt.
-   */
+  /* Restore the previous value of saveregs. */
 
-  CURRENT_REGS = savestate;
+  up_set_interrupt_context(savestate);
+  tcb->xcp.regs = saveregs;
   return regs;
 
 segfault:
-  _alert("Data abort. PC: %08x DFAR: %08x DFSR: %08x\n",
-        regs[REG_PC], dfar, dfsr);
+  _alert("Data abort. PC: %08" PRIx32 " DFAR: %08" PRIx32 " DFSR: %08"
+         PRIx32 "\n", regs[REG_PC], dfar, dfsr);
   PANIC_WITH_REGS("panic", regs);
   return regs; /* To keep the compiler happy */
 }
 
-#else /* CONFIG_PAGING */
+#else /* CONFIG_LEGACY_PAGING */
 
 uint32_t *arm_dataabort(uint32_t *regs, uint32_t dfar, uint32_t dfsr)
 {
-  /* Save the saved processor context in CURRENT_REGS where it can be
-   * accessed for register dumps and possibly context switching.
-   */
+  struct tcb_s *tcb = this_task();
 
-  CURRENT_REGS = regs;
+  tcb->xcp.regs = regs;
+  up_set_interrupt_context(true);
 
   /* Crash -- possibly showing diagnostic debug information. */
 
-  _alert("Data abort. PC: %08x DFAR: %08x DFSR: %08x\n",
-        regs[REG_PC], dfar, dfsr);
-  PANIC_WITH_REGS("panic", regs);
+  _alert("Data abort. PC: %08" PRIx32 " DFAR: %08" PRIx32 " DFSR: %08"
+         PRIx32 "\n", regs[REG_PC], dfar, dfsr);
+
+  if (FSR_FAULT(dfsr) == FSR_FAULT_DEBUG)
+    {
+      arm_dbgmonitor(0, (void *)dfar, regs);
+    }
+  else
+    {
+      PANIC_WITH_REGS("panic", regs);
+    }
+
+  up_set_interrupt_context(false);
   return regs; /* To keep the compiler happy */
 }
 
-#endif /* CONFIG_PAGING */
+#endif /* CONFIG_LEGACY_PAGING */

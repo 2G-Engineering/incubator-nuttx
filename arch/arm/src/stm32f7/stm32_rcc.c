@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/stm32_rcc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -40,6 +42,9 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+static_assert(CONFIG_BOARD_LOOPSPERMSEC != -1,
+              "Configure BOARD_LOOPSPERMSEC to non-default value.");
 
 /* Allow up to 100 milliseconds for the high speed clock to become ready.
  * that is a very long delay, but if the clock does not become ready we are
@@ -58,11 +63,11 @@
 
 /* Include chip-specific clocking initialization logic */
 
-#if defined(CONFIG_STM32F7_STM32F72XX) || defined(CONFIG_STM32F7_STM32F73XX)
+#if defined(CONFIG_STM32_STM32F72XX) || defined(CONFIG_STM32_STM32F73XX)
 #  include "stm32f72xx73xx_rcc.c"
-#elif defined(CONFIG_STM32F7_STM32F74XX) || defined(CONFIG_STM32F7_STM32F75XX)
+#elif defined(CONFIG_STM32_STM32F74XX) || defined(CONFIG_STM32_STM32F75XX)
 #  include "stm32f74xx75xx_rcc.c"
-#elif defined(CONFIG_STM32F7_STM32F76XX) || defined(CONFIG_STM32F7_STM32F77XX)
+#elif defined(CONFIG_STM32_STM32F76XX) || defined(CONFIG_STM32_STM32F77XX)
 #  include "stm32f76xx77xx_rcc.c"
 #else
 #  error "Unsupported STM32 F7 chip"
@@ -81,7 +86,7 @@
  *   and enable peripheral clocking for all peripherals enabled in the NuttX
  *   configurationfile.
  *
- *   If CONFIG_STM32F7_CUSTOM_CLOCKCONFIG is defined, then clocking
+ *   If CONFIG_ARCH_BOARD_STM32_CUSTOM_CLOCKCONFIG is defined, then clocking
  *   will be enabled by an externally provided, board-specific function
  *   called stm32_board_clockconfig().
  *
@@ -99,14 +104,14 @@ void stm32_clockconfig(void)
 
   rcc_reset();
 
-#if defined(CONFIG_STM32F7_PWR)
+#if defined(CONFIG_STM32_PWR)
 
   /* Insure the bkp is initialized */
 
   stm32_pwr_initbkp(false);
 #endif
 
-#if defined(CONFIG_STM32F7_CUSTOM_CLOCKCONFIG)
+#if defined(CONFIG_ARCH_BOARD_STM32_CUSTOM_CLOCKCONFIG)
 
   /* Invoke Board Custom Clock Configuration */
 
@@ -126,7 +131,7 @@ void stm32_clockconfig(void)
 
   rcc_enableperipherals();
 
-#ifdef CONFIG_STM32F7_SYSCFG_IOCOMPENSATION
+#ifdef CONFIG_STM32_SYSCFG_IOCOMPENSATION
   /* Enable I/O Compensation */
 
   stm32_iocompensation();
@@ -146,7 +151,7 @@ void stm32_clockconfig(void)
  *   stm32_clockconfig():  It does not reset any devices, and it does not
  *   reset the currently enabled peripheral clocks.
  *
- *   If CONFIG_STM32F7_CUSTOM_CLOCKCONFIG is defined, then clocking
+ *   If CONFIG_ARCH_BOARD_STM32_CUSTOM_CLOCKCONFIG is defined, then clocking
  *   will be enabled by an externally provided, board-specific function
  *   called stm32_board_clockconfig().
  *
@@ -161,7 +166,7 @@ void stm32_clockconfig(void)
 #ifdef CONFIG_PM
 void stm32_clockenable(void)
 {
-#if defined(CONFIG_STM32F7_CUSTOM_CLOCKCONFIG)
+#if defined(CONFIG_ARCH_BOARD_STM32_CUSTOM_CLOCKCONFIG)
 
   /* Invoke Board Custom Clock Configuration */
 

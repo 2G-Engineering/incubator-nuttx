@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l4/chip.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -47,7 +49,7 @@
  * arch/stm32l4/chip.h header file.
  */
 
-#define ARMV7M_PERIPHERAL_INTERRUPTS STM32L4_IRQ_NEXTINTS
+#define ARMV7M_PERIPHERAL_INTERRUPTS STM32_IRQ_NEXTINTS
 
 /* Cache line sizes (in bytes) for the STM32L4 */
 

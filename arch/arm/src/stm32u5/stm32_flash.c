@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32u5/stm32_flash.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -37,7 +39,7 @@
 
 #include <semaphore.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <string.h>
 #include <sys/param.h>
@@ -48,11 +50,13 @@
 #include "stm32_flash.h"
 #include "arm_internal.h"
 
-#if !defined(CONFIG_STM32U5_STM32U585XX)
+#if !defined(CONFIG_STM32_STM32U585XX)
+#elif !defined(CONFIG_STM32_STM32U5A5XX)
+#else
 #  error "Unrecognized STM32 chip"
 #endif
 
-#if !defined(CONFIG_STM32U5_FLASH_OVERRIDE_DEFAULT)
+#if !defined(CONFIG_STM32_FLASH_OVERRIDE_DEFAULT)
 #  warning "Flash Configuration has been overridden - make sure it is correct"
 #endif
 

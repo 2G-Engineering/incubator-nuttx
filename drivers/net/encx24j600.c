@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/net/encx24j600.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,11 +35,10 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <stdint.h>
 #include <time.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <arpa/inet.h>
@@ -50,6 +51,7 @@
 #include <nuttx/wqueue.h>
 #include <nuttx/clock.h>
 #include <nuttx/net/net.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/encx24j600.h>
 
@@ -236,7 +238,7 @@ struct enc_driver_s
   struct enc_descr_s    txdescralloc[ENC_NTXDESCR];
   struct enc_descr_s    rxdescralloc[CONFIG_ENCX24J600_NRXDESCR];
 
-  sq_queue_t            txfreedescr;   /* Free inititialized TX descriptors */
+  sq_queue_t            txfreedescr;   /* Free initialized TX descriptors */
   sq_queue_t            rxfreedescr;   /* Free RX descriptors */
   sq_queue_t            txqueue;       /* Enqueued descriptors waiting for transmission */
   sq_queue_t            rxqueue;       /* Unhandled incoming packets waiting for reception */
@@ -1733,7 +1735,7 @@ static void enc_irqworker(FAR void *arg)
 
   /* Get exclusive access to both the network and the SPI bus. */
 
-  net_lock();
+  netdev_lock(&priv->dev);
   enc_lock(priv);
 
   /* A good practice is for the host controller to clear the Global Interrupt
@@ -1882,7 +1884,7 @@ static void enc_irqworker(FAR void *arg)
   /* Release lock on the SPI bus and the network */
 
   enc_unlock(priv);
-  net_unlock();
+  netdev_unlock(&priv->dev);
 }
 
 /****************************************************************************
@@ -1955,7 +1957,7 @@ static void enc_toworker(FAR void *arg)
 
   /* Get exclusive access to the network. */
 
-  net_lock();
+  netdev_lock(&priv->dev);
 
   /* Increment statistics and dump debug info */
 
@@ -1977,7 +1979,7 @@ static void enc_toworker(FAR void *arg)
 
   /* Release the network */
 
-  net_unlock();
+  netdev_unlock(&priv->dev);
 }
 
 /****************************************************************************
@@ -2042,9 +2044,9 @@ static int enc_ifup(struct net_driver_s *dev)
   FAR struct enc_driver_s *priv = (FAR struct enc_driver_s *)dev->d_private;
   int ret;
 
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 
   /* Lock the SPI bus so that we have exclusive access */
 
@@ -2110,9 +2112,9 @@ static int enc_ifdown(struct net_driver_s *dev)
   irqstate_t flags;
   int ret;
 
-  ninfo("Taking down: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
+  ninfo("Taking down: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 
   /* Lock the SPI bus so that we have exclusive access */
 

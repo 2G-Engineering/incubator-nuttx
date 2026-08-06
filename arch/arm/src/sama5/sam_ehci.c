@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/sama5/sam_ehci.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,8 +32,8 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
@@ -1499,7 +1501,7 @@ static struct sam_qh_s *sam_qh_create(struct sam_rhport_s *rhport,
    * FIELD    DESCRIPTION                     VALUE/SOURCE
    * -------- ------------------------------- --------------------
    * DEVADDR  Device address                  Endpoint structure
-   * I        Inactivate on Next Transaction  0
+   * I        Deactivate on Next Transaction  0
    * ENDPT    Endpoint number                 Endpoint structure
    * EPS      Endpoint speed                  Endpoint structure
    * DTC      Data toggle control             1
@@ -2719,7 +2721,7 @@ static int sam_qh_cancel(struct sam_qh_s *qh, uint32_t **bp, void *arg)
 
   /* Check if this is the QH that we are looking for */
 
-  if (qh->epinfo == epinfo)
+  if (qh->epinfo != epinfo)
     {
       /* No... keep looking */
 
@@ -3392,7 +3394,7 @@ static int sam_rh_enumerate(struct usbhost_connection_s *conn,
    * reset for 50Msec, not wait 50Msec before resetting.
    */
 
-  nxsig_usleep(100 * 1000);
+  nxsched_usleep(100 * 1000);
 
   /* Paragraph 2.3.9:
    *
@@ -3502,7 +3504,7 @@ static int sam_rh_enumerate(struct usbhost_connection_s *conn,
    * 50 ms."
    */
 
-  nxsig_usleep(50 * 1000);
+  nxsched_usleep(50 * 1000);
 
   regval  = sam_getreg(regaddr);
   regval &= ~EHCI_PORTSC_RESET;
@@ -3523,7 +3525,7 @@ static int sam_rh_enumerate(struct usbhost_connection_s *conn,
    */
 
   while ((sam_getreg(regaddr) & EHCI_PORTSC_RESET) != 0);
-  nxsig_usleep(200 * 1000);
+  nxsched_usleep(200 * 1000);
 
   /* Paragraph 4.2.2:
    *
@@ -3739,7 +3741,7 @@ static int sam_epalloc(struct usbhost_driver_s *drvr,
 
   /* Allocate a endpoint information structure */
 
-  epinfo = (struct sam_epinfo_s *)kmm_zalloc(sizeof(struct sam_epinfo_s));
+  epinfo = kmm_zalloc(sizeof(struct sam_epinfo_s));
   if (!epinfo)
     {
       usbhost_trace1(EHCI_TRACE1_EPALLOC_FAILED, 0);
@@ -3806,7 +3808,7 @@ static int sam_epalloc(struct usbhost_driver_s *drvr,
  * Input Parameters:
  *   drvr - The USB host driver instance obtained as a parameter from the
  *           call to the class create() method.
- *   ep   - The endpint to be freed.
+ *   ep   - The endpoint to be freed.
  *
  * Returned Value:
  *   On success, zero (OK) is returned. On a failure, a negated errno value
@@ -3963,7 +3965,7 @@ static int sam_ioalloc(struct usbhost_driver_s *drvr,
    */
 
   buflen  = (buflen + DCACHE_LINEMASK) & ~DCACHE_LINEMASK;
-  *buffer = (uint8_t *)kumm_memalign(ARMV7A_DCACHE_LINESIZE, buflen);
+  *buffer = kumm_memalign(ARMV7A_DCACHE_LINESIZE, buflen);
   return *buffer ? OK : -ENOMEM;
 }
 
@@ -4441,7 +4443,7 @@ static int sam_cancel(struct usbhost_driver_s *drvr, usbhost_ep_t ep)
            * head.
            */
 
-          if (qh && qh != &g_asynchead)
+          if (qh && qh == &g_asynchead)
             {
               /* Claim that we successfully cancelled the transfer */
 

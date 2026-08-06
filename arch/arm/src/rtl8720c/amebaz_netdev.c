@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rtl8720c/amebaz_netdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -107,12 +109,12 @@ void amebaz_netdev_notify_receive(struct amebaz_dev_s *priv,
       return;
     }
 
-  NETDEV_RXPACKETS(&priv->dev);
   net_lock();
   oldbuf = priv->dev.d_buf;
   hdr = (struct eth_hdr_s *)skb->data;
   priv->dev.d_buf = (void *)skb->data;
   priv->dev.d_len = len;
+  NETDEV_RXPACKETS(&priv->dev);
 #ifdef CONFIG_NET_PKT
   pkt_input(&priv->dev);
 #endif
@@ -294,14 +296,13 @@ static int amebaz_ifdown(struct net_driver_s *dev)
 {
   int ret = 0;
   struct amebaz_dev_s *priv = (struct amebaz_dev_s *)dev->d_private;
-  irqstate_t flags;
   if (priv->devnum == 0 && rltk_wlan_running(1))
     {
       printf("must ifdown wlan 1 first\r\n");
       return ERROR;
     }
 
-  flags = enter_critical_section();
+  nxmutex_lock(&priv->lock);
   if (IFF_IS_UP(dev->d_flags))
     {
       if (priv->curr)
@@ -331,7 +332,7 @@ static int amebaz_ifdown(struct net_driver_s *dev)
         }
     }
 
-  leave_critical_section(flags);
+  nxmutex_unlock(&priv->lock);
   return ret;
 }
 
@@ -341,10 +342,10 @@ int amebaz_netdev_register(struct amebaz_dev_s *priv)
   dev->d_ifup    = amebaz_ifup;
   dev->d_ifdown  = amebaz_ifdown;
   dev->d_txavail = amebaz_txavail;
+  nxmutex_init(priv->lock);
 #ifdef CONFIG_NETDEV_IOCTL
   dev->d_ioctl   = amebaz_ioctl;
 #endif
   dev->d_private = priv;
   return netdev_register(dev, NET_LL_IEEE80211);
 }
-

@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/mempool/mempool_multiple.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -22,24 +24,16 @@
  * Included Files
  ****************************************************************************/
 
+#include <assert.h>
 #include <strings.h>
 #include <syslog.h>
 #include <sys/param.h>
 
 #include <nuttx/mutex.h>
+#include <nuttx/nuttx.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/mm/mempool.h>
-
-#include <assert.h>
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-#undef  ALIGN_UP
-#define ALIGN_UP(x, a)        ((((size_t)x) + ((a) - 1)) & (~((a) - 1)))
-#undef  ALIGN_DOWN
-#define ALIGN_DOWN(x, a)      ((size_t)(x) & (~((a) - 1)))
+#include <nuttx/mm/kasan.h>
 
 /****************************************************************************
  * Private Types
@@ -52,19 +46,32 @@ struct mpool_dict_s
   size_t                size; /* Record expand memary size */
 };
 
+struct mpool_chunk_s
+{
+  sq_entry_t entry;
+  FAR void *start;
+  FAR void *next;
+  FAR void *end;
+  size_t used;
+};
+
 struct mempool_multiple_s
 {
-  FAR struct mempool_s    *pools;       /* The memory pool array */
-  size_t                   npools;      /* The number of memory pool array elements */
-  size_t                   expandsize;  /* The number not will use it to init erery
-                                         * pool expandsize
-                                         */
-  size_t                   minpoolsize; /* The number is align for each memory pool */
-  FAR void                *arg;         /* This pointer is used to store the user's
-                                         * private data
-                                         */
-  mempool_multiple_alloc_t alloc;       /* The alloc function for mempool */
-  mempool_multiple_free_t  free;        /* The free function for mempool */
+  FAR struct mempool_s         *pools;       /* The memory pool array */
+  size_t                        npools;      /* The number of memory pool array elements */
+  size_t                        expandsize;  /* The number not will use it to init erery
+                                              * pool expandsize
+                                              */
+  size_t                        minpoolsize; /* The number is align for each memory pool */
+  FAR void                     *arg;         /* This pointer is used to store the user's
+                                              * private data
+                                              */
+  mempool_multiple_alloc_t      alloc;       /* The alloc function for mempool */
+  mempool_multiple_alloc_size_t alloc_size;  /* Get the address size of the
+                                              * alloc function
+                                              */
+  mempool_multiple_free_t       free;        /* The free function for mempool */
+  size_t                        alloced;     /* Total size of alloc */
 
   /* This delta describes the relationship between the block size of each
    * mempool in multiple mempool by user initialized. It is automatically
@@ -73,17 +80,19 @@ struct mempool_multiple_s
    * arithmetic progressions, otherwise it is an increasing progressions.
    */
 
-  size_t                   delta;
+  size_t                        delta;
 
   /* It is used to record the information recorded by the mempool during
    * expansion, and find the mempool by adding an index
    */
 
-  mutex_t                   dict_lock;
-  size_t                    dict_used;
-  size_t                    dict_col_num_log2;
-  size_t                    dict_row_num;
-  FAR struct mpool_dict_s **dict;
+  rmutex_t                      lock;
+  sq_queue_t                    chunk_queue;
+  size_t                        chunk_size;
+  size_t                        dict_used;
+  size_t                        dict_col_num_log2;
+  size_t                        dict_row_num;
+  FAR struct mpool_dict_s     **dict;
 };
 
 /****************************************************************************
@@ -136,6 +145,90 @@ mempool_multiple_find(FAR struct mempool_multiple_s *mpool, size_t size)
   return &mpool->pools[left];
 }
 
+static FAR void *
+mempool_multiple_alloc_chunk(FAR struct mempool_multiple_s *mpool,
+                             size_t align, size_t size)
+{
+  FAR struct mpool_chunk_s *chunk;
+  FAR char *tmp;
+  FAR void *ret;
+
+  if (mpool->chunk_size < mpool->expandsize)
+    {
+      ret = mpool->alloc(mpool->arg, align, size);
+      if (ret)
+        {
+          mpool->alloced += mpool->alloc_size(mpool->arg, ret);
+        }
+
+      return ret;
+    }
+
+  chunk = (FAR struct mpool_chunk_s *)sq_peek(&mpool->chunk_queue);
+  if (chunk == NULL)
+    {
+retry:
+      tmp = mpool->alloc(mpool->arg, mpool->expandsize,
+                         mpool->chunk_size +
+                         sizeof(struct mpool_chunk_s));
+
+      if (tmp == NULL)
+        {
+          return NULL;
+        }
+
+      mpool->alloced += mpool->alloc_size(mpool->arg, tmp);
+      chunk = (FAR struct mpool_chunk_s *)(tmp + mpool->chunk_size);
+      chunk->end = tmp + mpool->chunk_size;
+      chunk->start = tmp;
+      chunk->next = tmp;
+      chunk->used = 0;
+      sq_addfirst(&chunk->entry, &mpool->chunk_queue);
+    }
+
+  ret = (FAR void *)ALIGN_UP((uintptr_t)chunk->next, align);
+  if ((uintptr_t)chunk->end - (uintptr_t)ret < size)
+    {
+      goto retry;
+    }
+
+  chunk->used++;
+  chunk->next = (FAR char *)ret + size;
+  return ret;
+}
+
+static void
+mempool_multiple_free_chunk(FAR struct mempool_multiple_s *mpool,
+                            FAR void *ptr)
+{
+  FAR struct mpool_chunk_s *chunk;
+  FAR sq_entry_t *entry;
+
+  if (mpool->chunk_size < mpool->expandsize)
+    {
+      mpool->free(mpool->arg, ptr);
+      return;
+    }
+
+  nxrmutex_lock(&mpool->lock);
+  sq_for_every(&mpool->chunk_queue, entry)
+    {
+      chunk = (FAR struct mpool_chunk_s *)entry;
+      if (ptr >= chunk->start && ptr < chunk->next)
+        {
+          if (--chunk->used == 0)
+            {
+              sq_rem(&chunk->entry, &mpool->chunk_queue);
+              mpool->free(mpool->arg, chunk->start);
+            }
+
+          break;
+        }
+    }
+
+  nxrmutex_unlock(&mpool->lock);
+}
+
 static FAR void *mempool_multiple_alloc_callback(FAR struct mempool_s *pool,
                                                  size_t size)
 {
@@ -144,17 +237,18 @@ static FAR void *mempool_multiple_alloc_callback(FAR struct mempool_s *pool,
   size_t row;
   size_t col;
 
-  ret = mpool->alloc(mpool->arg, mpool->expandsize,
-                     mpool->minpoolsize + size);
+  nxrmutex_lock(&mpool->lock);
+  ret = mempool_multiple_alloc_chunk(mpool, mpool->expandsize,
+                                     mpool->minpoolsize + size);
   if (ret == NULL)
     {
+      nxrmutex_unlock(&mpool->lock);
       return NULL;
     }
 
-  nxmutex_lock(&mpool->dict_lock);
   row = mpool->dict_used >> mpool->dict_col_num_log2;
 
-  /* There is no new pointer address to store the dictionarys */
+  /* There is no new pointer address to store the dictionaries */
 
   DEBUGASSERT(mpool->dict_row_num > row);
 
@@ -162,16 +256,17 @@ static FAR void *mempool_multiple_alloc_callback(FAR struct mempool_s *pool,
 
   if (mpool->dict[row] == NULL)
     {
-      mpool->dict[row] = mpool->alloc(mpool->arg, sizeof(uintptr_t),
-                                      (1 << mpool->dict_col_num_log2) *
-                                      sizeof(struct mpool_dict_s));
+      mpool->dict[row] =
+        mempool_multiple_alloc_chunk(mpool, sizeof(uintptr_t),
+                                     (1 << mpool->dict_col_num_log2)
+                                     * sizeof(struct mpool_dict_s));
     }
 
   mpool->dict[row][col].pool = pool;
   mpool->dict[row][col].addr = ret;
   mpool->dict[row][col].size = mpool->minpoolsize + size;
   *(FAR size_t *)ret = mpool->dict_used++;
-  nxmutex_unlock(&mpool->dict_lock);
+  nxrmutex_unlock(&mpool->lock);
   return (FAR char *)ret + mpool->minpoolsize;
 }
 
@@ -180,7 +275,8 @@ static void mempool_multiple_free_callback(FAR struct mempool_s *pool,
 {
   FAR struct mempool_multiple_s *mpool = pool->priv;
 
-  mpool->free(mpool->arg, (FAR char *)addr - mpool->minpoolsize);
+  mempool_multiple_free_chunk(mpool,
+                              (FAR char *)addr - mpool->minpoolsize);
 }
 
 /****************************************************************************
@@ -207,12 +303,21 @@ mempool_multiple_get_dict(FAR struct mempool_multiple_s *mpool,
   size_t row;
   size_t col;
 
-  if (mpool == NULL || blk == NULL)
+  if (mpool == NULL || blk == NULL || mpool->dict == NULL)
     {
       return NULL;
     }
 
-  addr = (FAR void *)ALIGN_DOWN(blk, mpool->expandsize);
+  addr = (FAR void *)ALIGN_DOWN((uintptr_t)blk, mpool->expandsize);
+  if (kasan_clear_tag(blk) == kasan_clear_tag(addr))
+    {
+      /* It is not a memory block allocated by mempool
+       * Because the blk is need not aligned with the expandsize
+       * in head memory.
+       */
+
+      return NULL;
+    }
 
   index = *(FAR size_t *)addr;
   if (index >= mpool->dict_used)
@@ -222,14 +327,35 @@ mempool_multiple_get_dict(FAR struct mempool_multiple_s *mpool,
 
   row = index >> mpool->dict_col_num_log2;
   col = index - (row << mpool->dict_col_num_log2);
-  if (mpool->dict[row] == NULL ||
-      mpool->dict[row][col].addr != addr ||
-      (FAR char *)blk - (FAR char *)addr >= mpool->dict[row][col].size)
+
+  addr = kasan_clear_tag(addr);
+  if (kasan_clear_tag(mpool->dict[row]) == NULL ||
+      kasan_clear_tag(mpool->dict[row][col].addr) != addr ||
+      ((FAR char *)kasan_clear_tag(blk) -
+       (FAR char *)addr >= mpool->dict[row][col].size))
     {
       return NULL;
     }
 
   return &mpool->dict[row][col];
+}
+
+/****************************************************************************
+ * Name: mempool_multiple_check
+ *
+ * Description:
+ *   Check the blk is in the pool
+ *
+ * Input Parameters:
+ *   mpool - The handle of the multiple memory pool to be used.
+ *   blk   - The pointer of memory block.
+ *
+ ****************************************************************************/
+
+static void mempool_multiple_check(FAR struct mempool_s *pool,
+                                   FAR void *blk)
+{
+  assert(mempool_multiple_get_dict(pool->priv, blk));
 }
 
 /****************************************************************************
@@ -254,10 +380,12 @@ mempool_multiple_get_dict(FAR struct mempool_multiple_s *mpool,
  *   poolsize        - The block size array for pools in multiples pool.
  *   npools          - How many pools in multiples pool.
  *   alloc           - The alloc memory function for multiples pool.
+ *   alloc_size      - Get the address size of the alloc function.
  *   free            - The free memory function for multiples pool.
- *   arg             - The alloc & free memory fuctions used arg.
- *   expandsize      - The expend mempry for all pools in multiples pool.
- *   dict_expendsize - The expend size for multiple dictnoary.
+ *   arg             - The alloc & free memory functions used arg.
+ *   chunksize       - The multiples pool chunk size.
+ *   expandsize      - The expand memory for all pools in multiples pool.
+ *   dict_expendsize - The expand size for multiple dictionaries.
  * Returned Value:
  *   Return an initialized multiple pool pointer on success,
  *   otherwise NULL is returned.
@@ -266,10 +394,11 @@ mempool_multiple_get_dict(FAR struct mempool_multiple_s *mpool,
 
 FAR struct mempool_multiple_s *
 mempool_multiple_init(FAR const char *name,
-                      FAR size_t *poolsize, size_t npools,
+                      FAR const size_t *poolsize, size_t npools,
                       mempool_multiple_alloc_t alloc,
-                      mempool_multiple_free_t free,
-                      FAR void *arg, size_t expandsize,
+                      mempool_multiple_alloc_size_t alloc_size,
+                      mempool_multiple_free_t free, FAR void *arg,
+                      size_t chunksize, size_t expandsize,
                       size_t dict_expendsize)
 {
   FAR struct mempool_multiple_s *mpool;
@@ -299,26 +428,29 @@ mempool_multiple_init(FAR const char *name,
         }
     }
 
-  mpool = alloc(arg, sizeof(uintptr_t), sizeof(struct mempool_multiple_s));
+  mpool = alloc(arg, sizeof(uintptr_t),
+                sizeof(struct mempool_multiple_s) +
+                npools * sizeof(struct mempool_s));
+
   if (mpool == NULL)
     {
       return NULL;
     }
 
-  pools = alloc(arg, sizeof(uintptr_t),
-                npools * sizeof(FAR struct mempool_s));
-  if (pools == NULL)
-    {
-      goto err_with_mpool;
-    }
+  pools = (FAR struct mempool_s *)
+          ((uintptr_t)mpool + sizeof(struct mempool_multiple_s));
 
-  mpool->pools = pools;
-  mpool->npools = npools;
+  mpool->alloc_size = alloc_size;
   mpool->expandsize = expandsize;
-  mpool->minpoolsize = minpoolsize;
+  mpool->chunk_size = chunksize;
   mpool->alloc = alloc;
   mpool->free = free;
   mpool->arg = arg;
+  mpool->alloced = alloc_size(arg, mpool);
+  sq_init(&mpool->chunk_queue);
+  mpool->pools = pools;
+  mpool->npools = npools;
+  mpool->minpoolsize = minpoolsize;
   mpool->delta = 0;
 
   for (i = 0; i < npools; i++)
@@ -330,8 +462,11 @@ mempool_multiple_init(FAR const char *name,
       pools[i].priv = mpool;
       pools[i].alloc = mempool_multiple_alloc_callback;
       pools[i].free = mempool_multiple_free_callback;
-#if CONFIG_MM_BACKTRACE >= 0
-      pools[i].blockalign = mpool->minpoolsize;
+      pools[i].check = mempool_multiple_check;
+#ifdef CONFIG_MM_HEAP_MEMPOOL_WAIT_RELEASE
+      pools[i].wait = true;
+#else
+      pools[i].wait = false;
 #endif
       ret = mempool_init(pools + i, name);
       if (ret < 0)
@@ -358,17 +493,18 @@ mempool_multiple_init(FAR const char *name,
   mpool->dict_col_num_log2 = fls(dict_expendsize /
                                  sizeof(struct mpool_dict_s));
 
-  mpool->dict_row_num = dict_expendsize / sizeof(struct mpool_dict_s *);
-  mpool->dict = alloc(arg, sizeof(struct mpool_dict_s *),
-                      sizeof(struct mpool_dict_s *) * mpool->dict_row_num);
+  mpool->dict_row_num = dict_expendsize / sizeof(FAR struct mpool_dict_s *);
+  mpool->dict = mempool_multiple_alloc_chunk(
+                mpool, sizeof(FAR struct mpool_dict_s *),
+                sizeof(FAR struct mpool_dict_s *) * mpool->dict_row_num);
   if (mpool->dict == NULL)
     {
       goto err_with_pools;
     }
 
   memset(mpool->dict, 0,
-         mpool->dict_row_num * sizeof(struct mpool_dict_s *));
-  nxmutex_init(&mpool->dict_lock);
+         mpool->dict_row_num * sizeof(FAR struct mpool_dict_s *));
+  nxrmutex_init(&mpool->lock);
 
   return mpool;
 
@@ -378,9 +514,7 @@ err_with_pools:
       mempool_deinit(pools + i);
     }
 
-  free(arg, pools);
-err_with_mpool:
-  free(arg, mpool);
+  mempool_multiple_free_chunk(mpool, pools);
   return NULL;
 }
 
@@ -417,7 +551,7 @@ FAR void *mempool_multiple_alloc(FAR struct mempool_multiple_s *mpool,
   end = mpool->pools + mpool->npools;
   do
     {
-      FAR void *blk = mempool_alloc(pool);
+      FAR void *blk = mempool_allocate(pool);
 
       if (blk)
         {
@@ -477,7 +611,7 @@ FAR void *mempool_multiple_realloc(FAR struct mempool_multiple_s *mpool,
  * Name: mempool_multiple_free
  *
  * Description:
- *   Release an memory block to the multiple mempry pool. The blk must have
+ *   Release a memory block to the multiple memory pool. The blk must have
  *   been returned by a previous call to mempool_multiple_alloc.
  *
  * Input Parameters:
@@ -500,10 +634,11 @@ int mempool_multiple_free(FAR struct mempool_multiple_s *mpool,
       return -EINVAL;
     }
 
-  blk = (FAR char *)blk - (((FAR char *)blk -
-                           ((FAR char *)dict->addr + mpool->minpoolsize)) %
+  blk = (FAR char *)blk - (((FAR char *)kasan_clear_tag(blk) -
+                            ((FAR char *)kasan_clear_tag(dict->addr) +
+                             mpool->minpoolsize)) %
                            MEMPOOL_REALBLOCKSIZE(dict->pool));
-  mempool_free(dict->pool, blk);
+  mempool_release(dict->pool, blk);
   return 0;
 }
 
@@ -582,10 +717,10 @@ FAR void *mempool_multiple_memalign(FAR struct mempool_multiple_s *mpool,
   end = mpool->pools + mpool->npools;
   do
     {
-      FAR char *blk = mempool_alloc(pool);
+      FAR char *blk = mempool_allocate(pool);
       if (blk != NULL)
         {
-          return (FAR void *)ALIGN_UP(blk, alignment);
+          return (FAR void *)ALIGN_UP((uintptr_t)blk, alignment);
         }
     }
   while (++pool < end);
@@ -609,25 +744,78 @@ void mempool_multiple_foreach(FAR struct mempool_multiple_s *mpool,
 }
 
 /****************************************************************************
+ * Name: mempool_multiple_mallinfo
+ ****************************************************************************/
+
+struct mallinfo
+mempool_multiple_mallinfo(FAR struct mempool_multiple_s *mpool)
+{
+  struct mallinfo info;
+  size_t i;
+
+  if (mpool == NULL)
+    {
+      memset(&info, 0, sizeof(struct mallinfo));
+      return info;
+    }
+
+  memset(&info, 0, sizeof(struct mallinfo));
+
+  nxrmutex_lock(&mpool->lock);
+  info.arena = mpool->alloced;
+
+  if (mpool->chunk_size >= mpool->expandsize)
+    {
+      FAR struct mpool_chunk_s *chunk;
+
+      chunk = (FAR struct mpool_chunk_s *)sq_peek(&mpool->chunk_queue);
+      info.fordblks += (uintptr_t)chunk->end - (uintptr_t)chunk->next;
+    }
+
+  nxrmutex_unlock(&mpool->lock);
+
+  for (i = 0; i < mpool->npools; i++)
+    {
+      struct mempoolinfo_s poolinfo;
+
+      mempool_info(mpool->pools + i, &poolinfo);
+      info.fordblks += (poolinfo.ordblks + poolinfo.iordblks)
+                       * poolinfo.sizeblks;
+      info.ordblks += poolinfo.ordblks + poolinfo.iordblks;
+      info.aordblks += poolinfo.aordblks;
+      if (info.mxordblk < poolinfo.sizeblks)
+        {
+          info.mxordblk = poolinfo.sizeblks;
+        }
+    }
+
+  info.uordblks += mpool->alloced - info.fordblks;
+  return info;
+}
+
+/****************************************************************************
  * Name: mempool_multiple_info_task
  ****************************************************************************/
 
-struct mempoolinfo_task
+struct mallinfo_task
 mempool_multiple_info_task(FAR struct mempool_multiple_s *mpool,
-                           FAR const struct mm_memdump_s *dump)
+                           FAR const struct malltask *task)
 {
   int i;
-  struct mempoolinfo_task info;
-  struct mempoolinfo_task ret =
+  struct mallinfo_task info;
+  struct mallinfo_task ret =
     {
       0, 0
     };
 
-  for (i = 0; i < mpool->npools; i++)
+  if (mpool != NULL)
     {
-      info = mempool_info_task(mpool->pools + i, dump);
-      ret.aordblks += info.aordblks;
-      ret.uordblks += info.uordblks;
+      for (i = 0; i < mpool->npools; i++)
+        {
+          info = mempool_info_task(mpool->pools + i, task);
+          ret.aordblks += info.aordblks;
+          ret.uordblks += info.uordblks;
+        }
     }
 
   return ret;
@@ -655,6 +843,11 @@ void mempool_multiple_memdump(FAR struct mempool_multiple_s *mpool,
 {
   size_t i;
 
+  if (mpool == NULL)
+    {
+      return;
+    }
+
   for (i = 0; i < mpool->npools; i++)
     {
       mempool_memdump(mpool->pools + i, dump);
@@ -676,7 +869,10 @@ void mempool_multiple_deinit(FAR struct mempool_multiple_s *mpool)
 {
   size_t i;
 
-  DEBUGASSERT(mpool != NULL);
+  if (mpool == NULL)
+    {
+      return;
+    }
 
   for (i = 0; i < mpool->npools; i++)
     {
@@ -687,7 +883,7 @@ void mempool_multiple_deinit(FAR struct mempool_multiple_s *mpool)
     {
       if (mpool->dict[i] != NULL)
         {
-          mpool->free(mpool->arg, mpool->dict[i]);
+          mempool_multiple_free_chunk(mpool, mpool->dict[i]);
         }
       else
         {
@@ -695,8 +891,8 @@ void mempool_multiple_deinit(FAR struct mempool_multiple_s *mpool)
         }
     }
 
-  mpool->free(mpool->arg, mpool->dict);
-  mpool->free(mpool->arg, mpool->pools);
+  mempool_multiple_free_chunk(mpool, mpool->dict);
+  mpool->dict = NULL;
+  nxrmutex_destroy(&mpool->lock);
   mpool->free(mpool->arg, mpool);
-  nxmutex_destroy(&mpool->dict_lock);
 }

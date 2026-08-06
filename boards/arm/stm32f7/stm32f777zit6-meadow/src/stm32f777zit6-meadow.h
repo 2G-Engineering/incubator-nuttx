@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f777zit6-meadow/src/stm32f777zit6-meadow.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -43,6 +45,16 @@
 #  endif
 #endif
 
+/* SDCard validation */
+
+#if defined(CONFIG_STM32_SDMMC1) || defined(CONFIG_STM32_SDMMC2)
+#  define HAVE_SDIO
+#endif
+
+#if defined(CONFIG_DISABLE_MOUNTPOINT) || !defined(CONFIG_MMCSD_SDIO)
+#  undef HAVE_SDIO
+#endif
+
 #define GPIO_LD1        (GPIO_OUTPUT | GPIO_PUSHPULL | GPIO_SPEED_50MHz | GPIO_OUTPUT_CLEAR | GPIO_PORTA | GPIO_PIN1)
 #define GPIO_LD2        (GPIO_OUTPUT | GPIO_PUSHPULL | GPIO_SPEED_50MHz | GPIO_OUTPUT_CLEAR | GPIO_PORTA | GPIO_PIN0)
 #define GPIO_LD3        (GPIO_OUTPUT | GPIO_PUSHPULL | GPIO_SPEED_50MHz | GPIO_OUTPUT_CLEAR | GPIO_PORTA | GPIO_PIN2)
@@ -57,6 +69,13 @@
  */
 
 #define GPIO_BTN_USER      (GPIO_INPUT | GPIO_FLOAT | GPIO_EXTI | GPIO_PORTA | GPIO_PIN0)
+
+/* SD/TF Card'detected pin */
+
+#define GPIO_SDIO_NCD      (GPIO_INPUT|GPIO_FLOAT|GPIO_EXTI|GPIO_PORTG|GPIO_PIN6)
+
+#define SDIO_SLOTNO        0
+#define SDIO_MINOR         0
 
 /* Sporadic scheduler instrumentation.
  * This configuration has been used for evaluating the NuttX sporadic
@@ -76,6 +95,9 @@
 #define GPIO_SCHED_RUNNING (GPIO_OUTPUT | GPIO_PUSHPULL | GPIO_SPEED_50MHz | GPIO_OUTPUT_CLEAR | \
                             GPIO_PORTJ | GPIO_PIN0)
 
+#define GPIO_OTGFS_VBUS    (GPIO_INPUT|GPIO_FLOAT|GPIO_SPEED_100MHz|\
+                            GPIO_OPENDRAIN|GPIO_PORTA|GPIO_PIN9)
+
 /****************************************************************************
  * Public data
  ****************************************************************************/
@@ -94,9 +116,6 @@
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=y && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
  *
  ****************************************************************************/
 
@@ -146,8 +165,45 @@ void arch_sporadic_initialize(void);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32F7_FMC
+#ifdef CONFIG_STM32_FMC
+void stm32_sdram_initialize(void);
 void stm32_disablefmc(void);
+#endif
+
+/****************************************************************************
+ * Name: stm32_sdio_initialize
+ *
+ * Description:
+ *   Initialize SDIO-based MMC/SD card support
+ *
+ ****************************************************************************/
+
+#if !defined(CONFIG_DISABLE_MOUNTPOINT) && defined(CONFIG_STM32_SDMMC2)
+int stm32_sdio_initialize(void);
+#endif
+
+/****************************************************************************
+ * Name: init_corecomp
+ *
+ * Description:
+ *   Initialize the fixed devices from F7 Core Compute board
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_BOARD_MEADOW_F7_CORE_COMPUTE
+int init_corecomp(void);
+#endif
+
+/****************************************************************************
+ * Name: init_projectlab
+ *
+ * Description:
+ *   Initialize the fixed devices from ProjectLab board
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_BOARD_MEADOW_PROJECTLAB
+int init_projectlab(void);
 #endif
 
 void stm32_quadspi_init(void);

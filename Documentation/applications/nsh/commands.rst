@@ -4,8 +4,8 @@ Commands
 
 .. _cmdtest:
 
-Evaluate Expression (test)
-**************************
+``test`` Evaluate Expression 
+=============================
 
 **Command Syntax:**
 
@@ -42,8 +42,8 @@ the conditional command following the ``if`` in the
 
 .. _cmdaddroute:
 
-Add a Routing Table Entry (addroute)
-************************************
+``addroute`` Add a Routing Table Entry
+======================================
 
 **Command Syntax:**
 
@@ -64,7 +64,7 @@ notation. In that case, the netmask need not be provided.
 
 ::
 
-  nsh> addroute addroute 11.0.0.0 255.255.255.0 10.0.0.2
+  nsh> addroute 11.0.0.0 255.255.255.0 10.0.0.2
 
 which is equivalent to
 
@@ -77,8 +77,8 @@ default gateway.
 
 .. _cmdarp:
 
-Access the ARP table (arp)
-**************************
+``arp`` Access the ARP table
+============================
 
 **Command syntax**::
 
@@ -110,8 +110,8 @@ Access the ARP table (arp)
 
 .. _cmdbase64dec:
 
-Base64 Decode (base64dec)
-*************************
+``base64dec`` Base64 Decode
+===========================
 
 **Command Syntax**::
 
@@ -121,8 +121,8 @@ Base64 Decode (base64dec)
 
 .. _cmdbase64enc:
 
-Base64 Encode (base64enc)
-*************************
+``base64enc`` Base64 Encode
+===========================
 
 **Command Syntax**::
 
@@ -132,8 +132,8 @@ Base64 Encode (base64enc)
 
 .. _cmdbasename:
 
-Extract Base File/Directory Name (basename)
-*******************************************
+``basename`` Extract Base File/Directory Name
+=============================================
 
 **Command Syntax**::
 
@@ -145,8 +145,8 @@ trailing ``<suffix>``.
 
 .. _cmdbreak:
 
-Terminate a Loop (break)
-************************
+``break`` Terminate a Loop
+==========================
 
 **Command Syntax**::
 
@@ -162,8 +162,8 @@ immediately following the ``done`` token.
 
 .. _cmdcat:
 
-Concatenate Files (cat)
-***********************
+``cat`` Concatenate Files
+=========================
 
 **Command Syntax**::
 
@@ -175,8 +175,8 @@ output is redirected).
 
 .. _cmdcd:
 
-Change Current Working Directory (cd)
-*************************************
+``cd`` Change Current Working Directory
+=======================================
 
 **Command Syntax**::
 
@@ -198,10 +198,55 @@ Also sets the previous working directory environment variable
 ``cd ..`` 	        sets the current working directory to the parent directory.
 ==================  =====================================
 
+.. _cmdchmod:
+
+``chmod`` Change File Permissions
+==================================
+
+**Command Syntax**::
+
+  chmod <octal-mode> <path>
+
+**Synopsis**. Change the permission bits of ``<path>``. Only numeric
+(octal) modes are supported.
+
+**Example**::
+
+  nsh> chmod 600 /tmp/secret
+  nsh> chmod 755 /usr/bin/app
+
+.. _cmdchown:
+
+``chown`` Change File Owner and Group
+======================================
+
+**Command Syntax**::
+
+  chown <uid>[:gid] <path>
+
+**Synopsis**. Change the owner and/or group of ``<path>``. Only
+numeric uid and gid values are accepted. Omitted uid or gid fields
+are left unchanged.
+
+**Forms:**
+
+===================  ===============================================================
+``chown uid:gid``    Sets owner to uid and group to gid.
+``chown uid``        Sets owner to uid; group is unchanged.
+``chown uid:``       Sets owner to uid; group is unchanged.
+``chown :gid``       Sets group to gid; owner is unchanged.
+===================  ===============================================================
+
+**Example**::
+
+  nsh> chown 1000:1000 /tmp/file
+  nsh> chown 0: /tmp/file
+  nsh> chown :100 /tmp/file
+
 .. _cmdcmp:
 
-Compare Files (cmp)
-*******************
+``cmp`` Compare Files
+=====================
 
 **Command Syntax**::
 
@@ -213,8 +258,8 @@ indication only if the files differ.
 
 .. _cmdcp:
 
-Copy Files (cp)
-***************
+``cp`` Copy Files
+=================
 
 **Command Syntax**::
 
@@ -226,24 +271,46 @@ Copy Files (cp)
 
 .. _cmddate:
 
-Show or set the date and time (date)
-************************************
+``date`` Show or set the date and time
+======================================
 
 **Command Syntax**::
 
-  date [-s "MMM DD HH:MM:SS YYYY"]
+  date [-s "MMM DD HH:MM:SS YYYY"] [-u] [+%format]
 
-**Synopsis**. Show or set the current date and time.
+**Synopsis**. Show or set the current date and time or UTC with ``-u`` option,
+and support format output with ``+%format``.
 
-Only one format is used both on display and when setting the
-date/time: ``MMM DD HH:MM:SS YYYY``. For example,
+To show the current system time and date, type in the ``date`` command.
+The output displays the day of the week, day of the month, month, year,
+current time. 24-hour time is used.
+Only one format is used, both on display and when setting the date/time.
+To change the system clock manually, type ``date -s MMM DD HH:MM:SS YYYY``. 
 
-24-hour time is used.
+  -  ``MMM``  Short month name (e.g., Sep).
+  -           Space separator.
+  -  ``DD``   Day of month (e.g., 01).
+  -           Space separator.
+  -  ``HH``   Hour (00-23).
+  -  ``:``    Colon separator.
+  -  ``MM``   Minute (00-59).
+  -  ``:``    Colon separator.
+  -  ``SS``   Second (00-60).
+  -           Space separator
+  -  ``YYYY`` Year (e.g., 2023).
+
+**Example**::
+
+  nsh> date
+  Thu, Jan 01 00:00:17 1970
+  nsh> date -s "Sep 15 11:30:00 2023"
+  nsh> date
+  Fri, Sep 15 11:30:03 2023
 
 .. _cmddd:
 
-Copy and Convert Files (dd)
-***************************
+``dd`` Copy and Convert Files
+=============================
 
 **Command Syntax**::
 
@@ -285,8 +352,8 @@ bucket::
 
 .. _cmddelroute:
 
-Delete a Routing Table Entry (delroute)
-***************************************
+``delroute`` Delete a Routing Table Entry
+=========================================
 
 **Command Syntax**::
 
@@ -309,8 +376,8 @@ which is equivalent to::
 
 .. _cmddf:
 
-Show Volume Status (df)
-***********************
+``df`` Show Volume Status
+=========================
 
 **Command Syntax**::
 
@@ -336,8 +403,8 @@ readable* format.
 
 .. _cmddirname:
 
-Extract Path to a File/Directory (dirname)
-******************************************
+``dirname`` Extract Path to a File/Directory 
+============================================
 
 **Command Syntax**::
 
@@ -348,8 +415,8 @@ Extract Path to a File/Directory (dirname)
 
 .. _cmddmesg:
 
-Dump Buffered SYSLOG Output (dmesg)
-***********************************
+``dmesg`` Dump Buffered SYSLOG Output
+=====================================
 
 **Command Syntax**::
 
@@ -366,8 +433,8 @@ that entering ``dmesg`` again will show only newly buffered data.
 
 .. _cmdecho:
 
-Echo Strings and Variables (echo)
-*********************************
+``echo`` Echo Strings and Variables
+===================================
 
 **Command Syntax**::
 
@@ -381,8 +448,8 @@ The ``-n`` option suppresses the trailing newline character.
 
 .. _cmdenv:
 
-Show Environment Variables (env)
-********************************
+``env`` Show Environment Variables
+==================================
 
 **Command Syntax**::
 
@@ -410,8 +477,8 @@ environment. Example::
 
 .. _cmdexec:
 
-Execute User Code (exec)
-************************
+``exec`` Execute User Code
+==========================
 
 **Command Syntax**::
 
@@ -423,8 +490,8 @@ executed in background via ``exec <hex-address> &``.
 
 .. _cmdexit:
 
-Exit NSH (exit)
-***************
+``exit`` Exit NSH
+=================
 
 **Command Syntax**::
 
@@ -437,8 +504,8 @@ telnet front-end, ``exit`` terminates the telnet session.
 
 .. _cmdexport:
 
-Set an Environment Variable (export)
-************************************
+``export`` Set an Environment Variable
+======================================
 
 **Command Syntax**::
 
@@ -482,10 +549,38 @@ examples:
 The ``export`` command is not supported by NSH unless both
 ``CONFIG_NSH_VARS=y`` and ``CONFIG_DISABLE_ENVIRON``\ is not set.
 
+.. _cmdexpr:
+
+``expr`` Evaluate expressions
+=============================
+
+**Command Syntax**::
+
+  expr <operand1> <operator> <operand2>
+
+**Synopsis**. It is a mini version for the expr command, which implements the
+features of addition, subtraction, multiplication, division and mod.
+
+**Examples**:
+
+  nsh> expr 5 - 2
+  3
+  nsh> set hello 10
+  nsh> expr $hello - 2
+  8
+  nsh> expr 8 a 9
+  Unknown operator
+  nsh> expr 20 / 5
+  4
+  nsh> expr 10 % 4
+  2
+  nsh> expr 100 + 0
+  100
+
 .. _cmdfree:
 
-Show Memory Manager Status (free)
-*********************************
+``free`` Show Memory Manager Status
+===================================
 
 **Command Syntax**::
 
@@ -513,8 +608,8 @@ nfree    This is the number of free chunks
 
 .. _cmdget:
 
-Get File Via TFTP (get)
-***********************
+``get`` Get File Via TFTP
+=========================
 
 **Command Syntax**::
 
@@ -533,8 +628,8 @@ whose IP address is identified by ``<ip-address>``.
 
 .. _cmdhelp:
 
-Show Usage Command Usage (help)
-*******************************
+``help`` Show Usage Command Usage
+=================================
 
 **Command Syntax**::
 
@@ -552,8 +647,8 @@ console.
 
 .. _cmdhexdump:
 
-Hexadecimal Dump of File or Device (hexdump)
-********************************************
+``hexdump`` Hexadecimal Dump of File or Device
+==============================================
 
 **Command Syntax**::
 
@@ -573,8 +668,8 @@ configuration.
 
 .. _cmdifconfig:
 
-Manage Network Configuration (ifconfig)
-***************************************
+``ifconfig`` Manage Network Configuration
+=========================================
 
 **Command Syntax**::
 
@@ -615,8 +710,8 @@ supported:
 
 .. _cmdifdown:
 
-Take a network down (ifdown)
-****************************
+``ifdown`` Take a network down
+==============================
 
 **Command Syntax**::
 
@@ -631,8 +726,8 @@ Take a network down (ifdown)
 
 .. _cmdifup:
 
-Bring a network up (ifup)
-*************************
+``ifup`` Bring a network up
+===========================
 
 **Command Syntax**::
 
@@ -647,8 +742,8 @@ Bring a network up (ifup)
 
 .. _cmdinsmod:
 
-Install an OS module (insmod)
-*****************************
+``insmod`` Install an OS module
+===============================
 
 **Command Syntax**::
 
@@ -685,8 +780,8 @@ module <module-name>.
 
 .. _cmdirqinfo:
 
-Show Interrupt Status (irqinfo)
-*******************************
+``irqinfo`` Show Interrupt Status
+=================================
 
 **Command Syntax**::
 
@@ -705,8 +800,8 @@ attached interrupts.
 
 .. _cmdcritmon:
 
-Show Critical Monitor Status (critmon)
-**************************************
+``critmon`` Show Critical Monitor Status
+========================================
 
 **Command Syntax**::
 
@@ -740,8 +835,8 @@ The output of the ``critmon`` command displays the following columns:
 
 .. _cmdkill:
 
-Send a signal to a task (kill)
-******************************
+``kill`` Send a signal to a task
+================================
 
 **Command Syntax**::
 
@@ -784,8 +879,8 @@ Send a signal to a task (kill)
 
 .. _cmdlosetup:
 
-Setup/teardown the Loop Device (losetup)
-****************************************
+``losetup`` Setup/teardown the Loop Device
+==========================================
 
 **Command Syntax 1**::
 
@@ -829,8 +924,8 @@ on the loop-mounted file::
 
 .. _cmdln:
 
-Link to a File or Directory (ln)
-********************************
+``ln`` Link to a File or Directory
+==================================
 
 **Command Syntax**::
 
@@ -850,12 +945,12 @@ implementation is simplified for use with NuttX in these ways:
 
 .. _cmdls:
 
-List Directory Contents (ls)
-****************************
+``ls`` List Directory Contents
+==============================
 
 **Command Syntax**::
 
-  ls [-lRs] <dir-path>
+  ls [-lRsh] <dir-path>
 
 **Synopsis**. Show the contents of the directory at
 ``<dir-path>``. NOTE: ``<dir-path>`` must refer to a directory and
@@ -867,12 +962,13 @@ no other file system object.
 ``-R`` 	Show the contents of specified directory and all of its sub-directories.
 ``-s`` 	Show the size of the files along with the filenames in the listing
 ``-l`` 	Show size and mode information along with the filenames in the listing.
+``-h`` 	Show size and mode information along with the filenames in the listing with humanable.
 ======  ================================
 
 .. _cmdlsmod:
 
-Show information about installed OS modules (lsmod)
-***************************************************
+``lsmod`` Show information about installed OS modules
+=====================================================
 
 **Command Syntax**::
 
@@ -904,8 +1000,8 @@ modules. This information includes:
 
 .. _cmdmd5:
 
-Calculate MD5 (md5)
-*******************
+``md5`` Calculate MD5
+=====================
 
 **Command Syntax**::
 
@@ -915,8 +1011,8 @@ Calculate MD5 (md5)
 
 .. _cmdmx:
 
-Access Memory (mb, mh, and mw)
-******************************
+``mb``, ``mh``, ``and`` ``mw`` Access Memory
+============================================
 
 **Command Syntax**::
 
@@ -954,8 +1050,8 @@ accesses (mh), or 32-bit access (mw). In each case,
 
 .. _cmdps:
 
-Show Current Tasks and Threads (ps)
-***********************************
+``ps`` Show Current Tasks and Threads
+=====================================
 
 **Command Syntax**::
 
@@ -980,8 +1076,8 @@ have been mounted with a command like::
 
 .. _cmdmkdir:
 
-Create a Directory (mkdir)
-**************************
+``mkdir`` Create a Directory
+============================
 
 **Command Syntax**::
 
@@ -1009,8 +1105,8 @@ directories in the *pseudo* file system.
 
 .. _cmdmkfatfs:
 
-Create a FAT File System (mkfatfs)
-**********************************
+``mkfatfs`` Create a FAT File System
+====================================
 
 **Command Syntax**
 
@@ -1023,7 +1119,7 @@ select either the FAT12 or FAT16 format. For historical reasons,
 if you want the FAT32 format, it must be explicitly specified on
 the command line.
 
-The ``-r`` option may be specified to select the the number of
+The ``-r`` option may be specified to select the number of
 entries in the root directory for FAT12 and FAT16 file systems.
 Typical values for small volumes would be 112 or 224; 512 should
 be used for large volumes, such as hard disks or very large SD
@@ -1040,8 +1136,8 @@ and must have been created by some call to ``register_blockdriver()``
 
 .. _cmdmkfifo:
 
-Create a FIFO (mkfifo)
-**********************
+``mkfifo`` Create a FIFO
+========================
 
 **Command Syntax**::
 
@@ -1074,8 +1170,8 @@ driver. NSH provides this command to access the
 
 .. _cmdmkrd:
 
-Create a RAMDISK (mkrd)
-***********************
+``mkrd`` Create a RAMDISK
+=========================
 
 **Command Syntax**::
 
@@ -1119,8 +1215,8 @@ Once the ramdisk has been created, it may be formatted using the
 
 .. _cmdmount:
 
-Mount a File System (mount)
-***************************
+``mount`` Mount a File System
+=============================
 
 **Command Syntax**::
 
@@ -1193,8 +1289,8 @@ Using ``mount`` to enumerate mounts::
 
 .. _cmdmv:
 
-Rename a File (mv)
-******************
+``mv`` Rename a File
+====================
 
 **Command Syntax**::
 
@@ -1206,8 +1302,8 @@ system.
 
 .. _cmdnfsmount:
 
-Mount an NFS file system (nfsmount)
-***********************************
+``nfsmount`` Mount an NFS file system
+=====================================
 
 **Command Syntax**::
 
@@ -1219,8 +1315,8 @@ address of the remote server.
 
 .. _cmdnslookup:
 
-Lookup a network address (nslookup)
-***********************************
+``nslookup`` Lookup a network address
+=====================================
 
 **Command Syntax**::
 
@@ -1231,8 +1327,8 @@ Lookup a network address (nslookup)
 
 .. _cmdpasswd:
 
-Change a User's Password (passwd)
-*********************************
+``passwd`` Change a User's Password
+===================================
 
 **Command Syntax**::
 
@@ -1243,8 +1339,8 @@ Change a User's Password (passwd)
 
 .. _cmdpmconfig:
 
-Manage Power Management Subsystem (pmconfig)
-********************************************
+``pmconfig`` Manage Power Management Subsystem
+==============================================
 
 **Command Syntax**::
 
@@ -1254,8 +1350,8 @@ Manage Power Management Subsystem (pmconfig)
 
 .. _cmdpoweroff:
 
-Shut the system down (poweroff)
-*******************************
+``poweroff`` Shut the system down
+=================================
 
 **Command Syntax**::
 
@@ -1271,8 +1367,8 @@ is redundant.
 
 .. _cmdput:
 
-Send File Via TFTP (put)
-************************
+``put`` Send File Via TFTP
+==========================
 
 **Command Syntax**::
 
@@ -1292,8 +1388,8 @@ whose IP address is identified by ``<ip-address>``.
 
 .. _cmdpwd:
 
-Show Current Working Directory (pwd)
-************************************
+``pwd`` Show Current Working Directory
+======================================
 
 **Command Syntax**::
 
@@ -1314,8 +1410,8 @@ Same as ``echo $PWD``::
 
 .. _cmdreadlink:
 
-Show target of a link (readlink)
-********************************
+``readlink`` Show target of a link
+==================================
 
 **Command Syntax**::
 
@@ -1326,8 +1422,8 @@ Show target of a link (readlink)
 
 .. _cmdreboot:
 
-Reboot the system (reboot)
-**************************
+``reboot`` Reboot the system
+============================
 
 **Command Syntax**::
 
@@ -1343,8 +1439,8 @@ redundant.
 
 .. _cmdrm:
 
-Remove a File (rm)
-******************
+``rm`` Remove a File
+====================
 
 **Command Syntax**::
 
@@ -1372,8 +1468,8 @@ names in the *pseudo* file system.
 
 .. _cmdrmdir:
 
-Remove a Directory (rmdir)
-**************************
+``rmdir`` Remove a Directory
+============================
 
 **Command Syntax**::
 
@@ -1402,8 +1498,8 @@ file system.
 
 .. _cmdrmmod:
 
-Remove on OS Module (rmmod)
-***************************
+``rmmod`` Remove on OS Module
+=============================
 
 **Command Syntax**::
 
@@ -1425,8 +1521,8 @@ busy.
 
 .. _cmdroute:
 
-Show routing table (route)
-**************************
+``route`` Show routing table
+============================
 
 **Command Syntax**::
 
@@ -1440,8 +1536,8 @@ version.
 
 .. _cmdrptun:
 
-Start/Stop the OpenAMP RPC Tunnel (rptun)
-*****************************************
+``rptun`` Start/Stop the OpenAMP RPC Tunnel
+===========================================
 
 **Command Syntax**::
 
@@ -1451,8 +1547,8 @@ Start/Stop the OpenAMP RPC Tunnel (rptun)
 
 .. _cmdset:
 
-Set a Variable (set)
-********************
+``set`` Set a Variable
+======================
 
 **Command Syntax**::
 
@@ -1529,8 +1625,8 @@ script commands and set foobar to foovalue::
 
 .. _cmdsh:
 
-Execute an NSH Script (sh)
-**************************
+``sh`` Execute an NSH Script
+============================
 
 **Command Syntax**::
 
@@ -1541,8 +1637,8 @@ to by ``<script-path>``.
 
 .. _cmdshutdown:
 
-Shut the system down (shutdown)
-*******************************
+``shutdown`` Shut the system down
+=================================
 
 **Command Syntax**::
 
@@ -1558,8 +1654,8 @@ NOTE: The ``shutdown`` command duplicates the behavior of the
 
 .. _cmdsleep:
 
-Wait for Seconds (sleep)
-************************
+``sleep`` Wait for Seconds
+==========================
 
 **Command Syntax**::
 
@@ -1569,8 +1665,8 @@ Wait for Seconds (sleep)
 
 .. _cmdtelnetd:
 
-Time Start the Telnet Daemon (telnetd)
-**************************************
+``telnetd`` Time Start the Telnet Daemon
+========================================
 
 **Command Syntax**::
 
@@ -1589,13 +1685,13 @@ automatically started in ``nsh_main.c``. The exception is when
 enabled at initialization but rather must be enabled from the NSH
 command line or via other applications.
 
-In that case, when ``nsh_telnetstart()`` is called before the the
+In that case, when ``nsh_telnetstart()`` is called before the
 network is initialized, it will fail.
 
 .. _cmdtime:
 
-Time execution of another command (time)
-****************************************
+``time`` Time execution of another command
+==========================================
 
 **Command Syntax**::
 
@@ -1626,7 +1722,7 @@ The reported time is the elapsed time from starting of the command to
 completion of the command. This elapsed time may not necessarily be just
 the processing time for the command. It may included interrupt level
 processing, for example. In a busy system, command processing could be
-delayed if pre-empted by other, higher priority threads competing for
+delayed if preempted by other, higher priority threads competing for
 CPU time. So the reported time includes all CPU processing from the
 start of the command to its finish possibly including unrelated
 processing time during that interval.
@@ -1650,8 +1746,8 @@ command is run in background with the sleep command::
 
 .. _cmdtruncate:
 
-Set the Size of a File (truncate)
-*********************************
+``truncate`` Set the Size of a File
+===================================
 
 **Command Syntax**::
 
@@ -1669,16 +1765,22 @@ reads as zero bytes.
 
 .. _cmdumount:
 
-Unmount a File System (umount)
-******************************
+``umount`` Unmount a File System
+================================
 
 **Command Syntax**::
 
-  umount <dir-path>
+  umount [-f] <dir-path>
 
 **Synopsis**. Un-mount the file system at mount point ``<dir-path>``.
 The ``umount`` command can only be used to un-mount volumes previously
 mounted using :ref:`mount <cmdmount>` command.
+
+**Options**
+
+======  ======================================================
+``-f``  Force unmounting of the filesystem even if it is busy.
+======  ======================================================
 
 **Example**::
 
@@ -1693,8 +1795,8 @@ mounted using :ref:`mount <cmdmount>` command.
 
 .. _cmduname:
 
-Print system information (uname)
-********************************
+``uname`` Print system information
+==================================
 
 **Command Syntax**::
 
@@ -1717,8 +1819,8 @@ output is the same as -s.
 
 .. _cmdunset:
 
-Unset an Environment Variable (unset)
-*************************************
+``unset`` Unset an Environment Variable
+=======================================
 
 **Command Syntax**:
 
@@ -1735,10 +1837,31 @@ and the group-wide environment variables. For example::
 
   nsh>
 
+.. _cmduptime:
+
+``uptime`` Show how long the system has been running
+====================================================
+
+**Command Syntax**:
+
+  uptime [-sph]
+
+**Synopsis**. Display of the following information: the current time,
+how long the system has been running, and the load averages for the past 1, 5,
+and 15 minutes.
+
+**Options**
+
+======  ================================
+``-p`` 	show uptime in pretty format
+``-s`` 	system up since
+``-h`` 	display this help and exit
+======  ================================
+
 .. _cmdurldecode:
 
-URL Decode (urldecode)
-**********************
+``urldecode`` URL Decode
+========================
 
 **Command Syntax**::
 
@@ -1748,8 +1871,8 @@ URL Decode (urldecode)
 
 .. _cmdurlencode:
 
-URL Encode (urlencode)
-**********************
+``urlencode`` URL Encode
+========================
 
 **Command Syntax**::
 
@@ -1759,8 +1882,8 @@ URL Encode (urlencode)
 
 .. _cmduseradd:
 
-Add a New User (useradd)
-************************
+``useradd`` Add a New User
+==========================
 
 **Command Syntax**::
 
@@ -1770,8 +1893,8 @@ Add a New User (useradd)
 
 .. _cmduserdel:
 
-Delete a user (userdel)
-***********************
+``userdel`` Delete a user
+=========================
 
 **Command Syntax**::
 
@@ -1781,8 +1904,8 @@ Delete a user (userdel)
 
 .. _cmdusleep:
 
-Wait for Microseconds (usleep)
-******************************
+``usleep`` Wait for Microseconds
+================================
 
 **Command Syntax**::
 
@@ -1792,8 +1915,8 @@ Wait for Microseconds (usleep)
 
 .. _cmdwget:
 
-Get File Via HTTP (wget)
-************************
+``wget`` Get File Via HTTP
+==========================
 
 **Command Syntax**
 
@@ -1812,8 +1935,8 @@ directory.
 
 .. _cmdxd:
 
-Hexadecimal Dump of Memory (xd)
-*******************************
+``xd`` Hexadecimal Dump of Memory
+=================================
 
 **Command Syntax**::
 
@@ -1850,8 +1973,8 @@ common, useful built-in applications are listed below.
 
 .. _cmdping:
 
-Check Network Peer (ping/ping6)
-*******************************
+``ping`` and ``ping6`` Check Network Peer
+=========================================
 
 **Command Syntax**::
 
@@ -1877,4 +2000,3 @@ Example::
   nsh>
 
 ``ping6`` differs from ``ping`` in that it uses IPv6 addressing.
-

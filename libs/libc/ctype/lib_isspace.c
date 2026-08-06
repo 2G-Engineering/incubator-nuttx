@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/ctype/lib_isspace.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,4 +34,9 @@ int isspace(int c)
 {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r' ||
          c == '\f' || c == '\v';
+}
+
+int isspace_l(int c, locale_t locale)
+{
+  return isspace(c);
 }

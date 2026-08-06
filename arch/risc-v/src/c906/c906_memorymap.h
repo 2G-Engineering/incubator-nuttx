@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/c906/c906_memorymap.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -44,7 +46,7 @@
 #define C906_IDLESTACK_BASE  _ebss
 #endif
 
-#define C906_IDLESTACK0_TOP  (C906_IDLESTACK_BASE + CONFIG_IDLETHREAD_STACKSIZE)
+#define C906_IDLESTACK0_TOP  (C906_IDLESTACK_BASE + SMP_STACK_SIZE)
 #define C906_IDLESTACK_TOP   (C906_IDLESTACK0_TOP)
 
 #endif /* __ARCH_RISCV_SRC_C906_C906_MEMORYMAP_H */

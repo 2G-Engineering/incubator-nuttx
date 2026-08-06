@@ -1,6 +1,8 @@
 ############################################################################
 # video/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -19,7 +21,14 @@
 ############################################################################
 
 include $(TOPDIR)/Make.defs
+
 include videomode/Make.defs
+
+# Add dummy.c to ensure that we have at least one object.
+# On some platforms like macOS, we can't create an empty archive.
+ifeq ($(strip $(ASRCS) $(CSRCS)),)
+  CSRCS = dummy.c
+endif
 
 AOBJS = $(ASRCS:.S=$(OBJEXT))
 COBJS = $(CSRCS:.c=$(OBJEXT))
@@ -56,6 +65,7 @@ clean:
 	$(call CLEAN)
 
 distclean: clean
+	$(call DELFILE, $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds))
 	$(call DELFILE, Make.dep)
 	$(call DELFILE, .depend)
 

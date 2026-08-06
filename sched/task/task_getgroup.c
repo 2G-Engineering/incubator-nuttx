@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/task/task_getgroup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -50,8 +52,7 @@
  *
  * Assumptions:
  *   Called during when signally tasks in a safe context.  No special
- *   precautions should be required here.  However, extra care is taken when
- *   accessing the global g_grouphead list.
+ *   precautions should be required here.
  *
  ****************************************************************************/
 

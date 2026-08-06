@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/syslog/syslog_filechannel.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -58,7 +60,7 @@ static void log_separate(FAR const char *log_file)
 {
   struct file fp;
 
-  if (file_open(&fp, log_file, (O_WRONLY | O_APPEND)) < 0)
+  if (file_open(&fp, log_file, (O_WRONLY | O_APPEND | O_CLOEXEC)) < 0)
     {
       return;
     }
@@ -137,9 +139,10 @@ end:
  *   SYSLOG channel.
  *
  *   This tiny function is simply a wrapper around syslog_dev_initialize()
- *   and syslog_channel().  It calls syslog_dev_initialize() to configure
- *   the character file at 'devpath then calls syslog_channel() to use that
- *   device as the SYSLOG output channel.
+ *   and syslog_channel_register().  It calls syslog_dev_initialize() to
+ *   configure the character file at 'devpath then calls
+ *   syslog_channel_register() to use that device as the SYSLOG output
+ *   channel.
  *
  *   File SYSLOG channels differ from other SYSLOG channels in that they
  *   cannot be established until after fully booting and mounting the target
@@ -164,9 +167,10 @@ end:
  *
  ****************************************************************************/
 
-FAR struct syslog_channel_s *syslog_file_channel(FAR const char *devpath)
+FAR syslog_channel_t *syslog_file_channel(FAR const char *devpath)
 {
-  FAR struct syslog_channel_s *file_channel;
+  FAR syslog_channel_t *file_channel;
+  irqstate_t flags;
 
   /* Reset the default SYSLOG channel so that we can safely modify the
    * SYSLOG device.  This is an atomic operation and we should be safe
@@ -176,7 +180,7 @@ FAR struct syslog_channel_s *syslog_file_channel(FAR const char *devpath)
    * important debug output is lost while we futz with the channels.
    */
 
-  sched_lock();
+  flags = enter_critical_section();
 
   /* Rotate the log file, if needed. */
 
@@ -202,14 +206,14 @@ FAR struct syslog_channel_s *syslog_file_channel(FAR const char *devpath)
    * screwed.
    */
 
-  if (syslog_channel(file_channel) != OK)
+  if (syslog_channel_register(file_channel) != OK)
     {
       syslog_dev_uninitialize(file_channel);
       file_channel = NULL;
     }
 
 errout_with_lock:
-  sched_unlock();
+  leave_critical_section(flags);
   return file_channel;
 }
 

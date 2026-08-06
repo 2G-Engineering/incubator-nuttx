@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv8-m/arm_secure_irq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,7 +35,7 @@
 #include "arm_internal.h"
 #include "nvic.h"
 
-#ifdef CONFIG_ARCH_HAVE_TRUSTZONE
+#if defined(CONFIG_ARCH_TRUSTZONE_SECURE)
 
 /****************************************************************************
  * Public Functions
@@ -49,6 +51,8 @@
 
 void up_secure_irq(int irq, bool secure)
 {
+  uint32_t keymask = 0;
+  uint32_t keyval = 0;
   uint32_t regaddr;
   uint32_t regval;
   uint32_t regbit;
@@ -60,6 +64,8 @@ void up_secure_irq(int irq, bool secure)
       case NVIC_IRQ_BUSFAULT:
         regaddr = NVIC_AIRCR;
         regbit  = NVIC_AIRCR_BFHFNMINS;
+        keymask = NVIC_AIRCR_VECTKEY_MASK;
+        keyval  = NVIC_AIRCR_VECTKEY;
         break;
 
       case NVIC_IRQ_DBGMONITOR:
@@ -85,6 +91,7 @@ void up_secure_irq(int irq, bool secure)
       regval |= regbit;
     }
 
+  regval = (regval & ~keymask) | keyval;
   putreg32(regval, regaddr);
 }
 
@@ -100,8 +107,8 @@ void up_secure_irq_all(bool secure)
 {
   int i;
 
-  modreg32(secure ? 0 : NVIC_AIRCR_BFHFNMINS,
-           NVIC_AIRCR_BFHFNMINS, NVIC_AIRCR);
+  modreg32((secure ? 0 : NVIC_AIRCR_BFHFNMINS) | NVIC_AIRCR_VECTKEY,
+           (NVIC_AIRCR_VECTKEY_MASK | NVIC_AIRCR_BFHFNMINS), NVIC_AIRCR);
 
   modreg32(secure ? NVIC_DEMCR_SDME : 0,
            NVIC_DEMCR_SDME, NVIC_DEMCR);

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/hpm6750/hpm6750_irq_dispatch.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -48,7 +50,7 @@
  * riscv_dispatch_irq
  ****************************************************************************/
 
-void *riscv_dispatch_irq(uintptr_t vector, uintptr_t *regs)
+void *riscv_dispatch_irq(uintreg_t vector, uintreg_t *regs)
 {
   int irq = (vector >> RV_IRQ_MASK) | (vector & 0xf);
 

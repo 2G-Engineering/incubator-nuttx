@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/xtensa/include/esp32s3/irq.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,6 +38,16 @@
  ****************************************************************************/
 
 #define ESP32S3_INT_PRIO_DEF        1
+
+/* CPU interrupt flags:
+ *   These flags can be used to specify which interrupt qualities the
+ *   code calling esp_setup_irq needs.
+ */
+
+#define ESP32S3_CPUINT_FLAG_LEVEL   (1 << 0) /* Level-triggered interrupt */
+#define ESP32S3_CPUINT_FLAG_EDGE    (1 << 1) /* Edge-triggered interrupt */
+#define ESP32S3_CPUINT_FLAG_SHARED  (1 << 2) /* Interrupt can be shared between ISRs */
+#define ESP32S3_CPUINT_FLAG_IRAM    (1 << 3) /* ISR can be called if cache is disabled */
 
 /* Interrupt Matrix
  *
@@ -99,7 +111,7 @@
 #define ESP32S3_PERIPH_PWM1                                32
 #define ESP32S3_PERIPH_LEDC                                35
 #define ESP32S3_PERIPH_EFUSE                               36
-#define ESP32S3_PERIPH_CAN                                 37
+#define ESP32S3_PERIPH_TWAI                                37
 #define ESP32S3_PERIPH_USB                                 38
 #define ESP32S3_PERIPH_RTC_CORE                            39
 
@@ -127,22 +139,23 @@
 #define ESP32S3_PERIPH_DCACHE_SYNC                         63
 #define ESP32S3_PERIPH_ICACHE_SYNC                         64
 #define ESP32S3_PERIPH_APB_ADC                             65
+
 #define ESP32S3_PERIPH_DMA_IN_CH0                          66
 #define ESP32S3_PERIPH_DMA_IN_CH1                          67
 #define ESP32S3_PERIPH_DMA_IN_CH2                          68
 #define ESP32S3_PERIPH_DMA_IN_CH3                          69
-
 #define ESP32S3_PERIPH_DMA_IN_CH4                          70
+
 #define ESP32S3_PERIPH_DMA_OUT_CH0                         71
 #define ESP32S3_PERIPH_DMA_OUT_CH1                         72
 #define ESP32S3_PERIPH_DMA_OUT_CH2                         73
 #define ESP32S3_PERIPH_DMA_OUT_CH3                         74
 #define ESP32S3_PERIPH_DMA_OUT_CH4                         75
+
 #define ESP32S3_PERIPH_RSA                                 76
 #define ESP32S3_PERIPH_AES                                 77
 #define ESP32S3_PERIPH_SHA                                 78
 #define ESP32S3_PERIPH_INT_FROM_CPU0                       79
-
 #define ESP32S3_PERIPH_INT_FROM_CPU1                       80
 #define ESP32S3_PERIPH_INT_FROM_CPU2                       81
 #define ESP32S3_PERIPH_INT_FROM_CPU3                       82
@@ -187,14 +200,19 @@
  * interrupts.
  */
 
-#define XTENSA_IRQ_TIMER0           0  /* INTERRUPT, bit 6 */
-#define XTENSA_IRQ_TIMER1           1  /* INTERRUPT, bit 15 */
-#define XTENSA_IRQ_TIMER2           2  /* INTERRUPT, bit 16 */
-#define XTENSA_IRQ_SYSCALL          3  /* User interrupt w/EXCCAUSE=syscall */
-#define XTENSA_IRQ_SWINT            4  /* Software interrupt */
+#define ETS_INTERNAL_TIMER0_INTR_SOURCE     -1 /* Platform timer 0 interrupt source */
+#define ETS_INTERNAL_TIMER1_INTR_SOURCE     -2 /* Platform timer 1 interrupt source */
+#define ETS_INTERNAL_TIMER2_INTR_SOURCE     -3 /* Platform timer 2 interrupt source */
+#define ETS_INTERNAL_SW0_INTR_SOURCE        -4 /* Software int source 1 */
+#define ETS_INTERNAL_SW1_INTR_SOURCE        -5 /* Software int source 2 */
+#define ETS_INTERNAL_PROFILING_INTR_SOURCE  -6 /* Int source for profiling */
 
-#define XTENSA_NIRQ_INTERNAL        5  /* Number of dispatch internal interrupts */
-#define XTENSA_IRQ_FIRSTPERIPH      5  /* First peripheral IRQ number */
+#define ETS_INTERNAL_INTR_SOURCE_OFF        (-ETS_INTERNAL_PROFILING_INTR_SOURCE)
+
+#define XTENSA_NIRQ_INTERNAL        ETS_INTERNAL_INTR_SOURCE_OFF      /* Number of dispatch internal interrupts */
+#define XTENSA_IRQ_DEMUX            ETS_INTERNAL_INTR_SOURCE_OFF + 0  /* Demultiplexing IRQ for peripheral interrupts */
+#define XTENSA_IRQ_SYSCALL          ETS_INTERNAL_INTR_SOURCE_OFF + 1  /* User interrupt w/EXCCAUSE=syscall */
+#define XTENSA_IRQ_FIRSTPERIPH      ETS_INTERNAL_INTR_SOURCE_OFF + 2  /* First peripheral IRQ number */
 
 /* IRQ numbers for peripheral interrupts coming through the Interrupt
  * Matrix.
@@ -203,13 +221,16 @@
 #define ESP32S3_IRQ2PERIPH(irq)                         ((irq) - XTENSA_IRQ_FIRSTPERIPH)
 #define ESP32S3_PERIPH2IRQ(id)                          ((id) + XTENSA_IRQ_FIRSTPERIPH)
 
+#define ESP_IRQ2SOURCE(irq)                             ESP32S3_IRQ2PERIPH(irq)
+#define ESP_SOURCE2IRQ(id)                              ESP32S3_PERIPH2IRQ(id)
+
 #define ESP32S3_IRQ_MAC                                 (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_MAC)
 #define ESP32S3_IRQ_MAC_NMI                             (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_MAC_NMI)
 #define ESP32S3_IRQ_PWR                                 (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_PWR)
 #define ESP32S3_IRQ_BB                                  (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_BB)
 #define ESP32S3_IRQ_BT_MAC                              (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_BT_MAC)
-#define ESP32S3_IRQ_BT_BB                               (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_BB)
-#define ESP32S3_IRQ_BT_BB_NMI                           (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_BB_NMI)
+#define ESP32S3_IRQ_BT_BB                               (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_BT_BB)
+#define ESP32S3_IRQ_BT_BB_NMI                           (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_BT_BB_NMI)
 #define ESP32S3_IRQ_RWBT                                (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_RWBT)
 #define ESP32S3_IRQ_RWBLE                               (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_RWBLE)
 #define ESP32S3_IRQ_RWBT_NMI                            (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_RWBT_NMI)
@@ -239,7 +260,7 @@
 #define ESP32S3_IRQ_PWM1                                (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_PWM1)
 #define ESP32S3_IRQ_LEDC                                (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_LEDC)
 #define ESP32S3_IRQ_EFUSE                               (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_EFUSE)
-#define ESP32S3_IRQ_CAN                                 (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_CAN)
+#define ESP32S3_IRQ_TWAI                                (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_TWAI)
 #define ESP32S3_IRQ_USB                                 (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_USB)
 #define ESP32S3_IRQ_RTC_CORE                            (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_PERIPH_RTC_CORE)
 
@@ -315,7 +336,7 @@
 
 #define ESP32S3_NIRQ_PERIPH                             ESP32S3_NPERIPHERALS
 
-#ifdef CONFIG_ESP32S3_GPIO_IRQ
+#ifdef CONFIG_ESPRESSIF_GPIO_IRQ
 
 /* Second level GPIO interrupts. GPIO interrupts are decoded and dispatched
  * as a second level of decoding: The first level dispatches to the GPIO
@@ -327,6 +348,8 @@
 #  define ESP32S3_LAST_GPIOIRQ          (ESP32S3_FIRST_GPIOIRQ + ESP32S3_NIRQ_GPIO - 1)
 #  define ESP32S3_PIN2IRQ(p)            ((p) + ESP32S3_FIRST_GPIOIRQ)
 #  define ESP32S3_IRQ2PIN(i)            ((i) - ESP32S3_FIRST_GPIOIRQ)
+#  define ESP_PIN2IRQ(p)                ESP32S3_PIN2IRQ(p)
+#  define ESP_IRQ2PIN(i)                ESP32S3_IRQ2PIN(i)
 #else
 #  define ESP32S3_NIRQ_GPIO             0
 #endif
@@ -378,7 +401,7 @@
 
 /* Total number of interrupts */
 
-#define NR_IRQS                     (XTENSA_NIRQ_INTERNAL + ESP32S3_NIRQ_PERIPH + ESP32S3_NIRQ_GPIO + ESP32S3_NIRQ_RTCIO)
+#define NR_IRQS                     (XTENSA_IRQ_FIRSTPERIPH + ESP32S3_NIRQ_PERIPH + ESP32S3_NIRQ_GPIO + ESP32S3_NIRQ_RTCIO)
 
 /* Xtensa CPU Interrupts.
  *
@@ -386,17 +409,13 @@
  * 26 can be mapped to peripheral interrupts:
  *
  *   Level triggered peripherals (21 total):
- *     0-5, 8-9, 12-13, 17-18 - Priority 1
- *     19-21                  - Priority 2
- *     23, 27                 - Priority 3
- *     24-25                  - Priority 4
- *     26, 31                 - Priority 5
- *   Edge triggered peripherals (4 total):
- *     10                     - Priority 1
- *     22                     - Priority 3
- *     28, 30                 - Priority 4
+ *     0-5, 8-10, 12-13, 17-18 - Priority 1
+ *     19-21                   - Priority 2
+ *     22-23, 27               - Priority 3
+ *     24-25, 28, 30           - Priority 4
+ *     26, 31                  - Priority 5
  *   NMI (1 total):
- *     14                     - NMI
+ *     14                      - NMI
  *
  * CPU peripheral interrupts can be a assigned to a CPU interrupt using the
  * PRO_*_MAP_REG or APP_*_MAP_REG.  There are a pair of these registers for
@@ -438,23 +457,19 @@
 #define ESP32S3_CPUINT_LEVELPERIPH_20 31
 
 #define ESP32S3_CPUINT_NLEVELPERIPHS  21
-#define ESP32S3_CPUINT_LEVELSET       0x8fbe333f
+#define ESP32S3_CPUINT_LEVELSET       0xdffe373f
 
-#define ESP32S3_CPUINT_EDGEPERIPH_0   10
-#define ESP32S3_CPUINT_EDGEPERIPH_1   22
-#define ESP32S3_CPUINT_EDGEPERIPH_2   28
-#define ESP32S3_CPUINT_EDGEPERIPH_3   30
-
-#define ESP32S3_CPUINT_NEDGEPERIPHS   4
-#define ESP32S3_CPUINT_EDGESET        0x50400400
+#define ESP32S3_CPUINT_NEDGEPERIPHS   0
 
 #define ESP32S3_CPUINT_NNMIPERIPHS    1
 #define ESP32S3_CPUINT_NMISET         0x00004000
 
 #define ESP32S3_CPUINT_MAC            0
-#define ESP32S3_CPUINT_MAC_NMI        1
+#define ESP32S3_CPUINT_PWR            0
+#define ESP32S3_CPUINT_RWBLE          5
 #define ESP32S3_CPUINT_TIMER0         6
 #define ESP32S3_CPUINT_SOFTWARE0      7
+#define ESP32S3_CPUINT_BT_BB          8
 #define ESP32S3_CPUINT_PROFILING      11
 #define ESP32S3_CPUINT_TIMER1         15
 #define ESP32S3_CPUINT_TIMER2         16
@@ -491,6 +506,23 @@
 /****************************************************************************
  * Inline functions
  ****************************************************************************/
+
+#ifdef CONFIG_ARCH_HAVE_MULTICPU
+noinstrument_function
+static inline_function int xtensa_cpu_index(void)
+{
+  int index;
+
+  __asm__ __volatile__
+  (
+    "rsr.prid %0\n"
+    "extui %0,%0,13,1\n"
+    : "=r"(index)
+  );
+
+  return index;
+}
+#endif /* CONFIG_ARCH_HAVE_MULTICPU */
 
 /****************************************************************************
  * Public Data

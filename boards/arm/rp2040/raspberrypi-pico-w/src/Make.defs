@@ -1,5 +1,7 @@
 ############################################################################
-# boards/arm/rp2040/raspberrypi-pico/src/Make.defs
+# boards/arm/rp2040/raspberrypi-pico-w/src/Make.defs
+#
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -21,7 +23,6 @@
 include $(TOPDIR)/Make.defs
 
 CSRCS = rp2040_boardinitialize.c
-CSRCS += rp2040_appinit.c
 CSRCS += rp2040_bringup.c
 
 ifeq ($(CONFIG_DEV_GPIO),y)
@@ -32,7 +33,7 @@ CSRCS += rp2040_firmware.c
 
 DEPPATH += --dep-path board
 VPATH += :board
-CFLAGS += $(shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board)
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board
 
 ############################################################################
 # The rules below copy the cyw43439 blob from pico_sdk

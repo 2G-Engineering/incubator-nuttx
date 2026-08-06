@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wb/stm32wb_start.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32wb_board_initialize
+ * Name: stm32_board_initialize
  *
  * Description:
  *   All STM32WB architectures must provide the following entry point.  This
@@ -40,6 +42,6 @@
  *
  ****************************************************************************/
 
-void stm32wb_board_initialize(void);
+void stm32_board_initialize(void);
 
 #endif /* __ARCH_ARM_SRC_STM32WB_STM32WB_START_H */

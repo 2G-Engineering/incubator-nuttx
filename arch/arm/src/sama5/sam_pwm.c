@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/sama5/sam_pwm.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <fixedmath.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/timers/pwm.h>
@@ -59,12 +61,6 @@
  */
 
 #define PWM_SINGLE 1
-
-/* Pulse counting is not supported by this driver */
-
-#ifdef CONFIG_PWM_PULSECOUNT
-#  warning CONFIG_PWM_PULSECOUNT no supported by this driver.
-#endif
 
 /* Are we using CLKA? CLKB?  If so, at what frequency? */
 
@@ -524,7 +520,7 @@ static struct sam_pwm_chan_s g_pwm_chan3 =
  *
  * Returned Value:
  *   true:  This is the first register access of this type.
- *   flase: This is the same as the preceding register access.
+ *   false: This is the same as the preceding register access.
  *
  ****************************************************************************/
 
@@ -856,7 +852,7 @@ static int pwm_setup(struct pwm_lowerhalf_s *dev)
 {
   struct sam_pwm_chan_s *chan = (struct sam_pwm_chan_s *)dev;
 
-  pwminfo("Channel %d: H=%08x L=%08x FI=%08x\n",
+  pwminfo("Channel %d: H=%08" PRIx32 " L=%08" PRIx32 " FI=%08" PRIx32 "\n",
           chan->channel, chan->ohpincfg, chan->olpincfg, chan->fipincfg);
 
   /* Configure selected PWM pins */
@@ -1020,7 +1016,7 @@ static int pwm_start(struct pwm_lowerhalf_s *dev,
    * to the CTDY (vs. the CTDYUPD) register.
    */
 
-  regval = b16toi(info->duty * cprd + b16HALF);
+  regval = b16toi(info->channels[0].duty * cprd + b16HALF);
   if (regval > cprd)
     {
       /* Rounding up could cause the duty value to exceed CPRD (?) */
@@ -1029,7 +1025,8 @@ static int pwm_start(struct pwm_lowerhalf_s *dev,
     }
 
   pwm_chan_putreg(chan, SAM_PWM_CDTY_OFFSET, regval);
-  pwminfo("Fsrc=%d cprd=%d cdty=%d\n", fsrc, cprd, regval);
+  pwminfo("Fsrc=%" PRIu32 " cprd=%" PRIi32 " cdty=%" PRIx32 "\n",
+           fsrc, cprd, regval);
 
   /* Enable the channel */
 

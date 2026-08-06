@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/max6675.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -17,6 +19,19 @@
  * under the License.
  *
  ****************************************************************************/
+
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
 
 /* * Character driver for the Maxim MAX6675 Thermocouple-to-Digital Converter
  *
@@ -35,7 +50,7 @@
 #include <fixedmath.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
@@ -49,14 +64,14 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/****************************************************************************
- * Private
- ****************************************************************************/
-
 #define MAX6675_THREE_STATE   (1 << 0)
 #define MAX6675_DEV_ID        (1 << 1)
 #define MAX6675_OPEN_CIRCUIT  (1 << 2)
 #define MAX6675_TEMP_COUPLE   0x7ff8
+
+/****************************************************************************
+ * Private Types
+ ****************************************************************************/
 
 struct max6675_dev_s
 {

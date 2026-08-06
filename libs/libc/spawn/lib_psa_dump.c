@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/spawn/lib_psa_dump.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,7 +38,7 @@
 
 #include <spawn.h>
 #include <stdint.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #ifdef CONFIG_DEBUG_FEATURES
 

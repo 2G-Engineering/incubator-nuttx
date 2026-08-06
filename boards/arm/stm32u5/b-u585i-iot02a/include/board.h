@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32u5/b-u585i-iot02a/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,6 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#include <stm32_gpio.h>
 #ifndef __ASSEMBLY__
 #  include <stdint.h>
 #endif

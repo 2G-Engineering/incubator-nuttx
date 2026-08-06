@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/inet/ipv4_setsockopt.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <sys/types.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/net/net.h>
 
@@ -38,6 +40,8 @@
 #include "igmp/igmp.h"
 #include "inet/inet.h"
 #include "socket/socket.h"
+#include "udp/udp.h"
+#include "utils/utils.h"
 
 #if defined(CONFIG_NET_IPv4) && defined(CONFIG_NET_SOCKOPTS)
 
@@ -83,7 +87,7 @@ int ipv4_setsockopt(FAR struct socket *psock, int option,
    * REVISIT:  Clone the logic from netdev_ioctl.c here.
    */
 
-  net_lock();
+  conn_lock(psock->s_conn);
   switch (option)
     {
 #ifdef CONFIG_NET_IGMP
@@ -125,6 +129,7 @@ int ipv4_setsockopt(FAR struct socket *psock, int option,
         }
         break;
 
+#ifdef NET_UDP_HAVE_STACK
       case IP_ADD_MEMBERSHIP:         /* Join a multicast group */
       case IP_DROP_MEMBERSHIP:        /* Leave a multicast group */
         {
@@ -141,6 +146,8 @@ int ipv4_setsockopt(FAR struct socket *psock, int option,
             }
           else
             {
+              FAR struct udp_conn_s *conn = psock->s_conn;
+
               /* Use the default network device is imr_interface is
                * INADDRY_ANY.
                */
@@ -165,21 +172,41 @@ int ipv4_setsockopt(FAR struct socket *psock, int option,
                 }
               else if (option == IP_ADD_MEMBERSHIP)
                 {
-                  ret = igmp_joingroup(dev, &mrec->imr_multiaddr);
+                  if (conn->mreq.imr_multiaddr.s_addr != 0)
+                    {
+                      ret = -EADDRINUSE;
+                    }
+                  else
+                    {
+                      ret = igmp_joingroup(dev, &mrec->imr_multiaddr);
+                      if (ret == OK)
+                        {
+                          conn->mreq.imr_multiaddr = mrec->imr_multiaddr;
+                          conn->mreq.imr_ifindex   = dev->d_ifindex;
+                        }
+                    }
                 }
               else
                 {
                   ret = igmp_leavegroup(dev, &mrec->imr_multiaddr);
+                  if (ret == OK)
+                    {
+                      conn->mreq.imr_multiaddr.s_addr = 0;
+                      conn->mreq.imr_ifindex          = 0;
+                    }
                 }
             }
         }
         break;
 
-#ifdef NET_UDP_HAVE_STACK
       case IP_MULTICAST_TTL:          /* Set/read the time-to-live value of
                                        * outgoing multicast packets */
+#endif
+      case IP_TTL:                    /* The IP TTL (time to live) of IP
+                                       * packets sent by the network stack */
         {
           FAR struct socket_conn_s *conn;
+          int ttl;
 
           if (value == NULL || value_len == 0)
             {
@@ -190,28 +217,97 @@ int ipv4_setsockopt(FAR struct socket *psock, int option,
           ttl = (value_len >= sizeof(int)) ?
             *(FAR int *)value : (int)*(FAR unsigned char *)value;
 
-          if (ttl <= 0 || ttl > 255)
+          if (ttl < 0 || ttl > 255)
             {
               ret = -EINVAL;
             }
           else
             {
               conn = psock->s_conn;
-              conn->ttl = ttl;
+              conn->s_ttl = ttl;
               ret = OK;
             }
         }
         break;
+
+      case IP_MULTICAST_IF:           /* Set local device for a multicast
+                                       * socket */
+#ifdef NET_UDP_HAVE_STACK
+        {
+          FAR struct udp_conn_s *conn;
+          FAR struct net_driver_s *dev;
+          struct ip_mreqn mreq;
+
+          conn = psock->s_conn;
+          if (value == NULL || value_len == 0)
+            {
+              ret = -EINVAL;
+              break;
+            }
+
+          if (value_len >= sizeof(struct ip_mreqn))
+            {
+              memcpy(&mreq, value, sizeof(mreq));
+            }
+          else
+            {
+              memset(&mreq, 0, sizeof(mreq));
+              if (value_len >= sizeof(struct ip_mreq))
+                {
+                  memcpy(&mreq, value, sizeof(struct ip_mreq));
+                }
+              else if (value_len >= sizeof(struct in_addr))
+                {
+                  memcpy(&mreq.imr_multiaddr,
+                         value, sizeof(struct in_addr));
+                }
+            }
+
+          if (!mreq.imr_ifindex)
+            {
+              if (net_ipv4addr_cmp(mreq.imr_multiaddr.s_addr, INADDR_ANY))
+                {
+                  conn->mreq.imr_address.s_addr = 0;
+                  conn->mreq.imr_ifindex = 0;
+                  ret = OK;
+                  break;
+                }
+
+              dev = netdev_findby_lipv4addr(mreq.imr_multiaddr.s_addr);
+              if (dev)
+                {
+                  mreq.imr_ifindex = dev->d_ifindex;
+                }
+            }
+          else
+            {
+              dev = netdev_findbyindex(mreq.imr_ifindex);
+            }
+
+          if (!dev)
+            {
+              ret = -EADDRNOTAVAIL;
+              break;
+            }
+
+#ifdef CONFIG_NET_BINDTODEVICE
+          if (conn->sconn.s_boundto &&
+              mreq.imr_ifindex != conn->sconn.s_boundto)
+            {
+              ret = -EINVAL;
+              break;
+            }
+#endif
+
+          conn->mreq.imr_address.s_addr = mreq.imr_multiaddr.s_addr;
+          conn->mreq.imr_ifindex = mreq.imr_ifindex;
+          ret = OK;
+          break;
+        }
 #endif
 
       /* The following IPv4 socket options are defined, but not implemented */
 
-      case IP_MULTICAST_IF:           /* Set local device for a multicast
-                                       * socket */
-      case IP_MULTICAST_LOOP:         /* Set/read boolean that determines
-                                       * whether sent multicast packets
-                                       * should be looped back to local
-                                       * sockets. */
       case IP_UNBLOCK_SOURCE:         /* Unblock previously blocked multicast
                                        * source */
       case IP_BLOCK_SOURCE:           /* Stop receiving multicast data from
@@ -230,8 +326,12 @@ int ipv4_setsockopt(FAR struct socket *psock, int option,
         nwarn("WARNING: Unimplemented IPv4 option: %d\n", option);
         ret = -ENOSYS;
         break;
-#endif /* CONFIG_NET_IGMP */
 
+      case IP_MULTICAST_LOOP:         /* Set/read boolean that determines
+                                       * whether sent multicast packets
+                                       * should be looped back to local
+                                       * sockets. */
+#endif /* CONFIG_NET_IGMP */
       case IP_PKTINFO:
         {
           FAR struct socket_conn_s *conn;
@@ -292,7 +392,7 @@ int ipv4_setsockopt(FAR struct socket *psock, int option,
         break;
     }
 
-  net_unlock();
+  conn_unlock(psock->s_conn);
   return ret;
 }
 

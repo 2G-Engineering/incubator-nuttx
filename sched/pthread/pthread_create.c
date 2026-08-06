@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/pthread/pthread_create.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <sched.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <assert.h>
 #include <errno.h>
 
@@ -40,6 +42,7 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/pthread.h>
 
+#include "task/task.h"
 #include "sched/sched.h"
 #include "group/group.h"
 #include "clock/clock.h"
@@ -84,23 +87,25 @@ const pthread_attr_t g_default_pthread_attr = PTHREAD_ATTR_INITIALIZER;
  *
  ****************************************************************************/
 
-static inline void pthread_tcb_setup(FAR struct pthread_tcb_s *ptcb,
+static inline void pthread_tcb_setup(FAR struct tcb_s *ptcb,
                                      FAR struct tcb_s *parent,
                                      pthread_trampoline_t trampoline,
                                      pthread_addr_t arg)
 {
+  FAR struct pthread_entry_s *entry;
 #if CONFIG_TASK_NAME_SIZE > 0
   /* Copy the pthread name into the TCB */
 
-  strlcpy(ptcb->cmn.name, parent->name, CONFIG_TASK_NAME_SIZE);
+  strlcpy(ptcb->name, parent->name, CONFIG_TASK_NAME_SIZE);
 #endif /* CONFIG_TASK_NAME_SIZE */
 
   /* For pthreads, args are strictly pass-by-value; that actual
    * type wrapped by pthread_addr_t is unknown.
    */
 
-  ptcb->trampoline = trampoline;
-  ptcb->arg        = arg;
+  entry             = (FAR struct pthread_entry_s *)(ptcb + 1);
+  entry->trampoline = trampoline;
+  entry->arg        = arg;
 }
 
 /****************************************************************************
@@ -116,16 +121,18 @@ static inline void pthread_tcb_setup(FAR struct pthread_tcb_s *ptcb,
 
 static void pthread_start(void)
 {
-  FAR struct pthread_tcb_s *ptcb = (FAR struct pthread_tcb_s *)this_task();
+  FAR struct tcb_s *ptcb = this_task();
+  FAR struct pthread_entry_s *entry =
+    (FAR struct pthread_entry_s *)(ptcb + 1);
 
   /* The priority of this thread may have been boosted to avoid priority
    * inversion problems.  If that is the case, then drop to the correct
    * execution priority.
    */
 
-  if (ptcb->cmn.sched_priority > ptcb->cmn.init_priority)
+  if (ptcb->sched_priority > ptcb->init_priority)
     {
-      DEBUGVERIFY(nxsched_set_priority(&ptcb->cmn, ptcb->cmn.init_priority));
+      DEBUGVERIFY(nxsched_set_priority(ptcb, ptcb->init_priority));
     }
 
   /* Pass control to the thread entry point. In the kernel build this has to
@@ -133,12 +140,12 @@ static void pthread_start(void)
    * to switch to user-mode before calling into the pthread.
    */
 
-  DEBUGASSERT(ptcb->trampoline != NULL && ptcb->cmn.entry.pthread != NULL);
+  DEBUGASSERT(entry->trampoline != NULL && ptcb->entry.pthread != NULL);
 
 #ifdef CONFIG_BUILD_FLAT
-  ptcb->trampoline(ptcb->cmn.entry.pthread, ptcb->arg);
+  entry->trampoline(ptcb->entry.pthread, entry->arg);
 #else
-  up_pthread_start(ptcb->trampoline, ptcb->cmn.entry.pthread, ptcb->arg);
+  up_pthread_start(entry->trampoline, ptcb->entry.pthread, entry->arg);
 #endif
 
   /* The thread has returned (should never happen) */
@@ -177,49 +184,58 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
                       FAR const pthread_attr_t *attr,
                       pthread_startroutine_t entry, pthread_addr_t arg)
 {
-  FAR struct pthread_tcb_s *ptcb;
+  pthread_attr_t default_attr = g_default_pthread_attr;
+  FAR struct tcb_s *ptcb;
   struct sched_param param;
   FAR struct tcb_s *parent;
   int policy;
   int errcode;
-  pid_t pid;
   int ret;
-  bool group_joined = false;
 
   DEBUGASSERT(trampoline != NULL);
+
+  parent = this_task();
+  DEBUGASSERT(parent != NULL);
 
   /* If attributes were not supplied, use the default attributes */
 
   if (!attr)
     {
-      attr = &g_default_pthread_attr;
+      /* Inherit parent priority by default. except idle */
+
+      if (!is_idle_task(parent))
+        {
+          default_attr.priority = parent->sched_priority;
+        }
+
+      attr = &default_attr;
     }
 
   /* Allocate a TCB for the new task. */
 
-  ptcb = (FAR struct pthread_tcb_s *)
-            kmm_zalloc(sizeof(struct pthread_tcb_s));
+  ptcb = kmm_zalloc(sizeof(struct tcb_s) + sizeof(struct pthread_entry_s));
   if (!ptcb)
     {
       serr("ERROR: Failed to allocate TCB\n");
       return ENOMEM;
     }
 
+  ptcb->flags |= TCB_FLAG_FREE_TCB;
+
+  /* Initialize the task join */
+
+  nxtask_joininit(ptcb);
+
   /* Bind the parent's group to the new TCB (we have not yet joined the
    * group).
    */
 
-  ret = group_bind(ptcb);
-  if (ret < 0)
-    {
-      errcode = ENOMEM;
-      goto errout_with_tcb;
-    }
+  group_bind(ptcb);
 
 #ifdef CONFIG_ARCH_ADDRENV
   /* Share the address environment of the parent task group. */
 
-  ret = addrenv_join(this_task(), (FAR struct tcb_s *)ptcb);
+  ret = addrenv_join(this_task(), ptcb);
   if (ret < 0)
     {
       errcode = -ret;
@@ -229,21 +245,21 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
 
   if (attr->detachstate == PTHREAD_CREATE_DETACHED)
     {
-      ptcb->cmn.flags |= TCB_FLAG_DETACHED;
+      ptcb->flags |= TCB_FLAG_DETACHED;
     }
 
   if (attr->stackaddr)
     {
       /* Use pre-allocated stack */
 
-      ret = up_use_stack((FAR struct tcb_s *)ptcb, attr->stackaddr,
-                         attr->stacksize);
+      ret = up_use_stack(ptcb, attr->stackaddr, attr->stacksize);
     }
   else
     {
       /* Allocate the stack for the TCB */
 
-      ret = up_create_stack((FAR struct tcb_s *)ptcb, attr->stacksize,
+      ret = up_create_stack(ptcb,
+                            attr->stacksize + attr->guardsize,
                             TCB_FLAG_TTYPE_PTHREAD);
     }
 
@@ -253,14 +269,16 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
       goto errout_with_tcb;
     }
 
-  /* Initialize thread local storage */
+#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_ARCH_KERNEL_STACK)
+  /* Allocate the kernel stack */
 
-  ret = tls_init_info(&ptcb->cmn);
-  if (ret != OK)
+  ret = up_addrenv_kstackalloc(ptcb);
+  if (ret < 0)
     {
-      errcode = -ret;
+      errcode = ENOMEM;
       goto errout_with_tcb;
     }
+#endif
 
   /* Should we use the priority and scheduler specified in the pthread
    * attributes?  Or should we use the current thread's priority and
@@ -310,13 +328,13 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
   if (policy == SCHED_SPORADIC)
     {
       FAR struct sporadic_s *sporadic;
-      sclock_t repl_ticks;
-      sclock_t budget_ticks;
+      clock_t repl_ticks;
+      clock_t budget_ticks;
 
       /* Convert timespec values to system clock ticks */
 
-      clock_time2ticks(&param.sched_ss_repl_period, &repl_ticks);
-      clock_time2ticks(&param.sched_ss_init_budget, &budget_ticks);
+      repl_ticks = clock_time2ticks(&param.sched_ss_repl_period);
+      budget_ticks = clock_time2ticks(&param.sched_ss_init_budget);
 
       /* The replenishment period must be greater than or equal to the
        * budget period.
@@ -330,10 +348,10 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
 
       /* Initialize the sporadic policy */
 
-      ret = nxsched_initialize_sporadic(&ptcb->cmn);
+      ret = nxsched_initialize_sporadic(ptcb);
       if (ret >= 0)
         {
-          sporadic               = ptcb->cmn.sporadic;
+          sporadic               = ptcb->sporadic;
           DEBUGASSERT(sporadic != NULL);
 
           /* Save the sporadic scheduling parameters */
@@ -346,7 +364,7 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
 
           /* And start the first replenishment interval */
 
-          ret = nxsched_start_sporadic(&ptcb->cmn);
+          ret = nxsched_start_sporadic(ptcb);
         }
 
       /* Handle any failures */
@@ -369,17 +387,14 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
       goto errout_with_tcb;
     }
 
-#if defined(CONFIG_ARCH_ADDRENV) && \
-    defined(CONFIG_BUILD_KERNEL) && defined(CONFIG_ARCH_KERNEL_STACK)
-  /* Allocate the kernel stack */
+  /* Initialize thread local storage */
 
-  ret = up_addrenv_kstackalloc(&ptcb->cmn);
-  if (ret < 0)
+  ret = tls_init_info(ptcb);
+  if (ret != OK)
     {
-      errcode = ENOMEM;
+      errcode = -ret;
       goto errout_with_tcb;
     }
-#endif
 
 #ifdef CONFIG_SMP
   /* pthread_setup_scheduler() will set the affinity mask by inheriting the
@@ -391,12 +406,9 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
 
   if (attr->affinity != 0)
     {
-      ptcb->cmn.affinity = attr->affinity;
+      ptcb->affinity = attr->affinity;
     }
 #endif
-
-  parent = this_task();
-  DEBUGASSERT(parent != NULL);
 
   /* Configure the TCB for a pthread receiving on parameter
    * passed by value
@@ -406,106 +418,52 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
 
   /* Join the parent's task group */
 
-  ret = group_join(ptcb);
-  if (ret < 0)
-    {
-      errcode = ENOMEM;
-      goto errout_with_tcb;
-    }
-
-  group_joined = true;
+  group_join(ptcb);
 
   /* Set the appropriate scheduling policy in the TCB */
 
-  ptcb->cmn.flags &= ~TCB_FLAG_POLICY_MASK;
+  ptcb->flags &= ~TCB_FLAG_POLICY_MASK;
   switch (policy)
     {
       default:
       case SCHED_FIFO:
-        ptcb->cmn.flags    |= TCB_FLAG_SCHED_FIFO;
+        ptcb->flags    |= TCB_FLAG_SCHED_FIFO;
         break;
 
 #if CONFIG_RR_INTERVAL > 0
       case SCHED_OTHER:
       case SCHED_RR:
-        ptcb->cmn.flags    |= TCB_FLAG_SCHED_RR;
-        ptcb->cmn.timeslice = MSEC2TICK(CONFIG_RR_INTERVAL);
+        ptcb->flags    |= TCB_FLAG_SCHED_RR;
+        ptcb->timeslice = MSEC2TICK(CONFIG_RR_INTERVAL);
         break;
 #endif
 
 #ifdef CONFIG_SCHED_SPORADIC
       case SCHED_SPORADIC:
-        ptcb->cmn.flags    |= TCB_FLAG_SCHED_SPORADIC;
+        ptcb->flags    |= TCB_FLAG_SCHED_SPORADIC;
         break;
 #endif
     }
 
-#ifdef CONFIG_CANCELLATION_POINTS
-  /* Set the deferred cancellation type */
+  /* Return the thread information to the caller */
 
-  ptcb->cmn.flags |= TCB_FLAG_CANCEL_DEFERRED;
-#endif
-
-  /* Get the assigned pid before we start the task (who knows what
-   * could happen to ptcb after this!).
-   */
-
-  pid = ptcb->cmn.pid;
-
-  /* If the priority of the new pthread is lower than the priority of the
-   * parent thread, then starting the pthread could result in both the
-   * parent and the pthread to be blocked.  This is a recipe for priority
-   * inversion issues.
-   *
-   * We avoid this here by boosting the priority of the (inactive) pthread
-   * so it has the same priority as the parent thread.
-   */
-
-  if (ptcb->cmn.sched_priority < parent->sched_priority)
+  if (thread != NULL)
     {
-      ret = nxsched_set_priority(&ptcb->cmn, parent->sched_priority);
-      if (ret < 0)
-        {
-          ret = -ret;
-        }
+      *thread = (pthread_t)ptcb->pid;
     }
 
   /* Then activate the task */
 
-  sched_lock();
-  if (ret == OK)
-    {
-      nxtask_activate((FAR struct tcb_s *)ptcb);
+  nxtask_activate(ptcb);
 
-      /* Return the thread information to the caller */
-
-      if (thread)
-        {
-          *thread = (pthread_t)pid;
-        }
-
-      sched_unlock();
-    }
-  else
-    {
-      sched_unlock();
-      dq_rem((FAR dq_entry_t *)ptcb, &g_inactivetasks);
-
-      errcode = EIO;
-      goto errout_with_tcb;
-    }
-
-  return ret;
+  return OK;
 
 errout_with_tcb:
 
-  /* Clear group binding */
+  /* Since we do not join the group, assign group to NULL to clear binding */
 
-  if (ptcb && !group_joined)
-    {
-      ptcb->cmn.group = NULL;
-    }
+  ptcb->group = NULL;
 
-  nxsched_release_tcb((FAR struct tcb_s *)ptcb, TCB_FLAG_TTYPE_PTHREAD);
+  nxsched_release_tcb(ptcb, TCB_FLAG_TTYPE_PTHREAD);
   return errcode;
 }

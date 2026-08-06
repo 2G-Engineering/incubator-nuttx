@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_serial.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,12 +33,13 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/serial/serial.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/power/pm.h>
 
@@ -62,7 +65,7 @@
 
 /* Total number of possible serial devices */
 
-#define STM32_NSERIAL (STM32H7_NUSART + STM32H7_NUART)
+#define STM32_NSERIAL (STM32_NUSART + STM32_NUART)
 
 /* DMA configuration */
 
@@ -78,11 +81,11 @@
 #    if !defined(DMAMAP_USART1_RX)
 #     error "USART1 DMA map not defined (DMAMAP_USART1_RX)"
 #    endif
-#    if DMAMAP_USART1_RX == DMAMAP_DMA12_USART1RX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 USART1 using DMAMAP_DMA12_USART1RX_0 for receive DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_USART1_RX == DMAMAP_DMA12_USART1RX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 USART1 using DMAMAP_DMA12_USART1RX_0 for receive DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_USART1_RX == DMAMAP_DMA12_USART1RX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 USART1 using DMAMAP_DMA12_USART1RX_1 for receive DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_USART1_RX == DMAMAP_DMA12_USART1RX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 USART1 using DMAMAP_DMA12_USART1RX_1 for receive DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -90,11 +93,11 @@
 #    if !defined(DMAMAP_USART2_RX)
 #     error "USART2 DMA map not defined (DMAMAP_USART2_RX)"
 #    endif
-#    if DMAMAP_USART2_RX == DMAMAP_DMA12_USART2RX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 USART2 using DMAMAP_DMA12_USART2RX_0 for receive DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_USART2_RX == DMAMAP_DMA12_USART2RX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 USART2 using DMAMAP_DMA12_USART2RX_0 for receive DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_USART2_RX == DMAMAP_DMA12_USART2RX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 USART2 using DMAMAP_DMA12_USART2RX_1 for receive DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_USART2_RX == DMAMAP_DMA12_USART2RX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 USART2 using DMAMAP_DMA12_USART2RX_1 for receive DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -102,11 +105,11 @@
 #    if !defined(DMAMAP_USART3_RX)
 #     error "USART3 DMA map not defined (DMAMAP_USART3_RX)"
 #    endif
-#    if DMAMAP_USART3_RX == DMAMAP_DMA12_USART3RX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 USART3 using DMAMAP_DMA12_USART3RX_0 for receive DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_USART3_RX == DMAMAP_DMA12_USART3RX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 USART3 using DMAMAP_DMA12_USART3RX_0 for receive DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_USART3_RX == DMAMAP_DMA12_USART3RX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 USART3 using DMAMAP_DMA12_USART3RX_1 for receive DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_USART3_RX == DMAMAP_DMA12_USART3RX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 USART3 using DMAMAP_DMA12_USART3RX_1 for receive DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -114,11 +117,11 @@
 #    if !defined(DMAMAP_UART4_RX)
 #     error "UART4 DMA map not defined (DMAMAP_UART4_RX)"
 #    endif
-#    if DMAMAP_UART4_RX == DMAMAP_DMA12_UART4RX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 UART4 using DMAMAP_DMA12_UART4RX_0 for receive DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_UART4_RX == DMAMAP_DMA12_UART4RX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 UART4 using DMAMAP_DMA12_UART4RX_0 for receive DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_UART4_RX == DMAMAP_DMA12_UART4RX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 UART4 using DMAMAP_DMA12_UART4RX_1 for receive DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_UART4_RX == DMAMAP_DMA12_UART4RX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 UART4 using DMAMAP_DMA12_UART4RX_1 for receive DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -126,11 +129,11 @@
 #    if !defined(DMAMAP_UART5_RX)
 #     error "UART5 DMA map not defined (DMAMAP_UART5_RX)"
 #    endif
-#    if DMAMAP_UART5_RX == DMAMAP_DMA12_UART5RX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 UART5 using DMAMAP_DMA12_UART5RX_0 for receive DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_UART5_RX == DMAMAP_DMA12_UART5RX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 UART5 using DMAMAP_DMA12_UART5RX_0 for receive DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_UART5_RX == DMAMAP_DMA12_UART5RX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 UART5 using DMAMAP_DMA12_UART5RX_1 for receive DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_UART5_RX == DMAMAP_DMA12_UART5RX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 UART5 using DMAMAP_DMA12_UART5RX_1 for receive DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -138,11 +141,11 @@
 #    if !defined(DMAMAP_USART6_RX)
 #     error "USART6 DMA map not defined (DMAMAP_USART6_RX)"
 #    endif
-#    if DMAMAP_USART6_RX == DMAMAP_DMA12_USART6RX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 USART6 using DMAMAP_DMA12_USART6RX_0 for receive DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_USART6_RX == DMAMAP_DMA12_USART6RX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 USART6 using DMAMAP_DMA12_USART6RX_0 for receive DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_USART6_RX == DMAMAP_DMA12_USART6RX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 USART6 using DMAMAP_DMA12_USART6RX_1 for receive DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_USART6_RX == DMAMAP_DMA12_USART6RX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 USART6 using DMAMAP_DMA12_USART6RX_1 for receive DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -150,11 +153,11 @@
 #    if !defined(DMAMAP_UART7_RX)
 #     error "UART7 DMA map not defined (DMAMAP_UART7_RX)"
 #    endif
-#    if DMAMAP_UART7_RX == DMAMAP_DMA12_UART7RX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 UART7 using DMAMAP_DMA12_UART7RX_0 for receive DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_UART7_RX == DMAMAP_DMA12_UART7RX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 UART7 using DMAMAP_DMA12_UART7RX_0 for receive DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_UART7_RX == DMAMAP_DMA12_UART7RX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 UART7 using DMAMAP_DMA12_UART7RX_1 for receive DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_UART7_RX == DMAMAP_DMA12_UART7RX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 UART7 using DMAMAP_DMA12_UART7RX_1 for receive DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -162,11 +165,11 @@
 #    if !defined(DMAMAP_UART8_RX)
 #     error "UART8 DMA map not defined (DMAMAP_UART8_RX)"
 #    endif
-#    if DMAMAP_UART8_RX == DMAMAP_DMA12_UART8RX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 UART8 using DMAMAP_DMA12_UART8RX_0 for receive DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_UART8_RX == DMAMAP_DMA12_UART8RX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 UART8 using DMAMAP_DMA12_UART8RX_0 for receive DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_UART8_RX == DMAMAP_DMA12_UART8RX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 UART8 using DMAMAP_DMA12_UART8RX_1 for receive DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_UART8_RX == DMAMAP_DMA12_UART8RX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 UART8 using DMAMAP_DMA12_UART8RX_1 for receive DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -202,14 +205,14 @@
 #    define ARMV7M_DCACHE_LINESIZE 32
 #  endif
 
-#  if !defined(CONFIG_STM32H7_SERIAL_RXDMA_BUFFER_SIZE) || \
-      (CONFIG_STM32H7_SERIAL_RXDMA_BUFFER_SIZE < ARMV7M_DCACHE_LINESIZE)
-#    undef CONFIG_STM32H7_SERIAL_RXDMA_BUFFER_SIZE
-#    define CONFIG_STM32H7_SERIAL_RXDMA_BUFFER_SIZE ARMV7M_DCACHE_LINESIZE
+#  if !defined(CONFIG_STM32_SERIAL_RXDMA_BUFFER_SIZE) || \
+      (CONFIG_STM32_SERIAL_RXDMA_BUFFER_SIZE < ARMV7M_DCACHE_LINESIZE)
+#    undef CONFIG_STM32_SERIAL_RXDMA_BUFFER_SIZE
+#    define CONFIG_STM32_SERIAL_RXDMA_BUFFER_SIZE ARMV7M_DCACHE_LINESIZE
 #  endif
 
 #  define RXDMA_BUFFER_MASK   (ARMV7M_DCACHE_LINESIZE - 1)
-#  define RXDMA_BUFFER_SIZE   ((CONFIG_STM32H7_SERIAL_RXDMA_BUFFER_SIZE \
+#  define RXDMA_BUFFER_SIZE   ((CONFIG_STM32_SERIAL_RXDMA_BUFFER_SIZE \
                                 + RXDMA_BUFFER_MASK) & ~RXDMA_BUFFER_MASK)
 
 /* DMA priority */
@@ -244,11 +247,11 @@
 #    if !defined(DMAMAP_USART1_TX)
 #     error "USART1 DMA map not defined (DMAMAP_USART1_TX)"
 #    endif
-#    if DMAMAP_USART1_TX == DMAMAP_DMA12_USART1TX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 USART1 using DMAMAP_DMA12_USART1TX_0 for transmit DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_USART1_TX == DMAMAP_DMA12_USART1TX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 USART1 using DMAMAP_DMA12_USART1TX_0 for transmit DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_USART1_TX == DMAMAP_DMA12_USART1TX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 USART1 using DMAMAP_DMA12_USART1TX_1 for transmit DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_USART1_TX == DMAMAP_DMA12_USART1TX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 USART1 using DMAMAP_DMA12_USART1TX_1 for transmit DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -256,11 +259,11 @@
 #    if !defined(DMAMAP_USART2_TX)
 #     error "USART2 DMA map not defined (DMAMAP_USART2_TX)"
 #    endif
-#    if DMAMAP_USART2_TX == DMAMAP_DMA12_USART2TX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 USART2 using DMAMAP_DMA12_USART2TX_0 for transmit DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_USART2_TX == DMAMAP_DMA12_USART2TX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 USART2 using DMAMAP_DMA12_USART2TX_0 for transmit DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_USART2_TX == DMAMAP_DMA12_USART2TX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 USART2 using DMAMAP_DMA12_USART2TX_1 for transmit DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_USART2_TX == DMAMAP_DMA12_USART2TX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 USART2 using DMAMAP_DMA12_USART2TX_1 for transmit DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -268,11 +271,11 @@
 #    if !defined(DMAMAP_USART3_TX)
 #     error "USART3 DMA map not defined (DMAMAP_USART3_TX)"
 #    endif
-#    if DMAMAP_USART3_TX == DMAMAP_DMA12_USART3TX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 USART3 using DMAMAP_DMA12_USART3TX_0 for transmit DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_USART3_TX == DMAMAP_DMA12_USART3TX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 USART3 using DMAMAP_DMA12_USART3TX_0 for transmit DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_USART3_TX == DMAMAP_DMA12_USART3TX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 USART3 using DMAMAP_DMA12_USART3TX_1 for transmit DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_USART3_TX == DMAMAP_DMA12_USART3TX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 USART3 using DMAMAP_DMA12_USART3TX_1 for transmit DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -280,11 +283,11 @@
 #    if !defined(DMAMAP_UART4_TX)
 #     error "UART4 DMA map not defined (DMAMAP_UART4_TX)"
 #    endif
-#    if DMAMAP_UART4_TX == DMAMAP_DMA12_UART4TX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 UART4 using DMAMAP_DMA12_UART4TX_0 for transmit DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_UART4_TX == DMAMAP_DMA12_UART4TX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 UART4 using DMAMAP_DMA12_UART4TX_0 for transmit DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_UART4_TX == DMAMAP_DMA12_UART4TX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 UART4 using DMAMAP_DMA12_UART4TX_1 for transmit DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_UART4_TX == DMAMAP_DMA12_UART4TX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 UART4 using DMAMAP_DMA12_UART4TX_1 for transmit DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -292,11 +295,11 @@
 #    if !defined(DMAMAP_UART5_TX)
 #     error "UART5 DMA map not defined (DMAMAP_UART5_TX)"
 #    endif
-#    if DMAMAP_UART5_TX == DMAMAP_DMA12_UART5TX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 UART5 using DMAMAP_DMA12_UART5TX_0 for transmit DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_UART5_TX == DMAMAP_DMA12_UART5TX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 UART5 using DMAMAP_DMA12_UART5TX_0 for transmit DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_UART5_TX == DMAMAP_DMA12_UART5TX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 UART5 using DMAMAP_DMA12_UART5TX_1 for transmit DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_UART5_TX == DMAMAP_DMA12_UART5TX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 UART5 using DMAMAP_DMA12_UART5TX_1 for transmit DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -304,11 +307,11 @@
 #    if !defined(DMAMAP_USART6_TX)
 #     error "USART6 DMA map not defined (DMAMAP_USART6_TX)"
 #    endif
-#    if DMAMAP_USART6_TX == DMAMAP_DMA12_USART6TX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 USART6 using DMAMAP_DMA12_USART6TX_0 for transmit DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_USART6_TX == DMAMAP_DMA12_USART6TX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 USART6 using DMAMAP_DMA12_USART6TX_0 for transmit DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_USART6_TX == DMAMAP_DMA12_USART6TX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 USART6 using DMAMAP_DMA12_USART6TX_1 for transmit DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_USART6_TX == DMAMAP_DMA12_USART6TX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 USART6 using DMAMAP_DMA12_USART6TX_1 for transmit DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -316,11 +319,11 @@
 #    if !defined(DMAMAP_UART7_TX)
 #     error "UART7 DMA map not defined (DMAMAP_UART7_TX)"
 #    endif
-#    if DMAMAP_UART7_TX == DMAMAP_DMA12_UART7TX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 UART7 using DMAMAP_DMA12_UART7TX_0 for transmit DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_UART7_TX == DMAMAP_DMA12_UART7TX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 UART7 using DMAMAP_DMA12_UART7TX_0 for transmit DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_UART7_TX == DMAMAP_DMA12_UART7TX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 UART7 using DMAMAP_DMA12_UART7TX_1 for transmit DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_UART7_TX == DMAMAP_DMA12_UART7TX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 UART7 using DMAMAP_DMA12_UART7TX_1 for transmit DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -328,11 +331,11 @@
 #    if !defined(DMAMAP_UART8_TX)
 #     error "UART8 DMA map not defined (DMAMAP_UART8_TX)"
 #    endif
-#    if DMAMAP_UART8_TX == DMAMAP_DMA12_UART8TX_0 && !defined(CONFIG_STM32H7_DMA1)
-#        error STM32 UART8 using DMAMAP_DMA12_UART8TX_0 for transmit DMA requires CONFIG_STM32H7_DMA1
+#    if DMAMAP_UART8_TX == DMAMAP_DMA12_UART8TX_0 && !defined(CONFIG_STM32_DMA1)
+#        error STM32 UART8 using DMAMAP_DMA12_UART8TX_0 for transmit DMA requires CONFIG_STM32_DMA1
 #    endif
-#    if DMAMAP_UART8_TX == DMAMAP_DMA12_UART8TX_1 && !defined(CONFIG_STM32H7_DMA2)
-#        error STM32 UART8 using DMAMAP_DMA12_UART8TX_1 for transmit DMA requires CONFIG_STM32H7_DMA2
+#    if DMAMAP_UART8_TX == DMAMAP_DMA12_UART8TX_1 && !defined(CONFIG_STM32_DMA2)
+#        error STM32 UART8 using DMAMAP_DMA12_UART8TX_1 for transmit DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 #endif
@@ -368,7 +371,7 @@
 #endif
 
 #define TXDMA_BUFFER_MASK   (ARMV7M_DCACHE_LINESIZE - 1)
-#define TXDMA_BUFFER_SIZE   ((CONFIG_STM32H7_SERIAL_RXDMA_BUFFER_SIZE \
+#define TXDMA_BUFFER_SIZE   ((CONFIG_STM32_SERIAL_RXDMA_BUFFER_SIZE \
                               + RXDMA_BUFFER_MASK) & ~RXDMA_BUFFER_MASK)
 
 /* If built with CONFIG_ARMV7M_DCACHE Buffers need to be aligned and
@@ -472,8 +475,8 @@
 
 /* Power management definitions */
 
-#if defined(CONFIG_PM) && !defined(CONFIG_STM32H7_PM_SERIAL_ACTIVITY)
-#  define CONFIG_STM32H7_PM_SERIAL_ACTIVITY 10
+#if defined(CONFIG_PM) && !defined(CONFIG_STM32_PM_SERIAL_ACTIVITY)
+#  define CONFIG_STM32_PM_SERIAL_ACTIVITY 10
 #endif
 #if defined(CONFIG_PM)
 #  warning stm32h7 serial power managemnt was taken from stm32f7 and is untested!
@@ -498,7 +501,7 @@
  * See up_restoreusartint where the masking is done.
  */
 
-#ifdef CONFIG_STM32H7_SERIALBRK_BSDCOMPAT
+#ifdef CONFIG_STM32_SERIALBRK_BSDCOMPAT
 #  define USART_CR1_IE_BREAK_INPROGRESS_SHFTS 15
 #  define USART_CR1_IE_BREAK_INPROGRESS (1 << USART_CR1_IE_BREAK_INPROGRESS_SHFTS)
 #endif
@@ -508,13 +511,13 @@
 
 /* Warnings for potentially unsafe configuration combinations. */
 
-#if defined(CONFIG_STM32H7_FLOWCONTROL_BROKEN) && \
+#if defined(CONFIG_STM32_FLOWCONTROL_BROKEN) && \
     !defined(CONFIG_SERIAL_IFLOWCONTROL_WATERMARKS)
-#  error "CONFIG_STM32H7_FLOWCONTROL_BROKEN requires \
+#  error "CONFIG_STM32_FLOWCONTROL_BROKEN requires \
           CONFIG_SERIAL_IFLOWCONTROL_WATERMARKS to be enabled."
 #endif
 
-#ifndef CONFIG_STM32H7_FLOWCONTROL_BROKEN
+#ifndef CONFIG_STM32_FLOWCONTROL_BROKEN
 /* Combination of RXDMA + IFLOWCONTROL does not work as one might expect.
  * Since RXDMA uses circular DMA-buffer, DMA will always keep reading new
  * data from USART peripheral even if DMA buffer underruns. Thus this
@@ -557,7 +560,7 @@
 #    warning "RXDMA and IFLOWCONTROL both enabled for UART8. \
               This combination can lead to data loss."
 #  endif
-#endif /* CONFIG_STM32H7_FLOWCONTROL_BROKEN */
+#endif /* CONFIG_STM32_FLOWCONTROL_BROKEN */
 
 /****************************************************************************
  * Private Types
@@ -627,8 +630,7 @@ struct up_dev_s
 
 #ifdef SERIAL_HAVE_TXDMA
   const unsigned int txdma_channel; /* DMA channel assigned */
-  DMA_HANDLE        txdma;          /* currently-open trasnmit DMA stream */
-  sem_t             txdmasem;       /* Indicate TX DMA completion */
+  DMA_HANDLE        txdma;          /* currently-open transmit DMA stream */
 #endif
 
   /* RX DMA state */
@@ -652,6 +654,7 @@ struct up_dev_s
   const uint32_t    rs485_dir_gpio;     /* U[S]ART RS-485 DIR GPIO pin configuration */
   const bool        rs485_dir_polarity; /* U[S]ART RS-485 DIR pin state for TX enabled */
 #endif
+  spinlock_t        lock;
 };
 
 #ifdef CONFIG_PM
@@ -865,49 +868,49 @@ static char g_uart8rxfifo[RXDMA_BUFFER_SIZE]
 
 /* Receive/Transmit buffers */
 
-#ifdef CONFIG_STM32H7_USART1
+#ifdef CONFIG_STM32_USART1
 static char g_usart1rxbuffer[CONFIG_USART1_RXBUFSIZE];
 static char g_usart1txbuffer[USART1_TXBUFSIZE_ADJUSTED] \
   USART1_TXBUFSIZE_ALGN;
 #endif
 
-#ifdef CONFIG_STM32H7_USART2
+#ifdef CONFIG_STM32_USART2
 static char g_usart2rxbuffer[CONFIG_USART2_RXBUFSIZE];
 static char g_usart2txbuffer[USART2_TXBUFSIZE_ADJUSTED] \
   USART2_TXBUFSIZE_ALGN;
 #endif
 
-#ifdef CONFIG_STM32H7_USART3
+#ifdef CONFIG_STM32_USART3
 static char g_usart3rxbuffer[CONFIG_USART3_RXBUFSIZE];
 static char g_usart3txbuffer[USART3_TXBUFSIZE_ADJUSTED] \
   USART3_TXBUFSIZE_ALGN;
 #endif
 
-#ifdef CONFIG_STM32H7_UART4
+#ifdef CONFIG_STM32_UART4
 static char g_uart4rxbuffer[CONFIG_UART4_RXBUFSIZE];
 static char g_uart4txbuffer[UART4_TXBUFSIZE_ADJUSTED] \
   UART4_TXBUFSIZE_ALGN;
 #endif
 
-#ifdef CONFIG_STM32H7_UART5
+#ifdef CONFIG_STM32_UART5
 static char g_uart5rxbuffer[CONFIG_UART5_RXBUFSIZE];
 static char g_uart5txbuffer[UART5_TXBUFSIZE_ADJUSTED] \
   UART5_TXBUFSIZE_ALGN;
 #endif
 
-#ifdef CONFIG_STM32H7_USART6
+#ifdef CONFIG_STM32_USART6
 static char g_usart6rxbuffer[CONFIG_USART6_RXBUFSIZE];
 static char g_usart6txbuffer[USART6_TXBUFSIZE_ADJUSTED] \
   USART6_TXBUFSIZE_ALGN;
 #endif
 
-#ifdef CONFIG_STM32H7_UART7
+#ifdef CONFIG_STM32_UART7
 static char g_uart7rxbuffer[CONFIG_UART7_RXBUFSIZE];
 static char g_uart7txbuffer[UART7_TXBUFSIZE_ADJUSTED] \
   UART7_TXBUFSIZE_ALGN;
 #endif
 
-#ifdef CONFIG_STM32H7_UART8
+#ifdef CONFIG_STM32_UART8
 static char g_uart8rxbuffer[CONFIG_UART8_RXBUFSIZE];
 static char g_uart8txbuffer[UART8_TXBUFSIZE_ADJUSTED] \
   UART8_TXBUFSIZE_ALGN;
@@ -915,7 +918,7 @@ static char g_uart8txbuffer[UART8_TXBUFSIZE_ADJUSTED] \
 
 /* This describes the state of the STM32 USART1 ports. */
 
-#ifdef CONFIG_STM32H7_USART1
+#ifdef CONFIG_STM32_USART1
 static struct up_dev_s g_usart1priv =
 {
   .dev =
@@ -965,7 +968,6 @@ static struct up_dev_s g_usart1priv =
 #endif
 #ifdef CONFIG_USART1_TXDMA
   .txdma_channel = DMAMAP_USART1_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_USART1_RXDMA
   .rxdma_channel = DMAMAP_USART1_RX,
@@ -980,12 +982,13 @@ static struct up_dev_s g_usart1priv =
   .rs485_dir_polarity = true,
 #  endif
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
 /* This describes the state of the STM32 USART2 port. */
 
-#ifdef CONFIG_STM32H7_USART2
+#ifdef CONFIG_STM32_USART2
 static struct up_dev_s g_usart2priv =
 {
   .dev =
@@ -1035,7 +1038,6 @@ static struct up_dev_s g_usart2priv =
 #endif
 #ifdef CONFIG_USART2_TXDMA
   .txdma_channel = DMAMAP_USART2_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_USART2_RXDMA
   .rxdma_channel = DMAMAP_USART2_RX,
@@ -1050,12 +1052,13 @@ static struct up_dev_s g_usart2priv =
   .rs485_dir_polarity = true,
 #  endif
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
 /* This describes the state of the STM32 USART3 port. */
 
-#ifdef CONFIG_STM32H7_USART3
+#ifdef CONFIG_STM32_USART3
 static struct up_dev_s g_usart3priv =
 {
   .dev =
@@ -1105,7 +1108,6 @@ static struct up_dev_s g_usart3priv =
 #endif
 #ifdef CONFIG_USART3_TXDMA
   .txdma_channel = DMAMAP_USART3_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_USART3_RXDMA
   .rxdma_channel = DMAMAP_USART3_RX,
@@ -1120,12 +1122,13 @@ static struct up_dev_s g_usart3priv =
   .rs485_dir_polarity = true,
 #  endif
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
 /* This describes the state of the STM32 UART4 port. */
 
-#ifdef CONFIG_STM32H7_UART4
+#ifdef CONFIG_STM32_UART4
 static struct up_dev_s g_uart4priv =
 {
   .dev =
@@ -1175,7 +1178,6 @@ static struct up_dev_s g_uart4priv =
   .rx_gpio       = GPIO_UART4_RX,
 #ifdef CONFIG_UART4_TXDMA
   .txdma_channel = DMAMAP_UART4_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_UART4_RXDMA
   .rxdma_channel = DMAMAP_UART4_RX,
@@ -1190,12 +1192,13 @@ static struct up_dev_s g_uart4priv =
   .rs485_dir_polarity = true,
 #  endif
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
 /* This describes the state of the STM32 UART5 port. */
 
-#ifdef CONFIG_STM32H7_UART5
+#ifdef CONFIG_STM32_UART5
 static struct up_dev_s g_uart5priv =
 {
   .dev =
@@ -1245,7 +1248,6 @@ static struct up_dev_s g_uart5priv =
   .rx_gpio       = GPIO_UART5_RX,
 #ifdef CONFIG_UART5_TXDMA
   .txdma_channel = DMAMAP_UART5_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_UART5_RXDMA
   .rxdma_channel = DMAMAP_UART5_RX,
@@ -1260,12 +1262,13 @@ static struct up_dev_s g_uart5priv =
   .rs485_dir_polarity = true,
 #  endif
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
 /* This describes the state of the STM32 USART6 port. */
 
-#ifdef CONFIG_STM32H7_USART6
+#ifdef CONFIG_STM32_USART6
 static struct up_dev_s g_usart6priv =
 {
   .dev =
@@ -1315,7 +1318,6 @@ static struct up_dev_s g_usart6priv =
 #endif
 #ifdef CONFIG_USART6_TXDMA
   .txdma_channel = DMAMAP_USART6_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_USART6_RXDMA
   .rxdma_channel = DMAMAP_USART6_RX,
@@ -1330,12 +1332,13 @@ static struct up_dev_s g_usart6priv =
   .rs485_dir_polarity = true,
 #  endif
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
 /* This describes the state of the STM32 UART7 port. */
 
-#ifdef CONFIG_STM32H7_UART7
+#ifdef CONFIG_STM32_UART7
 static struct up_dev_s g_uart7priv =
 {
   .dev =
@@ -1385,7 +1388,6 @@ static struct up_dev_s g_uart7priv =
 #endif
 #ifdef CONFIG_UART7_TXDMA
   .txdma_channel = DMAMAP_UART7_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_UART7_RXDMA
   .rxdma_channel = DMAMAP_UART7_RX,
@@ -1400,12 +1402,13 @@ static struct up_dev_s g_uart7priv =
   .rs485_dir_polarity = true,
 #  endif
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
 /* This describes the state of the STM32 UART8 port. */
 
-#ifdef CONFIG_STM32H7_UART8
+#ifdef CONFIG_STM32_UART8
 static struct up_dev_s g_uart8priv =
 {
   .dev =
@@ -1455,7 +1458,6 @@ static struct up_dev_s g_uart8priv =
 #endif
 #ifdef CONFIG_UART8_TXDMA
   .txdma_channel = DMAMAP_UART8_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_UART8_RXDMA
   .rxdma_channel = DMAMAP_UART8_RX,
@@ -1470,6 +1472,7 @@ static struct up_dev_s g_uart8priv =
   .rs485_dir_polarity = true,
 #  endif
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
@@ -1477,28 +1480,28 @@ static struct up_dev_s g_uart8priv =
 
 static struct up_dev_s * const g_uart_devs[STM32_NSERIAL] =
 {
-#ifdef CONFIG_STM32H7_USART1
+#ifdef CONFIG_STM32_USART1
   [0] = &g_usart1priv,
 #endif
-#ifdef CONFIG_STM32H7_USART2
+#ifdef CONFIG_STM32_USART2
   [1] = &g_usart2priv,
 #endif
-#ifdef CONFIG_STM32H7_USART3
+#ifdef CONFIG_STM32_USART3
   [2] = &g_usart3priv,
 #endif
-#ifdef CONFIG_STM32H7_UART4
+#ifdef CONFIG_STM32_UART4
   [3] = &g_uart4priv,
 #endif
-#ifdef CONFIG_STM32H7_UART5
+#ifdef CONFIG_STM32_UART5
   [4] = &g_uart5priv,
 #endif
-#ifdef CONFIG_STM32H7_USART6
+#ifdef CONFIG_STM32_USART6
   [5] = &g_usart6priv,
 #endif
-#ifdef CONFIG_STM32H7_UART7
+#ifdef CONFIG_STM32_UART7
   [6] = &g_uart7priv,
 #endif
-#ifdef CONFIG_STM32H7_UART8
+#ifdef CONFIG_STM32_UART8
   [7] = &g_uart8priv,
 #endif
 };
@@ -1575,11 +1578,11 @@ static void up_restoreusartint(struct up_dev_s *priv, uint16_t ie)
 {
   irqstate_t flags;
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&priv->lock);
 
   up_setusartint(priv, ie);
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 #endif
 
@@ -1591,7 +1594,7 @@ static void up_disableusartint(struct up_dev_s *priv, uint16_t *ie)
 {
   irqstate_t flags;
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&priv->lock);
 
   if (ie)
     {
@@ -1635,7 +1638,7 @@ static void up_disableusartint(struct up_dev_s *priv, uint16_t *ie)
 
   up_setusartint(priv, 0);
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 
 /****************************************************************************
@@ -1794,7 +1797,7 @@ static void up_set_format(struct uart_dev_s *dev)
   regval &= ~(USART_CR3_CTSE | USART_CR3_RTSE);
 
 #if defined(CONFIG_SERIAL_IFLOWCONTROL) && \
-   !defined(CONFIG_STM32H7_FLOWCONTROL_BROKEN)
+   !defined(CONFIG_STM32_FLOWCONTROL_BROKEN)
   if (priv->iflow && (priv->rts_gpio != 0))
     {
       regval |= USART_CR3_RTSE;
@@ -1949,7 +1952,7 @@ static void up_pm_setsuspend(bool suspend)
 
   g_serialpm.serial_suspended = suspend;
 
-  for (n = 0; n < STM32H7_NUSART + STM32H7_NUART; n++)
+  for (n = 0; n < STM32_NUSART + STM32_NUART; n++)
     {
       struct up_dev_s *priv = g_uart_devs[n];
 
@@ -1987,49 +1990,49 @@ static void up_set_apb_clock(struct uart_dev_s *dev, bool on)
     {
     default:
       return;
-#ifdef CONFIG_STM32H7_USART1
+#ifdef CONFIG_STM32_USART1
     case STM32_USART1_BASE:
       rcc_en = RCC_APB2ENR_USART1EN;
       regaddr = STM32_RCC_APB2ENR;
       break;
 #endif
-#ifdef CONFIG_STM32H7_USART2
+#ifdef CONFIG_STM32_USART2
     case STM32_USART2_BASE:
       rcc_en = RCC_APB1LENR_USART2EN;
       regaddr = STM32_RCC_APB1LENR;
       break;
 #endif
-#ifdef CONFIG_STM32H7_USART3
+#ifdef CONFIG_STM32_USART3
     case STM32_USART3_BASE:
       rcc_en = RCC_APB1LENR_USART3EN;
       regaddr = STM32_RCC_APB1LENR;
       break;
 #endif
-#ifdef CONFIG_STM32H7_UART4
+#ifdef CONFIG_STM32_UART4
     case STM32_UART4_BASE:
       rcc_en = RCC_APB1LENR_UART4EN;
       regaddr = STM32_RCC_APB1LENR;
       break;
 #endif
-#ifdef CONFIG_STM32H7_UART5
+#ifdef CONFIG_STM32_UART5
     case STM32_UART5_BASE:
       rcc_en = RCC_APB1LENR_UART5EN;
       regaddr = STM32_RCC_APB1LENR;
       break;
 #endif
-#ifdef CONFIG_STM32H7_USART6
+#ifdef CONFIG_STM32_USART6
     case STM32_USART6_BASE:
       rcc_en = RCC_APB2ENR_USART6EN;
       regaddr = STM32_RCC_APB2ENR;
       break;
 #endif
-#ifdef CONFIG_STM32H7_UART7
+#ifdef CONFIG_STM32_UART7
     case STM32_UART7_BASE:
       rcc_en = RCC_APB1LENR_UART7EN;
       regaddr = STM32_RCC_APB1LENR;
       break;
 #endif
-#ifdef CONFIG_STM32H7_UART8
+#ifdef CONFIG_STM32_UART8
     case STM32_UART8_BASE:
       rcc_en = RCC_APB1LENR_UART8EN;
       regaddr = STM32_RCC_APB1LENR;
@@ -2079,8 +2082,15 @@ static int up_setup(struct uart_dev_s *dev)
 
   /* Configure pins for USART use */
 
-  stm32_configgpio(priv->tx_gpio);
-  stm32_configgpio(priv->rx_gpio);
+  if (priv->tx_gpio != 0)
+    {
+      stm32_configgpio(priv->tx_gpio);
+    }
+
+  if (priv->rx_gpio != 0)
+    {
+      stm32_configgpio(priv->rx_gpio);
+    }
 
 #ifdef CONFIG_SERIAL_OFLOWCONTROL
   if (priv->cts_gpio != 0)
@@ -2094,7 +2104,7 @@ static int up_setup(struct uart_dev_s *dev)
     {
       uint32_t config = priv->rts_gpio;
 
-#ifdef CONFIG_STM32H7_FLOWCONTROL_BROKEN
+#ifdef CONFIG_STM32_FLOWCONTROL_BROKEN
       /* Instead of letting hw manage this pin, we will bitbang */
 
       config = (config & ~GPIO_MODE_MASK) | GPIO_OUTPUT;
@@ -2311,8 +2321,15 @@ static void up_shutdown(struct uart_dev_s *dev)
    *  If not, then this may need to be a configuration option.
    */
 
-  stm32_unconfiggpio(priv->tx_gpio);
-  stm32_unconfiggpio(priv->rx_gpio);
+  if (priv->tx_gpio != 0)
+    {
+      stm32_unconfiggpio(priv->tx_gpio);
+    }
+
+  if (priv->rx_gpio != 0)
+    {
+      stm32_unconfiggpio(priv->rx_gpio);
+    }
 
 #ifdef CONFIG_SERIAL_OFLOWCONTROL
   if (priv->cts_gpio != 0)
@@ -2379,6 +2396,9 @@ static void up_dma_shutdown(struct uart_dev_s *dev)
 
       stm32_dmafree(priv->txdma);
       priv->txdma = NULL;
+
+      dev->dmatx.length = 0;
+      dev->dmatx.nlength = 0;
     }
 #endif
 }
@@ -2390,7 +2410,7 @@ static void up_dma_shutdown(struct uart_dev_s *dev)
  * Description:
  *   Configure the USART to operation in interrupt driven mode.  This method
  *   is called when the serial port is opened.  Normally, this is just after
- *   the the setup() method is called, however, the serial console may
+ *   the setup() method is called, however, the serial console may
  *   operate in a non-interrupt driven mode during the boot phase.
  *
  *   RX and TX interrupts are not enabled when by the attach method (unless
@@ -2457,8 +2477,8 @@ static int up_interrupt(int irq, void *context, void *arg)
 
   /* Report serial activity to the power management logic */
 
-#if defined(CONFIG_PM) && CONFIG_STM32H7_PM_SERIAL_ACTIVITY > 0
-  pm_activity(PM_IDLE_DOMAIN, CONFIG_STM32H7_PM_SERIAL_ACTIVITY);
+#if defined(CONFIG_PM) && CONFIG_STM32_PM_SERIAL_ACTIVITY > 0
+  pm_activity(PM_IDLE_DOMAIN, CONFIG_STM32_PM_SERIAL_ACTIVITY);
 #endif
 
   /* Get the masked USART status word. */
@@ -2572,14 +2592,14 @@ static int up_interrupt(int irq, void *context, void *arg)
 static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
 {
 #if defined(CONFIG_SERIAL_TERMIOS) || defined(CONFIG_SERIAL_TIOCSERGSTRUCT) \
-    || defined(CONFIG_STM32H7_USART_SINGLEWIRE) \
-    || defined(CONFIG_STM32H7_SERIALBRK_BSDCOMPAT)
+    || defined(CONFIG_STM32_USART_SINGLEWIRE) \
+    || defined(CONFIG_STM32_SERIALBRK_BSDCOMPAT)
   struct inode      *inode = filep->f_inode;
   struct uart_dev_s *dev   = inode->i_private;
 #endif
 #if defined(CONFIG_SERIAL_TERMIOS) \
-    || defined(CONFIG_STM32H7_USART_SINGLEWIRE) \
-    || defined(CONFIG_STM32H7_SERIALBRK_BSDCOMPAT)
+    || defined(CONFIG_STM32_USART_SINGLEWIRE) \
+    || defined(CONFIG_STM32_SERIALBRK_BSDCOMPAT)
   struct up_dev_s   *priv  = (struct up_dev_s *)dev->priv;
 #endif
   int                ret   = OK;
@@ -2602,7 +2622,7 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
       break;
 #endif
 
-#ifdef CONFIG_STM32H7_USART_SINGLEWIRE
+#ifdef CONFIG_STM32_USART_SINGLEWIRE
     case TIOCSSINGLEWIRE:
       {
         uint32_t cr1;
@@ -2638,15 +2658,24 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
             gpio_val |= (arg & SER_SINGLEWIRE_PULL_MASK) ==
                          SER_SINGLEWIRE_PULLDOWN ?
                          GPIO_PULLDOWN : GPIO_FLOAT;
-            stm32_configgpio((priv->tx_gpio &
-                            ~(GPIO_PUPD_MASK | GPIO_OPENDRAIN)) | gpio_val);
+            if (priv->tx_gpio != 0)
+              {
+                stm32_configgpio((priv->tx_gpio &
+                                  ~(GPIO_PUPD_MASK | GPIO_OPENDRAIN)) |
+                                  gpio_val);
+              }
+
             cr |= USART_CR3_HDSEL;
           }
         else
           {
-            stm32_configgpio((priv->tx_gpio &
-                            ~(GPIO_PUPD_MASK | GPIO_OPENDRAIN)) |
-                              GPIO_PUSHPULL);
+            if (priv->tx_gpio != 0)
+              {
+                stm32_configgpio((priv->tx_gpio &
+                                  ~(GPIO_PUPD_MASK | GPIO_OPENDRAIN)) |
+                                  GPIO_PUSHPULL);
+              }
+
             cr &= ~USART_CR3_HDSEL;
           }
 
@@ -2660,7 +2689,7 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
      break;
 #endif
 
-#ifdef CONFIG_STM32H7_USART_INVERT
+#ifdef CONFIG_STM32_USART_INVERT
     case TIOCSINVERT:
       {
         uint32_t cr1;
@@ -2711,7 +2740,7 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
      break;
 #endif
 
-#ifdef CONFIG_STM32H7_USART_SWAP
+#ifdef CONFIG_STM32_USART_SWAP
     case TIOCSSWAP:
       {
         uint32_t cr1;
@@ -2848,12 +2877,11 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
       break;
 #endif /* CONFIG_SERIAL_TERMIOS */
 
-#ifdef CONFIG_STM32H7_USART_BREAKS
-#  ifdef CONFIG_STM32H7_SERIALBRK_BSDCOMPAT
+#ifdef CONFIG_STM32_USART_BREAKS
+#  ifdef CONFIG_STM32_SERIALBRK_BSDCOMPAT
     case TIOCSBRK:  /* BSD compatibility: Turn break on, unconditionally */
       {
         irqstate_t flags;
-        uint32_t tx_break;
 
         flags = enter_critical_section();
 
@@ -2865,9 +2893,12 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
 
         /* Configure TX as a GPIO output pin and Send a break signal */
 
-        tx_break = GPIO_OUTPUT |
-                (~(GPIO_MODE_MASK | GPIO_OUTPUT_SET) & priv->tx_gpio);
-        stm32_configgpio(tx_break);
+        if (priv->tx_gpio != 0)
+          {
+            uint32_t tx_break = GPIO_OUTPUT |
+                    (~(GPIO_MODE_MASK | GPIO_OUTPUT_SET) & priv->tx_gpio);
+            stm32_configgpio(tx_break);
+          }
 
         leave_critical_section(flags);
       }
@@ -2881,7 +2912,10 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
 
         /* Configure TX back to U(S)ART */
 
-        stm32_configgpio(priv->tx_gpio);
+        if (priv->tx_gpio != 0)
+          {
+            stm32_configgpio(priv->tx_gpio);
+          }
 
         priv->ie &= ~USART_CR1_IE_BREAK_INPROGRESS;
 
@@ -3054,7 +3088,7 @@ static bool up_rxflowcontrol(struct uart_dev_s *dev,
   struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
 
 #if defined(CONFIG_SERIAL_IFLOWCONTROL_WATERMARKS) && \
-    defined(CONFIG_STM32H7_FLOWCONTROL_BROKEN)
+    defined(CONFIG_STM32_FLOWCONTROL_BROKEN)
   if (priv->iflow && (priv->rts_gpio != 0))
     {
       /* Assert/de-assert nRTS set it high resume/stop sending */
@@ -3299,8 +3333,9 @@ static bool up_dma_rxavailable(struct uart_dev_s *dev)
  * Name: up_dma_txcallback
  *
  * Description:
- *   This function clears dma buffer at complete of DMA transfer and wakes up
- *   threads waiting for space in buffer.
+ *   This function clears dma buffer at completion of DMA transfer. It wakes
+ *   up threads waiting for space in buffer and restarts the DMA if there is
+ *   more data to send.
  *
  ****************************************************************************/
 
@@ -3314,11 +3349,7 @@ static void up_dma_txcallback(DMA_HANDLE handle, uint8_t status, void *arg)
    * This is important to free TX buffer space by 'uart_xmitchars_done'.
    */
 
-  if (status & DMA_SCR_HTIE)
-    {
-      priv->dev.dmatx.nbytes += priv->dev.dmatx.length / 2;
-    }
-  else if (status & DMA_SCR_TCIE)
+  if (status & DMA_SCR_TCIE)
     {
       priv->dev.dmatx.nbytes += priv->dev.dmatx.length;
       if (priv->dev.dmatx.nlength)
@@ -3346,11 +3377,13 @@ static void up_dma_txcallback(DMA_HANDLE handle, uint8_t status, void *arg)
         }
     }
 
-  nxsem_post(&priv->txdmasem);
-
   /* Adjust the pointers */
 
   uart_xmitchars_done(&priv->dev);
+
+  /* Send more if available */
+
+  up_dma_txavailable(&priv->dev);
 }
 #endif
 
@@ -3366,12 +3399,18 @@ static void up_dma_txcallback(DMA_HANDLE handle, uint8_t status, void *arg)
 static void up_dma_txavailable(struct uart_dev_s *dev)
 {
   struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
+  irqstate_t flags =  enter_critical_section();
 
   /* Only send when the DMA is idle */
 
-  nxsem_wait(&priv->txdmasem);
+  if (priv->dev.dmatx.length == 0 &&
+      priv->dev.dmatx.nlength == 0 &&
+      stm32_dmaresidual(priv->txdma) == 0)
+    {
+      uart_xmitchars_dma(dev);
+    }
 
-  uart_xmitchars_dma(dev);
+  leave_critical_section(flags);
 }
 #endif
 
@@ -3722,7 +3761,7 @@ static int up_pm_prepare(struct pm_callback_s *cb, int domain,
        * buffers.
        */
 
-      for (n = 0; n < STM32H7_NUSART + STM32H7_NUART; n++)
+      for (n = 0; n < STM32_NUSART + STM32_NUART; n++)
         {
           struct up_dev_s *priv = g_uart_devs[n];
 
@@ -3810,7 +3849,7 @@ uart_dev_t *stm32_serial_get_uart(int uart_num)
  *
  * Description:
  *   Performs the low level USART initialization early in debug so that the
- *   serial console will be available during bootup.  This must be called
+ *   serial console will be available during boot up.  This must be called
  *   before arm_serialinit.
  *
  ****************************************************************************/
@@ -3872,7 +3911,7 @@ void arm_serialinit(void)
 #if CONSOLE_UART > 0
   uart_register("/dev/console", &g_uart_devs[CONSOLE_UART - 1]->dev);
 
-#ifndef CONFIG_STM32H7_SERIAL_DISABLE_REORDERING
+#ifndef CONFIG_STM32_SERIAL_DISABLE_REORDERING
   /* If not disabled, register the console UART to ttyS0 and exclude
    * it from initializing it further down
    */
@@ -3901,7 +3940,7 @@ void arm_serialinit(void)
           continue;
         }
 
-#ifndef CONFIG_STM32H7_SERIAL_DISABLE_REORDERING
+#ifndef CONFIG_STM32_SERIAL_DISABLE_REORDERING
       /* Don't create a device for the console - we did that above */
 
       if (g_uart_devs[i]->dev.isconsole)
@@ -4004,28 +4043,17 @@ void stm32_serial_dma_poll(void)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #if CONSOLE_UART > 0
   struct up_dev_s *priv = g_uart_devs[CONSOLE_UART - 1];
   uint16_t ie;
 
   up_disableusartint(priv, &ie);
-
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      arm_lowputc('\r');
-    }
-
   arm_lowputc(ch);
   up_restoreusartint(priv, ie);
 
 #endif
-  return ch;
 }
 
 #else /* USE_SERIALDRIVER */
@@ -4038,21 +4066,11 @@ int up_putc(int ch)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #if CONSOLE_UART > 0
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      arm_lowputc('\r');
-    }
-
   arm_lowputc(ch);
 #endif
-  return ch;
 }
 
 #endif /* USE_SERIALDRIVER */

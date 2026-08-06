@@ -29,7 +29,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <sys/types.h>
 #include <sys/param.h>
 #include <errno.h>
@@ -55,13 +55,12 @@
 #endif
 
 #include "xtensa.h"
-#include "xtensa_attr.h"
 
 #include "hardware/esp32_gpio_sigmap.h"
 #include "hardware/esp32_dport.h"
 #include "hardware/esp32_emac.h"
-#include "esp32_gpio.h"
-#include "esp32_irq.h"
+#include "esp_gpio.h"
+#include "esp_irq.h"
 
 #include <arch/board/board.h>
 
@@ -198,7 +197,8 @@ struct esp32_emac_s
   struct work_s         timeoutwork; /* For TX timeout work to the work queue */
   struct work_s         pollwork;    /* For deferring poll work to the work queue */
 
-  int                   cpuint;      /* SPI interrupt ID */
+  uint8_t               cpu;         /* CPU ID */
+  int                   cpuint;      /* CPU interrupt assigned to EMAC */
 
   sq_queue_t            freeb;       /* The free buffer list */
 
@@ -232,6 +232,7 @@ struct esp32_emac_s
  ****************************************************************************/
 
 static struct esp32_emac_s s_esp32_emac;
+static mutex_t g_lock = NXMUTEX_INITIALIZER;
 
 /****************************************************************************
  * Private Function Prototypes
@@ -512,25 +513,25 @@ static int emac_read_mac(uint8_t *mac)
 
 static void emac_init_gpio(void)
 {
-  esp32_configgpio(EMAC_TXEN_PIN, OUTPUT_FUNCTION_6);
-  esp32_configgpio(EMAC_TXDO_PIN, OUTPUT_FUNCTION_6);
-  esp32_configgpio(EMAC_TXD1_PIN, OUTPUT_FUNCTION_6);
+  esp_configgpio(EMAC_TXEN_PIN, OUTPUT_FUNCTION_6);
+  esp_configgpio(EMAC_TXDO_PIN, OUTPUT_FUNCTION_6);
+  esp_configgpio(EMAC_TXD1_PIN, OUTPUT_FUNCTION_6);
 
-  esp32_configgpio(EMAC_RXDO_PIN, INPUT_FUNCTION_6);
-  esp32_configgpio(EMAC_RXD1_PIN, INPUT_FUNCTION_6);
-  esp32_configgpio(EMAC_RXDV_PIN, INPUT_FUNCTION_6);
+  esp_configgpio(EMAC_RXDO_PIN, INPUT_FUNCTION_6);
+  esp_configgpio(EMAC_RXD1_PIN, INPUT_FUNCTION_6);
+  esp_configgpio(EMAC_RXDV_PIN, INPUT_FUNCTION_6);
 
-  esp32_configgpio(EMAC_ICLK_PIN, INPUT_FUNCTION_6);
+  esp_configgpio(EMAC_ICLK_PIN, INPUT_FUNCTION_6);
 
-  esp32_configgpio(EMAC_MDC_PIN, OUTPUT | FUNCTION_3);
-  esp32_gpio_matrix_out(EMAC_MDC_PIN, EMAC_MDC_O_IDX, 0, 0);
+  esp_configgpio(EMAC_MDC_PIN, OUTPUT | FUNCTION_3);
+  esp_gpio_matrix_out(EMAC_MDC_PIN, EMAC_MDC_O_IDX, 0, 0);
 
-  esp32_configgpio(EMAC_MDIO_PIN, OUTPUT | INPUT | FUNCTION_3);
-  esp32_gpio_matrix_out(EMAC_MDIO_PIN, EMAC_MDO_O_IDX, 0, 0);
-  esp32_gpio_matrix_in(EMAC_MDIO_PIN, EMAC_MDI_I_IDX, 0);
+  esp_configgpio(EMAC_MDIO_PIN, OUTPUT | INPUT | FUNCTION_3);
+  esp_gpio_matrix_out(EMAC_MDIO_PIN, EMAC_MDO_O_IDX, 0, 0);
+  esp_gpio_matrix_in(EMAC_MDIO_PIN, EMAC_MDI_I_IDX, 0);
 
 #ifdef CONFIG_ESP32_ETH_ENABLE_PHY_RSTPIN
-  esp32_configgpio(EMAC_PHYRST_PIN, OUTPUT | PULLUP);
+  esp_configgpio(EMAC_PHYRST_PIN, OUTPUT | PULLUP);
 #endif
 }
 
@@ -562,9 +563,9 @@ static int emac_config(void)
 
   /* Hardware reset PHY chip */
 
-  esp32_gpiowrite(EMAC_PHYRST_PIN, false);
-  nxsig_usleep(50);
-  esp32_gpiowrite(EMAC_PHYRST_PIN, true);
+  esp_gpiowrite(EMAC_PHYRST_PIN, false);
+  up_udelay(50);
+  esp_gpiowrite(EMAC_PHYRST_PIN, true);
 #endif
 
   /* Open hardware clock */
@@ -596,7 +597,7 @@ static int emac_config(void)
           break;
         }
 
-      nxsig_usleep(10);
+      up_udelay(10);
     }
 
   if (i >= EMAC_RESET_TO)
@@ -606,8 +607,7 @@ static int emac_config(void)
       return -ETIMEDOUT;
     }
 
-  /**
-   * Enable transmission options:
+  /* Enable transmission options:
    *
    *   - 100M
    *   - Full duplex
@@ -620,8 +620,7 @@ static int emac_config(void)
 
   emac_set_reg(EMAC_FFR_OFFSET, EMAC_PMF_E);
 
-  /**
-   * Enable flow control options:
+  /* Enable flow control options:
    *
    *   - PT-28 Time slot
    *   - RX flow control
@@ -634,8 +633,7 @@ static int emac_config(void)
            (EMAC_PAUSE_TIME << EMAC_CFPT_S);
   emac_set_reg(EMAC_FCR_OFFSET, regval);
 
-  /**
-   * Enable DMA options:
+  /* Enable DMA options:
    *
    *   - Drop error frame
    *   - Send frame when filled into FiFO
@@ -645,8 +643,7 @@ static int emac_config(void)
   regval = EMAC_FSF_E | EMAC_FTF_E | EMAC_OSF_E;
   emac_set_reg(EMAC_DMA_OMR_OFFSET, regval);
 
-  /**
-   * Enable DMA bus options:
+  /* Enable DMA bus options:
    *
    *   - Mixed burst mode
    *   - Address align beast
@@ -811,7 +808,7 @@ static void emac_deinit_dma(struct esp32_emac_s *priv)
  *   0 is returned on success.  Otherwise, a negated errno value is
  *   returned indicating the nature of the failure:
  *
- *     -EBUSY is returned if no TX descrption is valid.
+ *     -EBUSY is returned if no TX description is valid.
  *
  ****************************************************************************/
 
@@ -945,7 +942,7 @@ static int emac_read_phy(uint16_t dev_addr,
 
   for (i = 0; i < EMAC_READPHY_TO; i++)
     {
-      nxsig_usleep(100);
+      up_udelay(100);
 
       val = emac_get_reg(EMAC_MAR_OFFSET);
       if (!(val & EMAC_PIB))
@@ -1007,7 +1004,7 @@ static int emac_write_phy(uint16_t dev_addr,
 
   for (i = 0; i < EMAC_WRITEPHY_TO; i++)
     {
-      nxsig_usleep(100);
+      up_udelay(100);
 
       val = emac_get_reg(EMAC_MAR_OFFSET);
       if (!(val & EMAC_PIB))
@@ -1050,7 +1047,7 @@ static int emac_wait_linkup(struct esp32_emac_s *priv)
 
   for (i = 0; i < EMAC_WAITLINK_TO; i++)
     {
-      nxsig_usleep(10);
+      up_udelay(10);
 
       ret = emac_read_phy(EMAC_PHY_ADDR, MII_MSR, &val);
       if (ret != 0)
@@ -1187,7 +1184,7 @@ static int emac_init_phy(struct esp32_emac_s *priv)
 
   for (i = 0; i < EMAC_RSTPHY_TO; i++)
     {
-      nxsig_usleep(100);
+      up_udelay(100);
 
       ret = emac_read_phy(EMAC_PHY_ADDR, MII_MCR, &val);
       if (ret != 0)
@@ -1642,7 +1639,7 @@ static void emac_dopoll(struct esp32_emac_s *priv)
         {
           /* never reach */
 
-          return ;
+          return;
         }
 
       dev->d_len = EMAC_BUF_LEN;
@@ -1762,6 +1759,8 @@ static int emac_ifup(struct net_driver_s *dev)
 
   leave_critical_section(flags);
 
+  netdev_carrier_on(dev);
+
   return 0;
 }
 
@@ -1797,7 +1796,9 @@ static int emac_ifdown(struct net_driver_s *dev)
 
   emac_reset_regbits(EMAC_CR_OFFSET, EMAC_TX_E | EMAC_RX_E);
 
-  up_disable_irq(priv->cpuint);
+  /* Disable the Ethernet interrupt */
+
+  up_disable_irq(ESP32_IRQ_EMAC);
 
   /* Cancel the TX timeout timers */
 
@@ -1817,6 +1818,8 @@ static int emac_ifdown(struct net_driver_s *dev)
   priv->ifup = false;
 
   leave_critical_section(flags);
+
+  netdev_carrier_off(dev);
 
   return 0;
 }
@@ -1948,10 +1951,15 @@ static int emac_rmmac(struct net_driver_s *dev, const uint8_t *mac)
 #ifdef CONFIG_NETDEV_IOCTL
 static int emac_ioctl(struct net_driver_s *dev, int cmd, unsigned long arg)
 {
-#if defined(CONFIG_NETDEV_PHY_IOCTL) && defined(CONFIG_ARCH_PHY_INTERRUPT)
-  struct esp32_emacmac_s *priv = NET2PRIV(dev);
-#endif
   int ret;
+
+  /* Get exclusive access to the device structures */
+
+  ret = nxmutex_lock(&g_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
 
   switch (cmd)
     {
@@ -2004,6 +2012,7 @@ static int emac_ioctl(struct net_driver_s *dev, int cmd, unsigned long arg)
         break;
     }
 
+  nxmutex_unlock(&g_lock);
   return ret;
 }
 #endif /* CONFIG_NETDEV_IOCTL */
@@ -2036,23 +2045,18 @@ int esp32_emac_init(void)
 
   memset(priv, 0, sizeof(struct esp32_emac_s));
 
-  priv->cpuint = esp32_setup_irq(0, ESP32_PERIPH_EMAC,
-                                 1, ESP32_CPUINT_LEVEL);
+  priv->cpu = this_cpu();
+  priv->cpuint = esp_setup_irq(ESP32_PERIPH_EMAC,
+                               1,
+                               ESP_IRQ_TRIGGER_LEVEL,
+                               emac_interrupt,
+                               priv);
   if (priv->cpuint < 0)
     {
       nerr("ERROR: Failed alloc interrupt\n");
 
       ret = -ENOMEM;
       goto error;
-    }
-
-  ret = irq_attach(ESP32_IRQ_EMAC, emac_interrupt, priv);
-  if (ret != 0)
-    {
-      nerr("ERROR: Failed attach interrupt\n");
-
-      ret = -ENOMEM;
-      goto errout_with_attachirq;
     }
 
   /* Initialize the driver structure */
@@ -2087,7 +2091,7 @@ int esp32_emac_init(void)
   return 0;
 
 errout_with_attachirq:
-  esp32_teardown_irq(0, ESP32_PERIPH_EMAC, priv->cpuint);
+  esp_teardown_irq(ESP32_PERIPH_EMAC, priv->cpuint);
 
 error:
   return ret;

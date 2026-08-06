@@ -1,19 +1,14 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32h743xx_flash.c
  *
- *   Copyright (C) 2019 Gregory Nutt. All rights reserved.
- *   Authors: Gregory Nutt <gnutt@nuttx.org>
- *            David Sidrane <david.sidrane@nscdg.com>
- *
- * Ported from stm32f7_flash.c, this is the original license:
- *
- *   Copyright (C) 2018 Wolpike LLC. All rights reserved.
- *   Author: Evgeniy Bobkov <evgen@wolpike.com>
- *
- * Ported from stm32f20xxf40xx_flash.c, this is the original license:
- *
- *   Copyright (C) 2011 Uros Platise. All rights reserved.
- *   Author: Uros Platise <uros.platise@isotel.eu>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2019 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2018 Wolpike LLC. All rights reserved.
+ * SPDX-FileCopyrightText: 2011 Uros Platise. All rights reserved.
+ * SPDX-FileContributor: Evgeniy Bobkov <evgen@wolpike.com>
+ * SPDX-FileContributor: Uros Platise <uros.platise@isotel.eu>
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.org>
+ * SPDX-FileContributor: David Sidrane <david.sidrane@nscdg.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -59,12 +54,11 @@
 #include <nuttx/config.h>
 #include <nuttx/arch.h>
 #include <nuttx/mutex.h>
+#include <arch/barriers.h>
 
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-
-#include "barriers.h"
 
 #include "hardware/stm32_flash.h"
 #include "arm_internal.h"
@@ -75,7 +69,7 @@
 
 /* Flash size is known from the chip selection:
  *
- *   When CONFIG_STM32H7_FLASH_OVERRIDE_DEFAULT is set the
+ *   When CONFIG_STM32_FLASH_OVERRIDE_DEFAULT is set the
  *   CONFIG_STM32H7_FLASH_CONFIG_x selects the default FLASH size based on
  *   the chip part number. This value can be overridden with
  *   CONFIG_STM32H7_FLASH_OVERRIDE_x
@@ -91,49 +85,49 @@
 #define FLASH_SECTOR_SIZE  _K(128)
 #define FLASH_PAGE_SIZE        32
 
-#if !defined(CONFIG_STM32H7_FLASH_OVERRIDE_DEFAULT) && \
-    !defined(CONFIG_STM32H7_FLASH_OVERRIDE_B) && \
-    !defined(CONFIG_STM32H7_FLASH_OVERRIDE_G) && \
-    !defined(CONFIG_STM32H7_FLASH_OVERRIDE_I) && \
-    !defined(CONFIG_STM32H7_FLASH_CONFIG_B) && \
-    !defined(CONFIG_STM32H7_FLASH_CONFIG_G) && \
-    !defined(CONFIG_STM32H7_FLASH_CONFIG_I)
-#  define CONFIG_STM32H7_FLASH_OVERRIDE_B
+#if !defined(CONFIG_STM32_FLASH_OVERRIDE_DEFAULT) && \
+    !defined(CONFIG_STM32_FLASH_OVERRIDE_B) && \
+    !defined(CONFIG_STM32_FLASH_OVERRIDE_G) && \
+    !defined(CONFIG_STM32_FLASH_OVERRIDE_I) && \
+    !defined(CONFIG_STM32_FLASH_CONFIG_B) && \
+    !defined(CONFIG_STM32_FLASH_CONFIG_G) && \
+    !defined(CONFIG_STM32_FLASH_CONFIG_I)
+#  define CONFIG_STM32_FLASH_OVERRIDE_B
 #  warning "Flash size not defined defaulting to 128KiB (B)"
 #endif
 
-#if !defined(CONFIG_STM32H7_FLASH_OVERRIDE_DEFAULT)
+#if !defined(CONFIG_STM32_FLASH_OVERRIDE_DEFAULT)
 
-#  undef CONFIG_STM32H7_FLASH_CONFIG_B
-#  undef CONFIG_STM32H7_FLASH_CONFIG_G
-#  undef CONFIG_STM32H7_FLASH_CONFIG_I
+#  undef CONFIG_STM32_FLASH_CONFIG_B
+#  undef CONFIG_STM32_FLASH_CONFIG_G
+#  undef CONFIG_STM32_FLASH_CONFIG_I
 
-#  if defined(CONFIG_STM32H7_FLASH_OVERRIDE_B)
+#  if defined(CONFIG_STM32_FLASH_OVERRIDE_B)
 
-#    define CONFIG_STM32H7_FLASH_CONFIG_B
+#    define CONFIG_STM32_FLASH_CONFIG_B
 
-#  elif defined(CONFIG_STM32H7_FLASH_OVERRIDE_G)
+#  elif defined(CONFIG_STM32_FLASH_OVERRIDE_G)
 
-#    define CONFIG_STM32H7_FLASH_CONFIG_G
+#    define CONFIG_STM32_FLASH_CONFIG_G
 
-#  elif defined(CONFIG_STM32H7_FLASH_OVERRIDE_I)
+#  elif defined(CONFIG_STM32_FLASH_OVERRIDE_I)
 
-#    define CONFIG_STM32H7_FLASH_CONFIG_I
+#    define CONFIG_STM32_FLASH_CONFIG_I
 
 #  endif
 #endif
 
-#if defined(CONFIG_STM32H7_FLASH_CONFIG_B)
+#if defined(CONFIG_STM32_FLASH_CONFIG_B)
 
 #  define STM32_FLASH_NBLOCKS      1
 #  define STM32_FLASH_SIZE        _K(1 * 128)
 
-#elif defined(CONFIG_STM32H7_FLASH_CONFIG_G)
+#elif defined(CONFIG_STM32_FLASH_CONFIG_G)
 
 #  define STM32_FLASH_NBLOCKS      8
 #  define STM32_FLASH_SIZE        _K(8 * 128)
 
-#elif defined(CONFIG_STM32H7_FLASH_CONFIG_I)
+#elif defined(CONFIG_STM32_FLASH_CONFIG_I)
 
 #  define STM32_FLASH_NBLOCKS      16
 #  define STM32_FLASH_SIZE        _K(16 * 128)
@@ -141,10 +135,10 @@
 
 #endif
 
-#ifndef CONFIG_STM32H7_FLASH_CR_PSIZE
+#ifndef CONFIG_STM32_FLASH_CR_PSIZE
 #define FLASH_CR_PSIZE FLASH_CR_PSIZE_X64
 #else
-#define FLASH_CR_PSIZE (CONFIG_STM32H7_FLASH_CR_PSIZE << FLASH_CR_PSIZE_SHIFT)
+#define FLASH_CR_PSIZE (CONFIG_STM32_FLASH_CR_PSIZE << FLASH_CR_PSIZE_SHIFT)
 #endif
 
 #define FLASH_KEY1           0x45670123
@@ -402,7 +396,7 @@ static int stm32h7_wait_for_last_operation(struct stm32h7_flash_priv_s
   int i;
   bool timeout = true;
 
-  ARM_DSB();
+  UP_DSB();
 
   for (i = 0; i < FLASH_TIMEOUT_VALUE; i++)
     {
@@ -514,14 +508,14 @@ static void stm32h7_save_flashopt(struct stm32h7_flash_priv_s *priv)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32h7_flash_unlock
+ * Name: stm32_flash_unlock
  *
  * Description:
  *   Unlocks a bank
  *
  ****************************************************************************/
 
-int stm32h7_flash_unlock(size_t addr)
+int stm32_flash_unlock(size_t addr)
 {
   int ret = -ENODEV;
   struct stm32h7_flash_priv_s *priv = stm32h7_flash_bank(addr);
@@ -542,14 +536,14 @@ int stm32h7_flash_unlock(size_t addr)
 }
 
 /****************************************************************************
- * Name: stm32h7_flash_lock
+ * Name: stm32_flash_lock
  *
  * Description:
  *   Locks a bank
  *
  ****************************************************************************/
 
-int stm32h7_flash_lock(size_t addr)
+int stm32_flash_lock(size_t addr)
 {
   int ret = -ENODEV;
   struct stm32h7_flash_priv_s *priv = stm32h7_flash_bank(addr);
@@ -570,14 +564,14 @@ int stm32h7_flash_lock(size_t addr)
 }
 
 /****************************************************************************
- * Name: stm32h7_flash_writeprotect
+ * Name: stm32_flash_writeprotect
  *
  * Description:
  *   Enable or disable the write protection of a flash sector.
  *
  ****************************************************************************/
 
-int stm32h7_flash_writeprotect(size_t block, bool enabled)
+int stm32_flash_writeprotect(size_t block, bool enabled)
 {
   struct stm32h7_flash_priv_s *priv;
   uint32_t setbits   = 0;
@@ -611,14 +605,14 @@ int stm32h7_flash_writeprotect(size_t block, bool enabled)
 }
 
 /****************************************************************************
- * Name: stm32h7_flash_getopt
+ * Name: stm32_flash_getopt
  *
  * Description:
  *   Returns the current flash option bytes from the FLASH_OPTSR_CR register.
  *
  ****************************************************************************/
 
-uint32_t stm32h7_flash_getopt(void)
+uint32_t stm32_flash_getopt(void)
 {
   struct stm32h7_flash_priv_s *priv;
   priv = stm32h7_flash_bank(STM32_FLASH_BANK1);
@@ -631,14 +625,14 @@ uint32_t stm32h7_flash_getopt(void)
 }
 
 /****************************************************************************
- * Name: stm32h7_flash_optmodify
+ * Name: stm32_flash_optmodify
  *
  * Description:
  *   Modifies the current flash option bytes, given bits to set and clear.
  *
  ****************************************************************************/
 
-void stm32h7_flash_optmodify(uint32_t clear, uint32_t set)
+void stm32_flash_optmodify(uint32_t clear, uint32_t set)
 {
   struct stm32h7_flash_priv_s *priv;
   bool was_locked;
@@ -658,7 +652,7 @@ void stm32h7_flash_optmodify(uint32_t clear, uint32_t set)
 }
 
 /****************************************************************************
- * Name: stm32h7_flash_swapbanks
+ * Name: stm32_flash_swapbanks
  *
  * Description:
  *   Swaps banks 1 and 2 in the processor's memory map.  Takes effect
@@ -666,16 +660,16 @@ void stm32h7_flash_optmodify(uint32_t clear, uint32_t set)
  *
  ****************************************************************************/
 
-void stm32h7_flash_swapbanks(void)
+void stm32_flash_swapbanks(void)
 {
-  uint32_t opts = stm32h7_flash_getopt();
+  uint32_t opts = stm32_flash_getopt();
   if (opts & FLASH_OPTCR_SWAPBANK)
     {
-      stm32h7_flash_optmodify(FLASH_OPTCR_SWAPBANK, 0);
+      stm32_flash_optmodify(FLASH_OPTCR_SWAPBANK, 0);
     }
   else
     {
-      stm32h7_flash_optmodify(0, FLASH_OPTCR_SWAPBANK);
+      stm32_flash_optmodify(0, FLASH_OPTCR_SWAPBANK);
     }
 }
 
@@ -883,8 +877,7 @@ ssize_t up_progmem_write(size_t addr, const void *buf, size_t count)
       fp = (uint32_t *)faddr;
       rp = ll;
 
-      ARM_DSB();
-      ARM_ISB();
+      UP_MB();
 
       /* Write 8 32 bit word and wait to complete */
 
@@ -902,8 +895,7 @@ ssize_t up_progmem_write(size_t addr, const void *buf, size_t count)
        * optimization).
        */
 
-      ARM_DSB();
-      ARM_ISB();
+      UP_MB();
 
       if (stm32h7_wait_for_last_operation(priv))
         {

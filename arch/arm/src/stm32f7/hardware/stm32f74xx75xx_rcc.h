@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/hardware/stm32f74xx75xx_rcc.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 
 #include <nuttx/config.h>
 
-#if defined(CONFIG_STM32F7_STM32F74XX) || defined(CONFIG_STM32F7_STM32F75XX)
+#if defined(CONFIG_STM32_STM32F74XX) || defined(CONFIG_STM32_STM32F75XX)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -721,5 +723,5 @@
 #  define RCC_DCKCFGR2_SDMMCSEL_48MHZ   (0 << RCC_DCKCFGR2_SDMMCSEL_SHIFT)  /* 48 MHz clock is selected as SDMMC clock */
 #  define RCC_DCKCFGR2_SDMMCSEL_SYSCLK  (1 << RCC_DCKCFGR2_SDMMCSEL_SHIFT)  /* System clock is selected as SDMMC clock */
 
-#endif /* CONFIG_STM32F7_STM32F74XX || CONFIG_STM32F7_STM32F75XX */
+#endif /* CONFIG_STM32_STM32F74XX || CONFIG_STM32_STM32F75XX */
 #endif /* __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32F74XX75XX_RCC_H */

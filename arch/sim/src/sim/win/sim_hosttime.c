@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/win/sim_hosttime.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -41,6 +43,15 @@
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: host_inittimer
+ ****************************************************************************/
+
+int host_inittimer(void)
+{
+  return 0;
+}
 
 /****************************************************************************
  * Name: host_gettime
@@ -137,6 +148,22 @@ void host_sleepuntil(uint64_t nsec)
 int host_settimer(uint64_t nsec)
 {
   return -ENOSYS;
+}
+
+/****************************************************************************
+ * Name: host_set_timeratio
+ *
+ * Description:
+ *   Set the ratio of simulated time to real time in percent.
+ *   Not implemented on Windows.
+ *
+ * Input Parameters:
+ *   ratio - The new time ratio in percent
+ *
+ ****************************************************************************/
+
+void host_set_timeratio(int ratio)
+{
 }
 
 /****************************************************************************

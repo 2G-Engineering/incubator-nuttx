@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/binfmt/symtab.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,9 +26,6 @@
 /****************************************************************************
  * Included Files
  ****************************************************************************/
-
-#include <nuttx/config.h>
-#include <nuttx/symtab.h>
 
 /****************************************************************************
  * Public Functions Definitions
@@ -58,6 +57,7 @@ extern "C"
  *
  ****************************************************************************/
 
+struct symtab_s;
 void exec_getsymtab(FAR const struct symtab_s **symtab, FAR int *nsymbols);
 
 /****************************************************************************

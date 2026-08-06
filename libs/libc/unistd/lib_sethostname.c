@@ -1,10 +1,11 @@
 /****************************************************************************
  * libs/libc/unistd/lib_sethostname.c
  *
- *   Copyright (C) 2015 Stavros Polymenis. All rights reserved.
- *   Copyright (C) 2015, 2016 Gregory Nutt. All rights reserved.
- *   Author: Stavros Polymenis <sp@orbitalfox.com>
- *           Gregory Nutt <gnutt@nuttx.org>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2015 Stavros Polymenis. All rights reserved.
+ * SPDX-FileCopyrightText: 2015, 2016 Gregory Nutt. All rights reserved.
+ * SPDX-FileContributor: Stavros Polymenis <sp@orbitalfox.com>
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -46,6 +47,7 @@
 #include <unistd.h>
 
 #include <nuttx/irq.h>
+#include <nuttx/spinlock.h>
 
 /* Further, in the protected and kernel build modes where kernel and
  * application code are separated, the hostname is a common system property
@@ -66,6 +68,7 @@
 /* This is the system hostname (defined in lib_gethostname). */
 
 extern char g_hostname[HOST_NAME_MAX + 1];
+extern spinlock_t g_hostname_lock;
 
 /****************************************************************************
  * Public Functions
@@ -104,9 +107,9 @@ int sethostname(FAR const char *name, size_t namelen)
    * are setting it.
    */
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_hostname_lock);
   strlcpy(g_hostname, name, sizeof(g_hostname));
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_hostname_lock, flags);
 
   return 0;
 }

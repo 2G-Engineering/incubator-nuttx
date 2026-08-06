@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imxrt/imxrt_start.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,19 +28,21 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/cache.h>
 #include <nuttx/init.h>
+#include <arch/barriers.h>
 #include <arch/board/board.h>
 
 #include "arm_internal.h"
-#include "barriers.h"
 #include "nvic.h"
+#include "ram_vectors.h"
 
 #include "imxrt_clockconfig.h"
 #include "imxrt_mpuinit.h"
 #include "imxrt_userspace.h"
+#include "imxrt_lowputc.h"
 #include "imxrt_serial.h"
 #include "imxrt_start.h"
 #include "imxrt_gpio.h"
@@ -46,6 +50,14 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+#define IDLE_STACK      ((unsigned)&_ebss+CONFIG_IDLETHREAD_STACKSIZE)
+
+#ifdef CONFIG_DEBUG_FEATURES
+#define showprogress(c) imxrt_lowputc(c)
+#else
+#  define showprogress(c)
+#endif
 
 /* Memory Map ***************************************************************/
 
@@ -66,7 +78,7 @@
  */
 
 /****************************************************************************
- * Private Functions
+ * Private Types
  ****************************************************************************/
 
 #ifdef CONFIG_ARMV7M_STACKCHECK
@@ -74,6 +86,8 @@
 
 void __start(void) noinstrument_function;
 #endif
+
+extern const void * const _vectors[];
 
 /****************************************************************************
  * Name: imxrt_tcmenable
@@ -88,8 +102,7 @@ static inline void imxrt_tcmenable(void)
 {
   uint32_t regval;
 
-  ARM_DSB();
-  ARM_ISB();
+  UP_MB();
 
   /* Enabled/disabled ITCM */
 
@@ -111,8 +124,7 @@ static inline void imxrt_tcmenable(void)
 #endif
   putreg32(regval, NVIC_DTCMCR);
 
-  ARM_DSB();
-  ARM_ISB();
+  UP_MB();
 
 #ifdef CONFIG_ARMV7M_ITCM
   /* Copy TCM code from flash to ITCM */
@@ -133,10 +145,28 @@ static inline void imxrt_tcmenable(void)
  *
  ****************************************************************************/
 
+osentry_function
 void __start(void)
 {
-  const uint32_t *src;
-  uint32_t *dest;
+  const register uint32_t *src;
+  register uint32_t *dest;
+
+  /* Make sure that interrupts are disabled and set MSP */
+
+  __asm__ __volatile__ ("\tcpsid  i\n");
+  __asm__ __volatile__ ("MSR MSP, %0\n" : : "r" (IDLE_STACK) :);
+
+  /* Make sure that we use MSP from now on */
+
+  __asm__ __volatile__ ("MSR CONTROL, %0\n" : : "r" (0) :);
+  __asm__ __volatile__ ("ISB SY\n");
+
+  /* Make sure VECTAB is set to NuttX vector table
+   * and not the one from the boot ROM and have consistency
+   * with debugger that automatically set the VECTAB
+   */
+
+  putreg32((uint32_t)_vectors, NVIC_VECTAB);
 
 #ifdef CONFIG_ARMV7M_STACKCHECK
   /* Set the stack limit before we attempt to call any functions */
@@ -145,7 +175,7 @@ void __start(void)
                    "r"(CONFIG_IDLETHREAD_STACKSIZE - 64) :);
 #endif
 
-#ifdef CONFIG_BOOT_RUNFROMISRAM
+#if defined(CONFIG_BOOT_RUNFROMISRAM) || defined(CONFIG_IMXRT_INIT_FLEXRAM)
     imxrt_ocram_initialize();
 #endif
 
@@ -187,11 +217,20 @@ void __start(void)
     }
 #endif
 
+#ifdef CONFIG_ARCH_RAMVECTORS
+  arm_ramvec_initialize();
+#endif
+
+#ifdef CONFIG_ARMV7M_STACKCHECK
+  arm_stack_check_init();
+#endif
+
   /* Configure the UART so that we can get debug output as soon as possible */
 
   imxrt_clockconfig();
   arm_fpuconfig();
   imxrt_lowsetup();
+  showprogress('B');
 
   /* Enable/disable tightly coupled memories */
 

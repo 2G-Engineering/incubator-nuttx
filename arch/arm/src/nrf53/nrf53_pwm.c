@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/nrf53/nrf53_pwm.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <stdint.h>
@@ -95,14 +97,8 @@ static int nrf53_pwm_freq(struct nrf53_pwm_s *priv, uint32_t freq);
 
 static int nrf53_pwm_setup(struct pwm_lowerhalf_s *dev);
 static int nrf53_pwm_shutdown(struct pwm_lowerhalf_s *dev);
-#ifdef CONFIG_PWM_PULSECOUNT
-static int nrf53_pwm_start(struct pwm_lowerhalf_s *dev,
-                           const struct pwm_info_s *info,
-                           void *handle);
-#else
 static int nrf53_pwm_start(struct pwm_lowerhalf_s *dev,
                            const struct pwm_info_s *info);
-#endif
 static int nrf53_pwm_stop(struct pwm_lowerhalf_s *dev);
 static int nrf53_pwm_ioctl(struct pwm_lowerhalf_s *dev,
                            int cmd, unsigned long arg);
@@ -516,22 +512,12 @@ static int nrf53_pwm_shutdown(struct pwm_lowerhalf_s *dev)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_PWM_PULSECOUNT
-static int nrf53_pwm_start(struct pwm_lowerhalf_s *dev,
-                           const struct pwm_info_s *info,
-                           void *handle)
-{
-#error Not supported
-}
-#else
 static int nrf53_pwm_start(struct pwm_lowerhalf_s *dev,
                            const struct pwm_info_s *info)
 {
   struct nrf53_pwm_s *priv = (struct nrf53_pwm_s *)dev;
   int                 ret  = OK;
-#ifdef CONFIG_PWM_MULTICHAN
   int                 i    = 0;
-#endif
 
   DEBUGASSERT(dev);
 
@@ -549,31 +535,24 @@ static int nrf53_pwm_start(struct pwm_lowerhalf_s *dev,
         }
     }
 
-#ifdef CONFIG_PWM_MULTICHAN
-      for (i = 0; ret == OK && i < CONFIG_PWM_NCHANNELS; i++)
+  for (i = 0; ret == OK && i < CONFIG_PWM_NCHANNELS; i++)
+    {
+      /* Break the loop if all following channels are not configured */
+
+      if (info->channels[i].channel == -1)
         {
-          /* Break the loop if all following channels are not configured */
-
-          if (info->channels[i].channel == -1)
-            {
-              break;
-            }
-
-          /* Set output if channel configured */
-
-          if (info->channels[i].channel != 0)
-            {
-              ret = nrf53_pwm_duty(priv,
-                                   (info->channels[i].channel - 1),
-                                   info->channels[i].duty);
-            }
+          break;
         }
 
-#else
-      ret = nrf53_pwm_duty(dev,
-                           (info->channels[0].channel - 1),
-                           info->duty);
-#endif /* CONFIG_PWM_MULTICHAN */
+      /* Set output if channel configured */
+
+      if (info->channels[i].channel != 0)
+        {
+          ret = nrf53_pwm_duty(priv,
+                               (info->channels[i].channel - 1),
+                               info->channels[i].duty);
+        }
+    }
 
   /* Start sequence 0 */
 
@@ -585,7 +564,6 @@ static int nrf53_pwm_start(struct pwm_lowerhalf_s *dev,
 
   return ret;
 }
-#endif
 
 /****************************************************************************
  * Name: nrf53_pwm_stop

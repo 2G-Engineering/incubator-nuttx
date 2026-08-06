@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/z16/src/common/z16_switchcontext.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <sched.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/sched.h>
@@ -56,10 +58,6 @@
 
 void up_switch_context(FAR struct tcb_s *tcb, FAR struct tcb_s *rtcb)
 {
-  /* Update scheduler parameters */
-
-  nxsched_suspend_scheduler(rtcb);
-
   /* Are we in an interrupt handler? */
 
   if (IN_INTERRUPT)
@@ -69,10 +67,6 @@ void up_switch_context(FAR struct tcb_s *tcb, FAR struct tcb_s *rtcb)
        */
 
       SAVE_IRQCONTEXT(rtcb);
-
-      /* Update scheduler parameters */
-
-      nxsched_resume_scheduler(tcb);
 
       /* Then setup so that the context will be performed on exit
        * from the interrupt.
@@ -91,7 +85,11 @@ void up_switch_context(FAR struct tcb_s *tcb, FAR struct tcb_s *rtcb)
     {
       /* Update scheduler parameters */
 
-      nxsched_resume_scheduler(tcb);
+      nxsched_switch_context(rtcb, tcb);
+
+      /* Record the new "running" task */
+
+      g_running_tasks[this_cpu()] = tcb;
 
       /* Then switch contexts */
 

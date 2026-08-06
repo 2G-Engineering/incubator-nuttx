@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imx6/imx_irq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -112,7 +114,11 @@ void up_irqinitialize(void)
 
   /* Initialize the Generic Interrupt Controller (GIC) for CPU0 */
 
-  arm_gic0_initialize();  /* Initialization unique to CPU0 */
+  if (sched_getcpu() == 0)
+    {
+      arm_gic0_initialize();  /* Initialization unique to CPU0 */
+    }
+
   arm_gic_initialize();   /* Initialization common to all CPUs */
 
 #ifdef CONFIG_ARCH_LOWVECTORS
@@ -147,28 +153,13 @@ void up_irqinitialize(void)
 
   /* And finally, enable interrupts */
 
+  arm_color_intstack();
   up_irq_enable();
 #endif
 }
 
 /****************************************************************************
- * Name: arm_intstack_top
- *
- * Description:
- *   Return a pointer to the top the correct interrupt stack allocation
- *   for the current CPU.
- *
- ****************************************************************************/
-
-#if defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
-uintptr_t arm_intstack_top(void)
-{
-  return g_irqstack_top[up_cpu_index()];
-}
-#endif
-
-/****************************************************************************
- * Name: arm_intstack_alloc
+ * Name: up_get_intstackbase
  *
  * Description:
  *   Return a pointer to the "alloc" the correct interrupt stack allocation
@@ -177,8 +168,8 @@ uintptr_t arm_intstack_top(void)
  ****************************************************************************/
 
 #if defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
-uintptr_t arm_intstack_alloc(void)
+uintptr_t up_get_intstackbase(int cpu)
 {
-  return g_irqstack_top[up_cpu_index()] - INTSTACK_SIZE;
+  return g_irqstack_top[cpu] - INTSTACK_SIZE;
 }
 #endif

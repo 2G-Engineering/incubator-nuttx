@@ -1,9 +1,10 @@
 /****************************************************************************
  * arch/arm/src/stm32wl5/stm32wl5_uid.c
  *
- *   Copyright (C) 2015 Marawan Ragab. All rights reserved.
- *   Author: Marawan Ragab <marawan31@gmail.com>
- *           dev@ziggurat9.com
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2015 Marawan Ragab. All rights reserved.
+ * SPDX-FileContributor: Marawan Ragab <marawan31@gmail.com>
+ * SPDX-FileContributor: dev@ziggurat9.com
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -43,20 +44,20 @@
 #include "hardware/stm32wl5_memorymap.h"
 #include "stm32wl5_uid.h"
 
-#ifdef STM32WL5_SYSMEM_UID
+#ifdef STM32_SYSMEM_UID
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
-void stm32wl5_get_uniqueid(uint8_t uniqueid[12])
+void stm32_get_uniqueid(uint8_t uniqueid[12])
 {
   int i;
 
   for (i = 0; i < 12; i++)
     {
-      uniqueid[i] = *((uint8_t *)(STM32WL5_SYSMEM_UID)+i);
+      uniqueid[i] = *((uint8_t *)(STM32_SYSMEM_UID)+i);
     }
 }
 
-#endif /* STM32WL5_SYSMEM_UID */
+#endif /* STM32_SYSMEM_UID */

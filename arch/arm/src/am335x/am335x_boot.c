@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/am335x/am335x_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,10 +28,10 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/cache.h>
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 #  include <nuttx/page.h>
 #endif
 
@@ -198,14 +200,14 @@ static inline void am335x_remap(void)
  ****************************************************************************/
 
 #if !defined(CONFIG_ARCH_ROMPGTABLE) && defined(CONFIG_ARCH_LOWVECTORS) && \
-     defined(CONFIG_PAGING)
+     defined(CONFIG_LEGACY_PAGING)
 static void am335x_vectorpermissions(uint32_t mmuflags)
 {
   /* The PTE for the beginning of OCMC0 RAM is at the base of the L2 page
    * table
    */
 
-  uint32_t pte = mmu_l2_getentry(PG_L2_VECT_VADDR, 0);
+  uintptr_t pte = mmu_l2_getentry(PG_L2_VECT_VADDR, 0);
 
   /* Mask out the old MMU flags from the page table entry.
    *
@@ -272,7 +274,7 @@ static void am335x_vectormapping(void)
 
   while (vector_paddr < end_paddr)
     {
-      mmu_l2_setentry(VECTOR_L2_VBASE,  vector_paddr, vector_vaddr,
+      mmu_l2_setentry(VECTOR_L2_VBASE, vector_paddr, vector_vaddr,
                       MMU_L2_VECTORFLAGS);
       vector_paddr += 4096;
       vector_vaddr += 4096;
@@ -307,7 +309,7 @@ static void am335x_copyvectorblock(void)
   uint32_t *end;
   uint32_t *dest;
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
   /* If we are using re-mapped vectors in an area that has been marked
    * read only, then temporarily mark the mapping write-able (non-buffered).
    */
@@ -334,7 +336,7 @@ static void am335x_copyvectorblock(void)
       *dest++ = *src++;
     }
 
-#if !defined(CONFIG_ARCH_LOWVECTORS) && defined(CONFIG_PAGING)
+#if !defined(CONFIG_ARCH_LOWVECTORS) && defined(CONFIG_LEGACY_PAGING)
   /* Make the vectors read-only, cache-able again */
 
   am335x_vectorpermissions(MMU_L2_VECTORFLAGS);

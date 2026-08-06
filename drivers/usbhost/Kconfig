@@ -51,6 +51,39 @@ config USBHOST_ASYNCH
 		I/O transfer.  This may be required, for example, to receive
 		infrequent, asynchronous input from an interrupt pipe.
 
+config USBHOST_CONFIGURATION_SELECTION
+	bool "Per device configuration selection"
+	default n
+	---help---
+		Some devices have multiple USB configuration. By default the enumeration
+		selects the first configuration which may not be the desired configuration.
+		This features enables a board specific callback where it may choose which
+		configuration to apply based on the USB device descriptor. The callback may
+		choose by VID/PID or any other info it can acquire from a USB descriptor.
+		Board file must supply board_usbhost_select_configuration().
+
+config USBHOST_WAITER
+	bool "USB Host Waiter Support"
+	default n
+	---help---
+		Select this option to build in support for common USB host waiter.
+
+if USBHOST_WAITER
+
+config USBHOST_WAITER_PRIO
+	int "USB Host Waiter Thread Priority"
+	default 100
+	---help---
+		USB Host Waiter thread priority.
+
+config USBHOST_WAITER_STACKSIZE
+	int "USB Host Waiter Thread Stack Size"
+	default DEFAULT_TASK_STACKSIZE
+	---help---
+		USB Host Waiter thread stack size
+
+endif # USBHOST_WAITER
+
 config USBHOST_HUB
 	bool "USB Hub Support"
 	default n
@@ -270,6 +303,25 @@ config USBHOST_CDCACM_TXBUFSIZE
 		data waiting for transmission.
 
 endif # USBHOST_CDCACM
+
+config USBHOST_CDCECM
+	bool "CDC/ECM support"
+	default n
+	depends on USBHOST_HAVE_ASYNCH && !USBHOST_BULK_DISABLE && !USBHOST_INT_DISABLE
+	select USBHOST_ASYNCH
+	select NET_ETHERNET
+	---help---
+		Select this option to build in host support for CDC/ECM serial
+		devices.
+
+config USBHOST_CDCECM_PACKET_PRINT
+	bool "Print raw CDC/ECM packets"
+	default n
+	depends on DEBUG_USB_INFO
+	---help---
+		Print all raw RX and TX packets send and received in the CDC/ECM driver.
+		This can be useful for analysing with programs such as wireshark.
+
 
 config USBHOST_CDCMBIM
 	bool "CDC/MBIM support"
@@ -720,5 +772,33 @@ config USBHOST_FT232R_LATENCY
 		occurs or the buffer is full. Measured in ms.
 
 endif # USBHOST_FT232R
+
+config USBHOST_BTHCI
+	bool "Bluetooth HCI Driver"
+	default n
+	depends on WIRELESS_BLUETOOTH && USBHOST_HAVE_ASYNCH && !USBHOST_BULK_DISABLE && !USBHOST_INT_DISABLE
+	select USBHOST_ASYNCH
+	select SERIAL_REMOVABLE
+	---help---
+		Select this option to build in support for USB Bluetooth HCI devices.
+
+menuconfig USBHOST_XHCI_PCI
+	bool "USB xHCI PCI Host Driver Support"
+	default n
+	depends on PCI && PCI_MSIX && USBHOST_WAITER && SCHED_HPWORK && SCHED_LPWORK
+	select USBHOST_HAVE_ASYNCH
+	---help---
+		USB xHCI PCI host driver support.
+
+if USBHOST_XHCI_PCI
+
+config USBHOST_XHCI_MAX_DEVS
+	int "xHCI maximum supported devices"
+	default 8
+	range 1 256
+	---help---
+		How many USB devices will be supported by xHCI driver.
+
+endif # USBHOST_XHCI_PCI
 
 endif # USBHOST

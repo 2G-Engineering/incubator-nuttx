@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/cxd56xx/common/src/cxd56_imageproc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,7 +38,7 @@
 #include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/chip/ge2d.h>
 #include <arch/chip/chip.h>

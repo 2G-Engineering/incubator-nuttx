@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/sama5/sama5d2-xult/src/sam_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  *  Licensed to the Apache Software Foundation (ASF) under one or more
  *  contributor license agreements.  See the NOTICE file distributed with
  *  this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <sys/mount.h>
 #include <stdlib.h>
 #include <syslog.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
 #include <nuttx/fs/fs.h>
@@ -36,6 +38,7 @@
 #include <nuttx/usb/usbdev.h>
 #include <nuttx/usb/usbhost.h>
 #include <nuttx/usb/usbdev_trace.h>
+#include <nuttx/drivers/drivers.h>
 
 #include "sama5d2-xult.h"
 
@@ -59,6 +62,15 @@
 #ifdef CONFIG_MMCSD
 #  include <nuttx/mmcsd.h>
 #  include "sam_sdmmc.h"
+#endif
+
+#ifdef HAVE_MX25RXX
+#  include "sam_qspi.h"
+#  include <nuttx/mtd/mtd.h>
+#endif
+
+#ifdef HAVE_MX25RXX_NXFFS
+#  include <nuttx/fs/nxffs.h>
 #endif
 
 /****************************************************************************
@@ -242,6 +254,10 @@ static int nsh_sdmmc_initialize(void)
 
 int sam_bringup(void)
 {
+#ifdef HAVE_MX25RXX
+  struct qspi_dev_s *qspi;
+  struct mtd_dev_s *mtd;
+#endif
   int ret;
 
   /* Register I2C drivers on behalf of the I2C tool */
@@ -457,6 +473,42 @@ int sam_bringup(void)
       _err("ERROR: cdcecm_initialize() failed: %d\n", ret);
     }
 #endif
+
+#ifdef HAVE_MX25RXX
+  qspi = sam_qspi_initialize(0);
+  if (!qspi)
+    {
+      syslog(LOG_ERR, "ERROR: sam_qspi_initialize failed\n");
+    }
+  else
+    {
+      mtd = mx25rxx_initialize(qspi, true);
+      if (!mtd)
+        {
+          syslog(LOG_ERR, "ERROR: mx25rxx_initialize failed\n");
+        }
+
+#if HAVE_MX25RXX_NXFFS
+      /* Initialize to provide NXFFS on the mx25rxx MTD interface */
+
+      ret = nxffs_initialize(mtd);
+      if (ret < 0)
+        {
+          syslog(LOG_ERR, "ERROR: NXFFS initialization failed: %d\n", ret);
+        }
+
+      /* Mount the file system at /mnt/mx25 */
+
+      ret = nx_mount(NULL, "/mnt/mx25", "nxffs", 0, NULL);
+      if (ret < 0)
+        {
+          syslog(LOG_ERR, "ERROR: Failed to mount the NXFFS volume: %d\n",
+                 ret);
+          return ret;
+        }
+#endif
+    }
+#endif /* HAVE_MX25RXX */
 
   /* If we got here then perhaps not all initialization was successful, but
    * at least enough succeeded to bring-up NSH with perhaps reduced

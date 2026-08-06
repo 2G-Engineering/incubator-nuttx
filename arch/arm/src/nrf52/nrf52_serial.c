@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/nrf52/nrf52_serial.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,8 +33,8 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/fs/ioctl.h>
@@ -86,7 +88,7 @@
 #ifdef CONFIG_UART0_SERIAL_CONSOLE
 #  define CONSOLE_DEV         g_uart0port /* UART0 is console */
 #  define TTYS0_DEV           g_uart0port /* UART0 is ttyS0 */
-#elif CONFIG_UART1_SERIAL_CONSOLE
+#elif defined(CONFIG_UART1_SERIAL_CONSOLE)
 #  define CONSOLE_DEV         g_uart1port /* UART1 is console */
 #  define TTYS0_DEV           g_uart1port /* UART1 is ttyS0 */
 #endif
@@ -318,7 +320,7 @@ static void nrf52_shutdown(struct uart_dev_s *dev)
  * Description:
  *   Configure the UART to operation in interrupt driven mode.  This method
  *   is called when the serial port is opened.  Normally, this is just after
- *   the the setup() method is called, however, the serial console may
+ *   the setup() method is called, however, the serial console may
  *   operate in a non-interrupt driven mode during the boot phase.
  *
  *   RX and TX interrupts are not enabled when by the attach method (unless
@@ -729,7 +731,7 @@ static bool nrf52_txempty(struct uart_dev_s *dev)
  *
  * Description:
  *   Performs the low level UART initialization early in debug so that the
- *   serial console will be available during bootup.  This must be called
+ *   serial console will be available during boot up.  This must be called
  *   before nrf52_serialinit.  NOTE:  This function depends on GPIO pin
  *   configuration performed in nrf52_lowsetup() and main clock
  *   initialization performed in nrf_clock_configure().
@@ -773,10 +775,9 @@ void arm_serialinit(void)
   /* Register the serial console */
 
   uart_register("/dev/console", &CONSOLE_DEV);
-#endif
-
   uart_register("/dev/ttyS0", &TTYS0_DEV);
   minor = 1;
+#endif
 
   /* Register all remaining UARTs */
 
@@ -786,7 +787,7 @@ void arm_serialinit(void)
     {
       /* Don't create a device for non-configured ports. */
 
-      if (g_uart_devs[i] == 0)
+      if (g_uart_devs[i] == NULL)
         {
           continue;
         }
@@ -813,24 +814,13 @@ void arm_serialinit(void)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef HAVE_UART_CONSOLE
   /* struct nrf52_dev_s *priv = (struct nrf52_dev_s *)CONSOLE_DEV.priv; */
 
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      arm_lowputc('\r');
-    }
-
   arm_lowputc(ch);
 #endif
-
-  return ch;
 }
 
 #else /* USE_SERIALDRIVER */
@@ -843,20 +833,10 @@ int up_putc(int ch)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef HAVE_UART_CONSOLE
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      arm_lowputc('\r');
-    }
-
   arm_lowputc(ch);
-  return ch;
 #endif
 }
 

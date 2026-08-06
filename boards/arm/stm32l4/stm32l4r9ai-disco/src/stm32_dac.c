@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/stm32l4r9ai-disco/src/stm32_dac.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <nuttx/analog/dac.h>
@@ -46,19 +48,19 @@ static struct dac_dev_s *g_dac;
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_dac_setup
+ * Name: stm32_dac_setup
  ****************************************************************************/
 
-int stm32l4_dac_setup(void)
+int stm32_dac_setup(void)
 {
   static bool initialized = false;
 
   if (!initialized)
     {
-#ifdef CONFIG_STM32L4_DAC1
+#ifdef CONFIG_STM32_DAC1
       int ret;
 
-      g_dac = stm32l4_dacinitialize(0);
+      g_dac = stm32_dacinitialize(0);
       if (g_dac == NULL)
         {
           aerr("ERROR: Failed to get DAC interface\n");

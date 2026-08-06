@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rtl8720c/amebaz_coex.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -45,18 +47,18 @@
 
 typedef struct net_buf_simple_s
 {
-  /* * Pointer to the start of data in the buffer. */
+  /* Pointer to the start of data in the buffer. */
 
   uint8_t *data;
 
-  /* * Length of the data behind the data pointer. */
+  /* Length of the data behind the data pointer. */
 
   uint16_t len;
 
-  /* * Amount of data that this buffer can store. */
+  /* Amount of data that this buffer can store. */
 
   uint16_t size;
-  /** Start of the data storage. Not to be accessed directly
+  /* Start of the data storage. Not to be accessed directly
    *  (the data pointer should be used instead).
    */
 

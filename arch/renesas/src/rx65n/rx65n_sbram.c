@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/renesas/src/rx65n/rx65n_sbram.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,6 +34,7 @@
 #include <sys/types.h>
 
 #include <stdio.h>
+#include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
 #include <poll.h>
@@ -168,7 +171,8 @@ static void rx65n_sbram_dump(struct sbramfh_s *bbf, char *op)
   _info("  fileno:%d\n", (int) bbf->fileno);
   _info("  dirty:%d\n", (int) bbf->dirty);
   _info("  length:%d\n", (int) bbf->len);
-  _info("  time:%ld:%ld\n", bbf->lastwrite.tv_sec, bbf->lastwrite.tv_nsec);
+  _info("  time:%jd:%ld\n", (intmax_t)bbf->lastwrite.tv_sec,
+        bbf->lastwrite.tv_nsec);
   _info("  data: 0x%2x 0x%2x 0x%2x 0x%2x 0x%2x\n",
   bbf->data[0], bbf->data[1], bbf->data[2], bbf->data[3], bbf->data[4]);
 }
@@ -206,8 +210,8 @@ static int rx65n_sbram_open(struct file *filep)
   struct inode *inode = filep->f_inode;
   struct rx65n_sbram_s *bbr;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bbr = (struct rx65n_sbram_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bbr = inode->i_private;
 
   /* Increment the reference count */
 
@@ -257,8 +261,8 @@ static int rx65n_sbram_close(struct file *filep)
   struct rx65n_sbram_s *bbr;
   int ret = OK;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bbr = (struct rx65n_sbram_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bbr = inode->i_private;
 
   nxmutex_lock(&bbr->lock);
 
@@ -299,8 +303,8 @@ static off_t rx65n_sbram_seek(struct file *filep, off_t offset,
   off_t newpos;
   int ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bbr = (struct rx65n_sbram_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bbr = inode->i_private;
 
   nxmutex_lock(&bbr->lock);
 
@@ -368,8 +372,8 @@ static ssize_t rx65n_sbram_read(struct file *filep, char *buffer,
   struct inode *inode = filep->f_inode;
   struct rx65n_sbram_s *bbr;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bbr = (struct rx65n_sbram_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bbr = inode->i_private;
 
   nxmutex_lock(&bbr->lock);
 
@@ -410,8 +414,8 @@ static ssize_t rx65n_sbram_write(struct file *filep, const char *buffer,
   struct rx65n_sbram_s *bbr;
   int ret = -EFBIG;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bbr = (struct rx65n_sbram_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bbr = inode->i_private;
 
   /* Forbid writes past the end of the device */
 
@@ -466,8 +470,8 @@ static int rx65n_sbram_ioctl(struct file *filep, int cmd, unsigned long arg)
   struct rx65n_sbram_s *bbr;
   int ret = -ENOTTY;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bbr = (struct rx65n_sbram_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bbr = inode->i_private;
 
   if (cmd == RX65N_SBRAM_GETDESC_IOCTL)
     {
@@ -513,8 +517,8 @@ static int rx65n_sbram_unlink(struct inode *inode)
 {
   struct rx65n_sbram_s *bbr;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bbr = (struct rx65n_sbram_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bbr = inode->i_private;
 
   nxmutex_lock(&bbr->lock);
   memset(bbr->bbf->data, 0, bbr->bbf->len);

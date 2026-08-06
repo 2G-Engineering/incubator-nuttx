@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/icmpv6/icmpv6_reply.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <sys/socket.h>
 #include <stdint.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <netinet/in.h>
 #include <net/if.h>
@@ -122,7 +124,7 @@ void icmpv6_reply(FAR struct net_driver_s *dev, int type, int code, int data)
 
       /* Skip icmp header from iob */
 
-      iob_update_pktlen(dev->d_iob, datalen + ipicmplen);
+      iob_update_pktlen(dev->d_iob, datalen + ipicmplen, false);
     }
   else
     {
@@ -156,8 +158,9 @@ void icmpv6_reply(FAR struct net_driver_s *dev, int type, int code, int data)
 
       /* Skip icmp header from iob */
 
-      iob_update_pktlen(dev->d_iob, dev->d_iob->io_pktlen +
-                                    sizeof(struct icmpv6_hdr_s));
+      iob_update_pktlen(dev->d_iob,
+                        dev->d_iob->io_pktlen + sizeof(struct icmpv6_hdr_s),
+                        false);
 
       /* Concat new icmp packet before original datagram */
 
@@ -171,7 +174,8 @@ void icmpv6_reply(FAR struct net_driver_s *dev, int type, int code, int data)
   dev->d_len = ipicmplen + datalen;
 
   ipv6_build_header(IPv6BUF, dev->d_len - IPv6_HDRLEN, IP_PROTO_ICMP6,
-                    dev->d_ipv6addr, ipv6->srcipaddr, 255, 0);
+                    netdev_ipv6_srcaddr(dev, ipv6->destipaddr),
+                    ipv6->srcipaddr, 255, 0);
 
   /* Initialize the ICMPv6 header */
 
@@ -184,11 +188,14 @@ void icmpv6_reply(FAR struct net_driver_s *dev, int type, int code, int data)
   /* Calculate the ICMPv6 checksum over the ICMPv6 header and payload. */
 
   icmpv6->chksum = 0;
+
+#ifdef CONFIG_NET_ICMPv6_CHECKSUMS
   icmpv6->chksum = ~icmpv6_chksum(dev, IPv6_HDRLEN);
   if (icmpv6->chksum == 0)
     {
       icmpv6->chksum = 0xffff;
     }
+#endif
 
   ninfo("Outgoing ICMPv6 packet length: %d\n", dev->d_len);
 }

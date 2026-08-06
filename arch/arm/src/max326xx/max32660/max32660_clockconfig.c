@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/max326xx/max32660/max32660_clockconfig.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,8 +27,8 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 
 #include "arm_internal.h"
@@ -477,7 +479,7 @@ static void max326_set_clksrc(const struct clock_setup_s *clksetup)
  * Name: max326_set_fwsdefault
  *
  * Description:
- *   Set the the FLASH wait states to the default value (5)
+ *   Set the FLASH wait states to the default value (5)
  *
  ****************************************************************************/
 
@@ -588,7 +590,7 @@ static void max326_periph_reset(void)
 
 void max326_clockconfig(const struct clock_setup_s *clksetup)
 {
-  /* Set the the FLASH wait states to the default value (5) */
+  /* Set the FLASH wait states to the default value (5) */
 
   max326_set_fwsdefault();
 

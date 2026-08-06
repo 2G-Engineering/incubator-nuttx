@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/cxd56xx/spresense/src/cxd56_charger.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,7 +25,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <stdio.h>
 #include <errno.h>
@@ -46,8 +48,7 @@ static int g_chargerinitialized = 0;
  * Public Functions
  ****************************************************************************/
 
-int board_charger_initialize(const char *devpath,
-                             int16_t *gaugemeter)
+int board_charger_initialize(const char *devpath)
 {
   int ret;
 

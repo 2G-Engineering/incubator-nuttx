@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/sam34/sam4l-xplained/src/sam_slcd.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,7 +38,7 @@
 #include <poll.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/ascii.h>
 #include <nuttx/streams.h>
@@ -214,7 +216,7 @@
 #define SLCD_AM          (&g_einfo[7])
 
 /****************************************************************************
- * Private Type Definition
+ * Private Types
  ****************************************************************************/
 
 /* Global SLCD state */
@@ -873,7 +875,7 @@ static ssize_t slcd_write(struct file *filep,
   /* Decode and process every byte in the input buffer */
 
   options = 0;
-  while ((result = slcd_decode(&instream.public,
+  while ((result = slcd_decode(&instream.common,
                                &state, &ch, &count)) != SLCDRET_EOF)
     {
       lcdinfo("slcd_decode returned result=%d char=%d count=%d\n",

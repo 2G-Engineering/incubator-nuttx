@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32h7/nucleo-h743zi2/src/nucleo-h743zi2.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -42,7 +44,7 @@
 
 /* Can't support USB host or device features if USB OTG FS is not enabled */
 
-#ifndef CONFIG_STM32H7_OTGFS
+#ifndef CONFIG_STM32_OTGFS
 #  undef HAVE_USBDEV
 #  undef HAVE_USBHOST
 #endif
@@ -82,9 +84,22 @@
 #define GPIO_LD3       (GPIO_OUTPUT | GPIO_PUSHPULL | GPIO_SPEED_50MHz | \
                         GPIO_OUTPUT_CLEAR | GPIO_PORTB | GPIO_PIN14)
 
-#define GPIO_LED_GREEN	GPIO_LD1
-#define GPIO_LED_ORANGE	GPIO_LD2
-#define GPIO_LED_RED   	GPIO_LD3
+#define GPIO_LED_GREEN  GPIO_LD1
+#define GPIO_LED_ORANGE GPIO_LD2
+#define GPIO_LED_RED    GPIO_LD3
+
+/* BUTTONS
+ *
+ * The Blue pushbutton B1, labeled "User", is connected to GPIO PC13.
+ * A high value will be sensed when the button is depressed.
+ * Note:
+ *    1) That the EXTI is included in the definition to enable an interrupt
+ *       on this IO.
+ *    2) The following definitions assume the default Solder Bridges are
+ *       installed.
+ */
+
+#define GPIO_BTN_USER  (GPIO_INPUT | GPIO_FLOAT | GPIO_EXTI | GPIO_PORTC | GPIO_PIN13)
 
 #define GPIO_OTGFS_VBUS   (GPIO_INPUT|GPIO_FLOAT|GPIO_SPEED_100MHz| \
                            GPIO_OPENDRAIN|GPIO_PORTA|GPIO_PIN9)
@@ -128,7 +143,7 @@
 
 /* PWM */
 
-#if defined(CONFIG_STM32H7_TIM1_PWM)
+#if defined(CONFIG_STM32_TIM1_PWM)
 #  define NUCLEOH743ZI2_PWMTIMER 1
 #else
 #  define NUCLEOH743ZI2_PWMTIMER 3
@@ -147,9 +162,6 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=y && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int stm32_bringup(void);
@@ -158,12 +170,12 @@ int stm32_bringup(void);
  * Name: stm32_usbinitialize
  *
  * Description:
- *   Called from stm32_usbinitialize very early in inialization to setup
+ *   Called from stm32_usbinitialize very early in initialization to setup
  *   USB-related GPIO pins for the NUCLEO-H743ZI board.
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H7_OTGFS
+#ifdef CONFIG_STM32_OTGFS
 void weak_function stm32_usbinitialize(void);
 #endif
 
@@ -201,7 +213,7 @@ int stm32_gpio_initialize(void);
  *
  ****************************************************************************/
 
-#if defined(CONFIG_STM32H7_OTGFS) && defined(CONFIG_USBHOST)
+#if defined(CONFIG_STM32_OTGFS) && defined(CONFIG_USBHOST)
 int stm32_usbhost_initialize(void);
 #endif
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_truncate.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,11 +30,12 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 
 #include "inode/inode.h"
+#include "vfs.h"
 
 /****************************************************************************
  * Public Functions
@@ -54,10 +57,10 @@ int file_truncate(FAR struct file *filep, off_t length)
 
   /* Was this file opened for write access? */
 
-  if ((filep->f_oflags & O_WROK) == 0)
+  if ((filep->f_oflags & O_ACCMODE) == O_RDONLY)
     {
       fwarn("WARNING: Cannot truncate a file opened read-only\n");
-      return -EBADF;
+      return -EINVAL;
     }
 
   /* Is this inode a registered mountpoint? Does it support the
@@ -81,7 +84,7 @@ int file_truncate(FAR struct file *filep, off_t length)
    * possible not the only indicator -- sufficient, but not necessary")
    */
 
-  if (inode->u.i_ops->write == NULL)
+  if (inode->u.i_ops->writev == NULL && inode->u.i_ops->write == NULL)
     {
       fwarn("WARNING: File system is read-only\n");
       return -EROFS;
@@ -167,20 +170,22 @@ int ftruncate(int fd, off_t length)
 
   /* Get the file structure corresponding to the file descriptor. */
 
-  ret = fs_getfilep(fd, &filep);
+  ret = file_get(fd, &filep);
   if (ret < 0)
     {
       ferr("ERROR: Could no get file structure: %d\n", ret);
       goto errout;
     }
 
-  DEBUGASSERT(filep != NULL);
-
   /* Perform the truncate operation */
 
   ret = file_truncate(filep, length);
+  file_put(filep);
   if (ret >= 0)
     {
+#ifdef CONFIG_FS_NOTIFY
+      notify_write(filep);
+#endif
       return 0;
     }
 

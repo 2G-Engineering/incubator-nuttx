@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imxrt/imxrt_lpsrtc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
@@ -112,7 +114,7 @@ int imxrt_lpsrtc_initialize(void)
 
   imxrt_hprtc_initialize();
 
-  /* Enable clocking to the the SNVS LP module.
+  /* Enable clocking to the SNVS LP module.
    * Clock is on during all modes, except STOP mode.
    */
 

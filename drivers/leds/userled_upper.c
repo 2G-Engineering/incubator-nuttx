@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/leds/userled_upper.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,8 +38,8 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
@@ -74,10 +76,6 @@ struct userled_open_s
   /* Supports a singly linked list */
 
   FAR struct userled_open_s *bo_flink;
-
-  /* The following will be true if we are closing */
-
-  volatile bool bo_closing;
 };
 
 /****************************************************************************
@@ -122,10 +120,9 @@ static int userled_open(FAR struct file *filep)
   FAR struct userled_open_s *opriv;
   int ret;
 
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
-  priv = (FAR struct userled_upperhalf_s *)inode->i_private;
+  priv = inode->i_private;
 
   /* Get exclusive access to the driver structure */
 
@@ -173,37 +170,13 @@ static int userled_close(FAR struct file *filep)
   FAR struct userled_open_s *opriv;
   FAR struct userled_open_s *curr;
   FAR struct userled_open_s *prev;
-  irqstate_t flags;
-  bool closing;
   int ret;
 
-  DEBUGASSERT(filep && filep->f_priv && filep->f_inode);
+  DEBUGASSERT(filep->f_priv);
   opriv = filep->f_priv;
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
-  priv  = (FAR struct userled_upperhalf_s *)inode->i_private;
-
-  /* Handle an improbable race conditions with the following atomic test
-   * and set.
-   *
-   * This is actually a pretty feeble attempt to handle this.  The
-   * improbable race condition occurs if two different threads try to
-   * close the LED driver at the same time.  The rule:  don't do
-   * that!  It is feeble because we do not really enforce stale pointer
-   * detection anyway.
-   */
-
-  flags = enter_critical_section();
-  closing = opriv->bo_closing;
-  opriv->bo_closing = true;
-  leave_critical_section(flags);
-
-  if (closing)
-    {
-      /* Another thread is doing the close */
-
-      return OK;
-    }
+  priv  = inode->i_private;
 
   /* Get exclusive access to the driver structure */
 
@@ -262,10 +235,9 @@ static ssize_t userled_write(FAR struct file *filep, FAR const char *buffer,
   userled_set_t ledset;
   int ret;
 
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
-  priv  = (FAR struct userled_upperhalf_s *)inode->i_private;
+  priv  = inode->i_private;
 
   /* Make sure that the buffer is sufficiently large to hold at least one
    * complete sample.
@@ -317,11 +289,11 @@ static int userled_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   FAR const struct userled_lowerhalf_s *lower;
   int ret;
 
-  DEBUGASSERT(filep != NULL && filep->f_priv != NULL &&
+  DEBUGASSERT(filep->f_priv != NULL &&
               filep->f_inode != NULL);
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
-  priv  = (FAR struct userled_upperhalf_s *)inode->i_private;
+  priv  = inode->i_private;
 
   /* Get exclusive access to the driver structure */
 
@@ -463,6 +435,53 @@ static int userled_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
           }
       }
       break;
+
+#ifdef CONFIG_USERLED_EFFECTS
+    /* Command:     ULEDIOC_SUPEFFECT
+     * Description: Get supported effects of one LED.
+     * Argument:    A write-able pointer to a struct userled_effect_sup_s
+     *              which to return the supported LED effects.
+     * Return:      Zero (OK) on success.  Minus one will be returned on
+     *              failure with the errno value set appropriately.
+     */
+
+    case ULEDIOC_SUPEFFECT:
+    {
+      FAR struct userled_effect_sup_s *effect =
+        (FAR struct userled_effect_sup_s *)((uintptr_t)arg);
+
+      if (effect)
+        {
+          lower = priv->lu_lower;
+          DEBUGASSERT(lower != NULL && lower->ll_effect_sup != NULL);
+          lower->ll_effect_sup(lower, effect);
+          ret = OK;
+        }
+    }
+    break;
+
+    /* Command:     ULEDIOC_SETEFFECT
+     * Description: Set effects for one LED.
+     * Argument:    A read-only pointer to an instance of
+     *              struct userled_effect_set_s.
+     * Return:      Zero (OK) on success.  Minus one will be returned on
+     *              failure with the errno value set appropriately.
+     */
+
+    case ULEDIOC_SETEFFECT:
+    {
+      FAR struct userled_effect_set_s *effect =
+        (FAR struct userled_effect_set_s *)((uintptr_t)arg);
+
+      if (effect)
+        {
+          lower = priv->lu_lower;
+          DEBUGASSERT(lower != NULL && lower->ll_effect_set != NULL);
+          ret = lower->ll_effect_set(lower, effect);
+        }
+    }
+    break;
+#endif
 
     default:
       lederr("ERROR: Unrecognized command: %d\n", cmd);

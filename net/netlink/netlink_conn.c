@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/netlink/netlink_conn.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/irq.h>
 
@@ -39,6 +41,7 @@
 #include <nuttx/net/netconfig.h>
 #include <nuttx/net/net.h>
 #include <nuttx/net/netlink.h>
+#include <nuttx/tls.h>
 
 #include "utils/utils.h"
 #include "netlink/netlink.h"
@@ -46,24 +49,30 @@
 #ifdef CONFIG_NET_NETLINK
 
 /****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#ifndef CONFIG_NETLINK_MAX_CONNS
+#  define CONFIG_NETLINK_MAX_CONNS 0
+#endif
+
+/****************************************************************************
  * Private Data
  ****************************************************************************/
 
 /* The array containing all NetLink connections. */
 
-#if CONFIG_NETLINK_PREALLOC_CONNS > 0
-static struct netlink_conn_s
-       g_netlink_connections[CONFIG_NETLINK_PREALLOC_CONNS];
-#endif
-
-/* A list of all free NetLink connections */
-
-static dq_queue_t g_free_netlink_connections;
-static mutex_t g_free_lock = NXMUTEX_INITIALIZER;
+NET_BUFPOOL_DECLARE(g_netlink_connections, sizeof(struct netlink_conn_s),
+                    CONFIG_NETLINK_PREALLOC_CONNS,
+                    CONFIG_NETLINK_ALLOC_CONNS, CONFIG_NETLINK_MAX_CONNS);
 
 /* A list of all allocated NetLink connections */
 
 static dq_queue_t g_active_netlink_connections;
+
+/* Global protection lock for netlink */
+
+static rmutex_t g_netlink_lock = NXRMUTEX_INITIALIZER;
 
 /****************************************************************************
  * Private Functions
@@ -93,32 +102,45 @@ static void netlink_response_available(FAR void *arg)
 }
 
 /****************************************************************************
- * Public Functions
- ****************************************************************************/
-
-/****************************************************************************
- * Name: netlink_initialize()
+ * Name: netlink_get_terminator
  *
  * Description:
- *   Initialize the NetLink connection structures.  Called once and only
- *   from the networking layer.
+ *   Generate one NLMSG_DONE response.
  *
  ****************************************************************************/
 
-void netlink_initialize(void)
+static FAR struct netlink_response_s *
+netlink_get_terminator(FAR const struct nlmsghdr *req)
 {
-#if CONFIG_NETLINK_PREALLOC_CONNS > 0
-  int i;
+  FAR struct netlink_response_s *resp;
+  FAR struct nlmsghdr *hdr;
 
-  for (i = 0; i < CONFIG_NETLINK_PREALLOC_CONNS; i++)
+  /* Allocate the list terminator */
+
+  resp = kmm_zalloc(sizeof(struct netlink_response_s));
+  if (resp == NULL)
     {
-      /* Mark the connection closed and move it to the free list */
-
-      dq_addlast(&g_netlink_connections[i].sconn.node,
-                 &g_free_netlink_connections);
+      nerr("ERROR: Failed to allocate response terminator.\n");
+      return NULL;
     }
-#endif
+
+  /* Initialize and send the list terminator */
+
+  hdr              = &resp->msg;
+  hdr->nlmsg_len   = sizeof(struct nlmsghdr);
+  hdr->nlmsg_type  = NLMSG_DONE;
+  hdr->nlmsg_flags = req ? req->nlmsg_flags : 0;
+  hdr->nlmsg_seq   = req ? req->nlmsg_seq : 0;
+  hdr->nlmsg_pid   = req ? req->nlmsg_pid : 0;
+
+  /* Finally, return the response */
+
+  return resp;
 }
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
 
 /****************************************************************************
  * Name: netlink_alloc()
@@ -132,38 +154,12 @@ void netlink_initialize(void)
 FAR struct netlink_conn_s *netlink_alloc(void)
 {
   FAR struct netlink_conn_s *conn;
-#if CONFIG_NETLINK_ALLOC_CONNS > 0
-  int i;
-#endif
 
   /* The free list is protected by a mutex. */
 
-  nxmutex_lock(&g_free_lock);
-#if CONFIG_NETLINK_ALLOC_CONNS > 0
-  if (dq_peek(&g_free_netlink_connections) == NULL)
-    {
-#if CONFIG_NETLINK_MAX_CONNS > 0
-      if (dq_count(&g_active_netlink_connections) +
-          CONFIG_NETLINK_ALLOC_CONNS >= CONFIG_NETLINK_MAX_CONNS)
-        {
-          nxmutex_unlock(&g_free_lock);
-          return NULL;
-        }
-#endif
+  NET_BUFPOOL_LOCK(g_netlink_connections);
 
-      conn = kmm_zalloc(sizeof(*conn) * CONFIG_NETLINK_ALLOC_CONNS);
-      if (conn != NULL)
-        {
-          for (i = 0; i < CONFIG_NETLINK_ALLOC_CONNS; i++)
-            {
-              dq_addlast(&conn[i].sconn.node, &g_free_netlink_connections);
-            }
-        }
-    }
-#endif
-
-  conn = (FAR struct netlink_conn_s *)
-           dq_remfirst(&g_free_netlink_connections);
+  conn = NET_BUFPOOL_TRYALLOC(g_netlink_connections);
   if (conn != NULL)
     {
       /* Enqueue the connection into the active list */
@@ -171,7 +167,7 @@ FAR struct netlink_conn_s *netlink_alloc(void)
       dq_addlast(&conn->sconn.node, &g_active_netlink_connections);
     }
 
-  nxmutex_unlock(&g_free_lock);
+  NET_BUFPOOL_UNLOCK(g_netlink_connections);
   return conn;
 }
 
@@ -192,7 +188,7 @@ void netlink_free(FAR struct netlink_conn_s *conn)
 
   DEBUGASSERT(conn->crefs == 0);
 
-  nxmutex_lock(&g_free_lock);
+  NET_BUFPOOL_LOCK(g_netlink_connections);
 
   /* Remove the connection from the active list */
 
@@ -205,24 +201,11 @@ void netlink_free(FAR struct netlink_conn_s *conn)
       kmm_free(resp);
     }
 
-  /* If this is a preallocated or a batch allocated connection store it in
-   * the free connections list. Else free it.
-   */
+  /* Free the connection */
 
-#if CONFIG_NETLINK_ALLOC_CONNS == 1
-  if (conn < g_netlink_connections || conn >= (g_netlink_connections +
-      CONFIG_NETLINK_PREALLOC_CONNS))
-    {
-      kmm_free(conn);
-    }
-  else
-#endif
-    {
-      memset(conn, 0, sizeof(*conn));
-      dq_addlast(&conn->sconn.node, &g_free_netlink_connections);
-    }
+  NET_BUFPOOL_FREE(g_netlink_connections, conn);
 
-  nxmutex_unlock(&g_free_lock);
+  NET_BUFPOOL_UNLOCK(g_netlink_connections);
 }
 
 /****************************************************************************
@@ -277,13 +260,56 @@ void netlink_add_response(NETLINK_HANDLE handle,
 
   /* Add the response to the end of the FIFO list */
 
-  net_lock();
+  netlink_lock();
   sq_addlast(&resp->flink, &conn->resplist);
 
   /* Notify any waiters that a response is available */
 
   netlink_notifier_signal(conn);
-  net_unlock();
+  netlink_unlock();
+}
+
+/****************************************************************************
+ * Name: netlink_add_terminator
+ *
+ * Description:
+ *   Add one NLMSG_DONE response to handle.
+ *
+ * Input Parameters:
+ *   handle - The handle previously provided to the sendto() implementation
+ *            for the protocol.  This is an opaque reference to the Netlink
+ *            socket state structure.
+ *   req    - The request message header.
+ *   group  - The broadcast group index, 0 for normal response.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned if the terminator was successfully added to the
+ *   response list.
+ *   A negated error value is returned if an unexpected error occurred.
+ *
+ ****************************************************************************/
+
+int netlink_add_terminator(NETLINK_HANDLE handle,
+                           FAR const struct nlmsghdr *req, int group)
+{
+  FAR struct netlink_response_s *resp;
+
+  resp = netlink_get_terminator(req);
+  if (resp == NULL)
+    {
+      return -ENOMEM;
+    }
+
+  if (group > 0)
+    {
+      netlink_add_broadcast(group, resp);
+    }
+  else
+    {
+      netlink_add_response(handle, resp);
+    }
+
+  return OK;
 }
 
 /****************************************************************************
@@ -310,7 +336,7 @@ void netlink_add_broadcast(int group, FAR struct netlink_response_s *data)
 
   DEBUGASSERT(data != NULL);
 
-  net_lock();
+  netlink_lock();
 
   while ((conn = netlink_nextconn(conn)) != NULL)
     {
@@ -348,7 +374,7 @@ void netlink_add_broadcast(int group, FAR struct netlink_response_s *data)
       netlink_notifier_signal(conn);
     }
 
-  net_unlock();
+  netlink_unlock();
 
   /* Drop the package if nobody is interested in */
 
@@ -386,9 +412,9 @@ netlink_tryget_response(FAR struct netlink_conn_s *conn)
    * NULL).
    */
 
-  net_lock();
+  netlink_lock();
   resp = (FAR struct netlink_response_s *)sq_remfirst(&conn->resplist);
-  net_unlock();
+  netlink_unlock();
 
   return resp;
 }
@@ -403,19 +429,23 @@ netlink_tryget_response(FAR struct netlink_conn_s *conn)
  *   Note:  The network will be momentarily locked to support exclusive
  *   access to the pending response list.
  *
+ * Input Parameters:
+ *   conn     - The Netlink connection
+ *   response - The next response from the head of the pending response list
+ *              is returned.  This function will block until a response is
+ *              received if the pending response list is empty.  NULL will be
+ *              returned only in the event of a failure.
+ *
  * Returned Value:
- *   The next response from the head of the pending response list is
- *   returned.  This function will block until a response is received if
- *   the pending response list is empty.  NULL will be returned only in the
- *   event of a failure.
+ *   Zero (OK) is returned if the notification was successfully set up.
+ *   A negated error value is returned if an unexpected error occurred
  *
  ****************************************************************************/
 
-FAR struct netlink_response_s *
-netlink_get_response(FAR struct netlink_conn_s *conn)
+int netlink_get_response(FAR struct netlink_conn_s *conn,
+                         FAR struct netlink_response_s **response)
 {
-  FAR struct netlink_response_s *resp;
-  int ret;
+  int ret = OK;
 
   DEBUGASSERT(conn != NULL);
 
@@ -424,8 +454,8 @@ netlink_get_response(FAR struct netlink_conn_s *conn)
    * priority waiter will get the response.
    */
 
-  net_lock();
-  while ((resp = netlink_tryget_response(conn)) == NULL)
+  netlink_lock();
+  while ((*response = netlink_tryget_response(conn)) == NULL)
     {
       sem_t waitsem;
 
@@ -447,7 +477,10 @@ netlink_get_response(FAR struct netlink_conn_s *conn)
         {
           /* Wait for a response to be queued */
 
-          nxsem_post(&waitsem);
+          tls_cleanup_push(tls_get_info(), netlink_notifier_teardown, conn);
+          ret = net_sem_timedwait2(&waitsem, true, UINT_MAX, &g_netlink_lock,
+                                   NULL);
+          tls_cleanup_pop(tls_get_info(), 0);
         }
 
       /* Clean-up the semaphore */
@@ -463,8 +496,8 @@ netlink_get_response(FAR struct netlink_conn_s *conn)
         }
     }
 
-  net_unlock();
-  return resp;
+  netlink_unlock();
+  return ret;
 }
 
 /****************************************************************************
@@ -487,6 +520,32 @@ bool netlink_check_response(FAR struct netlink_conn_s *conn)
    */
 
   return (sq_peek(&conn->resplist) != NULL);
+}
+
+/****************************************************************************
+ * Name: netlink_lock
+ *
+ * Description:
+ *   Take the global netlink lock
+ *
+ ****************************************************************************/
+
+void netlink_lock(void)
+{
+  nxrmutex_lock(&g_netlink_lock);
+}
+
+/****************************************************************************
+ * Name: netlink_unlock
+ *
+ * Description:
+ *   Release the global netlink lock
+ *
+ ****************************************************************************/
+
+void netlink_unlock(void)
+{
+  nxrmutex_unlock(&g_netlink_lock);
 }
 
 #endif /* CONFIG_NET_NETLINK */

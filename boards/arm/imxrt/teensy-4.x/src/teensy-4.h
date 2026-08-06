@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/imxrt/teensy-4.x/src/teensy-4.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -268,5 +270,5 @@ void imxrt_i2c_setup(void);
 void imxrt_autoled_initialize(void);
 #endif
 
-#endif  /* __ASSEMBLY__ */
-#endif  /* __BOARDS_ARM_TEENSY_4X_SRC_TEENSY_4_H */
+#endif /* __ASSEMBLY__ */
+#endif /* __BOARDS_ARM_TEENSY_4X_SRC_TEENSY_4_H */

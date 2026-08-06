@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/binfmt/binfmt.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,18 +30,16 @@
 #include <nuttx/config.h>
 
 #include <spawn.h>
-
 #include <sys/types.h>
 
-#include <nuttx/arch.h>
 #include <nuttx/sched.h>
-#include <nuttx/streams.h>
+#include <nuttx/lib/elf.h>
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define BINFMT_NALLOC 4
+#define BINFMT_NALLOC     4
 
 /****************************************************************************
  * Public Types
@@ -47,8 +47,8 @@
 
 /* The type of one C++ constructor or destructor */
 
-typedef FAR void (*binfmt_ctor_t)(void);
-typedef FAR void (*binfmt_dtor_t)(void);
+typedef CODE void (*binfmt_ctor_t)(void);
+typedef CODE void (*binfmt_dtor_t)(void);
 
 /* This describes the file to be loaded.
  *
@@ -68,15 +68,13 @@ struct binary_s
 
   main_t entrypt;                      /* Entry point into a program module */
   FAR void *mapped;                    /* Memory-mapped, address space */
-  FAR void *alloc[BINFMT_NALLOC];      /* Allocated address spaces */
 
-#ifdef CONFIG_BINFMT_CONSTRUCTORS
-  /* Constructors/destructors */
+#ifdef CONFIG_LIBC_ELF
+  struct module_s mod;                 /* Module context */
+#endif
 
-  FAR binfmt_ctor_t *ctors;            /* Pointer to a list of constructors */
-  FAR binfmt_dtor_t *dtors;            /* Pointer to a list of destructors */
-  uint16_t nctors;                     /* Number of constructors in the list */
-  uint16_t ndtors;                     /* Number of destructors in the list */
+#ifdef CONFIG_PIC
+  FAR void *picbase;                   /* Position-independent */
 #endif
 
 #ifdef CONFIG_ARCH_ADDRENV
@@ -99,6 +97,16 @@ struct binary_s
   uint8_t priority;                    /* Task execution priority */
   size_t stacksize;                    /* Size of the stack in bytes (unallocated) */
 
+#ifdef CONFIG_BINFMT_STORE_FILENAME
+  char fname[NAME_MAX];
+#endif
+
+#ifdef CONFIG_SCHED_USER_IDENTITY
+  uid_t uid;                           /* File owner user identity */
+  gid_t gid;                           /* File owner group user identity */
+  int mode;                            /* File mode added to */
+#endif
+
 #ifndef CONFIG_BUILD_KERNEL
   FAR void *stackaddr;                 /* Task stack address */
 #endif
@@ -106,15 +114,6 @@ struct binary_s
   /* Unload module callback */
 
   CODE int (*unload)(FAR struct binary_s *bin);
-};
-
-/* This describes binfmt coredump filed */
-
-struct memory_region_s
-{
-  uintptr_t start;   /* Start address of this region */
-  uintptr_t end;     /* End address of this region */
-  uint32_t  flags;   /* Figure 5-3: Segment Flag Bits: PF_[X|W|R] */
 };
 
 /* This describes one binary format handler */
@@ -135,12 +134,6 @@ struct binfmt_s
   /* Unload module callback */
 
   CODE int (*unload)(FAR struct binary_s *bin);
-
-  /* Unload module callback */
-
-  CODE int (*coredump)(FAR struct memory_region_s *regions,
-                       FAR struct lib_outstream_s *stream,
-                       pid_t pid);
 };
 
 /****************************************************************************
@@ -197,23 +190,6 @@ int register_binfmt(FAR struct binfmt_s *binfmt);
 int unregister_binfmt(FAR struct binfmt_s *binfmt);
 
 /****************************************************************************
- * Name: core_dump
- *
- * Description:
- *   This function for generating core dump stream.
- *
- * Returned Value:
- *   This is a NuttX internal function so it follows the convention that
- *   0 (OK) is returned on success and a negated errno is returned on
- *   failure.
- *
- ****************************************************************************/
-
-int core_dump(FAR struct memory_region_s *regions,
-              FAR struct lib_outstream_s *stream,
-              pid_t pid);
-
-/****************************************************************************
  * Name: load_module
  *
  * Description:
@@ -267,7 +243,9 @@ int unload_module(FAR struct binary_s *bin);
 int exec_module(FAR struct binary_s *binp,
                 FAR const char *filename, FAR char * const *argv,
                 FAR char * const *envp,
-                FAR const posix_spawn_file_actions_t *actions);
+                FAR const posix_spawn_file_actions_t *actions,
+                FAR const posix_spawnattr_t *attr,
+                bool spawn);
 
 /****************************************************************************
  * Name: exec

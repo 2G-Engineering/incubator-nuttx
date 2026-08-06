@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/efm32/efm32gg-stk3700/src/efm32_autoleds.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -50,7 +52,7 @@
  *   LED_SIGNAL           In a signal handler          No change
  *   LED_ASSERTION        An assertion failed          No change
  *   LED_PANIC            The system has crashed     OFF      Blinking
- *   LED_IDLE             STM32 is is sleep mode       Not used
+ *   LED_IDLE             STM32 is in sleep mode       Not used
  *
  * Thus if LED0 statically on, NuttX has successfully booted and is,
  * apparently, running normally.  If LED1 is flashing at approximately
@@ -65,7 +67,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <arch/board/board.h>

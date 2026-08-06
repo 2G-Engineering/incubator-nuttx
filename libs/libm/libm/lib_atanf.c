@@ -1,10 +1,9 @@
 /****************************************************************************
  * libs/libm/libm/lib_atanf.c
  *
- * This file is a part of NuttX:
- *
- *   Copyright (C) 2012 Gregory Nutt. All rights reserved.
- *   Ported by: Darcy Gong
+ * SPDX-License-Identifier: ISC
+ * SPDX-FileCopyrightText: Copyright (C) 2012 Gregory Nutt.
+ * SPDX-FileContributor: Ported by: Darcy Gong
  *
  * It derives from the Rhombus OS math library by Nick Johnson which has
  * a compatible, MIT-style license:
@@ -32,12 +31,15 @@
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/param.h>
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
+#define ABS(a) ((a) > 0 ? (a) : -(a))
+
 float atanf(float x)
 {
-  return asinf(x / sqrtf(x * x + 1.0F));
+  return asinf(x / MAX(ABS(x), sqrtf(x * x + 1.0F)));
 }

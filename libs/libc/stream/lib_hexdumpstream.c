@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stream/lib_hexdumpstream.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -77,15 +79,15 @@ static size_t bin2hex(FAR const uint8_t *buf, size_t buflen,
  * Name: hexdumpstream_flush
  ****************************************************************************/
 
-static int hexdumpstream_flush(FAR struct lib_outstream_s *this)
+static int hexdumpstream_flush(FAR struct lib_outstream_s *self)
 {
-  FAR struct lib_hexdumpstream_s *rthis = (FAR void *)this;
+  FAR struct lib_hexdumpstream_s *stream = (FAR void *)self;
 
-  if (rthis->pending > 0)
+  if (stream->pending > 0)
     {
-      rthis->buffer[rthis->pending] = '\n';
-      lib_stream_puts(rthis->backend, rthis->buffer, rthis->pending + 1);
-      rthis->pending = 0;
+      stream->buffer[stream->pending] = '\n';
+      lib_stream_puts(stream->backend, stream->buffer, stream->pending + 1);
+      stream->pending = 0;
     }
 
   return OK;
@@ -95,54 +97,56 @@ static int hexdumpstream_flush(FAR struct lib_outstream_s *this)
  * Name: hexdumpstream_putc
  ****************************************************************************/
 
-static void hexdumpstream_putc(FAR struct lib_outstream_s *this, int ch)
+static void hexdumpstream_putc(FAR struct lib_outstream_s *self, int ch)
 {
-  FAR struct lib_hexdumpstream_s *rthis = (FAR void *)this;
-  int outlen = CONFIG_STREAM_HEXDUMP_BUFFER_SIZE;
+  FAR struct lib_hexdumpstream_s *stream = (FAR void *)self;
+  size_t outlen = CONFIG_STREAM_HEXDUMP_BUFFER_SIZE;
   const uint8_t byte = ch;
 
-  bin2hex(&byte, 1, rthis->buffer + rthis->pending,
-          (outlen - rthis->pending) / 2);
+  bin2hex(&byte, 1, stream->buffer + stream->pending,
+          (outlen - stream->pending) / 2);
 
-  rthis->pending += 2;
+  stream->pending += 2;
 
-  if (rthis->pending == outlen)
+  if (stream->pending == outlen)
     {
-      hexdumpstream_flush(this);
+      hexdumpstream_flush(self);
     }
+
+  self->nput++;
 }
 
 /****************************************************************************
  * Name: hexdumpstream_puts
  ****************************************************************************/
 
-static int hexdumpstream_puts(FAR struct lib_outstream_s *this,
-                           FAR const void *buf, int len)
+static ssize_t hexdumpstream_puts(FAR struct lib_outstream_s *self,
+                                  FAR const void *buf, size_t len)
 {
-  FAR struct lib_hexdumpstream_s *rthis = (FAR void *)this;
+  FAR struct lib_hexdumpstream_s *stream = (FAR void *)self;
   const unsigned char *p = buf;
-  int outlen = CONFIG_STREAM_HEXDUMP_BUFFER_SIZE;
-  int line = outlen / 2;
-  int remain = len;
-  int ret;
+  size_t outlen = CONFIG_STREAM_HEXDUMP_BUFFER_SIZE;
+  size_t line = outlen / 2;
+  size_t remain = len;
+  ssize_t ret;
 
   while (remain > 0)
     {
       ret = remain > line ? line : remain;
-      ret = bin2hex(p, ret, rthis->buffer + rthis->pending,
-                    (outlen - rthis->pending) / 2);
+      ret = bin2hex(p, ret, stream->buffer + stream->pending,
+                    (outlen - stream->pending) / 2);
 
-      p              += ret;
-      remain         -= ret;
-      rthis->pending += ret * 2;
+      p               += ret;
+      remain          -= ret;
+      stream->pending += ret * 2;
 
-      if (rthis->pending == outlen)
+      if (stream->pending == outlen)
         {
-          hexdumpstream_flush(this);
+          hexdumpstream_flush(self);
         }
     }
 
-  this->nput += len;
+  self->nput += len;
 
   return len;
 }
@@ -170,13 +174,13 @@ static int hexdumpstream_puts(FAR struct lib_outstream_s *this,
 void lib_hexdumpstream(FAR struct lib_hexdumpstream_s *stream,
                        FAR struct lib_outstream_s *backend)
 {
-  struct lib_outstream_s *public = &stream->public;
+  struct lib_outstream_s *public = &stream->common;
 
   public->putc    = hexdumpstream_putc;
   public->puts    = hexdumpstream_puts;
   public->flush   = hexdumpstream_flush;
   public->nput    = 0;
 
-  stream->pending  = 0;
-  stream->backend  = backend;
+  stream->pending = 0;
+  stream->backend = backend;
 }

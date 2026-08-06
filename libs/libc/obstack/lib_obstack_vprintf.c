@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/obstack/lib_obstack_vprintf.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 
 struct obstack_stream
 {
-  struct lib_outstream_s public;
+  struct lib_outstream_s common;
   FAR struct obstack *h;
 };
 
@@ -40,22 +42,25 @@ struct obstack_stream
  * Private Functions
  ****************************************************************************/
 
-static int obstack_puts(FAR struct lib_outstream_s *this,
-    FAR const void *buf, int len)
+static ssize_t obstack_puts(FAR struct lib_outstream_s *self,
+                            FAR const void *buf, size_t len)
 {
-  FAR struct obstack_stream *mthis = (FAR struct obstack_stream *)this;
+  FAR struct obstack_stream *stream = (FAR struct obstack_stream *)self;
 
-  DEBUGASSERT(this);
+  DEBUGASSERT(self);
 
-  obstack_grow(mthis->h, buf, len);
+  obstack_grow(stream->h, buf, len);
 
   return len;
 }
 
-static void obstack_putc(FAR struct lib_outstream_s *this, int ch)
+static void obstack_putc(FAR struct lib_outstream_s *self, int ch)
 {
-  char tmp = ch;
-  obstack_puts(this, &tmp, 1);
+  FAR struct obstack_stream *stream = (FAR struct obstack_stream *)self;
+
+  DEBUGASSERT(self);
+
+  obstack_1grow(stream->h, ch);
 }
 
 /****************************************************************************
@@ -87,11 +92,19 @@ int obstack_vprintf(FAR struct obstack *h, FAR const char *fmt, va_list ap)
 {
   struct obstack_stream outstream;
 
-  outstream.public.putc = obstack_putc;
-  outstream.public.puts = obstack_puts;
-  outstream.public.flush = lib_noflush;
-  outstream.public.nput = 0;
+  outstream.common.putc = obstack_putc;
+  outstream.common.puts = obstack_puts;
+  outstream.common.flush = lib_noflush;
+  outstream.common.nput = 0;
   outstream.h = h;
 
-  return lib_vsprintf(&outstream.public, fmt, ap);
+  int nbytes = lib_vsprintf(&outstream.common, fmt, ap);
+
+  if (nbytes < 0)
+    {
+      obstack_free(h, obstack_finish(h));
+      return ERROR;
+    }
+
+  return nbytes;
 }

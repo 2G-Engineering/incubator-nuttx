@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32h7/stm32h747i-disco/src/stm32h747i-disco.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -93,7 +95,7 @@
 
 /* SD/TF Card'detected pin */
 
-#if defined(CONFIG_STM32H7_SDMMC1)
+#if defined(CONFIG_STM32_SDMMC1)
 #  define HAVE_SDIO
 #endif
 
@@ -115,9 +117,6 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=y && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int stm32_bringup(void);
@@ -130,7 +129,7 @@ int stm32_bringup(void);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H7_SPI
+#ifdef CONFIG_STM32_SPI
 void stm32_spidev_initialize(void);
 #endif
 

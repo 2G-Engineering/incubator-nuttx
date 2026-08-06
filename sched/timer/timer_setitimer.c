@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/timer/timer_setitimer.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -87,42 +89,42 @@
 int setitimer(int which, FAR const struct itimerval *value,
               FAR struct itimerval *ovalue)
 {
-  FAR struct tcb_s *rtcb = this_task();
+  FAR struct tcb_s *rtcb;
   struct itimerspec spec;
   struct itimerspec ospec;
-  irqstate_t flags;
   int ret = OK;
 
   if (which != ITIMER_REAL || !value)
     {
       set_errno(EINVAL);
-      return ERROR;
+      ret = ERROR;
     }
-
-  if (!rtcb->group->itimer)
+  else
     {
-      flags = enter_critical_section();
+      rtcb = this_task();
+
+      nxrmutex_lock(&rtcb->group->tg_mutex);
+
       if (!rtcb->group->itimer)
         {
           ret = timer_create(CLOCK_REALTIME, NULL, &rtcb->group->itimer);
         }
 
-      leave_critical_section(flags);
+      nxrmutex_unlock(&rtcb->group->tg_mutex);
 
-      if (ret != OK)
+      if (ret == OK)
         {
-          return ret;
+          TIMEVAL_TO_TIMESPEC(&value->it_value, &spec.it_value);
+          TIMEVAL_TO_TIMESPEC(&value->it_interval, &spec.it_interval);
+
+          ret = timer_settime(rtcb->group->itimer, 0, &spec,
+                              ovalue ? &ospec : NULL);
+          if (ret == OK && ovalue)
+            {
+              TIMESPEC_TO_TIMEVAL(&ovalue->it_value, &ospec.it_value);
+              TIMESPEC_TO_TIMEVAL(&ovalue->it_interval, &ospec.it_interval);
+            }
         }
-    }
-
-  TIMEVAL_TO_TIMESPEC(&value->it_value, &spec.it_value);
-  TIMEVAL_TO_TIMESPEC(&value->it_interval, &spec.it_interval);
-
-  ret = timer_settime(rtcb->group->itimer, 0, &spec, ovalue ? &ospec : NULL);
-  if (ret == OK && ovalue)
-    {
-      TIMESPEC_TO_TIMEVAL(&ovalue->it_value, &ospec.it_value);
-      TIMESPEC_TO_TIMEVAL(&ovalue->it_interval, &ospec.it_interval);
     }
 
   return ret;

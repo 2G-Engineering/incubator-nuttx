@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sparc/src/common/sparc_initialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -77,8 +79,8 @@
 
 /* g_current_regs[] holds a reference to the current interrupt level
  * register storage structure.  It is non-NULL only during interrupt
- * processing.  Access to g_current_regs[] must be through the macro
- * CURRENT_REGS for portability.
+ * processing.  Access to g_current_regs[] must be through the
+ * [get/set]_current_regs for portability.
  */
 
 /* For the case of architectures with multiple CPUs, then there must be one
@@ -86,36 +88,6 @@
  */
 
 volatile uint32_t *g_current_regs[CONFIG_SMP_NCPUS];
-
-/****************************************************************************
- * Private Functions
- ****************************************************************************/
-
-/****************************************************************************
- * Name: up_color_intstack
- *
- * Description:
- *   Set the interrupt stack to a value so that later we can determine how
- *   much stack space was used by interrupt handling logic
- *
- ****************************************************************************/
-
-#if defined(CONFIG_STACK_COLORATION) && CONFIG_ARCH_INTERRUPTSTACK > 7
-static inline void up_color_intstack(void)
-{
-  uint32_t *ptr = (uint32_t *)sparc_intstack_alloc();
-  ssize_t size;
-
-  for (size = ((CONFIG_ARCH_INTERRUPTSTACK & ~7) * CONFIG_SMP_NCPUS);
-       size > 0;
-       size -= sizeof(uint32_t))
-    {
-      *ptr++ = INTSTACK_COLOR;
-    }
-}
-#else
-#  define up_color_intstack()
-#endif
 
 /****************************************************************************
  * Public Functions
@@ -140,23 +112,6 @@ static inline void up_color_intstack(void)
 
 void up_initialize(void)
 {
-#ifdef CONFIG_SMP
-  int i;
-
-  /* Initialize global variables */
-
-  for (i = 0; i < CONFIG_SMP_NCPUS; i++)
-    {
-      g_current_regs[i] = NULL;
-    }
-#else
-  CURRENT_REGS = NULL;
-#endif
-
-  /* Colorize the interrupt stack */
-
-  up_color_intstack();
-
   /* Add any extra memory fragments to the memory manager */
 
   sparc_addregion();

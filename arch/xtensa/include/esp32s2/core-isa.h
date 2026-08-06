@@ -1,8 +1,8 @@
 /****************************************************************************
  * arch/xtensa/include/esp32s2/core-isa.h
- * Xtensa processor CORE configuration
  *
- * Customer ID=11657; Build=0x5fe96; Copyright (c) 1999-2016 Tensilica Inc.
+ * SPDX-License-Identifier: MIT
+ * SPDX-FileCopyrightText: 1999-2016 Tensilica Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -400,8 +400,6 @@
                                             * (not including level zero)
                                             */
 #define XCHAL_EXCM_LEVEL                3  /* level masked by PS.EXCM */
-
-#define XCHAL_SYSCALL_LEVEL             2
 
 /* (always 1 in XEA1; levels 2 .. EXCM_LEVEL are "medium priority") */
 

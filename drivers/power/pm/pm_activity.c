@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/power/pm/pm_activity.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -54,19 +56,19 @@ static void pm_waklock_cb(wdparm_t arg)
 #ifdef CONFIG_PM_PROCFS
 static void pm_wakelock_stats_rm(FAR struct pm_wakelock_s *wakelock)
 {
-  FAR struct pm_domain_s *pdom = &g_pmglobals.domain[wakelock->domain];
+  FAR struct pm_domain_s *pdom = &g_pmdomains[wakelock->domain];
 
   dq_rem(&wakelock->fsnode, &pdom->wakelockall);
 }
 
 static void pm_wakelock_stats(FAR struct pm_wakelock_s *wakelock, bool stay)
 {
-  FAR struct pm_domain_s *pdom = &g_pmglobals.domain[wakelock->domain];
+  FAR struct pm_domain_s *pdom = &g_pmdomains[wakelock->domain];
   struct timespec ts;
 
   if (stay)
     {
-      if (!wakelock->fsnode.blink && !wakelock->fsnode.flink)
+      if (!dq_inqueue(&wakelock->fsnode, &pdom->wakelockall))
         {
           dq_addlast(&wakelock->fsnode, &pdom->wakelockall);
         }
@@ -121,9 +123,9 @@ void pm_activity(int domain, int priority)
 {
   DEBUGASSERT(domain >= 0 && domain < CONFIG_PM_NDOMAINS);
 
-  if (g_pmglobals.domain[domain].governor->activity)
+  if (g_pmdomains[domain].governor->activity)
     {
-      g_pmglobals.domain[domain].governor->activity(domain, priority);
+      g_pmdomains[domain].governor->activity(domain, priority);
     }
 
   pm_auto_updatestate(domain);
@@ -195,7 +197,7 @@ void pm_relax(int domain, enum pm_state_e state)
  *   This function is called by a device driver to indicate that it is
  *   performing meaningful activities (non-idle), needs the power kept at
  *   the last the specified level.
- *   And this will timeout after time (ms), menas auto pm_relax
+ *   And this will timeout after time (ms), means auto pm_relax
  *
  * Input Parameters:
  *   domain - The domain of the PM activity
@@ -301,11 +303,11 @@ void pm_wakelock_uninit(FAR struct pm_wakelock_s *wakelock)
   /* Get a convenience pointer to minimize all of the indexing */
 
   domain = wakelock->domain;
-  pdom   = &g_pmglobals.domain[domain];
+  pdom   = &g_pmdomains[domain];
   dq     = &pdom->wakelock[wakelock->state];
   wdog   = &wakelock->wdog;
 
-  flags = pm_domain_lock(domain);
+  flags = spin_lock_irqsave(&pdom->lock);
 
   if (wakelock->count > 0)
     {
@@ -313,10 +315,10 @@ void pm_wakelock_uninit(FAR struct pm_wakelock_s *wakelock)
     }
 
   wakelock->count = 0;
-  wd_cancel(wdog);
   pm_wakelock_stats_rm(wakelock);
 
-  pm_domain_unlock(domain, flags);
+  spin_unlock_irqrestore(&pdom->lock, flags);
+  wd_cancel(wdog);
 }
 
 /****************************************************************************
@@ -350,10 +352,10 @@ void pm_wakelock_stay(FAR struct pm_wakelock_s *wakelock)
   /* Get a convenience pointer to minimize all of the indexing */
 
   domain = wakelock->domain;
-  pdom   = &g_pmglobals.domain[domain];
+  pdom   = &g_pmdomains[domain];
   dq     = &pdom->wakelock[wakelock->state];
 
-  flags = pm_domain_lock(domain);
+  flags = spin_lock_irqsave(&pdom->lock);
 
   DEBUGASSERT(wakelock->count < UINT32_MAX);
   if (wakelock->count++ == 0)
@@ -362,7 +364,7 @@ void pm_wakelock_stay(FAR struct pm_wakelock_s *wakelock)
       pm_wakelock_stats(wakelock, true);
     }
 
-  pm_domain_unlock(domain, flags);
+  spin_unlock_irqrestore(&pdom->lock, flags);
 
   pm_auto_updatestate(domain);
 }
@@ -397,10 +399,10 @@ void pm_wakelock_relax(FAR struct pm_wakelock_s *wakelock)
   /* Get a convenience pointer to minimize all of the indexing */
 
   domain = wakelock->domain;
-  pdom   = &g_pmglobals.domain[domain];
+  pdom   = &g_pmdomains[domain];
   dq     = &pdom->wakelock[wakelock->state];
 
-  flags = pm_domain_lock(domain);
+  flags = spin_lock_irqsave(&pdom->lock);
 
   DEBUGASSERT(wakelock->count > 0);
   if (--wakelock->count == 0)
@@ -409,7 +411,7 @@ void pm_wakelock_relax(FAR struct pm_wakelock_s *wakelock)
       pm_wakelock_stats(wakelock, false);
     }
 
-  pm_domain_unlock(domain, flags);
+  spin_unlock_irqrestore(&pdom->lock, flags);
 
   pm_auto_updatestate(domain);
 }
@@ -421,7 +423,7 @@ void pm_wakelock_relax(FAR struct pm_wakelock_s *wakelock)
  *   This function is called by a device driver to indicate that it is
  *   performing meaningful activities (non-idle), needs the power at kept
  *   last the specified level.
- *   And this will be timeout after time (ms), menas auto pm_wakelock_relax
+ *   And this will be timeout after time (ms), means auto pm_wakelock_relax
  *
  * Input Parameters:
  *   wakelock - wakelock ID
@@ -440,6 +442,7 @@ void pm_wakelock_staytimeout(FAR struct pm_wakelock_s *wakelock, int ms)
   FAR struct pm_domain_s *pdom;
   FAR struct dq_queue_s *dq;
   FAR struct wdog_s *wdog;
+  bool wdstart = false;
   irqstate_t flags;
   int domain;
 
@@ -448,11 +451,11 @@ void pm_wakelock_staytimeout(FAR struct pm_wakelock_s *wakelock, int ms)
   /* Get a convenience pointer to minimize all of the indexing */
 
   domain = wakelock->domain;
-  pdom   = &g_pmglobals.domain[domain];
+  pdom   = &g_pmdomains[domain];
   dq     = &pdom->wakelock[wakelock->state];
   wdog   = &wakelock->wdog;
 
-  flags = pm_domain_lock(domain);
+  flags  = spin_lock_irqsave(&pdom->lock);
 
   if (!WDOG_ISACTIVE(wdog))
     {
@@ -466,10 +469,14 @@ void pm_wakelock_staytimeout(FAR struct pm_wakelock_s *wakelock, int ms)
 
   if (TICK2MSEC(wd_gettime(wdog)) < ms)
     {
-      wd_start(wdog, MSEC2TICK(ms), pm_waklock_cb, (wdparm_t)wakelock);
+      wdstart = true;
     }
 
-  pm_domain_unlock(domain, flags);
+  spin_unlock_irqrestore(&pdom->lock, flags);
+  if (wdstart)
+    {
+      wd_start(wdog, MSEC2TICK(ms), pm_waklock_cb, (wdparm_t)wakelock);
+    }
 
   pm_auto_updatestate(domain);
 }

@@ -1,6 +1,8 @@
 #############################################################################
 # boards/xtensa/esp32/common/src/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -24,20 +26,24 @@ ifeq ($(CONFIG_WATCHDOG),y)
   CSRCS += esp32_board_wdt.c
 endif
 
+ifeq ($(CONFIG_ESPRESSIF_ADC),y)
+  CSRCS += esp32_board_adc.c
+endif
+
 ifeq ($(CONFIG_ONESHOT),y)
   CSRCS += esp32_oneshot.c
 endif
 
-ifeq ($(CONFIG_I2C_DRIVER),y)
+ifeq ($(CONFIG_ESP32_I2C),y)
   CSRCS += esp32_board_i2c.c
 endif
 
-ifeq ($(CONFIG_ESP32_I2S),y)
+ifeq ($(CONFIG_ESPRESSIF_I2S),y)
   CSRCS += esp32_board_i2sdev.c
 endif
 
-ifeq ($(CONFIG_ESP32_PCNT_AS_QE),y)
-  CSRCS += esp32_qencoder.c
+ifeq ($(CONFIG_ESP_PCNT),y)
+  CSRCS += esp32_board_pcnt.c
 endif
 
 ifeq ($(CONFIG_SENSORS_MAX6675),y)
@@ -64,12 +70,20 @@ ifeq ($(CONFIG_SPI_DRIVER),y)
   CSRCS += esp32_board_spidev.c
 endif
 
+ifeq ($(CONFIG_SPI_SLAVE_DRIVER),y)
+  CSRCS += esp32_board_spislavedev.c
+endif
+
 ifeq ($(CONFIG_ESP32_SPIFLASH),y)
   CSRCS += esp32_board_spiflash.c
 endif
 
-ifeq ($(CONFIG_ESP32_WIFI),y)
+ifeq ($(CONFIG_ESPRESSIF_WIFI),y)
   CSRCS += esp32_board_wlan.c
+endif
+
+ifeq ($(CONFIG_SENSORS_APDS9960),y)
+  CSRCS += esp32_board_apds9960.c
 endif
 
 ifeq ($(CONFIG_SENSORS_BMP180),y)
@@ -80,11 +94,15 @@ ifeq ($(CONFIG_SENSORS_BMP280),y)
   CSRCS += esp32_bmp280.c
 endif
 
+ifeq ($(CONFIG_SENSORS_BME680),y)
+  CSRCS += esp32_bme680.c
+endif
+
 ifeq ($(CONFIG_SENSORS_SHT3X),y)
   CSRCS += esp32_sht3x.c
 endif
 
-ifeq ($(CONFIG_SENSORS_MS5611),y)
+ifeq ($(CONFIG_SENSORS_MS56XX),y)
   CSRCS += esp32_ms5611.c
 endif
 
@@ -104,12 +122,24 @@ ifeq ($(CONFIG_LCD_BACKPACK),y)
   CSRCS += esp32_lcd_backpack.c
 endif
 
+ifeq ($(CONFIG_LCD_DEV),y)
+  CSRCS += esp32_backlight.c
+endif
+
 ifeq ($(CONFIG_LCD_ILI9341),y)
   CSRCS += esp32_ili9341.c
 endif
 
+ifeq ($(CONFIG_LCD_GC9A01),y)
+  CSRCS += esp32_gc9a01.c
+endif
+
 ifeq ($(CONFIG_LCD_ST7789),y)
   CSRCS += esp32_st7789.c
+endif
+
+ifeq ($(CONFIG_LCD_APA102),y)
+  CSRCS += esp32_board_apa102_lcd.c
 endif
 
 ifeq ($(CONFIG_LCD_SSD1306_I2C),y)
@@ -120,8 +150,36 @@ ifeq ($(CONFIG_LCD_SSD1680),y)
   CSRCS += esp32_ssd1680.c
 endif
 
+ifeq ($(CONFIG_RGBLED),y)
+  CSRCS += esp32_rgbled.c
+endif
+
+ifeq ($(CONFIG_ESP_RMT),y)
+  CSRCS += esp32_board_rmt.c
+endif
+
+#ifeq ($(CONFIG_DAC),y)
+  CSRCS += esp32_board_dac.c
+#endif
+
+ifeq ($(CONFIG_SENSORS_ZEROCROSS),y)
+  CSRCS += esp32_zerocross.c
+endif
+
+ifeq ($(CONFIG_ESP_MCPWM),y)
+  CSRCS += esp32_board_mcpwm.c
+endif
+
+ifeq ($(CONFIG_MMCSD_SPI),y)
+  CSRCS += esp32_board_sdmmc.c
+endif
+
+ifeq ($(CONFIG_ETC_ROMFS),y)
+  RCSRCS  = etc/init.d/rc.sysinit etc/init.d/rcS
+endif
+
 DEPPATH += --dep-path src
 VPATH += :src
-CFLAGS += $(shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)src)
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)src
 
 endif

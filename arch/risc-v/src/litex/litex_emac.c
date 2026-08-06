@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/litex/litex_emac.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <time.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arpa/inet.h>
 
@@ -39,8 +41,13 @@
 #include <nuttx/wqueue.h>
 #include <nuttx/signal.h>
 #include <nuttx/net/mii.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/ioctl.h>
+
+#if defined(CONFIG_ARCH_PHY_INTERRUPT)
+#  include <nuttx/net/phy.h>
+#endif
 
 #ifdef CONFIG_NET_PKT
 #  include <nuttx/net/pkt.h>
@@ -86,7 +93,7 @@
 
 /* PHY Reset Timeout - in ms */
 
-#define LITEX_PHY_RESETTIMEOUT    (20)
+#define LITEX_PHY_RESETTIMEOUT    (20 * 1000)
 
 /* LITEX MDIO register bit definitions */
 
@@ -109,9 +116,21 @@
 #  define BOARD_PHYID1          MII_PHYID1_DP83848C
 #  define BOARD_PHYID2          MII_PHYID2_DP83848C
 #  define BOARD_PHY_STATUS      MII_DP83848C_STS
+#  define BOARD_PHY_INT_REG     MII_DP83848C_MISR
+#  define BOARD_PHY_SETEN       MII_DP83848C_LINK_INT_EN
 #  define BOARD_PHY_10BASET(s)  (((s) & MII_DP83848C_PHYSTS_SPEED) != 0)
 #  define BOARD_PHY_100BASET(s) (((s) & MII_DP83848C_PHYSTS_SPEED) == 0)
 #  define BOARD_PHY_ISDUPLEX(s) (((s) & MII_DP83848C_PHYSTS_DUPLEX) != 0)
+#elif defined(CONFIG_ETH0_PHY_KSZ8061)
+#  define BOARD_PHY_NAME        "KSZ8061"
+#  define BOARD_PHYID1          MII_PHYID1_KSZ8061
+#  define BOARD_PHYID2          MII_PHYID2_KSZ8061
+#  define BOARD_PHY_STATUS      MII_KSZ8061_PHY_CTRL_1
+#  define BOARD_PHY_INT_REG     MII_KSZ8061_INTR_CTRL_STAT
+#  define BOARD_PHY_SETEN       MII_KSZ80X1_INT_LDEN | MII_KSZ80X1_INT_LUEN
+#  define BOARD_PHY_10BASET(s)  (((s) & MII_KSZ8061_PC2_10T) != 0)
+#  define BOARD_PHY_100BASET(s) (((s) & MII_KSZ8061_PC2_100T) != 0)
+#  define BOARD_PHY_ISDUPLEX(s) (((s) & MII_KSZ8061_PC2_FD) != 0)
 #else
 #  error EMAC PHY unrecognized
 #endif
@@ -150,6 +169,7 @@ struct litex_emac_s
   uint8_t               phyaddr;     /* PHY address (pre-defined by pins on reset) */
 
   uint8_t               txslot;
+  spinlock_t            lock;
 };
 
 /****************************************************************************
@@ -194,6 +214,9 @@ static int  litex_phyread(struct litex_emac_s *priv, uint8_t phyaddr,
 #ifdef CONFIG_NETDEV_IOCTL
 static int  litex_phywrite(struct litex_emac_s *priv, uint8_t phyaddr,
                            uint8_t regaddr, uint16_t phyval);
+#endif
+#ifdef CONFIG_ARCH_PHY_INTERRUPT
+static int litex_phyintenable(struct litex_emac_s *priv);
 #endif
 #if defined(CONFIG_DEBUG_NET) && defined(CONFIG_DEBUG_INFO)
 static void litex_phydump(struct litex_emac_s *priv);
@@ -489,7 +512,7 @@ static int litex_transmit(struct litex_emac_s *priv)
 
   /* Make the following operations atomic */
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&priv->lock);
 
   /* Now start transmission */
 
@@ -506,7 +529,7 @@ static int litex_transmit(struct litex_emac_s *priv)
   wd_start(&priv->txtimeout, LITEX_TXTIMEOUT,
            litex_txtimeout_expiry, (wdparm_t)priv);
 
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
 
   return OK;
 }
@@ -531,15 +554,21 @@ static int litex_transmit(struct litex_emac_s *priv)
 
 static void litex_receive(struct litex_emac_s *priv)
 {
+  priv->dev.d_len = getreg16(LITEX_ETHMAC_SRAM_WRITER_LENGTH);
+
   /* Update statistics */
 
   NETDEV_RXPACKETS(&priv->dev);
 
-  priv->dev.d_len = getreg16(LITEX_ETHMAC_SRAM_WRITER_LENGTH);
-
   if (priv->dev.d_len == 0 || priv->dev.d_len > ETHMAC_SLOT_SIZE)
     {
       NETDEV_RXDROPPED(&priv->dev);
+
+      /* The pending flag for the receive buffer needs to be ack'd,
+       * even if the received packet is flagged as invalid.
+       */
+
+      putreg8(0x01, LITEX_ETHMAC_SRAM_WRITER_EV_PENDING);
       return;
     }
 
@@ -552,6 +581,12 @@ static void litex_receive(struct litex_emac_s *priv)
          (void *)(LITEX_ETHMAC_RXBASE + (rxslot * ETHMAC_SLOT_SIZE)),
          priv->dev.d_len);
   litex_dumppacket("Rx Packet", g_buffer, priv->dev.d_len);
+
+      /* ACK the pending flag AFTER receiving and processing data.
+       * This transitions the receive slot in hardware.
+       */
+
+  putreg8(0x01, LITEX_ETHMAC_SRAM_WRITER_EV_PENDING);
 
 #ifdef CONFIG_NET_PKT
   /* When packet sockets are enabled, feed the frame into the tap */
@@ -664,12 +699,6 @@ static void litex_emac_interrupt_work(void *arg)
   if (getreg32(LITEX_ETHMAC_SRAM_WRITER_EV_PENDING) & 0x01)
     {
       litex_receive(priv);
-
-      /* ACK the pending flag AFTER receiving and processing data.
-       * This transitions the receive slot in hardware.
-       */
-
-      putreg8(0x01, LITEX_ETHMAC_SRAM_WRITER_EV_PENDING);
     }
 
   /* Tx Done */
@@ -747,7 +776,7 @@ static int litex_linkup(struct litex_emac_s *priv)
 
   for (i = 0; i < LITEX_WAITLINKTIMEOUT; ++i)
     {
-      nxsig_usleep(1000);
+      nxsched_usleep(1000);
 
       ret = litex_phyread(priv, priv->phyaddr, MII_MSR, &msr);
       if (ret < 0)
@@ -788,13 +817,11 @@ static int litex_ifup(struct net_driver_s *dev)
   struct litex_emac_s *priv = (struct litex_emac_s *)dev->d_private;
   int ret;
 
-  #ifdef CONFIG_NET_IPv4
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff),
-        (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff),
-        (int)(dev->d_ipaddr >> 24));
-  #endif
+#ifdef CONFIG_NET_IPv4
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
+#endif
 
   /* Configure the EMAC interface for normal operation. */
 
@@ -815,7 +842,7 @@ static int litex_ifup(struct net_driver_s *dev)
   ret = litex_linkup(priv);
   if (ret != 0)
     {
-      nerr("ERROR: Failed to wait LINK UP error=%d\n", ret);
+      nerr("ERROR: Failed to wait LINK UP error= %d\n", ret);
       return ret;
     }
 
@@ -831,6 +858,8 @@ static int litex_ifup(struct net_driver_s *dev)
   up_enable_irq(LITEX_IRQ_ETHMAC);
 
   litex_phydump(priv);
+
+  netdev_carrier_on(dev);
 
   return OK;
 }
@@ -868,13 +897,12 @@ static int litex_ifdown(struct net_driver_s *dev)
   wd_cancel(&priv->txpoll);
   wd_cancel(&priv->txtimeout);
 
-  /* Hold the PHY device in reset and mark the interface as "down" */
-
-  putreg32(1, LITEX_ETHPHY_CRG_RESET);
   priv->ifup = false;
   leave_critical_section(flags);
 
   litex_phydump(priv);
+
+  netdev_carrier_off(dev);
 
   return OK;
 }
@@ -1150,7 +1178,7 @@ static void litex_phydump(struct litex_emac_s *priv)
  *
  * Input Parameters:
  *   priv    - Reference to the private driver state structure
- *   phyaddr - MDIO address to try and find confgiured PHY IC
+ *   phyaddr - MDIO address to try and find configured PHY IC
  *
  * Returned Value:
  *   OK on success; Negated errno on failure.
@@ -1215,11 +1243,36 @@ static int litex_phyfind(struct litex_emac_s *priv, uint8_t phyaddr)
   model = (phyval[1] & 0x03f0) >> 4;
   revision = (phyval[1] & 0x000f);
 
-  ninfo("%s: PHY Found - OUI: 0x%04" PRIx32 "MODEL: %u REV: %u\n",
+  ninfo("%s: PHY Found - OUI: 0x%04" PRIx32 " MODEL: %u REV: %u\n",
         BOARD_PHY_NAME, oui, model, revision);
 
   return OK;
 }
+
+/****************************************************************************
+ * Function: litex_phyintenable
+ *
+ * Description:
+ *  Enable link up/down PHY interrupts.
+ *
+ * Input Parameters:
+ *   priv - A reference to the private driver state structure
+ *
+ * Returned Value:
+ *   Can currently only return OK
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ARCH_PHY_INTERRUPT
+static int litex_phyintenable(struct litex_emac_s *priv)
+{
+  uint16_t value;
+  litex_phyread(priv, priv->phyaddr, BOARD_PHY_INT_REG, &value);
+  value |=  BOARD_PHY_SETEN;
+  litex_phywrite(priv, priv->phyaddr, BOARD_PHY_INT_REG, value);
+  return OK;
+}
+#endif
 
 /****************************************************************************
  * Function: litex_phyinit
@@ -1241,10 +1294,11 @@ static int litex_phyinit(struct litex_emac_s *priv)
 
   /* Reset PHY */
 
+  ninfo("%s: PHY RESET\n", BOARD_PHY_NAME);
   putreg32(1, LITEX_ETHPHY_CRG_RESET);
-  nxsig_usleep(LITEX_PHY_RESETTIMEOUT);
+  nxsched_usleep(LITEX_PHY_RESETTIMEOUT);
   putreg32(0, LITEX_ETHPHY_CRG_RESET);
-  nxsig_usleep(LITEX_PHY_RESETTIMEOUT);
+  nxsched_usleep(LITEX_PHY_RESETTIMEOUT);
 
   /* Check the PHY responds at configured address */
 
@@ -1323,6 +1377,24 @@ static int litex_ioctl(struct net_driver_s *dev, int cmd, unsigned long arg)
                                req->reg_num, req->val_in);
         }
         break;
+
+#ifdef CONFIG_ARCH_PHY_INTERRUPT
+      case SIOCMIINOTIFY:
+        {
+          struct mii_ioctl_notify_s *req =
+            (struct mii_ioctl_notify_s *)((uintptr_t)arg);
+
+          ret = phy_notify_subscribe(dev->d_ifname, req->pid, &req->event);
+          if (ret == OK)
+            {
+              /* Enable PHY link up/down interrupts */
+
+              ret = litex_phyintenable(priv);
+            }
+        }
+      break;
+#endif
+
 #endif /* ifdef CONFIG_NETDEV_PHY_IOCTL */
 
       default:
@@ -1456,6 +1528,8 @@ static void litex_ethinitialize(void)
     {
       return;
     }
+
+  spin_lock_init(&priv->lock);
 
   nerr("ERROR: netdev_register() failed: %d\n", ret);
 }

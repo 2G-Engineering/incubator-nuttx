@@ -1,6 +1,18 @@
 /****************************************************************************
  * crypto/xform.c
- * $OpenBSD: xform.c,v 1.61 2021/10/22 12:30:53 bluhm Exp $
+ *
+ * SPDX-License-Identifier: 0BSD
+ * SPDX-FileCopyrightText: 1995, 1996, 1997, 1998, 1999 John Ioannidis
+ * SPDX-FileCopyrightText: 1995, 1996, 1997, 1998, 1999 Angelos D. Keromytis
+ * SPDX-FileCopyrightText: 1995, 1996, 1997, 1998, 1999 Niels Provos.
+ * SPDX-FileCopyrightText: 2001 Angelos D. Keromytis.
+ * SPDX-FileCopyrightText: 2008 Damien Miller
+ * SPDX-FileCopyrightText: 2010, 2015 Mike Belopuhov
+ * SPDX-FileContributor: John Ioannidis (ji@tla.org)
+ * SPDX-FileContributor: Angelos D. Keromytis (kermit@csd.uch.gr)
+ * SPDX-FileContributor: Niels Provos (provos@physnet.uni-hamburg.de)
+ * SPDX-FileContributor: Damien Miller (djm@mindrot.org)
+ * SPDX-FileContributor: Mike Belopuhov (mikeb@openbsd.org)
  *
  * The authors of this code are John Ioannidis (ji@tla.org),
  * Angelos D. Keromytis (kermit@csd.uch.gr),
@@ -70,9 +82,18 @@
 #include <crypto/cryptodev.h>
 #include <crypto/xform.h>
 #include <crypto/gmac.h>
+#include <crypto/cmac.h>
 #include <crypto/chachapoly.h>
+#include <crypto/poly1305.h>
+#include <nuttx/crc32.h>
 
 #include "des_locl.h"
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#define CRC32_XOR_VALUE 0xFFFFFFFFUL
 
 /****************************************************************************
  * Public Functions
@@ -88,6 +109,7 @@ int cast5_setkey(FAR void *, FAR uint8_t *, int);
 int aes_setkey_xform(FAR void *, FAR uint8_t *, int);
 int aes_ctr_setkey(FAR void *, FAR uint8_t *, int);
 int aes_xts_setkey(FAR void *, FAR uint8_t *, int);
+int aes_ofb_setkey(FAR void *, FAR uint8_t *, int);
 int null_setkey(FAR void *, FAR uint8_t *, int);
 
 void des3_encrypt(caddr_t, FAR uint8_t *);
@@ -96,6 +118,9 @@ void cast5_encrypt(caddr_t, FAR uint8_t *);
 void aes_encrypt_xform(caddr_t, FAR uint8_t *);
 void null_encrypt(caddr_t, FAR uint8_t *);
 void aes_xts_encrypt(caddr_t, FAR uint8_t *);
+void aes_ofb_encrypt(caddr_t, FAR uint8_t *);
+void aes_cfb8_encrypt(caddr_t, FAR uint8_t *);
+void aes_cfb128_encrypt(caddr_t, FAR uint8_t *);
 
 void des3_decrypt(caddr_t, FAR uint8_t *);
 void blf_decrypt(caddr_t, FAR uint8_t *);
@@ -103,19 +128,30 @@ void cast5_decrypt(caddr_t, FAR uint8_t *);
 void aes_decrypt_xform(caddr_t, FAR uint8_t *);
 void null_decrypt(caddr_t, FAR uint8_t *);
 void aes_xts_decrypt(caddr_t, FAR uint8_t *);
+void aes_cfb8_decrypt(caddr_t, FAR uint8_t *);
+void aes_cfb128_decrypt(caddr_t, FAR uint8_t *);
 
 void aes_ctr_crypt(caddr_t, FAR uint8_t *);
 
 void aes_ctr_reinit(caddr_t, FAR uint8_t *);
 void aes_xts_reinit(caddr_t, FAR uint8_t *);
 void aes_gcm_reinit(caddr_t, FAR uint8_t *);
+void aes_ofb_reinit(caddr_t, FAR uint8_t *);
 
-int md5update_int(FAR void *, FAR const uint8_t *, uint16_t);
-int sha1update_int(FAR void *, FAR const uint8_t *, uint16_t);
-int rmd160update_int(FAR void *, FAR const uint8_t *, uint16_t);
-int sha256update_int(FAR void *, FAR const uint8_t *, uint16_t);
-int sha384update_int(FAR void *, FAR const uint8_t *, uint16_t);
-int sha512update_int(FAR void *, FAR const uint8_t *, uint16_t);
+void null_init(FAR void *);
+void poly1305_setkey(FAR void *, FAR const uint8_t *, uint16_t);
+int poly1305update_int(FAR void *, FAR const uint8_t *, size_t);
+int poly1305_final(FAR uint8_t *, FAR void *);
+int md5update_int(FAR void *, FAR const uint8_t *, size_t);
+int sha1update_int(FAR void *, FAR const uint8_t *, size_t);
+int rmd160update_int(FAR void *, FAR const uint8_t *, size_t);
+int sha224update_int(FAR void *, FAR const uint8_t *, size_t);
+int sha256update_int(FAR void *, FAR const uint8_t *, size_t);
+int sha384update_int(FAR void *, FAR const uint8_t *, size_t);
+int sha512update_int(FAR void *, FAR const uint8_t *, size_t);
+void crc32setkey(FAR void *, FAR const uint8_t *, uint16_t);
+int crc32update(FAR void *, FAR const uint8_t *, size_t);
+void crc32final(FAR uint8_t *, FAR void *);
 
 struct aes_ctr_ctx
 {
@@ -128,6 +164,12 @@ struct aes_xts_ctx
   rijndael_ctx key1;
   rijndael_ctx key2;
   uint8_t tweak[AES_XTS_BLOCKSIZE];
+};
+
+struct aes_ofb_ctx
+{
+  AES_CTX ac_key;
+  FAR uint8_t *iv;
 };
 
 /* Helper */
@@ -211,6 +253,16 @@ const struct enc_xform enc_xform_aes_gmac =
   NULL
 };
 
+const struct enc_xform enc_xform_aes_cmac =
+{
+  CRYPTO_AES_CMAC, "AES-CMAC",
+  1, 0, 16, 32, 0,
+  null_encrypt,
+  null_decrypt,
+  null_setkey,
+  NULL
+};
+
 const struct enc_xform enc_xform_aes_xts =
 {
   CRYPTO_AES_XTS, "AES-XTS",
@@ -220,6 +272,39 @@ const struct enc_xform enc_xform_aes_xts =
   aes_xts_decrypt,
   aes_xts_setkey,
   aes_xts_reinit
+};
+
+const struct enc_xform enc_xform_aes_ofb =
+{
+  CRYPTO_AES_OFB, "AES-OFB",
+  16, 16, 16, 32,
+  sizeof(struct aes_ofb_ctx),
+  aes_ofb_encrypt,
+  aes_ofb_encrypt,
+  aes_ofb_setkey,
+  aes_ofb_reinit
+};
+
+const struct enc_xform enc_xform_aes_cfb_8 =
+{
+  CRYPTO_AES_CFB_8, "AES-CFB-8",
+  16, 16, 16, 32,
+  sizeof(struct aes_ofb_ctx),
+  aes_cfb8_encrypt,
+  aes_cfb8_decrypt,
+  aes_ofb_setkey,
+  aes_ofb_reinit
+};
+
+const struct enc_xform enc_xform_aes_cfb_128 =
+{
+  CRYPTO_AES_CFB_128, "AES-CFB-128",
+  16, 16, 16, 32,
+  sizeof(struct aes_ofb_ctx),
+  aes_cfb128_encrypt,
+  aes_cfb128_decrypt,
+  aes_ofb_setkey,
+  aes_ofb_reinit
 };
 
 const struct enc_xform enc_xform_chacha20_poly1305 =
@@ -248,7 +333,7 @@ const struct enc_xform enc_xform_null =
 const struct auth_hash auth_hash_hmac_md5_96 =
 {
   CRYPTO_MD5_HMAC, "HMAC-MD5",
-  16, 16, 12, sizeof(MD5_CTX), HMAC_MD5_BLOCK_LEN,
+  HMAC_MD5_BLOCK_LEN, 16, 12, sizeof(MD5_CTX), HMAC_MD5_BLOCK_LEN,
   (void (*) (FAR void *)) md5init, NULL, NULL,
   md5update_int,
   (void (*) (FAR uint8_t *, FAR void *)) md5final
@@ -257,7 +342,7 @@ const struct auth_hash auth_hash_hmac_md5_96 =
 const struct auth_hash auth_hash_hmac_sha1_96 =
 {
   CRYPTO_SHA1_HMAC, "HMAC-SHA1",
-  20, 20, 12, sizeof(SHA1_CTX), HMAC_SHA1_BLOCK_LEN,
+  HMAC_SHA1_BLOCK_LEN, 20, 12, sizeof(SHA1_CTX), HMAC_SHA1_BLOCK_LEN,
   (void (*) (FAR void *)) sha1init, NULL, NULL,
   sha1update_int,
   (void (*) (FAR uint8_t *, FAR void *)) sha1final
@@ -275,7 +360,7 @@ const struct auth_hash auth_hash_hmac_ripemd_160_96 =
 const struct auth_hash auth_hash_hmac_sha2_256_128 =
 {
   CRYPTO_SHA2_256_HMAC, "HMAC-SHA2-256",
-  32, 32, 16, sizeof(SHA2_CTX), HMAC_SHA2_256_BLOCK_LEN,
+  HMAC_SHA2_256_BLOCK_LEN, 32, 16, sizeof(SHA2_CTX), HMAC_SHA2_256_BLOCK_LEN,
   (void (*)(FAR void *)) sha256init, NULL, NULL,
   sha256update_int,
   (void (*)(FAR uint8_t *, FAR void *)) sha256final
@@ -284,7 +369,7 @@ const struct auth_hash auth_hash_hmac_sha2_256_128 =
 const struct auth_hash auth_hash_hmac_sha2_384_192 =
 {
   CRYPTO_SHA2_384_HMAC, "HMAC-SHA2-384",
-  48, 48, 24, sizeof(SHA2_CTX), HMAC_SHA2_384_BLOCK_LEN,
+  HMAC_SHA2_384_BLOCK_LEN, 48, 24, sizeof(SHA2_CTX), HMAC_SHA2_384_BLOCK_LEN,
   (void (*)(FAR void *)) sha384init, NULL, NULL,
   sha384update_int,
   (void (*)(FAR uint8_t *, FAR void *)) sha384final
@@ -293,7 +378,7 @@ const struct auth_hash auth_hash_hmac_sha2_384_192 =
 const struct auth_hash auth_hash_hmac_sha2_512_256 =
 {
   CRYPTO_SHA2_512_HMAC, "HMAC-SHA2-512",
-  64, 64, 32, sizeof(SHA2_CTX), HMAC_SHA2_512_BLOCK_LEN,
+  HMAC_SHA2_512_BLOCK_LEN, 64, 32, sizeof(SHA2_CTX), HMAC_SHA2_512_BLOCK_LEN,
   (void (*)(FAR void *)) sha512init, NULL, NULL,
   sha512update_int,
   (void (*)(FAR uint8_t *, FAR void *)) sha512final
@@ -331,6 +416,95 @@ const struct auth_hash auth_hash_chacha20_poly1305 =
   chacha20_poly1305_init, chacha20_poly1305_setkey,
   chacha20_poly1305_reinit, chacha20_poly1305_update,
   chacha20_poly1305_final
+};
+
+const struct auth_hash auth_hash_cmac_aes_128 =
+{
+  CRYPTO_AES_128_CMAC, "CMAC-AES-128",
+  16, AES_CMAC_KEY_LENGTH, AES_CMAC_DIGEST_LENGTH, sizeof(AES_CMAC_CTX),
+  AESCTR_BLOCKSIZE, (void (*)(FAR void *)) aes_cmac_init,
+  (void (*)(FAR void *, FAR const uint8_t *, uint16_t)) aes_cmac_setkey,
+  NULL, (int (*)(FAR void *, FAR const uint8_t *, size_t)) aes_cmac_update,
+  (void (*) (FAR uint8_t *, FAR void *)) aes_cmac_final
+};
+
+const struct auth_hash auth_hash_md5 =
+{
+  CRYPTO_MD5, "MD5",
+  0, 16, 16, sizeof(MD5_CTX), HMAC_MD5_BLOCK_LEN,
+  (void (*) (FAR void *)) md5init, NULL, NULL,
+  md5update_int,
+  (void (*) (FAR uint8_t *, FAR void *)) md5final
+};
+
+const struct auth_hash auth_hash_poly1305 =
+{
+  CRYPTO_POLY1305, "POLY1305",
+  0, 16, 16, sizeof(poly1305_state), poly1305_block_size,
+  (void (*) (FAR void *)) null_init, poly1305_setkey, NULL,
+  poly1305update_int,
+  (void (*) (FAR uint8_t *, FAR void *)) poly1305_final
+};
+
+const struct auth_hash auth_hash_ripemd_160 =
+{
+  CRYPTO_RIPEMD160, "RIPEMD160",
+  0, 20, 20, sizeof(RMD160_CTX), HMAC_RIPEMD160_BLOCK_LEN,
+  (void (*) (FAR void *)) rmd160init, NULL, NULL,
+  rmd160update_int,
+  (void (*) (FAR uint8_t *, FAR void *)) rmd160final
+};
+
+const struct auth_hash auth_hash_sha1 =
+{
+  CRYPTO_SHA1, "SHA1",
+  0, 20, 20, sizeof(SHA1_CTX), HMAC_SHA1_BLOCK_LEN,
+  (void (*) (FAR void *)) sha1init, NULL, NULL,
+  sha1update_int,
+  (void (*) (FAR uint8_t *, FAR void *)) sha1final
+};
+
+const struct auth_hash auth_hash_sha2_224 =
+{
+  CRYPTO_SHA2_224, "SHA2-224",
+  0, 28, 16, sizeof(SHA2_CTX), SHA224_BLOCK_LENGTH,
+  (void (*)(FAR void *)) sha224init, NULL, NULL,
+  sha224update_int,
+  (void (*)(FAR uint8_t *, FAR void *)) sha224final
+};
+
+const struct auth_hash auth_hash_sha2_256 =
+{
+  CRYPTO_SHA2_256, "SHA2-256",
+  0, 32, 16, sizeof(SHA2_CTX), HMAC_SHA2_256_BLOCK_LEN,
+  (void (*)(FAR void *)) sha256init, NULL, NULL,
+  sha256update_int,
+  (void (*)(FAR uint8_t *, FAR void *)) sha256final
+};
+
+const struct auth_hash auth_hash_sha2_384 =
+{
+  CRYPTO_SHA2_384, "SHA2-384",
+  0, 48, 24, sizeof(SHA2_CTX), HMAC_SHA2_384_BLOCK_LEN,
+  (void (*)(FAR void *)) sha384init, NULL, NULL,
+  sha384update_int,
+  (void (*)(FAR uint8_t *, FAR void *)) sha384final
+};
+
+const struct auth_hash auth_hash_sha2_512 =
+{
+  CRYPTO_SHA2_512, "SHA2-512",
+  0, 64, 32, sizeof(SHA2_CTX), HMAC_SHA2_512_BLOCK_LEN,
+  (void (*)(FAR void *)) sha512init, NULL, NULL,
+  sha512update_int,
+  (void (*)(FAR uint8_t *, FAR void *)) sha512final
+};
+
+const struct auth_hash auth_hash_crc32 =
+{
+  CRYPTO_CRC32, "CRC32",
+  0, 32, 0, sizeof(uint32_t), 1,
+  null_init, crc32setkey, NULL, crc32update, crc32final
 };
 
 /* Encryption wrapper routines. */
@@ -456,7 +630,9 @@ void aes_ctr_crypt(caddr_t key, FAR uint8_t *data)
   for (i = AESCTR_BLOCKSIZE - 1;
         i >= AESCTR_NONCESIZE + AESCTR_IVSIZE; i--)
     {
-      if (++ctx->ac_block[i])   /* continue on overflow */
+      /* continue on overflow */
+
+      if (++ctx->ac_block[i])
         {
           break;
         }
@@ -583,40 +759,194 @@ int aes_xts_setkey(FAR void *sched, FAR uint8_t *key, int len)
   return 0;
 }
 
+void aes_ofb_encrypt(caddr_t key, FAR uint8_t *data)
+{
+  FAR struct aes_ofb_ctx *ctx;
+  int i;
+
+  ctx = (FAR struct aes_ofb_ctx *)key;
+
+  aes_encrypt(&ctx->ac_key, ctx->iv, ctx->iv);
+  for (i = 0; i < AESOFB_IVSIZE; i++)
+    {
+      data[i] ^= ctx->iv[i];
+    }
+}
+
+int aes_ofb_setkey(FAR void *sched, FAR uint8_t *key, int len)
+{
+  FAR struct aes_ofb_ctx *ctx;
+
+  ctx = (FAR struct aes_ofb_ctx *)sched;
+  if (aes_setkey(&ctx->ac_key, key, len) != 0)
+    {
+      return -1;
+    }
+
+  return 0;
+}
+
+void aes_ofb_reinit(caddr_t key, FAR uint8_t *iv)
+{
+  FAR struct aes_ofb_ctx *ctx;
+
+  ctx = (FAR struct aes_ofb_ctx *)key;
+  ctx->iv = iv;
+}
+
+void aes_cfb8_encrypt(caddr_t key, FAR uint8_t *data)
+{
+  FAR struct aes_ofb_ctx *ctx;
+  uint8_t ov[AESOFB_IVSIZE + 1];
+  int i;
+
+  ctx = (FAR struct aes_ofb_ctx *)key;
+
+  for (i = 0; i < AESOFB_IVSIZE; i++)
+    {
+      bcopy(ctx->iv, ov, AESOFB_IVSIZE);
+      aes_encrypt(&ctx->ac_key, ctx->iv, ctx->iv);
+      data[i] ^= ctx->iv[0];
+      ov[AESOFB_IVSIZE] = data[i];
+      bcopy(ov + 1, ctx->iv, AESOFB_IVSIZE);
+    }
+}
+
+void aes_cfb8_decrypt(caddr_t key, FAR uint8_t *data)
+{
+  FAR struct aes_ofb_ctx *ctx;
+  uint8_t ov[AESOFB_IVSIZE + 1];
+  int i;
+
+  ctx = (FAR struct aes_ofb_ctx *)key;
+
+  for (i = 0; i < AESOFB_IVSIZE; i++)
+    {
+      bcopy(ctx->iv, ov, AESOFB_IVSIZE);
+      aes_encrypt(&ctx->ac_key, ctx->iv, ctx->iv);
+      ov[AESOFB_IVSIZE] = data[i];
+      data[i] ^= ctx->iv[0];
+      bcopy(ov + 1, ctx->iv, AESOFB_IVSIZE);
+    }
+}
+
+void aes_cfb128_encrypt(caddr_t key, FAR uint8_t *data)
+{
+  FAR struct aes_ofb_ctx *ctx;
+  int i;
+
+  ctx = (FAR struct aes_ofb_ctx *)key;
+
+  aes_encrypt(&ctx->ac_key, ctx->iv, ctx->iv);
+  for (i = 0; i < AESOFB_IVSIZE; i++)
+    {
+      data[i] ^= ctx->iv[i];
+      ctx->iv[i] = data[i];
+    }
+}
+
+void aes_cfb128_decrypt(caddr_t key, FAR uint8_t *data)
+{
+  FAR struct aes_ofb_ctx *ctx;
+  uint8_t c;
+  int i;
+
+  ctx = (FAR struct aes_ofb_ctx *)key;
+
+  aes_encrypt(&ctx->ac_key, ctx->iv, ctx->iv);
+  for (i = 0; i < AESOFB_IVSIZE; i++)
+    {
+      c = data[i];
+      data[i] ^= ctx->iv[i];
+      ctx->iv[i] = c;
+    }
+}
+
 /* And now for auth. */
 
-int rmd160update_int(FAR void *ctx, FAR const uint8_t *buf, uint16_t len)
+void null_init(FAR void *ctx)
+{
+}
+
+void poly1305_setkey(FAR void *sched, FAR const uint8_t *key, uint16_t len)
+{
+  FAR struct poly1305_state *ctx;
+
+  ctx = (FAR struct poly1305_state *)sched;
+  poly1305_begin(ctx, key);
+}
+
+int poly1305update_int(FAR void *ctx, FAR const uint8_t *buf, size_t len)
+{
+  poly1305_update(ctx, buf, len);
+  return 0;
+}
+
+int poly1305_final(FAR uint8_t *digest, FAR void *ctx)
+{
+  poly1305_finish(ctx, digest);
+  return 0;
+}
+
+int rmd160update_int(FAR void *ctx, FAR const uint8_t *buf, size_t len)
 {
   rmd160update(ctx, buf, len);
   return 0;
 }
 
-int md5update_int(FAR void *ctx, FAR const uint8_t *buf, uint16_t len)
+int md5update_int(FAR void *ctx, FAR const uint8_t *buf, size_t len)
 {
   md5update(ctx, buf, len);
   return 0;
 }
 
-int sha1update_int(FAR void *ctx, FAR const uint8_t *buf, uint16_t len)
+int sha1update_int(FAR void *ctx, FAR const uint8_t *buf, size_t len)
 {
   sha1update(ctx, buf, len);
   return 0;
 }
 
-int sha256update_int(FAR void *ctx, FAR const uint8_t *buf, uint16_t len)
+int sha224update_int(FAR void *ctx, FAR const uint8_t *buf, size_t len)
+{
+  sha224update(ctx, buf, len);
+  return 0;
+}
+
+int sha256update_int(FAR void *ctx, FAR const uint8_t *buf, size_t len)
 {
   sha256update(ctx, buf, len);
   return 0;
 }
 
-int sha384update_int(FAR void *ctx, FAR const uint8_t *buf, uint16_t len)
+int sha384update_int(FAR void *ctx, FAR const uint8_t *buf, size_t len)
 {
   sha384update(ctx, buf, len);
   return 0;
 }
 
-int sha512update_int(FAR void *ctx, FAR const uint8_t *buf, uint16_t len)
+int sha512update_int(FAR void *ctx, FAR const uint8_t *buf, size_t len)
 {
   sha512update(ctx, buf, len);
   return 0;
+}
+
+void crc32setkey(FAR void *ctx, FAR const uint8_t *key, uint16_t len)
+{
+  FAR uint32_t *val = (FAR uint32_t *)key;
+  uint32_t tmp = (*val) ^ CRC32_XOR_VALUE;
+  memcpy(ctx, &tmp, len);
+}
+
+int crc32update(FAR void *ctx, FAR const uint8_t *buf, size_t len)
+{
+  FAR uint32_t *startval = (FAR uint32_t *)ctx;
+  *startval = crc32part(buf, len, *startval);
+  return 0;
+}
+
+void crc32final(FAR uint8_t *digest, FAR void *ctx)
+{
+  FAR uint32_t *val = (FAR uint32_t *)ctx;
+  uint32_t result = (*val) ^ CRC32_XOR_VALUE;
+  memcpy(digest, &result, sizeof(uint32_t));
 }

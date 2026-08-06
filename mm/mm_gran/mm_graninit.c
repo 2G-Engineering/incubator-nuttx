@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/mm_gran/mm_graninit.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -97,7 +99,7 @@ GRAN_HANDLE gran_initialize(FAR void *heapstart, size_t heapsize,
   FAR struct gran_s *priv;
   uintptr_t          heapend;
   uintptr_t          alignedstart;
-  unsigned int       mask;
+  size_t             mask;
   unsigned int       alignedsize;
   unsigned int       ngranules;
 
@@ -122,16 +124,25 @@ GRAN_HANDLE gran_initialize(FAR void *heapstart, size_t heapsize,
   alignedsize  = (heapend - alignedstart) & ~mask;
   ngranules    = alignedsize >> log2gran;
 
+  /* Reject oversized pools. */
+
+  DEBUGASSERT(ngranules > 0 && ngranules <= UINT16_MAX);
+  if (ngranules == 0 || ngranules > UINT16_MAX)
+    {
+      return NULL;
+    }
+
   /* Allocate the information structure with a granule table of the
    * correct size.
    */
 
-  priv = (FAR struct gran_s *)kmm_zalloc(SIZEOF_GRAN_S(ngranules));
+  priv = kmm_zalloc(SIZEOF_GRAN_S(ngranules));
   if (priv)
     {
       /* Initialize non-zero elements of the granules heap info structure */
 
       priv->log2gran  = log2gran;
+      priv->log2align = log2align;
       priv->ngranules = ngranules;
       priv->heapstart = alignedstart;
 

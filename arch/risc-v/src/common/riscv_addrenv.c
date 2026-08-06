@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/common/riscv_addrenv.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -58,7 +60,7 @@
 
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/addrenv.h>
 #include <nuttx/arch.h>
@@ -132,9 +134,9 @@ static void map_spgtables(arch_addrenv_t *addrenv, uintptr_t vaddr)
 
   for (i = 0; i < (ARCH_SPGTS - 1); i++)
     {
-      uintptr_t next = riscv_pgvaddr(addrenv->spgtables[i + 1]);
+      uintptr_t next = addrenv->spgtables[i + 1];
       mmu_ln_setentry(i + 1, prev, next, vaddr, MMU_UPGT_FLAGS);
-      prev = next;
+      prev = riscv_pgvaddr(next);
     }
 }
 
@@ -174,7 +176,7 @@ static int create_spgtables(arch_addrenv_t *addrenv)
 
   /* Flush the data cache, so the changes are committed to memory */
 
-  __DMB();
+  UP_DMB();
 
   return i;
 }
@@ -231,7 +233,7 @@ static int copy_kernel_mappings(arch_addrenv_t *addrenv)
  ****************************************************************************/
 
 static int create_region(arch_addrenv_t *addrenv, uintptr_t vaddr,
-                         size_t size, uint32_t mmuflags)
+                         size_t size, uint64_t mmuflags)
 {
   uintptr_t ptlast;
   uintptr_t ptprev;
@@ -282,7 +284,13 @@ static int create_region(arch_addrenv_t *addrenv, uintptr_t vaddr,
 
       /* Then allocate memory for the region data */
 
-      for (j = 0; j < ENTRIES_PER_PGT && nmapped < size; j++)
+      for (j = 0;
+#ifdef CONFIG_PAGING
+           j < 1;
+#else
+           j < ENTRIES_PER_PGT && nmapped < size;
+#endif
+           j++)
         {
           paddr = mm_pgalloc(1);
           if (!paddr)
@@ -304,7 +312,7 @@ static int create_region(arch_addrenv_t *addrenv, uintptr_t vaddr,
 
   /* Flush the data cache, so the changes are committed to memory */
 
-  __DMB();
+  UP_DMB();
 
   return npages;
 }
@@ -419,7 +427,7 @@ int up_addrenv_create(size_t textsize, size_t datasize, size_t heapsize,
 
   /* Allocate 1 extra page for heap, temporary fix for #5811 */
 
-  heapsize = heapsize + MM_PGALIGNUP(1);
+  heapsize = heapsize + MM_PGALIGNUP(CONFIG_DEFAULT_TASK_STACKSIZE);
 
   /* Map the reserved area */
 
@@ -478,8 +486,8 @@ int up_addrenv_create(size_t textsize, size_t datasize, size_t heapsize,
 
   /* When all is set and done, flush the data caches */
 
-  __ISB();
-  __DMB();
+  UP_ISB();
+  UP_DMB();
 
   return OK;
 
@@ -520,8 +528,8 @@ int up_addrenv_destroy(arch_addrenv_t *addrenv)
 
   /* Make sure the caches are flushed before doing this */
 
-  __ISB();
-  __DMB();
+  UP_ISB();
+  UP_DMB();
 
   /* Things start from the beginning of the user virtual memory */
 
@@ -533,30 +541,29 @@ int up_addrenv_destroy(arch_addrenv_t *addrenv)
   ptprev = (uintptr_t *)riscv_pgvaddr(addrenv->spgtables[ARCH_SPGTS - 1]);
   if (ptprev)
     {
-      for (i = 0; i < ENTRIES_PER_PGT; i++, vaddr += pgsize)
+      /* walk user space only */
+
+      i = (ARCH_SPGTS < 2) ? vaddr / pgsize : 0;
+      for (; i < ENTRIES_PER_PGT; i++, vaddr += pgsize)
         {
-          if (vaddr_is_shm(vaddr))
-            {
-              /* Do not free memory from SHM area */
-
-              continue;
-            }
-
           ptlast = (uintptr_t *)riscv_pgvaddr(mmu_pte_to_paddr(ptprev[i]));
           if (ptlast)
             {
-              /* Page table allocated, free any allocated memory */
-
-              for (j = 0; j < ENTRIES_PER_PGT; j++)
+              if (!vaddr_is_shm(vaddr))
                 {
-                  paddr = mmu_pte_to_paddr(ptlast[j]);
-                  if (paddr)
+                  /* Free the allocated pages, but not from SHM area */
+
+                  for (j = 0; j < ENTRIES_PER_PGT; j++)
                     {
-                      mm_pgfree(paddr, 1);
+                      paddr = mmu_pte_to_paddr(ptlast[j]);
+                      if (paddr)
+                        {
+                          mm_pgfree(paddr, 1);
+                        }
                     }
                 }
 
-              /* Then free the page table itself */
+              /* Regardless, free the page table itself */
 
               mm_pgfree((uintptr_t)ptlast, 1);
             }
@@ -576,8 +583,8 @@ int up_addrenv_destroy(arch_addrenv_t *addrenv)
 
   /* When all is set and done, flush the caches */
 
-  __ISB();
-  __DMB();
+  UP_ISB();
+  UP_DMB();
 
   memset(addrenv, 0, sizeof(arch_addrenv_t));
   return OK;
@@ -736,10 +743,8 @@ int up_addrenv_select(const arch_addrenv_t *addrenv)
 
 int up_addrenv_coherent(const arch_addrenv_t *addrenv)
 {
-  /* Flush the instruction and data caches */
+  /* Nothing needs to be done */
 
-  __ISB();
-  __DMB();
   return OK;
 }
 

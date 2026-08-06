@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/misc/rwbuffer.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,7 +35,7 @@
 #include <time.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/semaphore.h>
@@ -140,6 +142,8 @@ static void rwb_wrflush(FAR struct rwbuffer_s *rwb)
   if (rwb->wrnblocks > 0)
     {
       size_t padblocks;
+
+      DEBUGASSERT(rwb->wrblockstart % rwb->wralignblocks == 0);
 
       finfo("Flushing: blockstart=0x%08lx nblocks=%d from buffer=%p\n",
             (long)rwb->wrblockstart, rwb->wrnblocks, rwb->wrbuffer);
@@ -316,40 +320,11 @@ static ssize_t rwb_writebuffer(FAR struct rwbuffer_s *rwb,
           nblocks       -= ncopy;
         }
 
-      /* 5. We update a portion at the beginning of the write buffer */
-
-      else /* if (rwb->wrblockstart >= startblock && wrbend >= newend) */
-        {
-          FAR uint8_t *dest;
-          FAR const uint8_t *src;
-          size_t ncopy;
-
-          DEBUGASSERT(rwb->wrblockstart >= startblock && wrbend >= newend);
-
-          /* Move the cached data to the end of the write buffer */
-
-          ncopy = rwb->wrblockstart - startblock;
-          if (ncopy > rwb->wrmaxblocks - rwb->wrnblocks)
-            {
-              ncopy = rwb->wrmaxblocks - rwb->wrnblocks;
-            }
-
-          dest = rwb->wrbuffer + ncopy * rwb->blocksize;
-          memmove(dest, rwb->wrbuffer, ncopy * rwb->blocksize);
-
-          rwb->wrblockstart -= ncopy;
-          rwb->wrnblocks    += ncopy;
-
-          /* Copy the data from the updating region to the beginning
-           * of the write buffer.
-           */
-
-          ncopy = newend - rwb->wrblockstart;
-          src   = wrbuffer + (nblocks - ncopy) * rwb->blocksize;
-          memcpy(rwb->wrbuffer, src, ncopy * rwb->blocksize);
-
-          nblocks -= ncopy;
-        }
+      /* 5. We update a portion at the beginning of the write buffer.
+       * For writes that are ahead of the writerbuffer, we first flush and
+       * then process the write in the new writebuffer to ensure that each
+       * wrblockstart is aligned according to wralignblocks.
+       */
     }
 
   /* Use the block cache unless the buffer size is bigger than block cache */
@@ -361,18 +336,45 @@ static ssize_t rwb_writebuffer(FAR struct rwbuffer_s *rwb,
         {
           return ret;
         }
+
+      nblocks = 0;
     }
-  else if (nblocks)
+
+  while (nblocks > 0)
     {
+      size_t padblocks;
+      size_t remain = nblocks;
+
       /* Flush the write buffer */
 
       rwb_wrflush(rwb);
 
+      /* Get the alignment padding of startblock, and read the contents
+       * of the padding area, ensure that wrblockstart is aligned
+       * according to wralignblocks.
+       */
+
+      padblocks = startblock % rwb->wralignblocks;
+      rwb->wrblockstart = startblock - padblocks;
+      rwb->wrnblocks = padblocks;
+      rwb_read_(rwb, rwb->wrblockstart, padblocks, rwb->wrbuffer);
+
+      if (remain > rwb->wrmaxblocks - padblocks)
+        {
+          remain = rwb->wrmaxblocks - padblocks;
+        }
+
       /* Buffer the data in the write buffer */
 
-      memcpy(rwb->wrbuffer, wrbuffer, nblocks * rwb->blocksize);
-      rwb->wrblockstart = startblock;
-      rwb->wrnblocks    = nblocks;
+      memcpy(rwb->wrbuffer + padblocks * rwb->blocksize, wrbuffer,
+             remain * rwb->blocksize);
+      rwb->wrnblocks += remain;
+
+      /* Update remain state of write buffer */
+
+      nblocks -= remain;
+      startblock += remain;
+      wrbuffer += remain * rwb->blocksize;
     }
 
   if (rwb->wrnblocks > 0)
@@ -911,7 +913,7 @@ static ssize_t rwb_read_(FAR struct rwbuffer_s *rwb, off_t startblock,
     {
       size_t remaining;
 
-      ret = nxmutex_lock(&rwb->rhlock);
+      ret = rwb_lock(&rwb->rhlock);
       if (ret < 0)
         {
           return ret;
@@ -979,7 +981,10 @@ static ssize_t rwb_read_(FAR struct rwbuffer_s *rwb, off_t startblock,
        * the user buffer.
        */
 
-      ret = rwb->rhreload(rwb->dev, rdbuffer, startblock, nblocks);
+      if (nblocks)
+        {
+          ret = rwb->rhreload(rwb->dev, rdbuffer, startblock, nblocks);
+        }
     }
 
   return ret;
@@ -1005,7 +1010,7 @@ ssize_t rwb_read(FAR struct rwbuffer_s *rwb, off_t startblock,
 
   if (rwb->wrmaxblocks > 0)
     {
-      ret = nxmutex_lock(&rwb->wrlock);
+      ret = rwb_lock(&rwb->wrlock);
       if (ret < 0)
         {
           return ret;
@@ -1082,7 +1087,7 @@ ssize_t rwb_write(FAR struct rwbuffer_s *rwb, off_t startblock,
        * streaming applications.
        */
 
-      ret = nxmutex_lock(&rwb->rhlock);
+      ret = rwb_lock(&rwb->rhlock);
       if (ret < 0)
         {
           return ret;
@@ -1115,7 +1120,7 @@ ssize_t rwb_write(FAR struct rwbuffer_s *rwb, off_t startblock,
     {
       finfo("startblock=%" PRIdOFF " wrbuffer=%p\n", startblock, wrbuffer);
 
-      ret = nxmutex_lock(&rwb->wrlock);
+      ret = rwb_lock(&rwb->wrlock);
       if (ret < 0)
         {
           return ret;
@@ -1269,6 +1274,32 @@ int rwb_flush(FAR struct rwbuffer_s *rwb)
   rwb_wrcanceltimeout(rwb);
   rwb_wrflush(rwb);
   rwb_unlock(&rwb->wrlock);
+
+  return ret;
+}
+#endif
+
+/****************************************************************************
+ * Name: rwb_flush
+ *
+ * Description:
+ *   Flush the write buffer
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_DRVR_READAHEAD
+int rwb_discard(FAR struct rwbuffer_s *rwb)
+{
+  int ret;
+
+  ret = rwb_lock(&rwb->rhlock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  rwb_resetrhbuffer(rwb);
+  rwb_unlock(&rwb->rhlock);
 
   return ret;
 }

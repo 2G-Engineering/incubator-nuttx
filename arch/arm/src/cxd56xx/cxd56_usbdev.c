@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/cxd56xx/cxd56_usbdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,7 +37,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <fcntl.h>
 #include <stdio.h>
 
@@ -618,6 +620,7 @@ const struct procfs_operations cxd56_usbdev_operations =
   cxd56_usbdev_close, /* close */
   cxd56_usbdev_read,  /* read */
   NULL,               /* write */
+  NULL,               /* poll */
   cxd56_usbdev_dup,   /* dup */
 
   NULL,               /* opendir */
@@ -2294,7 +2297,7 @@ static struct usbdev_req_s *cxd56_epallocreq(struct usbdev_ep_s *ep)
 #endif
   usbtrace(TRACE_EPALLOCREQ, ((struct cxd56_ep_s *)ep)->epphy);
 
-  privreq = (struct cxd56_req_s *)kmm_malloc(sizeof(struct cxd56_req_s));
+  privreq = kmm_malloc(sizeof(struct cxd56_req_s));
   if (!privreq)
     {
       usbtrace(TRACE_DEVERROR(CXD56_TRACEERR_ALLOCFAIL), 0);
@@ -2590,8 +2593,7 @@ static int cxd56_allocepbuffer(struct cxd56_ep_s *privep)
   DEBUGASSERT(!privep->desc && !privep->buffer);
   DEBUGASSERT(privep->epphy); /* Do not use for EP0 */
 
-  privep->desc =
-    (struct cxd56_data_desc_s *)kmm_malloc(sizeof(struct cxd56_data_desc_s));
+  privep->desc = kmm_malloc(sizeof(struct cxd56_data_desc_s));
   if (!privep->desc)
     {
       return -1;
@@ -2912,7 +2914,7 @@ static void cxd56_epinitialize(struct cxd56_usbdev_s *priv)
 
   priv->usbdev.ep0 = &priv->eplist[0].ep;
 
-  /* Initilialize USB hardware */
+  /* Initialize USB hardware */
 
   for (i = 1; i < CXD56_NENDPOINTS; i++)
     {
@@ -2994,7 +2996,7 @@ static int cxd56_vbusinterrupt(int irq, void *context, void *arg)
     }
 
   /* Notify attach signal.
-   * if class driver not binded, can't get supply curret value.
+   * if class driver not bound, can't get supply current value.
    */
 
   if (!priv->driver)
@@ -3305,7 +3307,7 @@ static void cxd56_usbreset(struct cxd56_usbdev_s *priv)
       mask &= ~(1 << i << (priv->eplist[i].in ? 0 : 16));
       putreg32(mask, CXD56_USB_DEV_EP_INTR_MASK);
 
-      /* DMA descripter setting */
+      /* DMA descriptor setting */
 
       priv->eplist[i].buffer       = NULL;
       priv->eplist[i].desc->status = DESC_BS_HOST_BUSY;
@@ -3386,7 +3388,7 @@ static int cxd56_usbdev_open(struct file *filep, const char *relpath,
    * REVISIT:  Write-able proc files could be quite useful.
    */
 
-  if (((oflags & O_WRONLY) != 0 || (oflags & O_RDONLY) == 0))
+  if ((oflags & O_ACCMODE) != O_RDONLY)
     {
       uerr("ERROR: Only O_RDONLY supported\n");
       return -EACCES;
@@ -3394,8 +3396,7 @@ static int cxd56_usbdev_open(struct file *filep, const char *relpath,
 
   /* Allocate the open file structure */
 
-  priv = (struct cxd56_usbdev_file_s *)kmm_zalloc(
-    sizeof(struct cxd56_usbdev_file_s));
+  priv = kmm_zalloc(sizeof(struct cxd56_usbdev_file_s));
   if (!priv)
     {
       uerr("ERROR: Failed to allocate file attributes\n");
@@ -3489,8 +3490,7 @@ static int cxd56_usbdev_dup(const struct file *oldp,
 
   /* Allocate a new container to hold the task and attribute selection */
 
-  newattr = (struct cxd56_usbdev_file_s *)kmm_malloc(
-    sizeof(struct cxd56_usbdev_file_s));
+  newattr = kmm_malloc(sizeof(struct cxd56_usbdev_file_s));
   if (!newattr)
     {
       uerr("ERROR: Failed to allocate file attributes\n");

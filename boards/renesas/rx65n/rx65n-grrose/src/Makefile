@@ -1,6 +1,8 @@
 ############################################################################
 # boards/renesas/rx65n/rx65n-grrose/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,6 +22,6 @@
 
 include $(TOPDIR)/Make.defs
 
-CSRCS = rx65n_appinit.c rx65n_bringup.c rx65n_sbram.c rx65n_gpio.c
+CSRCS = rx65n_bringup.c rx65n_sbram.c rx65n_gpio.c
 
 include $(TOPDIR)/boards/Board.mk

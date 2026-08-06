@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wb/stm32wb_pmsleep.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,7 +37,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32wb_pmsleep
+ * Name: stm32_pmsleep
  *
  * Description:
  *   Enter SLEEP mode.
@@ -51,7 +53,7 @@
  *
  ****************************************************************************/
 
-void stm32wb_pmsleep(bool sleeponexit)
+void stm32_pmsleep(bool sleeponexit)
 {
   uint32_t regval;
 

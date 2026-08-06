@@ -48,7 +48,7 @@ Notectl Device (``/dev/notectl``)
 
     .. c:macro:: NOTE_FILTER_MODE_FLAG_IRQ
 
-      Enable IRQ instrumentaiton
+      Enable IRQ instrumentation
 
   - ``cpuset`` : (SMP only) Monitor only CPUs in the bitset. Bit 0=CPU0, Bit1=CPU1, etc.
 
@@ -237,14 +237,22 @@ Noteram Device (``/dev/note``)
   :return: If success, 0 (``OK``) is returned and the given overwriter mode is set as the current settings.
     If failed, a negated ``errno`` is returned.
 
-.. c:macro:: NOTERAM_GETTASKNAME
+.. c:macro:: FIONREAD
 
-  Get task name string
+  Get the number of unread bytes in the buffer
 
-  :argument: A writable pointer to :c:struct:`noteram_get_taskname_s`
+  :argument: A writable pointer to ``unsigned int`` to receive the number of unread bytes.
 
-  :return: If success, 0 (``OK``) is returned and the task name corresponding to given pid is stored into the given pointer.
-           If failed, a negated ``errno`` is returned.
+  :return: If success, 0 (``OK``) is returned and the number of unread bytes is stored into the given pointer.
+    If failed, a negated ``errno`` is returned.
+
+.. c:macro:: PIPEIOC_POLLINTHRD
+
+  Set the poll threshold for POLLIN event
+
+  :argument: An unsigned int value specifying the threshold in bytes. When the unread data in the buffer is greater than or equal to this value, POLLIN will be notified.
+
+  :return: If success, 0 (``OK``) is returned and the threshold is set. If failed, a negated ``errno`` is returned.
 
 Filter control APIs
 ===================

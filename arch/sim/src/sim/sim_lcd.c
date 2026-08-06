@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/sim_lcd.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
@@ -79,8 +81,12 @@
 #  error "Unsupported BPP"
 #endif
 
+#if !defined(CONFIG_LCD_FBCOUNT)
+#  define CONFIG_LCD_FBCOUNT 1
+#endif
+
 /****************************************************************************
- * Private Type Definition
+ * Private Types
  ****************************************************************************/
 
 /* This structure describes the state of this driver */
@@ -136,6 +142,8 @@ static int sim_getpower(struct lcd_dev_s *dev);
 static int sim_setpower(struct lcd_dev_s *dev, int power);
 static int sim_getcontrast(struct lcd_dev_s *dev);
 static int sim_setcontrast(struct lcd_dev_s *dev, unsigned int contrast);
+static int sim_openwindow(struct lcd_dev_s *dev);
+static int sim_closewindow(struct lcd_dev_s *dev);
 
 /****************************************************************************
  * Private Data
@@ -203,6 +211,8 @@ static struct sim_dev_s g_lcddev =
     .setpower     = sim_setpower,
     .getcontrast  = sim_getcontrast,
     .setcontrast  = sim_setcontrast,
+    .open         = sim_openwindow,
+    .close        = sim_closewindow,
   },
 };
 
@@ -253,7 +263,7 @@ static int sim_putrun(struct lcd_dev_s *dev, fb_coord_t row, fb_coord_t col,
  *   buffer    - The buffer containing the area to be written to the LCD
  *   stride    - Length of a line in bytes. This parameter may be necessary
  *               to allow the LCD driver to calculate the offset for partial
- *               writes when the buffer needs to be splited for row-by-row
+ *               writes when the buffer needs to be split for row-by-row
  *               writing.
  *
  ****************************************************************************/
@@ -427,26 +437,51 @@ static int sim_setcontrast(struct lcd_dev_s *dev, unsigned int contrast)
 }
 
 /****************************************************************************
- * Name: sim_updatework
+ * Name: sim_openwindow
  ****************************************************************************/
 
-void sim_x11loop(void)
+static int sim_openwindow(struct lcd_dev_s *dev)
 {
-#ifdef CONFIG_SIM_X11FB
-  static clock_t last;
-  clock_t now = clock_systime_ticks();
+  int ret = OK;
+  ginfo("lcd_dev=%p\n", dev);
 
-  if (now - last >= MSEC2TICK(16))
-    {
-      sim_x11update();
-      last = now;
-    }
+#ifdef CONFIG_SIM_X11FB
+  ret = sim_x11openwindow();
 #endif
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: sim_closewindow
+ ****************************************************************************/
+
+static int sim_closewindow(struct lcd_dev_s *dev)
+{
+  int ret = OK;
+  ginfo("lcd_dev=%p\n", dev);
+
+#ifdef CONFIG_SIM_X11FB
+  ret = sim_x11closewindow();
+#endif
+
+  return ret;
 }
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: sim_x11loop
+ ****************************************************************************/
+
+#ifdef CONFIG_SIM_X11FB
+void sim_x11loop(void)
+{
+  sim_x11update();
+}
+#endif
 
 /****************************************************************************
  * Name:  board_lcd_initialize
@@ -467,7 +502,8 @@ int board_lcd_initialize(void)
 #ifdef CONFIG_SIM_X11FB
   ret = sim_x11initialize(CONFIG_SIM_FBWIDTH, CONFIG_SIM_FBHEIGHT,
                           (void**)&g_planeinfo.buffer, &g_fblen,
-                          &g_planeinfo.bpp, &g_stride);
+                          &g_planeinfo.bpp, &g_stride, CONFIG_LCD_FBCOUNT,
+                          0);
 #endif
 
   return ret;

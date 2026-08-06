@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/power/pm.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -113,7 +115,7 @@ enum pm_state_e
                     */
   PM_NORMAL = 0,   /* Normal full power operating mode.  If the driver is in
                     * a reduced power usage mode, it should immediately re-
-                    * initialize for normal operatin.
+                    * initialize for normal operation.
                     *
                     * PM_NORMAL may be followed by PM_IDLE.
                     */
@@ -144,6 +146,73 @@ enum pm_state_e
                     */
   PM_COUNT,
 };
+
+#ifdef CONFIG_SMP
+
+/****************************************************************************
+ * Name: pm_idle_handler_t
+ *
+ * Description:
+ *   Handle the pm low power operations and lock actions.
+ *   As there is WFI inside handler, must manually call
+ *   pm_idle_unlock before go into WFI.
+ *   Also must call pm_idle_lock when woken from WFI at once.
+ *
+ * Input Parameters:
+ *   cpu         - The current working cpu.
+ *   cpustate    - The current cpu power state.
+ *   systemstate - The current system power state.  If not the lastcore
+ *                 enter idle, systemstate always PM_RESTORE.  If not
+ *                 PM_RESTORE, handler should cover system pm operations.
+ *
+ * Returned Value:
+ *   Should pass the parameter get from pm_idle_lock.
+ *   true  - Is the first core already wake up from WFI.
+ *   false - Not the first core who woken up from WFI.
+ *
+ * Assumptions:
+ *   The action between pm_idle_unlock and pm_idle_lock must be
+ *   no cross cpu and no system pm operation related.
+ *   Always call handler with locked, should do this action chain inside
+ *   handle.  enter_ops->unlock->wfi->lock->leave_ops->return.
+ *   Wait-like kernel API not allowed here.
+ *
+ ****************************************************************************/
+
+typedef bool (*pm_idle_handler_t)(int cpu,
+                                  enum pm_state_e cpustate,
+                                  enum pm_state_e systemstate);
+#else
+
+/****************************************************************************
+ * Name: pm_idle_handler_t
+ *
+ * Description:
+ *   Handle the pm low power action and execution for not SMP case.
+ *   Possible execution for long time because of WFI inside.
+ *
+ * Input Parameters:
+ *   systemstate - The new system power state.
+ *
+ * Returned Value:
+ *   None
+ *
+ * Assumptions:
+ *   Wait-like kernel API not allowed here.
+ *
+ ****************************************************************************/
+
+typedef void (*pm_idle_handler_t)(enum pm_state_e systemstate);
+#endif
+
+#ifdef CONFIG_PM_PROCFS
+struct pm_preparefail_s
+{
+  enum pm_state_e state;
+  struct timespec start;
+  struct timespec duration[PM_COUNT];
+};
+#endif
 
 /* This structure contain pointers callback functions in the driver.  These
  * callback functions can be used to provide power management information
@@ -211,6 +280,10 @@ struct pm_callback_s
 
   CODE void (*notify)(FAR struct pm_callback_s *cb, int domain,
                       enum pm_state_e pmstate);
+
+#ifdef CONFIG_PM_PROCFS
+  struct pm_preparefail_s preparefail;
+#endif
 };
 
 /* An instance of a given PM governor */
@@ -352,6 +425,19 @@ extern "C"
 void pm_initialize(void);
 
 /****************************************************************************
+ * Name: pm_stability_governor_initialize
+ *
+ * Description:
+ *   Return the stability governor instance.
+ *
+ * Returned Value:
+ *   A pointer to the governor struct. Otherwise NULL is returned on error.
+ *
+ ****************************************************************************/
+
+FAR const struct pm_governor_s *pm_stability_governor_initialize(void);
+
+/****************************************************************************
  * Name: pm_greedy_governor_initialize
  *
  * Description:
@@ -414,14 +500,15 @@ int pm_set_governor(int domain, FAR const struct pm_governor_s *gov);
 void pm_auto_update(int domain, bool auto_update);
 
 /****************************************************************************
- * Name: pm_register
+ * Name: pm_domain_register
  *
  * Description:
  *   This function is called by a device driver in order to register to
  *   receive power management event callbacks.
  *
  * Input Parameters:
- *   callbacks - An instance of struct pm_callback_s providing the driver
+ *   domain - Target register domain.
+ *   cb     - An instance of struct pm_callback_s providing the driver
  *               callback functions.
  *
  * Returned Value:
@@ -429,17 +516,20 @@ void pm_auto_update(int domain, bool auto_update);
  *
  ****************************************************************************/
 
-int pm_register(FAR struct pm_callback_s *callbacks);
+int pm_domain_register(int domain, FAR struct pm_callback_s *cb);
+
+#define pm_register(cb) pm_domain_register(PM_IDLE_DOMAIN, cb)
 
 /****************************************************************************
- * Name: pm_unregister
+ * Name: pm_domain_unregister
  *
  * Description:
  *   This function is called by a device driver in order to unregister
  *   previously registered power management event callbacks.
  *
  * Input parameters:
- *   callbacks - An instance of struct pm_callback_s providing the driver
+ *   domain - Target unregister domain.
+ *   cb     - An instance of struct pm_callback_s providing the driver
  *               callback functions.
  *
  * Returned Value:
@@ -447,7 +537,9 @@ int pm_register(FAR struct pm_callback_s *callbacks);
  *
  ****************************************************************************/
 
-int pm_unregister(FAR struct pm_callback_s *callbacks);
+int pm_domain_unregister(int domain, FAR struct pm_callback_s *cb);
+
+#define pm_unregister(cb) pm_domain_unregister(PM_IDLE_DOMAIN, cb)
 
 /****************************************************************************
  * Name: pm_activity
@@ -533,7 +625,7 @@ void pm_relax(int domain, enum pm_state_e state);
  *   This function is called by a device driver to indicate that it is
  *   performing meaningful activities (non-idle), needs the power at kept
  *   last the specified level.
- *   And this will be timeout after time (ms), menas auto pm_relax
+ *   And this will be timeout after time (ms), means auto pm_relax
  *
  * Input Parameters:
  *   domain - The domain of the PM activity
@@ -655,7 +747,7 @@ void pm_wakelock_relax(FAR struct pm_wakelock_s *wakelock);
  *   This function is called by a device driver to indicate that it is
  *   performing meaningful activities (non-idle), needs the power at kept
  *   last the specified level.
- *   And this will be timeout after time (ms), menas auto pm_wakelock_relax
+ *   And this will be timeout after time (ms), means auto pm_wakelock_relax
  *
  * Input Parameters:
  *   wakelock - wakelock ID
@@ -703,7 +795,7 @@ int pm_wakelock_staycount(FAR struct pm_wakelock_s *wakelock);
  *
  *   These two steps are separated because the platform-specific IDLE loop
  *   may have additional situational information that is not available to
- *   the the PM sub-system.  For example, the IDLE loop may know that the
+ *   the PM sub-system.  For example, the IDLE loop may know that the
  *   battery charge level is very low and may force lower power states
  *   even if there is activity.
  *
@@ -785,6 +877,70 @@ enum pm_state_e pm_querystate(int domain);
 
 void pm_auto_updatestate(int domain);
 
+/****************************************************************************
+ * Name: pm_idle
+ *
+ * Description:
+ *   Standard pm idle work flow for up_idle.
+ *   pm_idle_handler_t will be different prototype when SMP.
+ *
+ * Input Parameters:
+ *   handler - The execution after cpu and system domain state changed.
+ *
+ * Returned Value:
+ *   None.
+ *
+ ****************************************************************************/
+
+void pm_idle(pm_idle_handler_t handler);
+
+/****************************************************************************
+ * Name: pm_idle_unlock
+ *
+ * Description:
+ *   Release SMP idle cpus lock, allow other cpu continue idle process.
+ *
+ * Input Parameters:
+ *   None.
+ *
+ * Returned Value:
+ *   None.
+ *
+ ****************************************************************************/
+
+#if CONFIG_SMP
+void pm_idle_unlock(void);
+#else
+#  define pm_idle_unlock()
+#endif
+
+/****************************************************************************
+ * Name: pm_idle_lock
+ *
+ * Description:
+ *   Claim SMP idle cpus lock, other cpu have to wait until released.
+ *
+ * Input Parameters:
+ *   cpu - The current CPU, used to update cpu_set_t
+ *
+ * Returned Value:
+ *   true  - Current CPU is the first one woken from sleep, should handle
+ *           system domain restore process also.
+ *   false - Current CPU is not the first one woken from sleep, should only
+ *           handle cpu domain restore process.
+ *
+ * Assumptions:
+ *   Restore operation pm_changestate(, PM_RESTORE) will done inside pm_idle.
+ *   Handler don't have to care about it.
+ *
+ ****************************************************************************/
+
+#if CONFIG_SMP
+bool pm_idle_lock(int cpu);
+#else
+#  define pm_idle_lock(cpu) (0)
+#endif
+
 #undef EXTERN
 #ifdef __cplusplus
 }
@@ -805,7 +961,9 @@ void pm_auto_updatestate(int domain);
 #  define PM_WAKELOCK_DECLARE(v,n,d,s)
 #  define PM_WAKELOCK_DECLARE_STATIC(v,n,d,s)
 #  define pm_initialize()
+#  define pm_domain_register(domain,cb)       (0)
 #  define pm_register(cb)                     (0)
+#  define pm_domain_unregister(domain,cb)     (0)
 #  define pm_unregister(cb)                   (0)
 #  define pm_activity(domain,prio)
 #  define pm_stay(domain,state)
@@ -822,6 +980,9 @@ void pm_auto_updatestate(int domain);
 #  define pm_changestate(domain,state)        (0)
 #  define pm_querystate(domain)               (0)
 #  define pm_auto_updatestate(domain)
+#  define pm_idle(handler)
+#  define pm_idle_unlock()
+#  define pm_idle_lock(cpu)                   (0)
 
 #endif /* CONFIG_PM */
 #endif /* __INCLUDE_NUTTX_POWER_PM_H */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/lib/float.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -40,6 +42,12 @@
 
 #define FLT_RADIX 2
 
+/* Addition rounds to 0: zero, 1: nearest, 2: +inf, 3: -inf, -1: unknown.  */
+
+#ifndef FLT_ROUNDS  /* May be defined in a toolchain header */
+#  define FLT_ROUNDS 1
+#endif
+
 /* Number of base-FLT_RADIX digits in the floating-point significand, p. */
 
 #ifndef FLT_MANT_DIG  /* May be defined in a toolchain header */
@@ -56,7 +64,7 @@
 
 #ifndef LDBL_MANT_DIG  /* May be defined in a toolchain header */
 #  ifdef CONFIG_HAVE_LONG_DOUBLE
-#    define LDBL_MANT_DIG DBL_MANT_DIG /* FIX ME */
+#    error "LDBL_MANT_DIG has to be defined in compiler.h"
 #  else
 #    define LDBL_MANT_DIG DBL_MANT_DIG
 #  endif
@@ -88,8 +96,16 @@
 #endif
 
 #ifndef LDBL_DIG  /* May be defined in a toolchain header */
-# ifdef CONFIG_HAVE_LONG_DOUBLE
-#    define LDBL_DIG DBL_DIG  /* FIX ME */
+#  ifdef CONFIG_HAVE_LONG_DOUBLE
+#    if LDBL_MANT_DIG == 53  /* IEEE binary64 */
+#      define LDBL_DIG DBL_DIG
+#    elif LDBL_MANT_DIG == 64  /* x87 80-bit */
+#      define LDBL_DIG 18
+#    elif LDBL_MANT_DIG == 113  /* IEEE binary128 */
+#      define LDBL_DIG 33
+#    else
+#      error "Unknown long double format"
+#    endif
 #  else
 #    define LDBL_DIG DBL_DIG
 #  endif
@@ -113,7 +129,15 @@
 
 #ifndef LDBL_MIN_EXP  /* May be defined in a toolchain header */
 #  ifdef CONFIG_HAVE_LONG_DOUBLE
-#    define LDBL_MIN_EXP DBL_MIN_EXP /* FIX ME */
+#    if LDBL_MANT_DIG == 53  /* IEEE binary64 */
+#      define LDBL_MIN_EXP DBL_MIN_EXP
+#    elif LDBL_MANT_DIG == 64  /* x87 80-bit */
+#      define LDBL_MIN_EXP (-16381)
+#    elif LDBL_MANT_DIG == 113  /* IEEE binary128 */
+#      define LDBL_MIN_EXP (-16381)
+#    else
+#      error "Unknown long double format"
+#    endif
 #  else
 #    define LDBL_MIN_EXP DBL_MIN_EXP
 #  endif
@@ -137,7 +161,15 @@
 
 #ifndef LDBL_MIN_10_EXP  /* May be defined in a toolchain header */
 #  ifdef CONFIG_HAVE_LONG_DOUBLE
-#    define LDBL_MIN_10_EXP DBL_MIN_10_EXP  /* FIX ME */
+#    if LDBL_MANT_DIG == 53  /* IEEE binary64 */
+#      define LDBL_MIN_10_EXP DBL_MIN_10_EXP
+#    elif LDBL_MANT_DIG == 64  /* x87 80-bit */
+#      define LDBL_MIN_10_EXP (-4931)
+#    elif LDBL_MANT_DIG == 113  /* IEEE binary128 */
+#      define LDBL_MIN_10_EXP (-4931)
+#    else
+#      error "Unknown long double format"
+#    endif
 #  else
 #    define LDBL_MIN_10_EXP DBL_MIN_10_EXP
 #  endif
@@ -161,7 +193,15 @@
 
 #ifndef LDBL_MAX_EXP  /* May be defined in a toolchain header */
 #  ifdef CONFIG_HAVE_LONG_DOUBLE
-#    define LDBL_MAX_EXP DBL_MAX_EXP /* FIX ME */
+#    if LDBL_MANT_DIG == 53  /* IEEE binary64 */
+#      define LDBL_MAX_EXP DBL_MAX_EXP
+#    elif LDBL_MANT_DIG == 64  /* x87 80-bit */
+#      define LDBL_MAX_EXP 16384
+#    elif LDBL_MANT_DIG == 113  /* IEEE binary128 */
+#      define LDBL_MAX_EXP 16384
+#    else
+#      error "Unknown long double format"
+#    endif
 #  else
 #    define LDBL_MAX_EXP DBL_MAX_EXP
 #  endif
@@ -185,7 +225,15 @@
 
 #ifndef LDBL_MAX_10_EXP      /* May be defined in toolchain header */
 #  ifdef CONFIG_HAVE_LONG_DOUBLE
-#    define LDBL_MAX_10_EXP DBL_MAX_10_EXP  /* FIX ME */
+#    if LDBL_MANT_DIG == 53  /* IEEE binary64 */
+#      define LDBL_MAX_10_EXP DBL_MAX_10_EXP
+#    elif LDBL_MANT_DIG == 64  /* x87 80-bit */
+#      define LDBL_MAX_10_EXP 4932
+#    elif LDBL_MANT_DIG == 113  /* IEEE binary128 */
+#      define LDBL_MAX_10_EXP 4932
+#    else
+#      error "Unknown long double format"
+#    endif
 #  else
 #    define LDBL_MAX_10_EXP DBL_MAX_10_EXP
 #  endif
@@ -207,7 +255,15 @@
 
 #ifndef LDBL_MAX                   /* May be defined in toolchain header */
 #  ifdef CONFIG_HAVE_LONG_DOUBLE
-#    define LDBL_MAX DBL_MAX       /* FIX ME */
+#    if LDBL_MANT_DIG == 53  /* IEEE binary64 */
+#      define LDBL_MAX DBL_MAX
+#    elif LDBL_MANT_DIG == 64  /* x87 80-bit */
+#      define LDBL_MAX 1.18973149535723176502126385303097021e+4932L
+#    elif LDBL_MANT_DIG == 113  /* IEEE binary128 */
+#      define LDBL_MAX 1.18973149535723176508575932662800702e+4932L
+#    else
+#      error "Unknown long double format"
+#    endif
 #  else
 #    define LDBL_MAX DBL_MAX
 #  endif
@@ -231,7 +287,15 @@
 
 #ifndef LDBL_EPSILON                 /* May be defined in toolchain header */
 #  ifdef CONFIG_HAVE_LONG_DOUBLE
-#    define LDBL_EPSILON DBL_EPSILON /* FIX ME */
+#    if LDBL_MANT_DIG == 53  /* IEEE binary64 */
+#      define LDBL_EPSILON DBL_EPSILON
+#    elif LDBL_MANT_DIG == 64  /* x87 80-bit */
+#      define LDBL_EPSILON 1.08420217248550443400745280086994171e-19L
+#    elif LDBL_MANT_DIG == 113  /* IEEE binary128 */
+#      define LDBL_EPSILON 1.92592994438723585305597794258492732e-34L
+#    else
+#      error "Unknown long double format"
+#    endif
 #  else
 #    define LDBL_EPSILON DBL_EPSILON
 #  endif
@@ -253,7 +317,15 @@
 
 #ifndef LDBL_MIN                    /* May be defined in toolchain header */
 #  ifdef CONFIG_HAVE_LONG_DOUBLE
-#    define LDBL_MIN DBL_MIN        /* FIX ME */
+#    if LDBL_MANT_DIG == 53  /* IEEE binary64 */
+#      define LDBL_MIN DBL_MIN
+#    elif LDBL_MANT_DIG == 64  /* x87 80-bit */
+#      define LDBL_MIN 3.36210314311209350626267781732175260e-4932L
+#    elif LDBL_MANT_DIG == 113  /* IEEE binary128 */
+#      define LDBL_MIN 3.36210314311209350626267781732175260e-4932L
+#    else
+#      error "Unknown long double format"
+#    endif
 #  else
 #    define LDBL_MIN DBL_MIN
 #  endif

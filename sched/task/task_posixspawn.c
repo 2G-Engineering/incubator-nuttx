@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/task/task_posixspawn.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <sys/wait.h>
 #include <spawn.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/sched.h>
@@ -102,13 +104,6 @@ static int nxposix_spawn_exec(FAR pid_t *pidp, FAR const char *path,
 
   exec_getsymtab(&symtab, &nsymbols);
 
-  /* Disable pre-emption so that we can modify the task parameters after
-   * we start the new task; the new task will not actually begin execution
-   * until we re-enable pre-emption.
-   */
-
-  sched_lock();
-
   /* Start the task */
 
   pid = exec_spawn(path, argv, envp, symtab, nsymbols, actions, attr);
@@ -116,7 +111,7 @@ static int nxposix_spawn_exec(FAR pid_t *pidp, FAR const char *path,
     {
       ret = -pid;
       serr("ERROR: exec failed: %d\n", ret);
-      goto errout;
+      return ret;
     }
 
   /* Return the task ID to the caller */
@@ -126,20 +121,6 @@ static int nxposix_spawn_exec(FAR pid_t *pidp, FAR const char *path,
       *pidp = pid;
     }
 
-  /* Now set the attributes.  Note that we ignore all of the return values
-   * here because we have already successfully started the task.  If we
-   * return an error value, then we would also have to stop the task.
-   */
-
-  if (attr)
-    {
-      spawn_execattrs(pid, attr);
-    }
-
-  /* Re-enable pre-emption and return */
-
-errout:
-  sched_unlock();
   return ret;
 }
 
@@ -239,14 +220,6 @@ int posix_spawn(FAR pid_t *pid, FAR const char *path,
                 FAR const posix_spawnattr_t *attr,
                 FAR char * const argv[], FAR char * const envp[])
 {
-  sinfo("pid=%p path=%s file_actions=%p attr=%p argv=%p\n",
-        pid, path, file_actions, attr, argv);
-
-  if (attr != NULL)
-    {
-      spawn_proxyattrs(attr);
-    }
-
   return nxposix_spawn_exec(pid, path,
                             file_actions != NULL ?
                             *file_actions : NULL, attr, argv, envp);

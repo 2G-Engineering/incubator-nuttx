@@ -1,16 +1,11 @@
 /****************************************************************************
  * arch/arm/src/s32k1xx/s32k1xx_edma.h
  *
- *   Copyright (C) 2019 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
- *
- * This file was leveraged from the NuttX i.MXRT port.
- * Portions of that eDMA logic derived from NXP sample code which has
- * a compatible BSD 3-clause license:
- *
- *   Copyright (c) 2015, Freescale Semiconductor, Inc.
- *   Copyright 2016-2017 NXP
- *   All rights reserved
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2019 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2016-2017 NXP
+ * SPDX-FileCopyrightText: 2015, Freescale Semiconductor, Inc.
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -84,7 +79,7 @@
  *     i mxrt_dmach_stop(handle);
  *
  * 7. The callback will be received when the DMA completes (or an error
- *    occurs). After that, you may free  the DMA channel, or re-use it on
+ *    occurs). After that, you may free the DMA channel, or reuse it on
  *    subsequent DMAs.
  *
  *      s32k1xx_dmach_free(handle);
@@ -336,7 +331,7 @@ int s32k1xx_dmach_xfrsetup(DMACH_HANDLE *handle,
  *   interrupts will be generated with the final being the DONE interrupt.
  *
  *   At the conclusion of the DMA, the DMA channel is reset, all TCDs are
- *   freed, and the callback function is called with the the success/fail
+ *   freed, and the callback function is called with the success/fail
  *   result of the DMA.
  *
  *   NOTE:
@@ -383,7 +378,7 @@ void s32k1xx_dmach_stop(DMACH_HANDLE handle);
  *
  * Description:
  *   This function checks the TCD (Task Control Descriptor) status for a
- *   specified eDMA channel and returns the the number of major loop counts
+ *   specified eDMA channel and returns the number of major loop counts
  *   that have not finished.
  *
  *   NOTES:

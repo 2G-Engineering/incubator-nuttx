@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv7-r/arm_cpustart.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/sched.h>
@@ -75,16 +77,8 @@ int arm_start_handler(int irq, void *context, void *arg)
   sched_note_cpu_started(tcb);
 #endif
 
-  /* Reset scheduler parameters */
+  UNUSED(tcb);
 
-  nxsched_resume_scheduler(tcb);
-
-  /* Then switch contexts. This instantiates the exception context of the
-   * tcb at the head of the assigned task list.  In this case, this should
-   * be the CPUs NULL task.
-   */
-
-  arm_restorestate(tcb->xcp.regs);
   return OK;
 }
 
@@ -129,7 +123,7 @@ int up_cpu_start(int cpu)
 
   /* Execute SGI1 */
 
-  arm_cpu_sgi(GIC_IRQ_SGI1, (1 << cpu));
+  arm_cpu_sgi(GIC_SMP_CPUSTART, (1 << cpu));
   return OK;
 }
 

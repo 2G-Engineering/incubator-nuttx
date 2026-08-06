@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rtl8720c/ameba_flash.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,6 +30,7 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/partition.h>
+#include <nuttx/spinlock.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -129,6 +132,8 @@ static const struct partition_s ptable[5] =
   },
 };
 
+static spinlock_t g_lock = SP_UNLOCKED;
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -136,7 +141,7 @@ static const struct partition_s ptable[5] =
 static irqstate_t flash_resource_lock(void)
 {
   irqstate_t state;
-  state = enter_critical_section();
+  state = spin_lock_irqsave(&g_lock);
   icache_disable();
   dcache_disable();
   return state;
@@ -147,7 +152,7 @@ static void flash_resource_unlock(irqstate_t state)
   dcache_enable();
   icache_enable();
   icache_invalidate();
-  leave_critical_section(state);
+  spin_unlock_irqrestore(&g_lock, state);
 }
 
 static int ameba_flash_erase(struct mtd_dev_s *dev,

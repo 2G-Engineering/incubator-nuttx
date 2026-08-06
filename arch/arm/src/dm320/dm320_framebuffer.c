@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/dm320/dm320_framebuffer.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,8 +30,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/video/fb.h>
@@ -677,10 +679,10 @@ static int dm320_allocvideomemory(void)
 {
 #ifndef CONFIG_DM320_VID0_DISABLE
 #ifndef CONFIG_DM320_DISABLE_PINGPONG
-  g_vid0base   = (void *)kmm_malloc(2 * DM320_VID0_FBLEN);
+  g_vid0base   = kmm_malloc(2 * DM320_VID0_FBLEN);
   g_vid0ppbase = (char *)g_vid0base + DM320_VID0_FBLEN;
 #else
-  g_vid0base   = (void *)kmm_malloc(DM320_VID0_FBLEN);
+  g_vid0base   = kmm_malloc(DM320_VID0_FBLEN);
 #endif
   if (!g_vid0base)
     {
@@ -689,7 +691,7 @@ static int dm320_allocvideomemory(void)
 #endif
 
 #ifndef CONFIG_DM320_VID1_DISABLE
-  g_vid1base = (void *)kmm_malloc(DM320_VID1_FBLEN);
+  g_vid1base = kmm_malloc(DM320_VID1_FBLEN);
   if (!g_vid1base)
     {
       goto errout;
@@ -697,7 +699,7 @@ static int dm320_allocvideomemory(void)
 #endif
 
 #ifndef CONFIG_DM320_OSD0_DISABLE
-  g_osd0base = (void *)kmm_malloc(DM320_OSD0_FBLEN);
+  g_osd0base = kmm_malloc(DM320_OSD0_FBLEN);
   if (!g_osd0base)
     {
       goto errout;
@@ -705,7 +707,7 @@ static int dm320_allocvideomemory(void)
 #endif
 
 #ifndef CONFIG_DM320_OSD1_DISABLE
-  g_osd1base = (void *)kmm_malloc(DM320_OSD1_FBLEN);
+  g_osd1base = kmm_malloc(DM320_OSD1_FBLEN);
   if (!g_osd1base)
     {
       goto errout;
@@ -769,7 +771,7 @@ static void dm320_disable(void)
 {
   /* Disable all planes */
 
-  ginfo("Inactivate OSD:\n");
+  ginfo("Deactivate OSD:\n");
 
   putreg16(0, DM320_OSD_OSDWIN0MD); /* Win0 mode = 0 (1:active) */
   putreg16(0, DM320_OSD_OSDWIN1MD); /* Win1 mode = 0 (1:active) */

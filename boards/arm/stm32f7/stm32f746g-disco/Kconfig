@@ -12,9 +12,13 @@ config STM32F746GDISCO_FLASH
 	select MTD_N25QXXX
 	select MTD_SMART
 	select FS_SMARTFS
-	select STM32F7_QUADSPI
+	select STM32_QSPI
 	select MTD_BYTE_WRITE
 	---help---
 		Configures an MTD device for use with the onboard flash
+
+config STM32F746GDISCO_TOUCHSCREEN_SWAPXY
+	bool "STM32F746G DISCO Touchscreen sway X/Y"
+	depends on INPUT_TOUCHSCREEN
 
 endif # ARCH_BOARD_STM32F746G_DISCO

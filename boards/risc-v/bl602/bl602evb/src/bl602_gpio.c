@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/risc-v/bl602/bl602evb/src/bl602_gpio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/arch.h>
 #include <nuttx/ioexpander/gpio.h>
 #include <arch/board/board.h>

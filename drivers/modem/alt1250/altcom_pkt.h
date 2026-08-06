@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/modem/alt1250/altcom_pkt.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -51,9 +53,9 @@
 #define ALTCOM_RX_PKT_SIZE_MAX     (ALTCOM_PAYLOAD_SIZE_MAX_V4 \
                                     + sizeof(struct altcom_cmdhdr_s))
 
-#define LTE_RESULT_OK     (0)      /**< Result code on success */
-#define LTE_RESULT_ERROR  (1)      /**< Result code on failure */
-#define LTE_RESULT_CANCEL (2)      /**< Result code on cancel */
+#define LTE_RESULT_OK     (0)      /* Result code on success */
+#define LTE_RESULT_ERROR  (1)      /* Result code on failure */
+#define LTE_RESULT_CANCEL (2)      /* Result code on cancel */
 
 #define ALTCOM_CMD_POWER_ON_REPLY_SIZE  (1)
 
@@ -131,7 +133,7 @@ static inline uint16_t parse_cid4errind(FAR struct altcom_cmdhdr_s *hdr)
   FAR struct altcom_errind_s *pkt =
     (FAR struct altcom_errind_s *)&hdr->payload[0];
 
-  return ntohl(pkt->cmdid);
+  return ntohs(pkt->cmdid);
 }
 
 static inline uint16_t parse_tid4errind(FAR struct altcom_cmdhdr_s *hdr)
@@ -139,7 +141,7 @@ static inline uint16_t parse_tid4errind(FAR struct altcom_cmdhdr_s *hdr)
   FAR struct altcom_errind_s *pkt =
     (FAR struct altcom_errind_s *)&hdr->payload[0];
 
-  return ntohl(pkt->transid);
+  return ntohs(pkt->transid);
 }
 
 static inline FAR uint8_t *get_payload(FAR struct altcom_cmdhdr_s *hdr)

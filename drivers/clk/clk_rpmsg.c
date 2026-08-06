@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/clk/clk_rpmsg.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 #include <nuttx/clk/clk_provider.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
-#include <nuttx/rptun/openamp.h>
+#include <nuttx/rpmsg/rpmsg.h>
 #include <nuttx/semaphore.h>
 
 /****************************************************************************
@@ -71,7 +73,7 @@ struct clk_rpmsg_server_s
 struct clk_rpmsg_s
 {
   FAR struct clk_s          *clk;
-  uint32_t                  count;
+  bool                      enable;
   struct list_node          node;
 };
 
@@ -166,7 +168,6 @@ static void clk_rpmsg_server_bind(FAR struct rpmsg_device *rdev,
                                   FAR void *priv_,
                                   FAR const char *name,
                                   uint32_t dest);
-static void clk_rpmsg_server_unbind(FAR struct rpmsg_endpoint *ept);
 
 static int clk_rpmsg_ept_cb(FAR struct rpmsg_endpoint *ept,
                             FAR void *data, size_t len,
@@ -191,7 +192,7 @@ static int clk_rpmsg_get_phase(FAR struct clk_s *clk);
 static int clk_rpmsg_set_phase(FAR struct clk_s *clk, int degrees);
 
 /****************************************************************************
- * Private Datas
+ * Private Data
  ****************************************************************************/
 
 static mutex_t g_clk_rpmsg_lock          = NXMUTEX_INITIALIZER;
@@ -314,20 +315,22 @@ static int clk_rpmsg_enable_handler(FAR struct rpmsg_endpoint *ept,
 {
   FAR struct clk_rpmsg_enable_s *msg = data;
   FAR struct clk_rpmsg_s *clkrp = clk_rpmsg_get_clk(ept, msg->name);
+  int ret = -ENOENT;
 
-  if (clkrp)
+  if (clkrp && !clkrp->enable)
     {
-      msg->header.result = clk_enable(clkrp->clk);
-      if (!msg->header.result)
+      ret = clk_enable(clkrp->clk);
+      if (ret >= 0)
         {
-          clkrp->count++;
+          clkrp->enable = true;
         }
     }
-  else
+  else if (clkrp && clkrp->enable)
     {
-      msg->header.result = -ENOENT;
+      ret = 0;
     }
 
+  msg->header.result = ret;
   return rpmsg_send(ept, msg, sizeof(*msg));
 }
 
@@ -337,18 +340,22 @@ static int clk_rpmsg_disable_handler(FAR struct rpmsg_endpoint *ept,
 {
   FAR struct clk_rpmsg_disable_s *msg = data;
   FAR struct clk_rpmsg_s *clkrp = clk_rpmsg_get_clk(ept, msg->name);
+  int ret = -ENOENT;
 
-  if (clkrp)
+  if (clkrp && clkrp->enable)
     {
-      clk_disable(clkrp->clk);
-      clkrp->count--;
-      msg->header.result = 0;
+      ret = clk_disable(clkrp->clk);
+      if (ret >= 0)
+        {
+          clkrp->enable = false;
+        }
     }
-  else
+  else if (clkrp && !clkrp->enable)
     {
-      msg->header.result = -ENOENT;
+      ret = 0;
     }
 
+  msg->header.result = ret;
   return rpmsg_send(ept, msg, sizeof(*msg));
 }
 
@@ -457,7 +464,7 @@ static int clk_rpmsg_isenabled_handler(FAR struct rpmsg_endpoint *ept,
 
   if (clkrp)
     {
-      msg->header.result = clk_is_enabled(clkrp->clk);
+      msg->header.result = clkrp->enable;
     }
   else
     {
@@ -491,6 +498,10 @@ static int64_t clk_rpmsg_sendrecv(FAR struct rpmsg_endpoint *ept,
           ret = cookie.result;
         }
     }
+  else
+    {
+      rpmsg_release_tx_buffer(ept, msg);
+    }
 
   nxsem_destroy(&cookie.sem);
   return ret;
@@ -502,6 +513,27 @@ static bool clk_rpmsg_server_match(FAR struct rpmsg_device *rdev,
                                    uint32_t dest)
 {
   return !strcmp(name, CLK_RPMSG_EPT_NAME);
+}
+
+static void clk_rpmsg_server_ept_release(FAR struct rpmsg_endpoint *ept)
+{
+  FAR struct clk_rpmsg_server_s *priv = ept->priv;
+  FAR struct clk_rpmsg_s *clkrp_tmp;
+  FAR struct clk_rpmsg_s *clkrp;
+
+  list_for_every_entry_safe(&priv->clk_list, clkrp, clkrp_tmp,
+                            struct clk_rpmsg_s, node)
+    {
+      if (clkrp->enable)
+        {
+          clk_disable(clkrp->clk);
+        }
+
+      list_delete(&clkrp->node);
+      kmm_free(clkrp);
+    }
+
+  kmm_free(priv);
 }
 
 static void clk_rpmsg_server_bind(FAR struct rpmsg_device *rdev,
@@ -518,36 +550,14 @@ static void clk_rpmsg_server_bind(FAR struct rpmsg_device *rdev,
     }
 
   priv->ept.priv = priv;
+  priv->ept.release_cb = clk_rpmsg_server_ept_release;
 
   list_initialize(&priv->clk_list);
 
   rpmsg_create_ept(&priv->ept, rdev, name,
                    RPMSG_ADDR_ANY, RPMSG_ADDR_ANY,
                    clk_rpmsg_ept_cb,
-                   clk_rpmsg_server_unbind);
-}
-
-static void clk_rpmsg_server_unbind(FAR struct rpmsg_endpoint *ept)
-{
-  FAR struct clk_rpmsg_server_s *priv = ept->priv;
-  FAR struct clk_rpmsg_s *clkrp_tmp;
-  FAR struct clk_rpmsg_s *clkrp;
-
-  list_for_every_entry_safe(&priv->clk_list, clkrp, clkrp_tmp,
-                            struct clk_rpmsg_s, node)
-    {
-      while (clkrp->count--)
-        {
-          clk_disable(clkrp->clk);
-        }
-
-      list_delete(&clkrp->node);
-      kmm_free(clkrp);
-    }
-
-  rpmsg_destroy_ept(ept);
-
-  kmm_free(priv);
+                   rpmsg_destroy_ept);
 }
 
 static void clk_rpmsg_client_created(FAR struct rpmsg_device *rdev,
@@ -622,6 +632,11 @@ static int clk_rpmsg_enable(FAR struct clk_s *clk)
   uint32_t size;
   uint32_t len;
 
+  if (up_interrupt_context() || sched_idletask())
+    {
+      return -EPERM;
+    }
+
   ept = clk_rpmsg_get_ept(&name);
   if (!ept)
     {
@@ -653,6 +668,11 @@ static void clk_rpmsg_disable(FAR struct clk_s *clk)
   uint32_t size;
   uint32_t len;
 
+  if (up_interrupt_context() || sched_idletask())
+    {
+      return;
+    }
+
   ept = clk_rpmsg_get_ept(&name);
   if (!ept)
     {
@@ -682,6 +702,11 @@ static int clk_rpmsg_is_enabled(FAR struct clk_s *clk)
   FAR const char *name = clk->name;
   uint32_t size;
   uint32_t len;
+
+  if (up_interrupt_context() || sched_idletask())
+    {
+      return -EPERM;
+    }
 
   ept = clk_rpmsg_get_ept(&name);
   if (!ept)
@@ -902,8 +927,7 @@ FAR struct clk_s *clk_register_rpmsg(FAR const char *name, uint8_t flags)
       return NULL;
     }
 
-  return clk_register(name, NULL, 0, flags | CLK_IS_CRITICAL,
-                      &g_clk_rpmsg_ops, NULL, 0);
+  return clk_register(name, NULL, 0, flags, &g_clk_rpmsg_ops, NULL, 0);
 }
 
 int clk_rpmsg_server_initialize(void)

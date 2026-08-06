@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/ioexpander/mcp23x17.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,8 +28,8 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/i2c/i2c_master.h>
 #include <nuttx/kmalloc.h>
@@ -74,11 +76,11 @@ static int mcp23x17_readbuf(FAR struct ioexpander_dev_s *dev, uint8_t pin,
              FAR bool *value);
 #ifdef CONFIG_IOEXPANDER_MULTIPIN
 static int mcp23x17_multiwritepin(FAR struct ioexpander_dev_s *dev,
-             FAR uint8_t *pins, FAR bool *values, int count);
+             FAR const uint8_t *pins, FAR const bool *values, int count);
 static int mcp23x17_multireadpin(FAR struct ioexpander_dev_s *dev,
-             FAR uint8_t *pins, FAR bool *values, int count);
+             FAR const uint8_t *pins, FAR bool *values, int count);
 static int mcp23x17_multireadbuf(FAR struct ioexpander_dev_s *dev,
-             FAR uint8_t *pins, FAR bool *values, int count);
+             FAR const uint8_t *pins, FAR bool *values, int count);
 #endif
 #ifdef CONFIG_IOEXPANDER_INT_ENABLE
 static FAR void *mcp23x17_attach(FAR struct ioexpander_dev_s *dev,
@@ -416,7 +418,7 @@ static int mcp23x17_writepin(FAR struct ioexpander_dev_s *dev, uint8_t pin,
       return ret;
     }
 
-  ret = mcp23x17_setbit(priv, MCP23X17_GPIOA, pin, value);
+  ret = mcp23x17_setbit(priv, MCP23X17_OLATA, pin, value);
   nxmutex_unlock(&priv->lock);
   return ret;
 }
@@ -571,8 +573,8 @@ static int mcp23x17_getmultibits(FAR struct mcp23x17_dev_s *priv,
  ****************************************************************************/
 
 static int mcp23x17_multiwritepin(FAR struct ioexpander_dev_s *dev,
-                                  FAR uint8_t *pins, FAR bool *values,
-                                  int count)
+                                  FAR const uint8_t *pins,
+                                  FAR const bool *values, int count)
 {
   FAR struct mcp23x17_dev_s *priv = (FAR struct mcp23x17_dev_s *)dev;
   uint8_t addr = MCP23X17_GPIOA;
@@ -669,8 +671,8 @@ static int mcp23x17_multiwritepin(FAR struct ioexpander_dev_s *dev,
  ****************************************************************************/
 
 static int mcp23x17_multireadpin(FAR struct ioexpander_dev_s *dev,
-                                 FAR uint8_t *pins, FAR bool *values,
-                                 int count)
+                                 FAR const uint8_t *pins,
+                                 FAR bool *values, int count)
 {
   FAR struct mcp23x17_dev_s *priv = (FAR struct mcp23x17_dev_s *)dev;
   int ret;
@@ -707,8 +709,8 @@ static int mcp23x17_multireadpin(FAR struct ioexpander_dev_s *dev,
  ****************************************************************************/
 
 static int mcp23x17_multireadbuf(FAR struct ioexpander_dev_s *dev,
-                                 FAR uint8_t *pins, FAR bool *values,
-                                 int count)
+                                 FAR const uint8_t *pins,
+                                 FAR bool *values, int count)
 {
   FAR struct mcp23x17_dev_s *priv = (FAR struct mcp23x17_dev_s *)dev;
   int ret;

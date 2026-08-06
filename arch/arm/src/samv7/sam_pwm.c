@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samv7/sam_pwm.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/irq.h>
@@ -65,6 +67,13 @@
 #define PWM_RES          65535
 #define COMP_UNITS_NUM   8
 
+/* Sync offset flags defines */
+
+#define CH0_SYNC_FLAG    (1 << 0)
+#define CH1_SYNC_FLAG    (1 << 1)
+#define CH2_SYNC_FLAG    (1 << 2)
+#define CH3_SYNC_FLAG    (1 << 3)
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -91,6 +100,7 @@ struct sam_pwm_fault_s
 {
   uint8_t source;                 /* Source of fault input */
   uint8_t polarity;
+  uint8_t latched;                /* Latched fault inputs */
   gpio_pinset_t gpio_0;           /* GPIO 1 fault input */
   gpio_pinset_t gpio_1;           /* GPIO 2 fault input */
   gpio_pinset_t gpio_2;           /* GPIO 3 fault input */
@@ -104,6 +114,7 @@ struct sam_pwm_s
   const struct sam_pwm_fault_s *fault;
   uint8_t channels_num;           /* Number of channels */
   uintptr_t base;                 /* Base address of peripheral register */
+  uint8_t sync;                   /* Flags of synchronized channels */
 };
 
 /* PWM driver methods */
@@ -136,44 +147,64 @@ static struct sam_pwm_channel_s g_pwm0_channels[] =
 #ifdef CONFIG_SAMV7_PWM0_CH0
   {
     .channel = 0,
+#ifdef CONFIG_SAMV7_PWM0_CH0_LONLY
+    .pin_h   = 0,
+    .pin_l   = GPIO_PWMC0_L0,
+#else
     .pin_h   = GPIO_PWMC0_H0,
 #ifdef CONFIG_SAMV7_PWM0_CH0_COMP
     .pin_l   = GPIO_PWMC0_L0,
 #else
     .pin_l   = 0,
 #endif
+#endif
   },
 #endif
 #ifdef CONFIG_SAMV7_PWM0_CH1
   {
     .channel = 1,
+#ifdef CONFIG_SAMV7_PWM0_CH1_LONLY
+    .pin_h   = 0,
+    .pin_l   = GPIO_PWMC0_L1,
+#else
     .pin_h   = GPIO_PWMC0_H1,
 #ifdef CONFIG_SAMV7_PWM0_CH1_COMP
     .pin_l   = GPIO_PWMC0_L1,
 #else
     .pin_l   = 0,
 #endif
+#endif
   },
 #endif
 #ifdef CONFIG_SAMV7_PWM0_CH2
   {
     .channel = 2,
+#ifdef CONFIG_SAMV7_PWM0_CH2_LONLY
+    .pin_h   = 0,
+    .pin_l   = GPIO_PWMC0_L2,
+#else
     .pin_h   = GPIO_PWMC0_H2,
 #ifdef CONFIG_SAMV7_PWM0_CH2_COMP
     .pin_l   = GPIO_PWMC0_L2,
 #else
     .pin_l   = 0,
 #endif
+#endif
   },
 #endif
 #ifdef CONFIG_SAMV7_PWM0_CH3
   {
     .channel = 3,
+#ifdef CONFIG_SAMV7_PWM0_CH3_LONLY
+    .pin_h   = 0,
+    .pin_l   = GPIO_PWMC0_L3,
+#else
     .pin_h   = GPIO_PWMC0_H3,
 #ifdef CONFIG_SAMV7_PWM0_CH3_COMP
     .pin_l   = GPIO_PWMC0_L3,
 #else
     .pin_l   = 0,
+#endif
 #endif
   },
 #endif
@@ -204,10 +235,43 @@ static struct sam_pwm_fault_s g_pwm0_fault =
 {
   .source = PWM0_FAULTS,
   .polarity = PWM0_POL,
+  .latched = PWM0_LATCH,
   .gpio_0 = GPIO_PWMC0_FI0,
   .gpio_1 = GPIO_PWMC0_FI1,
   .gpio_2 = GPIO_PWMC0_FI2,
 };
+
+/* Define sync flags */
+
+#ifdef CONFIG_SAMV7_PWM0_SYNC
+  #define PWM0_CH0_SYNC_FLAG     CH0_SYNC_FLAG
+
+  #ifdef CONFIG_SAMV7_PWM0_CH1_SYNC
+    #define PWM0_CH1_SYNC_FLAG   CH1_SYNC_FLAG
+  #else
+    #define PWM0_CH1_SYNC_FLAG   0
+  #endif
+
+  #ifdef CONFIG_SAMV7_PWM0_CH2_SYNC
+    #define PWM0_CH2_SYNC_FLAG   CH2_SYNC_FLAG
+  #else
+    #define PWM0_CH2_SYNC_FLAG   0
+  #endif
+
+  #ifdef CONFIG_SAMV7_PWM0_CH3_SYNC
+    #define PWM0_CH3_SYNC_FLAG   CH3_SYNC_FLAG
+  #else
+    #define PWM0_CH3_SYNC_FLAG   0
+  #endif
+#else
+  #define PWM0_CH0_SYNC_FLAG     0
+  #define PWM0_CH1_SYNC_FLAG     0
+  #define PWM0_CH2_SYNC_FLAG     0
+  #define PWM0_CH3_SYNC_FLAG     0
+#endif
+
+#define PWM0_SYNC_FLAGS          (PWM0_CH0_SYNC_FLAG | PWM0_CH1_SYNC_FLAG | \
+                                  PWM0_CH2_SYNC_FLAG | PWM0_CH3_SYNC_FLAG)
 
 static struct sam_pwm_s g_pwm0 =
 {
@@ -217,6 +281,7 @@ static struct sam_pwm_s g_pwm0 =
   .fault = &g_pwm0_fault,
   .channels_num = PWM0_NCHANNELS,
   .base = SAM_PWM0_BASE,
+  .sync = PWM0_SYNC_FLAGS,
 };
 #endif /* CONFIG_SAMV7_PWM0 */
 
@@ -227,44 +292,64 @@ static struct sam_pwm_channel_s g_pwm1_channels[] =
 #ifdef CONFIG_SAMV7_PWM1_CH0
   {
     .channel = 0,
+#ifdef CONFIG_SAMV7_PWM1_CH0_LONLY
+    .pin_h   = 0,
+    .pin_l   = GPIO_PWMC1_L0,
+#else
     .pin_h   = GPIO_PWMC1_H0,
 #ifdef CONFIG_SAMV7_PWM1_CH0_COMP
     .pin_l   = GPIO_PWMC1_L0,
 #else
     .pin_l   = 0,
 #endif
+#endif
   },
 #endif
 #ifdef CONFIG_SAMV7_PWM1_CH1
   {
     .channel = 1,
+#ifdef CONFIG_SAMV7_PWM1_CH1_LONLY
+    .pin_h   = 0,
+    .pin_l   = GPIO_PWMC1_L1,
+#else
     .pin_h   = GPIO_PWMC1_H1,
 #ifdef CONFIG_SAMV7_PWM1_CH1_COMP
     .pin_l   = GPIO_PWMC1_L1,
 #else
     .pin_l   = 0,
 #endif
+#endif
   },
 #endif
 #ifdef CONFIG_SAMV7_PWM1_CH2
   {
     .channel = 2,
+#ifdef CONFIG_SAMV7_PWM1_CH2_LONLY
+    .pin_h   = 0,
+    .pin_l   = GPIO_PWMC1_L2,
+#else
     .pin_h   = GPIO_PWMC1_H2,
 #ifdef CONFIG_SAMV7_PWM1_CH2_COMP
     .pin_l   = GPIO_PWMC1_L2,
 #else
     .pin_l   = 0,
 #endif
+#endif
   },
 #endif
 #ifdef CONFIG_SAMV7_PWM1_CH3
   {
     .channel = 3,
+#ifdef CONFIG_SAMV7_PWM1_CH3_LONLY
+    .pin_h   = 0,
+    .pin_l   = GPIO_PWMC1_L3,
+#else
     .pin_h   = GPIO_PWMC1_H3,
 #ifdef CONFIG_SAMV7_PWM1_CH3_COMP
     .pin_l   = GPIO_PWMC1_L3,
 #else
     .pin_l   = 0,
+#endif
 #endif
   },
 #endif
@@ -295,10 +380,43 @@ static struct sam_pwm_fault_s g_pwm1_fault =
 {
   .source = PWM1_FAULTS,
   .polarity = PWM1_POL,
+  .latched = PWM1_LATCH,
   .gpio_0 = GPIO_PWMC1_FI0,
   .gpio_1 = GPIO_PWMC1_FI1,
   .gpio_2 = GPIO_PWMC1_FI2,
 };
+
+/* Define sync flags */
+
+#ifdef CONFIG_SAMV7_PWM1_SYNC
+  #define PWM1_CH0_SYNC_FLAG     CH0_SYNC_FLAG
+
+  #ifdef CONFIG_SAMV7_PWM1_CH1_SYNC
+    #define PWM1_CH1_SYNC_FLAG   CH1_SYNC_FLAG
+  #else
+    #define PWM1_CH1_SYNC_FLAG   0
+  #endif
+
+  #ifdef CONFIG_SAMV7_PWM1_CH2_SYNC
+    #define PWM1_CH2_SYNC_FLAG   CH2_SYNC_FLAG
+  #else
+    #define PWM1_CH2_SYNC_FLAG   0
+  #endif
+
+  #ifdef CONFIG_SAMV7_PWM1_CH3_SYNC
+    #define PWM1_CH3_SYNC_FLAG   CH3_SYNC_FLAG
+  #else
+    #define PWM1_CH3_SYNC_FLAG   0
+  #endif
+#else
+  #define PWM1_CH0_SYNC_FLAG     0
+  #define PWM1_CH1_SYNC_FLAG     0
+  #define PWM1_CH2_SYNC_FLAG     0
+  #define PWM1_CH3_SYNC_FLAG     0
+#endif
+
+#define PWM1_SYNC_FLAGS          (PWM1_CH0_SYNC_FLAG | PWM1_CH1_SYNC_FLAG | \
+                                  PWM1_CH2_SYNC_FLAG | PWM1_CH3_SYNC_FLAG)
 
 static struct sam_pwm_s g_pwm1 =
 {
@@ -308,6 +426,7 @@ static struct sam_pwm_s g_pwm1 =
   .fault = &g_pwm1_fault,
   .channels_num = PWM1_NCHANNELS,
   .base = SAM_PWM1_BASE,
+  .sync = PWM1_SYNC_FLAGS,
 };
 
 #endif
@@ -331,6 +450,8 @@ static void pwm_set_deadtime(struct pwm_lowerhalf_s *dev, uint8_t channel,
                              ub16_t dead_time_a, ub16_t dead_time_b,
                              ub16_t duty);
 #endif
+static void pwm_set_polarity(struct pwm_lowerhalf_s *dev, uint8_t channel,
+                             uint8_t cpol, uint8_t dcpol);
 
 /****************************************************************************
  * Private Functions
@@ -454,10 +575,14 @@ static void pwm_set_output(struct pwm_lowerhalf_s *dev, uint8_t channel,
                  width);
     }
 
-  /* Enable the channel */
-
   regval = CHID_SEL(1 << channel);
-  pwm_putreg(priv, SAMV7_PWM_ENA, regval);
+
+  /* The enabling of a channel should be only done on unsynced channels */
+
+  if (!(priv->sync & regval))
+    {
+      pwm_putreg(priv, SAMV7_PWM_ENA, regval);
+    }
 }
 
 /****************************************************************************
@@ -506,7 +631,7 @@ static void pwm_set_comparison(struct pwm_lowerhalf_s *dev)
 
       if (pwm_getreg(priv, SAMV7_PWM_CMPMX + COMP_OFFSET * i) & CMPM_CEN)
         {
-          /* Use update register if comparision unit is used */
+          /* Use update register if comparison unit is used */
 
           pwm_putreg(priv, SAMV7_PWM_CMPVUPDX + COMP_OFFSET * i, width);
           pwm_putreg(priv, SAMV7_PWM_CMPMUPDX + COMP_OFFSET * i, CMPM_CEN);
@@ -572,9 +697,9 @@ static void pwm_set_deadtime(struct pwm_lowerhalf_s *dev, uint8_t channel,
    * and not 16 as duty cycle or period counter. Therefore a 12 bits recount
    * is necessary to set the dead time value corresponding to selected
    * frequency. This expects the dead time value selected in the application
-   * is moved left by 12 and devided by 100. For example:
+   * is moved left by 12 and divided by 100. For example:
    *      dead_time_a = (selected_dead_time_duty << 12) / 100
-   * This aproach is the same as with duty cycle setup in the application
+   * This approach is the same as with duty cycle setup in the application
    * but with 12 bits.
    *
    * Also note that it might not be possible to get correct delay on lower
@@ -592,14 +717,14 @@ static void pwm_set_deadtime(struct pwm_lowerhalf_s *dev, uint8_t channel,
 
   if (width_1 > (period - regval))
     {
-      pwmerr("ERROR: Dead Time value DTH has to be < period - duty! " \
+      pwmerr("ERROR: Dead Time value DTH has to be < period - duty! "
              "Setting DTH to 0\n");
       width_1 = 0;
     }
 
   if (width_2 > regval)
     {
-      pwmerr("ERROR: Dead Time value DTL has to be < duty! " \
+      pwmerr("ERROR: Dead Time value DTL has to be < duty! "
              "Setting DTL to 0\n");
       width_2 = 0;
     }
@@ -618,6 +743,54 @@ static void pwm_set_deadtime(struct pwm_lowerhalf_s *dev, uint8_t channel,
     }
 }
 #endif
+
+/****************************************************************************
+ * Name: pwm_set_polarity
+ *
+ * Description:
+ *   Set channel polarity
+ *
+ * Input Parameters:
+ *   dev         - A reference to the lower half PWM driver state structure
+ *   channel     - Channel to by updated
+ *   cpol        - Desired polarity
+ *   dcpol       - Desired default polarity of a disabled channel
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+static void pwm_set_polarity(struct pwm_lowerhalf_s *dev, uint8_t channel,
+                             uint8_t cpol, uint8_t dcpol)
+{
+  struct sam_pwm_s *priv = (struct sam_pwm_s *)dev;
+  uint32_t regval;
+
+  /* Can't change polarity, if the channel is enabled! */
+
+  if (pwm_getreg(priv, SAMV7_PWM_SR) & CHID_SEL(1 << channel))
+    {
+      return;
+    }
+
+  regval = pwm_getreg(priv, SAMV7_PWM_CMRX + (channel * CHANNEL_OFFSET));
+  regval &= ~CMR_CPOL;
+  regval &= ~CMR_DPOLI;
+
+  if (cpol == PWM_CPOL_HIGH)
+    {
+      regval |= CMR_CPOL;
+    }
+
+  if ((dcpol == PWM_DCPOL_LOW && cpol == PWM_CPOL_HIGH) ||
+      (dcpol == PWM_DCPOL_HIGH && cpol == PWM_CPOL_LOW))
+    {
+      regval |= CMR_DPOLI;
+    }
+
+  pwm_putreg(priv, SAMV7_PWM_CMRX + (channel * CHANNEL_OFFSET), regval);
+}
 
 /****************************************************************************
  * Name: pwm_setup
@@ -670,12 +843,11 @@ static int pwm_setup(struct pwm_lowerhalf_s *dev)
 
       channel = priv->channels[i].channel;
 
-      regval = CMR_DPOLI;
 #ifdef CONFIG_PWM_DEADTIME
-      regval |= CMR_DTE;
+      pwm_putreg(priv, SAMV7_PWM_CMRX + (channel * CHANNEL_OFFSET), CMR_DTE);
+#else
+      pwm_putreg(priv, SAMV7_PWM_CMRX + (channel * CHANNEL_OFFSET), 0);
 #endif
-
-      pwm_putreg(priv, SAMV7_PWM_CMRX + (channel * CHANNEL_OFFSET), regval);
 
       /* Reset duty cycle register */
 
@@ -720,13 +892,22 @@ static int pwm_setup(struct pwm_lowerhalf_s *dev)
    * is set via configuration options.
    */
 
-  regval = FMR_FPOL_SEL(priv->fault->polarity);
+  regval = FMR_FPOL_SEL(priv->fault->polarity) |
+           FMR_FMOD_SEL(priv->fault->latched);
   pwm_putreg(priv, SAMV7_PWM_FMR, regval);
 
   /* Force both outputs to 0 if fault occurs */
 
   pwm_putreg(priv, SAMV7_PWM_FPV1, 0);
   pwm_putreg(priv, SAMV7_PWM_FPV2, 0);
+
+  /* Enable synchronous channels. The flags in priv->sync
+   * correspond to the lowest bits in PWM_SCM.
+   * UPDM[1:0] is set to zero (manual update of deadtime, duty).
+   */
+
+  regval = (uint32_t)priv->sync;
+  pwm_putreg(priv, SAMV7_PWM_SCM, regval);
 
   return OK;
 }
@@ -782,71 +963,80 @@ static int pwm_start(struct pwm_lowerhalf_s *dev,
                      const struct pwm_info_s *info)
 {
   struct sam_pwm_s *priv = (struct sam_pwm_s *)dev;
-#ifdef CONFIG_PWM_OVERWRITE
   uint32_t regval;
-#endif
 
-#ifdef CONFIG_PWM_MULTICHAN
-      for (int i = 0; i < PWM_NCHANNELS; i++)
+  for (int i = 0; i < PWM_NCHANNELS; i++)
+    {
+      int8_t index = info->channels[i].channel;
+
+      /* Break the loop if all following channels are not configured */
+
+      if (index == -1)
         {
-          int8_t index = info->channels[i].channel;
-
-          /* Break the loop if all following channels are not configured */
-
-          if (index == -1)
-            {
-              break;
-            }
-
-          /* Configure the module freq only if is set to be used */
-
-          if (index > 0 && (index - 1) < priv->channels_num)
-            {
-              /* Set the frequency and enable PWM output for each channel */
-
-              pwm_set_freq(dev, priv->channels[index - 1].channel,
-                           info->frequency);
-#ifdef CONFIG_PWM_DEADTIME
-              pwm_set_deadtime(dev, priv->channels[index - 1].channel,
-                               info->channels[i].dead_time_a,
-                               info->channels[i].dead_time_b,
-                               info->channels[i].duty);
-#endif
-              pwm_set_output(dev, priv->channels[index - 1].channel,
-                             info->channels[i].duty);
-#ifdef CONFIG_PWM_OVERWRITE
-              if (info->channels[i].ch_outp_ovrwr)
-                {
-                  regval = pwm_getreg(priv, SAMV7_PWM_OOV);
-                  regval &= ~(info->channels[i].ch_outp_ovrwr_val
-                      << priv->channels[i].channel);
-                  pwm_putreg(priv, SAMV7_PWM_OOV, regval);
-
-                  regval = (1 << priv->channels[i].channel);
-                  pwm_putreg(priv, SAMV7_PWM_OSS, regval);
-                }
-              else
-                {
-                  /* Release overwrite of channel */
-
-                  regval = (1 << priv->channels[i].channel);
-                  pwm_putreg(priv, SAMV7_PWM_OSC, regval);
-                }
-#endif
-            }
+          break;
         }
-#else
-      /* Set the frequency and enable PWM output just for first channel */
 
-      pwm_set_freq(dev, priv->channels[0].channel, info->frequency);
+      /* Configure the module freq only if is set to be used */
+
+      if (index > 0 && (index - 1) < priv->channels_num)
+        {
+          /* Set the frequency and enable PWM output for each channel */
+
+          pwm_set_freq(dev, priv->channels[index - 1].channel,
+                        info->frequency);
 #ifdef CONFIG_PWM_DEADTIME
-      pwm_set_deadtime(dev, priv->channels[index - 1].channel,
-                       info->dead_time_a, info->dead_time_b);
+          pwm_set_deadtime(dev, priv->channels[index - 1].channel,
+                            info->channels[i].dead_time_a,
+                            info->channels[i].dead_time_b,
+                            info->channels[i].duty);
 #endif
-      pwm_set_output(dev, priv->channels[0].channel, info->duty);
-#endif
+          pwm_set_polarity(dev, priv->channels[index - 1].channel,
+                            info->channels[i].cpol,
+                            info->channels[i].dcpol);
+          pwm_set_output(dev, priv->channels[index - 1].channel,
+                          info->channels[i].duty);
+#ifdef CONFIG_PWM_OVERWRITE
+          if (info->channels[i].ch_outp_ovrwr)
+            {
+              regval = pwm_getreg(priv, SAMV7_PWM_OOV);
+              regval &= ~(info->channels[i].ch_outp_ovrwr_val
+                  << priv->channels[i].channel);
+              pwm_putreg(priv, SAMV7_PWM_OOV, regval);
 
-      pwm_set_comparison(dev);
+              regval = (1 << priv->channels[i].channel);
+              pwm_putreg(priv, SAMV7_PWM_OSS, regval);
+            }
+          else
+            {
+              /* Release overwrite of channel */
+
+              regval = (1 << priv->channels[i].channel);
+              pwm_putreg(priv, SAMV7_PWM_OSC, regval);
+            }
+#endif
+        }
+    }
+
+  /* Perform the update of synchronized PWM channels */
+
+  if (priv->sync)
+    {
+      regval = SCUC_UPDULOCK;
+
+      /* Enable the Channel 0 if synchronous channels are used.
+       * Channel 0's counter is used by all synchronous channels and
+       * enabling CH0 results in enabling all synchronous channels.
+       *
+       * Enable the CH0 here after all setting all channel parameters,
+       * because setting polarity configurations requires disabled
+       * channels.
+       */
+
+      pwm_putreg(priv, SAMV7_PWM_ENA, CHID_SEL(1));
+      pwm_putreg(priv, SAMV7_PWM_SCUC, regval);
+    }
+
+  pwm_set_comparison(dev);
 
   return OK;
 }
@@ -875,17 +1065,18 @@ static int pwm_stop(struct pwm_lowerhalf_s *dev)
   struct sam_pwm_s *priv = (struct sam_pwm_s *)dev;
   uint32_t regval;
 
-#ifdef CONFIG_PWM_MULTICHAN
   for (int i = 0; i < priv->channels_num; i++)
     {
       regval = CHID_SEL(1 << priv->channels[i].channel);
       pwm_putreg(priv, SAMV7_PWM_DIS, regval);
     }
 
-#else
-  regval = CHID_SEL(1 << priv->channels[0].channel);
-  pwm_putreg(priv, SAMV7_PWM_DIS, regval);
-#endif /* CONFIG_PWM_MULTICHAN */
+  /* Just to be sure, disable all sync channels too */
+
+  regval = pwm_getreg(priv, SAMV7_PWM_SCM);
+  regval &= ~(CHID_SEL(1 << 0) | CHID_SEL(1 << 1) |
+              CHID_SEL(1 << 2) | CHID_SEL(1 << 3));
+  pwm_putreg(priv, SAMV7_PWM_SCM, regval);
 
   return OK;
 }
@@ -909,7 +1100,43 @@ static int pwm_stop(struct pwm_lowerhalf_s *dev)
 static int pwm_ioctl(struct pwm_lowerhalf_s *dev, int cmd,
                      unsigned long arg)
 {
-  return -ENOTTY;
+  struct sam_pwm_s *priv = (struct sam_pwm_s *)dev;
+  uint32_t regval;
+  int ret = OK;
+
+  switch (cmd)
+    {
+      case PWMIOC_FAULTS_FETCH_AND_CLEAR:
+        {
+          unsigned long clear = arg != 0 ?
+            *(unsigned long *)(uintptr_t)arg : FCR_FCLR_MASK;
+
+          /* Get current faults. */
+
+          regval = pwm_getreg(priv, SAMV7_PWM_FSR);
+
+          /* Clear the faults. */
+
+          clear &= ((regval & FSR_FS_MASK) >> FSR_FS_SHIFT);
+          pwm_putreg(priv, SAMV7_PWM_FCR, FCR_FCLR_SEL(clear));
+
+          /* And return the previously read faults. */
+
+          if (arg != 0)
+            {
+              *(unsigned long *)(uintptr_t)arg =
+              (regval & FSR_FS_MASK) >> FSR_FS_SHIFT;
+            }
+        }
+        break;
+      default:
+        {
+          pwmerr("ERROR: Unknown cmd: %d\n", cmd);
+          ret = -ENOTTY;
+      }
+    }
+
+  return ret;
 }
 
 /****************************************************************************

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lpc54xx/lpc54_tickless.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -271,8 +273,8 @@ static void lpc54_ts_sub(const struct timespec *ts1,
 
 static inline uint64_t lpc54_ts2tick(const struct timespec *ts)
 {
-  return ((uint64_t)ts->tv_sec * LPC54_CCLK +
-          ((uint64_t)ts->tv_nsec / g_min_nsec * g_min_ticks));
+  return (ts->tv_sec * LPC54_CCLK +
+          (ts->tv_nsec / g_min_nsec * g_min_ticks));
 }
 
 static uint64_t lpc54_tick2ts(uint64_t ticks, struct timespec *ts,
@@ -537,13 +539,7 @@ static inline void lpc54_tl_alarm(uint64_t curr)
   lpc54_init_timer_vars();
   lpc54_set_default_compare(curr);
 
-#ifdef CONFIG_SCHED_TICKLESS_ALARM
-  struct timespec ts;
-  up_timer_gettime(&ts);
-  nxsched_alarm_expiration(&ts);
-#else
-  nxsched_timer_expiration();
-#endif
+  nxsched_process_timer();
 }
 
 /* Interrupt handler */

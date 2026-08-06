@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/ioexpander/pca9538.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,8 +29,8 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/i2c/i2c_master.h>
 #include <nuttx/kmalloc.h>
@@ -67,9 +69,9 @@ static int pca9538_readbuf(FAR struct ioexpander_dev_s *dev, uint8_t pin,
              FAR bool *value);
 #ifdef CONFIG_IOEXPANDER_MULTIPIN
 static int pca9538_multiwritepin(FAR struct ioexpander_dev_s *dev,
-             FAR uint8_t *pins, FAR bool *values, int count);
+             FAR const uint8_t *pins, FAR const bool *values, int count);
 static int pca9538_multireadpin(FAR struct ioexpander_dev_s *dev,
-             FAR uint8_t *pins, FAR bool *values, int count);
+             FAR const uint8_t *pins, FAR bool *values, int count);
 static int pca9538_multireadbuf(FAR struct ioexpander_dev_s *dev,
              FAR uint8_t *pins, FAR bool *values, int count);
 #endif
@@ -535,8 +537,8 @@ static int pca9538_getmultibits(FAR struct pca9538_dev_s *pca, uint8_t addr,
  ****************************************************************************/
 
 static int pca9538_multiwritepin(FAR struct ioexpander_dev_s *dev,
-                                 FAR uint8_t *pins, FAR bool *values,
-                                 int count)
+                                 FAR const uint8_t *pins,
+                                 FAR const bool *values, int count)
 {
   FAR struct pca9538_dev_s *pca = (FAR struct pca9538_dev_s *)dev;
   uint8_t addr = PCA9538_REG_OUTPUT;
@@ -628,8 +630,8 @@ static int pca9538_multiwritepin(FAR struct ioexpander_dev_s *dev,
  ****************************************************************************/
 
 static int pca9538_multireadpin(FAR struct ioexpander_dev_s *dev,
-                                FAR uint8_t *pins, FAR bool *values,
-                                int count)
+                                FAR const uint8_t *pins,
+                                FAR bool *values, int count)
 {
   FAR struct pca9538_dev_s *pca = (FAR struct pca9538_dev_s *)dev;
   int ret;
@@ -908,8 +910,7 @@ FAR struct ioexpander_dev_s *pca9538_initialize
 #ifdef CONFIG_PCA9538_MULTIPLE
   /* Allocate the device state structure */
 
-  pcadev = (FAR struct pca9538_dev_s *)kmm_zalloc
-                                            (sizeof(struct pca9538_dev_s));
+  pcadev = kmm_zalloc(sizeof(struct pca9538_dev_s));
   if (!pcadev)
     {
       return NULL;

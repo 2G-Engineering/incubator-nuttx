@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/misoc/src/common/misoc_net.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arpa/inet.h>
 
@@ -39,6 +41,7 @@
 #include <nuttx/irq.h>
 #include <nuttx/wdog.h>
 #include <nuttx/wqueue.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 
 #include <arch/board/board.h>
@@ -159,9 +162,6 @@ static int misoc_net_addmac(struct net_driver_s *dev,
 static int misoc_net_rmmac(struct net_driver_s *dev,
                            const uint8_t *mac);
 #endif
-#ifdef CONFIG_NET_ICMPv6
-static void misoc_net_ipv6multicast(struct misoc_net_driver_s *priv);
-#endif
 #endif
 
 /****************************************************************************
@@ -196,7 +196,7 @@ static int misoc_net_transmit(struct misoc_net_driver_s *priv)
 
   /* Increment statistics */
 
-  NETDEV_TXPACKETS(priv->misoc_net_dev);
+  NETDEV_TXPACKETS(&priv->misoc_net_dev);
 
   /* Send the packet: address=priv->misoc_net_dev.d_buf,
    * length=priv->misoc_net_dev.d_len
@@ -355,6 +355,7 @@ static void misoc_net_receive(struct misoc_net_driver_s *priv)
 
       priv->misoc_net_dev.d_len = rxlen;
 
+      NETDEV_RXPACKETS(&priv->misoc_net_dev);
 #ifdef CONFIG_NET_PKT
       /* When packet sockets are enabled, feed the frame into the tap */
 
@@ -454,7 +455,7 @@ static void misoc_net_txdone(struct misoc_net_driver_s *priv)
 {
   /* Check for errors and update statistics */
 
-  NETDEV_TXDONE(priv->misoc_net_dev);
+  NETDEV_TXDONE(&priv->misoc_net_dev);
 
   /* Check if there are pending transmissions */
 
@@ -600,7 +601,7 @@ static void misoc_net_txtimeout_work(void *arg)
   /* Increment statistics and dump debug info */
 
   net_lock();
-  NETDEV_TXTIMEOUTS(priv->misoc_net_dev);
+  NETDEV_TXTIMEOUTS(&priv->misoc_net_dev);
 
   /* Then reset the hardware */
 
@@ -671,9 +672,9 @@ static int misoc_net_ifup(struct net_driver_s *dev)
     (struct misoc_net_driver_s *)dev->d_private;
 
 #ifdef CONFIG_NET_IPv4
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        dev->d_ipaddr & 0xff, (dev->d_ipaddr >> 8) & 0xff,
-        (dev->d_ipaddr >> 16) & 0xff, dev->d_ipaddr >> 24);
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 #endif
 #ifdef CONFIG_NET_IPv6
   ninfo("Bringing up: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -684,16 +685,6 @@ static int misoc_net_ifup(struct net_driver_s *dev)
 
   /* Initialize PHYs, Ethernet interface, and setup up Ethernet interrupts */
 
-  /* Instantiate the MAC address from
-   * priv->misoc_net_dev.d_mac.ether.ether_addr_octet
-   */
-
-#ifdef CONFIG_NET_ICMPv6
-  /* Set up IPv6 multicast address filtering */
-
-  misoc_net_ipv6multicast(priv);
-#endif
-
   flags = enter_critical_section();
 
   priv->misoc_net_bifup = true;
@@ -703,6 +694,9 @@ static int misoc_net_ifup(struct net_driver_s *dev)
 
   ethmac_sram_writer_ev_enable_write(1);
   leave_critical_section(flags);
+
+  netdev_carrier_on(dev);
+
   return OK;
 }
 
@@ -749,6 +743,9 @@ static int misoc_net_ifdown(struct net_driver_s *dev)
 
   priv->misoc_net_bifup = false;
   leave_critical_section(flags);
+
+  netdev_carrier_off(dev);
+
   return OK;
 }
 
@@ -893,79 +890,6 @@ static int misoc_net_rmmac(struct net_driver_s *dev,
   return OK;
 }
 #endif
-
-/****************************************************************************
- * Function: misoc_net_ipv6multicast
- *
- * Description:
- *   Configure the IPv6 multicast MAC address.
- *
- * Input Parameters:
- *   priv - A reference to the private driver state structure
- *
- * Returned Value:
- *   OK on success; Negated errno on failure.
- *
- * Assumptions:
- *
- ****************************************************************************/
-
-#ifdef CONFIG_NET_ICMPv6
-static void misoc_net_ipv6multicast(struct misoc_net_driver_s *priv)
-{
-  struct net_driver_s *dev;
-  uint16_t tmp16;
-  uint8_t mac[6];
-
-  /* For ICMPv6, we need to add the IPv6 multicast address
-   *
-   * For IPv6 multicast addresses, the Ethernet MAC is derived by
-   * the four low-order octets OR'ed with the MAC 33:33:00:00:00:00,
-   * so for example the IPv6 address FF02:DEAD:BEEF::1:3 would map
-   * to the Ethernet MAC address 33:33:00:01:00:03.
-   *
-   * NOTES:  This appears correct for the ICMPv6 Router Solicitation
-   * Message, but the ICMPv6 Neighbor Solicitation message seems to
-   * use 33:33:ff:01:00:03.
-   */
-
-  mac[0] = 0x33;
-  mac[1] = 0x33;
-
-  dev    = &priv->dev;
-  tmp16  = dev->d_ipv6addr[6];
-  mac[2] = 0xff;
-  mac[3] = tmp16 >> 8;
-
-  tmp16  = dev->d_ipv6addr[7];
-  mac[4] = tmp16 & 0xff;
-  mac[5] = tmp16 >> 8;
-
-  ninfo("IPv6 Multicast: %02x:%02x:%02x:%02x:%02x:%02x\n",
-        mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
-  misoc_net_addmac(dev, mac);
-
-#ifdef CONFIG_NET_ICMPv6_AUTOCONF
-  /* Add the IPv6 all link-local nodes Ethernet address.  This is the
-   * address that we expect to receive ICMPv6 Router Advertisement
-   * packets.
-   */
-
-  misoc_net_addmac(dev, g_ipv6_ethallnodes.ether_addr_octet);
-
-#endif /* CONFIG_NET_ICMPv6_AUTOCONF */
-#ifdef CONFIG_NET_ICMPv6_ROUTER
-  /* Add the IPv6 all link-local routers Ethernet address.  This is the
-   * address that we expect to receive ICMPv6 Router Solicitation
-   * packets.
-   */
-
-  misoc_net_addmac(dev, g_ipv6_ethallrouters.ether_addr_octet);
-
-#endif /* CONFIG_NET_ICMPv6_ROUTER */
-}
-#endif /* CONFIG_NET_ICMPv6 */
 
 /****************************************************************************
  * Public Functions

@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/string/lib_strcasecmp.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,8 +35,8 @@
  * Public Functions
  ****************************************************************************/
 
-#if !defined(CONFIG_LIBC_ARCH_STRCASECMP) && defined(LIBC_BUILD_STRING)
-#undef strcasecmp /* See mm/README.txt */
+#if !defined(CONFIG_LIBC_ARCH_STRCASECMP) && defined(LIBC_BUILD_STRCASECMP)
+#undef strcasecmp
 int strcasecmp(FAR const char *cs, FAR const char *ct)
 {
   register int result;

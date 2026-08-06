@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/lpc31xx/olimex-lpc-h3131/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,6 @@
 #include <nuttx/config.h>
 #ifndef __ASSEMBLY__
 #  include <stdint.h>
-#  include "lpc31_cgudrvr.h"
 #endif
 
 /****************************************************************************
@@ -118,7 +119,7 @@
 #define LED_SIGNAL           2 /* In a signal handler      N/C    N/C    */
 #define LED_ASSERTION        2 /* An assertion failed      N/C    N/C    */
 #define LED_PANIC            3 /* The system has crashed   N/C  Blinking */
-#undef  LED_IDLE               /* MCU is is sleep mode       Not used    */
+#undef  LED_IDLE               /* MCU is in sleep mode       Not used    */
 
 /* Thus if LED2 is statically on, NuttX has successfully booted and is,
  * apparently, running normmally.  If LED1 is flashing at approximately

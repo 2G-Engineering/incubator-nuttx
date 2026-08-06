@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/rp2040/common/src/rp2040_pwmdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <stdio.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include "rp2040_pwm.h"
@@ -58,11 +60,18 @@ int rp2040_pwmdev_initialize(int      slice,
   int ret;
   struct rp2040_pwm_lowerhalf_s *pwm_lowerhalf;
 
+#if defined(CONFIG_PWM_NCHANNELS) && CONFIG_PWM_NCHANNELS == 2
   pwminfo("Initializing /dev/pwm%d a %d b %d f 0x%08lX..\n",
            slice,
            pin_a,
            pin_b,
            flags);
+#else
+  pwminfo("Initializing /dev/pwm%d %d 0x%08lX..\n",
+           slice,
+           pin,
+           flags);
+#endif
 
   /* Initialize spi device */
 

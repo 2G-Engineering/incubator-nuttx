@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/lpc2378/olimex-lpc2378/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -21,9 +23,5 @@
 include $(TOPDIR)/Make.defs
 
 CSRCS = lpc2378_leds.c
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += lpc2378_appinit.c
-endif
 
 include $(TOPDIR)/boards/Board.mk

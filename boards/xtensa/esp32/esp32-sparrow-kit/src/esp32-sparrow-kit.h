@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/esp32-sparrow-kit/src/esp32-sparrow-kit.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -80,22 +82,9 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=y && CONFIG_BOARDCTL=y :
- *     Called from the NSH library via board_app_initialize()
- *
  ****************************************************************************/
 
 int esp32_bringup(void);
-
-/****************************************************************************
- * Name: esp32_mmcsd_initialize
- *
- * Description:
- *   Initialize SPI-based SD card and card detect thread.
- *
- ****************************************************************************/
-
-int esp32_mmcsd_initialize(int minor);
 
 /****************************************************************************
  * Name: esp32_spiflash_init
@@ -105,6 +94,28 @@ int esp32_mmcsd_initialize(int minor);
  ****************************************************************************/
 
 int esp32_spiflash_init(void);
+
+/****************************************************************************
+ * Name: board_i2sdev_initialize
+ *
+ * Description:
+ *   This function is called by platform-specific, setup logic to configure
+ *   and register the generic I2S audio driver.  This function will register
+ *   the driver as /dev/audio/pcm[x] where x is determined by the I2S port
+ *   number.
+ *
+ * Input Parameters:
+ *   port  - The I2S port used for the device
+ *
+ * Returned Value:
+ *   Zero is returned on success.  Otherwise, a negated errno value is
+ *   returned to indicate the nature of the failure.
+ *
+ ****************************************************************************/
+
+#if defined CONFIG_ESPRESSIF_I2S0 || defined CONFIG_ESPRESSIF_I2S1
+int board_i2sdev_initialize(int port);
+#endif
 
 /****************************************************************************
  * Name: esp32_gpio_init

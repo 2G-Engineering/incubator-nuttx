@@ -50,7 +50,7 @@ config ARCH_CHIP_EFM32GG990F1024
 		This chip is a Giant Gecko with 1024KiB flash and 128KiB RAM in a
 		BGA112 package.
 
-endchoice
+endchoice # EFM32 Chip Selection
 
 # These hidden selections represent automatically selected MCU families and,
 # in turn, select general capabilities of the MCU family
@@ -250,7 +250,7 @@ config EFM32_DMA_ALTDSEC
 	---help---
 		Enable support for alternate descriptors.  Not fully implemented.
 
-endif
+endif # EFM32_DMA
 
 choice
 	prompt "USART0 Mode"
@@ -419,6 +419,7 @@ config LEUART1_2STOP
 endmenu # LEUART1 Configuration
 
 if EFM32_USART_ISSPI
+
 menu "SPI Configuration"
 
 config EFM32_SPI_DMA
@@ -449,7 +450,9 @@ config EFM32_SPI_DMA_MINSIZE
 		based transfers.
 
 endif # EFM32_SPI_DMA
+
 endmenu # SPI Configuration
+
 endif # EFM32_USART_ISSPI
 
 menu "USB FS Host Configuration"
@@ -485,7 +488,7 @@ config EFM32_OTGFS_SOFINTR
 	---help---
 		Enable SOF interrupts.  Why would you ever want to do that?
 
-endmenu
+endmenu # USB FS Host Configuration
 
 config EFM32_TIMER0
 	bool "TIMER0"
@@ -496,7 +499,6 @@ config EFM32_TIMER0_PWM
 	bool "TIMER0 PWM"
 	default n
 	depends on EFM32_TIMER0
-	select ARCH_HAVE_PWM_PULSECOUNT
 	---help---
 		Reserve timer 0 for use by PWM
 
@@ -524,7 +526,6 @@ config EFM32_TIMER1_PWM
 	bool "TIMER1 PWM"
 	default n
 	depends on EFM32_TIMER1
-	select ARCH_HAVE_PWM_PULSECOUNT
 	---help---
 		Reserve timer 0 for use by PWM
 
@@ -552,7 +553,6 @@ config EFM32_TIMER2_PWM
 	bool "TIMER2 PWM"
 	default n
 	depends on EFM32_TIMER2
-	select ARCH_HAVE_PWM_PULSECOUNT
 	---help---
 		Reserve timer 0 for use by PWM
 
@@ -580,7 +580,6 @@ config EFM32_TIMER3_PWM
 	bool "TIMER3 PWM"
 	default n
 	depends on EFM32_TIMER3
-	select ARCH_HAVE_PWM_PULSECOUNT
 	---help---
 		Reserve timer 0 for use by PWM
 

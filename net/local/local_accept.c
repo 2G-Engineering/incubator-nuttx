@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/local/local_accept.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,12 +25,11 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#if defined(CONFIG_NET) && defined(CONFIG_NET_LOCAL_STREAM)
 
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/nuttx.h>
 #include <nuttx/queue.h>
@@ -55,14 +56,16 @@ static int local_waitlisten(FAR struct local_conn_s *server)
     {
       /* No.. wait for a connection or a signal */
 
-      ret = net_sem_wait(&server->lc_waitsem);
+      local_unlock();
+      ret = nxsem_wait(&server->lc_waitsem);
+      local_lock();
       if (ret < 0)
         {
           return ret;
         }
     }
 
-  /* There is a client waiting for the connection */
+  /* There is an accept conn waiting to be processed */
 
   return OK;
 }
@@ -99,16 +102,14 @@ int local_accept(FAR struct socket *psock, FAR struct sockaddr *addr,
                  FAR socklen_t *addrlen, FAR struct socket *newsock,
                  int flags)
 {
-  FAR struct local_conn_s *server;
-  FAR struct local_conn_s *client;
+  FAR struct local_conn_s *server = psock->s_conn;
   FAR struct local_conn_s *conn;
   FAR dq_entry_t *waiter;
   bool nonblock = !!(flags & SOCK_NONBLOCK);
-  int ret;
+  int ret = OK;
 
   /* Some sanity checks */
 
-  DEBUGASSERT(psock && psock->s_conn);
   DEBUGASSERT(newsock && !newsock->s_conn);
 
   /* Is the socket a stream? */
@@ -118,138 +119,52 @@ int local_accept(FAR struct socket *psock, FAR struct sockaddr *addr,
       return -EOPNOTSUPP;
     }
 
-  /* Verify that a valid memory block has been provided to receive the
-   * address
-   */
-
-  server = psock->s_conn;
-
   if (server->lc_proto != SOCK_STREAM ||
-      server->lc_state != LOCAL_STATE_LISTENING ||
-      server->lc_type  != LOCAL_TYPE_PATHNAME)
+      server->lc_state != LOCAL_STATE_LISTENING)
     {
       return -EOPNOTSUPP;
     }
 
   /* Loop as necessary if we have to wait for a connection */
 
+  local_lock();
   for (; ; )
     {
-      /* Are there pending connections.  Remove the client from the
+      /* Are there pending connections.  Remove the accept from the
        * head of the waiting list.
        */
 
       waiter = dq_remfirst(&server->u.server.lc_waiters);
-
       if (waiter)
         {
-          client = container_of(waiter, struct local_conn_s,
-                                u.client.lc_waiter);
+          conn = container_of(waiter, struct local_conn_s,
+                              u.accept.lc_waiter);
 
-          /* Decrement the number of pending clients */
+          /* Decrement the number of pending accepts */
 
           DEBUGASSERT(server->u.server.lc_pending > 0);
           server->u.server.lc_pending--;
 
-          /* Create a new connection structure for the server side of the
-           * connection.
-           */
+          /* Setup the accept socket structure */
 
-          conn = local_alloc();
-          if (!conn)
+          newsock->s_domain = psock->s_domain;
+          newsock->s_type   = SOCK_STREAM;
+          newsock->s_sockif = psock->s_sockif;
+          newsock->s_conn   = (FAR void *)conn;
+
+          /* Return the address family */
+
+          if (addr != NULL && conn->lc_peer != NULL)
             {
-              nerr("ERROR:  Failed to allocate new connection structure\n");
-              ret = -ENOMEM;
-            }
-          else
-            {
-              /* Initialize the new connection structure */
-
-              conn->lc_crefs  = 1;
-              conn->lc_proto  = SOCK_STREAM;
-              conn->lc_type   = LOCAL_TYPE_PATHNAME;
-              conn->lc_state  = LOCAL_STATE_CONNECTED;
-              conn->lc_psock  = psock;
-#ifdef CONFIG_NET_LOCAL_SCM
-              conn->lc_peer   = client;
-              client->lc_peer = conn;
-#endif /* CONFIG_NET_LOCAL_SCM */
-
-              strlcpy(conn->lc_path, client->lc_path, sizeof(conn->lc_path));
-              conn->lc_instance_id = client->lc_instance_id;
-
-              /* Open the server-side write-only FIFO.  This should not
-               * block.
-               */
-
-              ret = local_open_server_tx(conn, nonblock);
-              if (ret < 0)
-                {
-                  nerr("ERROR: Failed to open write-only FIFOs for %s: %d\n",
-                     conn->lc_path, ret);
-                }
+              ret = local_getaddr(conn->lc_peer, addr, addrlen);
             }
 
-          /* Do we have a connection?  Is the write-side FIFO opened? */
-
-          if (ret == OK)
+          if (ret == OK && nonblock)
             {
-              DEBUGASSERT(conn->lc_outfile.f_inode != NULL);
-
-              /* Open the server-side read-only FIFO.  This should not
-               * block because the client side has already opening it
-               * for writing.
-               */
-
-              ret = local_open_server_rx(conn, nonblock);
-              if (ret < 0)
-                {
-                   nerr("ERROR: Failed to open read-only FIFOs for %s: %d\n",
-                        conn->lc_path, ret);
-                }
+              ret = local_set_nonblocking(conn);
             }
 
-          /* Do we have a connection?  Are the FIFOs opened? */
-
-          if (ret == OK)
-            {
-              DEBUGASSERT(conn->lc_infile.f_inode != NULL);
-
-              /* Return the address family */
-
-              if (addr != NULL)
-                {
-                  ret = local_getaddr(client, addr, addrlen);
-                }
-            }
-
-          if (ret == OK)
-            {
-              /* Setup the client socket structure */
-
-              newsock->s_domain = psock->s_domain;
-              newsock->s_type   = SOCK_STREAM;
-              newsock->s_sockif = psock->s_sockif;
-              newsock->s_conn   = (FAR void *)conn;
-            }
-
-          /* Signal the client with the result of the connection */
-
-          client->u.client.lc_result = ret;
-          if (client->lc_state == LOCAL_STATE_CONNECTING)
-            {
-              client->lc_state = LOCAL_STATE_CONNECTED;
-              _SO_SETERRNO(client->lc_psock, ret);
-              local_event_pollnotify(client, POLLOUT);
-            }
-
-          nxsem_post(&client->lc_waitsem);
-
-          if (ret == OK)
-            {
-              ret = net_sem_wait(&client->lc_donesem);
-            }
-
+          local_unlock();
           return ret;
         }
 
@@ -263,6 +178,7 @@ int local_accept(FAR struct socket *psock, FAR struct sockaddr *addr,
         {
           /* Yes.. return EAGAIN */
 
+          local_unlock();
           return -EAGAIN;
         }
 
@@ -271,9 +187,8 @@ int local_accept(FAR struct socket *psock, FAR struct sockaddr *addr,
       ret = local_waitlisten(server);
       if (ret < 0)
         {
+          local_unlock();
           return ret;
         }
     }
 }
-
-#endif /* CONFIG_NET && CONFIG_NET_LOCAL_STREAM */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/mtd/nullmtd.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/ioctl.h>
@@ -355,7 +357,7 @@ FAR struct mtd_dev_s *nullmtd_initialize(size_t mtdlen, int16_t sectsize,
 
   /* Create an instance of the RAM MTD device state structure */
 
-  priv = (FAR struct null_dev_s *)kmm_zalloc(sizeof(struct null_dev_s));
+  priv = kmm_zalloc(sizeof(struct null_dev_s));
   if (!priv)
     {
       ferr("ERROR: Failed to allocate the RAM MTD state structure\n");

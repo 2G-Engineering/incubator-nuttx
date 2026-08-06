@@ -28,20 +28,22 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 #include <sys/param.h>
-#include <nuttx/config.h>
 #include <nuttx/spinlock.h>
 
 #include "xtensa.h"
-#include "xtensa_attr.h"
+#include "esp_attr.h"
 #include "esp32s2_psram.h"
 #include "esp32s2_spiram.h"
 #include "hardware/esp32s2_soc.h"
 #include "hardware/esp32s2_cache_memory.h"
-#include "hardware/esp32s2_extmem.h"
 #include "hardware/esp32s2_iomux.h"
+#include "hal/cache_hal.h"
+
+#include "soc/extmem_reg.h"
+#include "soc/ext_mem_defs.h"
 
 /****************************************************************************
  * Pre-processor Prototypes
@@ -144,7 +146,7 @@ int mmu_map_psram(uint32_t start_paddr, uint32_t end_paddr,
 
   /* should be MMU page aligned */
 
-  assert((start_paddr % MMU_PAGE_SIZE) == 0);
+  ASSERT((start_paddr % MMU_PAGE_SIZE) == 0);
 
   uint32_t start_vaddr = DPORT_CACHE_ADDRESS_LOW;
   uint32_t end_vaddr = start_vaddr + map_length;
@@ -156,7 +158,7 @@ int mmu_map_psram(uint32_t start_paddr, uint32_t end_paddr,
   cache_bus_mask |= (end_vaddr >= DRAM1_ADDRESS_HIGH) ?
                     EXTMEM_PRO_DCACHE_MASK_DRAM0 : 0;
 
-  assert(end_vaddr <= DRAM0_CACHE_ADDRESS_HIGH);
+  ASSERT(end_vaddr <= DRAM0_CACHE_ADDRESS_HIGH);
 
   minfo("start_paddr is %x, map_length is %xB, %d pages",
         start_paddr, map_length, BYTES_TO_MMU_PAGE(map_length));
@@ -206,7 +208,7 @@ void IRAM_ATTR esp_spiram_init_cache(void)
     }
 
   /* After mapping, we DON'T care about the PSRAM PHYSICAL
-   * ADDRESSS ANYMORE!
+   * ADDRESS ANYMORE!
    */
 
   g_allocable_vaddr_start = g_mapped_vaddr_start;
@@ -360,11 +362,31 @@ void IRAM_ATTR esp_spiram_writeback_cache(void)
   cache_writeback_all();
 }
 
-/**
- * @brief If SPI RAM(PSRAM) has been initialized
+/****************************************************************************
+ * Name: esp_spiram_writeback_range
  *
- * @return true SPI RAM has been initialized successfully
- * @return false SPI RAM hasn't been initialized or initialized failed
+ * Description:
+ *   Writeback the Cache items (also clean the dirty bit) in the region from
+ *   DCache. If the region is not in DCache addr room, nothing will be done.
+ *
+ * Input Parameters:
+ *   addr - writeback region start address
+ *   size - writeback region size
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+void esp_spiram_writeback_range(uint32_t addr, uint32_t size)
+{
+  cache_hal_writeback_addr(addr, size);
+}
+
+/* If SPI RAM(PSRAM) has been initialized
+ *
+ * Return true SPI RAM has been initialized successfully
+ * Return false SPI RAM hasn't been initialized or initialized failed
  */
 
 bool esp_spiram_is_initialized(void)

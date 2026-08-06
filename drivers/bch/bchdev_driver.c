@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/bch/bchdev_driver.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,7 +37,7 @@
 #include <errno.h>
 #include <poll.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/ioctl.h>
@@ -55,13 +57,13 @@ static int     bch_open(FAR struct file *filep);
 static int     bch_close(FAR struct file *filep);
 static off_t   bch_seek(FAR struct file *filep, off_t offset, int whence);
 static ssize_t bch_read(FAR struct file *filep, FAR char *buffer,
-                 size_t buflen);
+                        size_t buflen);
 static ssize_t bch_write(FAR struct file *filep, FAR const char *buffer,
-                 size_t buflen);
+                         size_t buflen);
 static int     bch_ioctl(FAR struct file *filep, int cmd,
-                 unsigned long arg);
+                         unsigned long arg);
 static int     bch_poll(FAR struct file *filep, FAR struct pollfd *fds,
-                 bool setup);
+                        bool setup);
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
 static int     bch_unlink(FAR struct inode *inode);
 #endif
@@ -80,7 +82,9 @@ const struct file_operations g_bch_fops =
   bch_ioctl,   /* ioctl */
   NULL,        /* mmap */
   NULL,        /* truncate */
-  bch_poll     /* poll */
+  bch_poll,    /* poll */
+  NULL,        /* readv */
+  NULL         /* writev */
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
   , bch_unlink /* unlink */
 #endif
@@ -118,8 +122,8 @@ static int bch_open(FAR struct file *filep)
   FAR struct bchlib_s *bch;
   int ret = OK;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bch = (FAR struct bchlib_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bch = inode->i_private;
 
   /* Increment the reference count */
 
@@ -155,8 +159,8 @@ static int bch_close(FAR struct file *filep)
   FAR struct bchlib_s *bch;
   int ret = OK;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bch = (FAR struct bchlib_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bch = inode->i_private;
 
   /* Get exclusive access */
 
@@ -168,7 +172,7 @@ static int bch_close(FAR struct file *filep)
 
   /* Flush any dirty pages remaining in the cache */
 
-  bchlib_flushsector(bch);
+  bchlib_flushsector(bch, false);
 
   /* Decrement the reference count (I don't use bchlib_decref() because I
    * want the entire close operation to be atomic wrt other driver
@@ -223,9 +227,9 @@ static off_t bch_seek(FAR struct file *filep, off_t offset, int whence)
   off_t newpos;
   off_t ret;
 
-  DEBUGASSERT(inode && inode->i_private);
+  DEBUGASSERT(inode->i_private);
 
-  bch = (FAR struct bchlib_s *)inode->i_private;
+  bch = inode->i_private;
   ret = nxmutex_lock(&bch->lock);
   if (ret < 0)
     {
@@ -245,7 +249,7 @@ static off_t bch_seek(FAR struct file *filep, off_t offset, int whence)
       break;
 
     case SEEK_END:
-      newpos = bch->sectsize * bch->nsectors + offset;
+      newpos = (off_t)bch->sectsize * bch->nsectors + offset;
       break;
 
     default:
@@ -294,8 +298,8 @@ static ssize_t bch_read(FAR struct file *filep, FAR char *buffer, size_t len)
   FAR struct bchlib_s *bch;
   ssize_t ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bch = (FAR struct bchlib_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bch = inode->i_private;
 
   ret = nxmutex_lock(&bch->lock);
   if (ret < 0)
@@ -324,8 +328,8 @@ static ssize_t bch_write(FAR struct file *filep, FAR const char *buffer,
   FAR struct bchlib_s *bch;
   ssize_t ret = -EACCES;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bch = (FAR struct bchlib_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bch = inode->i_private;
 
   if (!bch->readonly)
     {
@@ -361,8 +365,8 @@ static int bch_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   FAR struct bchlib_s *bch;
   int ret = -ENOTTY;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bch = (FAR struct bchlib_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bch = inode->i_private;
 
   /* Process the call according to the command */
 
@@ -420,14 +424,6 @@ static int bch_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         }
         break;
 
-      case BIOC_FLUSH:
-        {
-          /* Flush any dirty pages remaining in the cache */
-
-          ret = bchlib_flushsector(bch);
-        }
-        break;
-
 #ifdef CONFIG_BCH_ENCRYPTION
       /* This is a request to set the encryption key? */
 
@@ -439,10 +435,30 @@ static int bch_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         break;
 #endif
 
-      /* Otherwise, pass the IOCTL command on to the contained block
-       * driver.
-       */
+      case BIOC_DISCARD:
+        {
+          /* Invalidate the sector so next read is from the device- */
 
+          bch->sector = (size_t)-1;
+          goto ioctl_default;
+        }
+
+      case BIOC_FLUSH:
+        {
+          /* Flush any dirty pages remaining in the cache */
+
+          ret = bchlib_flushsector(bch, false);
+          if (ret < 0)
+            {
+              break;
+            }
+
+          /* Go through */
+        }
+
+      /* Pass the IOCTL command on to the contained block driver. */
+
+ioctl_default:
       default:
         {
           FAR struct inode *bchinode = bch->inode;
@@ -452,6 +468,14 @@ static int bch_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
           if (bchinode->u.i_bops->ioctl != NULL)
             {
               ret = bchinode->u.i_bops->ioctl(bchinode, cmd, arg);
+
+              /* Drivers may not support command BIOC_FLUSH */
+
+              if (ret == -ENOTTY && (cmd == BIOC_FLUSH ||
+                  cmd == BIOC_DISCARD))
+                {
+                  ret = 0;
+                }
             }
         }
         break;
@@ -473,8 +497,8 @@ static int bch_unlink(FAR struct inode *inode)
   FAR struct bchlib_s *bch;
   int ret = OK;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bch = (FAR struct bchlib_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bch = inode->i_private;
 
   /* Get exclusive access to the BCH device */
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/environ/env_dup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -70,16 +72,16 @@ int env_dup(FAR struct task_group_s *group, FAR char * const *envcp)
 
   DEBUGASSERT(group != NULL);
 
-  /* Pre-emption must be disabled throughout the following because the
-   * environment may be shared.
-   */
-
-  sched_lock();
-
   /* Is there an environment ? */
 
-  if (envcp != NULL)
+  if (envcp != NULL && group->tg_envp == NULL)
     {
+      /* Pre-emption must be disabled throughout the following because the
+       * environment may be shared.
+       */
+
+      nxrmutex_lock(&group->tg_mutex);
+
       /* Count the strings */
 
       while (envcp[envc] != NULL)
@@ -88,6 +90,7 @@ int env_dup(FAR struct task_group_s *group, FAR char * const *envcp)
         }
 
       group->tg_envc = envc;
+      group->tg_envpc = (envc + SCHED_ENVIRON_RESERVED + 1);
 
       /* A special case is that the parent has an "empty" environment
        * allocation, i.e., there is an allocation in place but it
@@ -98,7 +101,7 @@ int env_dup(FAR struct task_group_s *group, FAR char * const *envcp)
         {
           /* There is an environment, duplicate it */
 
-          envp = group_malloc(group, sizeof(*envp) * (envc + 1));
+          envp = group_malloc(group, sizeof(*envp) * group->tg_envpc);
           if (envp == NULL)
             {
               /* The parent's environment can not be inherited due to a
@@ -125,6 +128,7 @@ int env_dup(FAR struct task_group_s *group, FAR char * const *envcp)
                         }
 
                       group_free(group, envp);
+                      envp = NULL;
                       ret = -ENOMEM;
                       break;
                     }
@@ -137,9 +141,9 @@ int env_dup(FAR struct task_group_s *group, FAR char * const *envcp)
       /* Save the child environment allocation. */
 
       group->tg_envp = envp;
+      nxrmutex_unlock(&group->tg_mutex);
     }
 
-  sched_unlock();
   return ret;
 }
 

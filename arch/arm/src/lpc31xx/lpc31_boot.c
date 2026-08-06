@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lpc31xx/lpc31_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include "arm.h"
 #include "arm_internal.h"
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 #  include <nuttx/page.h>
 #  include "pg_macros.h"
 #endif
@@ -71,7 +73,7 @@ static const struct section_mapping_s g_section_mapping[] =
 {
   { LPC31_SHADOWSPACE_PSECTION, LPC31_SHADOWSPACE_VSECTION,
     LPC31_SHADOWSPACE_MMUFLAGS, LPC31_SHADOWSPACE_NSECTIONS},
-#ifndef CONFIG_PAGING /* SRAM is already fully mapped */
+#ifndef CONFIG_LEGACY_PAGING /* SRAM is already fully mapped */
   { LPC31_INTSRAM_PSECTION, LPC31_INTSRAM_VSECTION,
     LPC31_INTSRAM_MMUFLAGS, LPC31_INTSRAM_NSECTIONS},
 #endif
@@ -139,7 +141,7 @@ static inline void up_setlevel2coarseentry(uint32_t ctabvaddr,
                                            uint32_t vaddr,
                                            uint32_t mmuflags)
 {
-  uint32_t *ctable  = (uint32_t *)ctabvaddr;
+  uint32_t *ctable = (uint32_t *)ctabvaddr;
   uint32_t  index;
 
   /* The coarse table divides a 1Mb address space up into 256 entries, each
@@ -188,7 +190,7 @@ static void up_setupmappings(void)
  *
  ****************************************************************************/
 
-#if !defined(CONFIG_ARCH_ROMPGTABLE) && defined(CONFIG_ARCH_LOWVECTORS) && defined(CONFIG_PAGING)
+#if !defined(CONFIG_ARCH_ROMPGTABLE) && defined(CONFIG_ARCH_LOWVECTORS) && defined(CONFIG_LEGACY_PAGING)
 static void  up_vectorpermissions(uint32_t mmuflags)
 {
   /* The PTE for the beginning of ISRAM is at the base of the L2 page table */
@@ -246,7 +248,7 @@ static void up_vectormapping(void)
 
   while (vector_paddr < end_paddr)
     {
-      up_setlevel2coarseentry(PGTABLE_L2_COARSE_VBASE,  vector_paddr,
+      up_setlevel2coarseentry(PGTABLE_L2_COARSE_VBASE, vector_paddr,
                               vector_vaddr, MMU_L2_VECTORFLAGS);
       vector_paddr += 4096;
       vector_vaddr += 4096;
@@ -281,7 +283,7 @@ static void up_copyvectorblock(void)
    */
 
 #if !defined(CONFIG_ARCH_ROMPGTABLE) && defined(CONFIG_ARCH_LOWVECTORS) && \
-     defined(CONFIG_PAGING)
+     defined(CONFIG_LEGACY_PAGING)
   up_vectorpermissions(MMU_L2_VECTRWFLAGS);
 #endif
 
@@ -306,7 +308,7 @@ static void up_copyvectorblock(void)
 
   /* Make the vectors read-only, cacheable again */
 
-#if !defined(CONFIG_ARCH_ROMPGTABLE) && defined(CONFIG_ARCH_LOWVECTORS) && defined(CONFIG_PAGING)
+#if !defined(CONFIG_ARCH_ROMPGTABLE) && defined(CONFIG_ARCH_LOWVECTORS) && defined(CONFIG_LEGACY_PAGING)
   up_vectorpermissions(MMU_L2_VECTROFLAGS);
 #endif
 

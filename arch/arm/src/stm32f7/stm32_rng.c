@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/stm32_rng.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/irq.h>
@@ -38,7 +40,7 @@
 #include "hardware/stm32_rng.h"
 #include "arm_internal.h"
 
-#if defined(CONFIG_STM32F7_RNG)
+#if defined(CONFIG_STM32_RNG)
 #if defined(CONFIG_DEV_RANDOM) || defined(CONFIG_DEV_URANDOM_ARCH)
 
 /****************************************************************************
@@ -327,4 +329,4 @@ void devurandom_register(void)
 #endif
 
 #endif /* CONFIG_DEV_RANDOM || CONFIG_DEV_URANDOM_ARCH */
-#endif /* CONFIG_STM32F7_RNG */
+#endif /* CONFIG_STM32_RNG */

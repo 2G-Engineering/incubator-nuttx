@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/renesas/src/m16c/m16c_registerdump.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,8 +27,8 @@
 #include <nuttx/config.h>
 
 #include <stdint.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 
@@ -38,22 +40,12 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_getusrsp
- ****************************************************************************/
-
-uintptr_t up_getusrsp(void *regs)
-{
-  uint8_t *ptr = regs;
-  return (uintptr_t)(ptr[REG_SP] << 8 | ptr[REG_SP + 1]);
-}
-
-/****************************************************************************
  * Name: up_dump_register
  ****************************************************************************/
 
 void up_dump_register(void *dumpregs)
 {
-  volatile uint8_t *ptr = dumpregs ? dumpregs : (uint8_t *)g_current_regs;
+  volatile uint8_t *ptr = dumpregs ? dumpregs : up_current_regs();
 
   /* Dump the interrupt registers */
 

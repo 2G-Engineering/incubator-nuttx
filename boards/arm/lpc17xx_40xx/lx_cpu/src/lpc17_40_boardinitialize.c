@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/lpc17xx_40xx/lx_cpu/src/lpc17_40_boardinitialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <arch/board/board.h>
@@ -51,7 +53,7 @@
 
 void lpc17_40_boardinitialize(void)
 {
-#ifdef CONFIG_SCHED_IRQMONITOR
+#ifdef CONFIG_ARCH_PERF_EVENTS
   up_perf_init((void *)LPC17_40_CCLK);
 #endif
 
@@ -110,6 +112,26 @@ void board_initialize(void)
 {
   /* Perform board-specific initialization */
 
+  lx_cpu_bringup();
+}
+#endif
+
+/****************************************************************************
+ * Name: board_late_initialize
+ *
+ * Description:
+ *   If CONFIG_BOARD_LATE_INITIALIZE is selected, then an additional
+ *   initialization call will be performed in the boot-up sequence to a
+ *   function called board_late_initialize(). board_late_initialize() will be
+ *   called immediately after up_initialize() is called and just before the
+ *   initial application is started.  This additional initialization phase
+ *   may be used, for example, to initialize board-specific device drivers.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_BOARD_LATE_INITIALIZE
+void board_late_initialize(void)
+{
   lx_cpu_bringup();
 }
 #endif

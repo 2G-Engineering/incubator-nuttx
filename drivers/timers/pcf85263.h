@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/timers/pcf85263.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -456,6 +458,7 @@
 /* Stop */
 
 #define PCF85263_CTL_STOP_ENABLE           0x2e      /* Stop enable register */
+#define PCF85263_CTL_RESET_REGISTER        0x2f      /* Reset register */
 #  define PCF85263_CTL_STOP                (1 << 0)  /* Bit 0:  Stop bit */
 
 /* Reset */

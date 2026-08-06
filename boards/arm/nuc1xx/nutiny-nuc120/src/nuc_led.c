@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nuc1xx/nutiny-nuc120/src/nuc_led.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -38,7 +40,7 @@
  *   LED_ASSERTION        An assertion failed      LED ON while handling the
  *                                                        assertion
  *   LED_PANIC            The system has crashed   LED Blinking at 2Hz
- *   LED_IDLE             NUC1XX is is sleep mode   (Optional, not used)
+ *   LED_IDLE             NUC1XX is in sleep mode   (Optional, not used)
  */
 
 /****************************************************************************
@@ -49,7 +51,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <arch/board/board.h>

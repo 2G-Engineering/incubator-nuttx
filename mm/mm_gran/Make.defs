@@ -1,6 +1,8 @@
 ############################################################################
 # mm/mm_gran/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -21,8 +23,9 @@
 # An optional granule allocator
 
 ifeq ($(CONFIG_GRAN),y)
-CSRCS += mm_graninit.c mm_granrelease.c mm_granreserve.c mm_granalloc.c
-CSRCS += mm_granmark.c mm_granfree.c mm_graninfo.c mm_grancritical.c
+
+CSRCS += mm_graninit.c mm_granrelease.c  mm_graninfo.c mm_grancritical.c
+CSRCS += mm_grantable.c mm_granfree.c mm_granalloc.c mm_granreserve.c
 
 # A page allocator based on the granule allocator
 

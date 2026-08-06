@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm64/src/common/arm64_arch.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,23 +28,25 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <arch/arch.h>
 
 /* Unsigned integer with bit position n set (signed in
  * assembly language).
  */
 #ifndef __ASSEMBLY__
   #include <stdint.h>
+  #include <nuttx/nuttx.h>
 #endif
 
 #include <sys/param.h>
+#include <nuttx/bits.h>
 
-#include "barriers.h"
+#include <arch/barriers.h>
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define BIT(n)          ((1UL) << (n))
 #define BIT64(n)        ((1ULL) << (n))
 
 /* Bit mask with bits 0 through n-1 (inclusive) set,
@@ -93,6 +97,30 @@
 #define SCTLR_C_BIT         BIT(2)
 #define SCTLR_SA_BIT        BIT(3)
 #define SCTLR_I_BIT         BIT(12)
+#define SCTLR_BR_BIT        BIT(17)
+
+/* Controls the impact of tag check faults
+ * due to loads and stores in EL0 EL1.
+ */
+
+#define SCTLR_TCF0_BIT       BIT(38)
+#define SCTLR_TCF1_BIT       BIT(40)
+
+/* Controlling EL0 EL1 access to assigned tags */
+
+#define SCTLR_ATA0_BIT       BIT(42)
+#define SCTLR_ATA_BIT        BIT(43)
+
+#define ACTLR_AUX_BIT        BIT(9)
+#define ACTLR_CLPORTS_BIT    BIT(8)
+#define ACTLR_CLPMU_BIT      BIT(7)
+#define ACTLR_TESTR1_BIT     BIT(6)
+#define ACTLR_CDBG_BIT       BIT(5)
+#define ACTLR_PATCH_BIT      BIT(4)
+#define ACTLR_BPRED_BIT      BIT(3)
+#define ACTLR_POWER_BIT      BIT(2)
+#define ACTLR_DIAGNOSTIC_BIT BIT(1)
+#define ACTLR_REGIONS_BIT    BIT(0)
 
 /* SPSR M[3:0] define
  *
@@ -118,7 +146,15 @@
 #define SPSR_MODE_EL1H      (0x5)
 #define SPSR_MODE_EL2T      (0x8)
 #define SPSR_MODE_EL2H      (0x9)
+#define SPSR_MODE_EL3T      (0xc)
+#define SPSR_MODE_EL3H      (0xd)
 #define SPSR_MODE_MASK      (0xf)
+
+#define RGSR_EL1_TAG_MASK   0xfUL
+#define RGSR_EL1_SEED_SHIFT 8
+#define RGSR_EL1_SEED_MASK  0xffffUL
+
+#define TTBR_CNP_BIT        BIT(0)
 
 /* CurrentEL: Current Exception Level */
 
@@ -130,61 +166,24 @@
 #define MODE_EL1            (0x1)
 #define MODE_EL0            (0x0)
 
-/* struct arm64_boot_params member offset for assembly code
- * struct is defined at arm64_cpustart.c
- */
-
-#define BOOT_PARAM_MPID     0
-#define BOOT_PARAM_SP       8
-
 #ifndef __ASSEMBLY__
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define STRINGIFY(x)    #x
-
 #define GET_EL(mode)  (((mode) >> MODE_EL_SHIFT) & MODE_EL_MASK)
 
-/* MPIDR_EL1, Multiprocessor Affinity Register */
-
-#define MPIDR_AFFLVL_MASK   (0xff)
-#define MPIDR_ID_MASK       (0xff00ffffff)
-
-#define MPIDR_AFF0_SHIFT    (0)
-#define MPIDR_AFF1_SHIFT    (8)
-#define MPIDR_AFF2_SHIFT    (16)
-#define MPIDR_AFF3_SHIFT    (32)
-
-/* mpidr_el1 register, the register is define:
- *   - bit 0~7:   Aff0
- *   - bit 8~15:  Aff1
- *   - bit 16~23: Aff2
- *   - bit 24:    MT, multithreading
- *   - bit 25~29: RES0
- *   - bit 30:    U, multiprocessor/Uniprocessor
- *   - bit 31:    RES1
- *   - bit 32~39: Aff3
- *   - bit 40~63: RES0
- *   Different ARM64 Core will use different Affn define, the mpidr_el1
- *  value is not CPU number, So we need to change CPU number to mpid
- *  and vice versa
- */
-
-#define GET_MPIDR()             read_sysreg(mpidr_el1)
+#define MPIDR_ID_MASK (0xff00ffffff)
 
 #define MPIDR_AFFLVL(mpidr, aff_level) \
   (((mpidr) >> MPIDR_AFF ## aff_level ## _SHIFT) & MPIDR_AFFLVL_MASK)
-
-#define MPID_TO_CORE(mpid, aff_level) \
-  (((mpid) >> MPIDR_AFF ## aff_level ## _SHIFT) & MPIDR_AFFLVL_MASK)
 
 #define CORE_TO_MPID(core, aff_level) \
   ({ \
     uint64_t __mpidr = GET_MPIDR(); \
     __mpidr &= ~(MPIDR_AFFLVL_MASK << MPIDR_AFF ## aff_level ## _SHIFT); \
-    __mpidr |= (cpu << MPIDR_AFF ## aff_level ## _SHIFT); \
+    __mpidr |= ((core) << MPIDR_AFF ## aff_level ## _SHIFT); \
     __mpidr &= MPIDR_ID_MASK; \
     __mpidr; \
   })
@@ -209,12 +208,15 @@
 #define ICC_EOIR0_EL1               S3_0_C12_C8_1
 #define ICC_EOIR1_EL1               S3_0_C12_C12_1
 #define ICC_SGI0R_EL1               S3_0_C12_C11_7
+#define ICC_DIR_EL1                 S3_0_C12_C11_1
 
 /* register constants */
 #define ICC_SRE_ELX_SRE_BIT         BIT(0)
 #define ICC_SRE_ELX_DFB_BIT         BIT(1)
 #define ICC_SRE_ELX_DIB_BIT         BIT(2)
-#define ICC_SRE_EL3_EN_BIT          BIT(3)
+#define ICC_SRE_ELX_EN_BIT          BIT(3)
+#define ICC_SRE_EL3_EN_BIT          ICC_SRE_ELX_EN_BIT
+#define ICC_CTLR_EOIMODE_BIT        BIT(1)
 
 /* ICC SGI macros */
 #define SGIR_TGT_MASK               (0xffff)
@@ -265,6 +267,7 @@
 #define HCR_IMO_BIT                 BIT(4)
 #define HCR_AMO_BIT                 BIT(5)
 #define HCR_RW_BIT                  BIT(31)
+#define HCR_ATA_BIT                 BIT(56)
 
 /* CNTHCTL_EL2 bits definitions */
 
@@ -290,64 +293,10 @@
  *  to these memory regions.
  */
 
-#define CONFIG_MAX_XLAT_TABLES      7
-
-/* Virtual address space size
- * Allows choosing one of multiple possible virtual address
- * space sizes. The level of translation table is determined by
- * a combination of page size and virtual address space size.
- *
- * The choice could be: 32, 36, 42, 48
- */
-
-#define CONFIG_ARM64_VA_BITS        36
-
-/* Physical address space size
- * Choose the maximum physical address range that the kernel will support.
- *
- * The choice could be: 32, 36, 42, 48
- */
-
-#define CONFIG_ARM64_PA_BITS        36
+#define CONFIG_MAX_XLAT_TABLES      10
 
 #define L1_CACHE_SHIFT              (6)
 #define L1_CACHE_BYTES              BIT(L1_CACHE_SHIFT)
-
-/****************************************************************************
- * Type Declarations
- ****************************************************************************/
-
-#ifdef CONFIG_ARCH_FPU
-
-/****************************************************************************
- * armv8 fpu registers and context
- ****************************************************************************/
-
-struct fpu_reg
-{
-  __int128 q[32];
-  uint32_t fpsr;
-  uint32_t fpcr;
-  uint64_t fpu_trap;
-};
-
-#endif
-
-/****************************************************************************
- * Registers and exception context
- ****************************************************************************/
-
-struct regs_context
-{
-  uint64_t  regs[31];  /* x0~x30 */
-  uint64_t  sp_elx;
-  uint64_t  elr;
-  uint64_t  spsr;
-  uint64_t  sp_el0;
-  uint64_t  exe_depth;
-  uint64_t  tpidr_el0;
-  uint64_t  tpidr_el1;
-};
 
 /****************************************************************************
  * Public Function Prototypes
@@ -376,13 +325,13 @@ static inline uint8_t getreg8(unsigned long addr)
 
   __asm__ volatile ("ldrb %w0, [%1]" : "=r" (val) : "r" (addr));
 
-  ARM64_DMB();
+  UP_DMB();
   return val;
 }
 
 static inline void putreg8(uint8_t data, unsigned long addr)
 {
-  ARM64_DMB();
+  UP_DMB();
   __asm__ volatile ("strb %w0, [%1]" : : "r" (data), "r" (addr));
 }
 
@@ -392,13 +341,13 @@ static inline uint16_t getreg16(unsigned long addr)
 
   __asm__ volatile ("ldrh %w0, [%1]" : "=r" (val) : "r" (addr));
 
-  ARM64_DMB();
+  UP_DMB();
   return val;
 }
 
 static inline void putreg16(uint16_t data, unsigned long addr)
 {
-  ARM64_DMB();
+  UP_DMB();
   __asm__ volatile ("strh %w0, [%1]" : : "r" (data), "r" (addr));
 }
 
@@ -408,13 +357,13 @@ static inline uint32_t getreg32(unsigned long addr)
 
   __asm__ volatile ("ldr %w0, [%1]" : "=r" (val) : "r" (addr));
 
-  ARM64_DMB();
+  UP_DMB();
   return val;
 }
 
 static inline void putreg32(uint32_t data, unsigned long addr)
 {
-  ARM64_DMB();
+  UP_DMB();
   __asm__ volatile ("str %w0, [%1]" : : "r" (data), "r" (addr));
 }
 
@@ -424,13 +373,13 @@ static inline uint64_t getreg64(unsigned long addr)
 
   __asm__ volatile ("ldr %x0, [%1]" : "=r" (val) : "r" (addr));
 
-  ARM64_DMB();
+  UP_DMB();
   return val;
 }
 
 static inline void putreg64(uint64_t data, unsigned long addr)
 {
-  ARM64_DMB();
+  UP_DMB();
   __asm__ volatile ("str %x0, [%1]" : : "r" (data), "r" (addr));
 }
 
@@ -441,70 +390,47 @@ static inline void arch_nop(void)
 
 /****************************************************************************
  * Name:
- *   read_/write_/zero_ sysreg
+ *   arm64_current_el()
  *
  * Description:
  *
- *   ARMv8 Architecture Registers access method
- *   All the macros need a memory clobber
+ *   Get current execution level
  *
  ****************************************************************************/
 
-#define read_sysreg(reg)                         \
-  ({                                             \
-    uint64_t __val;                              \
-    __asm__ volatile ("mrs %0, " STRINGIFY(reg)  \
-                    : "=r" (__val) :: "memory"); \
-    __val;                                       \
-  })
-
-#define read_sysreg_dump(reg)                    \
-  ({                                             \
-    uint64_t __val;                              \
-    __asm__ volatile ("mrs %0, " STRINGIFY(reg)  \
-                    : "=r" (__val) :: "memory"); \
-    sinfo("%s, regval=0x%llx\n",                 \
-          STRINGIFY(reg), __val);                \
-    __val;                                       \
-  })
-
-#define write_sysreg(__val, reg)                   \
-  ({                                               \
-    __asm__ volatile ("msr " STRINGIFY(reg) ", %0" \
-                      : : "r" (__val) : "memory"); \
-  })
-
-#define zero_sysreg(reg)                            \
-  ({                                                \
-    __asm__ volatile ("msr " STRINGIFY(reg) ", xzr" \
-                      ::: "memory");                \
+#define arm64_current_el()                \
+  ({                                      \
+    uint64_t __el;                        \
+    int      __ret;                       \
+    __asm__ volatile ("mrs %0, CurrentEL" \
+                      : "=r" (__el));     \
+    __ret = GET_EL(__el);                 \
+    __ret;                                \
   })
 
 #define modreg8(v,m,a)  putreg8((getreg8(a) & ~(m)) | ((v) & (m)), (a))
 #define modreg16(v,m,a) putreg16((getreg16(a) & ~(m)) | ((v) & (m)), (a))
 #define modreg32(v,m,a) putreg32((getreg32(a) & ~(m)) | ((v) & (m)), (a))
 
+/* Atomic modification of registers */
+
+void modifyreg8(unsigned int addr, uint8_t clearbits, uint8_t setbits);
+void modifyreg16(unsigned int addr, uint16_t clearbits, uint16_t setbits);
+void modifyreg32(unsigned int addr, uint32_t clearbits, uint32_t setbits);
+
 /****************************************************************************
  * Name:
  *   arch_get_exception_depth
- *   arch_get_current_tcb
  *
  * Description:
  *   tpidrro_el0 is used to record exception depth, it's used for fpu trap
  * happened at exception context (like IRQ).
- *   tpidr_el1 is used to record TCB at present, it's used for fpu and task
- * switch propose
  *
  ****************************************************************************/
 
 static inline int arch_get_exception_depth(void)
 {
   return read_sysreg(tpidrro_el0);
-}
-
-static inline uint64_t arch_get_current_tcb(void)
-{
-  return read_sysreg(tpidr_el1);
 }
 
 void arch_cpu_idle(void);
@@ -569,8 +495,30 @@ void arm64_cpu_enable(void);
 #ifdef CONFIG_SMP
 uint64_t arm64_get_mpid(int cpu);
 #else
-#  define arm64_get_mpid(cpu) GET_MPIDR()
+#  define arm64_get_mpid(cpu) ((void)(cpu), (GET_MPIDR() & MPIDR_ID_MASK))
 #endif /* CONFIG_SMP */
+
+/****************************************************************************
+ * Name: arm64_get_cpuid
+ *
+ * Description:
+ *   The function from mpid to get cpu id
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_SMP
+int arm64_get_cpuid(uint64_t mpid);
+#endif
+
+/****************************************************************************
+ * Name: arm64_mte_init
+ *
+ * Description:
+ *   Initialize MTE settings and enable memory tagging
+ *
+ ****************************************************************************/
+
+void arm64_mte_init(void);
 
 #endif /* __ASSEMBLY__ */
 

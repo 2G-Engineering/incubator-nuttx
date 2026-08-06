@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/nrf53/nrf53_rptun.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,16 +26,16 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/nuttx.h>
 #include <nuttx/kthread.h>
 #include <nuttx/rptun/rptun.h>
+#include <nuttx/signal.h>
 
 #include <nuttx/semaphore.h>
 
 #include "arm_internal.h"
-#include "hardware/nrf53_spu.h"
 
 #include "nrf53_ipc.h"
 
@@ -44,6 +46,10 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+#ifdef CONFIG_NRF53_FLASH_PREFETCH
+#  warning rptun does not seem to work correctly with FLASH cache enabled
+#endif
 
 /* Vring configuration parameters */
 
@@ -89,7 +95,6 @@ struct nrf53_rptun_dev_s
   bool                        master;
   struct nrf53_rptun_shmem_s *shmem;
   char                        cpuname[RPMSG_NAME_SIZE + 1];
-  char                        shmemname[RPMSG_NAME_SIZE + 1];
 };
 
 /****************************************************************************
@@ -97,10 +102,7 @@ struct nrf53_rptun_dev_s
  ****************************************************************************/
 
 static const char *nrf53_rptun_get_cpuname(struct rptun_dev_s *dev);
-static const char *nrf53_rptun_get_firmware(struct rptun_dev_s *dev);
-static const struct rptun_addrenv_s *
-nrf53_rptun_get_addrenv(struct rptun_dev_s *dev);
-static struct rptun_rsc_s *
+static struct resource_table *
 nrf53_rptun_get_resource(struct rptun_dev_s *dev);
 static bool nrf53_rptun_is_autostart(struct rptun_dev_s *dev);
 static bool nrf53_rptun_is_master(struct rptun_dev_s *dev);
@@ -123,8 +125,6 @@ static void nrf53_rptun_panic(struct rptun_dev_s *dev);
 static const struct rptun_ops_s g_nrf53_rptun_ops =
 {
   .get_cpuname       = nrf53_rptun_get_cpuname,
-  .get_firmware      = nrf53_rptun_get_firmware,
-  .get_addrenv       = nrf53_rptun_get_addrenv,
   .get_resource      = nrf53_rptun_get_resource,
   .is_autostart      = nrf53_rptun_is_autostart,
   .is_master         = nrf53_rptun_is_master,
@@ -164,29 +164,10 @@ static const char *nrf53_rptun_get_cpuname(struct rptun_dev_s *dev)
 }
 
 /****************************************************************************
- * Name: nrf53_rptun_get_firmware
- ****************************************************************************/
-
-static const char *nrf53_rptun_get_firmware(struct rptun_dev_s *dev)
-{
-  return NULL;
-}
-
-/****************************************************************************
- * Name: nrf53_rptun_get_addrenv
- ****************************************************************************/
-
-static const struct rptun_addrenv_s *
-nrf53_rptun_get_addrenv(struct rptun_dev_s *dev)
-{
-  return NULL;
-}
-
-/****************************************************************************
  * Name: nrf53_rptun_get_resource
  ****************************************************************************/
 
-static struct rptun_rsc_s *
+static struct resource_table *
 nrf53_rptun_get_resource(struct rptun_dev_s *dev)
 {
   struct nrf53_rptun_dev_s *priv = container_of(dev,
@@ -195,7 +176,7 @@ nrf53_rptun_get_resource(struct rptun_dev_s *dev)
 
   if (priv->shmem != NULL)
     {
-      return &priv->shmem->rsc;
+      return &priv->shmem->rsc.rsc_tbl_hdr;
     }
 
 #ifdef CONFIG_NRF53_APPCORE
@@ -213,7 +194,7 @@ nrf53_rptun_get_resource(struct rptun_dev_s *dev)
       priv->shmem->base             = (uintptr_t)priv->shmem;
 
       rsc->rsc_tbl_hdr.ver          = 1;
-      rsc->rsc_tbl_hdr.num          = 1;
+      rsc->rsc_tbl_hdr.num          = 2;
       rsc->rsc_tbl_hdr.reserved[0]  = 0;
       rsc->rsc_tbl_hdr.reserved[1]  = 0;
       rsc->offset[0]                = offsetof(struct rptun_rsc_s,
@@ -223,7 +204,8 @@ nrf53_rptun_get_resource(struct rptun_dev_s *dev)
       rsc->rpmsg_vdev.id            = VIRTIO_ID_RPMSG;
       rsc->rpmsg_vdev.dfeatures     = 1 << VIRTIO_RPMSG_F_NS
                                     | 1 << VIRTIO_RPMSG_F_ACK
-                                    | 1 << VIRTIO_RPMSG_F_BUFSZ;
+                                    | 1 << VIRTIO_RPMSG_F_BUFSZ
+                                    | 1 << VIRTIO_RPMSG_F_CPUNAME;
       rsc->rpmsg_vdev.config_len    = sizeof(struct fw_rsc_config);
       rsc->rpmsg_vdev.num_of_vrings = VRINGS;
 
@@ -235,6 +217,23 @@ nrf53_rptun_get_resource(struct rptun_dev_s *dev)
       rsc->rpmsg_vring1.notifyid    = VRING1_NOTIFYID;
       rsc->config.r2h_buf_size      = VRING_SIZE;
       rsc->config.h2r_buf_size      = VRING_SIZE;
+      strlcpy((char *)rsc->config.host_cpuname, "appcore",
+              VIRTIO_RPMSG_CPUNAME_SIZE);
+      strlcpy((char *)rsc->config.remote_cpuname, "netcore",
+              VIRTIO_RPMSG_CPUNAME_SIZE);
+
+      /* Carveout, reserved 512 for vring descriptors and memory
+       * management header
+       */
+
+      rsc->offset[1]                = offsetof(struct rptun_rsc_s,
+                                               carveout);
+      rsc->carveout.type            = RSC_CARVEOUT;
+      rsc->carveout.da              = (uintptr_t)rsc + ALIGN_UP(sizeof
+                                      (struct rptun_rsc_s), VRING_ALIGN);
+      rsc->carveout.pa              = FW_RSC_U32_ADDR_ANY;
+      rsc->carveout.len             = VRING_SIZE * VRING_NR * VRINGS + 512;
+      memcpy(rsc->carveout.name, "vdev0buffer", 11);
     }
   else
     {
@@ -242,11 +241,11 @@ nrf53_rptun_get_resource(struct rptun_dev_s *dev)
 
       while (priv->shmem->base == 0)
         {
-          usleep(100);
+          nxsched_usleep(100);
         }
     }
 
-  return &priv->shmem->rsc;
+  return &priv->shmem->rsc.rsc_tbl_hdr;
 }
 
 /****************************************************************************
@@ -362,7 +361,7 @@ static void nrf53_rptun_panic(struct rptun_dev_s *dev)
 
 static void nrf53_ipc_master_callback(int id, void *arg)
 {
-  _info("Rptun IPC master %d\n", id);
+  ipcinfo("Rptun IPC master %d\n", id);
 
   switch (id)
     {
@@ -401,7 +400,7 @@ static void nrf53_rptun_ipc_app(struct nrf53_rptun_dev_s *dev)
 
 static void nrf53_ipc_slave_callback(int id, void *arg)
 {
-  _info("Rptun IPC slave %d\n", id);
+  ipcinfo("Rptun IPC slave %d\n", id);
 
   switch (id)
     {
@@ -476,7 +475,7 @@ static int nrf53_rptun_thread(int argc, char *argv[])
  * Public Functions
  ****************************************************************************/
 
-int nrf53_rptun_init(const char *shmemname, const char *cpuname)
+int nrf53_rptun_init(const char *cpuname)
 {
   struct nrf53_rptun_dev_s *dev = &g_rptun_dev;
   int                       ret = OK;
@@ -494,12 +493,6 @@ int nrf53_rptun_init(const char *shmemname, const char *cpuname)
   dev->master = false;
 #endif
 
-#ifdef CONFIG_NRF53_APPCORE
-  /* Set secure domain - this allows net core to access shared mem */
-
-  putreg32(SPU_EXTDOMAIN_SECUREMAPPING_SECATTR, NRF53_SPU_EXTDOMAIN(0));
-#endif
-
   /* Subscribe to IPC */
 
 #ifdef CONFIG_NRF53_APPCORE
@@ -514,12 +507,11 @@ int nrf53_rptun_init(const char *shmemname, const char *cpuname)
 
   dev->rptun.ops = &g_nrf53_rptun_ops;
   strncpy(dev->cpuname, cpuname, RPMSG_NAME_SIZE);
-  strncpy(dev->shmemname, shmemname, RPMSG_NAME_SIZE);
 
   ret = rptun_initialize(&dev->rptun);
   if (ret < 0)
     {
-      _err("ERROR: rptun_initialize failed %d!\n", ret);
+      ipcerr("ERROR: rptun_initialize failed %d!\n", ret);
       goto errout;
     }
 
@@ -529,7 +521,7 @@ int nrf53_rptun_init(const char *shmemname, const char *cpuname)
                        CONFIG_RPTUN_STACKSIZE, nrf53_rptun_thread, NULL);
   if (ret < 0)
     {
-      _err("ERROR: kthread_create failed %d\n", ret);
+      ipcerr("ERROR: kthread_create failed %d\n", ret);
     }
 
 errout:

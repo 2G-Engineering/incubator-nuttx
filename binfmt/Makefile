@@ -1,6 +1,8 @@
 ############################################################################
 # binfmt/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -24,8 +26,11 @@ include $(TOPDIR)/Make.defs
 
 CSRCS  = binfmt_globals.c binfmt_initialize.c binfmt_register.c binfmt_unregister.c
 CSRCS += binfmt_loadmodule.c binfmt_unloadmodule.c binfmt_execmodule.c
-CSRCS += binfmt_exec.c binfmt_copyargv.c binfmt_dumpmodule.c
-CSRCS += binfmt_coredump.c
+CSRCS += binfmt_exec.c binfmt_copyargv.c binfmt_copyactions.c binfmt_dumpmodule.c
+
+ifeq ($(CONFIG_SCHED_USER_IDENTITY),y)
+CSRCS += binfmt_checkexec.c
+endif
 
 ifeq ($(CONFIG_BINFMT_LOADABLE),y)
 CSRCS += binfmt_exit.c
@@ -41,10 +46,23 @@ ifeq ($(CONFIG_BUILTIN),y)
 CSRCS += builtin.c
 endif
 
+# ELF application interfaces
+
+ifeq ($(CONFIG_ELF),y)
+CSRCS += elf.c
+endif
+
+# NXFLAT application interfaces
+
+ifeq ($(CONFIG_NXFLAT),y)
+CSRCS += nxflat.c
+endif
+
 # Add configured binary modules
 
 include libnxflat/Make.defs
-include libelf/Make.defs
+
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)sched
 
 AOBJS = $(ASRCS:.S=$(OBJEXT))
 COBJS = $(CSRCS:.c=$(OBJEXT))
@@ -81,6 +99,7 @@ clean:
 	$(call CLEAN)
 
 distclean: clean
+	$(call DELFILE, $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds))
 	$(call DELFILE, Make.dep)
 	$(call DELFILE, .depend)
 

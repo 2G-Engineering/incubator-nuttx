@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/ttgo_eink5_v2/src/esp32_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,9 +33,7 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
-#include <syslog.h>
-#include <debug.h>
-#include <stdio.h>
+#include <nuttx/debug.h>
 
 #include <errno.h>
 
@@ -41,15 +41,17 @@
 #  include <nuttx/video/fb.h>
 #endif
 
-#if defined(CONFIG_ESP32_EFUSE)
+#if defined(CONFIG_ESPRESSIF_EFUSE)
 #  include <nuttx/efuse/efuse.h>
-#  include "esp32_efuse.h"
+#  include "espressif/esp_efuse.h"
 #endif
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/himem/himem.h>
 
 #include "esp32_partition.h"
+#include "espressif/esp_gpio.h"
+#include "esp32_start.h"
 
 #ifdef CONFIG_USERLED
 #  include <nuttx/leds/userled.h>
@@ -75,15 +77,15 @@
 #  include "esp32_board_spiflash.h"
 #endif
 
-#ifdef CONFIG_ESP32_BLE
+#ifdef CONFIG_ESPRESSIF_BLE
 #  include "esp32_ble.h"
 #endif
 
-#ifdef CONFIG_ESP32_WIRELESS
+#ifdef CONFIG_ESPRESSIF_WIFI
 #  include "esp32_board_wlan.h"
 #endif
 
-#ifdef CONFIG_ESP32_WIFI_BT_COEXIST
+#ifdef CONFIG_ESPRESSIF_WIFI_BT_COEXIST
 #  include "esp32_wifi_adapter.h"
 #endif
 
@@ -103,7 +105,7 @@
 #  include "esp32_sht3x.h"
 #endif
 
-#ifdef CONFIG_SENSORS_MS5611
+#ifdef CONFIG_SENSORS_MS56XX
 #  include "esp32_ms5611.h"
 #endif
 
@@ -115,16 +117,16 @@
 #  include "esp32_aes.h"
 #endif
 
-#ifdef CONFIG_ESP32_RT_TIMER
-#  include "esp32_rt_timer.h"
-#endif
-
 #ifdef CONFIG_INPUT_BUTTONS
 #  include <nuttx/input/buttons.h>
 #endif
 
 #ifdef CONFIG_RTC_DRIVER
-#  include "esp32_rtc_lowerhalf.h"
+#  include "espressif/esp_rtc.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_HR_TIMER
+#  include "espressif/esp_hr_timer.h"
 #endif
 
 #ifdef CONFIG_SPI_DRIVER
@@ -133,6 +135,10 @@
 
 #ifdef CONFIG_LCD_BACKPACK
 #  include "esp32_lcd_backpack.h"
+#endif
+
+#ifdef CONFIG_MMCSD_SPI
+#  include "esp32_board_sdmmc.h"
 #endif
 
 #include "ttgo_eink5_v2.h"
@@ -149,9 +155,6 @@
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
  *
  ****************************************************************************/
 
@@ -177,8 +180,8 @@ int esp32_bringup(void)
     }
 #endif
 
-#if defined(CONFIG_ESP32_EFUSE)
-  ret = esp32_efuse_initialize("/dev/efuse");
+#if defined(CONFIG_ESPRESSIF_EFUSE)
+  ret = esp_efuse_initialize("/dev/efuse");
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: Failed to init EFUSE: %d\n", ret);
@@ -222,8 +225,8 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_MMCSD
-  ret = esp32_mmcsd_initialize(0);
+#ifdef CONFIG_MMCSD_SPI
+  ret = board_sdmmc_initialize();
   if (ret < 0)
     {
       syslog(LOG_ERR, "Failed to initialize SD slot: %d\n", ret);
@@ -231,7 +234,7 @@ int esp32_bringup(void)
 #endif
 
 #ifdef CONFIG_ESP32_SPIFLASH
-  ret = esp32_spiflash_init();
+  ret = board_spiflash_init();
   if (ret)
     {
       syslog(LOG_ERR, "ERROR: Failed to initialize SPI Flash\n");
@@ -266,15 +269,7 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESP32_RT_TIMER
-  ret = esp32_rt_timer_init();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "Failed to initialize RT timer: %d\n", ret);
-    }
-#endif
-
-#ifdef CONFIG_ESP32_WIFI_BT_COEXIST
+#ifdef CONFIG_ESPRESSIF_WIFI_BT_COEXIST
   ret = esp32_wifi_bt_coexist_init();
   if (ret)
     {
@@ -283,7 +278,7 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESP32_BLE
+#ifdef CONFIG_ESPRESSIF_BLE
   ret = esp32_ble_initialize();
   if (ret)
     {
@@ -291,12 +286,20 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESP32_WIRELESS
+#ifdef CONFIG_ESPRESSIF_WIFI
   ret = board_wlan_init();
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: Failed to initialize wireless subsystem=%d\n",
+      syslog(LOG_ERR, "ERROR: Failed to initialize wlan subsystem=%d\n",
              ret);
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_HR_TIMER
+  ret = esp_hr_timer_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: esp_hr_timer_init() failed: %d\n", ret);
     }
 #endif
 
@@ -306,7 +309,7 @@ int esp32_bringup(void)
 
 #ifdef CONFIG_TIMER
 
-#if defined(CONFIG_ESP32_TIMER0) && !defined(CONFIG_ESP32_RT_TIMER)
+#if defined(CONFIG_ESP32_TIMER0) && !defined(CONFIG_ESPRESSIF_HR_TIMER)
   ret = esp32_timer_initialize("/dev/timer0", TIMER0);
   if (ret < 0)
     {
@@ -415,8 +418,6 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_I2C_DRIVER
-
 #ifdef CONFIG_ESP32_I2C0
   ret = esp32_i2c_register(0);
 
@@ -433,8 +434,6 @@ int esp32_bringup(void)
     {
       syslog(LOG_ERR, "Failed to initialize I2C Driver for I2C1: %d\n", ret);
     }
-#endif
-
 #endif
 
 #ifdef CONFIG_SENSORS_BMP180
@@ -459,7 +458,7 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_SENSORS_MS5611
+#ifdef CONFIG_SENSORS_MS56XX
   /* Try to register MS5611 device in I2C0 as device 0: I2C addr 0x77 */
 
   ret = board_ms5611_initialize(0, 0);
@@ -495,7 +494,7 @@ int esp32_bringup(void)
 #ifdef CONFIG_RTC_DRIVER
   /* Instantiate the ESP32 RTC driver */
 
-  ret = esp32_rtc_driverinit();
+  ret = esp_rtc_driverinit();
   if (ret < 0)
     {
       syslog(LOG_ERR,

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/usensor.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,6 +29,7 @@
 #include <nuttx/list.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
+#include <nuttx/nuttx.h>
 #include <nuttx/sensors/sensor.h>
 
 /****************************************************************************
@@ -47,6 +50,9 @@ static ssize_t usensor_write(FAR struct file *filep, FAR const char *buffer,
                              size_t buflen);
 static int usensor_ioctl(FAR struct file *filep, int cmd,
                          unsigned long arg);
+static int usensor_get_info(FAR struct sensor_lowerhalf_s *lower,
+                            FAR struct file *filep,
+                            FAR struct sensor_device_info_s *info);
 
 /****************************************************************************
  * Private Types
@@ -64,9 +70,10 @@ struct usensor_context_s
 
 struct usensor_lowerhalf_s
 {
-  struct list_node          node;    /* node in all usensor list */
-  struct sensor_lowerhalf_s driver;  /* The lowerhalf driver of user sensor */
-  char                      path[1]; /* The path of usensor character device */
+  struct list_node            node;    /* node in all usensor list */
+  struct sensor_lowerhalf_s   driver;  /* The lowerhalf driver of user sensor */
+  struct sensor_device_info_s devinfo; /* Virtual sensor information */
+  char                        path[1]; /* The path of usensor character device */
 };
 
 /****************************************************************************
@@ -88,6 +95,7 @@ static const struct file_operations g_usensor_fops =
 
 static const struct sensor_ops_s g_usensor_ops =
 {
+  .get_info       = usensor_get_info,
 };
 
 /****************************************************************************
@@ -112,6 +120,8 @@ static int usensor_register(FAR struct usensor_context_s *usensor,
   lower->driver.persist = info->persist;
   lower->driver.ops = &g_usensor_ops;
   strlcpy(lower->path, info->path, size + 1);
+  memcpy(&lower->devinfo, &info->devinfo, sizeof(lower->devinfo));
+
   ret = sensor_custom_register(&lower->driver, lower->path, info->esize);
   if (ret < 0)
     {
@@ -212,6 +222,22 @@ static int usensor_ioctl(FAR struct file *filep, int cmd,
   return ret;
 }
 
+static int usensor_get_info(FAR struct sensor_lowerhalf_s *lower,
+                            FAR struct file *filep,
+                            FAR struct sensor_device_info_s *info)
+{
+  FAR struct usensor_lowerhalf_s *ulower = container_of(lower,
+                                           struct usensor_lowerhalf_s,
+                                           driver);
+  if (ulower->devinfo.name[0] == '\0')
+    {
+      return -ENOTTY;
+    }
+
+  *info = ulower->devinfo;
+  return 0;
+}
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -223,6 +249,7 @@ static int usensor_ioctl(FAR struct file *filep, int cmd,
  *   This function registers usensor character node "/dev/usensor", so that
  *   application can register user sensor by this node. The node will
  *   manager all user sensors in this character driver.
+ *
  ****************************************************************************/
 
 int usensor_initialize(void)

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/efuse/efuse.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,11 +33,11 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/irq.h>
-#include <nuttx/kmalloc.h>
+#include <nuttx/lib/lib.h>
 #include <nuttx/mutex.h>
 #include <nuttx/efuse/efuse.h>
 
@@ -46,7 +48,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 /* This structure describes the state of the upper half driver */
@@ -311,7 +313,7 @@ FAR void *efuse_register(FAR const char *path,
   return (FAR void *)upper;
 
 errout_with_path:
-  kmm_free(upper->path);
+  lib_free(upper->path);
 
 errout_with_upper:
   nxmutex_destroy(&upper->lock);
@@ -356,7 +358,7 @@ void efuse_unregister(FAR void *handle)
 
   /* Then free all of the driver resources */
 
-  kmm_free(upper->path);
+  lib_free(upper->path);
   nxmutex_destroy(&upper->lock);
   kmm_free(upper);
 }

@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/tiva/tm4c123g-launchpad/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -24,10 +26,6 @@ CSRCS = tm4c_boot.c tm4c_bringup.c tm4c_ssi.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += tm4c_autoleds.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += tm4c_appinit.c
 endif
 
 ifeq ($(CONFIG_TIVA_TIMER),y)

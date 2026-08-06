@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/hc_sr04.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -25,7 +40,7 @@
 #include <nuttx/config.h>
 #include <sys/types.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -75,7 +90,7 @@ struct hcsr04_dev_s
   int time_start_pulse;
   int time_finish_pulse;
   volatile bool rising;
-  struct pollfd *fds[CONFIG_HCSR04_NPOLLWAITERS];
+  FAR struct pollfd *fds[CONFIG_HCSR04_NPOLLWAITERS];
 };
 
 /****************************************************************************
@@ -126,7 +141,7 @@ static int hcsr04_start_measuring(FAR struct hcsr04_dev_s *priv)
   /* Send to 10uS trigger pulse */
 
   priv->config->set_trigger(priv->config, true);
-  nxsig_usleep(10);
+  nxsched_usleep(10);
   priv->config->set_trigger(priv->config, false);
 
   return 0;
@@ -280,11 +295,11 @@ static int hcsr04_poll(FAR struct file *filep, FAR struct pollfd *fds,
   int ret = OK;
   int i;
 
-  DEBUGASSERT(filep && fds);
+  DEBUGASSERT(fds);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct hcsr04_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   /* Get exclusive access */
 
@@ -332,7 +347,7 @@ static int hcsr04_poll(FAR struct file *filep, FAR struct pollfd *fds,
       flags = enter_critical_section();
       if (hcsr04_sample(priv))
         {
-          poll_notify(priv->fds, CONFIG_HCSR04_NPOLLWAITERS, POLLIN);
+          poll_notify(&fds, 1, POLLIN);
         }
 
       leave_critical_section(flags);
@@ -341,7 +356,7 @@ static int hcsr04_poll(FAR struct file *filep, FAR struct pollfd *fds,
     {
       /* This is a request to tear down the poll. */
 
-      struct pollfd **slot = (struct pollfd **)fds->priv;
+      FAR struct pollfd **slot = (FAR struct pollfd **)fds->priv;
       DEBUGASSERT(slot != NULL);
 
       /* Remove all memory of the poll setup */
@@ -406,7 +421,7 @@ int hcsr04_register(FAR const char *devpath,
   int ret = 0;
   FAR struct hcsr04_dev_s *priv;
 
-  priv = (struct hcsr04_dev_s *)kmm_zalloc(sizeof(struct hcsr04_dev_s));
+  priv = kmm_zalloc(sizeof(struct hcsr04_dev_s));
 
   if (!priv)
     {

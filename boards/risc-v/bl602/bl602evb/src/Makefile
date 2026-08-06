@@ -1,6 +1,8 @@
 ############################################################################
 # boards/risc-v/bl602/bl602evb/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -23,7 +25,7 @@ include $(TOPDIR)/Make.defs
 CSRCS  = bl602_bringup.c bl602_boot.c
 
 ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += bl602_appinit.c
+CSRCS += bl602_boardctl.c
 ifeq ($(CONFIG_BOARDCTL_RESET),y)
 CSRCS += bl602_reset.c
 endif

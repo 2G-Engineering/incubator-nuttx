@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/hc/src/common/hc_internal.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -71,18 +73,6 @@
 #  define CONFIG_ARCH_INTERRUPTSTACK 0
 #endif
 
-/* The CPU12 stack should be aligned at half-word (2 byte) boundaries. If
- * necessary frame_size must be rounded up to the next boundary
- */
-
-#define STACK_ALIGNMENT     2
-
-/* Stack alignment macros */
-
-#define STACK_ALIGN_MASK    (STACK_ALIGNMENT - 1)
-#define STACK_ALIGN_DOWN(a) ((a) & ~STACK_ALIGN_MASK)
-#define STACK_ALIGN_UP(a)   (((a) + STACK_ALIGN_MASK) & ~STACK_ALIGN_MASK)
-
 #define getreg8(a)          (*(volatile uint8_t *)(a))
 #define putreg8(v,a)        (*(volatile uint8_t *)(a) = (v))
 #define getreg16(a)         (*(volatile uint16_t *)(a))
@@ -95,8 +85,8 @@
  * a referenced is passed to get the state from the TCB.
  */
 
-#define hc_savestate(regs)    hc_copystate(regs, (uint8_t*)g_current_regs)
-#define hc_restorestate(regs) (g_current_regs = regs)
+#define hc_savestate(regs)    hc_copystate(regs, up_current_regs())
+#define hc_restorestate(regs) up_set_current_regs(regs)
 
 /****************************************************************************
  * Public Types

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/sam34/sam_gpioirq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/init.h>
 #include <nuttx/arch.h>
@@ -80,7 +82,7 @@
 static inline uint32_t sam_gpiobase(gpio_pinset_t pinset)
 {
   int port = (pinset & GPIO_PORT_MASK) >> GPIO_PORT_SHIFT;
-  return SAM_PION_BASE(port >> GPIO_PORT_SHIFT);
+  return SAM_PION_BASE(port);
 }
 
 /****************************************************************************

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/litex/hardware/litex_uart.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -42,7 +44,7 @@
 #  define LITEX_UART0_PHY_TUNING_WORD   0xf0002000L
 #endif
 
-#define UART_EV_TX	0x1
-#define UART_EV_RX	0x2
+#define UART_EV_TX  0x1
+#define UART_EV_RX  0x2
 
 #endif /* _ARCH_RISCV_SRC_LITEX_CHIP_LITEX_UART_H */

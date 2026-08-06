@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/s32k1xx/s32k118evb/src/s32k1xx_i2c.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/i2c/i2c_master.h>
 

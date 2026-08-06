@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/sht21.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -27,7 +42,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <time.h>
 
 #include <nuttx/kmalloc.h>
@@ -49,10 +64,6 @@
 #  define sht21_dbg(x, ...)    sninfo(x, ##__VA_ARGS__)
 #endif
 
-#ifndef CONFIG_SHT21_I2C_FREQUENCY
-#  define CONFIG_SHT21_I2C_FREQUENCY 400000
-#endif
-
 /* I2C command bytes */
 
 #define SHT21_TRIG_T_MEAS_HM         0xe3
@@ -62,7 +73,7 @@
 #define SHT21_SOFT_RESET             0xfe
 
 /****************************************************************************
- * Private
+ * Private Types
  ****************************************************************************/
 
 struct sht21_dev_s
@@ -133,7 +144,9 @@ static const struct file_operations g_sht21fops =
   sht21_ioctl,    /* ioctl */
   NULL,           /* mmap */
   NULL,           /* truncate */
-  NULL            /* poll */
+  NULL,           /* poll */
+  NULL,           /* readv */
+  NULL            /* writev */
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
   , sht21_unlink /* unlink */
 #endif
@@ -250,12 +263,12 @@ static bool has_time_passed(struct timespec curr,
                             struct timespec start,
                             unsigned int secs_since_start)
 {
-  if ((long)((start.tv_sec + secs_since_start) - curr.tv_sec) == 0)
+  if ((start.tv_sec + secs_since_start) - curr.tv_sec == 0)
     {
       return start.tv_nsec <= curr.tv_nsec;
     }
 
-  return (long)((start.tv_sec + secs_since_start) - curr.tv_sec) <= 0;
+  return (start.tv_sec + secs_since_start) - curr.tv_sec <= 0;
 }
 
 /****************************************************************************
@@ -591,8 +604,8 @@ static int sht21_unlink(FAR struct inode *inode)
   FAR struct sht21_dev_s *priv;
   int ret;
 
-  DEBUGASSERT(inode != NULL && inode->i_private != NULL);
-  priv = (FAR struct sht21_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private != NULL);
+  priv = inode->i_private;
 
   /* Get exclusive access */
 
@@ -654,7 +667,7 @@ int sht21_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
 
   /* Initialize the device structure */
 
-  priv = (FAR struct sht21_dev_s *)kmm_zalloc(sizeof(struct sht21_dev_s));
+  priv = kmm_zalloc(sizeof(struct sht21_dev_s));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");

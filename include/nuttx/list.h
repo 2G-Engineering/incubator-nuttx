@@ -1,20 +1,40 @@
 /****************************************************************************
  * include/nuttx/list.h
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.  The
- * ASF licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the
- * License.  You may obtain a copy of the License at
+ * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-FileCopyrightText: 2008 Travis Geiselbrecht. All rights reserved.
+ * SPDX-FileContributor: Travis Geiselbrecht <geist@foobox.com>
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ * Extracted from logic originally written by Travis Geiselbrecht and
+ * released under a public domain license.  Re-released here under the 3-
+ * clause BSD license by Pinecone, Inc.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
- * License for the specific language governing permissions and limitations
- * under the License.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in
+ *    the documentation and/or other materials provided with the
+ *    distribution.
+ * 3. Neither the name NuttX nor the names of its contributors may be
+ *    used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+ * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+ * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  *
  ****************************************************************************/
 
@@ -25,21 +45,37 @@
  * Included Files
  ****************************************************************************/
 
-#include <nuttx/nuttx.h>
-
 #include <stddef.h>
 #include <stdbool.h>
+
+#include <nuttx/list_type.h>
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
+/* Name: list_container_of
+ *
+ * Description:
+ *   Cast a member of a structure out to get the address of the containing
+ *   structure
+ *
+ * Arguments:
+ *   ptr    - The pointer to the member.
+ *   type   - The type of the container struct this is embedded in.
+ *   member - The name of the member within the struct.
+ */
+
+#define list_container_of(ptr, type, member) \
+  ((type *)((uintptr_t)(ptr) - offsetof(type, member)))
+
 #define LIST_INITIAL_VALUE(list) { &(list), &(list) }
 #define LIST_INITIAL_CLEARED_VALUE { NULL, NULL }
 
-#define list_in_list(item) ((item)->prev != NULL)
-#define list_is_empty(list) ((list)->next == list)
-#define list_is_clear(list) ((list)->next == NULL)
+#define list_in_list(item)     ((item)->prev != NULL)
+#define list_is_empty(list)    ((list)->next == list)
+#define list_is_clear(list)    ((list)->next == NULL)
+#define list_is_singular(list) ((list)->next == (list)->prev)
 
 #define list_initialize(list) \
   do \
@@ -57,6 +93,8 @@
     } \
   while (0)
 
+#define list_is_head(list, item) ((list)->next == (item))
+#define list_is_tail(list, item) ((list)->prev == (item))
 #define list_peek_head(list) ((list)->next != (list) ? (list)->next : NULL)
 #define list_peek_tail(list) ((list)->prev != (list) ? (list)->prev : NULL)
 
@@ -70,36 +108,11 @@
   ((item)->next != (list) ? (item)->next : \
    (item)->next->next != (list) ? (item)->next->next : NULL)
 
-/**
- * list_entry - get the struct for this entry
- * @ptr: the &struct list_head pointer.
- * @type: the type of the struct this is embedded in.
- * @member: the name of the list_head within the struct.
- */
-#define list_entry(ptr, type, member) \
-           container_of(ptr, type, member)
-
-/**
- * list_first_entry - get the first element from a list
- * @list: the list head to take the element from.
- * @type: the type of the struct this is embedded in.
- * @member: the name of the list_head within the struct.
- *
- * Note, that list is expected to be not empty.
- */
-#define list_first_entry(list, type, member) \
-             list_entry((list)->next, type, member)
-
-/**
- * list_last_entry - get the last element from a list
- * @list: the list head to take the element from.
- * @type: the type of the struct this is embedded in.
- * @member: the name of the list_head within the struct.
- *
- * Note, that list is expected to be not empty.
- */
-#define list_last_entry(list, type, member) \
-           list_entry((list)->prev, type, member)
+#define list_entry(ptr, type, member) list_container_of(ptr, type, member)
+#define list_first_entry(list, type, member) list_container_of((list)->next, type, member)
+#define list_last_entry(list, type, member) list_container_of((list)->prev, type, member)
+#define list_next_entry(list, type, member) list_container_of((list)->member.next, type, member)
+#define list_prev_entry(list, type, member) list_container_of((list)->member.prev, type, member)
 
 #define list_add_after(entry, new_entry) list_add_head(entry, new_entry)
 #define list_add_head(list, item) \
@@ -127,13 +140,28 @@
     } \
   while (0)
 
-#define list_delete(item) \
+#define list_delete_fast(item) \
   do \
     { \
       FAR struct list_node *__item = (item); \
       __item->next->prev = __item->prev; \
       __item->prev->next = __item->next; \
-      __item->prev = __item->next = NULL; \
+    } \
+  while (0)
+
+#define list_delete(item) \
+  do \
+    { \
+      list_delete_fast(item); \
+      list_clear_node(item); \
+    } \
+  while (0)
+
+#define list_delete_init(item) \
+  do \
+    { \
+      list_delete_fast(item); \
+      list_initialize(item); \
     } \
   while (0)
 
@@ -143,7 +171,7 @@
     FAR type *__t = NULL; \
     if(__node) \
       { \
-        __t = container_of(__node, type, member); \
+        __t = list_container_of(__node, type, member); \
       } \
     __t; \
   })
@@ -154,7 +182,7 @@
     FAR type *__t = NULL; \
     if(__node) \
       { \
-        __t = container_of(__node, type, member); \
+        __t = list_container_of(__node, type, member); \
       } \
     __t; \
   })
@@ -165,7 +193,7 @@
     FAR type *__t = NULL; \
     if(__node) \
       { \
-        __t = container_of(__node, type, member); \
+        __t = list_container_of(__node, type, member); \
       } \
     __t; \
   })
@@ -176,7 +204,7 @@
     FAR type *__t = NULL; \
     if(__node) \
       { \
-        __t = container_of(__node, type, member); \
+        __t = list_container_of(__node, type, member); \
       } \
     __t; \
   })
@@ -187,7 +215,7 @@
     FAR type *__t = NULL; \
     if(__node) \
       { \
-        __t = container_of(__node, type, member); \
+        __t = list_container_of(__node, type, member); \
       } \
     __t; \
   })
@@ -198,7 +226,7 @@
     FAR type *__t = NULL; \
     if(__node) \
       { \
-        __t = container_of(__node, type, member); \
+        __t = list_container_of(__node, type, member); \
       } \
     __t; \
   })
@@ -209,7 +237,7 @@
     FAR type *__t = NULL; \
     if(__node) \
       { \
-        __t = container_of(__node, type, member); \
+        __t = list_container_of(__node, type, member); \
       } \
     __t; \
   })
@@ -220,7 +248,7 @@
     FAR type *__t = NULL; \
     if(__node) \
       { \
-        __t = container_of(__node, type, member); \
+        __t = list_container_of(__node, type, member); \
       } \
     __t; \
   })
@@ -241,29 +269,53 @@
 /* iterates over the list, entry should be the container structure type */
 
 #define list_for_every_entry(list, entry, type, member) \
-  for(entry = container_of((list)->next, type, member); \
+  for(entry = list_container_of((list)->next, type, member); \
       &entry->member != (list); \
-      entry = container_of(entry->member.next, type, member))
+      entry = list_container_of(entry->member.next, type, member))
 
 /* iterates over the list in a safe way for deletion of current node
  * entry and temp_entry should be the container structure type *
  */
 
 #define list_for_every_entry_safe(list, entry, temp, type, member) \
-  for(entry = container_of((list)->next, type, member), \
-      temp = container_of(entry->member.next, type, member); \
+  for(entry = list_container_of((list)->next, type, member), \
+      temp = list_container_of(entry->member.next, type, member); \
       &entry->member != (list); entry = temp, \
-      temp = container_of(temp->member.next, type, member))
+      temp = list_container_of(temp->member.next, type, member))
 
-/****************************************************************************
- * Public Type Definitions
- ****************************************************************************/
+/* Iterate from a given entry node */
 
-struct list_node
-{
-  FAR struct list_node *prev;
-  FAR struct list_node *next;
-};
+#define list_for_every_entry_from(list, cur, type, member) \
+  for (; &(cur)->member != (list); \
+       (cur) = list_next_entry(cur, type, member))
+
+/* Iterate from a given entry node in a safe way */
+
+#define list_for_every_entry_safe_from(list, cur, temp, type, member) \
+  for ((temp) = list_next_entry(cur, type, member); \
+       &(cur)->member != (list); \
+       (cur) = (temp), (temp) = list_next_entry(temp, type, member))
+
+/* Prepare entry for use in list_for_every_entry_continue() */
+
+#define list_prepare_entry(entry, list, type, member) \
+  ((entry) ? (entry) : list_entry(list, type, member))
+
+/* Continue iteration over list */
+
+#define list_for_every_entry_continue(entry, list, type, member) \
+  for ((entry) = list_next_entry(entry, type, member); \
+       &(entry)->member != (list); \
+       (entry) = list_next_entry(entry, type, member))
+
+/* iterates over the list in reverse order, entry should be the container
+ * structure type
+ */
+
+#define list_for_every_entry_reverse(list, entry, type, member) \
+  for(entry = list_container_of((list)->prev, type, member); \
+      &entry->member != (list); \
+      entry = list_container_of(entry->member.prev, type, member))
 
 /****************************************************************************
  * Inline Functions

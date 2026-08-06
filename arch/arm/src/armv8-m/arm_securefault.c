@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv8-m/arm_securefault.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,10 +26,12 @@
 
 #include <nuttx/config.h>
 
+#include <nuttx/syslog/syslog.h>
+
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/irq.h>
 
@@ -41,38 +45,6 @@
 
 #ifdef CONFIG_DEBUG_SECUREFAULT
 #  define sfalert(format, ...)  _alert(format, ##__VA_ARGS__)
-
-#  define OFFSET_R0              (0 * 4) /* R0 */
-#  define OFFSET_R1              (1 * 4) /* R1 */
-#  define OFFSET_R2              (2 * 4) /* R2 */
-#  define OFFSET_R3              (3 * 4) /* R3 */
-#  define OFFSET_R12             (4 * 4) /* R12 */
-#  define OFFSET_R14             (5 * 4) /* R14 = LR */
-#  define OFFSET_R15             (6 * 4) /* R15 = PC */
-#  define OFFSET_XPSR            (7 * 4) /* xPSR */
-
-/****************************************************************************
- * Private Functions
- ****************************************************************************/
-
-static void generate_nonsecure_busfault(void)
-{
-  uint32_t nsp;
-
-  /* Get non-secure SP */
-
-  __asm__ __volatile__ ("mrs %0, msp_ns" : "=r" (nsp));
-
-  sfalert("Non-sec sp %08" PRIx32 "\n", nsp);
-  syslog_flush();
-
-  /* Force set return ReturnAddress to 0, then non-secure cpu will crash.
-   * Also, the ReturnAddress is very important, so move it to R12.
-   */
-
-  putreg32(getreg32(nsp + OFFSET_R15), nsp + OFFSET_R12);
-  putreg32(0, nsp + OFFSET_R15);
-}
 #else
 #  define sfalert(...)
 #endif
@@ -80,19 +52,6 @@ static void generate_nonsecure_busfault(void)
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: arm_securefault_should_generate
- *
- * Description:
- *   Check whether should generate non-secure IRQ from securefault
- *
- ****************************************************************************/
-
-bool weak_function arm_should_generate_nonsecure_busfault(void)
-{
-  return true;
-}
 
 /****************************************************************************
  * Name: arm_securefault
@@ -109,12 +68,13 @@ int arm_securefault(int irq, void *context, void *arg)
 
   sfalert("PANIC!!! Secure Fault:\n");
   sfalert("\tIRQ: %d regs: %p\n", irq, context);
-  sfalert("\tBASEPRI: %08x PRIMASK: %08x IPSR: %08"
+  sfalert("\tBASEPRI: %08" PRIx8 " PRIMASK: %08" PRIx8 " IPSR: %08"
           PRIx32 " CONTROL: %08" PRIx32 "\n",
           getbasepri(), getprimask(), getipsr(), getcontrol());
-  sfalert("\tCFSR: %08x HFSR: %08x DFSR: %08x\n", getreg32(NVIC_CFAULTS),
-          getreg32(NVIC_HFAULTS), getreg32(NVIC_DFAULTS));
-  sfalert("\tBFAR: %08x AFSR: %08x SFAR: %08x\n",
+  sfalert("\tCFSR: %08" PRIx32 " HFSR: %08" PRIx32 " DFSR: %08" PRIx32 "\n",
+          getreg32(NVIC_CFAULTS), getreg32(NVIC_HFAULTS),
+          getreg32(NVIC_DFAULTS));
+  sfalert("\tBFAR: %08" PRIx32 " AFSR: %08" PRIx32 " SFAR: %08" PRIx32 "\n",
           getreg32(NVIC_BFAULT_ADDR), getreg32(NVIC_AFAULTS),
           getreg32(SAU_SFAR));
 
@@ -154,17 +114,15 @@ int arm_securefault(int irq, void *context, void *arg)
       sfalert("\tLazy state error\n");
     }
 
-  /* clear SFSR sticky bits */
-
-  putreg32(0xff, SAU_SFSR);
-
 #ifdef CONFIG_DEBUG_SECUREFAULT
-  if (arm_should_generate_nonsecure_busfault())
+  if (arm_gen_nonsecurefault(irq, context))
     {
-      generate_nonsecure_busfault();
+      putreg32(0xff, SAU_SFSR);
       return OK;
     }
 #endif
+
+  putreg32(0xff, SAU_SFSR);
 
   up_irq_save();
   PANIC_WITH_REGS("panic", context);

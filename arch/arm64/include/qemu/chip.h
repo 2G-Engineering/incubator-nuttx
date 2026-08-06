@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm64/include/qemu/chip.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,11 @@
 
 #include <nuttx/config.h>
 
-/* Number of bytes in @p x kibibytes/mebibytes/gibibytes */
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+/* Number of bytes in x kibibytes/mebibytes/gibibytes */
 
 #define KB(x)           ((x) << 10)
 #define MB(x)           (KB(x) << 10)
@@ -35,32 +41,55 @@
 
 #if defined(CONFIG_ARCH_CHIP_QEMU)
 
-#if CONFIG_ARM_GIC_VERSION == 2
+#if CONFIG_ARM64_GIC_VERSION == 2
 
-#define CONFIG_GICD_BASE          0x8000000
-#define CONFIG_GICR_BASE          0x8010000
+#define CONFIG_GICD_BASE           0x8000000
+#define CONFIG_GICR_BASE           0x8010000
+#define CONFIG_GICM_BASE           0x8020000
 
-#elif CONFIG_ARM_GIC_VERSION == 3 || CONFIG_ARM_GIC_VERSION == 4
+#elif CONFIG_ARM64_GIC_VERSION == 3 || CONFIG_ARM64_GIC_VERSION == 4
 
-#define CONFIG_GICD_BASE          0x8000000
-#define CONFIG_GICR_BASE          0x80a0000
-#define CONFIG_GICR_OFFSET        0x20000
+#define CONFIG_GICD_BASE           0x8000000
+#define CONFIG_GICR_BASE           0x80a0000
+#define CONFIG_GICR_OFFSET         0x20000
 #else
 
-#error CONFIG_ARM_GIC_VERSION should be 2, 3 or 4
+#error CONFIG_ARM64_GIC_VERSION should be 2, 3 or 4
 
-#endif /* CONFIG_ARM_GIC_VERSION */
+#endif /* CONFIG_ARM64_GIC_VERSION */
 
-#define CONFIG_RAMBANK1_ADDR      0x40000000
-#define CONFIG_RAMBANK1_SIZE      MB(128)
+#define CONFIG_RAMBANK1_ADDR       0x40000000
+#define CONFIG_RAMBANK1_SIZE       MB(128)
 
-#define CONFIG_DEVICEIO_BASEADDR  0x7000000
-#define CONFIG_DEVICEIO_SIZE      MB(512)
+#define CONFIG_DEVICEIO_BASEADDR   0x7000000
+#define CONFIG_DEVICEIO_SIZE       MB(512)
 
-#define CONFIG_LOAD_BASE          0x40280000
+#define CONFIG_PCI_CFG_BASEADDR    0x4010000000
+#define CONFIG_PCI_CFG_SIZE        MB(256)
 
-#define MPID_TO_CLUSTER_ID(mpid)  ((mpid) & ~0xff)
+#define CONFIG_PCI_MEM_BASEADDR    0x8000000000
+#define CONFIG_PCI_MEM_SIZE        GB(512)
+
+#define CONFIG_PCI_IO_BASEADDR     0x3eff0000
+#define CONFIG_PCI_IO_SIZE         KB(64)
+
+#define CONFIG_LOAD_BASE           0x40280000
+
+#define MPID_TO_CLUSTER_ID(mpid)   ((mpid) & ~0xff)
 
 #endif
+
+/****************************************************************************
+ * Assembly Macros
+ ****************************************************************************/
+
+#ifdef __ASSEMBLY__
+
+.macro  get_cpu_id xreg0
+  mrs    \xreg0, mpidr_el1
+  ubfx   \xreg0, \xreg0, #0, #8
+.endm
+
+#endif /* __ASSEMBLY__ */
 
 #endif /* __ARCH_ARM64_INCLUDE_QEMU_CHIP_H */

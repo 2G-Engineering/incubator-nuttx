@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/common/riscv_macros.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -100,13 +102,6 @@
 
 .macro riscv_savefpu in
 
-#ifdef CONFIG_ARCH_FPU
-  REGLOAD    t0, REG_INT_CTX(\in)
-  li         t1, MSTATUS_FS
-  and        t0, t0, t1
-  li         t1, MSTATUS_FS_INIT
-  ble        t0, t1, 1f
-
   /* Store all floating point registers */
 
   FSTORE     f0,  REG_F0(\in)
@@ -145,13 +140,47 @@
   frcsr      t0
   REGSTORE   t0, REG_FCSR(\in)
 
-1:
+.endm
 
-  /* Restore what we have just destroyed (t0, t1) */
+/****************************************************************************
+ * Name: riscv_savevpu
+ *
+ * Parameter:
+ *   in - Pointer to where the save is performed (e.g. sp)
+ *
+ * Description:
+ *   Save the VPU context registers (i.e. work / temp / etc).
+ *
+ ****************************************************************************/
 
-  REGLOAD      t0, REG_T0(\in)
-  REGLOAD      t1, REG_T1(\in)
-#endif
+.macro riscv_savevpu in
+
+  /* Store all vector registers */
+
+  mv         t1, \in
+
+  csrr       t0,  CSR_VSTART
+  REGSTORE   t0,  REG_VSTART(t1)
+  csrr       t0,  CSR_VTYPE
+  REGSTORE   t0,  REG_VTYPE(t1)
+  csrr       t0,  CSR_VL
+  REGSTORE   t0,  REG_VL(t1)
+  csrr       t0,  CSR_VCSR
+  REGSTORE   t0,  REG_VCSR(t1)
+  csrr       t0,  CSR_VLENB
+  REGSTORE   t0,  REG_VLENB(t1)
+
+  addi       t1,  t1, VPU_XCPT_SIZE
+
+  vsetvli    t2,  x0, e8, m8, ta, ma
+
+  vse8.v     v0,  (t1)
+  add        t1,  t1, t2
+  vse8.v     v8,  (t1)
+  add        t1,  t1, t2
+  vse8.v     v16, (t1)
+  add        t1,  t1, t2
+  vse8.v     v24, (t1)
 
 .endm
 
@@ -216,13 +245,6 @@
 
 .macro riscv_loadfpu out
 
-#ifdef CONFIG_ARCH_FPU
-  REGLOAD      t0, REG_INT_CTX(\out)
-  li           t1, MSTATUS_FS
-  and          t0, t0, t1
-  li           t1, MSTATUS_FS_INIT
-  ble          t0, t1, 1f
-
   /* Load all floating point registers */
 
   FLOAD        f0, REG_F0(\out)
@@ -263,13 +285,46 @@
   REGLOAD      t0, REG_FCSR(\out)
   fscsr        t0
 
-1:
+.endm
 
-  /* Restore what we have just destroyed (t0, t1) */
+/****************************************************************************
+ * Name: riscv_loadvpu
+ *
+ * Parameter:
+ *   out - Pointer to where the load is performed (e.g. sp)
+ *
+ * Description:
+ *   Load the VPU context registers (i.e. work / temp / etc).
+ *
+ ****************************************************************************/
 
-  REGLOAD      t0, REG_T0(\out)
-  REGLOAD      t1, REG_T1(\out)
-#endif
+.macro riscv_loadvpu out
+
+  /* Load all vector registers */
+
+  mv         t0, \out
+  addi       t1, t0, VPU_XCPT_SIZE
+
+  vsetvli    t2, x0, e8, m8, ta, ma
+
+  vle8.v     v0,  (t1)
+  add        t1,  t1, t2
+  vle8.v     v8,  (t1)
+  add        t1,  t1, t2
+  vle8.v     v16, (t1)
+  add        t1,  t1, t2
+  vle8.v     v24, (t1)
+
+  mv         t1, t0
+
+  REGLOAD    t0, REG_VTYPE(t1)
+  REGLOAD    t3, REG_VL(t1)
+  vsetvl     x0, t3, t0
+
+  REGLOAD    t0, REG_VSTART(t1)
+  csrw       CSR_VSTART, t0
+  REGLOAD    t0, REG_VCSR(t1)
+  csrw       CSR_VCSR, t0
 
 .endm
 
@@ -287,27 +342,82 @@
 #if CONFIG_ARCH_INTERRUPTSTACK > 15
 #if !defined(CONFIG_SMP) && !defined(CONFIG_ARCH_USE_S_MODE)
 .macro  setintstack tmp0, tmp1
-  la    sp, g_intstacktop
+
+  /* Load g_intstacktop (the start of the interrupt stack) */
+  la    \tmp0, g_intstacktop
+
+  /* Load g_intstackalloc (the end of the interrupt stack) */
+  la    \tmp1, g_intstackalloc
+
+  /* Check if sp is below g_intstackalloc (outside the interrupt stack) */
+  blt   sp, \tmp1, 1f
+
+  /* Check if sp is above g_intstacktop (outside the interrupt stack) */
+  bgt   sp, \tmp0, 1f
+
+  /* If sp is within the interrupt stack boundaries, no action is required */
+  j     2f
+
+1:
+  /* Set sp to g_intstacktop (switch to the interrupt stack) */
+  mv    sp, \tmp0
+
+2:
 .endm
 #endif /* !defined(CONFIG_SMP) && !defined(CONFIG_ARCH_USE_S_MODE) */
 #endif /* CONFIG_ARCH_INTERRUPTSTACK > 15 */
 
 /****************************************************************************
- * Name: riscv_mhartid
- *
- * Description:
- *   Context aware way to query hart id
- *
- * Returned Value:
- *   Hart id
- *
+ * Name: up_cpu_index
  ****************************************************************************/
 
-.macro  riscv_mhartid out
-#ifdef CONFIG_ARCH_USE_S_MODE
+.macro  up_cpu_index out
+#ifdef CONFIG_RISCV_PERCPU_SCRATCH
   csrr    \out, CSR_SCRATCH
   REGLOAD \out, RISCV_PERCPU_HARTID(\out)
 #else
-  csrr    \out, mhartid
+  csrr    \out, CSR_MHARTID
 #endif
+.endm
+
+/****************************************************************************
+ * Name: riscv_set_inital_sp
+ *
+ * Description:
+ *   Set initial sp for riscv core. This function should be only called
+ *   when initing.
+ *
+ *   sp (stack top) = sp base + idle stack size * hart id
+ *   sp (stack base) = sp (stack top) + idle stack size * - XCPTCONTEXT_SIZE
+ *
+ *   Note: The XCPTCONTEXT_SIZE byte after stack base is reserved for
+ *         up_initial_state since we are already running and using
+ *         the per CPU idle stack.
+ *
+ *   TODO: Support non-zero boot hart.
+ *
+ * Parameter:
+ *   base - Pointer to where the stack is allocated (e.g. _ebss)
+ *   size - Stack size for pre cpu to allocate
+ *   hartid - Hart id register of this hart (Usually a0)
+ *
+ ****************************************************************************/
+.macro riscv_set_inital_sp base, size, hartid
+  la      t0, \base
+  li      t1, \size
+  mul     t1, \hartid, t1
+  add     t0, t0, t1
+
+  /* ensure the last XCPTCONTEXT_SIZE is reserved for non boot CPU */
+
+  bnez \hartid, 998f
+  li   t1, STACKFRAME_ALIGN_DOWN(\size)
+  j    999f
+
+998:
+  li   t1, STACKFRAME_ALIGN_DOWN(\size - XCPTCONTEXT_SIZE)
+
+999:
+  add  t0, t0, t1
+  mv   sp, t0
 .endm

@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/aio/aio_read.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <aio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 
@@ -218,6 +220,34 @@ int aio_read(FAR struct aiocb *aiocbp)
   int ret;
 
   DEBUGASSERT(aiocbp);
+
+  if (aiocbp->aio_reqprio < 0)
+    {
+      set_errno(EINVAL);
+      return ERROR;
+    }
+
+  if (aiocbp->aio_fildes < 0)
+    {
+      /* the EBADF should be collected by aio_error(), we need return OK at
+       * here
+       */
+
+      aiocbp->aio_result = -EBADF;
+      return OK;
+    }
+
+  /* for aio_read, the aio_offset should be large or equal than 0 */
+
+  if (aiocbp->aio_offset < 0)
+    {
+      /* the EINVAL should be collected by aio_error(), we need to return OK
+       * here
+       */
+
+      aiocbp->aio_result = -EINVAL;
+      return OK;
+    }
 
   /* The result -EINPROGRESS means that the transfer has not yet completed */
 

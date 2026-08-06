@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32h7/nucleo-h743zi2/src/stm32_pwm.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 #include <sys/types.h>
 
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/timers/pwm.h>
 #include <arch/board/board.h>
@@ -82,7 +84,7 @@ int stm32_pwm_setup(void)
 
       /* Register the PWM driver at "/dev/pwm0" */
 
- #if defined(CONFIG_STM32H7_TIM1_PWM)
+ #if defined(CONFIG_STM32_TIM1_PWM)
       ret = pwm_register("/dev/pwm0", pwm);
       if (ret < 0)
         {
@@ -91,7 +93,7 @@ int stm32_pwm_setup(void)
         }
 #endif
 
-#if defined(CONFIG_STM32H7_TIM3_PWM)
+#if defined(CONFIG_STM32_TIM3_PWM)
       ret = pwm_register("/dev/pwm2", pwm);
       if (ret < 0)
         {

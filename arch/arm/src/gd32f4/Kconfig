@@ -60,6 +60,19 @@ config ARCH_CHIP_GD32F450IK
 	---help---
 		GD32 F4 Cortex M4, 3072 Kb FLASH, 256 Kb SRAM
 
+config ARCH_CHIP_GD32F470ZK
+	bool "GD32F470ZK"
+	select GD32F4_GD32F4XX
+	select GD32F4_GD32F470Z_I
+	---help---
+		GD32 F4 Cortex M4, 3072 Kb FLASH, 256 Kb SRAM
+
+config ARCH_CHIP_GD32F470IK
+	bool "GD32F470IK"
+	select GD32F4_GD32F4XX
+	select GD32F4_GD32F470Z_I
+	---help---
+		GD32 F4 Cortex M4, 3072 Kb FLASH, 256 Kb SRAM
 
 endchoice # GD32F4 Chip Seclection
 
@@ -72,10 +85,10 @@ choice
 		ends with a number or letter that designates the FLASH size.
 
 				Designator  Size in KiB
-				   E   	512
-				   G   	1024
-				   I   	2048
-				   K   	3072
+				   E    512
+				   G    1024
+				   I    2048
+				   K    3072
 
 		This configuration option defaults to using the configuration based
 		on that designator or the default smaller size if there is no last
@@ -131,6 +144,13 @@ config GD32F4_GD32F450Z_I
 	default n
 	select GD32F4_GD32F450
 	select GD32F4_HAVE_SPI5
+config GD32F4_GD32F470Z_I
+	# bool "GD32F470Z or GD32F470I"
+	bool
+	default n
+	select GD32F4_GD32F470
+	select GD32F4_HAVE_SPI5
+	select GD32F4_HAVE_SDIO
 
 config GD32F4_GD32F450XI
 	# bool "GD32F450xI, 512K SRAM"
@@ -143,6 +163,17 @@ config GD32F4_GD32F450V
 	select GD32F4_GD32F450
 
 config GD32F4_GD32F450
+	bool
+	default n
+	select GD32F4_HAVE_ENETMAC
+	select GD32F4_HAVE_IPA
+	select GD32F4_HAVE_SPI3
+	select GD32F4_HAVE_SPI4
+	select GD32F4_HAVE_TLI
+	select GD32F4_HAVE_UART6
+	select GD32F4_HAVE_UART7
+	
+config GD32F4_GD32F470
 	bool
 	default n
 	select GD32F4_HAVE_ENETMAC
@@ -667,7 +698,7 @@ config ARCH_BOARD_GD32F4_CUSTOM_CLOCKCONFIG
 
 config GD32F4_TCMEXCLUDE
 	bool "Exclude TCM SRAM from the heap"
-	default y if ARCH_DMA || LIBC_ARCH_ELF
+	default ARCH_DMA || LIBC_ARCH_ELF
 	depends on GD32F4_HAVE_TCM
 	---help---
 		Exclude TCM SRAM from the HEAP because it cannot be used for DMA
@@ -702,7 +733,6 @@ config GD32F4_TICKLESS_TIMER
 	int "Tickless by hardware timer"
 	default 1
 	range 0 13
-	depends on !GD32F4_TICKLESS_SYSTICK
 	---help---
 		If the Tickless OS feature is enabled, then one clock must be
 		assigned to provided the timer needed by the OS.
@@ -744,15 +774,14 @@ config GD32F4_ONESHOT_MAXTIMERS
 		timers that you can use.
 
 # config GD32F4_TIMER0
-# 	bool "TIMER0"
-# 	default n
-# 	depend on GD32F4_HAVE_TIMER0
+#	bool "TIMER0"
+#	default n
+#	depend on GD32F4_HAVE_TIMER0
 
 config GD32F4_TIMER0_PWM
 	bool "TIMER0 PWM"
 	default n
 	depends on GD32F4_TIMER0
-	select ARCH_HAVE_PWM_PULSECOUNT
 	---help---
 		Reserve timer 0 for use by PWM
 
@@ -1169,8 +1198,7 @@ config GD32F4_ADC0_DMA
 config GD32F4_ADC0_SCAN
 	bool "ADC0 scan mode"
 	depends on GD32F4_ADC0
-	default y if GD32F4_ADC0_DMA
-	default n
+	default GD32F4_ADC0_DMA
 
 config GD32F4_ADC0_DMA_CFG
 	int "ADC0 DMA configuration"
@@ -1203,8 +1231,7 @@ config GD32F4_ADC1_DMA
 config GD32F4_ADC1_SCAN
 	bool "ADC1 scan mode"
 	depends on GD32F4_ADC1
-	default y if GD32F4_ADC1_DMA
-	default n
+	default GD32F4_ADC1_DMA
 
 config GD32F4_ADC1_DMA_CFG
 	int "ADC1 DMA configuration"
@@ -1237,8 +1264,7 @@ config GD32F4_ADC2_DMA
 config GD32F4_ADC2_SCAN
 	bool "ADC2 scan mode"
 	depends on GD32F4_ADC2
-	default y if GD32F4_ADC2_DMA
-	default n
+	default GD32F4_ADC2_DMA
 
 config GD32F4_ADC2_DMA_CFG
 	int "ADC2 DMA configuration"
@@ -2023,7 +2049,7 @@ config GD32F4_PM_SERIAL_ACTIVITY
 		PM activity reported to power management logic on every serial
 		interrupt.
 
-endif
+endif # PM
 
 endmenu # USART Configuration
 
@@ -2134,6 +2160,7 @@ config GD32F4_RTC_HXTALCLOCK
 		The RTC clock source is the HXTAL clock, divided down to 1MHz.
 
 endchoice # RTC clock source
+
 endmenu # RTC configuration
 
 
@@ -2169,7 +2196,7 @@ config GD32F4_SDIO_WIDTH_D1_ONLY
 	---help---
 		Select 1-bit transfer mode.  Default: 4-bit transfer mode.
 
-endmenu
+endmenu # SDIO Configuration
 
 menu "SPI Configuration"
 	depends on GD32F4_SPI
@@ -2364,7 +2391,7 @@ config GD32F4_MII_EXTCLK
 		MII clock is provided by external clock. And not use CKOUT for
 		MII clock.
 
-endchoice
+endchoice # MII clock configuration
 
 config GD32F4_AUTO_NEGOTIATION
 	bool "Use autonegotiation"
@@ -2481,7 +2508,7 @@ config GD32F4_ENET_PTP
 
 config GD32F4_RMII
 	bool "Use the reduced media-independent interface (RMII) interface"
-	default y if !GD32F4_MII
+	default !GD32F4_MII
 	---help---
 		Select Ethernet MII interface. The application can only select one of
 		the MII or RMII mode.
@@ -2543,8 +2570,7 @@ comment "USB Device Configuration"
 
 config GD32F4_USB_ITRMP
 	bool "Re-map USB interrupt"
-	default n if !GD32F4_CAN1
-	default y if GD32F4_CAN1
+	default GD32F4_CAN1
 	depends on GD32F4_USB && GD32F4_GD32F4XX
 	---help---
 		The legacy USB in the F1 series shared interrupt lines with USB

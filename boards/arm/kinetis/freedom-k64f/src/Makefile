@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/kinetis/freedom-k64f/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,7 +22,7 @@
 
 include $(TOPDIR)/Make.defs
 
-CSRCS = k64_boot.c k64_spi.c
+CSRCS = k64_bringup.c k64_boot.c k64_spi.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += k64_autoleds.c
@@ -30,12 +32,6 @@ endif
 
 ifeq ($(CONFIG_ARCH_BUTTONS),y)
 CSRCS += k64_buttons.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += k64_appinit.c k64_bringup.c
-else ifeq ($(CONFIG_BOARD_LATE_INITIALIZE),y)
-CSRCS += k64_bringup.c
 endif
 
 ifeq ($(CONFIG_I2C),y)

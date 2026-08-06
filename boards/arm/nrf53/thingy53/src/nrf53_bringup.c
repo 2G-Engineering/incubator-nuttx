@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nrf53/thingy53/src/nrf53_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -52,10 +54,7 @@
 
 #ifdef CONFIG_RPTUN
 #  include <nuttx/wireless/bluetooth/bt_rpmsghci.h>
-#  ifdef CONFIG_UART_BTH4
-#    include <nuttx/serial/uart_bth4.h>
-#  endif
-#  ifdef CONFIG_NET_BLUETOOTH
+#  ifdef CONFIG_DRIVERS_BLUETOOTH
 #    include <nuttx/wireless/bluetooth/bt_driver.h>
 #  endif
 #  include "nrf53_rptun.h"
@@ -66,8 +65,6 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-#define NRF53_TIMER (0)
 
 /****************************************************************************
  * Private Functions
@@ -86,28 +83,18 @@ static int nrf53_appcore_bleinit(void)
 #ifdef CONFIG_BLUETOOTH_RPMSG
   struct bt_driver_s *bt_dev = NULL;
 
-  bt_dev = rpmsghci_register("appcore", "bthci");
+  bt_dev = rpmsghci_register("netcore", "bthci");
   if (bt_dev == NULL)
     {
       syslog(LOG_ERR, "ERROR: rpmsghci_register() failed: %d\n", -errno);
       return -ENOMEM;
     }
 
-#  ifdef CONFIG_UART_BTH4
-  /* Register UART BT H4 device */
-
-  ret = uart_bth4_register("/dev/ttyHCI", bt_dev);
+#  ifdef CONFIG_DRIVERS_BLUETOOTH
+  ret = bt_driver_register(bt_dev);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "bt_bth4_register error: %d\n", ret);
-    }
-#  elif defined(CONFIG_NET_BLUETOOTH)
-  /* Register network device */
-
-  ret = bt_netdev_register(bt_dev);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "bt_netdev_register error: %d\n", ret);
+      syslog(LOG_ERR, "bt_driver_register error: %d\n", ret);
     }
 #  else
 #    error
@@ -157,9 +144,9 @@ static int nrf53_netcore_bleinit(void)
 void rpmsg_serialinit(void)
 {
 #ifdef CONFIG_NRF53_APPCORE
-  uart_rpmsg_init("appcore", "proxy", 4096, false);
+  uart_rpmsg_init("netcore", "proxy", 4096, false);
 #else
-  uart_rpmsg_init("netcore", "proxy", 4096, true);
+  uart_rpmsg_init("appcore", "proxy", 4096, true);
 #endif
 }
 #endif
@@ -172,9 +159,6 @@ void rpmsg_serialinit(void)
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
  *
  ****************************************************************************/
 
@@ -205,9 +189,9 @@ int nrf53_bringup(void)
 
 #ifdef CONFIG_RPTUN
 #ifdef CONFIG_NRF53_APPCORE
-  nrf53_rptun_init("nrf53-shmem", "appcore");
+  nrf53_rptun_init("netcore");
 #else
-  nrf53_rptun_init("nrf53-shmem", "netcore");
+  nrf53_rptun_init("appcore");
 #endif
 #endif
 
@@ -247,6 +231,28 @@ int nrf53_bringup(void)
       syslog(LOG_ERR, "ERROR: nrf53_netcore_bleinit failed: %d\n", ret);
     }
 #endif
+
+#if defined(CONFIG_I2C) && defined(CONFIG_SYSTEM_I2CTOOL)
+  nrf53_i2ctool();
+#endif
+
+#ifdef CONFIG_RGBLED
+  ret = nrf53_rgbled_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: nrf53_rgbled_init failed: %d\n", ret);
+    }
+#endif
+
+  /* Initialize on-board sensors */
+
+  ret = nrf53_sensors_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to initialize sensors: %d\n",
+             ret);
+    }
 
   UNUSED(ret);
   return OK;

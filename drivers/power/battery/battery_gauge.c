@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/power/battery/battery_gauge.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,11 +31,12 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <poll.h>
 #include <fcntl.h>
 
 #include <nuttx/fs/fs.h>
+#include <nuttx/wqueue.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/power/battery_gauge.h>
 #include <nuttx/power/battery_ioctl.h>
@@ -59,7 +62,9 @@ struct battery_gauge_priv_s
   mutex_t           lock;
   sem_t             wait;
   uint32_t          mask;
+  clock_t           interval; /* tick unit */
   FAR struct pollfd *fds;
+  struct work_s     work;
 };
 
 /****************************************************************************
@@ -79,7 +84,7 @@ static ssize_t bat_gauge_write(FAR struct file *filep,
 static int     bat_gauge_ioctl(FAR struct file *filep, int cmd,
                                unsigned long arg);
 static int     bat_gauge_poll(FAR struct file *filep,
-                               FAR struct pollfd *fds, bool setup);
+                              FAR struct pollfd *fds, bool setup);
 
 /****************************************************************************
  * Private Data
@@ -102,17 +107,29 @@ static const struct file_operations g_batteryops =
  * Private Functions
  ****************************************************************************/
 
+static void battery_gauge_work(FAR void *arg)
+{
+  FAR struct battery_gauge_priv_s *priv =
+    (FAR struct battery_gauge_priv_s *)arg;
+  FAR struct pollfd *fds = priv->fds;
+  int semcnt;
+
+  if (priv->mask != 0)
+    {
+      poll_notify(&fds, 1, POLLIN);
+
+      nxsem_get_value(&priv->wait, &semcnt);
+      if (semcnt < 1)
+        {
+          nxsem_post(&priv->wait);
+        }
+    }
+}
+
 static int battery_gauge_notify(FAR struct battery_gauge_priv_s *priv,
                                 uint32_t mask)
 {
-  FAR struct pollfd *fd = priv->fds;
-  int semcnt;
   int ret;
-
-  if (!fd)
-    {
-      return OK;
-    }
 
   ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
@@ -121,14 +138,16 @@ static int battery_gauge_notify(FAR struct battery_gauge_priv_s *priv,
     }
 
   priv->mask |= mask;
-  if (priv->mask)
+  if (priv->mask != 0)
     {
-      poll_notify(&fd, 1, POLLIN);
-
-      nxsem_get_value(&priv->wait, &semcnt);
-      if (semcnt < 1)
+      if (priv->interval > 0)
         {
-          nxsem_post(&priv->wait);
+          work_queue(LPWORK, &priv->work, battery_gauge_work, priv,
+                     priv->interval);
+        }
+      else
+        {
+          battery_gauge_work(priv);
         }
     }
 
@@ -274,6 +293,7 @@ static int bat_gauge_ioctl(FAR struct file *filep,
 {
   FAR struct inode *inode = filep->f_inode;
   FAR struct battery_gauge_dev_s *dev  = inode->i_private;
+  FAR struct battery_gauge_priv_s *priv = filep->f_priv;
   int ret;
 
   /* Enforce mutually exclusive access to the battery driver */
@@ -311,7 +331,7 @@ static int bat_gauge_ioctl(FAR struct file *filep,
 
       case BATIOC_VOLTAGE:
         {
-          FAR b16_t *ptr = (FAR b16_t *)((uintptr_t)arg);
+          FAR int *ptr = (FAR int *)((uintptr_t)arg);
           if (ptr)
             {
               ret = dev->ops->voltage(dev, ptr);
@@ -321,7 +341,7 @@ static int bat_gauge_ioctl(FAR struct file *filep,
 
       case BATIOC_CAPACITY:
         {
-          FAR b16_t *ptr = (FAR b16_t *)((uintptr_t)arg);
+          FAR int *ptr = (FAR int *)((uintptr_t)arg);
           if (ptr)
             {
               ret = dev->ops->capacity(dev, ptr);
@@ -331,7 +351,7 @@ static int bat_gauge_ioctl(FAR struct file *filep,
 
         case BATIOC_CURRENT:
         {
-          FAR b16_t *ptr = (FAR b16_t *)((uintptr_t)arg);
+          FAR int *ptr = (FAR int *)((uintptr_t)arg);
           if (ptr)
             {
               ret = dev->ops->current(dev, ptr);
@@ -341,7 +361,7 @@ static int bat_gauge_ioctl(FAR struct file *filep,
 
         case BATIOC_TEMPERATURE:
         {
-          FAR b8_t *ptr = (FAR b8_t *)((uintptr_t)arg);
+          FAR int *ptr = (FAR int *)((uintptr_t)arg);
           if (ptr)
             {
               ret = dev->ops->temp(dev, ptr);
@@ -359,8 +379,25 @@ static int bat_gauge_ioctl(FAR struct file *filep,
         }
         break;
 
+      case BATIOC_OPERATE:
+        {
+          FAR int *ptr = (FAR int *)((uintptr_t)arg);
+          if (ptr)
+            {
+              ret = dev->ops->operate(dev, ptr);
+            }
+        }
+        break;
+
+      case BATIOC_SET_DEBOUNCE:
+        {
+          priv->interval = arg;
+          ret = OK;
+        }
+        break;
+
       default:
-        _err("ERROR: Unrecognized cmd: %d\n", cmd);
+        batinfo("ERROR: Unrecognized cmd: %d\n", cmd);
         ret = -ENOTTY;
         break;
     }
@@ -373,8 +410,8 @@ static int bat_gauge_ioctl(FAR struct file *filep,
  * Name: bat_gauge_poll
  ****************************************************************************/
 
-static ssize_t bat_gauge_poll(FAR struct file *filep,
-                                struct pollfd *fds, bool setup)
+static int bat_gauge_poll(FAR struct file *filep,
+                          FAR struct pollfd *fds, bool setup)
 {
   FAR struct battery_gauge_priv_s *priv = filep->f_priv;
   int ret;
@@ -391,6 +428,10 @@ static ssize_t bat_gauge_poll(FAR struct file *filep,
         {
           priv->fds = fds;
           fds->priv = &priv->fds;
+          if (priv->mask != 0)
+            {
+              poll_notify(&fds, 1, POLLIN);
+            }
         }
       else
         {
@@ -404,12 +445,6 @@ static ssize_t bat_gauge_poll(FAR struct file *filep,
     }
 
   nxmutex_unlock(&priv->lock);
-
-  if (setup)
-    {
-      battery_gauge_notify(priv, 0);
-    }
-
   return ret;
 }
 
@@ -429,18 +464,18 @@ int battery_gauge_changed(FAR struct battery_gauge_dev_s *dev,
 
   /* Event happen too early? */
 
+  ret = nxmutex_lock(&dev->batlock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
   if (list_is_clear(&dev->flist))
     {
       /* Yes, record it and return directly */
 
       dev->mask |= mask;
-      return 0;
-    }
-
-  ret = nxmutex_lock(&dev->batlock);
-  if (ret < 0)
-    {
-      return ret;
+      goto out;
     }
 
   dev->mask |= mask;
@@ -450,6 +485,7 @@ int battery_gauge_changed(FAR struct battery_gauge_dev_s *dev,
       battery_gauge_notify(priv, mask);
     }
 
+out:
   nxmutex_unlock(&dev->batlock);
   return OK;
 }
@@ -486,7 +522,7 @@ int battery_gauge_register(FAR const char *devpath,
   ret = register_driver(devpath, &g_batteryops, 0666, dev);
   if (ret < 0)
     {
-      _err("ERROR: Failed to register driver: %d\n", ret);
+      baterr("ERROR: Failed to register driver: %d\n", ret);
     }
 
   return ret;

@@ -32,10 +32,9 @@
 #include <unistd.h>
 #include <time.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
-#include <nuttx/can.h>
 #include <nuttx/wdog.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
@@ -857,6 +856,7 @@ static int s32k3xx_transmit(struct s32k3xx_driver_s *priv)
       if (frame->can_id & CAN_EFF_FLAG)
         {
           cs.ide = 1;
+          cs.srr = 1;
           mb->id.ext = frame->can_id & MASKEXTID;
         }
       else
@@ -880,6 +880,7 @@ static int s32k3xx_transmit(struct s32k3xx_driver_s *priv)
       if (frame->can_id & CAN_EFF_FLAG)
         {
           cs.ide = 1;
+          cs.srr = 1;
           mb->id.ext = frame->can_id & MASKEXTID;
         }
       else
@@ -889,7 +890,7 @@ static int s32k3xx_transmit(struct s32k3xx_driver_s *priv)
 
       cs.rtr = frame->can_id & FLAGRTR ? 1 : 0;
 
-      cs.dlc = len_to_can_dlc[frame->len];
+      cs.dlc = g_len_to_can_dlc[frame->len];
 
       frame_data_word = (uint32_t *)&frame->data[0];
 
@@ -1019,9 +1020,11 @@ static void s32k3xx_receive(struct s32k3xx_driver_s *priv, uint32_t flags)
       /* Read the frame contents */
 
 #ifdef CONFIG_NET_CAN_CANFD
-      if (rf->cs.edl) /* CAN FD frame */
+      if (rf->cs.edl)
         {
-        struct canfd_frame *frame = (struct canfd_frame *)priv->rxdesc;
+          /* CAN FD frame */
+
+          struct canfd_frame *frame = (struct canfd_frame *)priv->rxdesc;
 
           if (rf->cs.ide)
             {
@@ -1038,7 +1041,7 @@ static void s32k3xx_receive(struct s32k3xx_driver_s *priv, uint32_t flags)
               frame->can_id |= FLAGRTR;
             }
 
-          frame->len = can_dlc_to_len[rf->cs.dlc];
+          frame->len = g_can_dlc_to_len[rf->cs.dlc];
 
           frame_data_word = (uint32_t *)&frame->data[0];
 
@@ -1499,6 +1502,8 @@ static int s32k3xx_ifup(struct net_driver_s *dev)
       s32k3xx_gpiowrite(priv->config->led_pin, priv->config->led_high);
     }
 
+  netdev_carrier_on(dev);
+
   return OK;
 }
 
@@ -1533,6 +1538,8 @@ static int s32k3xx_ifdown(struct net_driver_s *dev)
       s32k3xx_pinconfig(priv->config->led_pin);
       s32k3xx_gpiowrite(priv->config->led_pin, !priv->config->led_high);
     }
+
+  netdev_carrier_off(dev);
 
   return OK;
 }
@@ -1654,10 +1661,10 @@ static int s32k3xx_ioctl(struct net_driver_s *dev, int cmd,
         {
           struct can_ioctl_data_s *req =
               (struct can_ioctl_data_s *)((uintptr_t)arg);
-          req->arbi_bitrate = priv->arbi_timing.bitrate / 1000; /* kbit/s */
+          req->arbi_bitrate = priv->arbi_timing.bitrate;
           req->arbi_samplep = priv->arbi_timing.samplep;
 #ifdef CONFIG_NET_CAN_CANFD
-          req->data_bitrate = priv->data_timing.bitrate / 1000; /* kbit/s */
+          req->data_bitrate = priv->data_timing.bitrate;
           req->data_samplep = priv->data_timing.samplep;
 #else
           req->data_bitrate = 0;
@@ -1673,7 +1680,7 @@ static int s32k3xx_ioctl(struct net_driver_s *dev, int cmd,
               (struct can_ioctl_data_s *)((uintptr_t)arg);
 
           struct flexcan_timeseg arbi_timing;
-          arbi_timing.bitrate = req->arbi_bitrate * 1000;
+          arbi_timing.bitrate = req->arbi_bitrate;
           arbi_timing.samplep = req->arbi_samplep;
 
           if (s32k3xx_bitratetotimeseg(&arbi_timing, 10, 0,
@@ -1688,7 +1695,7 @@ static int s32k3xx_ioctl(struct net_driver_s *dev, int cmd,
 
 #ifdef CONFIG_NET_CAN_CANFD
           struct flexcan_timeseg data_timing;
-          data_timing.bitrate = req->data_bitrate * 1000;
+          data_timing.bitrate = req->data_bitrate;
           data_timing.samplep = req->data_samplep;
 
           if (ret == OK && s32k3xx_bitratetotimeseg(&data_timing, 10, 1,
@@ -1704,13 +1711,12 @@ static int s32k3xx_ioctl(struct net_driver_s *dev, int cmd,
 
           if (ret == OK)
             {
-              /* Reset CAN controller and start with new timings */
+              /* Apply the new timings (interface is guaranteed to be down) */
 
               priv->arbi_timing = arbi_timing;
 #ifdef CONFIG_NET_CAN_CANFD
               priv->data_timing = data_timing;
 #endif
-              s32k3xx_ifup(dev);
             }
         }
         break;

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/clk/clk_gate.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/clk/clk_provider.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "clk.h"
 
@@ -117,7 +119,7 @@ const struct clk_ops_s g_clk_gate_ops =
 
 FAR struct clk_s *clk_register_gate(FAR const char *name,
                                     FAR const char *parent_name,
-                                    uint8_t flags, uint32_t reg,
+                                    uint8_t flags, uintptr_t reg,
                                     uint8_t bit_idx,
                                     uint8_t clk_gate_flags)
 {

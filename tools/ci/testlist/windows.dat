@@ -1,0 +1,32 @@
+# Choose a subset of board/configs due to Windows native builds
+
+# ARM
+
+/arm/stm32l1/nucleo-l152re/configs/nsh,CONFIG_ARM_TOOLCHAIN_GNU_EABI
+
+/arm/stm32f4/nucleo-f411re/configs/nsh,CONFIG_ARM_TOOLCHAIN_CLANG
+
+/arm/rp2040/raspberrypi-pico/configs/nsh,CONFIG_ARM_TOOLCHAIN_GNU_EABI
+
+# ARM64
+
+# /arm64/qemu/qemu-armv8a/configs/nsh_smp
+
+# RISC-V
+
+/risc-v/qemu-rv/rv-virt/configs/nsh
+
+/risc-v/esp32c3/esp32-c3-zero/configs/nsh
+
+# The simulator currently builds only with Visual Studio 2022
+
+/sim/sim/sim/configs/windows
+
+# Boards build by CMake
+
+CMake,nucleo-l152re:nsh
+CMake,nucleo-f411re:nsh
+CMake,raspberrypi-pico:nsh
+CMake,rv-virt:nsh
+CMake,esp32-c3-zero:nsh
+CMake,sim:windows

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nrf52/nrf52832-mdk/src/nrf52_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -56,9 +58,6 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int nrf52_bringup(void)
@@ -82,7 +81,7 @@ int nrf52_bringup(void)
 #ifdef CONFIG_USERLED
   /* Register the LED driver */
 
-  ret = userled_lower_initialize(CONFIG_EXAMPLES_LEDS_DEVPATH);
+  ret = userled_lower_initialize("/dev/userleds");
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n", ret);

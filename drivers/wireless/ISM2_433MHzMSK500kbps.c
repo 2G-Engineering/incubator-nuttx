@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/wireless/ISM2_433MHzMSK500kbps.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 
 /* Settings for 905 MHz, GFSK at 250kbps
  *
- * ISM Region 2 (America) only, Band 902–928 MHz
+ * ISM Region 2 (America) only, Band 902-928 MHz
  *
  *   Cordless phones          1 W
  *   Microwave ovens        750 W

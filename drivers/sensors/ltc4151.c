@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/ltc4151.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -28,7 +43,7 @@
 #include <fixedmath.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
@@ -41,16 +56,12 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#ifndef CONFIG_LTC4151_I2C_FREQUENCY
-#  define CONFIG_LTC4151_I2C_FREQUENCY 400000
-#endif
-
 #define I2C_NOSTARTSTOP_MSGS 2
 #define I2C_NOSTARTSTOP_ADDRESS_MSG_INDEX 0
 #define I2C_NOSTARTSTOP_DATA_MSG_INDEX 1
 
 /****************************************************************************
- * Private
+ * Private Types
  ****************************************************************************/
 
 struct ltc4151_dev_s

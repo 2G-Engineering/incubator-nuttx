@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/include/elf.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -83,4 +85,36 @@
 #define R_RISCV_SET32         56
 #define R_RISCV_32_PCREL      57
 
+#define ARCH_ELFDATA          1
+#define ARCH_ELF_RELCNT       8
+
+#define EM_ARCH               EM_RISCV
+#define EF_FLAG               0
+
+/****************************************************************************
+ * Public Types
+ ****************************************************************************/
+
+#ifndef __ASSEMBLY__
+
+struct arch_elfdata_s
+{
+  struct hi20_rels_s
+  {
+    uintptr_t hi20_rel;
+    uintptr_t hi20_offset;
+  }
+  hi20_rels[ARCH_ELF_RELCNT];
+};
+typedef struct arch_elfdata_s arch_elfdata_t;
+
+struct user_pt_regs
+{
+  uintreg_t regs[32];
+};
+
+#define ELF_NGREG (sizeof(struct user_pt_regs) / sizeof(uintreg_t))
+typedef uintreg_t elf_gregset_t[ELF_NGREG];
+
+#endif /* __ASSEMBLY__ */
 #endif /* __ARCH_RISCV_INCLUDE_ELF_H */

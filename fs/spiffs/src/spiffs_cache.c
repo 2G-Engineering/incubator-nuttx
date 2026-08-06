@@ -1,8 +1,8 @@
 /****************************************************************************
  * fs/spiffs/src/spiffs_cache.c
  *
- *   Copyright (C) 2018 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2018 Gregory Nutt
  *
  * This is a port of version 0.3.7 of SPIFFS by Peter Andersion.  That
  * version was originally released under the MIT license but is here re-
@@ -46,7 +46,7 @@
 #include <nuttx/config.h>
 
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/mtd/mtd.h>
 

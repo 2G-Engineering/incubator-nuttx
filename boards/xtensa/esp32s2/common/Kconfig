@@ -12,6 +12,54 @@ config ESP32S2_MERGE_BINS
 		This is only useful when the path to binary files (e.g. bootloader)
 		is provided via the ESPTOOL_BINDIR variable.
 
+config ESP32S2_SPIFLASH_AUTO_BRINGUP
+	bool "Automatic mount of SPI Flash MTD"
+	default y
+	depends on ESPRESSIF_SPIFLASH
+	---help---
+		Auto bring-up the SPI Flash MTD on board bring-up.
+		If not selected, the MTD will be registered as a device node on /dev.
+
+choice ESP32S2_SPIFLASH_FS
+	prompt "File system to mount on SPI Flash MTD"
+	default ESP32S2_SPIFLASH_SMARTFS
+	depends on ESP32S2_SPIFLASH_AUTO_BRINGUP
+	---help---
+		Mount the SPI Flash MTD with the selected File System format on board
+		bring-up.
+		If not selected, the MTD will be registered as a device node on /dev.
+
+config ESP32S2_SPIFLASH_SMARTFS
+	bool "SmartFS"
+	select FS_SMARTFS
+	select MTD_SMART
+	depends on !ESP32S2_SECURE_FLASH_ENC_ENABLED
+
+comment "SmartFS not supported with Flash Encryption"
+	depends on ESP32S2_SECURE_FLASH_ENC_ENABLED
+
+config ESP32S2_SPIFLASH_NXFFS
+	bool "NXFFS"
+	select FS_NXFFS
+	depends on !ESP32S2_SECURE_FLASH_ENC_ENABLED
+
+comment "NXFFS not supported with Flash Encryption"
+	depends on ESP32S2_SECURE_FLASH_ENC_ENABLED
+
+config ESP32S2_SPIFLASH_SPIFFS
+	bool "SPIFFS"
+	select FS_SPIFFS
+	depends on !ESP32S2_SECURE_FLASH_ENC_ENABLED
+
+comment "SPIFFS not supported with Flash Encryption"
+	depends on ESP32S2_SECURE_FLASH_ENC_ENABLED
+
+config ESP32S2_SPIFLASH_LITTLEFS
+	bool "LittleFS"
+	select FS_LITTLEFS
+
+endchoice
+
 config ESP32S2_LCD_OVERCLOCK
 	bool "Run LCD at higher clock speed than allowed"
 	default n
@@ -21,3 +69,11 @@ config ESP32S2_LCD_OVERCLOCK
 		SPI interface is 10MHz. However, in practice the driver chips work
 		fine with a higher clock rate, and using that gives a better
 		framerate. Select this to try using the out-of-spec clock rate.
+
+config ESPRESSIF_ULP_USE_TEST_BIN
+	bool "Run example prebuilt binary for ULP core"
+	depends on ESPRESSIF_USE_ULP_RISCV_CORE
+	default n
+	---help---
+		Run example prebuilt binary for ULP core which is resides in
+		`Documentation/platforms/xtensa/esp32s3/boards/esp32s3-devkit/ulp_riscv_blink.bin`

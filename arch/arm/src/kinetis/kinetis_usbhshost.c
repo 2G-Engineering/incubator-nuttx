@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/kinetis/kinetis_usbhshost.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,8 +31,8 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
@@ -1786,7 +1788,7 @@ kinetis_qh_s *kinetis_qh_create(struct kinetis_rhport_s *rhport,
    * FIELD    DESCRIPTION                     VALUE/SOURCE
    * -------- ------------------------------- --------------------
    * DEVADDR  Device address                  Endpoint structure
-   * I        Inactivate on Next Transaction  0
+   * I        Deactivate on Next Transaction  0
    * ENDPT    Endpoint number                 Endpoint structure
    * EPS      Endpoint speed                  Endpoint structure
    * DTC      Data toggle control             1
@@ -3694,7 +3696,7 @@ static int kinetis_rh_enumerate(struct usbhost_connection_s *conn,
    * reset for 50Msec, not wait 50Msec before resetting.
    */
 
-  nxsig_usleep(100 * 1000);
+  nxsched_usleep(100 * 1000);
 
   /* Paragraph 2.3.9:
    *
@@ -3798,7 +3800,7 @@ static int kinetis_rh_enumerate(struct usbhost_connection_s *conn,
    */
 
   while ((kinetis_getreg(regaddr) & EHCI_PORTSC_RESET) != 0);
-  nxsig_usleep(200 * 1000);
+  nxsched_usleep(200 * 1000);
 
   /* EHCI Paragraph 4.2.2:
    *
@@ -4024,8 +4026,7 @@ static int kinetis_epalloc(struct usbhost_driver_s *drvr,
 
   /* Allocate a endpoint information structure */
 
-  epinfo = (struct kinetis_epinfo_s *)
-    kmm_zalloc(sizeof(struct kinetis_epinfo_s));
+  epinfo = kmm_zalloc(sizeof(struct kinetis_epinfo_s));
   if (!epinfo)
     {
       usbhost_trace1(EHCI_TRACE1_EPALLOC_FAILED, 0);
@@ -4067,7 +4068,7 @@ static int kinetis_epalloc(struct usbhost_driver_s *drvr,
  * Input Parameters:
  *   drvr - The USB host driver instance obtained as a parameter from the
  *           call to the class create() method.
- *   ep   - The endpint to be freed.
+ *   ep   - The endpoint to be freed.
  *
  * Returned Value:
  *   On success, zero (OK) is returned. On a failure, a negated errno value
@@ -4136,8 +4137,7 @@ static int kinetis_alloc(struct usbhost_driver_s *drvr,
    * multiple of the cache line size in length.
    */
 
-  *buffer = (uint8_t *)kmm_memalign(ARMV7M_DCACHE_LINESIZE,
-                                    KINETIS_EHCI_BUFSIZE);
+  *buffer = kmm_memalign(ARMV7M_DCACHE_LINESIZE, KINETIS_EHCI_BUFSIZE);
   if (*buffer)
     {
       *maxlen = KINETIS_EHCI_BUFSIZE;
@@ -4225,7 +4225,7 @@ static int kinetis_ioalloc(struct usbhost_driver_s *drvr,
    */
 
   buflen  = (buflen + DCACHE_LINEMASK) & ~DCACHE_LINEMASK;
-  *buffer = (uint8_t *)kumm_memalign(ARMV7M_DCACHE_LINESIZE, buflen);
+  *buffer = kumm_memalign(ARMV7M_DCACHE_LINESIZE, buflen);
   return *buffer ? OK : -ENOMEM;
 }
 
@@ -4641,7 +4641,7 @@ static int kinetis_cancel(struct usbhost_driver_s *drvr, usbhost_ep_t ep)
 
   /* We must have exclusive access to the EHCI hardware and data structures.
    * This will prevent servicing any transfer completion events while we
-   * perform the the cancellation, but will not prevent DMA-related race
+   * perform the cancellation, but will not prevent DMA-related race
    * conditions.
    *
    * REVISIT: This won't work.  This function must be callable from the
@@ -5128,10 +5128,8 @@ struct usbhost_connection_s *kinetis_ehci_initialize(int controller)
 #  ifndef CONFIG_KINETIS_EHCI_PREALLOCATE
   /* Allocate a pool of free Queue Head (QH) structures */
 
-  g_qhpool =
-    (struct kinetis_qh_s *)kmm_memalign(32,
-                                      CONFIG_KINETIS_EHCI_NQHS *
-                                      sizeof(struct kinetis_qh_s));
+  g_qhpool = kmm_memalign(32, CONFIG_KINETIS_EHCI_NQHS *
+                              sizeof(struct kinetis_qh_s));
   if (!g_qhpool)
     {
       usbhost_trace1(EHCI_TRACE1_QHPOOLALLOC_FAILED, 0);
@@ -5151,10 +5149,8 @@ struct usbhost_connection_s *kinetis_ehci_initialize(int controller)
 #  ifndef CONFIG_KINETIS_EHCI_PREALLOCATE
   /* Allocate a pool of free Transfer Descriptor (qTD) structures */
 
-  g_qtdpool =
-    (struct kinetis_qtd_s *)kmm_memalign(32,
-                                       CONFIG_KINETIS_EHCI_NQTDS *
-                                       sizeof(struct kinetis_qtd_s));
+  g_qtdpool = kmm_memalign(32, CONFIG_KINETIS_EHCI_NQTDS *
+                               sizeof(struct kinetis_qtd_s));
   if (!g_qtdpool)
     {
       usbhost_trace1(EHCI_TRACE1_QTDPOOLALLOC_FAILED, 0);
@@ -5166,8 +5162,7 @@ struct usbhost_connection_s *kinetis_ehci_initialize(int controller)
 #  if !defined(CONFIG_KINETIS_EHCI_PREALLOCATE) && !defined(CONFIG_USBHOST_INT_DISABLE)
   /* Allocate the periodic framelist */
 
-  g_framelist = (uint32_t *)
-    kmm_memalign(4096, FRAME_LIST_SIZE * sizeof(uint32_t));
+  g_framelist = kmm_memalign(4096, FRAME_LIST_SIZE * sizeof(uint32_t));
   if (!g_framelist)
     {
       usbhost_trace1(EHCI_TRACE1_PERFLALLOC_FAILED, 0);

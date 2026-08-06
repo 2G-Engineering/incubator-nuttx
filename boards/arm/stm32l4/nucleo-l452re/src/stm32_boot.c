@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/nucleo-l452re/src/stm32_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 
@@ -38,7 +40,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_board_initialize
+ * Name: stm32_board_initialize
  *
  * Description:
  *   All STM32 architectures must provide the following entry point.
@@ -48,7 +50,7 @@
  *
  ****************************************************************************/
 
-void stm32l4_board_initialize(void)
+void stm32_board_initialize(void)
 {
 #ifdef CONFIG_ARCH_LEDS
   /* Configure on-board LEDs if LED support has been selected. */

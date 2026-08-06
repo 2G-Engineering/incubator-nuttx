@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32h7/nucleo-h743zi/src/stm32_romfs_initialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <sys/mount.h>
 #include <sys/types.h>
 #include <stdint.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/fs/fs.h>
@@ -67,7 +69,7 @@
  ****************************************************************************/
 
 __asm__ (
-    "   .section .rodata                            \n"
+    "   .section .rodata, \"a\"                     \n"
     "   .balign  16                                 \n"
     "   .globl   romfs_data_begin                   \n"
     "romfs_data_begin:                              \n"

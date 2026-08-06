@@ -1,10 +1,8 @@
 /****************************************************************************
  * libs/libc/regex/regexec.c
  *
- * regexec.c - TRE POSIX compatible matching functions (and more).
- *
- *  Copyright (c) 2001-2009 Ville Laurikari <vl@iki.fi>
- *  All rights reserved.
+ * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-FileCopyrightText: 2001-2009 Ville Laurikari <vl@iki.fi>
  *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions
@@ -133,7 +131,7 @@ static int tre_tag_order(int num_tags, tre_tag_direction_t *tag_directions,
         }
     }
 
-  /*  assert(0); */
+  /*  ASSERT(0); */
 
   return 0;
 }
@@ -508,7 +506,7 @@ static reg_errcode_t tre_tnfa_run_parallel(const tre_tnfa_t *tnfa,
 
                   else
                     {
-                      assert(reach_pos[trans_i->state_id].pos == pos);
+                      ASSERT(reach_pos[trans_i->state_id].pos == pos);
 
                       /* Another path has also reached this state.  We choose
                        *  the winner by examining the tag values for both
@@ -681,7 +679,7 @@ typedef struct tre_backtrack_struct *tre_backtrack_t;
   do                                       \
     {                                      \
       int i;                               \
-      assert(stack->prev);                 \
+      ASSERT(stack->prev);                 \
       pos       = stack->item.pos;         \
       str_byte  = stack->item.str_byte;    \
       state     = stack->item.state;       \
@@ -1181,10 +1179,10 @@ static void tre_fill_pmatch(size_t nmatch, regmatch_t pmatch[], int cflags,
         {
           if (pmatch[i].rm_eo == -1)
             {
-              assert(pmatch[i].rm_so == -1);
+              ASSERT(pmatch[i].rm_so == -1);
             }
 
-          assert(pmatch[i].rm_so <= pmatch[i].rm_eo);
+          ASSERT(pmatch[i].rm_so <= pmatch[i].rm_eo);
 
           parents = submatch_data[i].parents;
           if (parents != NULL)

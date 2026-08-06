@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/socket/recvfrom.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -153,11 +155,13 @@ ssize_t recvfrom(int sockfd, FAR void *buf, size_t len, int flags,
                  FAR struct sockaddr *from, FAR socklen_t *fromlen)
 {
   FAR struct socket *psock;
+  FAR struct file *filep;
   ssize_t ret;
 #ifdef CONFIG_BUILD_KERNEL
   struct sockaddr_storage kaddr;
   FAR struct sockaddr *ufrom;
   FAR void *kbuf;
+  FAR void *ubuf;
 #endif
 
   /* recvfrom() is a cancellation point */
@@ -176,7 +180,7 @@ ssize_t recvfrom(int sockfd, FAR void *buf, size_t len, int flags,
       goto errout_with_cancelpt;
     }
 
-  memcpy(kbuf, buf, len);
+  ubuf = buf;
   buf = kbuf;
 
   /* Copy the address data to kernel, store the original user pointer */
@@ -189,16 +193,18 @@ ssize_t recvfrom(int sockfd, FAR void *buf, size_t len, int flags,
 
   /* Get the underlying socket structure */
 
-  ret = sockfd_socket(sockfd, &psock);
+  ret = sockfd_socket(sockfd, &filep, &psock);
 
   /* Then let psock_recvfrom() do all of the work */
 
   if (ret == OK)
     {
       ret = psock_recvfrom(psock, buf, len, flags, from, fromlen);
+      file_put(filep);
     }
 
 #ifdef CONFIG_BUILD_KERNEL
+  memcpy(ubuf, buf, len);
   kmm_free(kbuf);
 
   /* Copy the address back to user */

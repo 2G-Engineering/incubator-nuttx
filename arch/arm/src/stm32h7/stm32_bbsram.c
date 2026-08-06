@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_bbsram.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,6 +33,7 @@
 #include <sys/types.h>
 
 #include <stdio.h>
+#include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
 #include <poll.h>
@@ -47,14 +50,14 @@
 #include "mpu.h"
 #include "stm32_pwr.h"
 
-#ifdef CONFIG_STM32H7_BBSRAM
+#ifdef CONFIG_STM32_BBSRAM
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-#if !defined(CONFIG_STM32H7_BKPSRAM)
-#error Driver Requires CONFIG_STM32H7_BKPSRAM to be enabled
+#if !defined(CONFIG_STM32_BKPSRAM)
+#error Driver Requires CONFIG_STM32_BKPSRAM to be enabled
 #endif
 
 #define MAX_OPENCNT           (255) /* Limit of uint8_t */
@@ -130,15 +133,15 @@ struct stm32_bbsram_s
 static int     stm32_bbsram_open(struct file *filep);
 static int     stm32_bbsram_close(struct file *filep);
 static off_t   stm32_bbsram_seek(struct file *filep, off_t offset,
-                 int whence);
+                                 int whence);
 static ssize_t stm32_bbsram_read(struct file *filep, char *buffer,
-                 size_t len);
+                                 size_t len);
 static ssize_t stm32_bbsram_write(struct file *filep,
-                 const char *buffer, size_t len);
+                                  const char *buffer, size_t len);
 static int stm32_bbsram_ioctl(struct file *filep, int cmd,
-                 unsigned long arg);
+                              unsigned long arg);
 static int     stm32_bbsram_poll(struct file *filep,
-                 struct pollfd *fds, bool setup);
+                                 struct pollfd *fds, bool setup);
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
 static int     stm32_bbsram_unlink(struct inode *inode);
 #endif
@@ -148,7 +151,7 @@ static int     stm32_bbsram_unlink(struct inode *inode);
  ****************************************************************************/
 
 #if defined(CONFIG_BBSRAM_DEBUG)
-static uint8_t debug[STM32H7_BBSRAM_SIZE];
+static uint8_t debug[STM32_BBSRAM_SIZE];
 #endif
 
 static const struct file_operations g_stm32_bbsram_fops =
@@ -165,7 +168,7 @@ static const struct file_operations g_stm32_bbsram_fops =
 #endif
 };
 
-static struct stm32_bbsram_s g_bbsram[CONFIG_STM32H7_BBSRAM_FILES];
+static struct stm32_bbsram_s g_bbsram[CONFIG_STM32_BBSRAM_FILES];
 
 /****************************************************************************
  * Private Functions
@@ -196,7 +199,8 @@ static void stm32_bbsram_dump(struct bbsramfh_s *bbf, char *op)
   _info("  fileno:%d\n", (int) bbf->fileno);
   _info("  dirty:%d\n", (int) bbf->dirty);
   _info("  length:%d\n", (int) bbf->len);
-  _info("  time:%ld:%ld\n", bbf->lastwrite.tv_sec, bbf->lastwrite.tv_nsec);
+  _info("  time:%jd:%ld\n", (intmax_t)bbf->lastwrite.tv_sec,
+        bbf->lastwrite.tv_nsec);
   _info("  data: 0x%2x 0x%2x 0x%2x 0x%2x 0x%2x\n",
        bbf->data[0], bbf->data[1], bbf->data[2], bbf->data[3], bbf->data[4]);
 }
@@ -300,8 +304,8 @@ static int stm32_bbsram_open(struct file *filep)
   struct stm32_bbsram_s *bbr;
   int ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bbr = (struct stm32_bbsram_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bbr = inode->i_private;
 
   /* Increment the reference count */
 
@@ -355,8 +359,8 @@ static int stm32_bbsram_close(struct file *filep)
   struct stm32_bbsram_s *bbr;
   int ret = OK;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bbr = (struct stm32_bbsram_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bbr = inode->i_private;
 
   ret = nxmutex_lock(&bbr->lock);
   if (ret < 0)
@@ -403,8 +407,8 @@ static off_t stm32_bbsram_seek(struct file *filep, off_t offset,
   off_t newpos;
   int ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bbr = (struct stm32_bbsram_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bbr = inode->i_private;
 
   ret = nxmutex_lock(&bbr->lock);
   if (ret < 0)
@@ -473,8 +477,8 @@ static ssize_t stm32_bbsram_read(struct file *filep, char *buffer,
   struct stm32_bbsram_s *bbr;
   int ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bbr = (struct stm32_bbsram_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bbr = inode->i_private;
 
   ret = nxmutex_lock(&bbr->lock);
   if (ret < 0)
@@ -520,8 +524,8 @@ static ssize_t stm32_bbsram_write(struct file *filep,
   struct stm32_bbsram_s *bbr;
   int ret = -EFBIG;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bbr = (struct stm32_bbsram_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bbr = inode->i_private;
 
   /* Forbid writes past the end of the device */
 
@@ -584,10 +588,10 @@ static int stm32_bbsram_ioctl(struct file *filep, int cmd,
   struct stm32_bbsram_s *bbr;
   int ret = -ENOTTY;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bbr = (struct stm32_bbsram_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bbr = inode->i_private;
 
-  if (cmd == STM32H7_BBSRAM_GETDESC_IOCTL)
+  if (cmd == STM32_BBSRAM_GETDESC_IOCTL)
     {
       struct bbsramd_s *bbrr = (struct bbsramd_s *)((uintptr_t)arg);
 
@@ -637,8 +641,8 @@ static int stm32_bbsram_unlink(struct inode *inode)
   struct stm32_bbsram_s *bbr;
   int ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  bbr = (struct stm32_bbsram_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  bbr = inode->i_private;
 
   ret = nxmutex_lock(&bbr->lock);
   if (ret < 0)
@@ -684,9 +688,9 @@ static int stm32_bbsram_probe(int *ent, struct stm32_bbsram_s pdev[])
    * after reset due to the ECC behavior.
    */
 
-  avail = STM32H7_BBSRAM_SIZE;
+  avail = STM32_BBSRAM_SIZE;
 
-  for (i = 0; (i < CONFIG_STM32H7_BBSRAM_FILES) && ent[i] && (avail > 0);
+  for (i = 0; (i < CONFIG_STM32_BBSRAM_FILES) && ent[i] && (avail > 0);
        i++)
     {
       /* Validate the actual allocations against what is in the BBSRAM */
@@ -789,9 +793,9 @@ int stm32_bbsraminitialize(char *devpath, int *sizes)
    */
 
 #  if defined(CONFIG_BUILD_PROTECTED)
-  mpu_peripheral(STM32_BBSRAM_BASE, STM32H7_BBSRAM_SIZE);
+  mpu_peripheral(STM32_BBSRAM_BASE, STM32_BBSRAM_SIZE);
 #  else
-  mpu_user_peripheral(STM32_BBSRAM_BASE, STM32H7_BBSRAM_SIZE);
+  mpu_user_peripheral(STM32_BBSRAM_BASE, STM32_BBSRAM_SIZE);
   mpu_control(true, true, true);
 #  endif
 #endif
@@ -851,7 +855,7 @@ int stm32_bbsraminitialize(char *devpath, int *sizes)
  *
  ****************************************************************************/
 
-#if defined(CONFIG_STM32H7_SAVE_CRASHDUMP)
+#if defined(CONFIG_STM32_SAVE_CRASHDUMP)
 int stm32_bbsram_savepanic(int fileno, uint8_t *context, int length)
 {
   struct bbsramfh_s *bbf;
@@ -869,7 +873,7 @@ int stm32_bbsram_savepanic(int fileno, uint8_t *context, int length)
     {
       once = true;
 
-      DEBUGASSERT(fileno > 0 && fileno < CONFIG_STM32H7_BBSRAM_FILES);
+      DEBUGASSERT(fileno > 0 && fileno < CONFIG_STM32_BBSRAM_FILES);
 
       bbf = g_bbsram[fileno].bbf;
 

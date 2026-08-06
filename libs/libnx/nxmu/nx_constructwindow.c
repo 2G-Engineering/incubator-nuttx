@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libnx/nxmu/nx_constructwindow.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdlib.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/nx/nx.h>
 #include <nuttx/nx/nxbe.h>
@@ -44,7 +46,7 @@
  * Description:
  *   This function is the same a nx_openwindow EXCEPT that the client
  *   provides the window structure instance.  nx_constructwindow will
- *   initialize the the pre-allocated window structure for use by NX.
+ *   initialize the pre-allocated window structure for use by NX.
  *   This function is provided in addition to nx_openwindow in order
  *   to support a kind of inheritance:  The caller's window structure
  *   may include extensions that are not visible to NX.

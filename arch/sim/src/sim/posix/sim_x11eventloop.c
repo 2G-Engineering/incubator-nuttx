@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/posix/sim_x11eventloop.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -44,6 +46,7 @@ extern Display *g_display;
  * Name: sim_buttonmap
  ****************************************************************************/
 
+#ifdef CONFIG_SIM_TOUCHSCREEN
 static int sim_buttonmap(int state, int button)
 {
   int buttons = 0;
@@ -86,6 +89,7 @@ static int sim_buttonmap(int state, int button)
 
   return buttons;
 }
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -126,6 +130,7 @@ void sim_x11events(void)
             break;
           #endif
 
+          #ifdef CONFIG_SIM_TOUCHSCREEN
           case MotionNotify : /* Enabled by ButtonMotionMask */
             {
               sim_buttonevent(event.xmotion.x, event.xmotion.y,
@@ -141,8 +146,9 @@ void sim_x11events(void)
                                           event.xbutton.button));
             }
             break;
+          #endif
 
-          default :
+          default:
             break;
         }
     }

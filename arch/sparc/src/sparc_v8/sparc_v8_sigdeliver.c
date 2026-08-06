@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sparc/src/sparc_v8/sparc_v8_sigdeliver.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,8 +30,8 @@
 #include <sched.h>
 #include <syscall.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
@@ -77,8 +79,8 @@ void sparc_sigdeliver(void)
   board_autoled_on(LED_SIGNAL);
 
   sinfo("rtcb=%p sigdeliver=%p sigpendactionq.head=%p\n",
-        rtcb, rtcb->xcp.sigdeliver, rtcb->sigpendactionq.head);
-  DEBUGASSERT(rtcb->xcp.sigdeliver != NULL);
+        rtcb, rtcb->sigdeliver, rtcb->sigpendactionq.head);
+  DEBUGASSERT(rtcb->sigdeliver != NULL);
 
   /* Save the return state on the stack. */
 
@@ -92,17 +94,16 @@ retry:
    */
 
   saved_irqcount = rtcb->irqcount;
-  DEBUGASSERT(saved_irqcount >= 1);
+  DEBUGASSERT(saved_irqcount >= 0);
 
   /* Now we need call leave_critical_section() repeatedly to get the irqcount
    * to zero, freeing all global spinlocks that enforce the critical section.
    */
 
-  do
+  while (rtcb->irqcount > 0)
     {
       leave_critical_section((regs[REG_PSR]));
     }
-  while (rtcb->irqcount > 0);
 #endif /* CONFIG_SMP */
 
 #ifndef CONFIG_SUPPRESS_INTERRUPTS
@@ -115,7 +116,7 @@ retry:
 
   /* Deliver the signal */
 
-  ((sig_deliver_t)rtcb->xcp.sigdeliver)(rtcb);
+  (rtcb->sigdeliver)(rtcb);
 
   /* Output any debug messages BEFORE restoring errno (because they may
    * alter errno), then disable interrupts again and restore the original
@@ -148,6 +149,9 @@ retry:
   if (!sq_empty(&rtcb->sigpendactionq) &&
       (rtcb->flags & TCB_FLAG_SIGNAL_ACTION) == 0)
     {
+#ifdef CONFIG_SMP
+      leave_critical_section((regs[REG_PSR]));
+#endif
       goto retry;
     }
 
@@ -161,10 +165,10 @@ retry:
    * could be modified by a hostile program.
    */
 
-  regs[REG_PC]         = rtcb->xcp.saved_pc;
-  regs[REG_NPC]        = rtcb->xcp.saved_npc;
-  regs[REG_PSR]        = rtcb->xcp.saved_status;
-  rtcb->xcp.sigdeliver = NULL;  /* Allows next handler to be scheduled */
+  regs[REG_PC]     = rtcb->xcp.saved_pc;
+  regs[REG_NPC]    = rtcb->xcp.saved_npc;
+  regs[REG_PSR]    = rtcb->xcp.saved_status;
+  rtcb->sigdeliver = NULL;  /* Allows next handler to be scheduled */
 
 #ifdef CONFIG_SMP
   /* Restore the saved 'irqcount' and recover the critical section
@@ -184,7 +188,7 @@ retry:
 
   /* Then restore the correct state for this thread of execution. This is an
    * unusual case that must be handled by up_fullcontextresore. This case is
-   * unusal in two ways:
+   * unusual in two ways:
    *
    *   1. It is not a context switch between threads.  Rather,
    *      sparc_fullcontextrestore must behave more it more like a longjmp
@@ -203,7 +207,9 @@ retry:
 
   board_autoled_off(LED_SIGNAL);
 #ifdef CONFIG_SMP
-  rtcb->irqcount--;
+  /* We need to keep the IRQ lock until task switching */
+
+  leave_critical_section(up_irq_save());
 #endif
   sparc_fullcontextrestore(regs);
 }

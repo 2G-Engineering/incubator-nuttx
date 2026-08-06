@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/mld/mld_join.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <netinet/in.h>
 
@@ -147,14 +149,14 @@ int mld_joingroup(FAR const struct ipv6_mreq *mrec)
     }
 
   mldinfo("Join group: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
-          mrec->ipv6mr_multiaddr.s6_addr16[0],
-          mrec->ipv6mr_multiaddr.s6_addr16[1],
-          mrec->ipv6mr_multiaddr.s6_addr16[2],
-          mrec->ipv6mr_multiaddr.s6_addr16[3],
-          mrec->ipv6mr_multiaddr.s6_addr16[4],
-          mrec->ipv6mr_multiaddr.s6_addr16[5],
-          mrec->ipv6mr_multiaddr.s6_addr16[5],
-          mrec->ipv6mr_multiaddr.s6_addr16[7]);
+          NTOHS(mrec->ipv6mr_multiaddr.s6_addr16[0]),
+          NTOHS(mrec->ipv6mr_multiaddr.s6_addr16[1]),
+          NTOHS(mrec->ipv6mr_multiaddr.s6_addr16[2]),
+          NTOHS(mrec->ipv6mr_multiaddr.s6_addr16[3]),
+          NTOHS(mrec->ipv6mr_multiaddr.s6_addr16[4]),
+          NTOHS(mrec->ipv6mr_multiaddr.s6_addr16[5]),
+          NTOHS(mrec->ipv6mr_multiaddr.s6_addr16[6]),
+          NTOHS(mrec->ipv6mr_multiaddr.s6_addr16[7]));
 
   /* Check if a this address is already in the group */
 

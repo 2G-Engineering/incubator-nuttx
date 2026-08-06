@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/wireless/ieee80211/bcm43xxx/bcmf_core.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <sys/stat.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -247,7 +249,7 @@ int bcmf_upload_file(FAR bcmf_interface_dev_t *ibus, uint32_t address,
 
   /* Open the file in the detached state */
 
-  ret = file_open(&finfo, path, O_RDONLY);
+  ret = file_open(&finfo, path, O_RDONLY | O_CLOEXEC);
   if (ret < 0)
     {
       wlerr("ERROR: Failed to open the FILE MTD file %s: %d\n", path, ret);
@@ -256,7 +258,7 @@ int bcmf_upload_file(FAR bcmf_interface_dev_t *ibus, uint32_t address,
 
   /* Allocate an I/O buffer */
 
-  buf = (FAR uint8_t *)kmm_malloc(BCMF_UPLOAD_TRANSFER_SIZE);
+  buf = kmm_malloc(BCMF_UPLOAD_TRANSFER_SIZE);
   if (buf == NULL)
     {
       wlerr("ERROR: Failed allocate an I/O buffer\n");
@@ -345,7 +347,7 @@ int bcmf_upload_nvram(FAR bcmf_interface_dev_t *ibus)
       goto out;
     }
 
-  ret = file_open(&finfo, nvfile, O_RDONLY);
+  ret = file_open(&finfo, nvfile, O_RDONLY | O_CLOEXEC);
   if (ret < 0)
     {
       goto out;
@@ -361,7 +363,7 @@ int bcmf_upload_nvram(FAR bcmf_interface_dev_t *ibus)
 
   stat.st_size = (stat.st_size + 63) & (~63);
 
-  buf = (FAR uint8_t *)kmm_malloc(stat.st_size);
+  buf = kmm_malloc(stat.st_size);
   if (buf == NULL)
     {
       goto out;
@@ -567,7 +569,7 @@ int bcmf_core_upload_firmware(FAR bcmf_interface_dev_t *ibus)
         DEBUGPANIC();
     }
 
-  nxsig_usleep(50 * 1000);
+  nxsched_usleep(50 * 1000);
 
   /* Flash chip firmware */
 
@@ -614,12 +616,12 @@ int bcmf_core_upload_firmware(FAR bcmf_interface_dev_t *ibus)
       case SDIO_DEVICE_ID_BROADCOM_43362:
       case SDIO_DEVICE_ID_BROADCOM_43430:
       case SDIO_DEVICE_ID_INFINEON_CYW43439:
-        nxsig_usleep(10 * 1000);
+        nxsched_usleep(10 * 1000);
         bcmf_core_reset(ibus, WLAN_ARMCM3_CORE_ID, 0, 0, 0);
 
         /* Check ARMCM3 core is running */
 
-        nxsig_usleep(10 * 1000);
+        nxsched_usleep(10 * 1000);
         if (!bcmf_core_isup(ibus, WLAN_ARMCM3_CORE_ID))
           {
             wlerr("Cannot start ARMCM3 core\n");
@@ -658,7 +660,7 @@ int bcmf_core_upload_firmware(FAR bcmf_interface_dev_t *ibus)
 
         /* Check ARMCR4 core is running */
 
-        nxsig_usleep(10 * 1000);
+        nxsched_usleep(10 * 1000);
         if (!bcmf_core_isup(ibus, WLAN_ARMCR4_CORE_ID))
           {
             wlerr("Cannot start ARMCR4 core\n");
@@ -727,7 +729,7 @@ void bcmf_core_disable(FAR bcmf_interface_dev_t *ibus,
 
       /*  Ensure no backplane operation is pending */
 
-      nxsig_usleep(10 * 1000);
+      nxsched_usleep(10 * 1000);
 
       bcmf_write_sbregw(ibus,
                         base + BCMA_IOCTL,

@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/machine/sim/arch_setjmp_arm64.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,10 +31,12 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#if defined(CONFIG_HOST_MACOS)
-    #define SYMBOL(x) _##x
+#ifdef __CYGWIN__
+#  define SYMBOL(s) _##s
+#elif defined(__ELF__)
+#  define SYMBOL(s) s
 #else
-    #define SYMBOL(x) x
+#  define SYMBOL(s) _##s
 #endif
 
 /****************************************************************************

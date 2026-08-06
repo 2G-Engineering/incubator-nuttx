@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/b-l475e-iot01a/src/stm32_spirit.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/signal.h>
@@ -57,7 +59,7 @@
  * Private Types
  ****************************************************************************/
 
-struct stm32l4_priv_s
+struct stm32_priv_s
 {
   struct spirit_lower_s dev;
   xcpt_t handler;
@@ -75,18 +77,18 @@ struct stm32l4_priv_s
  * to isolate the Spirit driver from differences in GPIO interrupt handling
  * varying boards and MCUs.
  *
- *   stm32l4_reset      - Reset the Spirit part.
- *   stm32l4_attach_irq - Attach the Spirit interrupt handler to the GPIO
+ *   stm32_reset      - Reset the Spirit part.
+ *   stm32_attach_irq - Attach the Spirit interrupt handler to the GPIO
  *                        interrupt
- *   stm32l4_enable_irq - Enable or disable the GPIO interrupt
+ *   stm32_enable_irq - Enable or disable the GPIO interrupt
  */
 
-static int  stm32l4_reset(const struct spirit_lower_s *lower);
-static int  stm32l4_attach_irq(const struct spirit_lower_s *lower,
+static int  stm32_reset(const struct spirit_lower_s *lower);
+static int  stm32_attach_irq(const struct spirit_lower_s *lower,
                                xcpt_t handler, void *arg);
-static void stm32l4_enable_irq(const struct spirit_lower_s *lower,
+static void stm32_enable_irq(const struct spirit_lower_s *lower,
                                bool state);
-static int  stm32l4_spirit_devsetup(struct stm32l4_priv_s *priv);
+static int  stm32_spirit_devsetup(struct stm32_priv_s *priv);
 
 /****************************************************************************
  * Private Data
@@ -102,11 +104,11 @@ static int  stm32l4_spirit_devsetup(struct stm32l4_priv_s *priv);
  * may modify frequency or X plate resistance values.
  */
 
-static struct stm32l4_priv_s g_spirit =
+static struct stm32_priv_s g_spirit =
 {
-  .dev.reset   = stm32l4_reset,
-  .dev.attach  = stm32l4_attach_irq,
-  .dev.enable  = stm32l4_enable_irq,
+  .dev.reset   = stm32_reset,
+  .dev.attach  = stm32_attach_irq,
+  .dev.enable  = stm32_enable_irq,
   .handler     = NULL,
   .arg         = NULL,
   .intcfg      = GPIO_SPSGRF_INT,
@@ -120,20 +122,20 @@ static struct stm32l4_priv_s g_spirit =
 
 /* Reset the Spirit 1 part */
 
-static int stm32l4_reset(const struct spirit_lower_s *lower)
+static int stm32_reset(const struct spirit_lower_s *lower)
 {
-  struct stm32l4_priv_s *priv = (struct stm32l4_priv_s *)lower;
+  struct stm32_priv_s *priv = (struct stm32_priv_s *)lower;
 
   DEBUGASSERT(priv != NULL);
 
   /* Reset pulse */
 
-  stm32l4_gpiowrite(priv->sdncfg, true);
-  stm32l4_gpiowrite(priv->sdncfg, false);
+  stm32_gpiowrite(priv->sdncfg, true);
+  stm32_gpiowrite(priv->sdncfg, false);
 
   /* Wait minimum 1.5 ms to allow Spirit a proper boot-up sequence */
 
-  nxsig_usleep(1500);
+  nxsched_usleep(1500);
   return OK;
 }
 
@@ -143,15 +145,15 @@ static int stm32l4_reset(const struct spirit_lower_s *lower)
  * interrupts should be configured on both rising and falling edges
  * so that contact and loss-of-contact events can be detected.
  *
- *   stm32l4_attach_irq - Attach the Spirit interrupt handler to the GPIO
+ *   stm32_attach_irq - Attach the Spirit interrupt handler to the GPIO
  *                        interrupt
- *   stm32l4_enable_irq - Enable or disable the GPIO interrupt
+ *   stm32_enable_irq - Enable or disable the GPIO interrupt
  */
 
-static int stm32l4_attach_irq(const struct spirit_lower_s *lower,
+static int stm32_attach_irq(const struct spirit_lower_s *lower,
                               xcpt_t handler, void *arg)
 {
-  struct stm32l4_priv_s *priv = (struct stm32l4_priv_s *)lower;
+  struct stm32_priv_s *priv = (struct stm32_priv_s *)lower;
 
   DEBUGASSERT(priv != NULL);
 
@@ -162,10 +164,10 @@ static int stm32l4_attach_irq(const struct spirit_lower_s *lower,
   return OK;
 }
 
-static void stm32l4_enable_irq(const struct spirit_lower_s *lower,
+static void stm32_enable_irq(const struct spirit_lower_s *lower,
                                bool state)
 {
-  struct stm32l4_priv_s *priv = (struct stm32l4_priv_s *)lower;
+  struct stm32_priv_s *priv = (struct stm32_priv_s *)lower;
 
   /* The caller should not attempt to enable interrupts if the handler
    * has not yet been 'attached'
@@ -181,20 +183,20 @@ static void stm32l4_enable_irq(const struct spirit_lower_s *lower,
     {
       /* Enable interrupts on falling edge (active low) */
 
-      stm32l4_gpiosetevent(priv->intcfg, false, true, false,
+      stm32_gpiosetevent(priv->intcfg, false, true, false,
                            priv->handler, priv->arg);
     }
   else
     {
       /* Disable interrupts */
 
-      stm32l4_gpiosetevent(priv->intcfg, false, false, false,
+      stm32_gpiosetevent(priv->intcfg, false, false, false,
                            NULL, NULL);
     }
 }
 
 /****************************************************************************
- * Name: stm32l4_spirit_devsetup
+ * Name: stm32_spirit_devsetup
  *
  * Description:
  *   Initialize one the Spirit device
@@ -205,21 +207,21 @@ static void stm32l4_enable_irq(const struct spirit_lower_s *lower,
  *
  ****************************************************************************/
 
-static int stm32l4_spirit_devsetup(struct stm32l4_priv_s *priv)
+static int stm32_spirit_devsetup(struct stm32_priv_s *priv)
 {
   struct spi_dev_s *spi;
   int ret;
 
-  /* Configure the interrupt pin and SDN pins.  Innitializing the SDN to '1'
+  /* Configure the interrupt pin and SDN pins.  Initializing the SDN to '1'
    * powers down the Spirit.
    */
 
-  stm32l4_configgpio(priv->intcfg);
-  stm32l4_configgpio(priv->sdncfg);
+  stm32_configgpio(priv->intcfg);
+  stm32_configgpio(priv->sdncfg);
 
   /* Initialize the SPI bus and get an instance of the SPI interface */
 
-  spi = stm32l4_spibus_initialize(priv->spidev);
+  spi = stm32_spibus_initialize(priv->spidev);
   if (spi == NULL)
     {
       wlerr("ERROR: Failed to initialize SPI bus %d\n", priv->spidev);
@@ -243,7 +245,7 @@ static int stm32l4_spirit_devsetup(struct stm32l4_priv_s *priv)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_spirit_initialize
+ * Name: stm32_spirit_initialize
  *
  * Description:
  *   Initialize the Spirit device.
@@ -254,13 +256,13 @@ static int stm32l4_spirit_devsetup(struct stm32l4_priv_s *priv)
  *
  ****************************************************************************/
 
-int stm32l4_spirit_initialize(void)
+int stm32_spirit_initialize(void)
 {
   int ret;
 
   wlinfo("Configuring Spirit\n");
 
-  ret = stm32l4_spirit_devsetup(&g_spirit);
+  ret = stm32_spirit_devsetup(&g_spirit);
   if (ret < 0)
     {
       wlerr("ERROR: Failed to initialize Spirit: %d\n", ret);

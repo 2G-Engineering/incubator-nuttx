@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/a1x/pcduino-a10/src/pcduino_a10.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -85,7 +87,7 @@
  *   LED_SIGNAL        In a signal handler      N/C  N/C  Soft glow
  *   LED_ASSERTION     An assertion failed      N/C  N/C  Soft glow
  *   LED_PANIC         The system has crashed   N/C  N/C  2Hz Flashing
- *   LED_IDLE          MCU is is sleep mode         Not used
+ *   LED_IDLE          MCU is in sleep mode         Not used
  *
  * After booting, LED1 and 3 are not longer used by the system and can be
  * used for other purposes by the application (Of course, all LEDs are
@@ -144,9 +146,6 @@
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=y && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
  *
  ****************************************************************************/
 

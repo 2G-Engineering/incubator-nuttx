@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/wireless/ieee802154/xbee/xbee_netdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arpa/inet.h>
 
@@ -134,10 +136,12 @@ struct xbeenet_driver_s
 
   /* MAC Service notification information */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   bool    xd_notify_registered;
   pid_t   xd_notify_pid;
   struct sigevent xd_notify_event;
   struct sigwork_s xd_notify_work;
+#endif
 };
 
 /****************************************************************************
@@ -408,12 +412,14 @@ static int xbeenet_notify(FAR struct xbee_maccb_s *maccb,
           nxsem_post(&priv->xd_eventsem);
         }
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
       if (priv->xd_notify_registered)
         {
           priv->xd_notify_event.sigev_value.sival_int = primitive->type;
           nxsig_notification(priv->xd_notify_pid, &priv->xd_notify_event,
                              SI_QUEUE, &priv->xd_notify_work);
         }
+#endif
 
       nxmutex_unlock(&priv->xd_lock);
       return OK;
@@ -462,7 +468,7 @@ static int xbeenet_rxframe(FAR struct xbeenet_driver_s *priv,
 
   ind->frame = NULL;
 
-  net_lock();
+  netdev_lock(&priv->xd_dev.r_dev);
 
   /* Transfer the frame to the network logic */
 
@@ -504,7 +510,7 @@ static int xbeenet_rxframe(FAR struct xbeenet_driver_s *priv,
   if (ret < 0)
 #endif
     {
-      net_unlock();
+      netdev_unlock(&priv->xd_dev.r_dev);
       ind->frame = iob;
       return ret;
     }
@@ -514,7 +520,7 @@ static int xbeenet_rxframe(FAR struct xbeenet_driver_s *priv,
   NETDEV_RXPACKETS(&priv->xd_dev.r_dev);
   NETDEV_RXIPV6(&priv->xd_dev.r_dev);
 
-  net_unlock();
+  netdev_unlock(&priv->xd_dev.r_dev);
 
   /* sixlowpan_input() will free the IOB, but we must free the struct
    * ieee802154_primitive_s container here.
@@ -678,6 +684,7 @@ static int xbeenet_ifup(FAR struct net_driver_s *dev)
 
       priv->xd_bifup = true;
       ret = OK;
+      netdev_carrier_on(dev);
     }
 
   return ret;
@@ -718,6 +725,9 @@ static int xbeenet_ifdown(FAR struct net_driver_s *dev)
 
   priv->xd_bifup = false;
   leave_critical_section(flags);
+
+  netdev_carrier_off(dev);
+
   return OK;
 }
 
@@ -750,7 +760,7 @@ static void xbeenet_txavail_work(FAR void *arg)
    * thread has been configured.
    */
 
-  net_lock();
+  netdev_lock(&priv->xd_dev.r_dev);
 
   /* Ignore the notification if the interface is not yet up */
 
@@ -767,7 +777,7 @@ static void xbeenet_txavail_work(FAR void *arg)
       devif_poll(&priv->xd_dev.r_dev, xbeenet_txpoll_callback);
     }
 
-  net_unlock();
+  netdev_unlock(&priv->xd_dev.r_dev);
 }
 
 /****************************************************************************
@@ -934,6 +944,7 @@ static int xbeenet_ioctl(FAR struct net_driver_s *dev, int cmd,
                *              appropriately.
                */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
               case MAC802154IOC_NOTIFY_REGISTER:
                 {
                   /* Save the notification events */
@@ -944,6 +955,7 @@ static int xbeenet_ioctl(FAR struct net_driver_s *dev, int cmd,
                   ret = OK;
                 }
                 break;
+#endif
 
               case MAC802154IOC_GET_EVENT:
                 {
@@ -1287,7 +1299,10 @@ int xbee_netdev_register(XBEEHANDLE xbee)
   sq_init(&priv->primitive_queue);
 
   priv->xd_enableevents = false;
+
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   priv->xd_notify_registered = false;
+#endif
 
   /* Initialize the XBee MAC callbacks */
 

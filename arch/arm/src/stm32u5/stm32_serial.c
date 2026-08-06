@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32u5/stm32_serial.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,12 +34,13 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/serial/serial.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/power/pm.h>
 
 #ifdef CONFIG_SERIAL_TERMIOS
@@ -79,14 +82,14 @@
  */
 
 #  if defined(CONFIG_USART2_RXDMA) || defined(CONFIG_USART3_RXDMA)
-#    if !defined(CONFIG_STM32U5_DMA1) && !defined(CONFIG_STM32U5_DMAMUX)
-#      error STM32U5 USART2/3 receive DMA requires CONFIG_STM32U5_DMA1
+#    if !defined(CONFIG_STM32_DMA1) && !defined(CONFIG_STM32_DMAMUX)
+#      error STM32U5 USART2/3 receive DMA requires CONFIG_STM32_DMA1
 #    endif
 #  endif
 
 #  if defined(CONFIG_UART4_RXDMA) || defined(CONFIG_UART5_RXDMA)
-#    if !defined(CONFIG_STM32U5_DMA2) && !defined(CONFIG_STM32U5_DMAMUX)
-#      error STM32U5 UART4/5 receive DMA requires CONFIG_STM32U5_DMA2
+#    if !defined(CONFIG_STM32_DMA2) && !defined(CONFIG_STM32_DMAMUX)
+#      error STM32U5 UART4/5 receive DMA requires CONFIG_STM32_DMA2
 #    endif
 #  endif
 
@@ -113,7 +116,7 @@
 
 /* UART2-5 have no alternate channels without DMAMUX */
 
-#  ifndef CONFIG_STM32U5_HAVE_DMAMUX
+#  ifndef CONFIG_STM32_HAVE_DMAMUX
 #    define DMAMAP_USART2_RX  DMACHAN_USART2_RX
 #    define DMAMAP_USART3_RX  DMACHAN_USART3_RX
 #    define DMAMAP_UART4_RX   DMACHAN_UART4_RX
@@ -146,11 +149,11 @@
  * can be individually invalidated.
  */
 
-#  if !defined(CONFIG_STM32U5_SERIAL_RXDMA_BUFFER_SIZE) || \
-      CONFIG_STM32U5_SERIAL_RXDMA_BUFFER_SIZE == 0
+#  if !defined(CONFIG_STM32_SERIAL_RXDMA_BUFFER_SIZE) || \
+      CONFIG_STM32_SERIAL_RXDMA_BUFFER_SIZE == 0
 #    define RXDMA_BUFFER_SIZE 32
 #  else
-#    define RXDMA_BUFFER_SIZE ((CONFIG_STM32U5_SERIAL_RXDMA_BUFFER_SIZE + 31) & ~31)
+#    define RXDMA_BUFFER_SIZE ((CONFIG_STM32_SERIAL_RXDMA_BUFFER_SIZE + 31) & ~31)
 #  endif
 
 /* DMA priority */
@@ -182,8 +185,8 @@
 
 /* Power management definitions */
 
-#if defined(CONFIG_PM) && !defined(CONFIG_STM32U5_PM_SERIAL_ACTIVITY)
-#  define CONFIG_STM32U5_PM_SERIAL_ACTIVITY  10
+#if defined(CONFIG_PM) && !defined(CONFIG_STM32_PM_SERIAL_ACTIVITY)
+#  define CONFIG_STM32_PM_SERIAL_ACTIVITY  10
 #endif
 
 /* Keep track if a Break was set
@@ -197,7 +200,7 @@
  * See stm32serial_restoreusartint where the masking is done.
  */
 
-#ifdef CONFIG_STM32U5_SERIALBRK_BSDCOMPAT
+#ifdef CONFIG_STM32_SERIALBRK_BSDCOMPAT
 #  define USART_CR1_IE_BREAK_INPROGRESS_SHFTS 15
 #  define USART_CR1_IE_BREAK_INPROGRESS (1 << USART_CR1_IE_BREAK_INPROGRESS_SHFTS)
 #endif
@@ -287,6 +290,7 @@ struct stm32_serial_s
   const uint32_t    rs485_dir_gpio;     /* U[S]ART RS-485 DIR GPIO pin configuration */
   const bool        rs485_dir_polarity; /* U[S]ART RS-485 DIR pin state for TX enabled */
 #endif
+  spinlock_t        lock;
 };
 
 /****************************************************************************
@@ -391,7 +395,7 @@ static const struct uart_ops_s g_uart_dma_ops =
 
 /* I/O buffers */
 
-#ifdef CONFIG_STM32U5_LPUART1_SERIALDRIVER
+#ifdef CONFIG_STM32_LPUART1_SERIALDRIVER
 static char g_lpuart1rxbuffer[CONFIG_LPUART1_RXBUFSIZE];
 static char g_lpuart1txbuffer[CONFIG_LPUART1_TXBUFSIZE];
 #  ifdef CONFIG_LPUART1_RXDMA
@@ -399,7 +403,7 @@ static char g_lpuart1rxfifo[RXDMA_BUFFER_SIZE];
 #  endif
 #endif
 
-#ifdef CONFIG_STM32U5_USART1_SERIALDRIVER
+#ifdef CONFIG_STM32_USART1_SERIALDRIVER
 static char g_usart1rxbuffer[CONFIG_USART1_RXBUFSIZE];
 static char g_usart1txbuffer[CONFIG_USART1_TXBUFSIZE];
 #  ifdef CONFIG_USART1_RXDMA
@@ -407,7 +411,7 @@ static char g_usart1rxfifo[RXDMA_BUFFER_SIZE];
 #  endif
 #endif
 
-#ifdef CONFIG_STM32U5_USART2_SERIALDRIVER
+#ifdef CONFIG_STM32_USART2_SERIALDRIVER
 static char g_usart2rxbuffer[CONFIG_USART2_RXBUFSIZE];
 static char g_usart2txbuffer[CONFIG_USART2_TXBUFSIZE];
 #  ifdef CONFIG_USART2_RXDMA
@@ -415,7 +419,7 @@ static char g_usart2rxfifo[RXDMA_BUFFER_SIZE];
 #  endif
 #endif
 
-#ifdef CONFIG_STM32U5_USART3_SERIALDRIVER
+#ifdef CONFIG_STM32_USART3_SERIALDRIVER
 static char g_usart3rxbuffer[CONFIG_USART3_RXBUFSIZE];
 static char g_usart3txbuffer[CONFIG_USART3_TXBUFSIZE];
 #  ifdef CONFIG_USART3_RXDMA
@@ -423,7 +427,7 @@ static char g_usart3rxfifo[RXDMA_BUFFER_SIZE];
 #  endif
 #endif
 
-#ifdef CONFIG_STM32U5_UART4_SERIALDRIVER
+#ifdef CONFIG_STM32_UART4_SERIALDRIVER
 static char g_uart4rxbuffer[CONFIG_UART4_RXBUFSIZE];
 static char g_uart4txbuffer[CONFIG_UART4_TXBUFSIZE];
 #  ifdef CONFIG_UART4_RXDMA
@@ -431,7 +435,7 @@ static char g_uart4rxfifo[RXDMA_BUFFER_SIZE];
 #  endif
 #endif
 
-#ifdef CONFIG_STM32U5_UART5_SERIALDRIVER
+#ifdef CONFIG_STM32_UART5_SERIALDRIVER
 static char g_uart5rxbuffer[CONFIG_UART5_RXBUFSIZE];
 static char g_uart5txbuffer[CONFIG_UART5_TXBUFSIZE];
 #  ifdef CONFIG_UART5_RXDMA
@@ -441,7 +445,7 @@ static char g_uart5rxfifo[RXDMA_BUFFER_SIZE];
 
 /* This describes the state of the STM32 USART1 ports. */
 
-#ifdef CONFIG_STM32U5_LPUART1_SERIALDRIVER
+#ifdef CONFIG_STM32_LPUART1_SERIALDRIVER
 static struct stm32_serial_s g_lpuart1priv =
 {
   .dev =
@@ -497,10 +501,11 @@ static struct stm32_serial_s g_lpuart1priv =
   .rs485_dir_polarity = true,
 #    endif
 #  endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
-#ifdef CONFIG_STM32U5_USART1_SERIALDRIVER
+#ifdef CONFIG_STM32_USART1_SERIALDRIVER
 static struct stm32_serial_s g_usart1priv =
 {
   .dev =
@@ -556,12 +561,13 @@ static struct stm32_serial_s g_usart1priv =
   .rs485_dir_polarity = true,
 #    endif
 #  endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
 /* This describes the state of the STM32 USART2 port. */
 
-#ifdef CONFIG_STM32U5_USART2_SERIALDRIVER
+#ifdef CONFIG_STM32_USART2_SERIALDRIVER
 static struct stm32_serial_s g_usart2priv =
 {
   .dev =
@@ -617,12 +623,13 @@ static struct stm32_serial_s g_usart2priv =
   .rs485_dir_polarity = true,
 #    endif
 #  endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
 /* This describes the state of the STM32 USART3 port. */
 
-#ifdef CONFIG_STM32U5_USART3_SERIALDRIVER
+#ifdef CONFIG_STM32_USART3_SERIALDRIVER
 static struct stm32_serial_s g_usart3priv =
 {
   .dev =
@@ -678,12 +685,13 @@ static struct stm32_serial_s g_usart3priv =
   .rs485_dir_polarity = true,
 #    endif
 #  endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
 /* This describes the state of the STM32 UART4 port. */
 
-#ifdef CONFIG_STM32U5_UART4_SERIALDRIVER
+#ifdef CONFIG_STM32_UART4_SERIALDRIVER
 static struct stm32_serial_s g_uart4priv =
 {
   .dev =
@@ -739,12 +747,13 @@ static struct stm32_serial_s g_uart4priv =
   .rs485_dir_polarity = true,
 #    endif
 #  endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
 /* This describes the state of the STM32 UART5 port. */
 
-#ifdef CONFIG_STM32U5_UART5_SERIALDRIVER
+#ifdef CONFIG_STM32_UART5_SERIALDRIVER
 static struct stm32_serial_s g_uart5priv =
 {
   .dev =
@@ -800,6 +809,7 @@ static struct stm32_serial_s g_uart5priv =
   .rs485_dir_polarity = true,
 #    endif
 #  endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
@@ -808,22 +818,22 @@ static struct stm32_serial_s g_uart5priv =
 static struct stm32_serial_s * const
   g_uart_devs[STM32_NLPUART + STM32_NUSART + STM32_NUART] =
 {
-#ifdef CONFIG_STM32U5_LPUART1_SERIALDRIVER
+#ifdef CONFIG_STM32_LPUART1_SERIALDRIVER
   [0] = &g_lpuart1priv,
 #endif
-#ifdef CONFIG_STM32U5_USART1_SERIALDRIVER
+#ifdef CONFIG_STM32_USART1_SERIALDRIVER
   [1] = &g_usart1priv,
 #endif
-#ifdef CONFIG_STM32U5_USART2_SERIALDRIVER
+#ifdef CONFIG_STM32_USART2_SERIALDRIVER
   [2] = &g_usart2priv,
 #endif
-#ifdef CONFIG_STM32U5_USART3_SERIALDRIVER
+#ifdef CONFIG_STM32_USART3_SERIALDRIVER
   [3] = &g_usart3priv,
 #endif
-#ifdef CONFIG_STM32U5_UART4_SERIALDRIVER
+#ifdef CONFIG_STM32_UART4_SERIALDRIVER
   [4] = &g_uart4priv,
 #endif
-#ifdef CONFIG_STM32U5_UART5_SERIALDRIVER
+#ifdef CONFIG_STM32_UART5_SERIALDRIVER
   [5] = &g_uart5priv,
 #endif
 };
@@ -922,7 +932,7 @@ static void stm32serial_disableusartint(struct stm32_serial_s *priv,
 {
   irqstate_t flags;
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&priv->lock);
 
   if (ie)
     {
@@ -965,7 +975,7 @@ static void stm32serial_disableusartint(struct stm32_serial_s *priv,
 
   stm32serial_setusartint(priv, 0);
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 
 /****************************************************************************
@@ -1115,7 +1125,7 @@ static void stm32serial_setformat(struct uart_dev_s *dev)
   regval  = stm32serial_getreg(priv, STM32_USART_CR3_OFFSET);
   regval &= ~(USART_CR3_CTSE | USART_CR3_RTSE);
 
-#if defined(CONFIG_SERIAL_IFLOWCONTROL) && !defined(CONFIG_STM32U5_FLOWCONTROL_BROKEN)
+#if defined(CONFIG_SERIAL_IFLOWCONTROL) && !defined(CONFIG_STM32_FLOWCONTROL_BROKEN)
   if (priv->iflow && (priv->rts_gpio != 0))
     {
       regval |= USART_CR3_RTSE;
@@ -1319,37 +1329,37 @@ static void stm32serial_setapbclock(struct uart_dev_s *dev, bool on)
     {
     default:
       return;
-#ifdef CONFIG_STM32U5_LPUART1_SERIALDRIVER
+#ifdef CONFIG_STM32_LPUART1_SERIALDRIVER
     case STM32_LPUART1_BASE:
       rcc_en = RCC_APB1ENR2_LPUART1EN;
       regaddr = STM32_RCC_APB1ENR2;
       break;
 #endif
-#ifdef CONFIG_STM32U5_USART1_SERIALDRIVER
+#ifdef CONFIG_STM32_USART1_SERIALDRIVER
     case STM32_USART1_BASE:
       rcc_en = RCC_APB2ENR_USART1EN;
       regaddr = STM32_RCC_APB2ENR;
       break;
 #endif
-#ifdef CONFIG_STM32U5_USART2_SERIALDRIVER
+#ifdef CONFIG_STM32_USART2_SERIALDRIVER
     case STM32_USART2_BASE:
       rcc_en = RCC_APB1ENR1_USART2EN;
       regaddr = STM32_RCC_APB1ENR1;
       break;
 #endif
-#ifdef CONFIG_STM32U5_USART3_SERIALDRIVER
+#ifdef CONFIG_STM32_USART3_SERIALDRIVER
     case STM32_USART3_BASE:
       rcc_en = RCC_APB1ENR1_USART3EN;
       regaddr = STM32_RCC_APB1ENR1;
       break;
 #endif
-#ifdef CONFIG_STM32U5_UART4_SERIALDRIVER
+#ifdef CONFIG_STM32_UART4_SERIALDRIVER
     case STM32_UART4_BASE:
       rcc_en = RCC_APB1ENR1_UART4EN;
       regaddr = STM32_RCC_APB1ENR1;
       break;
 #endif
-#ifdef CONFIG_STM32U5_UART5_SERIALDRIVER
+#ifdef CONFIG_STM32_UART5_SERIALDRIVER
     case STM32_UART5_BASE:
       rcc_en = RCC_APB1ENR1_UART5EN;
       regaddr = STM32_RCC_APB1ENR1;
@@ -1396,8 +1406,15 @@ static int stm32serial_setup(struct uart_dev_s *dev)
 
   /* Configure pins for USART use */
 
-  stm32_configgpio(priv->tx_gpio);
-  stm32_configgpio(priv->rx_gpio);
+  if (priv->tx_gpio != 0)
+    {
+      stm32_configgpio(priv->tx_gpio);
+    }
+
+  if (priv->rx_gpio != 0)
+    {
+      stm32_configgpio(priv->rx_gpio);
+    }
 
 #ifdef CONFIG_SERIAL_OFLOWCONTROL
   if (priv->cts_gpio != 0)
@@ -1411,7 +1428,7 @@ static int stm32serial_setup(struct uart_dev_s *dev)
     {
       uint32_t config = priv->rts_gpio;
 
-#ifdef CONFIG_STM32U5_FLOWCONTROL_BROKEN
+#ifdef CONFIG_STM32_FLOWCONTROL_BROKEN
       /* Instead of letting hw manage this pin, we will bitbang */
 
       config = (config & ~GPIO_MODE_MASK) | GPIO_OUTPUT;
@@ -1622,8 +1639,15 @@ static void stm32serial_shutdown(struct uart_dev_s *dev)
    * then this may need to be a configuration option.
    */
 
-  stm32_unconfiggpio(priv->tx_gpio);
-  stm32_unconfiggpio(priv->rx_gpio);
+  if (priv->tx_gpio != 0)
+    {
+      stm32_unconfiggpio(priv->tx_gpio);
+    }
+
+  if (priv->rx_gpio != 0)
+    {
+      stm32_unconfiggpio(priv->rx_gpio);
+    }
 
 #ifdef CONFIG_SERIAL_OFLOWCONTROL
   if (priv->cts_gpio != 0)
@@ -1755,8 +1779,8 @@ static int stm32serial_interrupt(int irq, void *context, void *arg)
 
   /* Report serial activity to the power management logic */
 
-#if defined(CONFIG_PM) && CONFIG_STM32U5_PM_SERIAL_ACTIVITY > 0
-  pm_activity(PM_IDLE_DOMAIN, CONFIG_STM32U5_PM_SERIAL_ACTIVITY);
+#if defined(CONFIG_PM) && CONFIG_STM32_PM_SERIAL_ACTIVITY > 0
+  pm_activity(PM_IDLE_DOMAIN, CONFIG_STM32_PM_SERIAL_ACTIVITY);
 #endif
 
   /* Loop until there are no characters to be transferred or,
@@ -1899,7 +1923,7 @@ static int stm32serial_ioctl(struct file *filep, int cmd,
       break;
 #endif
 
-#ifdef CONFIG_STM32U5_USART_SINGLEWIRE
+#ifdef CONFIG_STM32_USART_SINGLEWIRE
     case TIOCSSINGLEWIRE:
       {
         uint32_t cr1;
@@ -1946,17 +1970,24 @@ static int stm32serial_ioctl(struct file *filep, int cmd,
                 gpio_val |= GPIO_FLOAT;
               }
 
-            stm32_configgpio((priv->tx_gpio &
-                                ~(GPIO_PUPD_MASK | GPIO_OPENDRAIN)) |
-                               gpio_val);
+            if (priv->tx_gpio != 0)
+              {
+                stm32_configgpio((priv->tx_gpio &
+                                  ~(GPIO_PUPD_MASK | GPIO_OPENDRAIN)) |
+                                  gpio_val);
+              }
 
             cr |= USART_CR3_HDSEL;
           }
         else
           {
-            stm32_configgpio((priv->tx_gpio &
-                                ~(GPIO_PUPD_MASK | GPIO_OPENDRAIN)) |
-                               GPIO_PUSHPULL);
+            if (priv->tx_gpio != 0)
+              {
+                stm32_configgpio((priv->tx_gpio &
+                                  ~(GPIO_PUPD_MASK | GPIO_OPENDRAIN)) |
+                                  GPIO_PUSHPULL);
+              }
+
             cr &= ~USART_CR3_HDSEL;
           }
 
@@ -1970,7 +2001,7 @@ static int stm32serial_ioctl(struct file *filep, int cmd,
      break;
 #endif
 
-#ifdef CONFIG_STM32U5_USART_INVERT
+#ifdef CONFIG_STM32_USART_INVERT
     case TIOCSINVERT:
       {
         uint32_t cr1;
@@ -2021,7 +2052,7 @@ static int stm32serial_ioctl(struct file *filep, int cmd,
      break;
 #endif
 
-#ifdef CONFIG_STM32U5_USART_SWAP
+#ifdef CONFIG_STM32_USART_SWAP
     case TIOCSSWAP:
       {
         uint32_t cr1;
@@ -2158,12 +2189,11 @@ static int stm32serial_ioctl(struct file *filep, int cmd,
       break;
 #endif /* CONFIG_SERIAL_TERMIOS */
 
-#ifdef CONFIG_STM32U5_USART_BREAKS
-#  ifdef CONFIG_STM32U5_SERIALBRK_BSDCOMPAT
+#ifdef CONFIG_STM32_USART_BREAKS
+#  ifdef CONFIG_STM32_SERIALBRK_BSDCOMPAT
     case TIOCSBRK:  /* BSD compatibility: Turn break on, unconditionally */
       {
         irqstate_t flags;
-        uint32_t tx_break;
 
         flags = enter_critical_section();
 
@@ -2175,9 +2205,12 @@ static int stm32serial_ioctl(struct file *filep, int cmd,
 
         /* Configure TX as a GPIO output pin and Send a break signal */
 
-        tx_break = GPIO_OUTPUT |
-                   (~(GPIO_MODE_MASK | GPIO_OUTPUT_SET) & priv->tx_gpio);
-        stm32_configgpio(tx_break);
+        if (priv->tx_gpio != 0)
+          {
+            uint32_t tx_break = GPIO_OUTPUT |
+                    (~(GPIO_MODE_MASK | GPIO_OUTPUT_SET) & priv->tx_gpio);
+            stm32_configgpio(tx_break);
+          }
 
         leave_critical_section(flags);
       }
@@ -2191,7 +2224,10 @@ static int stm32serial_ioctl(struct file *filep, int cmd,
 
         /* Configure TX back to U(S)ART */
 
-        stm32_configgpio(priv->tx_gpio);
+        if (priv->tx_gpio != 0)
+          {
+            stm32_configgpio(priv->tx_gpio);
+          }
 
         priv->ie &= ~USART_CR1_IE_BREAK_INPROGRESS;
 
@@ -2382,7 +2418,7 @@ static bool stm32serial_rxflowcontrol(struct uart_dev_s *dev,
     (struct stm32_serial_s *)dev->priv;
 
 #if defined(CONFIG_SERIAL_IFLOWCONTROL_WATERMARKS) && \
-    defined(CONFIG_STM32U5_FLOWCONTROL_BROKEN)
+    defined(CONFIG_STM32_FLOWCONTROL_BROKEN)
   if (priv->iflow && (priv->rts_gpio != 0))
     {
       /* Assert/de-assert nRTS set it high resume/stop sending */
@@ -2734,7 +2770,7 @@ static void stm32serial_txint(struct uart_dev_s *dev, bool enable)
         }
 #  endif
 
-#  ifdef CONFIG_STM32U5_SERIALBRK_BSDCOMPAT
+#  ifdef CONFIG_STM32_SERIALBRK_BSDCOMPAT
       if (priv->ie & USART_CR1_IE_BREAK_INPROGRESS)
         {
           leave_critical_section(flags);
@@ -3013,7 +3049,7 @@ static int stm32serial_pmprepare(struct pm_callback_s *cb, int domain,
  *
  * Description:
  *   Performs the low level USART initialization early in debug so that the
- *   serial console will be available during bootup.  This must be called
+ *   serial console will be available during boot up.  This must be called
  *   before arm_serialinit.
  *
  ****************************************************************************/
@@ -3075,7 +3111,7 @@ void arm_serialinit(void)
 #if CONSOLE_UART > 0
   uart_register("/dev/console", &g_uart_devs[CONSOLE_UART - 1]->dev);
 
-#ifndef CONFIG_STM32U5_SERIAL_DISABLE_REORDERING
+#ifndef CONFIG_STM32_SERIAL_DISABLE_REORDERING
   /* If not disabled, register the console UART to ttyS0 and exclude
    * it from initializing it further down
    */
@@ -3104,7 +3140,7 @@ void arm_serialinit(void)
           continue;
         }
 
-#ifndef CONFIG_STM32U5_SERIAL_DISABLE_REORDERING
+#ifndef CONFIG_STM32_SERIAL_DISABLE_REORDERING
       /* Don't create a device for the console - we did that above */
 
       if (g_uart_devs[i]->dev.isconsole)
@@ -3193,27 +3229,16 @@ void stm32_serial_dma_poll(void)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #if CONSOLE_UART > 0
   struct stm32_serial_s *priv = g_uart_devs[CONSOLE_UART - 1];
   uint16_t ie;
 
   stm32serial_disableusartint(priv, &ie);
-
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      arm_lowputc('\r');
-    }
-
   arm_lowputc(ch);
   stm32serial_restoreusartint(priv, ie);
 #endif
-  return ch;
 }
 
 #else /* USE_SERIALDRIVER */
@@ -3226,21 +3251,11 @@ int up_putc(int ch)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #if CONSOLE_UART > 0
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      arm_lowputc('\r');
-    }
-
   arm_lowputc(ch);
 #endif
-  return ch;
 }
 
 #endif /* USE_SERIALDRIVER */

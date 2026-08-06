@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/lis331dl.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -17,6 +19,19 @@
  * under the License.
  *
  ****************************************************************************/
+
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
 
 /****************************************************************************
  * Included Files
@@ -39,10 +54,6 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-#ifndef CONFIG_LIS331DL_I2C_FREQUENCY
-#  define CONFIG_LIS331DL_I2C_FREQUENCY 100000
-#endif
 
 /* LIS331DL Internal Registers **********************************************/
 
@@ -78,7 +89,7 @@
 #define ST_LIS331DL_OUT_Z           0x2D
 
 /****************************************************************************
- * Private Data Types
+ * Private Types
  ****************************************************************************/
 
 struct lis331dl_dev_s

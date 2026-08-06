@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm64/src/a64/mipi_dsi.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,7 +38,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include "mipi_dsi.h"
 
 /****************************************************************************
@@ -183,7 +185,7 @@ ssize_t mipi_dsi_long_packet(uint8_t *pktbuf,
   const uint8_t dt = cmd;
   const uint8_t di = (vc << 6) | dt;
 
-  /* Word Count (WC) (2 bytes)：
+  /* Word Count (WC) (2 bytes):
    * Number of bytes in the Packet Payload
    */
 

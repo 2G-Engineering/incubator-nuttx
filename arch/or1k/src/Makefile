@@ -1,6 +1,8 @@
 ############################################################################
 # arch/or1k/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -18,7 +20,7 @@
 #
 ############################################################################
 
-include $(TOPDIR)/Make.defs
+include $(TOPDIR)/tools/Make.defs
 include chip/Make.defs
 
 ifeq ($(CONFIG_ARCH_MOR1KX),y)          # OpenRISC mor1kx
@@ -179,6 +181,7 @@ distclean:: clean
 ifeq ($(BOARDMAKE),y)
 	$(Q) $(MAKE) -C board distclean
 endif
+	$(call DELFILE, $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds) $(HEAD_ASRC:.S=.dds))
 	$(call DELFILE, Make.dep)
 	$(call DELFILE, .depend)
 

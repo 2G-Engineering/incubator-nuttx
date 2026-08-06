@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/signal/sig_removependingsignal.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,12 +30,13 @@
 #include <signal.h>
 #include <time.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <sched.h>
 
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/wdog.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/kmalloc.h>
 
 #include "signal/signal.h"
@@ -59,11 +62,16 @@ FAR sigpendq_t *nxsig_remove_pendingsignal(FAR struct tcb_s *stcb, int signo)
 
   DEBUGASSERT(group);
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&group->tg_lock);
+
+  /* If stcb == NULL, the signal is for whole group. Otherwise only
+   * remove the one which is to be delivered to the stcb
+   */
 
   for (prevsig = NULL,
        currsig = (FAR sigpendq_t *)group->tg_sigpendingq.head;
-       (currsig && currsig->info.si_signo != signo);
+       currsig && (currsig->info.si_signo != signo ||
+                   (currsig->tcb != NULL && currsig->tcb != stcb));
        prevsig = currsig, currsig = currsig->flink);
 
   if (currsig)
@@ -78,7 +86,7 @@ FAR sigpendq_t *nxsig_remove_pendingsignal(FAR struct tcb_s *stcb, int signo)
         }
     }
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&group->tg_lock, flags);
 
   return currsig;
 }

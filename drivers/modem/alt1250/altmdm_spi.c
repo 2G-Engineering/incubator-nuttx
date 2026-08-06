@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/modem/alt1250/altmdm_spi.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -85,6 +87,11 @@ void altmdm_set_sleeppkt(FAR altmdm_spipkt_t *pkt)
 {
   altmdm_set_spipkt_txbuffer(pkt, NULL, 0);
   pkt->header |= ALTSPI_SLEEP_BIT;
+}
+
+void altmdm_set_retrypkt(FAR altmdm_spipkt_t *pkt)
+{
+  pkt->header |= ALTSPI_BUFFFULL_BIT;
 }
 
 bool altmdm_is_valid_spipkt_header(FAR altmdm_spipkt_t *pkt)

@@ -33,7 +33,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/irq.h>
 
@@ -45,9 +45,10 @@
 #include "hardware/esp32s3_uart.h"
 #include "hardware/esp32s3_soc.h"
 
-#include "esp32s3_clockconfig.h"
-#include "esp32s3_config.h"
-#include "esp32s3_gpio.h"
+#include "periph_ctrl.h"
+
+#include "esp_clk.h"
+#include "esp_gpio.h"
 
 #include "esp32s3_lowputc.h"
 
@@ -100,6 +101,14 @@ struct esp32s3_uart_s g_uart0_config =
   .oflow = false,   /* output flow control (CTS) disabled */
 #endif
 #endif
+#ifdef CONFIG_ESP32S3_UART0_RS485
+  .rs485_dir_gpio = CONFIG_ESP32S3_UART0_RS485_DIR_PIN,
+#if (CONFIG_ESP32S3_UART0_RS485_DIR_POLARITY == 0)
+  .rs485_dir_polarity = false,
+#else
+  .rs485_dir_polarity = true,
+#endif
+#endif
 };
 
 #endif /* CONFIG_ESP32S3_UART0 */
@@ -139,9 +148,64 @@ struct esp32s3_uart_s g_uart1_config =
   .oflow = false,   /* output flow control (CTS) disabled */
 #endif
 #endif
+#ifdef CONFIG_ESP32S3_UART1_RS485
+  .rs485_dir_gpio = CONFIG_ESP32S3_UART1_RS485_DIR_PIN,
+#if (CONFIG_ESP32S3_UART1_RS485_DIR_POLARITY == 0)
+  .rs485_dir_polarity = false,
+#else
+  .rs485_dir_polarity = true,
+#endif
+#endif
 };
 
 #endif /* CONFIG_ESP32S3_UART1 */
+
+#ifdef CONFIG_ESP32S3_UART2
+
+struct esp32s3_uart_s g_uart2_config =
+{
+  .periph = ESP32S3_PERIPH_UART2,
+  .id = 2,
+  .cpuint = -ENOMEM,
+  .irq = ESP32S3_IRQ_UART2,
+  .baud = CONFIG_UART2_BAUD,
+  .bits = CONFIG_UART2_BITS,
+  .parity = CONFIG_UART2_PARITY,
+  .stop_b2 = CONFIG_UART2_2STOP,
+  .int_pri = ESP32S3_INT_PRIO_DEF,
+  .txpin = CONFIG_ESP32S3_UART2_TXPIN,
+  .txsig = U2TXD_OUT_IDX,
+  .rxpin = CONFIG_ESP32S3_UART2_RXPIN,
+  .rxsig = U2RXD_IN_IDX,
+#ifdef CONFIG_SERIAL_IFLOWCONTROL
+  .rtspin = CONFIG_ESP32S3_UART2_RTSPIN,
+  .rtssig = U2RTS_OUT_IDX,
+#ifdef CONFIG_UART2_IFLOWCONTROL
+  .iflow = true,    /* input flow control (RTS) enabled */
+#else
+  .iflow = false,   /* input flow control (RTS) disabled */
+#endif
+#endif
+#ifdef CONFIG_SERIAL_OFLOWCONTROL
+  .ctspin = CONFIG_ESP32S3_UART2_CTSPIN,
+  .ctssig = U2CTS_IN_IDX,
+#ifdef CONFIG_UART1_OFLOWCONTROL
+  .oflow = true,    /* output flow control (CTS) enabled */
+#else
+  .oflow = false,   /* output flow control (CTS) disabled */
+#endif
+#endif
+#ifdef CONFIG_ESP32S3_UART2_RS485
+  .rs485_dir_gpio = CONFIG_ESP32S3_UART2_RS485_DIR_PIN,
+#if (CONFIG_ESP32S3_UART2_RS485_DIR_POLARITY == 0)
+  .rs485_dir_polarity = false,
+#else
+  .rs485_dir_polarity = true,
+#endif
+#endif
+};
+
+#endif /* CONFIG_ESP32S3_UART2 */
 #endif /* HAVE_UART_DEVICE */
 
 /****************************************************************************
@@ -399,12 +463,11 @@ void esp32s3_lowputc_set_sclk(const struct esp32s3_uart_s *priv,
 
 uint32_t esp32s3_lowputc_get_sclk(const struct esp32s3_uart_s * priv)
 {
-  uint32_t clk_conf_reg;
-  uint32_t ret   = -ENODATA;
-  clk_conf_reg   = getreg32(UART_CLK_CONF_REG(priv->id));
-  clk_conf_reg  &= UART_SCLK_SEL_M;
-  clk_conf_reg >>= UART_SCLK_SEL_S;
-  switch (clk_conf_reg)
+  uint32_t clk_conf;
+  uint32_t ret = -ENODATA;
+
+  clk_conf = REG_MASK(getreg32(UART_CLK_CONF_REG(priv->id)), UART_SCLK_SEL);
+  switch (clk_conf)
     {
       case 1:
         ret = esp_clk_apb_freq();
@@ -432,7 +495,7 @@ uint32_t esp32s3_lowputc_get_sclk(const struct esp32s3_uart_s * priv)
  *
  ****************************************************************************/
 
-void esp32s3_lowputc_baud(const struct esp32s3_uart_s * priv)
+void esp32s3_lowputc_baud(const struct esp32s3_uart_s *priv)
 {
   int sclk_div;
   uint32_t sclk_freq;
@@ -477,7 +540,7 @@ void esp32s3_lowputc_baud(const struct esp32s3_uart_s * priv)
   modifyreg32(UART_CLKDIV_REG(priv->id), UART_CLKDIV_FRAG_M,
               (frag_part & UART_CLKDIV_FRAG_V) << UART_CLKDIV_FRAG_S);
 
-  /* Set the the integral part of the frequency divider factor. */
+  /* Set the integral part of the frequency divider factor. */
 
   modifyreg32(UART_CLK_CONF_REG(priv->id), UART_SCLK_DIV_NUM_M,
               (sclk_div - 1) << UART_SCLK_DIV_NUM_S);
@@ -495,7 +558,7 @@ void esp32s3_lowputc_baud(const struct esp32s3_uart_s * priv)
  *
  ****************************************************************************/
 
-void esp32s3_lowputc_normal_mode(const struct esp32s3_uart_s * priv)
+void esp32s3_lowputc_normal_mode(const struct esp32s3_uart_s *priv)
 {
   /* Disable RS485 mode */
 
@@ -520,7 +583,7 @@ void esp32s3_lowputc_normal_mode(const struct esp32s3_uart_s * priv)
  *
  ****************************************************************************/
 
-void esp32s3_lowputc_parity(const struct esp32s3_uart_s * priv)
+void esp32s3_lowputc_parity(const struct esp32s3_uart_s *priv)
 {
   if (priv->parity == UART_PARITY_DISABLE)
     {
@@ -547,7 +610,7 @@ void esp32s3_lowputc_parity(const struct esp32s3_uart_s * priv)
  *
  ****************************************************************************/
 
-int esp32s3_lowputc_data_length(const struct esp32s3_uart_s * priv)
+int esp32s3_lowputc_data_length(const struct esp32s3_uart_s *priv)
 {
   int ret = OK;
   uint32_t length = priv->bits - 5;
@@ -608,10 +671,8 @@ void esp32s3_lowputc_stop_length(const struct esp32s3_uart_s *priv)
 void esp32s3_lowputc_set_tx_idle_time(const struct esp32s3_uart_s *priv,
                                       uint32_t time)
 {
-  time = time << UART_TX_IDLE_NUM_S;
-  time = time & UART_TX_IDLE_NUM_M; /* Just in case value overloads */
   modifyreg32(UART_IDLE_CONF_REG(priv->id), UART_TX_IDLE_NUM_M,
-              time);
+              VALUE_TO_FIELD(time, UART_TX_IDLE_NUM));
 }
 
 /****************************************************************************
@@ -626,10 +687,29 @@ void esp32s3_lowputc_set_tx_idle_time(const struct esp32s3_uart_s *priv,
  *
  ****************************************************************************/
 
-void esp32s3_lowputc_send_byte(const struct esp32s3_uart_s * priv,
+void esp32s3_lowputc_send_byte(const struct esp32s3_uart_s *priv,
                                char byte)
 {
-  putreg32((uint32_t) byte, UART_FIFO_REG(priv->id));
+  putreg32((uint32_t)byte, UART_FIFO_REG(priv->id));
+}
+
+/****************************************************************************
+ * Name: esp32s3_lowputc_enable_sysclk
+ *
+ * Description:
+ *   Enable clock for the UART using the System register.
+ *
+ * Parameters:
+ *   priv           - Pointer to the private driver struct.
+ *
+ ****************************************************************************/
+
+void esp32s3_lowputc_enable_sysclk(const struct esp32s3_uart_s *priv)
+{
+  if (priv->id > 0)
+    {
+      periph_module_enable(PERIPH_UART1_MODULE + (priv->id - 1));
+    }
 }
 
 /****************************************************************************
@@ -648,13 +728,9 @@ void esp32s3_lowputc_send_byte(const struct esp32s3_uart_s * priv,
 
 bool esp32s3_lowputc_is_tx_fifo_full(const struct esp32s3_uart_s *priv)
 {
-  uint32_t reg;
-
-  reg = getreg32(UART_STATUS_REG(priv->id));
-  reg = reg >> UART_TXFIFO_CNT_S;
-  reg = reg & UART_TXFIFO_CNT_V;
-
-  return !(reg < (UART_TX_FIFO_SIZE - 1));
+  uint32_t val;
+  val = REG_MASK(getreg32(UART_STATUS_REG(priv->id)), UART_TXFIFO_CNT);
+  return val >= (UART_TX_FIFO_SIZE - 1);
 }
 
 /****************************************************************************
@@ -752,9 +828,17 @@ void esp32s3_lowputc_disable_all_uart_int(struct esp32s3_uart_s *priv,
 
   putreg32(0, UART_INT_ENA_REG(priv->id));
 
-  /* Clear all ints */
+  /* Note: this function is used to disable interrupts temporarily,
+   * paired with esp32s3_lowputc_restore_all_uart_int. (eg. up_putc)
+   * In that case, it might not be safe to clear interrupt bits.
+   */
 
-  putreg32(0xffffffff, UART_INT_CLR_REG(priv->id));
+  if (current_status == NULL)
+    {
+      /* Clear all ints */
+
+      putreg32(0xffffffff, UART_INT_CLR_REG(priv->id));
+    }
 
   spin_unlock_irqrestore(&priv->lock, flags);
 }
@@ -799,56 +883,67 @@ void esp32s3_lowputc_config_pins(const struct esp32s3_uart_s *priv)
    * This "?" is the Unicode replacement character (U+FFFD)
    */
 
-  esp32s3_gpiowrite(priv->txpin, true);
+  esp_gpiowrite(priv->txpin, true);
 
   if (uart_is_iomux(priv))
     {
-      esp32s3_configgpio(priv->txpin, OUTPUT_FUNCTION_1);
-      esp32s3_gpio_matrix_out(priv->txpin, SIG_GPIO_OUT_IDX, 0, 0);
+      esp_gpio_matrix_out(priv->txpin, SIG_GPIO_OUT_IDX, 0, 0);
+      esp_configgpio(priv->txpin, priv->id == 1 ? OUTPUT_FUNCTION_3 :
+                                                      OUTPUT_FUNCTION_1);
 
-      esp32s3_configgpio(priv->rxpin, INPUT_FUNCTION_1);
-      esp32s3_gpio_matrix_out(priv->rxpin, SIG_GPIO_OUT_IDX, 0, 0);
+      esp_configgpio(priv->rxpin, priv->id == 1 ? INPUT_FUNCTION_3 :
+                                                      INPUT_FUNCTION_1);
+      esp_gpio_matrix_out(priv->rxpin, SIG_GPIO_OUT_IDX, 0, 0);
 
 #ifdef CONFIG_SERIAL_IFLOWCONTROL
       if (priv->iflow)
         {
-          esp32s3_configgpio(priv->rtspin, OUTPUT_FUNCTION_3);
-          esp32s3_gpio_matrix_out(priv->rtspin, SIG_GPIO_OUT_IDX, 0, 0);
+          esp_configgpio(priv->rtspin, OUTPUT_FUNCTION_3);
+          esp_gpio_matrix_out(priv->rtspin, SIG_GPIO_OUT_IDX, 0, 0);
         }
 
 #endif
 #ifdef CONFIG_SERIAL_OFLOWCONTROL
       if (priv->oflow)
         {
-          esp32s3_configgpio(priv->ctspin, INPUT_FUNCTION_3);
-          esp32s3_gpio_matrix_out(priv->ctspin, SIG_GPIO_OUT_IDX, 0, 0);
+          esp_configgpio(priv->ctspin, INPUT_FUNCTION_3);
+          esp_gpio_matrix_out(priv->ctspin, SIG_GPIO_OUT_IDX, 0, 0);
         }
 #endif
     }
   else
     {
-      esp32s3_configgpio(priv->txpin, OUTPUT_FUNCTION_2);
-      esp32s3_gpio_matrix_out(priv->txpin, priv->txsig, 0, 0);
+      esp_gpio_matrix_out(priv->txpin, priv->txsig, 0, 0);
+      esp_configgpio(priv->txpin, OUTPUT_FUNCTION_2);
 
-      esp32s3_configgpio(priv->rxpin, INPUT_FUNCTION_2);
-      esp32s3_gpio_matrix_in(priv->rxpin, priv->rxsig, 0);
+      esp_configgpio(priv->rxpin, INPUT_FUNCTION_2);
+      esp_gpio_matrix_in(priv->rxpin, priv->rxsig, 0);
 
 #ifdef CONFIG_SERIAL_IFLOWCONTROL
       if (priv->iflow)
         {
-          esp32s3_configgpio(priv->rtspin, OUTPUT_FUNCTION_2);
-          esp32s3_gpio_matrix_out(priv->rtspin, priv->rtssig, 0, 0);
+          esp_configgpio(priv->rtspin, OUTPUT_FUNCTION_2);
+          esp_gpio_matrix_out(priv->rtspin, priv->rtssig, 0, 0);
         }
 
 #endif
 #ifdef CONFIG_SERIAL_OFLOWCONTROL
       if (priv->oflow)
         {
-          esp32s3_configgpio(priv->ctspin, INPUT_FUNCTION_2);
-          esp32s3_gpio_matrix_in(priv->ctspin, priv->ctssig, 0);
+          esp_configgpio(priv->ctspin, INPUT_FUNCTION_2);
+          esp_gpio_matrix_in(priv->ctspin, priv->ctssig, 0);
         }
 #endif
     }
+
+#ifdef HAVE_RS485
+  if (priv->rs485_dir_gpio != 0)
+    {
+      esp_configgpio(priv->rs485_dir_gpio, OUTPUT);
+      esp_gpio_matrix_out(priv->rs485_dir_gpio, SIG_GPIO_OUT_IDX, 0, 0);
+      esp_gpiowrite(priv->rs485_dir_gpio, !priv->rs485_dir_polarity);
+    }
+#endif
 }
 
 /****************************************************************************
@@ -867,11 +962,11 @@ void esp32s3_lowputc_restore_pins(const struct esp32s3_uart_s *priv)
 {
   /* Configure the pins */
 
-  esp32s3_configgpio(priv->txpin, INPUT);
-  esp32s3_gpio_matrix_out(priv->txpin, MATRIX_DETACH_OUT_SIG, false, false);
+  esp_configgpio(priv->txpin, INPUT);
+  esp_gpio_matrix_out(priv->txpin, MATRIX_DETACH_OUT_SIG, false, false);
 
-  esp32s3_configgpio(priv->rxpin, INPUT);
-  esp32s3_gpio_matrix_in(priv->rxpin, MATRIX_DETACH_IN_LOW_PIN, false);
+  esp_configgpio(priv->rxpin, INPUT);
+  esp_gpio_matrix_in(priv->rxpin, MATRIX_DETACH_IN_LOW_PIN, false);
 }
 
 /****************************************************************************
@@ -893,6 +988,8 @@ void xtensa_lowputc(char ch)
   struct esp32s3_uart_s *priv = &g_uart0_config;
 #elif defined (CONFIG_UART1_SERIAL_CONSOLE)
   struct esp32s3_uart_s *priv = &g_uart1_config;
+#elif defined (CONFIG_UART2_SERIAL_CONSOLE)
+  struct esp32s3_uart_s *priv = &g_uart2_config;
 #endif
 
   /* Wait until the TX FIFO has space to insert new char */
@@ -918,15 +1015,18 @@ void esp32s3_lowsetup(void)
 #ifndef CONFIG_SUPPRESS_UART_CONFIG
 
 #ifdef CONFIG_ESP32S3_UART0
-
+  esp32s3_lowputc_enable_sysclk(&g_uart0_config);
   esp32s3_lowputc_config_pins(&g_uart0_config);
-
 #endif
 
 #ifdef CONFIG_ESP32S3_UART1
-
+  esp32s3_lowputc_enable_sysclk(&g_uart1_config);
   esp32s3_lowputc_config_pins(&g_uart1_config);
+#endif
 
+#ifdef CONFIG_ESP32S3_UART2
+  esp32s3_lowputc_enable_sysclk(&g_uart2_config);
+  esp32s3_lowputc_config_pins(&g_uart2_config);
 #endif
 
 #endif /* !CONFIG_SUPPRESS_UART_CONFIG */

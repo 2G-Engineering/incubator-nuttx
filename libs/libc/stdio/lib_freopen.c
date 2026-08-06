@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_freopen.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,6 +29,11 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <unistd.h>
+
+#ifdef CONFIG_FDSAN
+#  include <android/fdsan.h>
+#endif
 
 #include "libc.h"
 
@@ -94,25 +101,45 @@ FAR FILE *freopen(FAR const char *path, FAR const char *mode,
           return NULL;
         }
 
-      fd = open(path, oflags, 0666);
-      if (fd < 0)
-        {
-          return NULL;
-        }
+      /* Make sure that we have exclusive access to the stream */
+
+      flockfile(stream);
 
       /* Flush the stream and invalidate the read buffer. */
 
-      fflush(stream);
+      lib_fflush_unlocked(stream);
 
 #ifndef CONFIG_STDIO_DISABLE_BUFFERING
-      lib_rdflush(stream);
+      lib_rdflush_unlocked(stream);
 #endif
 
-      /* Duplicate the new fd to the stream. */
+      funlockfile(stream);
 
-      ret = dup2(fd, fileno(stream));
-      close(fd);
-      if (ret < 0)
+      /* close the old fd */
+
+#ifdef CONFIG_FDSAN
+      android_fdsan_close_with_tag(fileno(stream),
+              android_fdsan_create_owner_tag(ANDROID_FDSAN_OWNER_TYPE_FILE,
+                                             (uintptr_t)stream));
+#else
+      close(fileno(stream));
+#endif
+
+      /* Open the new file and reused the fd */
+
+      fd = open(path, oflags, 0666);
+#ifdef CONFIG_FDSAN
+      android_fdsan_exchange_owner_tag(fd, 0,
+          android_fdsan_create_owner_tag(ANDROID_FDSAN_OWNER_TYPE_FILE,
+                                        (uintptr_t)stream));
+#endif
+      flockfile(stream);
+      stream->fs_cookie = (FAR void *)(intptr_t)fd;
+      funlockfile(stream);
+
+      /* To clear the stale fd */
+
+      if (fd < 0)
         {
           return NULL;
         }

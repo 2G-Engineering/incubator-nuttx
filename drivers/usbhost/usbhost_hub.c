@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/usbhost/usbhost_hub.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,8 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
+#include <sys/param.h>
 
 #include <nuttx/irq.h>
 #include <nuttx/kmalloc.h>
@@ -182,7 +185,7 @@ static int usbhost_disconnected(FAR struct usbhost_class_s *hubclass);
  * used to associate the USB host hub class to a connected USB hub.
  */
 
-static const struct usbhost_id_s g_id[2] =
+static const struct usbhost_id_s g_id[] =
 {
   {
       USB_CLASS_HUB,  /* base         */
@@ -194,7 +197,14 @@ static const struct usbhost_id_s g_id[2] =
   {
       USB_CLASS_HUB,  /* base         */
       0,              /* subclass     */
-      1,              /* proto HS hub */
+      1,              /* proto Single TT HS hub */
+      0,              /* vid          */
+      0               /* pid          */
+  },
+  {
+      USB_CLASS_HUB,  /* base         */
+      0,              /* subclass     */
+      2,              /* proto Multiple TT HS hub */
       0,              /* vid          */
       0               /* pid          */
   }
@@ -206,7 +216,7 @@ static struct usbhost_registry_s g_hub =
 {
   NULL,                   /* flink    */
   usbhost_create,         /* create   */
-  2,                      /* nids     */
+  nitems(g_id),           /* nids     */
   g_id                    /* id[]     */
 };
 
@@ -515,9 +525,10 @@ static inline int usbhost_hubdesc(FAR struct usbhost_class_s *hubclass)
   FAR struct usbhost_hubpriv_s *priv;
   FAR struct usbhost_hubport_s *hport;
   FAR struct usb_ctrlreq_s *ctrlreq;
-  struct usb_hubdesc_s hubdesc;
+  FAR struct usb_hubdesc_s *hubdesc;
   uint16_t hubchar;
   int ret;
+  size_t maxlen;
 
   uinfo("Read hub descriptor\n");
 
@@ -538,17 +549,25 @@ static inline int usbhost_hubdesc(FAR struct usbhost_class_s *hubclass)
   usbhost_putle16(ctrlreq->index, 0);
   usbhost_putle16(ctrlreq->len, USB_SIZEOF_HUBDESC);
 
-  ret = DRVR_CTRLIN(hport->drvr, hport->ep0,
-                    ctrlreq, (FAR uint8_t *)&hubdesc);
+  ret = DRVR_ALLOC(hport->drvr, (FAR uint8_t **)&hubdesc, &maxlen);
   if (ret < 0)
     {
+      uerr("ERROR: DRVR_ALLOC failed: %d\n", ret);
+      return ret;
+    }
+
+  ret = DRVR_CTRLIN(hport->drvr, hport->ep0,
+                    ctrlreq, (FAR uint8_t *)hubdesc);
+  if (ret < 0)
+    {
+      DRVR_FREE(hport->drvr, (FAR uint8_t *)hubdesc);
       uerr("ERROR: Failed to read hub descriptor: %d\n", ret);
       return ret;
     }
 
-  priv->nports      = hubdesc.nports;
+  priv->nports      = hubdesc->nports;
 
-  hubchar           = usbhost_getle16(hubdesc.characteristics);
+  hubchar           = usbhost_getle16(hubdesc->characteristics);
   priv->lpsm        = (hubchar & USBHUB_CHAR_LPSM_MASK) >>
                        USBHUB_CHAR_LPSM_SHIFT;
   priv->compounddev = (hubchar & USBHUB_CHAR_COMPOUND) ? true : false;
@@ -556,24 +575,26 @@ static inline int usbhost_hubdesc(FAR struct usbhost_class_s *hubclass)
                        USBHUB_CHAR_OCPM_SHIFT;
   priv->indicator   = (hubchar & USBHUB_CHAR_PORTIND) ? true : false;
 
-  priv->pwrondelay  = (2 * hubdesc.pwrondelay);
-  priv->ctrlcurrent = hubdesc.ctrlcurrent;
+  priv->pwrondelay  = (2 * hubdesc->pwrondelay);
+  priv->ctrlcurrent = hubdesc->ctrlcurrent;
 
   uinfo("Hub Descriptor:\n");
-  uinfo("  bDescLength:         %d\n", hubdesc.len);
-  uinfo("  bDescriptorType:     0x%02x\n", hubdesc.type);
-  uinfo("  bNbrPorts:           %d\n", hubdesc.nports);
+  uinfo("  bDescLength:         %d\n", hubdesc->len);
+  uinfo("  bDescriptorType:     0x%02x\n", hubdesc->type);
+  uinfo("  bNbrPorts:           %d\n", hubdesc->nports);
   uinfo("  wHubCharacteristics: 0x%04x\n",
-        usbhost_getle16(hubdesc.characteristics));
+        usbhost_getle16(hubdesc->characteristics));
   uinfo("    lpsm:              %d\n", priv->lpsm);
   uinfo("    compounddev:       %s\n", priv->compounddev ? "TRUE" : "FALSE");
   uinfo("    ocmode:            %d\n", priv->ocmode);
   uinfo("    indicator:         %s\n", priv->indicator ? "TRUE" : "FALSE");
-  uinfo("  bPwrOn2PwrGood:      %d\n", hubdesc.pwrondelay);
+  uinfo("  bPwrOn2PwrGood:      %d\n", hubdesc->pwrondelay);
   uinfo("    pwrondelay:        %d\n", priv->pwrondelay);
-  uinfo("  bHubContrCurrent:    %d\n", hubdesc.ctrlcurrent);
-  uinfo("  DeviceRemovable:     %d\n", hubdesc.devattached);
-  uinfo("  PortPwrCtrlMask:     %d\n", hubdesc.pwrctrlmask);
+  uinfo("  bHubContrCurrent:    %d\n", hubdesc->ctrlcurrent);
+  uinfo("  DeviceRemovable:     %d\n", hubdesc->devattached);
+  uinfo("  PortPwrCtrlMask:     %d\n", hubdesc->pwrctrlmask);
+
+  DRVR_FREE(hport->drvr, (FAR uint8_t *)hubdesc);
 
   return OK;
 }
@@ -687,7 +708,7 @@ static void usbhost_hub_event(FAR void *arg)
   FAR struct usbhost_hubport_s *connport;
   FAR struct usbhost_hubpriv_s *priv;
   FAR struct usb_ctrlreq_s *ctrlreq;
-  struct usb_portstatus_s portstatus;
+  FAR struct usb_portstatus_s *portstatus;
   irqstate_t flags;
   uint16_t status;
   uint16_t change;
@@ -696,6 +717,7 @@ static void usbhost_hub_event(FAR void *arg)
   uint8_t statuschange;
   int port;
   int ret;
+  size_t maxlen;
 
   DEBUGASSERT(arg != NULL);
   hubclass = (FAR struct usbhost_class_s *)arg;
@@ -719,6 +741,13 @@ static void usbhost_hub_event(FAR void *arg)
 
   statuschange = priv->buffer[0];
   uinfo("StatusChange: %02x\n", statuschange);
+
+  ret = DRVR_ALLOC(hport->drvr, (FAR uint8_t **)&portstatus, &maxlen);
+  if (ret < 0)
+    {
+      uerr("ERROR: DRVR_ALLOC failed: %d\n", ret);
+      return;
+    }
 
   /* Check for status change on any port */
 
@@ -746,15 +775,15 @@ static void usbhost_hub_event(FAR void *arg)
       usbhost_putle16(ctrlreq->len, USB_SIZEOF_PORTSTS);
 
       ret = DRVR_CTRLIN(hport->drvr, hport->ep0, ctrlreq,
-                        (FAR uint8_t *)&portstatus);
+                        (FAR uint8_t *)portstatus);
       if (ret < 0)
         {
           uerr("ERROR: Failed to read port %d status: %d\n", port, ret);
           continue;
         }
 
-      status = usbhost_getle16(portstatus.status);
-      change = usbhost_getle16(portstatus.change);
+      status = usbhost_getle16(portstatus->status);
+      change = usbhost_getle16(portstatus->change);
 
       /* First, clear all change bits */
 
@@ -785,7 +814,7 @@ static void usbhost_hub_event(FAR void *arg)
           feat++;
         }
 
-      change = usbhost_getle16(portstatus.change);
+      change = usbhost_getle16(portstatus->change);
 
       /* Handle connect or disconnect, no power management */
 
@@ -808,7 +837,7 @@ static void usbhost_hub_event(FAR void *arg)
               usbhost_putle16(ctrlreq->len, USB_SIZEOF_PORTSTS);
 
               ret = DRVR_CTRLIN(hport->drvr, hport->ep0, ctrlreq,
-                                (FAR uint8_t *)&portstatus);
+                                (FAR uint8_t *)portstatus);
               if (ret < 0)
                 {
                   uerr("ERROR: Failed to get port %d status: %d\n",
@@ -816,8 +845,8 @@ static void usbhost_hub_event(FAR void *arg)
                   break;
                 }
 
-              status = usbhost_getle16(portstatus.status);
-              change = usbhost_getle16(portstatus.change);
+              status = usbhost_getle16(portstatus->status);
+              change = usbhost_getle16(portstatus->change);
 
               if ((change & USBHUB_PORT_STAT_CCONNECTION) == 0 &&
                   (status & USBHUB_PORT_STAT_CONNECTION)  == connection)
@@ -849,7 +878,7 @@ static void usbhost_hub_event(FAR void *arg)
                 }
 
               debouncetime += 25;
-              nxsig_usleep(25 * 1000);
+              nxsched_usleep(25 * 1000);
             }
 
           if (ret < 0 || debouncetime >= 1500)
@@ -877,7 +906,7 @@ static void usbhost_hub_event(FAR void *arg)
                   continue;
                 }
 
-              nxsig_usleep(100 * 1000);
+              nxsched_usleep(100 * 1000);
 
               ctrlreq->type = USB_REQ_DIR_IN | USBHUB_REQ_TYPE_PORT;
               ctrlreq->req  = USBHUB_REQ_GETSTATUS;
@@ -886,7 +915,7 @@ static void usbhost_hub_event(FAR void *arg)
               usbhost_putle16(ctrlreq->len, USB_SIZEOF_PORTSTS);
 
               ret = DRVR_CTRLIN(hport->drvr, hport->ep0, ctrlreq,
-                                (FAR uint8_t *)&portstatus);
+                                (FAR uint8_t *)portstatus);
               if (ret < 0)
                 {
                   uerr("ERROR: Failed to get port %d status: %d\n",
@@ -894,8 +923,8 @@ static void usbhost_hub_event(FAR void *arg)
                   continue;
                 }
 
-              status = usbhost_getle16(portstatus.status);
-              change = usbhost_getle16(portstatus.change);
+              status = usbhost_getle16(portstatus->status);
+              change = usbhost_getle16(portstatus->change);
 
               uinfo("port %d status %04x change %04x after reset\n",
                     port, status, change);
@@ -972,18 +1001,21 @@ static void usbhost_hub_event(FAR void *arg)
               connport = &priv->hport[PORT_INDX(port)];
               if (connport->devclass != NULL)
                 {
+                  /* For hubs, the usbhost_disconnect_event function
+                   * (triggered by the CLASS_DISCONNECTED call below)
+                   * will call usbhost_hport_deactivate for us. We
+                   * prevent a crash when a hub is unplugged by skipping
+                   * the second unnecessary usbhost_hport_deactivated
+                   * call here. Check before disconnecting because the class
+                   * will be cleared out after disconnected.
+                   */
+
+                  bool ishubclass =
+                    (connport->devclass->connect == usbhost_connect);
                   CLASS_DISCONNECTED(connport->devclass);
 
-                  if (connport->devclass->connect == usbhost_connect)
+                  if (ishubclass)
                     {
-                      /* For hubs, the usbhost_disconnect_event function
-                       * (triggered by the CLASS_DISCONNECTED call above)
-                       * will call usbhost_hport_deactivate for us. We
-                       * prevent a crash when a hub is unplugged by skipping
-                       * the second unnecessary usbhost_hport_deactivated
-                       * call here.
-                       */
-
                       connport->devclass = NULL;
                     }
                   else
@@ -1009,6 +1041,10 @@ static void usbhost_hub_event(FAR void *arg)
                  status, change);
         }
     }
+
+  /* Free portstatus memory */
+
+  DRVR_FREE(hport->drvr, (FAR uint8_t *)portstatus);
 
   /* Check for hub status change */
 

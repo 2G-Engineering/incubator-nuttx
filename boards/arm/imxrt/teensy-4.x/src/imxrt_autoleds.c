@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/imxrt/teensy-4.x/src/imxrt_autoleds.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -161,4 +163,4 @@ void board_autoled_off(int led)
   imxrt_gpio_write(GPIO_LED, false);    /* Low illuminates */
 }
 
-#endif                                 /* CONFIG_ARCH_LEDS */
+#endif /* CONFIG_ARCH_LEDS */

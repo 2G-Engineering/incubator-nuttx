@@ -1,6 +1,8 @@
 /****************************************************************************
  * tools/configure.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -118,7 +120,7 @@ static char        g_delim         = '/';   /* Delimiter to use when forming pat
 static bool        g_winpaths      = false; /* False: POSIX style paths */
 #endif
 static bool        g_debug         = false; /* Enable debug output */
-static bool        g_enforce       = false; /* Enfore distclean */
+static bool        g_enforce       = false; /* Enforce distclean */
 static bool        g_distclean     = false; /* Distclean if configured */
 
 static const char *g_appdir        = NULL;  /* Relative path to the application directory */
@@ -1121,13 +1123,19 @@ static void check_configuration(void)
           debug("check_configuration: Checking %s\n", g_buffer);
           if (!verify_file(g_buffer))
             {
-              fprintf(stderr, "ERROR: No Make.defs file in %s\n",
-                      g_configpath);
-              fprintf(stderr, "       No Make.defs file in %s\n",
-                      g_scriptspath);
-              fprintf(stderr, "Run tools/configure -L"
-                              " to list available configurations.\n");
-              exit(EXIT_FAILURE);
+              /* Let’s check if there is a script in the common directory */
+
+              snprintf(g_buffer, BUFFER_SIZE,
+                       "%s%c..%c..%c..%ccommon%cscripts%cMake.defs",
+                       g_configpath, g_delim, g_delim, g_delim, g_delim,
+                       g_delim, g_delim);
+              if (!verify_file(g_buffer))
+                {
+                  fprintf(stderr, "ERROR: No Make.defs file found\n");
+                  fprintf(stderr, "Run tools/configure -L"
+                                  " to list available configurations.\n");
+                  exit(EXIT_FAILURE);
+                }
             }
         }
       else
@@ -1441,6 +1449,7 @@ static void set_host(const char *destconfig)
                 printf("  Select Windows native host\n");
                 disable_feature(destconfig, "CONFIG_WINDOWS_CYGWIN");
                 disable_feature(destconfig, "CONFIG_WINDOWS_MSYS");
+                enable_feature(destconfig, "CONFIG_EXPERIMENTAL");
                 enable_feature(destconfig, "CONFIG_WINDOWS_NATIVE");
                 break;
 

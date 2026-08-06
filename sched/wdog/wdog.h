@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/wdog/wdog.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -34,27 +36,15 @@
 #include <nuttx/clock.h>
 #include <nuttx/queue.h>
 #include <nuttx/wdog.h>
+#include <nuttx/arch.h>
+
+#ifdef CONFIG_HRTIMER
+#  include <nuttx/hrtimer.h> 
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: wd_elapse
- *
- * Description:
- *   This function is used to get time-elapse from last time wd_timer() be
- *   called. In case of CONFIG_SCHED_TICKLESS configured, wd_timer() may
- *   take lots of ticks, during this time, wd_start()/wd_cancel() may
- *   called, so we need wd_elapse() to correct the delay/lag.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_SCHED_TICKLESS
-#  define wd_elapse() (clock_systime_ticks() - g_wdtickbase)
-#else
-#  define wd_elapse() (0)
-#endif
 
 /****************************************************************************
  * Public Data
@@ -73,14 +63,15 @@ extern "C"
  * this linked list are removed and the function is called.
  */
 
-extern sq_queue_t g_wdactivelist;
+extern struct list_node g_wdactivelist;
 
-/* This is wdog tickbase, for wd_gettime() may called many times
- * between 2 times of wd_timer(), we use it to update wd_gettime().
- */
+#ifdef CONFIG_HRTIMER
+extern struct hrtimer_s g_wdtimer;
+#endif
 
-#ifdef CONFIG_SCHED_TICKLESS
-extern clock_t g_wdtickbase;
+#if defined(CONFIG_SCHED_TICKLESS) || defined(CONFIG_HRTIMER)
+extern bool g_wdtimernested;
+extern clock_t  g_wdexpired;
 #endif
 
 /****************************************************************************
@@ -113,33 +104,118 @@ extern clock_t g_wdtickbase;
  *
  ****************************************************************************/
 
-#ifdef CONFIG_SCHED_TICKLESS
-unsigned int wd_timer(int ticks, bool noswitches);
+#ifndef CONFIG_HRTIMER
+void wd_timer(clock_t ticks);
 #else
-void wd_timer(void);
+uint64_t wd_timer(const hrtimer_t *timer, uint64_t expired);
 #endif
 
 /****************************************************************************
- * Name: wd_recover
- *
- * Description:
- *   This function is called from nxtask_recover() when a task is deleted via
- *   task_delete() or via pthread_cancel(). It checks if the deleted task
- *   is waiting for a timed event and if so cancels the timeout
- *
- * Input Parameters:
- *   tcb - The TCB of the terminated task or thread
- *
- * Returned Value:
- *   None.
- *
- * Assumptions:
- *   This function is called from task deletion logic in a safe context.
- *
+ * Inline functions
  ****************************************************************************/
 
-struct tcb_s;
-void wd_recover(FAR struct tcb_s *tcb);
+#if defined(CONFIG_SCHED_TICKLESS) || defined(CONFIG_HRTIMER)
+#  define wd_in_callback()          (g_wdtimernested)
+#  define wd_set_nested(f)          (g_wdtimernested = (f))
+#  define wd_update_expire(expired) (g_wdexpired = (expired))
+#else
+#  define wd_in_callback() (false)
+#  define wd_set_nested(f)
+#  define wd_update_expire(expired)
+#endif
+
+#ifdef CONFIG_HRTIMER
+static inline_function void wd_timer_start(clock_t tick, bool in_expiration)
+{
+  DEBUGASSERT(tick <= INT64_MAX / NSEC_PER_TICK);
+  if (!in_expiration)
+    {
+      hrtimer_start(&g_wdtimer, wd_timer,
+                    TICK2NSEC(tick), HRTIMER_MODE_ABS);
+    }
+}
+
+static inline_function void wd_timer_cancel(void)
+{
+  hrtimer_cancel(&g_wdtimer);
+}
+#elif defined(CONFIG_SCHED_TICKLESS)
+static inline_function clock_t wd_adjust_next_tick(clock_t tick)
+{
+  clock_t next_tick = tick;
+#ifdef CONFIG_SCHED_TICKLESS_LIMIT_MAX_SLEEP
+  clock_t interval  = clock_compare(g_wdexpired, tick) ?
+                      tick - g_wdexpired : 0u;
+  interval          = interval <= g_oneshot_maxticks ?
+                      interval : g_oneshot_maxticks;
+  next_tick         = g_wdexpired + interval;
+#endif
+
+#if CONFIG_TIMER_ADJUST_USEC > 0
+  /* Normally, timer event cannot triggered on exact time due to the
+   * existence of interrupt latency.
+   * Assuming that the interrupt latency is distributed within
+   * [Best-Case Execution Time, Worst-Case Execution Time],
+   * we can set the timer adjustment value to the BCET to reduce the latency.
+   * After the adjustment, the timer interrupt latency will be
+   * [0, WCET - BCET].
+   * Please use this carefully, if the timer adjustment value is not the
+   * best-case interrupt latency, it will immediately fired another timer
+   * interrupt, which may result in a much larger timer interrupt latency.
+   */
+
+  next_tick -= CONFIG_TIMER_ADJUST_USEC / USEC_PER_TICK;
+#endif
+
+  return next_tick;
+}
+
+static inline_function void wd_timer_start(clock_t tick, bool in_expiration)
+{
+  clock_t next_tick = wd_adjust_next_tick(tick);
+#ifdef CONFIG_SCHED_TICKLESS_ALARM
+  up_alarm_tick_start(next_tick);
+#else
+  up_timer_tick_start(next_tick - clock_systime_ticks());
+#endif
+}
+
+static inline_function void wd_timer_cancel(void)
+{
+  struct timespec ts;
+#ifdef CONFIG_SCHED_TICKLESS_ALARM
+  up_alarm_cancel(&ts);
+#else
+  up_timer_cancel(&ts);
+#endif
+}
+#else
+#  define wd_timer_start(next_tick, in_expiration)
+#  define wd_timer_cancel()
+#endif
+
+static inline_function clock_t wd_next_expire(void)
+{
+  return list_first_entry(&g_wdactivelist, struct wdog_s, node)->expired;
+}
+
+/****************************************************************************
+ * Public Function Prototypes
+ ****************************************************************************/
+
+static inline_function clock_t wd_get_next_expire(clock_t curr)
+{
+  clock_t     next = curr;
+  irqstate_t flags = enter_critical_section();
+
+  if (!list_is_empty(&g_wdactivelist))
+    {
+      next = wd_next_expire();
+    }
+
+  leave_critical_section(flags);
+  return next - curr <= 0 ? 0 : next;
+}
 
 #undef EXTERN
 #ifdef __cplusplus

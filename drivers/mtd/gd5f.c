@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/mtd/gd5f.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -334,7 +336,7 @@ static bool gd5f_waitstatus(FAR struct gd5f_dev_s *priv,
       /* Deselect the FLASH */
 
       SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-      nxsig_usleep(1000);
+      nxsched_usleep(1000);
     }
   while ((status & GD5F_SR_OIP) != 0);
 
@@ -793,7 +795,7 @@ static int gd5f_ioctl(FAR struct mtd_dev_s *dev, int cmd, unsigned long arg)
 
       case MTDIOC_ECCSTATUS:
         {
-          uint8_t *result = (uint8_t *)arg;
+          FAR uint8_t *result = (FAR uint8_t *)arg;
           *result =
                (priv->eccstatus & GD5F_FEATURE_ECC_MASK)
                 >> GD5F_FEATURE_ECC_OFFSET;
@@ -889,7 +891,7 @@ FAR struct mtd_dev_s *gd5f_initialize(FAR struct spi_dev_s *dev,
 
   finfo("dev: %p\n", dev);
 
-  priv = (FAR struct gd5f_dev_s *)kmm_zalloc(sizeof(struct gd5f_dev_s));
+  priv = kmm_zalloc(sizeof(struct gd5f_dev_s));
   if (priv)
     {
       /* Initialize the allocated structure. (unsupported methods were

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/x86_64/src/common/x86_64_switchcontext.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,8 @@
 
 #include <sched.h>
 #include <assert.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/addrenv.h>
 #include <nuttx/arch.h>
 #include <nuttx/sched.h>
@@ -57,31 +60,21 @@
 
 void up_switch_context(struct tcb_s *tcb, struct tcb_s *rtcb)
 {
-  /* Update scheduler parameters */
+  int cpu;
 
-  nxsched_suspend_scheduler(rtcb);
+#ifdef CONFIG_ARCH_KERNEL_STACK
+  /* Update kernel stack top pointer */
+
+  x86_64_set_ktopstk(tcb->xcp.ktopstk);
+#endif
 
   /* Are we in an interrupt handler? */
 
-  if (g_current_regs)
+  if (up_interrupt_context())
     {
-      /* Yes, then we have to do things differently.
-       * Just copy the g_current_regs into the OLD rtcb.
-       */
-
-      x86_64_savestate(rtcb->xcp.regs);
+      /* Restore addition x86_64 state */
 
       x86_64_restore_auxstate(tcb);
-
-      /* Update scheduler parameters */
-
-      nxsched_resume_scheduler(tcb);
-
-      /* Then switch contexts.  Any necessary address environment
-       * changes will be made when the interrupt returns.
-       */
-
-      x86_64_restorestate(tcb->xcp.regs);
     }
 
   /* We are not in an interrupt handler.  Copy the user C context
@@ -92,6 +85,9 @@ void up_switch_context(struct tcb_s *tcb, struct tcb_s *rtcb)
 
   else if (!up_saveusercontext(rtcb->xcp.regs))
     {
+      struct tcb_s **running_task;
+      cpu = this_cpu();
+
       x86_64_restore_auxstate(tcb);
 
 #ifdef CONFIG_ARCH_ADDRENV
@@ -102,10 +98,24 @@ void up_switch_context(struct tcb_s *tcb, struct tcb_s *rtcb)
        */
 
       addrenv_switch(tcb);
+      tcb = this_task();
 #endif
+
+      /* Restore the cpu lock */
+
+      restore_critical_section(tcb, cpu);
+
       /* Update scheduler parameters */
 
-      nxsched_resume_scheduler(tcb);
+      running_task = &g_running_tasks[cpu];
+      tcb = current_task(cpu);
+      nxsched_switch_context(*running_task, tcb);
+
+      /* Record the new "running" task.  g_running_tasks[] is only used by
+       * assertion logic for reporting crashes.
+       */
+
+      *running_task = tcb;
 
       /* Then switch contexts */
 

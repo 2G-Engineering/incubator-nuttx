@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32u5/stm32_idle.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <arch/board/board.h>
 #include <nuttx/config.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
@@ -90,7 +92,7 @@ void up_idle(void)
 
   /* Sleep until an interrupt occurs to save power. */
 
-#if !(defined(CONFIG_DEBUG_SYMBOLS) && defined(CONFIG_STM32U5_DISABLE_IDLE_SLEEP_DURING_DEBUG))
+#if !(defined(CONFIG_DEBUG_SYMBOLS) && defined(CONFIG_STM32_DISABLE_IDLE_SLEEP_DURING_DEBUG))
   BEGIN_IDLE();
   asm("WFI");
   END_IDLE();

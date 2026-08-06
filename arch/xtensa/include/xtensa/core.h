@@ -1,13 +1,9 @@
 /****************************************************************************
  * arch/xtensa/include/xtensa/core.h
  *
- * Leveraged to NuttX by:
- *
- *   Copyright (C) 2016 Gregory Nutt. All rights reserved.
- *
- * This file derives from code provided  Cadence Design Systems, Inc.:
- *
- *   Copyright (c) 2005-2014 Cadence Design Systems, Inc.
+ * SPDX-License-Identifier: MIT
+ * SPDX-FileCopyrightText: 2016 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2005-2014 Cadence Design Systems, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -29,16 +25,6 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  ****************************************************************************/
-
-/* This header file is sometimes referred to as the "compile-time HAL" or
- * CHAL. It pulls definitions tailored for a specific Xtensa processor
- * configuration.
- *
- * Sources for binaries meant to be configuration-independent generally
- * avoid including this file (they may use the configuration-specific HAL
- * library). It is normal for the HAL library source itself to include this
- * file.
- */
 
 #ifndef __ARCH_XTENSA_INCUDE_XTENSA_CORE_H
 #define __ARCH_XTENSA_INCUDE_XTENSA_CORE_H
@@ -90,11 +76,7 @@
 /* Interrupts ***************************************************************/
 
 /* Indexing macros: */
-#ifndef XCHAL_SYSCALL_LEVEL
-#  define XCHAL_IRQ_LEVEL  XCHAL_EXCM_LEVEL
-#else
-#  define XCHAL_IRQ_LEVEL  XCHAL_SYSCALL_LEVEL
-#endif
+#define XCHAL_IRQ_LEVEL                 XCHAL_EXCM_LEVEL
 
 #define _XCHAL_INTLEVEL_MASK(n)         XCHAL_INTLEVEL ## n ## _MASK
 #define XCHAL_INTLEVEL_MASK(n)          _XCHAL_INTLEVEL_MASK(n) /* n = 0 .. 15 */

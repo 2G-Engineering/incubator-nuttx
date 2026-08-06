@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/xmc4/xmc4700-relax/scripts/flash.ld
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -62,7 +64,8 @@ SECTIONS
     .init_section :
     {
         _sinit = ABSOLUTE(.);
-        *(.init_array .init_array.*)
+        KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
+        KEEP(*(.init_array EXCLUDE_FILE(*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o) .ctors))
         _einit = ABSOLUTE(.);
     } > flash
 
@@ -90,6 +93,15 @@ SECTIONS
         _edata = ABSOLUTE(.);
     } > sram AT > flash
 
+    /* Global data not cleared after reset. */
+
+    .noinit :
+    {
+        _snoinit = ABSOLUTE(.);
+        *(.noinit*)
+        _enoinit = ABSOLUTE(.);
+    } > sram
+
     .bss :
     {
         _sbss = ABSOLUTE(.);
@@ -98,15 +110,6 @@ SECTIONS
         *(COMMON)
         . = ALIGN(4);
         _ebss = ABSOLUTE(.);
-    } > sram
-
-    /* Global data not cleared after reset. */
-
-    .noinit :
-    {
-        _snoinit = ABSOLUTE(.);
-        *(.noinit*)
-        _enoinit = ABSOLUTE(.);
     } > sram
 
     /* Stabs debugging sections. */

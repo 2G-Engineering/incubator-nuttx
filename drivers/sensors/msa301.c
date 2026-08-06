@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/msa301.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,16 +20,31 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
 
 #include <nuttx/config.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
+
+#include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
 #include <nuttx/mutex.h>
@@ -58,14 +75,6 @@ struct msa301_ops_s
   CODE int (*stop)(FAR struct msa301_dev_s *priv);
   CODE int (*sensor_read)(FAR struct msa301_dev_s *priv);
 };
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-#  ifndef CONFIG_MSA301_I2C_FREQUENCY
-#    define CONFIG_MSA301_I2C_FREQUENCY 400000
-#  endif
 
 /****************************************************************************
  * Private Function Prototypes
@@ -479,11 +488,9 @@ static int msa301_open(FAR struct file *filep)
   FAR struct inode *       inode;
   FAR struct msa301_dev_s *priv;
 
-  DEBUGASSERT(filep != NULL);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode != NULL);
-  priv = (FAR struct msa301_dev_s *)inode->i_private;
+  priv = inode->i_private;
 
   DEBUGASSERT(priv != NULL);
 
@@ -507,11 +514,9 @@ static int msa301_close(FAR struct file *filep)
   FAR struct inode *       inode;
   FAR struct msa301_dev_s *priv;
 
-  DEBUGASSERT(filep != NULL);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode != NULL);
-  priv = (FAR struct msa301_dev_s *)inode->i_private;
+  priv = inode->i_private;
 
   DEBUGASSERT(priv != NULL);
 
@@ -539,11 +544,9 @@ static ssize_t msa301_read(FAR struct file *filep,
 
   /* Sanity check */
 
-  DEBUGASSERT(filep != NULL);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode != NULL);
-  priv = (FAR struct msa301_dev_s *)inode->i_private;
+  priv = inode->i_private;
 
   DEBUGASSERT(priv != NULL);
   DEBUGASSERT(buffer != NULL);
@@ -593,11 +596,9 @@ static int msa301_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   /* Sanity check */
 
-  DEBUGASSERT(filep != NULL);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode != NULL);
-  priv = (FAR struct msa301_dev_s *)inode->i_private;
+  priv = inode->i_private;
 
   DEBUGASSERT(priv != NULL);
 
@@ -666,7 +667,7 @@ static int msa301_register(FAR const char *devpath,
 
   /* Initialize the device's structure */
 
-  priv = (FAR struct msa301_dev_s *)kmm_malloc(sizeof(*priv));
+  priv = kmm_malloc(sizeof(*priv));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");

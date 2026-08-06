@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/hc/src/m9s12/m9s12_dumpgpio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,8 @@
 #define CONFIG_DEBUG_INFO 1
 
 #include <stdint.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 
 #include "hc_internal.h"

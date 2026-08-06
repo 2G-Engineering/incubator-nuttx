@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sparc/src/s698pm/s698pm-timerisr.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdint.h>
 #include <time.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <arch/board/board.h>
@@ -61,7 +63,7 @@
 
 /* Bit 1: automatically reloaded with the reload value after each underflow */
 
-#define TIMCTR_AUTO_RELOAD            	    (1 << 1)
+#define TIMCTR_AUTO_RELOAD                  (1 << 1)
 
 /* Bit 2: Set 1, will load the timer reload register into the timer counter
  * register
@@ -69,7 +71,7 @@
 
 #define TIMCTR_LOAD_COUNTER                 (1 << 2)
 
-/* Bit 3: Set 1, will triger underflow interrupt each underflow */
+/* Bit 3: Set 1, will trigger underflow interrupt each underflow */
 
 #define TIMCTR_ENABLE_INT                   (1 << 3)
 

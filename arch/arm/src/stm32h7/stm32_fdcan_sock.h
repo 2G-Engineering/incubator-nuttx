@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_fdcan_sock.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 
 #include "hardware/stm32_fdcan.h"
 
-#ifdef CONFIG_STM32H7_FDCAN
+#ifdef CONFIG_STM32_FDCAN
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -103,5 +105,5 @@ int stm32_fdcansockinitialize(int intf);
 #endif
 
 #endif /* __ASSEMBLY__ */
-#endif /* CONFIG_STM32H7_FDCAN */
+#endif /* CONFIG_STM32_FDCAN */
 #endif /* __ARCH_ARM_SRC_STM32H7_STM32_FDCAN_SOCK_H */

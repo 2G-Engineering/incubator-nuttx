@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_chstat.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,6 +32,7 @@
 #include <errno.h>
 
 #include <nuttx/fs/fs.h>
+#include <nuttx/sched.h>
 
 #include "inode/inode.h"
 
@@ -118,11 +121,6 @@ static int chstat(FAR const char *path,
 
   /* Adjust and check buf and flags */
 
-  if ((flags & CH_STAT_MODE) && (buf->st_mode & ~0177777))
-    {
-      goto errout;
-    }
-
   if ((flags & CH_STAT_UID) && buf->st_uid == -1)
     {
       flags &= ~CH_STAT_UID;
@@ -210,7 +208,7 @@ int chmod(FAR const char *path, mode_t mode)
 {
   struct stat buf;
 
-  buf.st_mode = mode;
+  buf.st_mode = mode & 0777;
 
   return chstat(path, &buf, CH_STAT_MODE, 1);
 }
@@ -236,7 +234,7 @@ int lchmod(FAR const char *path, mode_t mode)
 {
   struct stat buf;
 
-  buf.st_mode = mode;
+  buf.st_mode = mode & 0777;
 
   return chstat(path, &buf, CH_STAT_MODE, 0);
 }
@@ -413,6 +411,11 @@ int lutimens(FAR const char *path, const struct timespec times[2])
 int inode_chstat(FAR struct inode *inode,
                  FAR const struct stat *buf, int flags, int resolve)
 {
+#ifdef CONFIG_SCHED_USER_IDENTITY
+  FAR struct tcb_s *rtcb;
+  uid_t euid;
+#endif
+
   DEBUGASSERT(inode != NULL && buf != NULL);
 
 #ifdef CONFIG_PSEUDOFS_SOFTLINKS
@@ -443,6 +446,28 @@ int inode_chstat(FAR struct inode *inode,
 
           return chstat_recursive(inode->u.i_link, buf, flags, ++resolve);
         }
+    }
+#endif
+
+#ifdef CONFIG_SCHED_USER_IDENTITY
+  rtcb = nxsched_self();
+  if ((rtcb->flags & TCB_FLAG_TTYPE_MASK) != TCB_FLAG_TTYPE_KERNEL &&
+      rtcb->group != NULL)
+    {
+      euid = rtcb->group->tg_euid;
+
+      if ((flags & (CH_STAT_UID | CH_STAT_GID)) != 0 && euid != 0)
+        {
+          return -EPERM;
+        }
+
+#ifdef CONFIG_PSEUDOFS_ATTRIBUTES
+      if ((flags & CH_STAT_MODE) != 0 &&
+          euid != 0 && euid != inode->i_owner)
+        {
+          return -EPERM;
+        }
+#endif
     }
 #endif
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/hardware/stm32_pinmap.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,26 +30,18 @@
 #include <nuttx/config.h>
 #include "chip.h"
 
-#if defined(CONFIG_STM32H7_USE_LEGACY_PINMAP)
-#  if defined(CONFIG_STM32H7_STM32H7X3XX)
-#    include "hardware/stm32h7x3xx_pinmap_legacy.h"
-#  elif defined(CONFIG_STM32H7_STM32H7B3XX)
-#    include "hardware/stm32h7x3xx_pinmap_legacy.h"
-#  elif defined(CONFIG_STM32H7_STM32H7X7XX)
-#    include "hardware/stm32h7x3xx_pinmap_legacy.h"
-#  else
-#    error "Unsupported STM32 H7 Pin map"
-#  endif
+#if defined(CONFIG_STM32_STM32H7X0XX)
+#  include "hardware/stm32h7x3xx_pinmap.h"
+#elif defined(CONFIG_STM32_STM32H7X3XX)
+#  include "hardware/stm32h7x3xx_pinmap.h"
+#elif defined(CONFIG_STM32_STM32H7B3XX)
+#  include "hardware/stm32h7x3xx_pinmap.h"
+#elif defined(CONFIG_STM32_STM32H7X5XX)
+#  include "hardware/stm32h7x3xx_pinmap.h"
+#elif defined(CONFIG_STM32_STM32H7X7XX)
+#  include "hardware/stm32h7x3xx_pinmap.h"
 #else
-#  if defined(CONFIG_STM32H7_STM32H7X3XX)
-#    include "hardware/stm32h7x3xx_pinmap.h"
-#  elif defined(CONFIG_STM32H7_STM32H7B3XX)
-#    include "hardware/stm32h7x3xx_pinmap.h"
-#  elif defined(CONFIG_STM32H7_STM32H7X7XX)
-#    include "hardware/stm32h7x3xx_pinmap.h"
-#  else
-#    error "Unsupported STM32 H7 Pin map"
-#  endif
+#  error "Unsupported STM32 H7 Pin map"
 #endif
 
 #endif /* __ARCH_ARM_SRC_STM32H7_HARDWARE_STM32_PINMAP_H */

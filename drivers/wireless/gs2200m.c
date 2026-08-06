@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/wireless/gs2200m.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -42,7 +44,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <poll.h>
 
 #include <nuttx/ascii.h>
@@ -699,18 +701,17 @@ static ssize_t gs2200m_read(FAR struct file *filep, FAR char *buffer,
   FAR struct gs2200m_dev_s *dev;
   int ret;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (FAR struct gs2200m_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   ASSERT(1 == len);
 
   ret = nxmutex_lock(&dev->dev_lock);
   if (ret < 0)
     {
-      /* Return if a signal is received or if the the task was canceled
+      /* Return if a signal is received or if the task was canceled
        * while we were waiting.
        */
 
@@ -866,7 +867,7 @@ retry:
   if (RD_RESP_NOK == res[1])
     {
       wlwarn("*** warning: RD_RESP_NOK received.. retrying. (n=%d)\n", n);
-      nxsig_usleep(100 * 1000);
+      nxsched_usleep(100 * 1000);
       n++;
       goto retry;
     }
@@ -930,7 +931,7 @@ retry:
                      (FAR void *)dev, 0);
         }
 
-      nxsig_usleep(100 * 1000);
+      nxsched_usleep(100 * 1000);
       n++;
       goto retry;
     }
@@ -956,7 +957,7 @@ retry:
     {
       wlwarn("*** warning: 0x%x received.. retrying. (n=%d)\n",
              res[1], n);
-      nxsig_usleep(10 * 1000);
+      nxsched_usleep(10 * 1000);
 
       if (WR_MAX_RETRY < n)
         {
@@ -1100,7 +1101,7 @@ static void _parse_pkt_in_s1(FAR struct pkt_ctx_s *pkt_ctx,
   ASSERT(pkt_ctx->ptr > pkt_ctx->head);
   msize = pkt_ctx->ptr - pkt_ctx->head;
 
-  msg = (FAR char *)kmm_calloc(msize + 1, 1);
+  msg = kmm_calloc(msize + 1, 1);
   ASSERT(msg);
 
   memcpy(msg, pkt_ctx->head, msize);
@@ -1269,7 +1270,7 @@ static void _parse_pkt_in_s4(FAR struct pkt_ctx_s *pkt_ctx,
 
       memset(addr, 0, sizeof(addr));
       memset(port, 0, sizeof(port));
-      n = sscanf((FAR const char *)pkt_ctx->ptr, "%s %s\t", addr, port);
+      n = sscanf((FAR const char *)pkt_ctx->ptr, "%16s %5s\t", addr, port);
       ASSERT(2 == n);
 
       wlinfo("from (%s:%s)\n", addr, port);
@@ -1374,7 +1375,7 @@ static void _dup_pkt_dat_and_notify(FAR struct gs2200m_dev_s *dev,
 
   /* Allocate a new pkt_dat */
 
-  pkt_dat = (FAR struct pkt_dat_s *)kmm_malloc(sizeof(struct pkt_dat_s));
+  pkt_dat = kmm_malloc(sizeof(struct pkt_dat_s));
   ASSERT(pkt_dat);
 
   /* Copy pkt_dat0 to pkt_dat */
@@ -1383,7 +1384,7 @@ static void _dup_pkt_dat_and_notify(FAR struct gs2200m_dev_s *dev,
 
   /* Allocate bulk data and copy */
 
-  pkt_dat->data = (FAR uint8_t *)kmm_malloc(pkt_dat0->len);
+  pkt_dat->data = kmm_malloc(pkt_dat0->len);
   ASSERT(pkt_dat->data);
   memcpy(pkt_dat->data, pkt_dat0->data, pkt_dat0->len);
 
@@ -1419,7 +1420,7 @@ static enum pkt_type_e gs2200m_recv_pkt(FAR struct gs2200m_dev_s *dev,
   uint16_t len;
   FAR uint8_t *p;
 
-  p = (FAR uint8_t *)kmm_calloc(MAX_PKT_LEN, 1);
+  p = kmm_calloc(MAX_PKT_LEN, 1);
   ASSERT(p);
 
   s = gs2200m_hal_read(dev, p, &len);
@@ -1715,7 +1716,7 @@ static enum pkt_type_e gs2200m_join_network(FAR struct gs2200m_dev_s *dev,
   ASSERT(3 == pkt_dat.n);
 
   n = sscanf(pkt_dat.msg[1] + 1,
-             " %[^:]:%[^:]:%[^ ]",
+             " %16[^:]:%16[^:]:%16[^ ]",
              addr[0], addr[1], addr[2]);
   ASSERT(3 == n);
 
@@ -2067,7 +2068,7 @@ static enum pkt_type_e gs2200m_enable_bulk(FAR struct gs2200m_dev_s *dev,
 static enum pkt_type_e gs2200m_enable_echo(FAR struct gs2200m_dev_s *dev,
                                            uint8_t on)
 {
-  char cmd[8];
+  char cmd[9];
 
   snprintf(cmd, sizeof(cmd), "ATE%d\r\n", on);
   return gs2200m_send_cmd2(dev, cmd);
@@ -2792,7 +2793,7 @@ static int gs2200m_ioctl_iwreq(FAR struct gs2200m_dev_s *dev,
           goto errout;
         }
 
-      n = sscanf(pkt_dat.msg[2], "BSSID=%c:%c:%c:%c:%c:%c %s",
+      n = sscanf(pkt_dat.msg[2], "BSSID=%c:%c:%c:%c:%c:%c %63s",
                  &res->u.ap_addr.sa_data[0], &res->u.ap_addr.sa_data[1],
                  &res->u.ap_addr.sa_data[2], &res->u.ap_addr.sa_data[3],
                  &res->u.ap_addr.sa_data[4], &res->u.ap_addr.sa_data[5],
@@ -2811,7 +2812,7 @@ static int gs2200m_ioctl_iwreq(FAR struct gs2200m_dev_s *dev,
           goto errout;
         }
 
-      n = sscanf(pkt_dat.msg[2], "%s CHANNEL=%" SCNd32 " %s",
+      n = sscanf(pkt_dat.msg[2], "%63s CHANNEL=%" SCNd32 " %63s",
                  cmd, &res->u.freq.m, cmd2);
       ASSERT(3 == n);
       wlinfo("CHANNEL:%" PRId32 "\n", res->u.freq.m);
@@ -2967,11 +2968,10 @@ static int gs2200m_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   FAR struct gs2200m_dev_s *dev;
   int ret = -EINVAL;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (FAR struct gs2200m_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   /* Lock the device */
 
@@ -3105,11 +3105,11 @@ static int gs2200m_poll(FAR struct file *filep, FAR struct pollfd *fds,
   int ret = OK;
 
   wlinfo("== setup:%d\n", (int)setup);
-  DEBUGASSERT(filep && fds);
+  DEBUGASSERT(fds);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (FAR struct gs2200m_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   ret = nxmutex_lock(&dev->dev_lock);
   if (ret < 0)
@@ -3145,7 +3145,7 @@ static int gs2200m_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
       if (0 < n)
         {
-          poll_notify(&dev->pfd, 1, POLLIN);
+          poll_notify(&fds, 1, POLLIN);
         }
     }
   else
@@ -3197,7 +3197,7 @@ repeat:
 
   /* Allocate a new pkt_dat and initialize it */
 
-  pkt_dat = (FAR struct pkt_dat_s *)kmm_malloc(sizeof(struct pkt_dat_s));
+  pkt_dat = kmm_malloc(sizeof(struct pkt_dat_s));
   ASSERT(NULL != pkt_dat);
 
   memset(pkt_dat, 0, sizeof(struct pkt_dat_s));
@@ -3220,7 +3220,7 @@ repeat:
 
           while (gs2200m_recv_pkt(dev, NULL) != TYPE_TIMEOUT)
             {
-              nxsig_usleep(100 * 1000);
+              nxsched_usleep(100 * 1000);
             }
         }
       while (gs2200m_ioctl_assoc_sta(dev, &dev->reconnect_msg) != OK);
@@ -3490,7 +3490,7 @@ FAR void *gs2200m_register(FAR const char *devpath,
   int size;
 
   size = sizeof(struct gs2200m_dev_s);
-  dev = (FAR struct gs2200m_dev_s *)kmm_malloc(size);
+  dev = kmm_malloc(size);
   if (!dev)
     {
       wlerr("Failed to allocate instance.\n");

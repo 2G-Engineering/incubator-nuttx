@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/route/net_del_fileroute.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,13 +31,14 @@
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arpa/inet.h>
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/net/ip.h>
 
+#include "netlink/netlink.h"
 #include "route/fileroute.h"
 #include "route/cacheroute.h"
 #include "route/route.h"
@@ -313,6 +316,8 @@ int net_delroute_ipv4(in_addr_t target, in_addr_t netmask)
   filesize = (nentries - 1) * sizeof(struct net_route_ipv4_s);
   ret = file_truncate(&fshandle, filesize);
 
+  netlink_route_notify(&match, RTM_DELROUTE, AF_INET);
+
 errout_with_fshandle:
   net_closeroute_ipv4(&fshandle);
 
@@ -463,6 +468,8 @@ int net_delroute_ipv6(net_ipv6addr_t target, net_ipv6addr_t netmask)
 
   filesize = (nentries - 1) * sizeof(struct net_route_ipv6_s);
   ret = file_truncate(&fshandle, filesize);
+
+  netlink_route_notify(&match, RTM_DELROUTE, AF_INET6);
 
 errout_with_fshandle:
   net_closeroute_ipv6(&fshandle);

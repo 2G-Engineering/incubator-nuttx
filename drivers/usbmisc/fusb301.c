@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/usbmisc/fusb301.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <poll.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
@@ -587,7 +589,7 @@ static int fusb301_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   {
   case USBCIOC_READ_DEVID:
     {
-      ret = fusb301_read_device_id(priv, (uint8_t *)arg);
+      ret = fusb301_read_device_id(priv, (FAR uint8_t *)arg);
     }
     break;
 
@@ -611,13 +613,13 @@ static int fusb301_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   case USBCIOC_READ_STATUS:
     {
-      ret = fusb301_read_status(priv, (uint8_t *)arg);
+      ret = fusb301_read_status(priv, (FAR uint8_t *)arg);
     }
     break;
 
   case USBCIOC_READ_DEVTYPE:
     {
-      ret = fusb301_read_devtype(priv, (uint8_t *)arg);
+      ret = fusb301_read_devtype(priv, (FAR uint8_t *)arg);
     }
     break;
 
@@ -655,11 +657,11 @@ static int fusb301_poll(FAR struct file *filep,
   int ret = OK;
   int i;
 
-  DEBUGASSERT(filep && fds);
+  DEBUGASSERT(fds);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct fusb301_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   ret = nxmutex_lock(&priv->devlock);
   if (ret < 0)
@@ -705,7 +707,7 @@ static int fusb301_poll(FAR struct file *filep,
       flags = enter_critical_section();
       if (priv->int_pending)
         {
-          poll_notify(priv->fds, CONFIG_FUSB301_NPOLLWAITERS, POLLIN);
+          poll_notify(&fds, 1, POLLIN);
         }
 
       leave_critical_section(flags);
@@ -714,7 +716,7 @@ static int fusb301_poll(FAR struct file *filep,
     {
       /* This is a request to tear down the poll. */
 
-      struct pollfd **slot = (struct pollfd **)fds->priv;
+      FAR struct pollfd **slot = (FAR struct pollfd **)fds->priv;
       DEBUGASSERT(slot != NULL);
 
       /* Remove all memory of the poll setup */

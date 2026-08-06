@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/mtd/sst25.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -34,7 +36,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -445,7 +447,7 @@ static uint8_t sst25_waitwritecomplete(struct sst25_dev_s *priv)
       if ((status & SST25_SR_BUSY) != 0)
         {
           sst25_unlock(priv->dev);
-          nxsig_usleep(1000);
+          nxsched_usleep(1000);
           sst25_lock(priv->dev);
         }
 #endif
@@ -1274,7 +1276,7 @@ FAR struct mtd_dev_s *sst25_initialize(FAR struct spi_dev_s *dev)
    * have to be extended to handle multiple FLASH parts on the same SPI bus.
    */
 
-  priv = (FAR struct sst25_dev_s *)kmm_zalloc(sizeof(struct sst25_dev_s));
+  priv = kmm_zalloc(sizeof(struct sst25_dev_s));
   if (priv)
     {
       /* Initialize the allocated structure. (unsupported methods were
@@ -1319,7 +1321,7 @@ FAR struct mtd_dev_s *sst25_initialize(FAR struct spi_dev_s *dev)
 #ifdef CONFIG_SST25_SECTOR512        /* Simulate a 512 byte sector */
           /* Allocate a buffer for the erase block cache */
 
-          priv->sector = (FAR uint8_t *)kmm_malloc(1 << priv->sectorshift);
+          priv->sector = kmm_malloc(1 << priv->sectorshift);
           if (!priv->sector)
             {
               /* Allocation failed! Discard all of that work we just did and

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/nucleo-l496zg/src/nucleo-144.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -101,7 +103,7 @@
 #define GPIO_SPI3_CS2  (GPIO_SPI_CS | GPIO_PORTG | GPIO_PIN6)
 #define GPIO_SPI3_CS3  (GPIO_SPI_CS | GPIO_PORTG | GPIO_PIN7)
 
-#if defined(CONFIG_STM32L4_SDMMC1) || defined(CONFIG_STM32L4_SDMMC2)
+#if defined(CONFIG_STM32_SDMMC1) || defined(CONFIG_STM32_SDMMC2)
 #  define HAVE_SDIO
 #endif
 
@@ -112,7 +114,7 @@
 #define SDIO_SLOTNO 0  /* Only one slot */
 
 #ifdef HAVE_SDIO
-#  if defined(CONFIG_STM32L4_SDMMC1)
+#  if defined(CONFIG_STM32_SDMMC1)
 #    define GPIO_SDMMC1_NCD (GPIO_INPUT|GPIO_FLOAT|GPIO_EXTI | GPIO_PORTC | GPIO_PIN6)
 #  endif
 
@@ -160,6 +162,19 @@
 /****************************************************************************
  * Public Functions Definitions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: stm32_bringup
+ *
+ * Description:
+ *   Perform architecture-specific initialization
+ *
+ *   CONFIG_BOARD_LATE_INITIALIZE=y :
+ *     Called from board_late_initialize().
+ *
+ ****************************************************************************/
+
+int stm32_bringup(void);
 
 /****************************************************************************
  * Name: stm32_spidev_initialize
@@ -220,12 +235,12 @@ int stm32_sdio_initialize(void);
  * Name: stm32_usbinitialize
  *
  * Description:
- *   Called from stm32_usbinitialize very early in inialization to setup
+ *   Called from stm32_usbinitialize very early in initialization to setup
  *   USB-related GPIO pins for the nucleo-144 board.
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32L4_OTGFS
+#ifdef CONFIG_STM32_OTGFS
 void stm32_usbinitialize(void);
 #endif
 
@@ -261,7 +276,7 @@ int stm32_dac_setup(void);
  *
  ****************************************************************************/
 
-#if defined(CONFIG_ADC) && defined(CONFIG_STM32L4_DFSDM)
+#if defined(CONFIG_ADC) && defined(CONFIG_STM32_DFSDM)
 int stm32_dfsdm_setup(void);
 #endif
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/sam34/arduino-due/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -65,7 +67,7 @@
 /* PLLA configuration.
  *
  *   Divider = 1
- *   Multipler = 14
+ *   Multiplier = 14
  */
 
 #define BOARD_CKGR_PLLAR_MUL       (13 << PMC_CKGR_PLLAR_MUL_SHIFT)
@@ -131,6 +133,11 @@
 
 #define BOARD_FWS                  4
 
+/* Serial Peripheral Interface (SPI) */
+
+#define GPIO_SPI0_SPCK GPIO_SPI0_SPCK_1
+#define GPIO_SPI0_CS   (GPIO_OUTPUT | GPIO_CFG_DEFAULT | GPIO_OUTPUT_SET | GPIO_PORT_PIOC | GPIO_PIN21)
+
 /* LED definitions **********************************************************/
 
 /*  There are three user-controllable LEDs on board the Arduino Due board:
@@ -180,7 +187,7 @@
 #define LED_SIGNAL        2  /* In a signal handler      N/C GLOW OFF      */
 #define LED_ASSERTION     2  /* An assertion failed      N/C GLOW OFF      */
 #define LED_PANIC         3  /* The system has crashed   N/C N/C  Blinking */
-#define LED_PANIC         3  /* MCU is is sleep mode    ---- Not used ---- */
+#define LED_PANIC         3  /* MCU is in sleep mode    ---- Not used ---- */
 
 /* Thus if LED L is statically on, NuttX has successfully booted and is,
  * apparently, running normmally.  If LED RX is glowing, then NuttX is
@@ -202,7 +209,7 @@
  * That problem was resolved as follows:
  *
  *  "... The issue was in my hardware. I found the difference between Arduino
- *   Due shematics (revision R2) and actual PCB layout of my Arduino
+ *   Due schematics (revision R2) and actual PCB layout of my Arduino
  *   (revision R3).
  *   On a schematics which I download from arduino.cc was shown that 2nd
  *   pin of IC10 is connected to the ground, but on my Arduino the 2nd pin

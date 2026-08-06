@@ -1,7 +1,8 @@
 /****************************************************************************
  * crypto/cryptodev.c
- * $OpenBSD: cryptodev.c,v 1.82 2014/08/18 05:11:03 dlg Exp $
- * Copyright (c) 2001 Theo de Raadt
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-FileCopyrightText: Copyright (c) 2001 Theo de Raadt
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,6 +28,7 @@
  * Effort sponsored in part by the Defense Advanced Research Projects
  * Agency (DARPA) and Air Force Research Laboratory, Air Force
  * Materiel Command, USAF, under agreement number F30602-01-2-0537.
+ *
  ****************************************************************************/
 
 /****************************************************************************
@@ -36,7 +38,6 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
-#include <sys/queue.h>
 #include <stdbool.h>
 #include <string.h>
 #include <poll.h>
@@ -59,9 +60,13 @@ extern FAR struct cryptocap *crypto_drivers;
 extern int crypto_drivers_num;
 int usercrypto = 1;         /* userland may do crypto requests */
 int userasymcrypto = 1;     /* userland may do asymmetric crypto reqs */
+#ifdef CONFIG_CRYPTO_CRYPTODEV_SOFTWARE_CRYPTO
 int cryptodevallowsoft = 1; /* 0 is only use hardware crypto
                              * 1 is use hardware & software crypto
                              */
+#else
+int cryptodevallowsoft = 0;
+#endif
 
 /****************************************************************************
  * Private Types
@@ -74,9 +79,9 @@ struct csession
   uint32_t ses;
 
   uint32_t cipher;
-  FAR const struct enc_xform *txform;
   uint32_t mac;
-  FAR const struct auth_hash *thash;
+  bool txform;
+  bool thash;
 
   caddr_t key;
   int keylen;
@@ -90,7 +95,9 @@ struct csession
 struct fcrypt
 {
   TAILQ_HEAD(csessionlist, csession) csessions;
+  TAILQ_HEAD(cryptkoplist, cryptkop) crpk_ret;
   int sesn;
+  FAR struct pollfd *fds;
 };
 
 /****************************************************************************
@@ -106,7 +113,8 @@ static ssize_t cryptof_write(FAR struct file *filep,
 static int cryptof_ioctl(FAR struct file *filep,
                          int cmd, unsigned long arg);
 static int cryptof_poll(FAR struct file *filep,
-                        struct pollfd *fds, bool setup);
+                        FAR struct pollfd *fds, bool setup);
+static int cryptof_open(FAR struct file *filep);
 static int cryptof_close(FAR struct file *filep);
 
 static int cryptoopen(FAR struct file *filep);
@@ -117,13 +125,30 @@ static ssize_t cryptowrite(FAR struct file *filep,
 static int cryptoclose(FAR struct file *filep);
 static int cryptoioctl(FAR struct file *filep, int cmd, unsigned long arg);
 
+static FAR struct csession *csefind(FAR struct fcrypt *, u_int);
+static int csedelete(FAR struct fcrypt *, FAR struct csession *);
+static FAR struct csession *cseadd(FAR struct fcrypt *,
+                                   FAR struct csession *);
+static FAR struct csession *csecreate(FAR struct fcrypt *, uint64_t,
+                                      caddr_t, uint64_t,
+                                      caddr_t, uint64_t, uint32_t,
+                                      uint32_t, bool, bool);
+static int csefree(FAR struct csession *);
+
+static int cryptodev_op(FAR struct csession *,
+                        FAR struct crypt_op *);
+static int cryptodev_key(FAR struct fcrypt *, FAR struct crypt_kop *);
+static int cryptodevkey_cb(FAR struct cryptkop *);
+static int cryptodev_getkeystatus(FAR struct fcrypt *,
+                                  FAR struct crypt_kop *);
+
 /****************************************************************************
  * Private Data
  ****************************************************************************/
 
 static const struct file_operations g_cryptofops =
 {
-  NULL,                /* open   */
+  cryptof_open,        /* open   */
   cryptof_close,       /* close  */
   cryptof_read,        /* read   */
   cryptof_write,       /* write  */
@@ -149,6 +174,7 @@ static const struct file_operations g_cryptoops =
 
 static struct inode g_cryptoinode =
 {
+  .i_flags = FSNODEFLAG_TYPE_DRIVER,
   .i_crefs = 1,
   .u.i_ops = &g_cryptofops
 };
@@ -156,24 +182,6 @@ static struct inode g_cryptoinode =
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
-
-FAR struct csession *csefind(FAR struct fcrypt *, u_int);
-int csedelete(FAR struct fcrypt *, FAR struct csession *);
-FAR struct csession *cseadd(FAR struct fcrypt *, FAR struct csession *);
-FAR struct csession *csecreate(FAR struct fcrypt *, uint64_t,
-                               caddr_t, uint64_t,
-                               caddr_t, uint64_t, uint32_t,
-                               uint32_t, FAR const struct enc_xform *,
-                               FAR const struct auth_hash *);
-int csefree(FAR struct csession *);
-
-int cryptodev_op(FAR struct csession *,
-                 FAR struct crypt_op *);
-int cryptodev_key(FAR struct crypt_kop *);
-int cryptodev_dokey(FAR struct crypt_kop *kop, FAR struct crparam *kvp);
-
-int cryptodev_cb(FAR struct cryptop *);
-int cryptodevkey_cb(FAR struct cryptkop *);
 
 /* ARGSUSED */
 
@@ -202,8 +210,8 @@ static int cryptof_ioctl(FAR struct file *filep,
   FAR struct csession *cse;
   FAR struct session_op *sop;
   FAR struct crypt_op *cop;
-  FAR const struct enc_xform *txform = NULL;
-  FAR const struct auth_hash *thash = NULL;
+  bool txform = false;
+  bool thash = false;
   uint64_t sid;
   uint32_t ses;
   int error = 0;
@@ -217,25 +225,19 @@ static int cryptof_ioctl(FAR struct file *filep,
             case 0:
               break;
             case CRYPTO_3DES_CBC:
-              txform = &enc_xform_3des;
-              break;
             case CRYPTO_BLF_CBC:
-              txform = &enc_xform_blf;
-              break;
             case CRYPTO_CAST_CBC:
-              txform = &enc_xform_cast5;
-              break;
             case CRYPTO_AES_CBC:
-              txform = &enc_xform_aes;
-              break;
+            case CRYPTO_AES_192_CBC:
+            case CRYPTO_AES_256_CBC:
+            case CRYPTO_AES_CMAC:
             case CRYPTO_AES_CTR:
-              txform = &enc_xform_aes_ctr;
-              break;
             case CRYPTO_AES_XTS:
-              txform = &enc_xform_aes_xts;
-              break;
+            case CRYPTO_AES_OFB:
+            case CRYPTO_AES_CFB_8:
+            case CRYPTO_AES_CFB_128:
             case CRYPTO_NULL:
-              txform = &enc_xform_null;
+              txform = true;
               break;
             default:
               return -EINVAL;
@@ -246,25 +248,25 @@ static int cryptof_ioctl(FAR struct file *filep,
             case 0:
               break;
             case CRYPTO_MD5_HMAC:
-              thash = &auth_hash_hmac_md5_96;
-              break;
             case CRYPTO_SHA1_HMAC:
-              thash = &auth_hash_hmac_sha1_96;
-              break;
             case CRYPTO_RIPEMD160_HMAC:
-              thash = &auth_hash_hmac_ripemd_160_96;
-              break;
             case CRYPTO_SHA2_256_HMAC:
-              thash = &auth_hash_hmac_sha2_256_128;
-              break;
             case CRYPTO_SHA2_384_HMAC:
-              thash = &auth_hash_hmac_sha2_384_192;
-              break;
             case CRYPTO_SHA2_512_HMAC:
-              thash = &auth_hash_hmac_sha2_512_256;
-              break;
             case CRYPTO_AES_128_GMAC:
-              thash = &auth_hash_gmac_aes_128;
+            case CRYPTO_AES_128_CMAC:
+            case CRYPTO_MD5:
+            case CRYPTO_POLY1305:
+            case CRYPTO_RIPEMD160:
+            case CRYPTO_SHA1:
+            case CRYPTO_SHA2_224:
+            case CRYPTO_SHA2_256:
+            case CRYPTO_SHA2_384:
+            case CRYPTO_SHA2_512:
+            case CRYPTO_CRC32:
+            case CRYPTO_PBKDF2_HMAC_SHA1:
+            case CRYPTO_PBKDF2_HMAC_SHA256:
+              thash = true;
               break;
             default:
               return -EINVAL;
@@ -275,14 +277,9 @@ static int cryptof_ioctl(FAR struct file *filep,
 
         if (txform)
           {
-            crie.cri_alg = txform->type;
+            crie.cri_alg = sop->cipher;
             crie.cri_klen = sop->keylen * 8;
-            if (sop->keylen > txform->maxkey ||
-                sop->keylen < txform->minkey)
-              {
-                error = -EINVAL;
-                goto bail;
-              }
+            crie.cri_op = sop->op;
 
             crie.cri_key = kmm_malloc(crie.cri_klen / 8);
             if (crie.cri_key == NULL)
@@ -300,13 +297,9 @@ static int cryptof_ioctl(FAR struct file *filep,
 
         if (thash)
           {
-            cria.cri_alg = thash->type;
+            cria.cri_alg = sop->mac;
+            cria.cri_sid = -1;
             cria.cri_klen = sop->mackeylen * 8;
-            if (sop->mackeylen > thash->keysize)
-              {
-                error = -EINVAL;
-                goto bail;
-              }
 
             if (cria.cri_klen)
               {
@@ -381,217 +374,141 @@ bail:
         error = cryptodev_op(cse, cop);
         break;
       case CIOCKEY:
-        error = cryptodev_key((FAR struct crypt_kop *)arg);
+        error = cryptodev_key(fcr, (FAR struct crypt_kop *)arg);
+        break;
+      case CIOCKEYRET:
+        error = cryptodev_getkeystatus(fcr, (FAR struct crypt_kop *)arg);
         break;
       case CIOCASYMFEAT:
         error = crypto_getfeat((FAR int *)arg);
         break;
       default:
-        error = -EINVAL;
+        error = -ENOTTY;
     }
 
   return error;
 }
 
-int cryptodev_op(FAR struct csession *cse,
-                 FAR struct crypt_op *cop)
+static int cryptodev_op(FAR struct csession *cse,
+                        FAR struct crypt_op *cop)
 {
-  FAR struct cryptop *crp = NULL;
-  FAR struct cryptodesc *crde = NULL;
-  FAR struct cryptodesc *crda = NULL;
+  struct cryptop crp;
+  struct cryptodesc crda;
+  struct cryptodesc crde;
   int error = OK;
   uint32_t hid;
 
-  if (cop->len > 64 * 1024 - 4)
+  /* number of requests, not logical and */
+
+  bzero(&crp, sizeof(struct cryptop));
+  bzero(&crda, sizeof(struct cryptodesc));
+  bzero(&crde, sizeof(struct cryptodesc));
+  if (cse->thash)
     {
-      return -E2BIG;
+      crp.crp_desc = &crda;
+      crda.crd_skip = 0;
+      crda.crd_len = cop->len;
+      crda.crd_inject = 0;
+
+      crda.crd_alg = cse->mac;
+      crda.crd_key = cse->mackey;
+      crda.crd_klen = cse->mackeylen * 8;
+      if (cop->flags & COP_FLAG_UPDATE)
+        {
+          crda.crd_flags |= CRD_F_UPDATE;
+        }
+      else
+        {
+          crda.crd_flags &= ~CRD_F_UPDATE;
+        }
     }
 
   if (cse->txform)
     {
-      if (cop->len == 0 || (cop->len % cse->txform->blocksize) != 0)
+      if (cse->thash)
         {
-          return -EINVAL;
-        }
-    }
-
-  /* number of requests, not logical and */
-
-  crp = crypto_getreq((cse->txform != NULL) + (cse->thash != NULL));
-  if (crp == NULL)
-    {
-      error = -ENOMEM;
-      goto bail;
-    }
-
-  if (cse->thash)
-    {
-      crda = crp->crp_desc;
-      if (cse->txform)
-        crde = crda->crd_next;
-    }
-  else
-    {
-      if (cse->txform)
-        {
-          crde = crp->crp_desc;
+          crda.crd_next = &crde;
         }
       else
         {
-          error = -EINVAL;
-          goto bail;
+          crp.crp_desc = &crde;
         }
-    }
 
-  if (crda)
-    {
-      crda->crd_skip = 0;
-      crda->crd_len = cop->len;
-      crda->crd_inject = 0;
-
-      crda->crd_alg = cse->mac;
-      crda->crd_key = cse->mackey;
-      crda->crd_klen = cse->mackeylen * 8;
-      if (cop->flags & COP_FLAG_UPDATE)
-        {
-          crda->crd_flags |= CRD_F_UPDATE;
-        }
-      else
-        {
-          crda->crd_flags &= ~CRD_F_UPDATE;
-        }
-    }
-
-  if (crde)
-    {
       if (cop->op == COP_ENCRYPT)
         {
-          crde->crd_flags |= CRD_F_ENCRYPT;
+          crde.crd_flags |= CRD_F_ENCRYPT;
         }
       else
         {
-          crde->crd_flags &= ~CRD_F_ENCRYPT;
+          crde.crd_flags &= ~CRD_F_ENCRYPT;
         }
 
-      crde->crd_len = cop->len;
-      crde->crd_inject = 0;
-      crde->crd_alg = cse->cipher;
-      crde->crd_key = cse->key;
-      crde->crd_klen = cse->keylen * 8;
+      crde.crd_len = cop->len;
+      crde.crd_inject = 0;
+      crde.crd_alg = cse->cipher;
+      crde.crd_key = cse->key;
+      crde.crd_klen = cse->keylen * 8;
     }
 
-  crp->crp_ilen = cop->len;
-  crp->crp_buf = cop->src;
-  crp->crp_sid = cse->sid;
-  crp->crp_opaque = cse;
+  crp.crp_ilen = cop->len;
+  crp.crp_olen = cop->olen;
+  crp.crp_buf = cop->src;
+  crp.crp_sid = cse->sid;
+  crp.crp_opaque = cse;
 
   if (cop->iv)
     {
-      if (crde == NULL)
-        {
-          error = -EINVAL;
-          goto bail;
-        }
-
-      if (!(crde->crd_flags & CRD_F_IV_EXPLICIT))
-        {
-          memcpy(cse->tmp_iv, cop->iv, cse->txform->blocksize);
-          bcopy(cse->tmp_iv, crde->crd_iv, cse->txform->blocksize);
-          crde->crd_flags |= CRD_F_IV_EXPLICIT | CRD_F_IV_PRESENT;
-          crde->crd_skip = 0;
-        }
-    }
-  else if (crde)
-    {
-      crde->crd_flags |= CRD_F_IV_PRESENT;
-      crde->crd_skip = cse->txform->blocksize;
-      crde->crd_len -= cse->txform->blocksize;
+      crp.crp_iv = cop->iv;
+      crp.crp_ivlen = cop->ivlen;
     }
 
   if (cop->dst)
     {
-      if (crde == NULL)
-        {
-          error = -EINVAL;
-          goto bail;
-        }
-
-      crp->crp_dst = cop->dst;
+      crp.crp_dst = cop->dst;
     }
 
   if (cop->mac)
     {
-      if (crda == NULL)
-        {
-          error = -EINVAL;
-          goto bail;
-        }
+      crp.crp_mac = cop->mac;
+    }
 
-      crp->crp_mac = cop->mac;
+  if (cop->iterations)
+    {
+      crp.crp_iter = cop->iterations;
     }
 
   /* try the fast path first */
 
-  crp->crp_flags = CRYPTO_F_IOV | CRYPTO_F_NOQUEUE;
-  hid = (crp->crp_sid >> 32) & 0xffffffff;
-  if (hid >= crypto_drivers_num)
+  crp.crp_flags = CRYPTO_F_IOV | CRYPTO_F_NOQUEUE;
+  hid = (crp.crp_sid >> 32) & 0xffffffff;
+  if (hid >= crypto_drivers_num ||
+      (crypto_drivers[hid].cc_flags & CRYPTOCAP_F_SOFTWARE) ||
+      crypto_drivers[hid].cc_process == NULL)
     {
-      goto dispatch;
+      crp.crp_flags = CRYPTO_F_IOV;
+      crypto_invoke(&crp);
     }
-
-  if (crypto_drivers[hid].cc_flags & CRYPTOCAP_F_SOFTWARE)
+  else
     {
-      goto dispatch;
+      error = crypto_drivers[hid].cc_process(&crp);
     }
-
-  if (crypto_drivers[hid].cc_process == NULL)
-    {
-      goto dispatch;
-    }
-
-  error = crypto_drivers[hid].cc_process(crp);
-  if (error)
-    {
-      /* clear error */
-
-      crp->crp_etype = 0;
-      goto dispatch;
-    }
-
-  goto processed;
-dispatch:
-  crp->crp_flags = CRYPTO_F_IOV;
-  crypto_invoke(crp);
-processed:
 
   if ((cop->flags & COP_FLAG_UPDATE) == 0)
     {
-      crde->crd_flags &= ~CRD_F_IV_EXPLICIT;
+      crde.crd_flags &= ~CRD_F_IV_EXPLICIT;
     }
 
-  if (cse->error)
+  if (!error && crp.crp_etype != 0)
     {
-      error = cse->error;
-      goto bail;
-    }
-
-  if (crp->crp_etype != 0)
-    {
-      error = crp->crp_etype;
-      goto bail;
-    }
-
-bail:
-  if (crp)
-    {
-      crypto_freereq(crp);
+      error = crp.crp_etype;
     }
 
   return error;
 }
 
-int cryptodev_key(FAR struct crypt_kop *kop)
+static int cryptodev_key(FAR struct fcrypt *fcr, FAR struct crypt_kop *kop)
 {
+  FAR struct cryptkop *krp_async = NULL;
   FAR struct cryptkop *krp = NULL;
   int error = -EINVAL;
   int in;
@@ -610,34 +527,190 @@ int cryptodev_key(FAR struct crypt_kop *kop)
     {
       case CRK_MOD_EXP:
         if (in == 3 && out == 1)
-          break;
+          {
+            break;
+          }
+
         return -EINVAL;
       case CRK_MOD_EXP_CRT:
         if (in == 6 && out == 1)
-          break;
+          {
+            break;
+          }
+
         return -EINVAL;
       case CRK_DSA_SIGN:
         if (in == 5 && out == 2)
-          break;
+          {
+            break;
+          }
+
         return -EINVAL;
       case CRK_DSA_VERIFY:
         if (in == 7 && out == 0)
-          break;
+          {
+            break;
+          }
+
         return -EINVAL;
       case CRK_DH_COMPUTE_KEY:
         if (in == 3 && out == 1)
-          break;
+          {
+            break;
+          }
+
+        return -EINVAL;
+      case CRK_DH_MAKE_PUBLIC:
+        if (in == 2 && out == 2)
+          {
+            break;
+          }
+
+        return -EINVAL;
+      case CRK_RSA_PKCS15_SIGN:
+        if (in == 4 && out == 1)
+          {
+            break;
+          }
+
+        return -EINVAL;
+      case CRK_RSA_PKCS15_VERIFY:
+        if (in == 5 && out == 0)
+          {
+            break;
+          }
+
+        return -EINVAL;
+      case CRK_RSA_PSS_SIGN:
+        if (in == 3 && out == 1)
+          {
+            break;
+          }
+
+        return -EINVAL;
+      case CRK_RSA_PSS_VERIFY:
+        if (in == 4 && out == 0)
+          {
+            break;
+          }
+
+        return -EINVAL;
+      case CRK_ECDSA_SECP256R1_SIGN:
+        if (in == 2 && out == 2)
+          {
+            break;
+          }
+
+        return -EINVAL;
+      case CRK_ECDSA_SECP256R1_VERIFY:
+        if (in == 6 && out == 0)
+          {
+            break;
+          }
+
+        return -EINVAL;
+      case CRK_ECDSA_SECP256R1_GENKEY:
+        if (in == 0 && out == 4)
+          {
+            break;
+          }
+
+        return -EINVAL;
+
+      /* key management */
+
+      case CRK_ALLOCATE_KEY:
+
+      /* outparam: keyid */
+
+        if (in == 0 && out == 1)
+          {
+            break;
+          }
+
+        return -EINVAL;
+      case CRK_VALIDATE_KEYID:
+      case CRK_DELETE_KEY:
+      case CRK_SAVE_KEY:
+      case CRK_LOAD_KEY:
+      case CRK_UNLOAD_KEY:
+
+      /* inparam: keyid */
+
+        if (in == 1 && out == 0)
+          {
+            break;
+          }
+
+        return -EINVAL;
+      case CRK_IMPORT_KEY:
+
+      /* inparam: keyid, raw data */
+
+      case CRK_GENERATE_AES_KEY:
+
+      /* inparam: keyid, keylen 16/24/32(128/192/256) */
+
+        if (in == 2 && out == 0)
+          {
+            break;
+          }
+
+        return -EINVAL;
+      case CRK_EXPORT_KEY:
+      case CRK_EXPORT_PUBLIC_KEY:
+
+      /* inparam: keyid, outparam: key data */
+
+        if (in == 1 && out == 1)
+          {
+            break;
+          }
+
+        return -EINVAL;
+      case CRK_GENERATE_RSA_KEY:
+      case CRK_GENERATE_SECP256R1_KEY:
+
+      /* 1 inparam : keypair id or private keyid
+       * 2 inparam : private keyid, public keyid
+       */
+
+        if ((in == 1 || in == 2) && out == 0)
+          {
+            break;
+          }
+
         return -EINVAL;
       default:
         return -EINVAL;
     }
 
-  krp = kmm_malloc(sizeof *krp);
+  krp = kmm_zalloc(sizeof *krp);
+  if (krp == NULL)
+    {
+      return -ENOMEM;
+    }
+
   krp->krp_op = kop->crk_op;
-  krp->krp_status = kop->crk_status;
   krp->krp_iparams = kop->crk_iparams;
   krp->krp_oparams = kop->crk_oparams;
   krp->krp_status = 0;
+  krp->krp_flags = kop->crk_flags;
+  krp->krp_reqid = kop->crk_reqid;
+
+  if (krp->krp_flags & CRYPTO_F_CBIMM)
+    {
+      if (kop->crk_arg == NULL)
+        {
+          error = -EINVAL;
+          goto fail;
+        }
+
+      krp_async = (FAR struct cryptkop *)kop->crk_arg;
+      krp_async->krp_fcr = fcr;
+      krp_async->krp_callback = cryptodevkey_cb;
+      krp->krp_opaque = krp_async;
+    }
 
   for (i = 0; i < CRK_MAXPARAM; i++)
     {
@@ -658,17 +731,13 @@ int cryptodev_key(FAR struct crypt_kop *kop)
           continue;
         }
 
-      krp->krp_param[i].crp_p = kmm_malloc(size);
+      krp->krp_param[i].crp_p = kmm_zalloc(size);
       if (i >= krp->krp_iparams)
         {
           continue;
         }
 
       memcpy(krp->krp_param[i].crp_p, kop->crk_param[i].crp_p, size);
-      if (error)
-        {
-          goto fail;
-        }
     }
 
   error = crypto_kinvoke(krp);
@@ -715,12 +784,96 @@ fail:
   return error;
 }
 
+static int cryptodevkey_cb(FAR struct cryptkop *krp)
+{
+  TAILQ_INSERT_TAIL(&krp->krp_fcr->crpk_ret, krp, krp_next);
+  if (krp->krp_fcr->fds != NULL)
+    {
+      poll_notify(&krp->krp_fcr->fds, 1, POLLIN);
+    }
+
+  return OK;
+}
+
+static int cryptodev_getkeystatus(struct fcrypt *fcr, struct crypt_kop *ret)
+{
+  FAR struct cryptkop *krp = NULL;
+  int i;
+  int size;
+
+  if (TAILQ_EMPTY(&fcr->crpk_ret))
+    {
+      return -EAGAIN;
+    }
+
+  TAILQ_FOREACH(krp, &fcr->crpk_ret, krp_next)
+    {
+      if (krp->krp_reqid == ret->crk_reqid)
+        {
+          break;
+        }
+    }
+
+  if (krp == NULL)
+    {
+      return -EINVAL;
+    }
+
+  TAILQ_REMOVE(&fcr->crpk_ret, krp, krp_next);
+  ret->crk_op = krp->krp_op;
+  ret->crk_status = krp->krp_status;
+  ret->crk_iparams = krp->krp_iparams;
+  ret->crk_oparams = krp->krp_oparams;
+  for (i = 0; i < krp->krp_iparams + krp->krp_oparams; i++)
+    {
+      size = (krp->krp_param[i].crp_nbits + 7) / 8;
+
+      /* copy result into oparams */
+
+      if (i < ret->crk_iparams || size == 0)
+        {
+          continue;
+        }
+
+      memcpy(ret->crk_param[i].crp_p, krp->krp_param[i].crp_p, size);
+    }
+
+  return OK;
+}
+
 /* ARGSUSED */
 
 static int cryptof_poll(FAR struct file *filep,
-                        struct pollfd *fds, bool setup)
+                        FAR struct pollfd *fds, bool setup)
 {
-  return 0;
+  FAR struct fcrypt *fcr = filep->f_priv;
+
+  if (fcr == NULL || fds == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (setup)
+    {
+      if (!TAILQ_EMPTY(&fcr->crpk_ret))
+        {
+          poll_notify(&fds, 1, POLLIN);
+          return OK;
+        }
+
+      if (fcr->fds)
+        {
+          return -EBUSY;
+        }
+
+      fcr->fds = fds;
+    }
+  else
+    {
+      fcr->fds = NULL;
+    }
+
+  return OK;
 }
 
 /* ARGSUSED */
@@ -736,10 +889,126 @@ static int cryptof_close(FAR struct file *filep)
       (void)csefree(cse);
     }
 
-    kmm_free(fcr);
-    filep->f_priv = NULL;
-
+  kmm_free(fcr);
+  filep->f_priv = NULL;
   return 0;
+}
+
+/* Clone csessions into a new fd */
+
+static int cryptof_open(FAR struct file *filep)
+{
+  FAR struct fcrypt *fcr = filep->f_priv;
+  FAR struct fcrypt *fcrd = NULL;
+  FAR struct csession *cse;
+  FAR struct csession *csed;
+  struct cryptoini cria;
+  struct cryptoini crie;
+  uint64_t sid;
+  int ret = 0;
+
+  if (fcr == NULL)
+    {
+      return -EINVAL;
+    }
+
+  /* A 'struct fcrypt' is bound to the fd of the cryptodev,
+   * which stores a list of sessions. Each encryption operation
+   * would create a context and get a session id, which can be
+   * used to find the specific encryption operation. Therefore,
+   * in order to complete the copy operation, it is necessary to
+   * create same session based on the copy fd and obtain the newly
+   * generated session id.
+   */
+
+  fcrd = kmm_zalloc(sizeof(struct fcrypt));
+  if (fcrd == NULL)
+    {
+      return -ENOMEM;
+    }
+
+  TAILQ_INIT(&fcrd->csessions);
+  TAILQ_FOREACH(cse, &fcr->csessions, next)
+    {
+      bzero(&crie, sizeof(crie));
+      bzero(&cria, sizeof(cria));
+      if (cse->txform)
+        {
+          crie.cri_alg = cse->cipher;
+          crie.cri_klen = cse->keylen * 8;
+
+          crie.cri_key = kmm_malloc(cse->keylen);
+          if (crie.cri_key == NULL)
+            {
+              ret = -ENOMEM;
+              goto bail;
+            }
+
+          memcpy(crie.cri_key, cse->key, cse->keylen);
+          if (cse->thash)
+            {
+              crie.cri_next = &cria;
+            }
+        }
+
+      if (cse->thash)
+        {
+          cria.cri_alg = cse->mac;
+          cria.cri_sid = cse->sid;
+          cria.cri_klen = cse->mackeylen * 8;
+
+          if (cria.cri_klen)
+            {
+              cria.cri_key = kmm_malloc(cse->mackeylen);
+              if (cria.cri_key == NULL)
+                {
+                  ret = -ENOMEM;
+                  goto bail;
+                }
+
+              memcpy(cria.cri_key, cse->mackey, cse->mackeylen);
+            }
+        }
+
+      ret = crypto_newsession(&sid, cse->txform ? &crie : &cria,
+                              !cryptodevallowsoft);
+      if (ret < 0)
+        {
+          goto bail;
+        }
+
+      csed = csecreate(fcrd, sid, crie.cri_key, crie.cri_klen,
+                        cria.cri_key, cria.cri_klen,
+                        cse->cipher, cse->mac, cse->txform,
+                        cse->thash);
+      if (csed == NULL)
+        {
+          crypto_freesession(sid);
+          ret = -EINVAL;
+          goto bail;
+        }
+
+      csed->ses = cse->ses;
+    }
+
+  filep->f_priv = fcrd;
+  return 0;
+
+bail:
+  if (crie.cri_key)
+    {
+      explicit_bzero(crie.cri_key, crie.cri_klen / 8);
+      kmm_free(crie.cri_key);
+    }
+
+  if (cria.cri_key)
+    {
+      explicit_bzero(cria.cri_key, cria.cri_klen / 8);
+      kmm_free(cria.cri_key);
+    }
+
+  free(fcrd);
+  return ret;
 }
 
 static int cryptoopen(FAR struct file *filep)
@@ -778,11 +1047,16 @@ static int cryptoioctl(FAR struct file *filep, int cmd, unsigned long arg)
   switch (cmd)
     {
       case CRIOGET:
-        fcr = kmm_malloc(sizeof(struct fcrypt));
-        TAILQ_INIT(&fcr->csessions);
+        fcr = kmm_zalloc(sizeof(struct fcrypt));
+        if (fcr == NULL)
+          {
+            return -ENOMEM;
+          }
 
-        fd = file_allocate(&g_cryptoinode, 0,
-                           0, fcr, 0, true);
+        TAILQ_INIT(&fcr->csessions);
+        TAILQ_INIT(&fcr->crpk_ret);
+
+        fd = file_allocate_from_inode(&g_cryptoinode, 0, 0, fcr, 0);
         if (fd < 0)
           {
             kmm_free(fcr);
@@ -800,7 +1074,7 @@ static int cryptoioctl(FAR struct file *filep, int cmd, unsigned long arg)
   return error;
 }
 
-FAR struct csession *csefind(FAR struct fcrypt *fcr, u_int ses)
+static FAR struct csession *csefind(FAR struct fcrypt *fcr, u_int ses)
 {
   FAR struct csession *cse;
 
@@ -813,7 +1087,7 @@ FAR struct csession *csefind(FAR struct fcrypt *fcr, u_int ses)
   return NULL;
 }
 
-int csedelete(FAR struct fcrypt *fcr, FAR struct csession *cse_del)
+static int csedelete(FAR struct fcrypt *fcr, FAR struct csession *cse_del)
 {
   FAR struct csession *cse;
 
@@ -829,20 +1103,19 @@ int csedelete(FAR struct fcrypt *fcr, FAR struct csession *cse_del)
   return 0;
 }
 
-FAR struct csession *cseadd(FAR struct fcrypt *fcr,
-                            FAR struct csession *cse)
+static FAR struct csession *cseadd(FAR struct fcrypt *fcr,
+                                   FAR struct csession *cse)
 {
   TAILQ_INSERT_TAIL(&fcr->csessions, cse, next);
   cse->ses = fcr->sesn++;
   return cse;
 }
 
-FAR struct csession *csecreate(FAR struct fcrypt *fcr, uint64_t sid,
-                               caddr_t key, uint64_t keylen,
-                               caddr_t mackey, uint64_t mackeylen,
-                               uint32_t cipher, uint32_t mac,
-                               FAR const struct enc_xform *txform,
-                               FAR const struct auth_hash *thash)
+static FAR struct csession *csecreate(FAR struct fcrypt *fcr, uint64_t sid,
+                                      caddr_t key, uint64_t keylen,
+                                      caddr_t mackey, uint64_t mackeylen,
+                                      uint32_t cipher, uint32_t mac,
+                                      bool txform, bool thash)
 {
   FAR struct csession *cse;
 
@@ -865,7 +1138,7 @@ FAR struct csession *csecreate(FAR struct fcrypt *fcr, uint64_t sid,
   return cse;
 }
 
-int csefree(FAR struct csession *cse)
+static int csefree(FAR struct csession *cse)
 {
   int error;
 
@@ -891,7 +1164,14 @@ int csefree(FAR struct csession *cse)
 void devcrypto_register(void)
 {
   register_driver("/dev/crypto", &g_cryptoops, 0666, NULL);
+
+#ifdef CONFIG_CRYPTO_CRYPTODEV_SOFTWARE_CRYPTO
   swcr_init();
+#endif
+
+#ifdef CONFIG_CRYPTO_CRYPTODEV_SOFTWARE_KEYMGMT
+  swkey_init();
+#endif
 
 #ifdef CONFIG_CRYPTO_CRYPTODEV_HARDWARE
   hwcr_init();

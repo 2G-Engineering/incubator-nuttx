@@ -1,6 +1,8 @@
 ############################################################################
 # arch/arm/src/tlsr82/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -32,13 +34,17 @@ endif
 
 ifeq ($(CONFIG_TLSR82_TIMER),y)
   CHIP_CSRCS += tlsr82_timer.c tlsr82_timer_lowerhalf.c
-  ifeq ($(CONFIG_TLSR82_WATCHDOG), y)
+  ifeq ($(CONFIG_TLSR82_WATCHDOG),y)
     CHIP_CSRCS += tlsr82_watchdog.c
   endif
 endif
 
 ifeq ($(CONFIG_TLSR82_PWM),y)
   CHIP_CSRCS += tlsr82_pwm.c
+endif
+
+ifeq ($(CONFIG_PULSECOUNT),y)
+  CHIP_CSRCS += tlsr82_pulsecount.c
 endif
 
 ifeq ($(CONFIG_TLSR82_ADC),y)
@@ -64,6 +70,3 @@ ifeq ($(CONFIG_TLSR82_SOFT_FPU),y)
   EXTRA_LIBPATHS += -L$(TOPDIR)/$(CONFIG_TLSR82_SOFT_FPU_LIB_PATH)
   EXTRA_LIBS     += -l$(CONFIG_TLSR82_SOFT_FPU_LIB_NAME)
 endif
-
-CFLAGS += -Darm_fullcontextrestore=tc32_fullcontextrestore
-CFLAGS += -Darm_switchcontext=tc32_switchcontext

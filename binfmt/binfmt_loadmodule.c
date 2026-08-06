@@ -1,6 +1,8 @@
 /****************************************************************************
  * binfmt/binfmt_loadmodule.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,9 +27,10 @@
 #include <nuttx/config.h>
 
 #include <sched.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
+#include <nuttx/lib/lib.h>
 #include <nuttx/envpath.h>
 #include <nuttx/sched.h>
 #include <nuttx/kmalloc.h>
@@ -85,7 +88,7 @@ static int load_default_priority(FAR struct binary_s *bin)
  * Name: load_absmodule
  *
  * Description:
- *   Load a module into memory, bind it to an exported symbol take, and
+ *   Load a module into memory, bind it to an exported symbol table, and
  *   prep the module for execution.  filename is known to be an absolute
  *   path to the file to be loaded.
  *
@@ -103,12 +106,6 @@ static int load_absmodule(FAR struct binary_s *bin, FAR const char *filename,
 
   binfo("Loading %s\n", filename);
 
-  /* Disabling pre-emption should be sufficient protection while accessing
-   * the list of registered binary format handlers.
-   */
-
-  sched_lock();
-
   /* Traverse the list of registered binary format handlers.  Stop
    * when either (1) a handler recognized and loads the format, or
    * (2) no handler recognizes the format.
@@ -125,15 +122,28 @@ static int load_absmodule(FAR struct binary_s *bin, FAR const char *filename,
 
           binfo("Successfully loaded module %s\n", filename);
 
+          /* Save the filename of the loaded module */
+
+#ifdef CONFIG_BINFMT_STORE_FILENAME
+          strlcpy(bin->fname, filename, sizeof(bin->fname));
+#endif
+
           /* Save the unload method for use by unload_module */
 
           bin->unload = binfmt->unload;
           binfmt_dumpmodule(bin);
           break;
         }
+      else if (ret == -EACCES)
+        {
+          /* Access explicitly denied -- stop here; do not let a fallback
+           * loader bypass the execute-permission check that already ran.
+           */
+
+          break;
+        }
     }
 
-  sched_unlock();
   return ret;
 }
 
@@ -145,7 +155,7 @@ static int load_absmodule(FAR struct binary_s *bin, FAR const char *filename,
  * Name: load_module
  *
  * Description:
- *   Load a module into memory, bind it to an exported symbol take, and
+ *   Load a module into memory, bind it to an exported symbol table, and
  *   prep the module for execution.
  *
  * Returned Value:
@@ -201,7 +211,7 @@ int load_module(FAR struct binary_s *bin, FAR const char *filename,
 
                   /* Free the allocated fullpath */
 
-                  kmm_free(fullpath);
+                  lib_free(fullpath);
 
                   /* Break out of the loop with ret == OK on success */
 

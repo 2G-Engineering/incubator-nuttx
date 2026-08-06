@@ -7,6 +7,15 @@ config ARCH_HAVE_SERIAL_TERMIOS
 	bool
 	default n
 
+config ARCH_HAVE_8BIT_SERIAL_BUFSIZE
+	bool
+	default n
+	---help---
+	This is set by ARCH_LDST_16BIT_NOT_ATOMIC if the architecture does
+	not support atomic 16-bit load/store instructions. Receive and transmit
+	buffer sizes are stored in uint8_t (instead of int16_t) variable
+	in such case.
+
 menuconfig SERIAL
 	bool "Serial Driver Support"
 	default y
@@ -41,6 +50,62 @@ config SERIAL_CONSOLE
 	bool
 	default n
 
+config SERIAL_GDBSTUB
+	bool "GDBSTUB Serial support"
+	depends on LIB_GDBSTUB
+	default n
+
+config SERIAL_GDBSTUB_PATH
+	string "GDBSTUB Serial path"
+	depends on SERIAL_GDBSTUB
+	default "/dev/ttyS1"
+	---help---
+		The path to the serial device that will be used for GDB stub.
+
+config SERIAL_GDBSTUB_AUTO_ATTACH
+	bool "GDBSTUB Serial Auto attach"
+	depends on SERIAL_GDBSTUB
+	default n
+	---help---
+		Attach the serial port to gdbstub by default.
+		Will cover the GDBSTUB_SERIAL_PATH, that port will only
+		be used for GDB stub.
+
+config SERIAL_GDBSTUB_PANIC_TIMEOUT
+	int "GDBSTUB Serial panic timeout"
+	depends on SERIAL_GDBSTUB
+	default 10
+	---help---
+		Delay the panic timeout for gdbstub to connect.
+		0 will disable the timeout.
+
+config UART_HOSTFS
+	bool "Use hostfs read/write on UART_HOSTFS_DEVPATH as uart console"
+	depends on FS_HOSTFS
+	default n
+	select SERIAL_RXDMA
+	select SERIAL_TXDMA
+
+config UART_HOSTFS_DEVPATH
+	string "The host device node that will be used by"
+	depends on UART_HOSTFS
+	default "/dev/tty"
+
+config UART_HOSTFS_RXBUFSIZE
+	int "Uart hostfs receive buffer size"
+	default 256
+	depends on UART_HOSTFS
+
+config UART_HOSTFS_TXBUFSIZE
+	int "Uart hostfs transmit buffer size"
+	default 256
+	depends on UART_HOSTFS
+
+config UART_HOSTFS_DELAY_USEC
+	int "Uart hostfs polling interval in microseconds"
+	default 1000
+	depends on UART_HOSTFS
+
 menuconfig UART_PL011
 	bool "PL011 Chip support"
 	default n
@@ -49,6 +114,34 @@ if UART_PL011
 source "drivers/serial/Kconfig-pl011"
 endif
 
+menuconfig UART_XLNXPS
+	bool "Xilinx UART Peripheral System (XUARTPS) Chip support"
+	default n
+	---help---
+		This option enables support for the Xilinx UART Peripheral System
+		(XUARTPS) controller, which is commonly found in Xilinx Zynq-7000
+		and Zynq UltraScale+ MPSoC platforms.
+
+		The XUARTPS controller provides full-duplex UART functionality with
+		features such as baud rate generation, FIFO buffers, interrupt
+		support, and hardware flow control (RTS/CTS).
+
+		If you are building a kernel for Xilinx Zynq/Zynq MPSoC platforms
+		and need serial communication via the XUARTPS peripheral, say Y here.
+
+if UART_XLNXPS
+source "drivers/serial/Kconfig-xlnxps"
+endif # UART_XLNXPS
+
+menuconfig CMSDK_UART
+	bool "CMSDK UART Chip support"
+	select ARCH_HAVE_SERIAL_TERMIOS
+	default n
+
+if CMSDK_UART
+source "drivers/serial/Kconfig-cmsdk"
+endif # CMSDK_UART
+
 menuconfig 16550_UART
 	bool "16550 UART Chip support"
 	select ARCH_HAVE_SERIAL_TERMIOS
@@ -56,6 +149,10 @@ menuconfig 16550_UART
 
 if 16550_UART
 source "drivers/serial/Kconfig-16550"
+endif
+
+if PCI
+source "drivers/serial/Kconfig-pci"
 endif
 
 #
@@ -72,14 +169,48 @@ config MCU_SERIAL
 	default n
 
 config RPMSG_UART
-	bool "UART rpmsg support"
+	bool "UART RPMSG support"
 	default n
-	depends on RPTUN
+	depends on RPMSG
 	select ARCH_HAVE_SERIAL_TERMIOS
 	select SERIAL_RXDMA
 	select SERIAL_TXDMA
 	select SERIAL_REMOVABLE
 	select SERIAL_IFLOWCONTROL
+
+config RPMSG_UART_CONSOLE
+	bool "UART RPMSG console support"
+	default n
+	depends on RPMSG_UART
+	---help---
+		Register the UART RPMSG device as /dev/console so that is will be used
+		as the console device.
+		NOTE: support for this option must be implemented in the board logic by
+		setting the \"isconsole\" argument in the uart_rpmsg_init() function to true.
+
+config RPMSG_UART_RAW
+	bool "UART RPMSG RAW support"
+	default n
+	depends on RPMSG
+	select ARCH_HAVE_SERIAL_TERMIOS
+	select SERIAL_RXDMA
+	select SERIAL_TXDMA
+	select SERIAL_REMOVABLE
+	---help---
+		Similar to RPMSG_UART but using data transfer without encapsulation or
+		flow control. This implementation is compatible with the upstream linux
+		implementation of tty_rpmsg. This connects to a static service name
+		(rpmsg-tty), independent from the local name.
+
+config RPMSG_UART_RAW_CONSOLE
+	bool "UART RPMSG RAW console support"
+	default n
+	depends on RPMSG_UART_RAW
+	---help---
+		Register the RAW UART RPMSG device as /dev/console so that is will be used
+		as the console device.
+		NOTE: support for this option must be implemented in the board logic by
+		setting the \"isconsole\" argument in the uart_rpmsg_raw_init() function to true.
 
 #
 # Standard serial driver configuration
@@ -87,8 +218,7 @@ config RPMSG_UART
 
 config STANDARD_SERIAL
 	bool "Enable standard \"upper-half\" serial driver"
-	default y if MCU_SERIAL
-	default n if !MCU_SERIAL
+	default MCU_SERIAL
 	---help---
 		Enable the standard, upper-half serial driver used by most MCU serial peripherals.
 
@@ -156,6 +286,13 @@ config SERIAL_IFLOWCONTROL_UPPER_WATERMARK
 
 endif # SERIAL_IFLOWCONTROL_WATERMARKS
 
+config SERIAL_TIOCGICOUNT
+	bool "Support TIOCGICOUNT (U[S]ART Error Report)"
+	default n
+	---help---
+		The ioctl TIOCGICOUNT is used to collect errors from serial ports
+		such as frame error, overrun, parity, etc.
+
 config SERIAL_TIOCSERGSTRUCT
 	bool "Support TIOCSERGSTRUCT"
 	default n
@@ -179,6 +316,7 @@ config SERIAL_TERMIOS
 
 config TTY_LAUNCH
 	bool "Enable feature TTY launch program"
+	depends on SCHED_HPWORK
 	default n
 	---help---
 		If select this, then user can launch a program with a special input.
@@ -254,6 +392,13 @@ config TTY_FORCE_PANIC_CHAR
 	depends on TTY_FORCE_PANIC
 	---help---
 		Use Ctrl-? 0x1F inputs to determine whether panic system
+
+config TTY_FORCE_PANIC_REPEAT_COUNT
+	int "TTY force crash repeat count"
+	default 1
+	depends on TTY_FORCE_PANIC
+	---help---
+		Repeat how many times the panic char to determine whether panic system
 
 config TTY_SIGINT
 	bool "Support SIGINT"
@@ -680,6 +825,75 @@ source "drivers/serial/Kconfig-lpuart"
 source "drivers/serial/Kconfig-usart"
 source "drivers/serial/Kconfig-sci"
 
+config RAM_UART
+	bool "RAM uart driver"
+	select SERIAL_RXDMA
+	select SERIAL_TXDMA
+	default n
+	---help---
+		It uses the memory block in the kernel as a communication medium,
+		which can communicate between different processes or different CPUs
+
+if RAM_UART
+config RAM_UART_POLLING_INTERVAL
+	int "RAM uart buffer check interval"
+	default USEC_PER_TICK
+	---help---
+		Interval in milliseconds to check for new data on uart ram buffer
+
+config RAM_UART_BUFSIZE
+	int "RAM_UART buffer size"
+	default 1024
+	---help---
+		The size of the RAM_UART buffer in bytes
+
+config RAM_UART0
+	bool "RAM uart driver 0"
+	default n
+	---help---
+		RAM_UART device 0
+
+config RAM_UART0_SLAVE
+	bool "RAM_UART0 is slave"
+	depends on RAM_UART0
+	default n
+	---help---
+		The RAM uart0 is slave
+
+config RAM_UART1
+	bool "RAM uart driver 1"
+	default n
+	---help---
+		RAM uart device 1
+
+config RAM_UART1_SLAVE
+	bool "RAM uart1 is slave"
+	depends on RAM_UART1
+	default n
+	---help---
+		The RAM uart1 is slave
+
+config RAM_UART2
+	bool "RAM uart driver 2"
+	default n
+	---help---
+		RAM uart device 2
+
+config RAM_UART2_SLAVE
+	bool "RAM uart2 is slave"
+	depends on RAM_UART2
+	default n
+	---help---
+		The RAM uart2 is slave
+
+config RAM_UART_BUFFER_SECTION
+	string "RAM uart buffer section name"
+	depends on RAM_UART0 || RAM_UART1 || RAM_UART2
+	---help---
+		The name of the section in the kernel memory block
+
+endif # RAM_UART
+
 menuconfig PSEUDOTERM
 	bool "Pseudo-Terminal (PTY) support"
 	default n
@@ -716,7 +930,7 @@ config PSEUDOTERM_TXBUFSIZE
 endif # PSEUDOTERM
 
 menuconfig UART_BTH4
-	bool "BT H4 uart pseudo device"
+	bool "BT H4 UART Pseudo Device"
 	default n
 	depends on DRIVERS_BLUETOOTH
 	---help---
@@ -728,24 +942,63 @@ menuconfig UART_BTH4
 if UART_BTH4
 
 config UART_BTH4_TXBUFSIZE
-	int "BT H4 uart TX buffer size"
+	int "BT H4 UART TX Buffer Size"
 	default 2048
 	---help---
-		H4 UART TX buffer size.  Default: 2048
+		H4 UART TX Buffer Size.  Default: 2048
 
 config UART_BTH4_RXBUFSIZE
-	int "BT H4 uart RX buffer size"
+	int "BT H4 UART RX Buffer Size"
 	default 8096
 	---help---
-		H4 UART RX buffer size.  Default: 8096
+		H4 UART RX Buffer Size.  Default: 8096
 
 config UART_BTH4_NPOLLWAITERS
-	int "Number of poll threads"
+	int "Number Of Poll Threads"
 	default 2
 	---help---
 		Maximum number of threads than can be waiting for POLL events.
 		Default: 2
 
 endif # UART_BTH4
+
+menuconfig UART_BTH5
+	bool "BT H5 UART Pseudo Device"
+	default n
+	depends on DRIVERS_BLUETOOTH
+	---help---
+		Enable support for Bluetooth H5 UART Pseudo Device(eg. /dev/ttyHCI).
+		This instantiates a serial-like interface over an existing bluetooth
+		controller via HCI interface. Useful for external Bluetooth
+		stacks working this way instead of the socket based interface.
+
+if UART_BTH5
+
+config UART_BTH5_TXBUFSIZE
+	int "BT H5 UART TX Buffer Size"
+	default 2048
+	---help---
+		H5 UART TX Buffer Size.  Default: 2048
+
+config UART_BTH5_TXWIN
+	int "BT H5 Uart TX Window Size"
+	default 4
+	---help---
+		H5 UART TX Window Size.  Default: 4
+
+config UART_BTH5_RXBUFSIZE
+	int "BT H5 Uart RX Buffer Size"
+	default 8096
+	---help---
+		H5 UART RX Buffer Size.  Default: 8096
+
+config UART_BTH5_NPOLLWAITERS
+	int "Number Of Poll Threads"
+	default 2
+	---help---
+		Maximum number of threads than can be waiting for POLL events.
+		Default: 2
+
+endif # UART_BTH5
 
 endif # SERIAL

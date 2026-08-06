@@ -1,9 +1,10 @@
 /****************************************************************************
  * arch/arm/src/stm32l4/stm32l4_pmstop.c
  *
- *   Copyright (C) 2012, 2017 Gregory Nutt. All rights reserved.
- *   Copyright (C) 2015 Motorola Mobility, LLC. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2012, 2017 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2015 Motorola Mobility LLC. All rights reserved.
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -87,7 +88,7 @@ static int do_stop(void)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_pmstop
+ * Name: stm32_pmstop
  *
  * Description:
  *   Enter STOP mode.
@@ -105,7 +106,7 @@ static int do_stop(void)
  *
  ****************************************************************************/
 
-int stm32l4_pmstop(bool lpds)
+int stm32_pmstop(bool lpds)
 {
   uint32_t regval;
 
@@ -113,7 +114,7 @@ int stm32l4_pmstop(bool lpds)
    * register 1.
    */
 
-  regval  = getreg32(STM32L4_PWR_CR1);
+  regval  = getreg32(STM32_PWR_CR1);
   regval &= ~PWR_CR1_LPMS_MASK;
 
   /* Select Stop 1 mode with low-power regulator if so requested */
@@ -123,13 +124,13 @@ int stm32l4_pmstop(bool lpds)
       regval |= PWR_CR1_LPMS_STOP1LPR;
     }
 
-  putreg32(regval, STM32L4_PWR_CR1);
+  putreg32(regval, STM32_PWR_CR1);
 
   return do_stop();
 }
 
 /****************************************************************************
- * Name: stm32l4_pmstop2
+ * Name: stm32_pmstop2
  *
  * Description:
  *   Enter STOP2 mode.
@@ -144,12 +145,12 @@ int stm32l4_pmstop(bool lpds)
  *
  ****************************************************************************/
 
-int stm32l4_pmstop2(void)
+int stm32_pmstop2(void)
 {
   uint32_t regval;
 
-  regval  = getreg32(STM32L4_PWR_CR1);
-#ifdef CONFIG_STM32L4_SRAM3_HEAP
+  regval  = getreg32(STM32_PWR_CR1);
+#ifdef CONFIG_STM32_SRAM3_HEAP
   /* SRAM3 is used as heap, so it must not be powered off in Stop 2 mode. */
 
   regval |= PWR_CR1_RRSTP;
@@ -159,7 +160,7 @@ int stm32l4_pmstop2(void)
 
   regval &= ~PWR_CR1_LPMS_MASK;
   regval |= PWR_CR1_LPMS_STOP2;
-  putreg32(regval, STM32L4_PWR_CR1);
+  putreg32(regval, STM32_PWR_CR1);
 
   return do_stop();
 }

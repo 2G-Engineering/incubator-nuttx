@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/cxd56xx/cxd56_hostif.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -34,7 +36,7 @@
 #include <semaphore.h>
 #include <fcntl.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <arch/chip/hostif.h>
@@ -147,7 +149,9 @@ static const struct file_operations g_hif_fops =
   hif_ioctl,   /* ioctl */
   NULL,        /* mmap */
   NULL,        /* truncate */
-  hif_poll     /* poll */
+  hif_poll,    /* poll */
+  NULL,        /* readv */
+  NULL         /* writev */
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
   , hif_unlink /* unlink */
 #endif
@@ -198,28 +202,26 @@ static int hif_open(struct file *filep)
   struct inode *inode;
   struct cxd56_hifdev_s *priv;
 
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
 
-  priv = (struct cxd56_hifdev_s *)inode->i_private;
+  priv = inode->i_private;
   DEBUGASSERT(priv);
 
   /* Check parameters */
 
-  if ((filep->f_oflags & O_WRONLY) != 0 &&
-      (filep->f_oflags & O_RDONLY) != 0)
+  if ((filep->f_oflags & O_ACCMODE) == O_RDWR)
     {
       return -EACCES;
     }
 
-  if ((filep->f_oflags & O_RDONLY) &&
-      ((priv->flags & HOSTIF_BUFF_ATTR_READ) == 0))
+  if ((filep->f_oflags & O_ACCMODE) != O_WRONLY &&
+      (priv->flags & HOSTIF_BUFF_ATTR_READ) == 0)
     {
       return -EINVAL;
     }
 
-  if ((filep->f_oflags & O_WRONLY) &&
-      ((priv->flags & HOSTIF_BUFF_ATTR_READ) != 0))
+  if ((filep->f_oflags & O_ACCMODE) != O_RDONLY &&
+      (priv->flags & HOSTIF_BUFF_ATTR_READ) != 0)
     {
       return -EINVAL;
     }
@@ -253,10 +255,9 @@ static int hif_close(struct file *filep)
   struct inode *inode;
   struct cxd56_hifdev_s *priv;
 
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
 
-  priv = (struct cxd56_hifdev_s *)inode->i_private;
+  priv = inode->i_private;
   DEBUGASSERT(priv);
 
   /* Decrement reference counter */
@@ -281,17 +282,16 @@ static ssize_t hif_read(struct file *filep, char *buffer, size_t len)
   struct cxd56_hifdev_s *priv;
   int ret;
 
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
 
-  priv = (struct cxd56_hifdev_s *)inode->i_private;
+  priv = inode->i_private;
   DEBUGASSERT(priv);
 
   /* Check parameters */
 
   DEBUGASSERT(buffer);
 
-  if ((filep->f_oflags & O_RDONLY) == 0)
+  if ((filep->f_oflags & O_ACCMODE) == O_WRONLY)
     {
       return -EACCES;
     }
@@ -313,17 +313,16 @@ static ssize_t hif_write(struct file *filep,
   struct cxd56_hifdev_s *priv;
   int ret;
 
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
 
-  priv = (struct cxd56_hifdev_s *)inode->i_private;
+  priv = inode->i_private;
   DEBUGASSERT(priv);
 
   /* Check parameters */
 
   DEBUGASSERT(buffer);
 
-  if ((filep->f_oflags & O_WRONLY) == 0)
+  if ((filep->f_oflags & O_ACCMODE) == O_RDONLY)
     {
       return -EACCES;
     }
@@ -396,8 +395,7 @@ static int hif_initialize(struct hostif_buff_s *buffer)
 
   /* Setup driver structure */
 
-  drv->dev =
-    (struct cxd56_hifdev_s *)kmm_malloc(sizeof(struct cxd56_hifdev_s) * num);
+  drv->dev = kmm_malloc(sizeof(struct cxd56_hifdev_s) * num);
   if (drv->dev == NULL)
     {
       hiferr("ERROR: hostif allocation failed\n");

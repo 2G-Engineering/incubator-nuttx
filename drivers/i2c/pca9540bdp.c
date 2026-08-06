@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/i2c/pca9540bdp.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,15 +30,13 @@
 #include <fixedmath.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/i2c/i2c_master.h>
 #include "pca9540bdp.h"
 #include <nuttx/i2c/pca9540bdp.h>
-
-#ifdef CONFIG_I2CMULTIPLEXER_PCA9540BDP
 
 /****************************************************************************
  * Private Function Prototypes
@@ -299,4 +299,3 @@ FAR struct pca9540bdp_dev_s *
   return priv;
 }
 
-#endif /* CONFIG_I2CMULTIPLEXER_PCA9540BDP */

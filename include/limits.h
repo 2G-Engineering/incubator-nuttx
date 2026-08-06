@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/limits.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -128,6 +130,7 @@
 #define _POSIX_PIPE_BUF       512
 #define _POSIX_STREAM_MAX     16
 #define _POSIX_TZNAME_MAX     3
+#define _POSIX2_LINE_MAX      CONFIG_LINE_MAX
 
 #ifdef CONFIG_SMALL_MEMORY
 
@@ -192,7 +195,7 @@
 /* Required for POSIX semaphores */
 
 #define _POSIX_SEM_NSEMS_MAX  INT_MAX
-#define _POSIX_SEM_VALUE_MAX  0x7fff
+#define _POSIX_SEM_VALUE_MAX  INT_MAX
 
 /* Numerical limits.  These values may be increased from the POSIX minimum
  * values above or made indeterminate
@@ -200,6 +203,7 @@
 
 #define ARG_MAX        _POSIX_ARG_MAX
 #define CHILD_MAX      _POSIX_CHILD_MAX
+#define LINE_MAX       _POSIX2_LINE_MAX
 #define LINK_MAX       _POSIX_LINK_MAX
 #define MAX_CANON      _POSIX_MAX_CANON
 #define MAX_INPUT      _POSIX_MAX_INPUT
@@ -231,6 +235,8 @@
 #define DELAYTIMER_MAX _POSIX_DELAYTIMER_MAX
 #define TIMER_MAX      _POSIX_TIMER_MAX
 #define CLOCKRES_MIN   _POSIX_CLOCKRES_MIN
+
+#define CLOCK_MAX      INT64_MAX
 
 /* Other invariant values */
 
@@ -303,6 +309,12 @@
 
 #define SEM_NSEMS_MAX  _POSIX_SEM_NSEMS_MAX
 #define SEM_VALUE_MAX  _POSIX_SEM_VALUE_MAX
+
+/* Required for POSIX pthread management */
+
+#define _POSIX_THREAD_DESTRUCTOR_ITERATIONS     4
+#define _POSIX_THREAD_KEYS_MAX                  CONFIG_TLS_NELEM
+#define _POSIX_THREAD_THREADS_MAX               64
 
 /* Required for readv() and writev() */
 

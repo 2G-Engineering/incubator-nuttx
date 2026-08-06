@@ -1,7 +1,9 @@
 /****************************************************************************
  * arch/arm/src/armv8-m/arm_stackcheck.c
  *
- *   Copyright (c) 2013, 2014 PX4 Development Team. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2013, 2014 PX4 Development Team.
+ * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -48,6 +50,7 @@
 
 #include <stdint.h>
 
+#include <nuttx/instrument.h>
 #include "arm_internal.h"
 #include "nvic.h"
 
@@ -55,9 +58,18 @@
  * Private Functions
  ****************************************************************************/
 
-void  __cyg_profile_func_enter(void *func, void *caller) naked_function;
-void  __cyg_profile_func_exit(void *func, void *caller) naked_function;
-void  __stack_overflow_trap(void) naked_function;
+static void stack_check_enter(void *func, void *caller, void *arg)
+                              naked_function;
+void __stack_overflow_trap(void) naked_function;
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+static struct instrument_s g_stack_check =
+{
+  .enter = stack_check_enter,
+};
 
 /****************************************************************************
  * Name: __stack_overflow_trap
@@ -87,10 +99,10 @@ void __stack_overflow_trap(void)
 }
 
 /****************************************************************************
- * Name: __cyg_profile_func_enter
+ * Name: stack_check_enter
  ****************************************************************************/
 
-void __cyg_profile_func_enter(void *func, void *caller)
+static void stack_check_enter(void *func, void *caller, void *arg)
 {
     asm volatile (
             "   mrs r2, ipsr        \n" /* Check whether we are in interrupt mode */
@@ -113,11 +125,11 @@ void __cyg_profile_func_enter(void *func, void *caller)
 }
 
 /****************************************************************************
- * Name: __cyg_profile_func_exit
+ * Name: arm_stack_check_init
  ****************************************************************************/
 
-void __cyg_profile_func_exit(void *func, void *caller)
+void noinstrument_function arm_stack_check_init(void)
 {
-    asm volatile("bx lr");
+  instrument_register(&g_stack_check);
 }
 #endif

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/serial/pty.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,6 +26,7 @@
 
 #include <nuttx/config.h>
 
+#include <ctype.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <stdbool.h>
@@ -33,14 +36,17 @@
 #include <stdio.h>
 #include <string.h>
 #include <poll.h>
+#include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
 
+#include <nuttx/ascii.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/serial/pty.h>
+#include <nuttx/signal.h>
 
 #include "pty.h"
 
@@ -73,6 +79,10 @@ struct pty_dev_s
   struct file pd_src;           /* Provides data to read() method (pipe output) */
   struct file pd_sink;          /* Accepts data from write() method (pipe input) */
   bool pd_master;               /* True: this is the master */
+  uint8_t pd_escape;            /* Number of the character to be escaped */
+#if defined(CONFIG_TTY_SIGINT) || defined(CONFIG_TTY_SIGTSTP)
+  pid_t pd_pid;                 /* Thread PID to receive signals (-1 if none) */
+#endif
   tcflag_t pd_iflag;            /* Terminal input modes */
   tcflag_t pd_lflag;            /* Terminal local modes */
   tcflag_t pd_oflag;            /* Terminal output modes */
@@ -128,7 +138,9 @@ static const struct file_operations g_pty_fops =
   pty_ioctl,     /* ioctl */
   NULL,          /* mmap */
   NULL,          /* truncate */
-  pty_poll       /* poll */
+  pty_poll,      /* poll */
+  NULL,          /* readv */
+  NULL           /* writev */
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
   , pty_unlink   /* unlink */
 #endif
@@ -154,7 +166,7 @@ static void pty_destroy(FAR struct pty_devpair_s *devpair)
 
       /* Un-register the slave device */
 
-      snprintf(devname, 16, "/dev/pts/%d", devpair->pp_minor);
+      snprintf(devname, sizeof(devname), "/dev/pts/%u", devpair->pp_minor);
     }
   else
     {
@@ -162,12 +174,12 @@ static void pty_destroy(FAR struct pty_devpair_s *devpair)
        * unlinked).
        */
 
-      snprintf(devname, 16, "/dev/pty%d", (int)devpair->pp_minor);
+      snprintf(devname, sizeof(devname), "/dev/pty%u", devpair->pp_minor);
       unregister_driver(devname);
 
       /* Un-register the slave device */
 
-      snprintf(devname, 16, "/dev/ttyp%d", devpair->pp_minor);
+      snprintf(devname, sizeof(devname), "/dev/ttyp%u", devpair->pp_minor);
     }
 
   unregister_driver(devname);
@@ -198,7 +210,7 @@ static int pty_pipe(FAR struct pty_devpair_s *devpair)
   pipe_a[0] = &devpair->pp_master.pd_src;
   pipe_a[1] = &devpair->pp_slave.pd_sink;
 
-  ret = file_pipe(pipe_a, CONFIG_PSEUDOTERM_TXBUFSIZE, 0);
+  ret = file_pipe(pipe_a, CONFIG_PSEUDOTERM_TXBUFSIZE, O_CLOEXEC);
   if (ret < 0)
     {
       return ret;
@@ -207,7 +219,7 @@ static int pty_pipe(FAR struct pty_devpair_s *devpair)
   pipe_b[0] = &devpair->pp_slave.pd_src;
   pipe_b[1] = &devpair->pp_master.pd_sink;
 
-  ret = file_pipe(pipe_b, CONFIG_PSEUDOTERM_RXBUFSIZE, 0);
+  ret = file_pipe(pipe_b, CONFIG_PSEUDOTERM_RXBUFSIZE, O_CLOEXEC);
   if (ret < 0)
     {
       file_close(pipe_a[0]);
@@ -228,7 +240,6 @@ static int pty_open(FAR struct file *filep)
   FAR struct pty_devpair_s *devpair;
   int ret = OK;
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode   = filep->f_inode;
   dev     = inode->i_private;
   DEBUGASSERT(dev != NULL && dev->pd_devpair != NULL);
@@ -282,32 +293,21 @@ static int pty_open(FAR struct file *filep)
         }
     }
 
-  /* If one side of the driver has been unlinked, then refuse further
-   * opens.
-   */
+  /* First open? */
 
-  if (devpair->pp_unlinked)
+  if (devpair->pp_nopen == 0)
     {
-      ret = -EIDRM;
+      /* Yes, create the internal pipe */
+
+      ret = pty_pipe(devpair);
     }
-  else
+
+  /* Increment the count of open references on the driver */
+
+  if (ret >= 0)
     {
-      /* First open? */
-
-      if (devpair->pp_nopen == 0)
-        {
-          /* Yes, create the internal pipe */
-
-          ret = pty_pipe(devpair);
-        }
-
-      /* Increment the count of open references on the driver */
-
-      if (ret >= 0)
-        {
-          devpair->pp_nopen++;
-          DEBUGASSERT(devpair->pp_nopen > 0);
-        }
+      devpair->pp_nopen++;
+      DEBUGASSERT(devpair->pp_nopen > 0);
     }
 
   nxmutex_unlock(&devpair->pp_lock);
@@ -315,7 +315,7 @@ static int pty_open(FAR struct file *filep)
 }
 
 /****************************************************************************
- * Name: pty_open
+ * Name: pty_close
  ****************************************************************************/
 
 static int pty_close(FAR struct file *filep)
@@ -325,7 +325,6 @@ static int pty_close(FAR struct file *filep)
   FAR struct pty_devpair_s *devpair;
   int ret;
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode   = filep->f_inode;
   dev     = inode->i_private;
   DEBUGASSERT(dev != NULL && dev->pd_devpair != NULL);
@@ -341,7 +340,8 @@ static int pty_close(FAR struct file *filep)
 
   /* Check if the decremented inode reference count would go to zero */
 
-  if (inode->i_crefs == 1)
+  if ((!dev->pd_master && atomic_load(&inode->i_crefs) == 2) ||
+       (dev->pd_master && atomic_load(&inode->i_crefs) == 1))
     {
       /* Did the (single) master just close its reference? */
 
@@ -370,6 +370,7 @@ static int pty_close(FAR struct file *filep)
     {
       /* Yes.. Free the device pair now (without freeing the semaphore) */
 
+      nxmutex_unlock(&devpair->pp_lock);
       pty_destroy(devpair);
       return OK;
     }
@@ -397,7 +398,6 @@ static ssize_t pty_read(FAR struct file *filep, FAR char *buffer, size_t len)
   ssize_t j;
   char ch;
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
   dev   = inode->i_private;
   DEBUGASSERT(dev != NULL);
@@ -473,7 +473,66 @@ static ssize_t pty_read(FAR struct file *filep, FAR char *buffer, size_t len)
 
   if ((dev->pd_lflag & ECHO) && (ntotal > 0))
     {
-      pty_write(filep, buffer, ntotal);
+      size_t n = 0;
+
+      for (i = j = 0; i < ntotal; i++)
+        {
+          ch = buffer[i];
+
+          /* Check for the beginning of a VT100 escape sequence, 3 byte */
+
+          if (ch == ASCII_ESC)
+            {
+              /* Mark that we should skip 2 more bytes */
+
+              dev->pd_escape = 2;
+              continue;
+            }
+          else if (dev->pd_escape == 2 && ch != ASCII_LBRACKET)
+            {
+              /* It's not an <esc>[x 3 byte sequence, show it */
+
+              dev->pd_escape = 0;
+            }
+          else if (dev->pd_escape > 0)
+            {
+              /* Skipping character count down */
+
+              if (--dev->pd_escape > 0)
+                {
+                  continue;
+                }
+            }
+
+          /* Echo if the character in batch */
+
+          if (ch == '\n' || (n != 0 && j + n != i))
+            {
+              if (n != 0)
+                {
+                  pty_write(filep, buffer + j, n);
+                  n = 0;
+                }
+
+              if (ch == '\n')
+                {
+                  pty_write(filep, "\r\n", 2);
+                  continue;
+                }
+            }
+
+          /* Record the character can be echo */
+
+          if (!iscntrl(ch & 0xff) && n++ == 0)
+            {
+              j = i;
+            }
+        }
+
+      if (n != 0)
+        {
+          pty_write(filep, buffer + j, n);
+        }
     }
 
   return ntotal;
@@ -490,13 +549,23 @@ static ssize_t pty_write(FAR struct file *filep,
   FAR struct pty_dev_s *dev;
   ssize_t ntotal;
   ssize_t nwritten;
+#if defined(CONFIG_TTY_SIGINT) || defined(CONFIG_TTY_SIGTSTP)
+  pid_t pid;
+#endif
   size_t i;
   char ch;
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
   dev   = inode->i_private;
   DEBUGASSERT(dev != NULL);
+
+#if defined(CONFIG_TTY_SIGINT) || defined(CONFIG_TTY_SIGTSTP)
+  pid = dev->pd_devpair->pp_master.pd_pid;
+  if (dev->pd_master)
+    {
+      pid = dev->pd_devpair->pp_slave.pd_pid;
+    }
+#endif
 
   /* Do output post-processing */
 
@@ -549,6 +618,22 @@ static ssize_t pty_write(FAR struct file *filep,
                   break;
                 }
             }
+
+#ifdef CONFIG_TTY_SIGINT
+          if (pid > 0 && ch == CONFIG_TTY_SIGINT_CHAR)
+            {
+              nxsig_kill(pid, SIGINT);
+              return 1;
+            }
+#endif
+
+#ifdef CONFIG_TTY_SIGTSTP
+          if (pid > 0 && ch == CONFIG_TTY_SIGTSTP_CHAR)
+            {
+              nxsig_kill(pid, SIGTSTP);
+              return 1;
+            }
+#endif
 
           /* Transfer the (possibly translated) character..  This will block
            * if the sink pipe is full
@@ -603,7 +688,6 @@ static int pty_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   FAR struct pty_devpair_s *devpair;
   int ret;
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode   = filep->f_inode;
   dev     = inode->i_private;
   DEBUGASSERT(dev != NULL && dev->pd_devpair != NULL);
@@ -695,7 +779,7 @@ static int pty_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
           termiosp->c_iflag = dev->pd_iflag;
           termiosp->c_oflag = dev->pd_oflag;
-          termiosp->c_lflag = 0;
+          termiosp->c_lflag = dev->pd_lflag;
           ret = OK;
         }
         break;
@@ -750,6 +834,33 @@ static int pty_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         }
         break;
 
+#if defined(CONFIG_TTY_SIGINT) || defined(CONFIG_TTY_SIGTSTP)
+      /* Make the controlling terminal of the calling process */
+
+      case TIOCSCTTY:
+        {
+          /* Save the PID of the recipient of the SIGINT signal. */
+
+          if ((int)arg < 0 || dev->pd_pid >= 0)
+            {
+              ret = -EINVAL;
+            }
+          else
+            {
+              dev->pd_pid = (pid_t)arg;
+              ret = 0;
+            }
+        }
+        break;
+
+      case TIOCNOTTY:
+        {
+          dev->pd_pid = INVALID_PROCESS_ID;
+          ret = 0;
+        }
+        break;
+#endif
+
       /* Any unrecognized IOCTL commands will be passed to the contained
        * pipe driver.
        *
@@ -792,7 +903,6 @@ static int pty_poll(FAR struct file *filep, FAR struct pollfd *fds,
   int ret;
   int i;
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode   = filep->f_inode;
   dev     = inode->i_private;
   devpair = dev->pd_devpair;
@@ -881,7 +991,7 @@ static int pty_unlink(FAR struct inode *inode)
   FAR struct pty_devpair_s *devpair;
   int ret;
 
-  DEBUGASSERT(inode != NULL && inode->i_private != NULL);
+  DEBUGASSERT(inode->i_private != NULL);
   dev     = inode->i_private;
   devpair = dev->pd_devpair;
   DEBUGASSERT(dev->pd_devpair != NULL);
@@ -904,6 +1014,7 @@ static int pty_unlink(FAR struct inode *inode)
 
   if (devpair->pp_nopen == 0)
     {
+      nxmutex_unlock(&devpair->pp_lock);
       pty_destroy(devpair);
       return OK;
     }
@@ -968,7 +1079,13 @@ int pty_register2(int minor, bool susv1)
   devpair->pp_master.pd_oflag   = OPOST | OCRNL;
   devpair->pp_slave.pd_devpair  = devpair;
   devpair->pp_slave.pd_oflag    = OPOST | ONLCR;
-  devpair->pp_slave.pd_lflag    = ECHO;
+  devpair->pp_slave.pd_lflag    = ECHO | ICANON;
+#if defined(CONFIG_TTY_SIGINT) || defined(CONFIG_TTY_SIGTSTP)
+  /* Initialize  of the task that will receive SIGINT signals. */
+
+  devpair->pp_master.pd_pid = INVALID_PROCESS_ID;
+  devpair->pp_slave.pd_pid = INVALID_PROCESS_ID;
+#endif
 
   /* Register the master device
    *
@@ -978,7 +1095,7 @@ int pty_register2(int minor, bool susv1)
    * Where N is the minor number
    */
 
-  snprintf(devname, 16, "/dev/pty%d", minor);
+  snprintf(devname, sizeof(devname), "/dev/pty%d", minor);
 
   ret = register_driver(devname, &g_pty_fops, 0666, &devpair->pp_master);
   if (ret < 0)
@@ -996,11 +1113,11 @@ int pty_register2(int minor, bool susv1)
 
   if (susv1)
     {
-      snprintf(devname, 16, "/dev/pts/%d", minor);
+      snprintf(devname, sizeof(devname), "/dev/pts/%d", minor);
     }
   else
     {
-      snprintf(devname, 16, "/dev/ttyp%d", minor);
+      snprintf(devname, sizeof(devname), "/dev/ttyp%d", minor);
     }
 
   ret = register_driver(devname, &g_pty_fops, 0666, &devpair->pp_slave);
@@ -1012,7 +1129,7 @@ int pty_register2(int minor, bool susv1)
   return OK;
 
 errout_with_master:
-  snprintf(devname, 16, "/dev/pty%d", minor);
+  snprintf(devname, sizeof(devname), "/dev/pty%d", minor);
   unregister_driver(devname);
 
 errout_with_devpair:

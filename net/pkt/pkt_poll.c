@@ -1,6 +1,7 @@
 /****************************************************************************
  * net/pkt/pkt_poll.c
- * Poll for the availability of packet TX data
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -26,7 +27,7 @@
 #include <nuttx/config.h>
 #if defined(CONFIG_NET) && defined(CONFIG_NET_PKT)
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/net/netconfig.h>
 #include <nuttx/net/netdev.h>

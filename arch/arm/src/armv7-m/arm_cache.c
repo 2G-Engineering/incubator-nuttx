@@ -1,14 +1,11 @@
 /****************************************************************************
  * arch/arm/src/armv7-m/arm_cache.c
  *
- *   Copyright (C) 2015, 2018-2019 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
- *           Bob Feretich <bob.feretich@rafresearch.com>
- *
- * Some logic in this header file derives from the ARM CMSIS core_cm7.h
- * header file which has a compatible 3-clause BSD license:
- *
- *   Copyright (c) 2009 - 2014 ARM LIMITED.  All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2015, 2018-2019 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2009 - 2014 ARM LIMITED.  All rights reserved.
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.org>
+ * SPDX-FileContributor: Bob Feretich <bob.feretich@rafresearch.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -45,9 +42,9 @@
 
 #include <nuttx/config.h>
 #include <nuttx/cache.h>
+#include <arch/barriers.h>
 
 #include "arm_internal.h"
-#include "barriers.h"
 #include "nvic.h"
 
 /****************************************************************************
@@ -111,7 +108,7 @@ static inline uint32_t arm_clz(unsigned int value)
  *   Get cache linesize
  *
  * Input Parameters:
- *   None
+ *   icache - Difference between icache and dcache.
  *
  * Returned Value:
  *   Cache line size
@@ -119,21 +116,78 @@ static inline uint32_t arm_clz(unsigned int value)
  ****************************************************************************/
 
 #if defined(CONFIG_ARMV7M_ICACHE) || defined(CONFIG_ARMV7M_DCACHE)
-static size_t up_get_cache_linesize(void)
+static size_t up_get_cache_linesize(bool icache)
 {
-  static uint32_t clsize;
+  uint32_t ccsidr;
+  uint32_t csselr;
+  uint32_t sshift;
 
-  if (clsize == 0)
+  csselr = getreg32(NVIC_CSSELR);
+
+  if (icache)
     {
-      uint32_t ccsidr;
-      uint32_t sshift;
-
-      ccsidr = getreg32(NVIC_CCSIDR);
-      sshift = CCSIDR_LSSHIFT(ccsidr) + 4;   /* log2(cache-line-size-in-bytes) */
-      clsize = 1 << sshift;
+      putreg32((csselr & ~NVIC_CSSELR_IND) |
+                NVIC_CSSELR_IND_ICACHE, NVIC_CSSELR);
+    }
+  else
+    {
+      putreg32((csselr & ~NVIC_CSSELR_IND) |
+                NVIC_CSSELR_IND_DCACHE, NVIC_CSSELR);
     }
 
-  return clsize;
+  ccsidr = getreg32(NVIC_CCSIDR);
+  sshift = CCSIDR_LSSHIFT(ccsidr) + 4;   /* log2(cache-line-size-in-bytes) */
+
+  putreg32(csselr, NVIC_CSSELR);    /* restore csselr */
+
+  return 1 << sshift;
+}
+
+/****************************************************************************
+ * Name: up_get_cache_size
+ *
+ * Description:
+ *   Get cache size
+ *
+ * Input Parameters:
+ *   level - Difference between icache and dcache.
+ *
+ * Returned Value:
+ *   Cache size
+ *
+ ****************************************************************************/
+
+static size_t up_get_cache_size(bool icache)
+{
+  uint32_t ccsidr;
+  uint32_t csselr;
+  uint32_t sshift;
+  uint32_t sets;
+  uint32_t ways;
+  uint32_t line;
+
+  csselr = getreg32(NVIC_CSSELR);
+
+  if (icache)
+    {
+      putreg32((csselr & ~NVIC_CSSELR_IND) |
+                NVIC_CSSELR_IND_ICACHE, NVIC_CSSELR);
+    }
+  else
+    {
+      putreg32((csselr & ~NVIC_CSSELR_IND) |
+                NVIC_CSSELR_IND_DCACHE, NVIC_CSSELR);
+    }
+
+  ccsidr = getreg32(NVIC_CCSIDR);
+  sets   = CCSIDR_SETS(ccsidr) + 1;
+  ways   = CCSIDR_WAYS(ccsidr) + 1;
+  sshift = CCSIDR_LSSHIFT(ccsidr) + 4;   /* log2(cache-line-size-in-bytes) */
+  line   = 1 << sshift;
+
+  putreg32(csselr, NVIC_CSSELR);    /* restore csselr */
+
+  return sets * ways * line;
 }
 #endif
 
@@ -158,7 +212,40 @@ static size_t up_get_cache_linesize(void)
 #ifdef CONFIG_ARMV7M_ICACHE
 size_t up_get_icache_linesize(void)
 {
-  return up_get_cache_linesize();
+  static uint32_t clsize;
+
+  if (clsize == 0)
+    {
+      clsize = up_get_cache_linesize(true);
+    }
+
+  return clsize;
+}
+
+/****************************************************************************
+ * Name: up_get_icache_size
+ *
+ * Description:
+ *   Get icache size
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   Cache size
+ *
+ ****************************************************************************/
+
+size_t up_get_icache_size(void)
+{
+  static uint32_t csize;
+
+  if (csize == 0)
+    {
+      csize = up_get_cache_size(true);
+    }
+
+  return csize;
 }
 #endif
 
@@ -181,8 +268,7 @@ void up_enable_icache(void)
 {
   uint32_t regval;
 
-  ARM_DSB();
-  ARM_ISB();
+  UP_MB();
 
   /* Invalidate the entire I-Cache */
 
@@ -194,8 +280,7 @@ void up_enable_icache(void)
   regval |= NVIC_CFGCON_IC;
   putreg32(regval, NVIC_CFGCON);
 
-  ARM_DSB();
-  ARM_ISB();
+  UP_MB();
 }
 #endif
 
@@ -218,8 +303,7 @@ void up_disable_icache(void)
 {
   uint32_t regval;
 
-  ARM_DSB();
-  ARM_ISB();
+  UP_MB();
 
   /* Disable the I-Cache */
 
@@ -231,8 +315,7 @@ void up_disable_icache(void)
 
   putreg32(0, NVIC_ICIALLU);
 
-  ARM_DSB();
-  ARM_ISB();
+  UP_MB();
 }
 #endif
 
@@ -263,7 +346,7 @@ void up_invalidate_icache(uintptr_t start, uintptr_t end)
    *   (ssize - 1)  = 0x007f : Mask of the set field
    */
 
-  ARM_DSB();
+  UP_DSB();
 
   if ((start & (ssize - 1)) != 0)
     {
@@ -293,8 +376,7 @@ void up_invalidate_icache(uintptr_t start, uintptr_t end)
       putreg32(start, NVIC_ICIMVAU);
     }
 
-  ARM_DSB();
-  ARM_ISB();
+  UP_MB();
 }
 #endif /* CONFIG_ARMV7M_ICACHE */
 
@@ -315,15 +397,13 @@ void up_invalidate_icache(uintptr_t start, uintptr_t end)
 #ifdef CONFIG_ARMV7M_ICACHE
 void up_invalidate_icache_all(void)
 {
-  ARM_DSB();
-  ARM_ISB();
+  UP_MB();
 
   /* Invalidate the entire I-Cache */
 
   putreg32(0, NVIC_ICIALLU);
 
-  ARM_DSB();
-  ARM_ISB();
+  UP_MB();
 }
 #endif
 
@@ -344,7 +424,40 @@ void up_invalidate_icache_all(void)
 #ifdef CONFIG_ARMV7M_DCACHE
 size_t up_get_dcache_linesize(void)
 {
-  return up_get_cache_linesize();
+  static uint32_t clsize;
+
+  if (clsize == 0)
+    {
+      clsize = up_get_cache_linesize(false);
+    }
+
+  return clsize;
+}
+
+/****************************************************************************
+ * Name: up_get_dcache_size
+ *
+ * Description:
+ *   Get icache size
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   Cache size
+ *
+ ****************************************************************************/
+
+size_t up_get_dcache_size(void)
+{
+  static uint32_t csize;
+
+  if (csize == 0)
+    {
+      csize = up_get_cache_size(false);
+    }
+
+  return csize;
 }
 #endif
 
@@ -373,6 +486,14 @@ void up_enable_dcache(void)
   uint32_t sets;
   uint32_t ways;
 
+  /* If dcache is already enabled, return. */
+
+  ccr = getreg32(NVIC_CFGCON);
+  if ((ccr & NVIC_CFGCON_DC) != 0)
+    {
+      return;
+    }
+
   /* Get the characteristics of the D-Cache */
 
   ccsidr = getreg32(NVIC_CCSIDR);
@@ -395,7 +516,7 @@ void up_enable_dcache(void)
 
   /* Invalidate the entire D-Cache */
 
-  ARM_DSB();
+  UP_DSB();
   do
     {
       int32_t tmpways = ways;
@@ -409,7 +530,7 @@ void up_enable_dcache(void)
     }
   while (sets--);
 
-  ARM_DSB();
+  UP_DSB();
 
 #ifdef CONFIG_ARMV7M_DCACHE_WRITETHROUGH
   ccr = getreg32(NVIC_CACR);
@@ -423,8 +544,7 @@ void up_enable_dcache(void)
   ccr |= NVIC_CFGCON_DC;
   putreg32(ccr, NVIC_CFGCON);
 
-  ARM_DSB();
-  ARM_ISB();
+  UP_MB();
 }
 #endif /* CONFIG_ARMV7M_DCACHE */
 
@@ -473,7 +593,7 @@ void up_disable_dcache(void)
 
   wshift = arm_clz(ways) & 0x1f;
 
-  ARM_DSB();
+  UP_DSB();
 
   /* Disable the D-Cache */
 
@@ -496,8 +616,7 @@ void up_disable_dcache(void)
     }
   while (sets--);
 
-  ARM_DSB();
-  ARM_ISB();
+  UP_MB();
 }
 #endif /* CONFIG_ARMV7M_DCACHE */
 
@@ -521,7 +640,7 @@ void up_disable_dcache(void)
  * Assumptions:
  *   This operation is not atomic.  This function assumes that the caller
  *   has exclusive access to the address range so that no harm is done if
- *   the operation is pre-empted.
+ *   the operation is preempted.
  *
  ****************************************************************************/
 
@@ -537,7 +656,7 @@ void up_invalidate_dcache(uintptr_t start, uintptr_t end)
    *   (ssize - 1)  = 0x007f : Mask of the set field
    */
 
-  ARM_DSB();
+  UP_DSB();
 
   if ((start & (ssize - 1)) != 0)
     {
@@ -567,8 +686,7 @@ void up_invalidate_dcache(uintptr_t start, uintptr_t end)
       putreg32(start, NVIC_DCCIMVAC);
     }
 
-  ARM_DSB();
-  ARM_ISB();
+  UP_MB();
 }
 #endif /* CONFIG_ARMV7M_DCACHE */
 
@@ -616,7 +734,7 @@ void up_invalidate_dcache_all(void)
 
   wshift = arm_clz(ways) & 0x1f;
 
-  ARM_DSB();
+  UP_DSB();
 
   /* Invalidate the entire D-Cache */
 
@@ -633,8 +751,7 @@ void up_invalidate_dcache_all(void)
     }
   while (sets--);
 
-  ARM_DSB();
-  ARM_ISB();
+  UP_MB();
 }
 #endif /* CONFIG_ARMV7M_DCACHE */
 
@@ -658,7 +775,7 @@ void up_invalidate_dcache_all(void)
  * Assumptions:
  *   This operation is not atomic.  This function assumes that the caller
  *   has exclusive access to the address range so that no harm is done if
- *   the operation is pre-empted.
+ *   the operation is preempted.
  *
  ****************************************************************************/
 
@@ -683,13 +800,15 @@ void up_clean_dcache(uintptr_t start, uintptr_t end)
 
   ssize  = (1 << sshift);
 
+#ifndef CONFIG_SMP
   if ((end - start) >= ssize * (sets + 1) * (ways + 1))
     {
       return up_clean_dcache_all();
     }
+#endif
 
   start &= ~(ssize - 1);
-  ARM_DSB();
+  UP_DSB();
 
   do
     {
@@ -707,10 +826,9 @@ void up_clean_dcache(uintptr_t start, uintptr_t end)
       start += ssize;
     }
   while (start < end);
-
-  ARM_DSB();
-  ARM_ISB();
 #endif /* !CONFIG_ARMV7M_DCACHE_WRITETHROUGH */
+
+  UP_MB();
 }
 #endif /* CONFIG_ARMV7M_DCACHE */
 
@@ -733,7 +851,7 @@ void up_clean_dcache(uintptr_t start, uintptr_t end)
  * Assumptions:
  *   This operation is not atomic.  This function assumes that the caller
  *   has exclusive access to the address range so that no harm is done if
- *   the operation is pre-empted.
+ *   the operation is preempted.
  *
  ****************************************************************************/
 
@@ -768,7 +886,7 @@ void up_clean_dcache_all(void)
 
   wshift = arm_clz(ways) & 0x1f;
 
-  ARM_DSB();
+  UP_DSB();
 
   /* Clean the entire D-Cache */
 
@@ -784,10 +902,9 @@ void up_clean_dcache_all(void)
       while (tmpways--);
     }
   while (sets--);
-
-  ARM_DSB();
-  ARM_ISB();
 #endif /* !CONFIG_ARMV7M_DCACHE_WRITETHROUGH */
+
+  UP_MB();
 }
 #endif /* CONFIG_ARMV7M_DCACHE */
 
@@ -811,7 +928,7 @@ void up_clean_dcache_all(void)
  * Assumptions:
  *   This operation is not atomic.  This function assumes that the caller
  *   has exclusive access to the address range so that no harm is done if
- *   the operation is pre-empted.
+ *   the operation is preempted.
  *
  ****************************************************************************/
 
@@ -836,13 +953,15 @@ void up_flush_dcache(uintptr_t start, uintptr_t end)
 
   ssize  = (1 << sshift);
 
+#ifndef CONFIG_SMP
   if ((end - start) >= ssize * (sets + 1) * (ways + 1))
     {
       return up_flush_dcache_all();
     }
+#endif
 
   start &= ~(ssize - 1);
-  ARM_DSB();
+  UP_DSB();
 
   do
     {
@@ -861,8 +980,7 @@ void up_flush_dcache(uintptr_t start, uintptr_t end)
     }
   while (start < end);
 
-  ARM_DSB();
-  ARM_ISB();
+  UP_MB();
 #else
   up_invalidate_dcache(start, end);
 #endif /* !CONFIG_ARMV7M_DCACHE_WRITETHROUGH */
@@ -887,7 +1005,7 @@ void up_flush_dcache(uintptr_t start, uintptr_t end)
  * Assumptions:
  *   This operation is not atomic.  This function assumes that the caller
  *   has exclusive access to the address range so that no harm is done if
- *   the operation is pre-empted.
+ *   the operation is preempted.
  *
  ****************************************************************************/
 
@@ -922,7 +1040,7 @@ void up_flush_dcache_all(void)
 
   wshift = arm_clz(ways) & 0x1f;
 
-  ARM_DSB();
+  UP_DSB();
 
   /* Clean and invalidate the entire D-Cache */
 
@@ -939,8 +1057,7 @@ void up_flush_dcache_all(void)
     }
   while (sets--);
 
-  ARM_DSB();
-  ARM_ISB();
+  UP_MB();
 #else
   up_invalidate_dcache_all();
 #endif /* !CONFIG_ARMV7M_DCACHE_WRITETHROUGH */

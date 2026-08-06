@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/sama5/sam_ssc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -380,7 +382,7 @@
 /* Debug ********************************************************************/
 
 /* Check if SSC debut is enabled (non-standard.. no support in
- * include/debug.h
+ * include/nuttx/debug.h
  */
 
 #ifndef CONFIG_DEBUG_I2S_INFO
@@ -588,12 +590,12 @@ static void     ssc_txdma_callback(DMA_HANDLE handle, void *arg, int result);
 
 static int      ssc_checkwidth(struct sam_ssc_s *priv, int bits);
 
-static uint32_t ssc_rxsamplerate(struct i2s_dev_s *dev, uint32_t rate);
-static uint32_t ssc_rxdatawidth(struct i2s_dev_s *dev, int bits);
+static int32_t  ssc_rxsamplerate(struct i2s_dev_s *dev, uint32_t rate);
+static int32_t  ssc_rxdatawidth(struct i2s_dev_s *dev, int bits);
 static int      ssc_receive(struct i2s_dev_s *dev, struct ap_buffer_s *apb,
                   i2s_callback_t callback, void *arg, uint32_t timeout);
-static uint32_t ssc_txsamplerate(struct i2s_dev_s *dev, uint32_t rate);
-static uint32_t ssc_txdatawidth(struct i2s_dev_s *dev, int bits);
+static int32_t  ssc_txsamplerate(struct i2s_dev_s *dev, uint32_t rate);
+static int32_t  ssc_txdatawidth(struct i2s_dev_s *dev, int bits);
 static int      ssc_send(struct i2s_dev_s *dev, struct ap_buffer_s *apb,
                   i2s_callback_t callback, void *arg,
                   uint32_t timeout);
@@ -659,7 +661,7 @@ static const struct i2s_ops_s g_sscops =
  *
  * Returned Value:
  *   true:  This is the first register access of this type.
- *   flase: This is the same as the preceding register access.
+ *   false: This is the same as the preceding register access.
  *
  ****************************************************************************/
 
@@ -2010,7 +2012,7 @@ static int ssc_checkwidth(struct sam_ssc_s *priv, int bits)
  *
  ****************************************************************************/
 
-static uint32_t ssc_rxsamplerate(struct i2s_dev_s *dev, uint32_t rate)
+static int32_t ssc_rxsamplerate(struct i2s_dev_s *dev, uint32_t rate)
 {
 #if defined(SSC_HAVE_RX) && defined(SSC_HAVE_MCK2)
   struct sam_ssc_s *priv = (struct sam_ssc_s *)dev;
@@ -2046,7 +2048,7 @@ static uint32_t ssc_rxsamplerate(struct i2s_dev_s *dev, uint32_t rate)
  *
  ****************************************************************************/
 
-static uint32_t ssc_rxdatawidth(struct i2s_dev_s *dev, int bits)
+static int32_t ssc_rxdatawidth(struct i2s_dev_s *dev, int bits)
 {
 #ifdef SSC_HAVE_RX
   struct sam_ssc_s *priv = (struct sam_ssc_s *)dev;
@@ -2227,7 +2229,7 @@ errout_with_buf:
  *
  ****************************************************************************/
 
-static uint32_t ssc_txsamplerate(struct i2s_dev_s *dev, uint32_t rate)
+static int32_t ssc_txsamplerate(struct i2s_dev_s *dev, uint32_t rate)
 {
 #if defined(SSC_HAVE_TX) && defined(SSC_HAVE_MCK2)
   struct sam_ssc_s *priv = (struct sam_ssc_s *)dev;
@@ -2263,7 +2265,7 @@ static uint32_t ssc_txsamplerate(struct i2s_dev_s *dev, uint32_t rate)
  *
  ****************************************************************************/
 
-static uint32_t ssc_txdatawidth(struct i2s_dev_s *dev, int bits)
+static int32_t ssc_txdatawidth(struct i2s_dev_s *dev, int bits)
 {
 #ifdef SSC_HAVE_TX
   struct sam_ssc_s *priv = (struct sam_ssc_s *)dev;
@@ -3336,7 +3338,7 @@ struct i2s_dev_s *sam_ssc_initialize(int port)
    * chip select structures.
    */
 
-  priv = (struct sam_ssc_s *)kmm_zalloc(sizeof(struct sam_ssc_s));
+  priv = kmm_zalloc(sizeof(struct sam_ssc_s));
   if (!priv)
     {
       i2serr("ERROR: Failed to allocate a chip select structure\n");

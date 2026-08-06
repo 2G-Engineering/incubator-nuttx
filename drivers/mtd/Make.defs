@@ -1,6 +1,8 @@
 ############################################################################
 # drivers/mtd/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -29,8 +31,8 @@ ifeq ($(CONFIG_MTD),y)
 
 CSRCS += ftl.c
 
-ifeq ($(CONFIG_MTD_CONFIG_FAIL_SAFE),y)
-CSRCS += mtd_config_fs.c
+ifeq ($(CONFIG_MTD_CONFIG_NVS),y)
+CSRCS += mtd_config_nvs.c
 else ifeq ($(CONFIG_MTD_CONFIG),y)
 CSRCS += mtd_config.c
 endif
@@ -60,6 +62,15 @@ CSRCS += mtd_nand.c mtd_onfi.c mtd_nandscheme.c mtd_nandmodel.c mtd_modeltab.c
 ifeq ($(CONFIG_MTD_NAND_SWECC),y)
 CSRCS += mtd_nandecc.c hamming.c
 endif
+
+ifeq ($(CONFIG_MTD_NAND_RAM),y)
+CSRCS += mtd_nandram.c
+endif
+
+ifeq ($(CONFIG_MTD_NAND_WRAPPER),y)
+CSRCS += mtd_nandwrapper.c
+endif
+
 endif
 
 ifeq ($(CONFIG_RAMMTD),y)
@@ -84,6 +95,10 @@ endif
 
 ifeq ($(CONFIG_MTD_AT24XX),y)
 CSRCS += at24xx.c
+endif
+
+ifeq ($(CONFIG_MTD_AT25EE),y)
+CSRCS += at25ee.c
 endif
 
 ifeq ($(CONFIG_MTD_AT45DB),y)
@@ -118,8 +133,16 @@ ifeq ($(CONFIG_MTD_GD25),y)
 CSRCS += gd25.c
 endif
 
+ifeq ($(CONFIG_MTD_GD55),y)
+CSRCS += gd55.c
+endif
+
 ifeq ($(CONFIG_MTD_GD5F),y)
 CSRCS += gd5f.c
+endif
+
+ifeq ($(CONFIG_MTD_W25N),y)
+CSRCS += w25n.c
 endif
 
 ifeq ($(CONFIG_MTD_AT25),y)
@@ -162,6 +185,59 @@ ifeq ($(CONFIG_MTD_SMART),y)
 ifeq ($(CONFIG_FS_SMARTFS),y)
 CSRCS += smart.c
 endif
+endif
+
+ifeq ($(CONFIG_MTD_DHARA),y)
+
+master.zip:
+	$(call DOWNLOAD,https://github.com/dlbeer/dhara/archive/refs/heads,master.zip)
+
+.dharaunpack: master.zip
+	$(Q) unzip master.zip -d mtd/
+	$(Q) mv mtd/dhara-master mtd/dhara
+	$(Q) touch mtd/dhara/.dharaunpack
+
+ifeq ($(wildcard mtd/dhara/.git),)
+context:: .dharaunpack
+
+distclean::
+	$(call DELFILE, master.zip)
+	$(call DELDIR, mtd/dhara)
+endif
+
+CSRCS += dhara.c
+CSRCS += mtd/dhara/dhara/map.c
+CSRCS += mtd/dhara/dhara/error.c
+CSRCS += mtd/dhara/dhara/journal.c
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)drivers$(DELIM)mtd$(DELIM)dhara
+endif
+
+ifeq ($(CONFIG_MTD_NVBLK),y)
+
+main.zip:
+	$(call DOWNLOAD,https://github.com/Laczen/nvblk/archive/refs/heads,main.zip,mtd/nvblk-main.zip)
+
+.nvblkunpack: main.zip
+	$(Q) unzip mtd/nvblk-main.zip
+	$(call DELFILE, mtd/nvblk-main.zip)
+	$(Q) mv nvblk-main mtd/nvblk
+	$(Q) touch mtd/nvblk/.nvblkunpack
+
+ifeq ($(wildcard mtd/nvblk/.gitignore),)
+context:: .nvblkunpack
+endif
+
+distclean::
+	$(call DELDIR, mtd/nvblk)
+
+CSRCS += nvblk.c
+CSRCS += mtd/nvblk/src/nvblk.c
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)drivers$(DELIM)mtd$(DELIM)nvblk$(DELIM)include
+endif
+
+ifeq ($(CONFIG_MTD_CFI),y)
+CSRCS += mtd_cfi.c
+CSRCS += cfi.c
 endif
 
 # Include MTD driver support

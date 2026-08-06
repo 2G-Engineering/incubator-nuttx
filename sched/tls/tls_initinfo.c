@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/tls/tls_initinfo.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -63,8 +65,24 @@ int tls_init_info(FAR struct tcb_s *tcb)
 
   up_tls_initialize(info);
 
+  /* Derive tl_size w/o arch knowledge */
+
+  info->tl_size =
+        (FAR char *)tcb->stack_base_ptr - (FAR char *)tcb->stack_alloc_ptr;
+
   /* Attach per-task info in group to TLS */
 
   info->tl_task = tcb->group->tg_info;
+
+  /* Thread ID */
+
+  info->tl_tid = tcb->pid;
+
+  /* Initialize the starting address of argv to NULL to prevent
+   * it from being misused.
+   */
+
+  info->tl_argv = NULL;
+
   return OK;
 }

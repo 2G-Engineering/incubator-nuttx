@@ -22,37 +22,35 @@ if NETDEVICES
 
 comment "Upper-half Network Device Driver Options"
 
-choice
-	prompt "Netdev poll worker"
-
-config NETDEV_LPWORK_THREAD
-	bool "Use low-priority worker thread to do netdev poll"
-	depends on SCHED_LPWORK
-
-config NETDEV_HPWORK_THREAD
-	bool "Use high-priority worker thread to do netdev poll"
-	depends on SCHED_HPWORK
-
-config NETDEV_WORK_THREAD
-	bool "Use a dedicated work thread to do netdev poll"
-
-endchoice # Netdev poll worker
-
-config NETDEV_WORK_THREAD_PRIORITY
-	int "Priority of work poll thread"
-	default 100
-	depends on NETDEV_WORK_THREAD
+config NETDEV_WIRELESS_HANDLER
+	bool "Support wireless handler in upper-half driver"
+	default y
+	depends on NETDEV_WIRELESS_IOCTL
 	---help---
-		The priority of work poll thread in netdev.
+		Enable the wireless handler support in upper-half driver.
+
+menuconfig MDIO_BUS
+	bool "Upper-half MDIO Bus Driver Options"
+	default y
+
+if MDIO_BUS
+
+comment "IEEE 802.3 Ethernet MDIO Clauses Support"
+
+config MDIO_CLAUSE_45
+	bool "MDIO bus supports Clause 45"
+	default n
+
+endif
 
 comment "General Ethernet MAC Driver Options"
 
 config NET_RPMSG_DRV
 	bool "RPMSG net driver"
-	depends on RPTUN
+	depends on RPMSG
 	select ARCH_HAVE_NETDEV_STATISTICS
 	---help---
-		Use the rpmsg as net device, transfer packet between remoteproc.
+		Use the RPMSG as net device, transfer packet between remoteproc.
 
 if NET_RPMSG_DRV
 
@@ -63,10 +61,16 @@ config NET_RPMSG_PRIORITY
 		The priority for net rmpsg task.
 
 config NET_RPMSG_STACKSIZE
-	int "net rpmsg stack size"
+	int "net RPMSG stack size"
 	default DEFAULT_TASK_STACKSIZE
 	---help---
-		The stack size allocated for the net rpmsg task.
+		The stack size allocated for the net RPMSG task.
+
+config NET_RPMSG_DRV_SERVER
+	bool "Net rpmsg default server"
+	default n
+	---help---
+		Enable the net rpmsg default server.
 
 endif # NET_RPMSG_DRV
 
@@ -115,6 +119,14 @@ config NETDEV_STATISTICS
 	---help---
 		Enable to collect statistics from the network drivers (if supported
 		by the network driver).
+
+config NETDEV_STATISTICS_LOG_PERIOD
+	int "Network device statistics log period"
+	default 0
+	depends on NETDEV_STATISTICS && DEBUG_FEATURES
+	---help---
+		Period in seconds to log network device statistics.  Zero means
+		disable logging.
 
 config NET_DUMPPACKET
 	bool "Enable packet dumping"
@@ -397,6 +409,146 @@ config NET_W5500_NINTERFACES
 
 endif # W5500
 
+config NET_KSZ9477
+	bool "Management interface for ksz9477 ethernet switch"
+	default n
+	---help---
+		Support for Microchip/Micrel KSZ9477 managed switch. To use this,
+		one must also select the management interface (I2C / SPI) and
+		call the driver's init from board initialization code or from the
+		ethernet driver.
+
+choice
+	prompt "Management bus for the kzs9477 switch"
+	default NET_KSZ9477_I2C
+	depends on NET_KSZ9477
+	---help---
+		Select the used management interface
+
+config NET_KSZ9477_I2C
+	bool "Use I2C management interface"
+
+config NET_KSZ9477_SPI
+	bool "Use SPI management interface"
+
+endchoice
+
+config NET_KSZ9477_PORT_VLAN
+	bool "Use simple port-based VLAN configuration by default"
+	depends on NET_KSZ9477
+	default n
+	---help---
+		Set connections between switch ports by default at switch init.
+		For each port, set a bit mask indicating to which ports it is allowed
+		to forward packets. Bit 0 is for PHY1 port, bit 1 for PHY2 port etc.
+
+config NET_KSZ9477_PORT_VLAN_PHY1
+	hex "Bitmask for PHY1 port connections"
+	depends on NET_KSZ9477_PORT_VLAN
+	default 0x1f
+
+config NET_KSZ9477_PORT_VLAN_PHY2
+	hex "Bitmask for PHY2 port connections"
+	depends on NET_KSZ9477_PORT_VLAN
+	default 0x1f
+
+config NET_KSZ9477_PORT_VLAN_PHY3
+	hex "Bitmask for PHY3 port connections"
+	depends on NET_KSZ9477_PORT_VLAN
+	default 0x1f
+
+config NET_KSZ9477_PORT_VLAN_PHY4
+	hex "Bitmask for PHY4 port connections"
+	depends on NET_KSZ9477_PORT_VLAN
+	default 0x1f
+
+config NET_KSZ9477_PORT_VLAN_PHY5
+	hex "Bitmask for PHY4 port connections"
+	depends on NET_KSZ9477_PORT_VLAN
+	default 0x1f
+
+config NET_KSZ9477_PORT_VLAN_RMII
+	hex "Bitmask for RMII port connections"
+	depends on NET_KSZ9477_PORT_VLAN
+	default 0x1f
+
+config NET_KSZ9477_PORT_VLAN_SGMII
+	hex "Bitmask for SGMII port connections"
+	depends on NET_KSZ9477_PORT_VLAN
+	default 0x1f
+
+config NET_KSZ9477_PORT_SNIFF
+	bool "Enable support for the port mirroring and snooping"
+	depends on NET_KSZ9477
+	default n
+	---help---
+		Enables possibility to set rx/tx mirroring and sniffer port.
+		All the packets received on port A and/or transmitted on port B
+		can be mirrored on the sniffer port.
+
+menuconfig NET_LAN9250
+	bool "Microchip LAN9250 support"
+	default n
+	select SPI
+	select ARCH_HAVE_NETDEV_STATISTICS
+	---help---
+		Enable LAN9250 SPI Ethernet driver.
+
+if NET_LAN9250
+
+choice LAN9250_INTERFACE
+	prompt "Select interface"
+	default LAN9250_SPI
+	---help---
+		Select LAN9250 interface: SPI(4-line) or SQI(6-line).
+
+config LAN9250_SPI
+	bool "SPI"
+
+config LAN9250_SQI
+	bool "SQI"
+endchoice
+
+config LAN9250_SPI_EXCLUSIVE
+	bool "SPI Exclusive"
+	default n
+	---help---
+		The SPI is exclusive for LAN9250.
+
+config LAN9250_SPIMODE
+	int "SPI mode"
+	default 0
+	---help---
+		Controls the SPI mode.
+
+config LAN9250_FREQUENCY
+	int "SPI frequency"
+	default 10000000
+	---help---
+		Define to use a different bus frequency.
+
+config LAN9250_HALFDUPPLEX
+	bool "Enable half duplex"
+	default n
+	---help---
+		Default is full duplex.
+
+config LAN9250_DUMPPACKET
+	bool "Dump Packets"
+	default n
+	---help---
+		If selected, the LAN9250 driver will dump the contents of each
+		packet to the console.
+
+config LAN9250_REGDEBUG
+	bool "Register-Level Debug"
+	default n
+	depends on DEBUG_FEATURES && DEBUG_NET
+	---help---
+		Enable very low-level register access debug.
+
+endif # NET_LAN9250
+
 if ARCH_HAVE_PHY
 
 comment "External Ethernet PHY Device Support"
@@ -410,6 +562,13 @@ choice
 
 config ETH0_PHY_NONE
 	bool "No PHY support"
+
+config ETH0_PHY_MULTI
+	bool "Multiple PHYs are supported"
+	---help---
+		The Board will provide a list of PHYs to probe for.
+		The first one found on the bpard will be used.
+		This setting is not supported by all Ethernet drivers.
 
 config ETH0_PHY_AM79C874
 	bool "AMD Am79C874 PHY"
@@ -465,8 +624,14 @@ config ETH0_PHY_LAN8740A
 config ETH0_PHY_LAN8742A
 	bool "SMSC LAN8742A PHY"
 
+config ETH0_PHY_RTL8211F
+	bool "Realtek RTL8211F PHY"
+
 config ETH0_PHY_DM9161
 	bool "Davicom DM9161 PHY"
+
+config ETH0_PHY_YT8512
+	bool "Motorcomm YT8512 PHY"
 
 endchoice
 
@@ -515,8 +680,14 @@ config ETH1_PHY_TJA1101
 config ETH1_PHY_LAN8720
 	bool "SMSC LAN8720 PHY"
 
+config ETH1_PHY_RTL8211F
+	bool "Realtek RTL8211F PHY"
+
 config ETH1_PHY_DM9161
 	bool "Davicom DM9161 PHY"
+
+config ETH1_PHY_YT8512
+	bool "Motorcomm YT8512 PHY"
 
 endchoice
 
@@ -556,5 +727,111 @@ config NETDEV_PHY_DEBUG
 		the NSH network initialization logic.
 
 endif # ARCH_HAVE_PHY
+
+config DRIVERS_WIFI_SIM
+	bool "WiFi SIM support"
+	depends on NETDEV_WIRELESS_IOCTL
+	default n
+
+config WIFI_SIM_CONFDIR
+	string "Virt WiFi configuration directory"
+	default "/etc/wifi"
+	depends on DRIVERS_WIFI_SIM
+	---help---
+		Provides the full path to location in the file system where WiFi-SIM
+		BSS configuration will be accessed.  This is a string and should not
+		include any trailing '/'.
+
+config WIFI_SIM_NUMBER
+	int "Number of Simulated WiFi Device"
+	default 0
+	depends on DRIVERS_WIFI_SIM
+	---help---
+		The number of simulated wifi network devices.
+
+menuconfig NET_E1000
+	bool "Intel E1000 support"
+	default n
+	depends on PCI
+	---help---
+		Enable E1000 PCI Ethernet driver.
+
+if NET_E1000
+
+config NET_E1000_TXDESC
+	int "Intel E1000 TX descriptors"
+	default 256
+
+config NET_E1000_RXDESC
+	int "Intel E1000 RX descriptors"
+	default 256
+
+config NET_E1000_RXSPARE
+	int "Intel E1000 spare RX buffers"
+	default 8
+
+endif # NET_E1000
+
+menuconfig NET_IGB
+	bool "Intel IGB support"
+	default n
+	depends on PCI && PCI_MSIX
+	---help---
+		Enable IGB PCI Ethernet driver.
+
+if NET_IGB
+
+config NET_IGB_TXDESC
+	int "Intel IGB TX descriptors"
+	default 256
+
+config NET_IGB_RXDESC
+	int "Intel IGB RX descriptors"
+	default 256
+
+config NET_IGB_RXSPARE
+	int "Intel IGB spare RX buffers"
+	default 8
+
+config NET_IGB_INT_INTERVAL
+	int "Intel IGB interrupt interval"
+	default 100
+	range 1 8191
+	---help---
+		Minimum Inter-interrupt Interval in 1 us increments.
+
+endif # NET_IGB
+
+menuconfig NET_IGC
+	bool "Intel IGC support"
+	default n
+	depends on PCI && PCI_MSIX
+	---help---
+		Enable IGC PCI Ethernet driver.
+
+if NET_IGC
+
+config NET_IGC_TXDESC
+	int "Intel IGC TX descriptors"
+	default 256
+
+config NET_IGC_RXDESC
+	int "Intel IGC RX descriptors"
+	default 256
+
+config NET_IGC_RXSPARE
+	int "Intel IGC spare RX buffers"
+	default 8
+
+config NET_IGC_INT_INTERVAL
+	int "Intel IGC interrupt interval"
+	default 100
+	range 1 8191
+	---help---
+		Minimum Inter-interrupt Interval in 1 us increments.
+
+endif # NET_IGC
+
+source "drivers/net/oa_tc6/Kconfig"
 
 endif # NETDEVICES

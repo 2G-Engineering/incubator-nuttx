@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/mpfs/mpfs_corespi.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -40,7 +42,9 @@
 
 #include <arch/board/board.h>
 
+#include "mpfs_gpio.h"
 #include "mpfs_corespi.h"
+#include "mpfs_rcc.h"
 #include "hardware/mpfs_corespi.h"
 #include "hardware/mpfs_sysreg.h"
 #include "riscv_internal.h"
@@ -528,6 +532,13 @@ static uint32_t mpfs_spi_setfrequency(struct spi_dev_s *dev,
 
   DEBUGASSERT(frequency > 0);
 
+  if (priv->frequency == frequency)
+    {
+      /* Nothing changes */
+
+      return priv->actual;
+    }
+
   if (priv->enabled)
     {
       modifyreg32(MPFS_SPI_CONTROL, MPFS_SPI_ENABLE, 0);
@@ -535,9 +546,9 @@ static uint32_t mpfs_spi_setfrequency(struct spi_dev_s *dev,
 
   priv->frequency = frequency;
 
-  /* Formula is SPICLK = PCLK/(2*(CFG_CLK + 1)) */
+  /* Formula is SPICLK = PCLK/(2*(CFG_CLK + 1)) (result is rounded up) */
 
-  divider = ((MPFS_FPGA_PERIPHERAL_CLK / frequency) >> 1) - 1;
+  divider = (MPFS_FPGA_PERIPHERAL_CLK / frequency) >> 1;
   priv->actual = MPFS_FPGA_PERIPHERAL_CLK / ((divider + 1) << 1);
 
   DEBUGASSERT(divider < 256u);
@@ -603,10 +614,21 @@ static void mpfs_spi_setbits(struct spi_dev_s *dev, int nbits)
 
   /* Bitwidth is selected when the SPI block is being fabricated */
 
-  if (nbits != priv->config->nbits)
+  if (nbits != priv->nbits)
     {
-      spierr("Changing SPI bitwidth not supported\n");
-      DEBUGPANIC();
+      /* If configured frame length is even multiple of requested,
+       * we simulate wider frames by sending multiple shorter ones
+       */
+
+      if (nbits % priv->config->nbits == 0)
+        {
+          priv->nbits = nbits;
+        }
+      else
+        {
+          spierr("SPI bitwidth %d is not supported\n", nbits);
+          DEBUGPANIC();
+        }
     }
 }
 
@@ -713,6 +735,52 @@ static int mpfs_spi_sem_waitdone(struct mpfs_spi_priv_s *priv)
 }
 
 /****************************************************************************
+ * Name: mpfs_spi_write_tx8
+ *
+ * Description:
+ *   Fill up the TX fifo with one word in configured size frames
+ *
+ * Input Parameters:
+ *   priv     - SPI private state data
+ *   nframes  - Number of 8-bit data per word
+ *   last     - true if this is the last word of the transfer
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+static inline void mpfs_spi_write_tx8(struct mpfs_spi_priv_s *priv,
+                                      unsigned nframes,
+                                      bool last)
+{
+  uint8_t *data8 = (uint8_t *)priv->txbuf;
+  unsigned pos = priv->tx_pos++;
+
+  /* Calculate octet position in the tx-buffer */
+
+  pos *= nframes;
+
+  /* Write all but last 8-bit data */
+
+  while (--nframes > 0)
+    {
+      putreg32((uint32_t)data8[pos + nframes], MPFS_SPI_TX_DATA);
+    }
+
+  /* Write the last 8-bit data */
+
+  if (last)
+    {
+      putreg32((uint32_t)data8[pos], MPFS_SPI_TX_LAST);
+    }
+  else
+    {
+      putreg32((uint32_t)data8[pos], MPFS_SPI_TX_DATA);
+    }
+}
+
+/****************************************************************************
  * Name: mpfs_spi_load_tx_fifo
  *
  * Description:
@@ -720,7 +788,6 @@ static int mpfs_spi_sem_waitdone(struct mpfs_spi_priv_s *priv)
  *
  * Input Parameters:
  *   priv     - SPI private state data
- *   txbuffer - A pointer to the buffer of data to be sent
  *   nwords   - the length of data that to be exchanged in units of words.
  *              The wordsize is determined by the number of bits-per-word
  *              selected for the SPI interface.  If nbits <= 8, the data is
@@ -733,59 +800,76 @@ static int mpfs_spi_sem_waitdone(struct mpfs_spi_priv_s *priv)
  ****************************************************************************/
 
 static void mpfs_spi_load_tx_fifo(struct mpfs_spi_priv_s *priv,
-                                  const void *txbuffer,
                                   uint32_t nwords)
 {
   uint16_t *data16;
-  uint8_t *data8;
-  int last;
   int i;
+  unsigned frames_per_word;
 
   DEBUGASSERT(nwords > 0);
-  data16 = (uint16_t *)txbuffer;
-  data8 = (uint8_t *)txbuffer;
-  last = nwords - 1;
+  data16 = (uint16_t *)priv->txbuf;
+  frames_per_word = priv->nbits / priv->config->nbits;
 
-  for (i = 0; i < nwords; i++)
+  if (!priv->txbuf)
     {
-      if (txbuffer)
+      for (i = 0; i < nwords * frames_per_word - 1; i++)
         {
-          if (priv->nbits == 8)
-            {
-              if (i == last)
-                {
-                  putreg32((uint32_t)data8[priv->tx_pos], MPFS_SPI_TX_LAST);
-                }
-              else
-                {
-                  putreg32((uint32_t)data8[priv->tx_pos], MPFS_SPI_TX_DATA);
-                }
-            }
-          else
-            {
-              if (i == last)
-                {
-                  putreg32((uint32_t)data16[priv->tx_pos], MPFS_SPI_TX_LAST);
-                }
-              else
-                {
-                  putreg32((uint32_t)data16[priv->tx_pos], MPFS_SPI_TX_DATA);
-                }
-            }
-        }
-      else
-        {
-          if (i == last)
-            {
-              putreg32(0, MPFS_SPI_TX_LAST);
-            }
-          else
-            {
-              putreg32(0, MPFS_SPI_TX_DATA);
-            }
+          putreg32(0, MPFS_SPI_TX_DATA);
         }
 
-      priv->tx_pos++;
+      putreg32(0, MPFS_SPI_TX_LAST);
+      priv->tx_pos += nwords;
+    }
+  else if (priv->config->nbits == 8)
+    {
+      for (i = 0; i < nwords - 1; i++)
+        {
+          mpfs_spi_write_tx8(priv, frames_per_word, false);
+        }
+
+      mpfs_spi_write_tx8(priv, frames_per_word, true);
+    }
+  else
+    {
+      for (i = 0; i < nwords - 1; i++)
+        {
+          putreg32((uint32_t)data16[priv->tx_pos++], MPFS_SPI_TX_DATA);
+        }
+
+      putreg32((uint32_t)data16[priv->tx_pos++], MPFS_SPI_TX_LAST);
+    }
+}
+
+/****************************************************************************
+ * Name: mpfs_spi_read_rx8
+ *
+ * Description:
+ *   Read one word from RX fifo in configured size frames
+ *
+ * Input Parameters:
+ *   priv     - SPI private state data
+ *   nframes  - Number of 8-bit data per word
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+static inline void mpfs_spi_read_rx8(struct mpfs_spi_priv_s *priv,
+                                     unsigned nframes)
+{
+  uint8_t *data8 = (uint8_t *)priv->rxbuf;
+  unsigned pos = priv->rx_pos++;
+
+  /* Calculate octet position in the rx-buffer */
+
+  pos *= nframes;
+
+  /* Read all octets for of the word */
+
+  while (nframes-- > 0)
+    {
+      data8[pos + nframes] = getreg32(MPFS_SPI_RX_DATA);
     }
 }
 
@@ -798,7 +882,6 @@ static void mpfs_spi_load_tx_fifo(struct mpfs_spi_priv_s *priv,
  *
  * Input Parameters:
  *   priv     - SPI private state data
- *   txbuffer - A pointer to the buffer of data for receiving data
  *   nwords   - the length of data that to be exchanged in units of words.
  *
  * Returned Value:
@@ -807,53 +890,43 @@ static void mpfs_spi_load_tx_fifo(struct mpfs_spi_priv_s *priv,
  ****************************************************************************/
 
 static void mpfs_spi_unload_rx_fifo(struct mpfs_spi_priv_s *priv,
-                                    void *rxbuffer,
                                     uint32_t nwords)
 {
   uint16_t *data16;
-  uint8_t *data8;
-  int last;
   int i;
+  unsigned frames_per_word;
 
   DEBUGASSERT(nwords > 0);
 
-  data16 = (uint16_t *)rxbuffer;
-  data8 = (uint8_t *)rxbuffer;
-  last = nwords - 1;
-
-  for (i = 0; i < nwords; i++)
+  if (!priv->rxbuf)
     {
-      /* The last character might not be available yet due to bus delays */
-
-      if (i == last)
+      modifyreg32(MPFS_SPI_COMMAND, 0, MPFS_SPI_RXFIFORST);
+    }
+  else if (priv->config->nbits == 8)
+    {
+      frames_per_word = priv->nbits / priv->config->nbits;
+      for (i = 0; i < nwords - 1; i++)
         {
-          if (mpfs_rx_wait_last_frame(priv) < 0)
-            {
-              /* Nothing came, get out */
-
-              return;
-            }
+          mpfs_spi_read_rx8(priv, frames_per_word);
         }
 
-      if (rxbuffer)
+      if (mpfs_rx_wait_last_frame(priv) == 0)
         {
-          if (priv->nbits == 8)
-            {
-              data8[priv->rx_pos] = getreg32(MPFS_SPI_RX_DATA);
-            }
-          else
-            {
-              data16[priv->rx_pos] = getreg32(MPFS_SPI_RX_DATA);
-            }
+          mpfs_spi_read_rx8(priv, frames_per_word);
         }
-      else
+    }
+  else
+    {
+      data16 = (uint16_t *)priv->rxbuf;
+      for (i = 0; i < nwords - 1; i++)
         {
-          getreg32(MPFS_SPI_RX_DATA);
+          data16[priv->rx_pos++] = getreg32(MPFS_SPI_RX_DATA);
         }
 
-      priv->rx_pos++;
-
-      DEBUGASSERT(priv->rx_pos <= priv->rxwords);
+      if (mpfs_rx_wait_last_frame(priv) == 0)
+        {
+          data16[priv->rx_pos++] = getreg32(MPFS_SPI_RX_DATA);
+        }
     }
 }
 
@@ -921,11 +994,11 @@ static void mpfs_spi_irq_exchange(struct mpfs_spi_priv_s *priv,
 
   if (nwords > priv->fifosize)
     {
-      mpfs_spi_load_tx_fifo(priv, txbuffer, priv->fifolevel);
+      mpfs_spi_load_tx_fifo(priv, priv->fifolevel);
     }
   else
     {
-      mpfs_spi_load_tx_fifo(priv, txbuffer, nwords);
+      mpfs_spi_load_tx_fifo(priv, nwords);
     }
 
   /* Enable TX, RX, underrun and overflow interrupts */
@@ -933,10 +1006,6 @@ static void mpfs_spi_irq_exchange(struct mpfs_spi_priv_s *priv,
   modifyreg32(MPFS_SPI_CONTROL, 0, MPFS_SPI_INTTXTURUN |
                                    MPFS_SPI_INTRXOVRFLOW |
                                    MPFS_SPI_INTTXDONE);
-
-  /* Make sure the RX interrupt is disabled */
-
-  modifyreg32(MPFS_SPI_CONTROL2, MPFS_SPI_INTEN_DATA_RX, 0);
 
   if (mpfs_spi_sem_waitdone(priv) < 0)
     {
@@ -948,6 +1017,18 @@ static void mpfs_spi_irq_exchange(struct mpfs_spi_priv_s *priv,
                                 MPFS_SPI_INTRXOVRFLOW |
                                 MPFS_SPI_INTTXDONE,
                                 0);
+
+  /* TX_DONE interrupt can be received after a semaphore timeout, but before
+   * interrupts are disabled. This will leave the semaphore to the signaled
+   * state.
+   * After a timeout the semaphore is always reset to non-signaled state
+   * to fix this race condition.
+   */
+
+  if (priv->error == -ETIMEDOUT)
+    {
+      nxsem_reset(&priv->sem_isr, 0);
+    }
 
   putreg32(MPFS_SPI_TXCHUNDRUN |
            MPFS_SPI_RXCHOVRFLW |
@@ -1303,22 +1384,6 @@ static int mpfs_spi_irq(int cpuint, void *context, void *arg)
 
   spiinfo("irq status=%x\n", status);
 
-  if (status & MPFS_SPI_DATA_RX)
-    {
-      remaining = priv->rxwords - priv->rx_pos;
-
-      if (remaining <= priv->fifosize)
-        {
-          mpfs_spi_unload_rx_fifo(priv, priv->rxbuf, remaining);
-        }
-      else
-        {
-          mpfs_spi_unload_rx_fifo(priv, priv->rxbuf, priv->fifolevel);
-        }
-
-      putreg32(MPFS_SPI_DATA_RX, MPFS_SPI_INT_CLEAR);
-    }
-
   if (status & MPFS_SPI_TXDONE)
     {
       /* TX is done, we know RX is done too -> offload the RX FIFO */
@@ -1327,11 +1392,11 @@ static int mpfs_spi_irq(int cpuint, void *context, void *arg)
 
       if (remaining <= priv->fifosize)
         {
-          mpfs_spi_unload_rx_fifo(priv, priv->rxbuf, remaining);
+          mpfs_spi_unload_rx_fifo(priv, remaining);
         }
       else
         {
-          mpfs_spi_unload_rx_fifo(priv, priv->rxbuf, priv->fifolevel);
+          mpfs_spi_unload_rx_fifo(priv, priv->fifolevel);
         }
 
       remaining = priv->txwords - priv->tx_pos;
@@ -1347,13 +1412,21 @@ static int mpfs_spi_irq(int cpuint, void *context, void *arg)
         {
           if (remaining <= priv->fifosize)
             {
-              mpfs_spi_load_tx_fifo(priv, priv->txbuf, remaining);
+              mpfs_spi_load_tx_fifo(priv, remaining);
             }
           else
             {
-              mpfs_spi_load_tx_fifo(priv, priv->txbuf, priv->fifolevel);
+              mpfs_spi_load_tx_fifo(priv, priv->fifolevel);
             }
         }
+    }
+
+  if (status & MPFS_SPI_DATA_RX)
+    {
+      /* We don't expect data RX interrupts, just reset RX FIFO */
+
+      modifyreg32(MPFS_SPI_COMMAND, 0, MPFS_SPI_RXFIFORST);
+      putreg32(MPFS_SPI_DATA_RX, MPFS_SPI_INT_CLEAR);
     }
 
   if (status & MPFS_SPI_RXCHOVRFLW)
@@ -1441,12 +1514,21 @@ static void mpfs_spi_init(struct spi_dev_s *dev)
 
   up_disable_irq(priv->plic_irq);
 
+  /* Toggle peripheral reset */
+
+  mpfs_set_reset(MPFS_RCC_SPI, priv->id, 1);
+  mpfs_set_reset(MPFS_RCC_SPI, priv->id, 0);
+
   /* Release FIC reset and enable clocks */
 
   modifyreg32(MPFS_SYSREG_SOFT_RESET_CR,
               SYSREG_SOFT_RESET_CR_FPGA | SYSREG_SOFT_RESET_CR_FIC3,
               0);
   modifyreg32(MPFS_SYSREG_SUBBLK_CLOCK_CR, 0, MPFS_SYSREG_SUBBLK_CORESPI);
+
+  /* Make sure the RX interrupt is disabled (we don't use it) */
+
+  modifyreg32(MPFS_SPI_CONTROL2, MPFS_SPI_INTEN_DATA_RX, 0);
 
   /* Install some default values, mode and nbits for read back */
 
@@ -1458,6 +1540,22 @@ static void mpfs_spi_init(struct spi_dev_s *dev)
 
   mpfs_spi_set_master_mode(priv, 1);
   mpfs_spi_enable(priv, 1);
+
+  /* Disable all interrupt sources */
+
+  modifyreg32(MPFS_SPI_CONTROL, MPFS_SPI_INTTXTURUN |
+                                MPFS_SPI_INTRXOVRFLOW |
+                                MPFS_SPI_INTTXDONE,
+                                0);
+
+  /* Clear all interrupt sources */
+
+  putreg32(MPFS_SPI_TXCHUNDRUN |
+           MPFS_SPI_RXCHOVRFLW |
+           MPFS_SPI_DATA_RX |
+           MPFS_SPI_TXDONE, MPFS_SPI_INT_CLEAR);
+
+  /* Then enable the interrupt */
 
   up_enable_irq(priv->plic_irq);
 }

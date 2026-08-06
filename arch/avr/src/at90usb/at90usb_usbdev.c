@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/avr/src/at90usb/at90usb_usbdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,8 +33,8 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
@@ -2325,7 +2327,7 @@ static FAR struct usbdev_req_s *avr_epallocreq(FAR struct usbdev_ep_s *ep)
 
   usbtrace(TRACE_EPALLOCREQ, ((FAR struct avr_ep_s *)ep)->ep.eplog);
 
-  privreq = (FAR struct avr_req_s *)kmm_malloc(sizeof(struct avr_req_s));
+  privreq = kmm_malloc(sizeof(struct avr_req_s));
   if (!privreq)
     {
       usbtrace(TRACE_DEVERROR(AVR_TRACEERR_ALLOCFAIL), 0);

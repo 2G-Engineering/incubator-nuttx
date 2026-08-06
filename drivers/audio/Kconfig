@@ -27,43 +27,6 @@ if AUDIO_TONE
 
 endif # AUDIO_TONE
 
-config AUDIO_CXD56
-	bool "CXD56 audio driver"
-	default n
-	depends on AUDIO
-	select AUDIO_DRIVER_SPECIFIC_BUFFERS
-	---help---
-		Enable support for audio playback using the CXD5247 chip on the
-		CXD56 Spresense board.
-
-if AUDIO_CXD56
-
-if AUDIO_DRIVER_SPECIFIC_BUFFERS
-
-config AUDIO_CXD56_SRC
-	bool "CXD56 audio sample rate converter"
-	select AUDIO_SRC
-	default n
-	---help---
-		Enable support for audio playback using the CXD5247 chip on the
-		CXD56 Spresense board with sample rate converter.
-
-config CXD56_AUDIO_NUM_BUFFERS
-	int "Number of audio buffers to use"
-	default 4
-
-config CXD56_AUDIO_BUFFER_SIZE
-	int "Size of each audio buffer"
-	default 4096
-
-endif # AUDIO_DRIVER_SPECIFIC_BUFFERS
-
-config CXD56_AUDIO_WORKER_STACKSIZE
-	int "Worker thread stack size"
-	default 768
-
-endif # AUDIO_CXD56
-
 config AUDIO_VS1053
 	bool "VS1053 codec chip"
 	default n
@@ -205,6 +168,33 @@ config CS4344_WORKER_STACKSIZE
 	default 768
 
 endif # AUDIO_CS4344
+
+config AUDIO_ES7210
+	bool "ES7210 ADC codec chip"
+	default n
+	depends on AUDIO
+	---help---
+		Select to enable support for the ES7210 4-channel ADC codec by
+		Everest Semiconductor.
+
+		NOTE: This driver also depends on both I2C and I2S support although
+		that dependency is not explicit here.
+
+if AUDIO_ES7210
+
+config ES7210_INFLIGHT
+	int "ES7210 maximum in-flight audio buffers"
+	default 2
+
+config ES7210_BUFFER_SIZE
+	int "ES7210 preferred buffer size"
+	default 8192
+
+config ES7210_NUM_BUFFERS
+	int "ES7210 preferred number of buffers"
+	default 4
+
+endif # AUDIO_ES7210
 
 config AUDIO_ES8311
 	bool "ES8311 codec chip"
@@ -554,5 +544,53 @@ config AUDIO_DMA
 	select AUDIO_DRIVER_SPECIFIC_BUFFERS
 	depends on AUDIO
 	depends on DMA
+
+config AUDIO_FAKE
+	bool "Fake audio device"
+	default n
+	depends on AUDIO
+	---help---
+		A fake audio device driver to simplify testing of audio
+		capture and playback.
+
+if AUDIO_FAKE
+
+config FAKE_AUDIO_DEVICE_PARAMS
+	string "fake audio device params"
+	default ""
+	---help---
+		This is a params for fake audio device. The format like:
+		{dev_name, playback, sample_rates[4], channels, format[4], period_time, periods}.
+
+		- dev_name (string): pcm2c or pcm2p or others.
+		- playback (bool): true or false.
+		- sample_rates(uint32 array): {16000, 32000}.
+		- channels  (uint8, {min_chan, max_chan}): {1, 2}.
+		- format(uint8 array): {8,16,32}.
+		- period_time(uint32): 100, unit ms.
+		- periods    (uint32): 4, buffer cnt.
+		e.g:
+			{"pcm2c", false, {8000, 16000, 44100}, {1, 2}, {16}, 100, 4},
+			{"pcm2p", true, {8000, 16000, 44100}, {1, 2}, {16}, 100, 4},
+
+config FAKE_AUDIO_DATA_PATH
+	string "fake audio device data path"
+	default "/data/"
+	---help---
+		This dir is used to store the audio file for virtual capture or playback device.
+		The filename for capture device should comply with the format "devname_samplerate_channels_format.pcm".
+		e.g: pcm2c_16000_2_16.pcm.
+		The filename format of playback device is the same as capture device.
+		e.g: pcm2p_16000_2_16.pcm.
+
+config AUDIO_FAKE_MSG_PRIO
+	int "Fake audio device message priority"
+	default 1
+
+config AUDIO_FAKE_WORKER_STACKSIZE
+	int "Fake audio device worker thread stack size"
+	default 768
+
+endif # AUDIO_FAKE
 
 endif # DRIVERS_AUDIO

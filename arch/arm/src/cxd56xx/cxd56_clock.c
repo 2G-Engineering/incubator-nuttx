@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/cxd56xx/cxd56_clock.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <nuttx/spinlock.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <stdint.h>
 
@@ -69,6 +71,8 @@
 #define PDID_SCU         0
 #define PDID_APP_DSP     9
 #define PDID_APP_SUB    10
+#define PDID_GNSS_ITP   12
+#define PDID_GNSS       13
 #define PDID_APP_AUD    14
 
 /* For enable_apwd, disable_apwd (analog domain) */
@@ -148,6 +152,7 @@ static void cxd56_scu_peri_clock_gating(const struct scu_peripheral *p,
  * Private Data
  ****************************************************************************/
 
+static spinlock_t g_cxd56_clock_lock = SP_UNLOCKED;
 static struct power_domain g_digital;
 static struct power_domain g_analog;
 
@@ -291,7 +296,7 @@ static void do_power_control2(uint32_t reg1, uint32_t mask1, uint32_t stat1,
 
 static inline void release_pwd_reset(uint32_t domain)
 {
-  /* Reset acts only belows
+  /* Reset affects only:
    *   [ 0] SCU
    *   [ 6] SYSIOP_SUB
    *   [ 8] APP
@@ -321,9 +326,9 @@ static void enable_pwd(int pdid)
       release_pwd_reset(domain);
     }
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_cxd56_clock_lock);
   g_digital.refs[pdid]++;
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_cxd56_clock_lock, flags);
 }
 
 static void disable_pwd(int pdid)
@@ -335,9 +340,9 @@ static void disable_pwd(int pdid)
   stat = getreg32(CXD56_TOPREG_PWD_STAT);
   if (stat & domain)
     {
-      flags = spin_lock_irqsave(NULL);
+      flags = spin_lock_irqsave(&g_cxd56_clock_lock);
       g_digital.refs[pdid]--;
-      spin_unlock_irqrestore(NULL, flags);
+      spin_unlock_irqrestore(&g_cxd56_clock_lock, flags);
       if (g_digital.refs[pdid] == 0)
         {
           putreg32(domain << 16, CXD56_TOPREG_PWD_CTL);
@@ -359,9 +364,9 @@ static void enable_apwd(int apdid)
       do_power_control(CXD56_TOPREG_ANA_PW_STAT, domain, domain);
     }
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_cxd56_clock_lock);
   g_analog.refs[apdid]++;
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_cxd56_clock_lock, flags);
 }
 
 static void disable_apwd(int apdid)
@@ -373,9 +378,9 @@ static void disable_apwd(int apdid)
   stat = getreg32(CXD56_TOPREG_ANA_PW_STAT);
   if (stat & domain)
     {
-      flags = spin_lock_irqsave(NULL);
+      flags = spin_lock_irqsave(&g_cxd56_clock_lock);
       g_analog.refs[apdid]--;
-      spin_unlock_irqrestore(NULL, flags);
+      spin_unlock_irqrestore(&g_cxd56_clock_lock, flags);
       if (g_analog.refs[apdid] == 0)
         {
           putreg32(domain << 16, CXD56_TOPREG_ANA_PW_CTL);
@@ -2600,6 +2605,41 @@ int cxd56_hostseq_clock_disable(void)
 
   clock_unlock(&g_clocklock);
   return ret;
+}
+
+int cxd56_gnssram_clock_enable(void)
+{
+  uint32_t stat;
+
+  stat = getreg32(CXD56_TOPREG_PWD_STAT);
+  if ((stat & (1u << PDID_GNSS)) && (stat & (1u << PDID_GNSS_ITP)))
+    {
+      /* Already power on */
+
+      return OK;
+    }
+
+  /* Enable all of GNSS RAM memory power. */
+
+  putreg32(0xff00ffff, CXD56_TOPREG_GNSS_RAMMODE_SEL);
+  enable_pwd(PDID_GNSS_ITP);
+  enable_pwd(PDID_GNSS);
+  putreg32(0x143, CXD56_TOPREG_GNSDSP_CKEN);
+  busy_wait(10);
+  putreg32(0x103, CXD56_TOPREG_GNSDSP_CKEN);
+  putreg32(0x10000, CXD56_TOPREG_SWRESET_GNSDSP);
+  putreg32(0x153, CXD56_TOPREG_GNSDSP_CKEN);
+  return OK;
+}
+
+int cxd56_gnssram_clock_disable(void)
+{
+  putreg32(0x0, CXD56_TOPREG_GNSDSP_CKEN);
+  putreg32(0x0, CXD56_TOPREG_SWRESET_GNSDSP);
+  putreg32(0xff000000, CXD56_TOPREG_GNSS_RAMMODE_SEL);
+  disable_pwd(PDID_GNSS);
+  disable_pwd(PDID_GNSS_ITP);
+  return OK;
 }
 
 int up_pmramctrl(int cmd, uintptr_t addr, size_t size)

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/renesas/src/rx65n/rx65n_eth.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 #include <time.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <arpa/inet.h>
@@ -43,7 +45,9 @@
 #include <nuttx/wqueue.h>
 #include <nuttx/net/phy.h>
 #include <nuttx/net/mii.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/spinlock.h>
 
 #if defined(CONFIG_ARCH_PHY_INTERRUPT)
 #  include <nuttx/net/phy.h>
@@ -407,6 +411,7 @@ struct rx65n_ethmac_s
 
   uint32_t             prevlinkstatus; /* Previous link status to ignore multiple link change interrupt (specific to GR-Rose) */
   uint8_t              mc_filter_flag; /* Multicast filter */
+  spinlock_t           lock;           /* SpinLock */
 };
 
 /****************************************************************************
@@ -1052,7 +1057,7 @@ static int rx65n_txpoll(struct net_driver_s *dev)
 
   /* Check if the next TX descriptor is owned by the Ethernet DMA or
    * CPU. We cannot perform the TX poll if we are unable to accept
-   * another packet fo transmission.
+   * another packet for transmission.
    *
    * In a race condition, TACT may be cleared BUT still not available
    * because rx65n_freeframe() has not yet run. If rx65n_freeframe()
@@ -1319,7 +1324,7 @@ static int rx65n_recvframe(struct rx65n_ethmac_s *priv)
    *   3) All of the TX descriptors are in flight.
    *
    * This last case is obscure.  It is due to that fact that each packet
-   * that we receive can generate an unstoppable transmisson.  So we have
+   * that we receive can generate an unstoppable transmission.  So we have
    * to stop receiving when we can not longer transmit.  In this case, the
    * transmit logic should also have disabled further RX interrupts.
    */
@@ -1597,7 +1602,7 @@ static void rx65n_receive(struct rx65n_ethmac_s *priv)
         }
 
       /* We are finished with the RX buffer.  NOTE:  If the buffer is
-       * re-used for transmission, the dev->d_buf field will have been
+       * reused for transmission, the dev->d_buf field will have been
        * nullified.
        */
 
@@ -2041,11 +2046,9 @@ static int rx65n_ifup(struct net_driver_s *dev)
   int ret;
 
 #ifdef CONFIG_NET_IPv4
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff),
-        (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff),
-        (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 #endif
 #ifdef CONFIG_NET_IPv6
   ninfo("Bringing up: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -2070,6 +2073,9 @@ static int rx65n_ifup(struct net_driver_s *dev)
 
   priv->prevlinkstatus = ETHER_LINKUP;
   rx65n_checksetup();
+
+  netdev_carrier_on(dev);
+
   return OK;
 }
 
@@ -2096,7 +2102,7 @@ static int rx65n_ifdown(struct net_driver_s *dev)
   irqstate_t flags;
   int ret = OK;
   ninfo("Taking the network down\n");
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&priv->lock);
 
   /* Disable the Ethernet interrupt */
 
@@ -2124,7 +2130,10 @@ static int rx65n_ifdown(struct net_driver_s *dev)
 
   priv->prevlinkstatus = ETHER_LINKDOWN;
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
+
+  netdev_carrier_off(dev);
+
   return ret;
 }
 
@@ -2647,7 +2656,7 @@ int arch_phy_irq(const char *intf, xcpt_t handler, void *arg,
       return -ENODEV;
     }
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_rx65nethmac[0].lock);
   rx65n_phyintenable(false);
 
   /* Configure the interrupt */
@@ -2676,7 +2685,7 @@ int arch_phy_irq(const char *intf, xcpt_t handler, void *arg,
 
   /* Return the old handler (so that it can be restored) */
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_rx65nethmac[0].lock, flags);
   return OK;
 }
 #endif
@@ -3213,7 +3222,7 @@ static void rx65n_phy_preamble(void)
    * of "IEEE 802.3-2008_section2".
    */
 
-  /* Send 32 consecutive 1’s as per 34.3.4.1
+  /* Send 32 consecutive 1's as per 34.3.4.1
    * MII/RMII Management Frame Format
    */
 
@@ -3889,6 +3898,8 @@ int rx65n_ethinitialize(int intf)
 
   rx65n_cmtw0_create(RX65N_CMTW0_COUNT_VALUE_FOR_TXPOLL ,
                      RX65N_CMTW0_COUNT_VALUE_FOR_TXTIMEOUT);
+
+  spin_lock_init(&priv->lock);
 
   /* Attach the IRQ to the driver */
 

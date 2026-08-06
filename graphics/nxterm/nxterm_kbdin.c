@@ -1,6 +1,8 @@
 /****************************************************************************
  * graphics/nxterm/nxterm_kbdin.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,9 +32,9 @@
 #include <assert.h>
 #include <poll.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
-#include <nuttx/irq.h>
+#include <nuttx/spinlock.h>
 
 #include "nxterm.h"
 
@@ -50,16 +52,12 @@ static void nxterm_pollnotify(FAR struct nxterm_state_s *priv,
                               pollevent_t eventset)
 {
   irqstate_t flags;
-  int i;
 
   /* This function may be called from an interrupt handler */
 
-  for (i = 0; i < CONFIG_NXTERM_NPOLLWAITERS; i++)
-    {
-      flags = enter_critical_section();
-      poll_notify(&priv->fds[i], 1, eventset);
-      leave_critical_section(flags);
-    }
+  flags = spin_lock_irqsave_nopreempt(&priv->spinlock);
+  poll_notify(priv->fds, CONFIG_NXTERM_NPOLLWAITERS, eventset);
+  spin_unlock_irqrestore_nopreempt(&priv->spinlock, flags);
 }
 
 /****************************************************************************
@@ -83,7 +81,7 @@ ssize_t nxterm_read(FAR struct file *filep, FAR char *buffer, size_t len)
 
   /* Recover our private state structure */
 
-  DEBUGASSERT(filep && filep->f_priv);
+  DEBUGASSERT(filep->f_priv);
   priv = (FAR struct nxterm_state_s *)filep->f_priv;
 
   /* Get exclusive access to the driver structure */
@@ -128,23 +126,15 @@ ssize_t nxterm_read(FAR struct file *filep, FAR char *buffer, size_t len)
            * to wake us up.
            */
 
-          sched_lock();
           priv->nwaiters++;
           nxmutex_unlock(&priv->lock);
 
-          /* We may now be pre-empted!  But that should be okay because we
+          /* We may now be preempted!  But that should be okay because we
            * have already incremented nwaiters.  Pre-emption is disabled
            * but will be re-enabled while we are waiting.
            */
 
           ret = nxsem_wait(&priv->waitsem);
-
-          /* Pre-emption will be disabled when we return.  So the
-           * decrementing nwaiters here is safe.
-           */
-
-          priv->nwaiters--;
-          sched_unlock();
 
           /* Did we successfully get the waitsem? */
 
@@ -154,6 +144,8 @@ ssize_t nxterm_read(FAR struct file *filep, FAR char *buffer, size_t len)
 
               ret = nxmutex_lock(&priv->lock);
             }
+
+          priv->nwaiters--;
 
           /* Was the mutex wait successful? Did we successful re-take the
            * mutual exclusion mutex?
@@ -232,22 +224,18 @@ int nxterm_poll(FAR struct file *filep, FAR struct pollfd *fds, bool setup)
   FAR struct inode *inode = filep->f_inode;
   FAR struct nxterm_state_s *priv;
   pollevent_t eventset;
+  spinlock_t flags;
   int ret;
   int i;
 
   /* Some sanity checking */
 
-  DEBUGASSERT(inode && inode->i_private);
+  DEBUGASSERT(inode->i_private);
   priv = inode->i_private;
 
   /* Get exclusive access to the driver structure */
 
-  ret = nxmutex_lock(&priv->lock);
-  if (ret < 0)
-    {
-      gerr("ERROR: nxmutex_lock failed\n");
-      return ret;
-    }
+  flags = spin_lock_irqsave_nopreempt(&priv->spinlock);
 
   /* Are we setting up the poll?  Or tearing it down? */
 
@@ -266,7 +254,7 @@ int nxterm_poll(FAR struct file *filep, FAR struct pollfd *fds, bool setup)
               /* Bind the poll structure and this slot */
 
               priv->fds[i] = fds;
-              fds->priv       = &priv->fds[i];
+              fds->priv    = &priv->fds[i];
               break;
             }
         }
@@ -275,8 +263,8 @@ int nxterm_poll(FAR struct file *filep, FAR struct pollfd *fds, bool setup)
         {
           gerr("ERROR: Too many poll waiters\n");
 
-          fds->priv    = NULL;
-          ret          = -EBUSY;
+          fds->priv = NULL;
+          ret       = -EBUSY;
           goto errout;
         }
 
@@ -293,13 +281,13 @@ int nxterm_poll(FAR struct file *filep, FAR struct pollfd *fds, bool setup)
           eventset |= POLLIN;
         }
 
-      nxterm_pollnotify(priv, eventset);
+      poll_notify(&fds, 1, eventset);
     }
   else if (fds->priv)
     {
       /* This is a request to tear down the poll. */
 
-      struct pollfd **slot = (struct pollfd **)fds->priv;
+      FAR struct pollfd **slot = (FAR struct pollfd **)fds->priv;
 
 #ifdef CONFIG_DEBUG_GRAPHICS
       if (!slot)
@@ -318,7 +306,7 @@ int nxterm_poll(FAR struct file *filep, FAR struct pollfd *fds, bool setup)
     }
 
 errout:
-  nxmutex_unlock(&priv->lock);
+  spin_unlock_irqrestore_nopreempt(&priv->spinlock, flags);
   return ret;
 }
 
@@ -421,10 +409,6 @@ void nxterm_kbdin(NXTERM handle, FAR const uint8_t *buffer, uint8_t buflen)
     {
       int i;
 
-      /* Are there threads waiting for read data? */
-
-      sched_lock();
-
       /* Notify all poll/select waiters that they can read from the FIFO */
 
       nxterm_pollnotify(priv, POLLIN);
@@ -437,8 +421,6 @@ void nxterm_kbdin(NXTERM handle, FAR const uint8_t *buffer, uint8_t buflen)
 
           nxsem_post(&priv->waitsem);
         }
-
-      sched_unlock();
     }
 
   nxmutex_unlock(&priv->lock);

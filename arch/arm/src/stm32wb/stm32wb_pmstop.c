@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wb/stm32wb_pmstop.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -70,7 +72,7 @@ static int do_stop(void)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32wb_pmstop
+ * Name: stm32_pmstop
  *
  * Description:
  *   Enter STOP mode.
@@ -88,7 +90,7 @@ static int do_stop(void)
  *
  ****************************************************************************/
 
-int stm32wb_pmstop(bool lpds)
+int stm32_pmstop(bool lpds)
 {
   uint32_t regval;
 
@@ -96,7 +98,7 @@ int stm32wb_pmstop(bool lpds)
    * register CR1.
    */
 
-  regval  = getreg32(STM32WB_PWR_CR1);
+  regval  = getreg32(STM32_PWR_CR1);
   regval &= ~PWR_CR1_LPMS_MASK;
 
   /* Select Stop 1 mode with low-power regulator if so requested */
@@ -106,13 +108,13 @@ int stm32wb_pmstop(bool lpds)
       regval |= PWR_CR1_LPMS_STOP1;
     }
 
-  putreg32(regval, STM32WB_PWR_CR1);
+  putreg32(regval, STM32_PWR_CR1);
 
   return do_stop();
 }
 
 /****************************************************************************
- * Name: stm32wb_pmstop2
+ * Name: stm32_pmstop2
  *
  * Description:
  *   Enter STOP2 mode.
@@ -127,16 +129,16 @@ int stm32wb_pmstop(bool lpds)
  *
  ****************************************************************************/
 
-int stm32wb_pmstop2(void)
+int stm32_pmstop2(void)
 {
   uint32_t regval;
 
   /* Select Stop 2 mode in power control register 1. */
 
-  regval  = getreg32(STM32WB_PWR_CR1);
+  regval  = getreg32(STM32_PWR_CR1);
   regval &= ~PWR_CR1_LPMS_MASK;
   regval |= PWR_CR1_LPMS_STOP2;
-  putreg32(regval, STM32WB_PWR_CR1);
+  putreg32(regval, STM32_PWR_CR1);
 
   return do_stop();
 }

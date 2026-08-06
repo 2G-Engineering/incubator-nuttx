@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/nucleo-l496zg/src/stm32_dac.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <nuttx/analog/dac.h>
@@ -39,11 +41,11 @@
  * Private Data
  ****************************************************************************/
 
-#ifdef CONFIG_STM32L4_DAC1
+#ifdef CONFIG_STM32_DAC1
 static struct dac_dev_s *g_dac1;
 #endif
 
-#ifdef CONFIG_STM32L4_DAC2
+#ifdef CONFIG_STM32_DAC2
 static struct dac_dev_s *g_dac2;
 #endif
 
@@ -63,8 +65,8 @@ int stm32_dac_setup(void)
     {
       int ret;
 
-#ifdef CONFIG_STM32L4_DAC1
-      g_dac1 = stm32l4_dacinitialize(0);
+#ifdef CONFIG_STM32_DAC1
+      g_dac1 = stm32_dacinitialize(0);
       if (g_dac1 == NULL)
         {
           aerr("ERROR: Failed to get DAC1 interface\n");
@@ -79,8 +81,8 @@ int stm32_dac_setup(void)
         }
 #endif
 
-#ifdef CONFIG_STM32L4_DAC2
-      g_dac2 = stm32l4_dacinitialize(1);
+#ifdef CONFIG_STM32_DAC2
+      g_dac2 = stm32_dacinitialize(1);
       if (g_dac2 == NULL)
         {
           aerr("ERROR: Failed to get DAC2 interface\n");

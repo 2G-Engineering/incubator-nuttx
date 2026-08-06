@@ -1,6 +1,8 @@
 /****************************************************************************
  * binfmt/nxflat.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,18 +27,22 @@
 #include <nuttx/config.h>
 
 #include <sys/param.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <stdint.h>
 #include <string.h>
 #include <nxflat.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <arpa/inet.h>
 
+#include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/binfmt/binfmt.h>
 #include <nuttx/binfmt/nxflat.h>
+
+#include "binfmt.h"
 
 #ifdef CONFIG_NXFLAT
 
@@ -48,7 +54,7 @@
  * have to be defined or CONFIG_NXFLAT_DUMPBUFFER does nothing.
  */
 
-#if !defined(CONFIG_DEBUG_INFO) || !defined (CONFIG_DEBUG_BINFMT)
+#if !defined(CONFIG_DEBUG_INFO) || !defined(CONFIG_DEBUG_BINFMT)
 #  undef CONFIG_NXFLAT_DUMPBUFFER
 #endif
 
@@ -81,7 +87,6 @@ static struct binfmt_s g_nxflatbinfmt =
   NULL,                /* next */
   nxflat_loadbinary,   /* load */
   nxflat_unloadbinary, /* unload */
-  NULL,                /* coredump */
 };
 
 /****************************************************************************
@@ -141,6 +146,9 @@ static int nxflat_loadbinary(FAR struct binary_s *binp,
                              int nexports)
 {
   struct nxflat_loadinfo_s loadinfo;  /* Contains globals for libnxflat */
+#ifdef CONFIG_SCHED_USER_IDENTITY
+  struct stat              st;
+#endif
   int                      ret;
 
   binfo("Loading file: %s\n", filename);
@@ -154,6 +162,25 @@ static int nxflat_loadbinary(FAR struct binary_s *binp,
       berr("Failed to initialize for load of NXFLAT program: %d\n", ret);
       goto errout;
     }
+
+#ifdef CONFIG_SCHED_USER_IDENTITY
+  ret = file_fstat(&loadinfo.file, &st);
+  if (ret < 0)
+    {
+      berr("Failed to stat NXFLAT program binary: %d\n", ret);
+      goto errout_with_init;
+    }
+
+  binp->uid  = st.st_uid;
+  binp->gid  = st.st_gid;
+  binp->mode = st.st_mode;
+
+  ret = binfmt_checkexecperm(binp);
+  if (ret < 0)
+    {
+      goto errout_with_init;
+    }
+#endif
 
   /* Load the program binary */
 
@@ -194,7 +221,7 @@ static int nxflat_loadbinary(FAR struct binary_s *binp,
 #ifdef CONFIG_ARCH_ADDRENV
 #  warning "REVISIT"
 #else
-  binp->alloc[0]  = (FAR void *)loadinfo.dspace;
+  binp->picbase  = (FAR void *)loadinfo.dspace;
 #endif
 
 #ifdef CONFIG_ARCH_ADDRENV
@@ -230,7 +257,7 @@ errout:
 
 static int nxflat_unloadbinary(FAR struct binary_s *binp)
 {
-  FAR struct dspace_s *dspace = (FAR struct dspace_s *)binp->alloc[0];
+  FAR struct dspace_s *dspace = (FAR struct dspace_s *)binp->picbase;
 
   /* Check if this is the last reference to dspace.  It may still be needed
    * by other threads.  In that case, it must persist after this thread
@@ -244,9 +271,9 @@ static int nxflat_unloadbinary(FAR struct binary_s *binp)
       kumm_free(dspace->region);
       dspace->region = NULL;
 
-      /* Mark alloc[0] (dspace) as freed */
+      /* Mark picbase (dspace) as freed */
 
-      binp->alloc[0] = NULL;
+      binp->picbase = NULL;
 
       /* The reference count will be decremented to zero and the dspace
        * container will be freed in sched/nxsched_release_tcb.c

@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/procfs/fs_procfsuptime.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,12 +38,14 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/clock.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/procfs.h>
+
+#include "fs_heap.h"
 
 #if !defined(CONFIG_DISABLE_MOUNTPOINT) && defined(CONFIG_FS_PROCFS)
 #ifndef CONFIG_FS_PROCFS_EXCLUDE_UPTIME
@@ -101,6 +105,7 @@ const struct procfs_operations g_uptime_operations =
   uptime_close,      /* close */
   uptime_read,       /* read */
   NULL,              /* write */
+  NULL,              /* poll */
 
   uptime_dup,        /* dup */
 
@@ -133,7 +138,7 @@ static int uptime_open(FAR struct file *filep, FAR const char *relpath,
    * REVISIT:  Write-able proc files could be quite useful.
    */
 
-  if ((oflags & O_WRONLY) != 0 || (oflags & O_RDONLY) == 0)
+  if ((oflags & O_ACCMODE) != O_RDONLY)
     {
       ferr("ERROR: Only O_RDONLY supported\n");
       return -EACCES;
@@ -141,7 +146,7 @@ static int uptime_open(FAR struct file *filep, FAR const char *relpath,
 
   /* Allocate a container to hold the file attributes */
 
-  attr = kmm_zalloc(sizeof(struct uptime_file_s));
+  attr = fs_heap_zalloc(sizeof(struct uptime_file_s));
   if (!attr)
     {
       ferr("ERROR: Failed to allocate file attributes\n");
@@ -169,7 +174,7 @@ static int uptime_close(FAR struct file *filep)
 
   /* Release the file attributes structure */
 
-  kmm_free(attr);
+  fs_heap_free(attr);
   filep->f_priv = NULL;
   return OK;
 }
@@ -190,11 +195,7 @@ static ssize_t uptime_read(FAR struct file *filep, FAR char *buffer,
 #if defined(CONFIG_HAVE_DOUBLE) && defined(CONFIG_LIBC_FLOATINGPOINT)
   double now;
 #else
-#  if defined(CONFIG_SYSTEM_TIME64)
   uint64_t sec;
-#  else
-  uint32_t sec;
-#  endif
   unsigned int remainder;
   unsigned int csec;
 #endif
@@ -245,13 +246,8 @@ static ssize_t uptime_read(FAR struct file *filep, FAR char *buffer,
 
       /* Convert the seconds + hundredths of seconds to a string */
 
-#ifdef CONFIG_SYSTEM_TIME64
       linesize = procfs_snprintf(attr->line, UPTIME_LINELEN,
                                  "%7" PRIu64 ".%02u\n", sec, csec);
-#else
-      linesize = procfs_snprintf(attr->line, UPTIME_LINELEN,
-                                 "%7" PRIu32 ".%02u\n", sec, csec);
-#endif
 
 #endif
       /* Save the linesize in case we are re-entered with f_pos > 0 */
@@ -296,7 +292,7 @@ static int uptime_dup(FAR const struct file *oldp, FAR struct file *newp)
 
   /* Allocate a new container to hold the task and attribute selection */
 
-  newattr = kmm_malloc(sizeof(struct uptime_file_s));
+  newattr = fs_heap_malloc(sizeof(struct uptime_file_s));
   if (!newattr)
     {
       ferr("ERROR: Failed to allocate file attributes\n");

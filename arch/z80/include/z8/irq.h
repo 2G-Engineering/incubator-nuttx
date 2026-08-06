@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/z80/include/z8/irq.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -304,12 +306,7 @@ struct xcptcontext
 
   chipreg_t regs[XCPTCONTEXT_REGS];
 
-  /* The following function pointer is non-zero if there
-   * are pending signals to be processed.
-   */
-
-  CODE void *sigdeliver;    /* Actual type is sig_deliver_t */
-
+#ifdef CONFIG_ENABLE_ALL_SIGNALS
   /* The following retains that state during signal execution
    *
    * REVISIT:  Because there is only one copy of these save areas,
@@ -320,6 +317,7 @@ struct xcptcontext
 
   uint16_t saved_pc;        /* Saved return address */
   uint16_t saved_irqctl;    /* Saved interrupt state */
+#endif /* CONFIG_ENABLE_ALL_SIGNALS */
 };
 #endif
 

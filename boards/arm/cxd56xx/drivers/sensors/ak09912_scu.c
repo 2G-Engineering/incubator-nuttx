@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/cxd56xx/drivers/sensors/ak09912_scu.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <fixedmath.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <arch/types.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
@@ -129,12 +131,10 @@
 #endif
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
-/**
- * @brief Structure for ak09912 device
- */
+/* Structure for ak09912 device */
 
 struct ak09912_dev_s
 {
@@ -513,23 +513,25 @@ int ak09912_init(struct i2c_master_s *i2c, int port)
 }
 
 /****************************************************************************
- * Name: ak09912_register
+ * Name: ak09912_scu_register
  *
  * Description:
  *   Register the AK09912 character device as 'devpath'
  *
  * Input Parameters:
  *   devpath - The full path to the driver to register. E.g., "/dev/mag"
+ *   minor   - The number of sequencer
  *   i2c     - An instance of the I2C interface to use to communicate with
  *             AK09912
+ *   port    - I2C port number
  *
  * Returned Value:
  *   Zero (OK) on success; a negated errno value on failure.
  *
  ****************************************************************************/
 
-int ak09912_register(const char *devpath, int minor,
-                     struct i2c_master_s *i2c, int port)
+int ak09912_scu_register(const char *devpath, int minor,
+                         struct i2c_master_s *i2c, int port)
 {
   struct ak09912_dev_s *priv;
   char path[16];

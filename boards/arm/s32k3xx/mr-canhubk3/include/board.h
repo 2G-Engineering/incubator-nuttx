@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/s32k3xx/mr-canhubk3/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -321,4 +323,4 @@
 #define PIN_EMAC_MII_RMII_MDIO    PIN_EMAC_MII_RMII_MDIO_2     /* PTD16 */
 #define PIN_EMAC_MII_RMII_TX_CLK  PIN_EMAC_MII_RMII_TX_CLK_2   /* PTD6 */
 
-#endif  /* __BOARDS_ARM_S32K3XX_MR_CANHUBK3_INCLUDE_BOARD_H */
+#endif /* __BOARDS_ARM_S32K3XX_MR_CANHUBK3_INCLUDE_BOARD_H */

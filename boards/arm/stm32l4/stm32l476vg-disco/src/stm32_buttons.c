@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/stm32l476vg-disco/src/stm32_buttons.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -101,7 +103,7 @@ static void button_pm_notify(struct pm_callback_s *cb, int domain,
 {
   switch (pmstate)
     {
-      case(PM_NORMAL):
+      case PM_NORMAL:
         {
           /* Restore normal buttons operation
            * XXX turn on any GPIO
@@ -109,7 +111,7 @@ static void button_pm_notify(struct pm_callback_s *cb, int domain,
         }
         break;
 
-      case(PM_IDLE):
+      case PM_IDLE:
         {
           /* Entering IDLE mode - buttons
            * XXX turn on any GPIO
@@ -117,7 +119,7 @@ static void button_pm_notify(struct pm_callback_s *cb, int domain,
         }
         break;
 
-      case(PM_STANDBY):
+      case PM_STANDBY:
         {
           /* Entering STANDBY mode - Logic for PM_STANDBY goes here
            * XXX turn off any GPIO
@@ -125,7 +127,7 @@ static void button_pm_notify(struct pm_callback_s *cb, int domain,
         }
         break;
 
-      case(PM_SLEEP):
+      case PM_SLEEP:
         {
           /* Entering SLEEP mode - Logic for PM_SLEEP goes here
            * XXX turn off any GPIO
@@ -227,7 +229,7 @@ uint32_t board_button_initialize(void)
 
   for (i = 0; i < NUM_BUTTONS; i++)
     {
-      stm32l4_configgpio(g_buttons[i]);
+      stm32_configgpio(g_buttons[i]);
 
       /* It's not clear if this is correct; I think so, but then there are
        * conflicts with the 'buttons' sample app.
@@ -258,7 +260,7 @@ uint32_t board_buttons(void)
     {
       /* A HIGH value means that the key is pressed. */
 
-      bool pressed = stm32l4_gpioread(g_buttons[i]);
+      bool pressed = stm32_gpioread(g_buttons[i]);
 
       /* Accumulate the set of depressed (not released) keys */
 
@@ -313,7 +315,7 @@ int board_button_irq(int id, xcpt_t irqhandler, void *arg)
 
   if (id >= MIN_IRQBUTTON && id <= MAX_IRQBUTTON)
     {
-      ret = stm32l4_gpiosetevent(g_buttons[id], true, true, true,
+      ret = stm32_gpiosetevent(g_buttons[id], true, true, true,
                                  irqhandler, arg);
     }
 

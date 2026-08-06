@@ -1,6 +1,8 @@
 ############################################################################
 # tools/Unix.mk
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -19,16 +21,13 @@
 ############################################################################
 
 export TOPDIR := ${shell echo $(CURDIR) | sed -e 's/ /\\ /g'}
+WSDIR := ${shell cd "${TOPDIR}"/.. && pwd -P}
+
+export NXTMPDIR := $(WSDIR)/nxtmpdir
 
 ifeq ($(V),)
   MAKE := $(MAKE) -s --no-print-directory
 endif
-
-# Build any necessary tools needed early in the build.
-# incdir - Is needed immediately by all Make.defs file.
-
-DUMMY  := ${shell $(MAKE) -C tools -f Makefile.host incdir \
-          INCDIR="$(TOPDIR)/tools/incdir.sh"}
 
 include $(TOPDIR)/Make.defs
 
@@ -163,6 +162,7 @@ all: $(BIN)
 .PHONY: context clean_context config oldconfig menuconfig nconfig qconfig gconfig export subdir_clean clean subdir_distclean distclean apps_clean apps_distclean
 .PHONY: pass1 pass1dep
 .PHONY: pass2 pass2dep
+.PHONY: host_info checkpython3
 
 # Target used to copy include/nuttx/lib/math.h.  If CONFIG_ARCH_MATH_H is
 # defined, then there is an architecture specific math.h header file
@@ -212,6 +212,15 @@ include/stdarg.h: include/nuttx/lib/stdarg.h
 	$(Q) cp -f include/nuttx/lib/stdarg.h include/stdarg.h
 endif
 
+# Target used to copy include/nuttx/lib/stdbit.h.  If CONFIG_ARCH_STDBIT_H or
+# CONFIG_LIBC_STDBIT_GENERIC is set, copy stdbit.h to include/ for C23 bit
+# utilities.
+
+ifeq ($(firstword $(filter y, $(CONFIG_ARCH_STDBIT_H) $(CONFIG_LIBC_STDBIT_GENERIC))),y)
+include/stdbit.h: include/nuttx/lib/stdbit.h
+	$(Q) cp -f include/nuttx/lib/stdbit.h include/stdbit.h
+endif
+
 # Target used to copy include/nuttx/lib/setjmp.h.  If CONFIG_ARCH_SETJMP_H is
 # defined, then there is an architecture specific setjmp.h header file
 # that will be included indirectly from include/lib/setjmp.h.  But first, we
@@ -221,6 +230,13 @@ ifeq ($(CONFIG_ARCH_SETJMP_H),y)
 include/setjmp.h: include/nuttx/lib/setjmp.h
 	$(Q) cp -f include/nuttx/lib/setjmp.h include/setjmp.h
 endif
+
+# Targets used to generate compiler-specific include paths
+# Build this tools needed early in the build
+# so we define it as a dependency of `context` target
+
+tools/incdir$(HOSTEXEEXT):
+	$(Q) $(MAKE) -C tools -f Makefile.host incdir INCDIR="$(TOPDIR)/tools/incdir.sh"
 
 # Targets used to build include/nuttx/version.h.  Creation of version.h is
 # part of the overall NuttX configuration sequence. Notice that the
@@ -244,17 +260,18 @@ include/nuttx/version.h: $(TOPDIR)/.version tools/mkversion$(HOSTEXEEXT)
 # part of the overall NuttX configuration sequence. Notice that the
 # tools/mkconfig tool is built and used to create include/nuttx/config.h
 
-tools/mkconfig$(HOSTEXEEXT):
+tools/mkconfig$(HOSTEXEEXT): prebuild
 	$(Q) $(MAKE) -C tools -f Makefile.host mkconfig$(HOSTEXEEXT)
 
 include/nuttx/config.h: $(TOPDIR)/.config tools/mkconfig$(HOSTEXEEXT)
 	$(Q) grep -v "CONFIG_BASE_DEFCONFIG" "$(TOPDIR)/.config" > "$(TOPDIR)/.config.tmp"
 	$(Q) if ! cmp -s "$(TOPDIR)/.config.tmp" "$(TOPDIR)/.config.orig" ; then \
-		sed -i.bak "/CONFIG_BASE_DEFCONFIG/s/\"$$/-dirty\"/" "$(TOPDIR)/.config"; \
+		sed -e "/CONFIG_BASE_DEFCONFIG/ { /-dirty/! s/\"$$/-dirty\"/; }" "$(TOPDIR)/.config" > "$(TOPDIR)/.config.dirty" ; \
 	else \
-		sed -i.bak "s/-dirty//g" "$(TOPDIR)/.config"; \
+		sed "s/-dirty//g" "$(TOPDIR)/.config" > "$(TOPDIR)/.config.dirty"; \
 	fi
-	$(Q) rm -f "$(TOPDIR)/.config.tmp" "$(TOPDIR)/.config.bak"
+	$(Q) rm -f "$(TOPDIR)/.config.tmp"
+	$(Q) $(call TESTANDREPLACEFILE, $(TOPDIR)/.config.dirty, $(TOPDIR)/.config)
 	$(Q) tools/mkconfig $(TOPDIR) > $@.tmp
 	$(Q) $(call TESTANDREPLACEFILE, $@.tmp, $@)
 
@@ -265,6 +282,9 @@ tools/mkdeps$(HOSTEXEEXT):
 
 tools/cnvwindeps$(HOSTEXEEXT):
 	$(Q) $(MAKE) -C tools -f Makefile.host cnvwindeps$(HOSTEXEEXT)
+
+tools/mkpasswd$(HOSTEXEEXT):
+	$(Q) $(MAKE) -C tools -f Makefile.host mkpasswd$(HOSTEXEEXT)
 
 # .dirlinks, and helpers
 #
@@ -279,10 +299,18 @@ include/arch:
 	$(Q) $(DIRLINK) $(TOPDIR)/$(ARCH_DIR)/include $@
 
 # Link the boards/<arch>/<chip>/<board>/include directory to include/arch/board
+# If the above path does not exist, then we try to link to common
+
+LINK_INCLUDE_DIR=$(BOARD_DIR)/include
+ifeq ($(wildcard $(LINK_INCLUDE_DIR)),)
+	ifneq ($(strip $(BOARD_COMMON_DIR)),)
+		LINK_INCLUDE_DIR = $(BOARD_COMMON_DIR)/include
+	endif
+endif
 
 include/arch/board: | include/arch
 	@echo "LN: $@ to $(BOARD_DIR)/include"
-	$(Q) $(DIRLINK) $(BOARD_DIR)/include $@
+	$(Q) $(DIRLINK) $(LINK_INCLUDE_DIR) $@
 
 # Link the boards/<arch>/<chip>/common dir to arch/<arch-name>/src/board
 # Link the boards/<arch>/<chip>/<board>/src dir to arch/<arch-name>/src/board/board
@@ -402,7 +430,7 @@ DIRLINKS_FILE += $(DIRLINKS_EXTERNAL_DEP)
 # The symlink subfolders need to be removed before the parent symlinks
 
 .PHONY: clean_dirlinks
-clean_dirlinks:
+clean_dirlinks: tools/incdir$(HOSTEXEEXT)
 	$(Q) $(call DELFILE, $(DIRLINKS_FILE))
 	$(Q) $(call DELFILE, .dirlinks)
 	$(Q) $(DIRUNLINK) drivers/platform
@@ -432,7 +460,7 @@ endif
 
 CONTEXTDIRS_DEPS = $(patsubst %,%/.context,$(CONTEXTDIRS))
 
-context: include/nuttx/config.h include/nuttx/version.h .dirlinks $(CONTEXTDIRS_DEPS) | staging
+context: tools/incdir$(HOSTEXEEXT) include/nuttx/config.h include/nuttx/version.h .dirlinks $(CONTEXTDIRS_DEPS) | staging
 
 staging:
 	$(Q) mkdir -p $@
@@ -453,6 +481,10 @@ endif
 
 ifeq ($(CONFIG_ARCH_STDARG_H),y)
 context: include/stdarg.h
+endif
+
+ifeq ($(firstword $(filter y, $(CONFIG_ARCH_STDBIT_H) $(CONFIG_LIBC_STDBIT_GENERIC))),y)
+context: include/stdbit.h
 endif
 
 ifeq ($(CONFIG_ARCH_SETJMP_H),y)
@@ -485,6 +517,16 @@ clean_context: clean_dirlinks
 # build those libraries.
 
 include tools/LibTargets.mk
+
+# prebuild
+#
+# Some architectures require the use of special tools and special handling
+# BEFORE building NuttX. The `Make.defs` files for those architectures
+# should override the following define with the correct operations for
+# that platform.
+
+prebuild:
+	$(call PREBUILD, $(TOPDIR))
 
 # pass1 and pass2
 #
@@ -554,6 +596,11 @@ ifeq ($(CONFIG_UBOOT_UIMAGE),y)
 	fi
 	$(Q) echo "uImage" >> nuttx.manifest
 endif
+ifeq ($(CONFIG_RAW_DISASSEMBLY),y)
+	@echo "CP: nuttx.asm"
+	$(Q) $(OBJDUMP) -d $(BIN) > nuttx.asm
+	$(Q) echo nuttx.bin >> nuttx.asm
+endif
 	$(call POSTBUILD, $(TOPDIR))
 
 # flash (or download : DEPRECATED)
@@ -589,15 +636,46 @@ bootloader:
 clean_bootloader:
 	$(Q) $(MAKE) -C $(ARCH_SRC) clean_bootloader
 
+checkpython3:
+	@if [ -z "$$(which python3)" ]; then \
+		echo "ERROR: python3 not found in PATH"; \
+		echo "       Please install python3 or fix the PATH"; \
+		exit 1; \
+	fi
+
+# host_info target flags to get diagnostic info without building nxdiag application
+
+SYSINFO_PARSE_FLAGS = "$(realpath $(TOPDIR))"
+SYSINFO_PARSE_FLAGS += "-finclude/sysinfo.h"
+
+SYSINFO_FLAGS = -c
+SYSINFO_FLAGS += -p
+SYSINFO_FLAGS += --target_info
+
+# host_info: Parse nxdiag example output file (sysinfo.h) and print
+
+host_info: checkpython3
+	@if [[ ! -f "include/sysinfo.h" ]]; then \
+		echo "file sysinfo.h not exists"; \
+		python3 $(TOPDIR)$(DELIM)tools$(DELIM)host_info_dump.py $(SYSINFO_FLAGS) \
+		 $(realpath $(TOPDIR)) > include/sysinfo.h; \
+	fi
+	@python3 $(TOPDIR)$(DELIM)tools$(DELIM)host_info_parse.py $(SYSINFO_PARSE_FLAGS)
+
 # pass1dep: Create pass1 build dependencies
 # pass2dep: Create pass2 build dependencies
 
-pass1dep: context tools/mkdeps$(HOSTEXEEXT) tools/cnvwindeps$(HOSTEXEEXT)
+PASSWD_TOOL_DEP =
+ifeq ($(CONFIG_BOARD_ETC_ROMFS_PASSWD_ENABLE),y)
+PASSWD_TOOL_DEP += tools/mkpasswd$(HOSTEXEEXT)
+endif
+
+pass1dep: context tools/mkdeps$(HOSTEXEEXT) tools/cnvwindeps$(HOSTEXEEXT) $(PASSWD_TOOL_DEP)
 	$(Q) for dir in $(USERDEPDIRS) ; do \
 		$(MAKE) -C $$dir depend || exit; \
 	done
 
-pass2dep: context tools/mkdeps$(HOSTEXEEXT) tools/cnvwindeps$(HOSTEXEEXT)
+pass2dep: context tools/mkdeps$(HOSTEXEEXT) tools/cnvwindeps$(HOSTEXEEXT) $(PASSWD_TOOL_DEP)
 	$(Q) for dir in $(KERNDEPDIRS) ; do \
 		$(MAKE) -C $$dir EXTRAFLAGS="$(KDEFINE) $(EXTRAFLAGS)" depend || exit; \
 	done
@@ -612,10 +690,7 @@ pass2dep: context tools/mkdeps$(HOSTEXEEXT) tools/cnvwindeps$(HOSTEXEEXT)
 KCONFIG_ENV  = APPSDIR=${CONFIG_APPS_DIR} EXTERNALDIR=$(EXTERNALDIR)
 KCONFIG_ENV += APPSBINDIR=${CONFIG_APPS_DIR} BINDIR=${TOPDIR}
 
-LOADABLE = $(shell grep "=m$$" $(TOPDIR)/.config)
-ifeq ($(CONFIG_BUILD_LOADABLE)$(LOADABLE),)
-  KCONFIG_LIB = $(shell command -v menuconfig 2> /dev/null)
-endif
+KCONFIG_LIB = $(shell command -v menuconfig 2> /dev/null)
 
 # Prefer "kconfiglib" if host OS supports it
 
@@ -631,21 +706,21 @@ define kconfig_tweak_disable
 	kconfig-tweak --file $1 -u $2
 endef
 else
-  KCONFIG_WARNING       = if [ -s kwarning ]; \
-                            then rm kwarning; \
-                              exit 1; \
-                            else \
-                              rm kwarning; \
-                          fi
-  MODULE_WARNING        = "warning: the 'modules' option is not supported"
-  PURGE_MODULE_WARNING  = 2> >(grep -v ${MODULE_WARNING} | tee kwarning) && ${KCONFIG_WARNING}
-  KCONFIG_OLDCONFIG     = oldconfig ${PURGE_MODULE_WARNING}
-  KCONFIG_OLDDEFCONFIG  = olddefconfig ${PURGE_MODULE_WARNING}
-  KCONFIG_MENUCONFIG    = menuconfig ${PURGE_MODULE_WARNING}
-  KCONFIG_NCONFIG       = guiconfig ${PURGE_MODULE_WARNING}
+  OVERWRITE_WARNING = "set more than once"
+  KCONFIG_WARNING   = 2> >(grep -v ${OVERWRITE_WARNING} | tee kwarning) | \
+                                                  cat && if [ -s kwarning ]; \
+                                                  then rm kwarning; \
+                                                  exit 1; \
+                                                 else \
+                                                  rm kwarning; \
+                                                 fi
+  KCONFIG_OLDCONFIG     = oldconfig ${KCONFIG_WARNING}
+  KCONFIG_OLDDEFCONFIG  = olddefconfig ${KCONFIG_WARNING}
+  KCONFIG_MENUCONFIG    = menuconfig $(subst | cat,,${KCONFIG_WARNING})
+  KCONFIG_NCONFIG       = guiconfig ${KCONFIG_WARNING}
   KCONFIG_QCONFIG       = ${KCONFIG_NCONFIG}
   KCONFIG_GCONFIG       = ${KCONFIG_NCONFIG}
-  KCONFIG_SAVEDEFCONFIG = savedefconfig --out defconfig.tmp ${PURGE_MODULE_WARNING}
+  KCONFIG_SAVEDEFCONFIG = savedefconfig --out defconfig.tmp ${KCONFIG_WARNING}
 define kconfig_tweak_disable
 	$(Q) sed -i'.orig' '/$2/d' $1
 	$(Q) rm -f $1.orig
@@ -672,31 +747,46 @@ olddefconfig:
 menuconfig:
 	$(Q) $(MAKE) clean_context
 	$(Q) $(MAKE) apps_preconfig
+	$(Q) cp .config .config.tmp 2>/dev/null || true
 	$(Q) ${KCONFIG_ENV} ${KCONFIG_MENUCONFIG}
+	$(Q) cmp -s .config .config.tmp || $(MAKE) clean
+	$(Q) rm -f .config.tmp
 
 nconfig: apps_preconfig
 	$(Q) $(MAKE) clean_context
 	$(Q) $(MAKE) apps_preconfig
+	$(Q) cp .config .config.tmp
 	$(Q) ${KCONFIG_ENV} ${KCONFIG_NCONFIG}
+	$(Q) cmp -s .config .config.tmp || $(MAKE) clean
+	$(Q) rm -f .config.tmp
 
 qconfig: apps_preconfig
 	$(Q) $(MAKE) clean_context
 	$(Q) $(MAKE) apps_preconfig
+	$(Q) cp .config .config.tmp
 	$(Q) ${KCONFIG_ENV} ${KCONFIG_QCONFIG}
+	$(Q) cmp -s .config .config.tmp || $(MAKE) clean
+	$(Q) rm -f .config.tmp
 
 gconfig: apps_preconfig
-	$(Q) $(MAKE) clean_context
+	$(Q) $(MAKE) clean_context1
 	$(Q) $(MAKE) apps_preconfig
+	$(Q) cp .config .config.tmp
 	$(Q) ${KCONFIG_ENV} ${KCONFIG_GCONFIG}
+	$(Q) cmp -s .config .config.tmp || $(MAKE) clean
+	$(Q) rm -f .config.tmp
 
 savedefconfig: apps_preconfig
 	$(Q) ${KCONFIG_ENV} ${KCONFIG_SAVEDEFCONFIG}
 	$(Q) $(call kconfig_tweak_disable,defconfig.tmp,CONFIG_APPS_DIR)
 	$(Q) $(call kconfig_tweak_disable,defconfig.tmp,CONFIG_BASE_DEFCONFIG)
+	$(Q) sed -i.bak -e '/^CONFIG_FSUTILS_PASSWD_KEY[0-9]/d' defconfig.tmp
+	$(Q) sed -i.bak -e '/^CONFIG_BOARD_ETC_ROMFS_PASSWD_PASSWORD=/d' defconfig.tmp
 	$(Q) grep "CONFIG_ARCH=" .config >> defconfig.tmp
 	$(Q) grep "^CONFIG_ARCH_CHIP_" .config >> defconfig.tmp; true
 	$(Q) grep "CONFIG_ARCH_CHIP=" .config >> defconfig.tmp; true
 	$(Q) grep "CONFIG_ARCH_BOARD=" .config >> defconfig.tmp; true
+	$(Q) grep "CONFIG_ARCH_BOARD_COMMON=" .config >> defconfig.tmp; true
 	$(Q) grep "^CONFIG_ARCH_CUSTOM" .config >> defconfig.tmp; true
 	$(Q) grep "^CONFIG_ARCH_BOARD_CUSTOM" .config >> defconfig.tmp; true
 	$(Q) export LC_ALL=C; cat defconfig.tmp | sort | uniq > sortedconfig.tmp
@@ -711,6 +801,11 @@ savedefconfig: apps_preconfig
 	$(Q) rm -f warning.tmp
 	$(Q) rm -f defconfig.tmp
 	$(Q) rm -f sortedconfig.tmp
+	$(Q) if grep -q '^CONFIG_BOARD_ETC_ROMFS_PASSWD_ENABLE=y' .config; then \
+		echo "WARNING: CONFIG_BOARD_ETC_ROMFS_PASSWD_PASSWORD was not saved in defconfig."; \
+		echo "WARNING: CONFIG_FSUTILS_PASSWD_KEY1-4 were not saved in defconfig."; \
+		echo "WARNING: This is intentional to avoid leaking credentials. Add them manually in local defconfig if needed."; \
+	fi
 
 # export
 #
@@ -769,10 +864,13 @@ endif
 	$(Q) $(MAKE) -C tools -f Makefile.host clean
 	$(call DELFILE, Make.defs)
 	$(call DELFILE, defconfig)
+	$(call DELFILE, defconfig.tmp.bak)
 	$(call DELFILE, .config)
 	$(call DELFILE, .config.old)
 	$(call DELFILE, .config.orig)
+	$(call DELFILE, .config.backup)
 	$(call DELFILE, .gdbinit)
+	$(call DELFILE, include/sysinfo.h)
 
 # Application housekeeping targets.  The APPDIR variable refers to the user
 # application directory.  A sample apps/ directory is included with NuttX,
@@ -788,7 +886,7 @@ endif
 # apps_distclean: Perform the distclean operation only in the user application
 #                 directory.
 
-apps_preconfig: .dirlinks
+apps_preconfig: tools/incdir$(HOSTEXEEXT) .dirlinks
 ifneq ($(APPDIR),)
 	$(Q) $(MAKE) -C $(APPDIR) preconfig
 endif

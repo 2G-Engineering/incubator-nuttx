@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/hardware/stm32f72xx73xx_tim.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -95,7 +97,7 @@
 
 /* Advanced Timers - TIM1 and TIM8 */
 
-#if STM32F7_NATIM > 0
+#if STM32_NATIM > 0
 #  define STM32_TIM1_CR1          (STM32_TIM1_BASE+STM32_ATIM_CR1_OFFSET)
 #  define STM32_TIM1_CR2          (STM32_TIM1_BASE+STM32_ATIM_CR2_OFFSET)
 #  define STM32_TIM1_SMCR         (STM32_TIM1_BASE+STM32_ATIM_SMCR_OFFSET)
@@ -121,7 +123,7 @@
 #  define STM32_TIM1_CCR6         (STM32_TIM1_BASE+STM32_ATIM_CCR6_OFFSET)
 #endif
 
-#if STM32F7_NATIM > 1
+#if STM32_NATIM > 1
 #  define STM32_TIM8_CR1          (STM32_TIM8_BASE+STM32_ATIM_CR1_OFFSET)
 #  define STM32_TIM8_CR2          (STM32_TIM8_BASE+STM32_ATIM_CR2_OFFSET)
 #  define STM32_TIM8_SMCR         (STM32_TIM8_BASE+STM32_ATIM_SMCR_OFFSET)
@@ -151,7 +153,7 @@
  * All timers are 16-bit except for TIM2 and 5 are 32-bit
  */
 
-#if (STM32F7_NGTIM16+STM32F7_NGTIM32) > 0
+#if (STM32_NGTIM16+STM32_NGTIM32) > 0
 #  define STM32_TIM2_CR1          (STM32_TIM2_BASE+STM32_GTIM_CR1_OFFSET)
 #  define STM32_TIM2_CR2          (STM32_TIM2_BASE+STM32_GTIM_CR2_OFFSET)
 #  define STM32_TIM2_SMCR         (STM32_TIM2_BASE+STM32_GTIM_SMCR_OFFSET)
@@ -173,7 +175,7 @@
 #  define STM32_TIM2_OR           (STM32_TIM2_BASE+STM32_GTIM_OR_OFFSET)
 #endif
 
-#if (STM32F7_NGTIM16+STM32F7_NGTIM32) > 1
+#if (STM32_NGTIM16+STM32_NGTIM32) > 1
 #  define STM32_TIM3_CR1          (STM32_TIM3_BASE+STM32_GTIM_CR1_OFFSET)
 #  define STM32_TIM3_CR2          (STM32_TIM3_BASE+STM32_GTIM_CR2_OFFSET)
 #  define STM32_TIM3_SMCR         (STM32_TIM3_BASE+STM32_GTIM_SMCR_OFFSET)
@@ -194,7 +196,7 @@
 #  define STM32_TIM3_DMAR         (STM32_TIM3_BASE+STM32_GTIM_DMAR_OFFSET)
 #endif
 
-#if (STM32F7_NGTIM16+STM32F7_NGTIM32) > 2
+#if (STM32_NGTIM16+STM32_NGTIM32) > 2
 #  define STM32_TIM4_CR1          (STM32_TIM4_BASE+STM32_GTIM_CR1_OFFSET)
 #  define STM32_TIM4_CR2          (STM32_TIM4_BASE+STM32_GTIM_CR2_OFFSET)
 #  define STM32_TIM4_SMCR         (STM32_TIM4_BASE+STM32_GTIM_SMCR_OFFSET)
@@ -215,7 +217,7 @@
 #  define STM32_TIM4_DMAR         (STM32_TIM4_BASE+STM32_GTIM_DMAR_OFFSET)
 #endif
 
-#if (STM32F7_NGTIM16+STM32F7_NGTIM32) > 3
+#if (STM32_NGTIM16+STM32_NGTIM32) > 3
 #  define STM32_TIM5_CR1          (STM32_TIM5_BASE+STM32_GTIM_CR1_OFFSET)
 #  define STM32_TIM5_CR2          (STM32_TIM5_BASE+STM32_GTIM_CR2_OFFSET)
 #  define STM32_TIM5_SMCR         (STM32_TIM5_BASE+STM32_GTIM_SMCR_OFFSET)
@@ -242,7 +244,7 @@
  * (2) TIM9 and TIM12 differ from the others.
  */
 
-#if STM32F7_NGTIMNDMA > 0
+#if STM32_NGTIMNDMA > 0
 #  define STM32_TIM9_CR1          (STM32_TIM9_BASE+STM32_GTIM_CR1_OFFSET)
 #  define STM32_TIM9_CR2          (STM32_TIM9_BASE+STM32_GTIM_CR2_OFFSET)
 #  define STM32_TIM9_DIER         (STM32_TIM9_BASE+STM32_GTIM_DIER_OFFSET)
@@ -257,7 +259,7 @@
 #  define STM32_TIM9_CCR2         (STM32_TIM9_BASE+STM32_GTIM_CCR2_OFFSET)
 #endif
 
-#if STM32F7_NGTIMNDMA > 1
+#if STM32_NGTIMNDMA > 1
 #  define STM32_TIM10_CR1         (STM32_TIM10_BASE+STM32_GTIM_CR1_OFFSET)
 #  define STM32_TIM10_DIER        (STM32_TIM10_BASE+STM32_GTIM_DIER_OFFSET)
 #  define STM32_TIM10_SR          (STM32_TIM10_BASE+STM32_GTIM_SR_OFFSET)
@@ -270,7 +272,7 @@
 #  define STM32_TIM10_CCR1        (STM32_TIM10_BASE+STM32_GTIM_CCR1_OFFSET)
 #endif
 
-#if STM32F7_NGTIMNDMA > 2
+#if STM32_NGTIMNDMA > 2
 #  define STM32_TIM11_CR1         (STM32_TIM11_BASE+STM32_GTIM_CR1_OFFSET)
 #  define STM32_TIM11_DIER        (STM32_TIM11_BASE+STM32_GTIM_DIER_OFFSET)
 #  define STM32_TIM11_SR          (STM32_TIM11_BASE+STM32_GTIM_SR_OFFSET)
@@ -284,7 +286,7 @@
 #  define STM32_TIM11_OR          (STM32_TIM11_BASE+STM32_GTIM_OR_OFFSET)
 #endif
 
-#if STM32F7_NGTIMNDMA > 3
+#if STM32_NGTIMNDMA > 3
 #  define STM32_TIM12_CR1         (STM32_TIM12_BASE+STM32_GTIM_CR1_OFFSET)
 #  define STM32_TIM12_CR2         (STM32_TIM9_BASE+STM32_GTIM_CR2_OFFSET)
 #  define STM32_TIM12_DIER        (STM32_TIM12_BASE+STM32_GTIM_DIER_OFFSET)
@@ -299,7 +301,7 @@
 #  define STM32_TIM12_CCR2        (STM32_TIM12_BASE+STM32_GTIM_CCR2_OFFSET)
 #endif
 
-#if STM32F7_NGTIMNDMA > 4
+#if STM32_NGTIMNDMA > 4
 #  define STM32_TIM13_CR1         (STM32_TIM13_BASE+STM32_GTIM_CR1_OFFSET)
 #  define STM32_TIM13_DIER        (STM32_TIM13_BASE+STM32_GTIM_DIER_OFFSET)
 #  define STM32_TIM13_SR          (STM32_TIM13_BASE+STM32_GTIM_SR_OFFSET)
@@ -312,7 +314,7 @@
 #  define STM32_TIM13_CCR1        (STM32_TIM13_BASE+STM32_GTIM_CCR1_OFFSET)
 #endif
 
-#if STM32F7_NGTIMNDMA > 5
+#if STM32_NGTIMNDMA > 5
 #  define STM32_TIM14_CR1         (STM32_TIM14_BASE+STM32_GTIM_CR1_OFFSET)
 #  define STM32_TIM14_DIER        (STM32_TIM14_BASE+STM32_GTIM_DIER_OFFSET)
 #  define STM32_TIM14_SR          (STM32_TIM14_BASE+STM32_GTIM_SR_OFFSET)
@@ -327,7 +329,7 @@
 
 /* Basic Timers - TIM6 and TIM7 */
 
-#if STM32F7_NBTIM > 0
+#if STM32_NBTIM > 0
 #  define STM32_TIM6_CR1          (STM32_TIM6_BASE+STM32_BTIM_CR1_OFFSET)
 #  define STM32_TIM6_CR2          (STM32_TIM6_BASE+STM32_BTIM_CR2_OFFSET)
 #  define STM32_TIM6_DIER         (STM32_TIM6_BASE+STM32_BTIM_DIER_OFFSET)
@@ -338,7 +340,7 @@
 #  define STM32_TIM6_ARR          (STM32_TIM6_BASE+STM32_BTIM_ARR_OFFSET)
 #endif
 
-#if STM32F7_NBTIM > 1
+#if STM32_NBTIM > 1
 #  define STM32_TIM7_CR1          (STM32_TIM7_BASE+STM32_BTIM_CR1_OFFSET)
 #  define STM32_TIM7_CR2          (STM32_TIM7_BASE+STM32_BTIM_CR2_OFFSET)
 #  define STM32_TIM7_DIER         (STM32_TIM7_BASE+STM32_BTIM_DIER_OFFSET)
@@ -398,7 +400,7 @@
 #define ATIM_CR2_OIS3             (1 << 12) /* Bit 12: Output Idle state 3 (OC3 output) */
 #define ATIM_CR2_OIS3N            (1 << 13) /* Bit 13: Output Idle state 3 (OC3N output) */
 #define ATIM_CR2_OIS4             (1 << 14) /* Bit 14: Output Idle state 4 (OC4 output) */
-#define ATIM_CR2_OIS5             (1 << 16) /* Bit 16: OOutput Idle state 5 (OC5 output) */
+#define ATIM_CR2_OIS5             (1 << 16) /* Bit 16: Output Idle state 5 (OC5 output) */
 #define ATIM_CR2_OIS6             (1 << 18) /* Bit 18: Output Idle state 6 (OC6 output) */
 #define ATIM_CR2_MMS2_SHIFT       (20)      /* Bits 20-23: Master Mode Selection 2 */
 #define ATIM_CR2_MMS2_MASK        (15 << ATIM_CR2_MMS2_SHIFT)
@@ -725,7 +727,7 @@
 #  define ATIM_BDTR_LOCKOFF       (0 << ATIM_BDTR_LOCK_SHIFT) /* 00: LOCK OFF - No bit is write protected */
 #  define ATIM_BDTR_LOCK1         (1 << ATIM_BDTR_LOCK_SHIFT) /* 01: LOCK Level 1 protection */
 #  define ATIM_BDTR_LOCK2         (2 << ATIM_BDTR_LOCK_SHIFT) /* 10: LOCK Level 2 protection */
-#  define ATIM_BDTR_LOCK3         (3 << ATIM_BDTR_LOCK_SHIFT) /* 11: LOCK Level 3 protection */ */
+#  define ATIM_BDTR_LOCK3         (3 << ATIM_BDTR_LOCK_SHIFT) /* 11: LOCK Level 3 protection */
 
 #define ATIM_BDTR_OSSI            (1 << 10) /* Bit 10: Off-State Selection for Idle mode */
 #define ATIM_BDTR_OSSR            (1 << 11) /* Bit 11: Off-State Selection for Run mode */

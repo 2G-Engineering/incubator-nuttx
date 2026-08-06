@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/stm32_config.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -44,19 +46,19 @@
 #  undef CONFIG_STM32F7_GPIOE_IRQ
 #endif
 
-#if STM32F7_NPORTS < 1
+#if STM32_NPORTS < 1
 #  undef CONFIG_STM32F7_GPIOA_IRQ
 #endif
-#if STM32F7_NPORTS < 2
+#if STM32_NPORTS < 2
 #  undef CONFIG_STM32F7_GPIOB_IRQ
 #endif
-#if STM32F7_NPORTS < 3
+#if STM32_NPORTS < 3
 #  undef CONFIG_STM32F7_GPIOC_IRQ
 #endif
-#if STM32F7_NPORTS < 4
+#if STM32_NPORTS < 4
 #  undef CONFIG_STM32F7_GPIOD_IRQ
 #endif
-#if STM32F7_NPORTS < 5
+#if STM32_NPORTS < 5
 #  undef CONFIG_STM32F7_GPIOE_IRQ
 #endif
 
@@ -64,26 +66,26 @@
 
 /* Don't enable UARTs not supported by the chip. */
 
-#if STM32F7_NUART < 1
+#if STM32_NUART < 1
 #  undef CONFIG_STM32F7_UART0
 #  undef CONFIG_STM32F7_UART1
 #  undef CONFIG_STM32F7_UART2
 #  undef CONFIG_STM32F7_UART3
-#  undef CONFIG_STM32F7_UART4
-#elif STM32F7_NUART < 2
+#  undef CONFIG_STM32_UART4
+#elif STM32_NUART < 2
 #  undef CONFIG_STM32F7_UART1
 #  undef CONFIG_STM32F7_UART2
 #  undef CONFIG_STM32F7_UART3
-#  undef CONFIG_STM32F7_UART4
-#elif STM32F7_NUART < 3
+#  undef CONFIG_STM32_UART4
+#elif STM32_NUART < 3
 #  undef CONFIG_STM32F7_UART2
 #  undef CONFIG_STM32F7_UART3
-#  undef CONFIG_STM32F7_UART4
-#elif STM32F7_NUART < 4
+#  undef CONFIG_STM32_UART4
+#elif STM32_NUART < 4
 #  undef CONFIG_STM32F7_UART3
-#  undef CONFIG_STM32F7_UART4
-#elif STM32F7_NUART < 5
-#  undef CONFIG_STM32F7_UART4
+#  undef CONFIG_STM32_UART4
+#elif STM32_NUART < 5
+#  undef CONFIG_STM32_UART4
 #endif
 
 /* Are any UARTs enabled? */
@@ -91,7 +93,7 @@
 #undef HAVE_UART_DEVICE
 #if defined(CONFIG_STM32F7_UART0) || defined(CONFIG_STM32F7_UART1) || \
     defined(CONFIG_STM32F7_UART2) || defined(CONFIG_STM32F7_UART3) || \
-    defined(CONFIG_STM32F7_UART4)
+    defined(CONFIG_STM32_UART4)
 #  define HAVE_UART_DEVICE 1
 #endif
 
@@ -105,29 +107,29 @@
 #  undef CONFIG_STM32F7_USART0
 #endif
 #ifndef CONFIG_USART1_SERIALDRIVER
-#  undef CONFIG_STM32F7_USART1
+#  undef CONFIG_STM32_USART1
 #endif
 #ifndef CONFIG_USART2_SERIALDRIVER
-#  undef CONFIG_STM32F7_USART2
+#  undef CONFIG_STM32_USART2
 #endif
 
 /* Don't enable USARTs not supported by the chip. */
 
-#if STM32F7_NUSART < 1
+#if STM32_NUSART < 1
 #  undef CONFIG_STM32F7_USART0
-#  undef CONFIG_STM32F7_USART1
-#  undef CONFIG_STM32F7_USART2
-#elif STM32F7_NUSART < 2
-#  undef CONFIG_STM32F7_USART1
-#  undef CONFIG_STM32F7_USART2
-#elif STM32F7_NUSART < 3
-#  undef CONFIG_STM32F7_USART2
+#  undef CONFIG_STM32_USART1
+#  undef CONFIG_STM32_USART2
+#elif STM32_NUSART < 2
+#  undef CONFIG_STM32_USART1
+#  undef CONFIG_STM32_USART2
+#elif STM32_NUSART < 3
+#  undef CONFIG_STM32_USART2
 #endif
 
 /* Are any USARTs enabled? */
 
-#if defined(CONFIG_STM32F7_USART0) || defined(CONFIG_STM32F7_USART1) || \
-    defined(CONFIG_STM32F7_USART2)
+#if defined(CONFIG_STM32F7_USART0) || defined(CONFIG_STM32_USART1) || \
+    defined(CONFIG_STM32_USART2)
 #  undef  HAVE_UART_DEVICE
 #  define HAVE_UART_DEVICE 1
 #endif
@@ -156,8 +158,8 @@
 
 /* Is there a serial console?  There should be no more than one defined.
  * It could be on any:
- * UARTn, n=1..STM32F7_NUART, or
- * USARTn, n=1..STM32F7_NUSART
+ * UARTn, n=1..STM32_NUART, or
+ * USARTn, n=1..STM32_NUSART
  */
 
 #undef HAVE_SERIAL_CONSOLE
@@ -197,7 +199,7 @@
 #  undef CONFIG_USART1_SERIAL_CONSOLE
 #  undef CONFIG_USART2_SERIAL_CONSOLE
 #  define HAVE_SERIAL_CONSOLE 1
-#elif defined(CONFIG_UART4_SERIAL_CONSOLE) && defined(CONFIG_STM32F7_UART4)
+#elif defined(CONFIG_UART4_SERIAL_CONSOLE) && defined(CONFIG_STM32_UART4)
 #  undef CONFIG_UART0_SERIAL_CONSOLE
 #  undef CONFIG_UART1_SERIAL_CONSOLE
 #  undef CONFIG_UART2_SERIAL_CONSOLE
@@ -215,7 +217,7 @@
 #  undef CONFIG_USART1_SERIAL_CONSOLE
 #  undef CONFIG_USART2_SERIAL_CONSOLE
 #  define HAVE_SERIAL_CONSOLE 1
-#elif defined(CONFIG_USART1_SERIAL_CONSOLE) && defined(CONFIG_STM32F7_USART1)
+#elif defined(CONFIG_USART1_SERIAL_CONSOLE) && defined(CONFIG_STM32_USART1)
 #  undef CONFIG_UART0_SERIAL_CONSOLE
 #  undef CONFIG_UART1_SERIAL_CONSOLE
 #  undef CONFIG_UART2_SERIAL_CONSOLE
@@ -224,7 +226,7 @@
 #  undef CONFIG_USART0_SERIAL_CONSOLE
 #  undef CONFIG_USART2_SERIAL_CONSOLE
 #  define HAVE_SERIAL_CONSOLE 1
-#elif defined(CONFIG_USART2_SERIAL_CONSOLE) && defined(CONFIG_STM32F7_USART2)
+#elif defined(CONFIG_USART2_SERIAL_CONSOLE) && defined(CONFIG_STM32_USART2)
 #  undef CONFIG_UART0_SERIAL_CONSOLE
 #  undef CONFIG_UART1_SERIAL_CONSOLE
 #  undef CONFIG_UART2_SERIAL_CONSOLE
@@ -250,14 +252,14 @@
 
 #if CHIP_NSPI < 1
 #  undef CONFIG_STM32F7_SPI0
-#  undef CONFIG_STM32F7_SPI1
+#  undef CONFIG_STM32_SPI1
 #elif CHIP_NSPI < 2
-#  undef CONFIG_STM32F7_SPI1
+#  undef CONFIG_STM32_SPI1
 #endif
 
 #ifndef CONFIG_STM32F7_HAVE_SPI
 #  undef CONFIG_STM32F7_SPI0
-#  undef CONFIG_STM32F7_SPI1
+#  undef CONFIG_STM32_SPI1
 #endif
 
 /* Are any SPI peripherals enabled? */

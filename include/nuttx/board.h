@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -100,6 +102,10 @@
 #  include <sys/boardctl.h>
 #endif
 
+#ifdef CONFIG_USBHOST_CONFIGURATION_SELECTION
+#  include <nuttx/usb/usb.h>
+#endif
+
 /****************************************************************************
  * Public Function Prototypes
  *
@@ -166,33 +172,6 @@ void board_early_initialize(void);
 #ifdef CONFIG_BOARD_LATE_INITIALIZE
 void board_late_initialize(void);
 #endif
-
-/****************************************************************************
- * Name: board_app_initialize
- *
- * Description:
- *   Perform application specific initialization.  This function is never
- *   called directly from application code, but only indirectly via the
- *   (non-standard) boardctl() interface using the command BOARDIOC_INIT.
- *
- * Input Parameters:
- *   arg - The boardctl() argument is passed to the board_app_initialize()
- *         implementation without modification.  The argument has no
- *         meaning to NuttX; the meaning of the argument is a contract
- *         between the board-specific initialization logic and the
- *         matching application logic.  The value could be such things as a
- *         mode enumeration value, a set of DIP switch switch settings, a
- *         pointer to configuration data read from a file or serial FLASH,
- *         or whatever you would like to do with it.  Every implementation
- *         should accept zero/NULL as a default configuration.
- *
- * Returned Value:
- *   Zero (OK) is returned on success; a negated errno value is returned on
- *   any failure to indicate the nature of the failure.
- *
- ****************************************************************************/
-
-int board_app_initialize(uintptr_t arg);
 
 /****************************************************************************
  * Name: board_app_finalinitialize
@@ -347,7 +326,7 @@ int board_switch_boot(FAR const char *system);
  * Input Parameters:
  *   path     - Path to the new application firmware image to be booted.
  *   hdr_size - Image header size in bytes. This value may be useful for
- *              skipping metadata information preprended to the application
+ *              skipping metadata information prepended to the application
  *              image.
  *
  * Returned Value:
@@ -448,6 +427,23 @@ FAR void *board_composite_connect(int port, int configid);
 
 #if defined(CONFIG_BOARD_USBDEV_SERIALSTR)
 FAR const char *board_usbdev_serialstr(void);
+#endif
+
+/****************************************************************************
+ * Name:  board_usbdev_pid,board_usbdev_vid
+ *
+ * Description:
+ *   Use board unique pid/vid in the device descriptor. This is for that
+ *   usb can be dynamically configured while the board is running
+ *
+ * Returned Value:
+ *   The board unique pid/vid.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_BOARD_USBDEV_PIDVID)
+uint16_t board_usbdev_pid(void);
+uint16_t board_usbdev_vid(void);
 #endif
 
 /****************************************************************************
@@ -614,6 +610,26 @@ void board_autoled_on(int led);
 void board_autoled_off(int led);
 #else
 #  define board_autoled_off(led)
+#endif
+
+/****************************************************************************
+ * Name: board_macaddr
+ *
+ * Description:
+ *   Get the network driver mac address.
+ *
+ * Input Parameters:
+ *   ifname   - The interface name.
+ *   macaddr  - The mac address.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; a negated errno value is returned on
+ *   any failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_BOARDCTL_MACADDR
+int board_macaddr(FAR const char *ifname, FAR uint8_t *macaddr);
 #endif
 
 /****************************************************************************
@@ -801,11 +817,11 @@ int board_button_irq(int id, xcpt_t irqhandler, FAR void *arg);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_BOARD_CRASHDUMP
+#ifdef CONFIG_BOARD_CRASHDUMP_CUSTOM
 struct tcb_s;
 void board_crashdump(uintptr_t sp, FAR struct tcb_s *tcb,
                      FAR const char *filename, int lineno,
-                     FAR const char *msg);
+                     FAR const char *msg, FAR void *regs);
 #endif
 
 /****************************************************************************
@@ -837,6 +853,47 @@ void board_init_rngseed(void);
 #ifdef CONFIG_BOARDCTL_RESET_CAUSE
 int board_reset_cause(FAR struct boardioc_reset_cause_s *cause);
 #endif
+
+/****************************************************************************
+ * Name: board_start_cpu
+ *
+ * Description:
+ *   This interface may be used by application specific logic to start
+ *   specified slave cpu core under the pseudo AMP case which is different
+ *   with armv7-a/armv8-a SMP. Support for this function is required by
+ *   board-level logic if CONFIG_BOARDCTL_START_CPU is selected.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_BOARDCTL_START_CPU
+int board_start_cpu(int cpuid);
+#endif
+
+#ifdef CONFIG_USBHOST_CONFIGURATION_SELECTION
+
+/****************************************************************************
+ * Name: board_usbhost_select_configuration
+ *
+ * Description:
+ *   Board specific function to select the correct USB configuration
+ *   for a given device. The function may use the device descriptor
+ *   or make additional requests using the hport to decide which
+ *   configuration to use.
+ *
+ * Input Parameters:
+ *   hport - The port for the USB device
+ *   devdesc - The device descriptor of the USB device
+ *   id - device identification
+ *
+ * Returned Value:
+ *   USB configuration index to use.
+ *
+ ****************************************************************************/
+
+int board_usbhost_select_configuration(FAR struct usbhost_hubport_s *hport,
+                                 FAR const struct usb_devdesc_s *devdesc,
+                                 FAR const struct usbhost_id_s *id);
+#endif /* CONFIG_USBHOST_CONFIGURATION_SELECTION */
 
 #undef EXTERN
 #ifdef __cplusplus

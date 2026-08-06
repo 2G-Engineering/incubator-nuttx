@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/nrf52/nrf52_ppi.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -171,4 +173,4 @@ void nrf52_ppi_grp_enable(uint8_t group, bool enable);
 }
 #endif
 
-#endif // __ARCH_ARM_SRC_NRF52_NRF52_PPI_H
+#endif /* __ARCH_ARM_SRC_NRF52_NRF52_PPI_H */

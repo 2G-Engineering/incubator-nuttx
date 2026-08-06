@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/tiva/tm4c1294-launchpad/src/tm4c_timer.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include "tiva_timer.h"
 #include "tm4c1294-launchpad.h"
 

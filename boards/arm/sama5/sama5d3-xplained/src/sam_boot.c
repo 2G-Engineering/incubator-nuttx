@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/sama5/sama5d3-xplained/src/sam_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,9 +26,18 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
+
+#include <stdbool.h>
+#include <stdio.h>
+#include <errno.h>
+#include <syslog.h>
 
 #include <nuttx/board.h>
+
+#ifdef CONFIG_USBMONITOR
+#  include <nuttx/usb/usbmonitor.h>
+#endif
 
 #include "sam_sckc.h"
 #include "sama5d3-xplained.h"
@@ -88,7 +99,7 @@ void sam_boardinitialize(void)
   /* Initialize USB if the 1) the HS host or device controller is in the
    * configuration and 2) the weak function sam_usbinitialize() has been
    * brought into the build.
-   * Presumeably either CONFIG_USBDEV or CONFIG_USBHOST is also selected.
+   * Presumably either CONFIG_USBDEV or CONFIG_USBHOST is also selected.
    */
 
 #if defined(CONFIG_SAMA5_UHPHS) || defined(CONFIG_SAMA5_UDPHS)
@@ -133,13 +144,6 @@ void sam_boardinitialize(void)
 #ifdef CONFIG_BOARD_LATE_INITIALIZE
 void board_late_initialize(void)
 {
-  /* Perform NSH initialization here instead of from the NSH.
-   * This alternative NSH initialization is necessary when NSH is ran in
-   * user-space but the initialization function must run in kernel space.
-   */
-
-#if defined(CONFIG_NSH_LIBRARY) && !defined(CONFIG_BOARDCTL)
-  board_app_initialize(0);
-#endif
+  sam_bringup();
 }
 #endif /* CONFIG_BOARD_LATE_INITIALIZE */

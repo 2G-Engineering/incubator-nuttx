@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm64/a64/pinephone/src/pinephone_touch.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <nuttx/config.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/i2c/i2c_master.h>
@@ -115,7 +117,8 @@ static int pinephone_gt9xx_irq_attach(const struct gt9xx_board_s *state,
 
   /* Set Interrupt Priority in Generic Interrupt Controller v2 */
 
-  arm64_gic_irq_set_priority(A64_IRQ_PH_EINT, 0, IRQ_TYPE_EDGE);
+  up_prioritize_irq(A64_IRQ_PH_EINT, 0);
+  up_set_irq_type(A64_IRQ_PH_EINT, IRQ_RISING_EDGE);
 
   /* Enable Interrupts for Port PH */
 

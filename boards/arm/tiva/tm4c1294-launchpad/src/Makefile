@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/tiva/tm4c1294-launchpad/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -42,10 +44,6 @@ endif
 
 ifeq ($(CONFIG_DK_TM4C129X_TIMER),y)
 CSRCS += tm4c_timer.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += tm4c_appinit.c
 endif
 
 ifeq ($(CONFIG_TIVA_HCIUART),y)

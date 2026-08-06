@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/kinetis/hardware/kinetis_k64pinmux.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -561,7 +563,9 @@
 #define PIN_UART1_TX_2            (PIN_ALT3   | PIN_PORTE | PIN0)
 
 #define PIN_UART2_CTS             (PIN_ALT3   | PIN_PORTD | PIN1)
-#define PIN_UART2_RTS             (PIN_ALT3   | PIN_PORTD | PIN0)
+#if !defined(PIN_UART2_RTS)
+#  define PIN_UART2_RTS           (PIN_ALT3   | PIN_PORTD | PIN0)
+#endif
 #define PIN_UART2_RX              (PIN_ALT3   | PIN_PORTD | PIN2)
 #define PIN_UART2_TX              (PIN_ALT3   | PIN_PORTD | PIN3)
 

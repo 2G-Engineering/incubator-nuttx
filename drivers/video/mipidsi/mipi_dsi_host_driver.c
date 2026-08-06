@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/video/mipidsi/mipi_dsi_host_driver.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 
 #include <nuttx/kmalloc.h>
@@ -115,7 +117,6 @@ static int dsi_host_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   /* Get our private data structure */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
 
   priv = inode->i_private;
@@ -172,7 +173,7 @@ static int dsi_host_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
  *   host - An instance of the struct mipi_dsi_host
  *
  * Returned Value:
- *   OK if the driver was successfully register; A negated errno value is
+ *   OK if the driver was successfully registered; A negated errno value is
  *   returned on any failure.
  *
  ****************************************************************************/

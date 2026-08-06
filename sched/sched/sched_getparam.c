@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/sched/sched_getparam.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -70,74 +72,76 @@ int nxsched_get_param(pid_t pid, FAR struct sched_param *param)
 {
   FAR struct tcb_s *rtcb;
   FAR struct tcb_s *tcb;
+  irqstate_t flags;
   int ret = OK;
 
   if (param == NULL)
     {
-      return -EINVAL;
+      ret = -EINVAL;
     }
-
-  /* Check if the task to restart is the calling task */
-
-  rtcb = this_task();
-  if (pid == 0 || pid == rtcb->pid)
-    {
-      /* Return the priority if the calling task. */
-
-      param->sched_priority = (int)rtcb->sched_priority;
-    }
-
-  /* This PID is not for the calling task, we will have to look it up */
-
   else
     {
-      /* Get the TCB associated with this PID */
+      /* Check if the task to restart is the calling task */
 
-      sched_lock();
-      tcb = nxsched_get_tcb(pid);
-      if (!tcb)
+      rtcb = this_task();
+      if (pid == 0 || pid == rtcb->pid)
         {
-          /* This PID does not correspond to any known task */
+          /* Return the priority if the calling task. */
 
-          ret = -ESRCH;
+          param->sched_priority = (int)rtcb->sched_priority;
         }
+
+      /* This PID is not for the calling task, we will have to look it up */
+
       else
         {
-#ifdef CONFIG_SCHED_SPORADIC
-#endif
-          /* Return the priority of the task */
+          /* Get the TCB associated with this PID */
 
-          param->sched_priority = (int)tcb->sched_priority;
-
-#ifdef CONFIG_SCHED_SPORADIC
-          if ((tcb->flags & TCB_FLAG_POLICY_MASK) == TCB_FLAG_SCHED_SPORADIC)
+          flags = enter_critical_section();
+          tcb = nxsched_get_tcb(pid);
+          if (!tcb)
             {
-              FAR struct sporadic_s *sporadic = tcb->sporadic;
-              DEBUGASSERT(sporadic != NULL);
+              /* This PID does not correspond to any known task */
 
-              /* Return parameters associated with SCHED_SPORADIC */
-
-              param->sched_ss_low_priority = (int)sporadic->low_priority;
-              param->sched_ss_max_repl     = (int)sporadic->max_repl;
-
-              clock_ticks2time((sclock_t)sporadic->repl_period,
-                               &param->sched_ss_repl_period);
-              clock_ticks2time((sclock_t)sporadic->budget,
-                               &param->sched_ss_init_budget);
+              ret = -ESRCH;
             }
           else
             {
-              param->sched_ss_low_priority        = 0;
-              param->sched_ss_max_repl            = 0;
-              param->sched_ss_repl_period.tv_sec  = 0;
-              param->sched_ss_repl_period.tv_nsec = 0;
-              param->sched_ss_init_budget.tv_sec  = 0;
-              param->sched_ss_init_budget.tv_nsec = 0;
-            }
-#endif
-        }
+              /* Return the priority of the task */
 
-      sched_unlock();
+              param->sched_priority = (int)tcb->sched_priority;
+
+#ifdef CONFIG_SCHED_SPORADIC
+              if ((tcb->flags & TCB_FLAG_POLICY_MASK) ==
+                  TCB_FLAG_SCHED_SPORADIC)
+                {
+                  FAR struct sporadic_s *sporadic = tcb->sporadic;
+                  DEBUGASSERT(sporadic != NULL);
+
+                  /* Return parameters associated with SCHED_SPORADIC */
+
+                  param->sched_ss_low_priority = (int)sporadic->low_priority;
+                  param->sched_ss_max_repl     = (int)sporadic->max_repl;
+
+                  clock_ticks2time(&param->sched_ss_repl_period,
+                                  sporadic->repl_period);
+                  clock_ticks2time(&param->sched_ss_init_budget,
+                                  sporadic->budget);
+                }
+              else
+                {
+                  param->sched_ss_low_priority        = 0;
+                  param->sched_ss_max_repl            = 0;
+                  param->sched_ss_repl_period.tv_sec  = 0;
+                  param->sched_ss_repl_period.tv_nsec = 0;
+                  param->sched_ss_init_budget.tv_sec  = 0;
+                  param->sched_ss_init_budget.tv_nsec = 0;
+                }
+#endif
+            }
+
+          leave_critical_section(flags);
+        }
     }
 
   return ret;

@@ -1,6 +1,8 @@
 /****************************************************************************
  * wireless/ieee802154/mac802154_scan.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
 #include "mac802154.h"
@@ -131,7 +133,7 @@ int mac802154_req_scan(MACHANDLE mac, FAR struct ieee802154_scan_req_s *req)
 
           /* ...after switching to the channel for a passive scan, the device
            * shall enable its receiver for at most
-           * [aBaseSuperframeDuration × (2 * n + 1)],
+           * [aBaseSuperframeDuration * (2 * n + 1)],
            * where n is the value of the ScanDuration parameter. [1] pg. 25
            */
 
@@ -299,7 +301,7 @@ void mac802154_edscan_onresult(FAR struct ieee802154_privmac_s *priv,
 
   /* ...after switching to the channel for a passive scan, the device
    * shall enable its receiver for at most
-   * [aBaseSuperframeDuration × (2 * n + 1)],
+   * [aBaseSuperframeDuration * (2 * n + 1)],
    * where n is the value of the ScanDuration parameter. [1] pg. 25
    */
 
@@ -353,7 +355,7 @@ static void mac802154_scantimeout(FAR void *arg)
 
   /* ...after switching to the channel for a passive scan, the device
    * shall enable its receiver for at most
-   * [aBaseSuperframeDuration × (2 * n + 1)],
+   * [aBaseSuperframeDuration * (2 * n + 1)],
    * where n is the value of the ScanDuration parameter. [1] pg. 25
    */
 

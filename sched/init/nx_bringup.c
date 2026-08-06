@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/init/nx_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,25 +30,33 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/init.h>
+#include <nuttx/macro.h>
 #include <nuttx/symtab.h>
+#include <nuttx/trace.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/kthread.h>
 #include <nuttx/userspace.h>
 #include <nuttx/binfmt/binfmt.h>
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 #  include "paging/paging.h"
 #endif
 
 #include "sched/sched.h"
 #include "wqueue/wqueue.h"
 #include "init/init.h"
+#include "misc/coredump.h"
+
+#ifdef CONFIG_ETC_ROMFS
+#  include <nuttx/drivers/ramdisk.h>
+#  include <sys/mount.h>
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -55,10 +65,9 @@
 /* Configuration */
 
 #if defined(CONFIG_INIT_NONE)
-  /* Kconfig logic will set CONFIG_INIT_NONE if dependencies are not met */
-
-#  error No initialization mechanism selected (CONFIG_INIT_NONE)
-
+#  ifndef CONFIG_BUILD_FLAT
+#    error No initialization mechanism selected (CONFIG_INIT_NONE)
+#  endif
 #else
 #  if !defined(CONFIG_INIT_ENTRY) && !defined(CONFIG_INIT_FILE)
   /* For backward compatibility with older defconfig files when this was
@@ -114,6 +123,15 @@ extern const int             CONFIG_INIT_NEXPORTS;
 #  define CONFIG_INIT_PRIORITY SCHED_PRIORITY_DEFAULT
 #endif
 
+#ifdef CONFIG_ETC_ROMFS
+#  define NSECTORS(b)        (((b)+CONFIG_ETC_ROMFSSECTSIZE-1)/CONFIG_ETC_ROMFSSECTSIZE)
+#  define MKMOUNT_DEVNAME(m) "/dev/ram" STRINGIFY(m)
+#  define MOUNT_DEVNAME      MKMOUNT_DEVNAME(CONFIG_ETC_ROMFSDEVNO)
+
+extern const unsigned char romfs_img[];
+extern const unsigned int romfs_img_len;
+#endif
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -134,7 +152,7 @@ extern const int             CONFIG_INIT_NEXPORTS;
  *
  ****************************************************************************/
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 static inline void nx_pgworker(void)
 {
   /* Start the page fill worker kernel thread that will resolve page faults.
@@ -150,10 +168,10 @@ static inline void nx_pgworker(void)
   DEBUGASSERT(g_pgworker > 0);
 }
 
-#else /* CONFIG_PAGING */
+#else /* CONFIG_LEGACY_PAGING */
 #  define nx_pgworker()
 
-#endif /* CONFIG_PAGING */
+#endif /* CONFIG_LEGACY_PAGING */
 
 /****************************************************************************
  * Name: nx_workqueues
@@ -210,6 +228,58 @@ static inline void nx_workqueues(void)
 #endif /* CONFIG_SCHED_WORKQUEUE */
 
 /****************************************************************************
+ * Name: nx_romfsetc
+ *
+ * Description: mount baked-in ROMFS image to /etc.
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ETC_ROMFS
+static inline void nx_romfsetc(void)
+{
+  int ret;
+
+#ifndef CONFIG_ETC_CROMFS
+  /* Create a ROM disk for the /etc filesystem */
+
+  ret = romdisk_register(CONFIG_ETC_ROMFSDEVNO, romfs_img,
+                         NSECTORS(romfs_img_len),
+                         CONFIG_ETC_ROMFSSECTSIZE);
+  if (ret < 0)
+    {
+      ferr("ERROR: romdisk_register failed: %d\n", -ret);
+      return;
+    }
+#endif
+
+  /* Mount the file system */
+
+  finfo("Mounting ROMFS filesystem at target=%s with source=%s\n",
+        CONFIG_ETC_ROMFSMOUNTPT, MOUNT_DEVNAME);
+
+#if defined(CONFIG_ETC_CROMFS)
+  ret = nx_mount(MOUNT_DEVNAME, CONFIG_ETC_ROMFSMOUNTPT,
+                 "cromfs", MS_RDONLY, NULL);
+#else
+  ret = nx_mount(MOUNT_DEVNAME, CONFIG_ETC_ROMFSMOUNTPT,
+                 "romfs", MS_RDONLY, NULL);
+#endif
+  if (ret < 0)
+    {
+      ferr("ERROR: nx_mount(%s,%s,romfs) failed: %d\n",
+           MOUNT_DEVNAME, CONFIG_ETC_ROMFSMOUNTPT, ret);
+    }
+}
+
+#endif /* CONFIG_ETC_ROMFS */
+
+/****************************************************************************
  * Name: nx_start_application
  *
  * Description:
@@ -239,14 +309,32 @@ static inline void nx_start_application(void)
 #endif
   int ret;
 
+#ifdef CONFIG_ETC_ROMFS
+  nx_romfsetc();
+#endif
+
 #ifdef CONFIG_BOARD_LATE_INITIALIZE
   /* Perform any last-minute, board-specific initialization, if so
    * configured.
    */
 
+  boards_trace_begin();
   board_late_initialize();
+  boards_trace_end();
 #endif
 
+#ifdef CONFIG_COREDUMP
+  coredump_initialize();
+#endif
+
+#ifdef CONFIG_INIT_NONE
+
+  UNUSED(ret);
+
+  /* In a flat build, init thread is not mandatory */
+
+  sinfo("No init thread\n");
+#else
   posix_spawnattr_init(&attr);
   attr.priority  = CONFIG_INIT_PRIORITY;
   attr.stacksize = CONFIG_INIT_STACKSIZE;
@@ -299,6 +387,7 @@ static inline void nx_start_application(void)
 #endif
   posix_spawnattr_destroy(&attr);
   DEBUGASSERT(ret > 0);
+#endif /* CONFIG_INIT_NONE */
 }
 
 /****************************************************************************
@@ -378,8 +467,8 @@ static inline void nx_create_initthread(void)
  *   the conclusion of basic OS initialization.  These initial system tasks
  *   may include:
  *
- *   - pg_worker:   The page-fault worker thread (only if CONFIG_PAGING is
- *                  defined.
+ *   - pg_worker:   The page-fault worker thread (if CONFIG_LEGACY_PAGING is
+ *                  defined).
  *   - work_thread: The work thread.  This general thread can be used to
  *                  perform most any kind of queued work.  Its primary
  *                  function is to serve as the "bottom half" of device
@@ -406,6 +495,8 @@ static inline void nx_create_initthread(void)
 
 int nx_bringup(void)
 {
+  sched_trace_begin();
+
 #ifndef CONFIG_DISABLE_ENVIRON
   /* Setup up the initial environment for the idle task.  At present, this
    * may consist of only the initial PATH variable and/or and init library
@@ -449,10 +540,13 @@ int nx_bringup(void)
 
 #if !defined(CONFIG_DISABLE_ENVIRON) && (defined(CONFIG_PATH_INITIAL) || \
      defined(CONFIG_LDPATH_INITIAL))
-  /* We an save a few bytes by discarding the IDLE thread's environment. */
+  /* We would save a few bytes by discarding the IDLE thread's environment.
+   * But when kthreads share the same group, this is no longer proper, so
+   * we can't do clearenv() now.
+   */
 
-  clearenv();
 #endif
 
+  sched_trace_end();
   return OK;
 }

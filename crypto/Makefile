@@ -1,6 +1,8 @@
 ############################################################################
 # crypto/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -30,35 +32,46 @@ CRYPTO_CSRCS += crypto.c testmngr.c
 
 ifeq ($(CONFIG_CRYPTO_CRYPTODEV),y)
   CRYPTO_CSRCS += cryptodev.c
+ifneq ($(CONFIG_CRYPTO_CRYPTODEV_SOFTWARE_CRYPTO)$(CONFIG_CRYPTO_CRYPTODEV_SOFTWARE_KEYMGMT),)
   CRYPTO_CSRCS += cryptosoft.c
   CRYPTO_CSRCS += xform.c
+endif
+endif
+
+# Software crypto algorithm
+
+ifeq ($(CONFIG_CRYPTO_SW_AES),y)
   CRYPTO_CSRCS += aes.c
-  CRYPTO_CSRCS += blf.c
-  CRYPTO_CSRCS += cast.c
-  CRYPTO_CSRCS += chachapoly.c
-  CRYPTO_CSRCS += ecb_enc.c
-  CRYPTO_CSRCS += ecb3_enc.c
-  CRYPTO_CSRCS += set_key.c
-  CRYPTO_CSRCS += md5.c
-  CRYPTO_CSRCS += poly1305.c
-  CRYPTO_CSRCS += rijndael.c
-  CRYPTO_CSRCS += rmd160.c
-  CRYPTO_CSRCS += sha1.c
-  CRYPTO_CSRCS += sha2.c
-  CRYPTO_CSRCS += gmac.c
-  CRYPTO_CSRCS += cmac.c
-  CRYPTO_CSRCS += hmac.c
+endif
+CRYPTO_CSRCS += blake2s.c
+CRYPTO_CSRCS += blf.c
+CRYPTO_CSRCS += cast.c
+CRYPTO_CSRCS += chachapoly.c
+CRYPTO_CSRCS += ecb_enc.c
+CRYPTO_CSRCS += ecb3_enc.c
+CRYPTO_CSRCS += ecc.c
+CRYPTO_CSRCS += set_key.c
+CRYPTO_CSRCS += md5.c
+CRYPTO_CSRCS += poly1305.c
+CRYPTO_CSRCS += rijndael.c
+CRYPTO_CSRCS += rmd160.c
+CRYPTO_CSRCS += sha1.c
+CRYPTO_CSRCS += sha2.c
+CRYPTO_CSRCS += gmac.c
+CRYPTO_CSRCS += cmac.c
+CRYPTO_CSRCS += hmac.c
+ifeq ($(CONFIG_CRYPTO_IDGEN),y)
   CRYPTO_CSRCS += idgen.c
-  CRYPTO_CSRCS += key_wrap.c
-  CRYPTO_CSRCS += siphash.c
-  CRYPTO_CSRCS += hmac_buff.c
 endif
 
-# BLAKE2s hash algorithm
-
-ifeq ($(CONFIG_CRYPTO_BLAKE2S),y)
-  CRYPTO_CSRCS += blake2s.c
+ifeq ($(CONFIG_CRYPTO_CURVE25519),y)
+  CRYPTO_CSRCS += curve25519.c
 endif
+
+CRYPTO_CSRCS += key_wrap.c
+CRYPTO_CSRCS += siphash.c
+CRYPTO_CSRCS += hmac_buff.c
+CRYPTO_CSRCS += bn.c
 
 # Entropy pool random number generator
 
@@ -108,6 +121,7 @@ clean:
 	$(call CLEAN)
 
 distclean: clean
+	$(call DELFILE, $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds))
 	$(call DELFILE, Make.dep)
 	$(call DELFILE, .depend)
 

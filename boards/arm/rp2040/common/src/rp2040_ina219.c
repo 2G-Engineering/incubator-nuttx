@@ -1,9 +1,9 @@
 /****************************************************************************
  * boards/arm/rp2040/common/src/rp2040_ina219.c
  *
- *   Copyright (C) 2018 Erle Robotics (Juan Flores Muñoz). All rights
- *     reserved.
- *   Author: Erle Robotics (Juan Flores Muñoz) <juan@erlerobotics.com>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2018 Erle Robotics (Juan Flores Muñoz)
+ * SPDX-FileContributor: Juan Flores Muñoz <juan@erlerobotics.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -42,10 +42,9 @@
 
 #include <errno.h>
 #include <syslog.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 
-#include <nuttx/spi/spi.h>
 #include <nuttx/sensors/ina219.h>
 
 #include "rp2040_i2c.h"
@@ -92,7 +91,7 @@ int board_ina219_initialize(int busno)
 
   /* Then register the sensor */
 
-  snprintf(devpath, 14, "/dev/voltamp%d", devno);
+  snprintf(devpath, sizeof(devpath), "/dev/voltamp%d", devno);
   ret = ina219_register(devpath, i2c, 0x40, 100000, 0x00);
   if (ret < 0)
     {

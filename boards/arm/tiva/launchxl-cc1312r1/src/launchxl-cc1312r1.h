@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/tiva/launchxl-cc1312r1/src/launchxl-cc1312r1.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -77,11 +79,6 @@ extern const struct cc13xx_pinconfig_s g_gpio_sw2;
  *
  *   If CONFIG_BOARD_LATE_INITIALIZE=y, then this function will be called
  *   from board_late_initialize().
- *
- *   If CONFIG_BOARD_LATE_INITIALIZE is not selected,
- *   but CONFIG_BOARDCTL=y
- *   then this function will *probably* be called from application logic via
- *   boardctl().
  *
  *   Otherwise, this function will not be called (which is usually a bad
  *   thing)

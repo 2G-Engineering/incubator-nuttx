@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/ipforward/ipv4_forward.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/mm/iob.h>
@@ -38,6 +40,7 @@
 #include "utils/utils.h"
 #include "sixlowpan/sixlowpan.h"
 #include "icmp/icmp.h"
+#include "ipfilter/ipfilter.h"
 #include "ipforward/ipforward.h"
 #include "nat/nat.h"
 #include "devif/devif.h"
@@ -214,6 +217,35 @@ static int ipv4_dev_forward(FAR struct net_driver_s *dev,
 #endif
   int ret;
 
+  if (IFF_IS_NODST_FORWARD(fwddev->d_flags))
+    {
+      nwarn("WARNING: IP forwarding disabled on destination device %s\n",
+            fwddev->d_ifname);
+      ret = -EOPNOTSUPP;
+      goto errout;
+    }
+
+#ifdef CONFIG_NET_IPFILTER
+  /* Do filter before forwarding, to make sure we drop silently before
+   * replying any other errors.
+   */
+
+  ret = ipv4_filter_fwd(dev, fwddev, ipv4);
+  if (ret < 0)
+    {
+      ninfo("Drop/Reject FORWARD packet due to filter %d\n", ret);
+
+      /* Let ipv4_forward reply the reject. */
+
+      if (ret == IPFILTER_TARGET_REJECT)
+        {
+          ret = -ENETUNREACH;
+        }
+
+      goto errout;
+    }
+#endif
+
   /* Verify that the full packet will fit within the forwarding device's MTU
    * if DF is set.
    */
@@ -286,13 +318,13 @@ static int ipv4_dev_forward(FAR struct net_driver_s *dev,
       goto errout_with_fwd;
     }
 
-#ifdef CONFIG_NET_NAT
+#ifdef CONFIG_NET_NAT44
   /* Try NAT outbound, rule matching will be performed in NAT module. */
 
   ret = ipv4_nat_outbound(fwd->f_dev, ipv4, NAT_MANIP_SRC);
   if (ret < 0)
     {
-      nwarn("WARNING: Performing NAT outbound failed, dropping!\n");
+      nwarn("WARNING: Performing NAT44 outbound failed, dropping!\n");
       goto errout_with_fwd;
     }
 #endif
@@ -347,9 +379,10 @@ static int ipv4_forward_callback(FAR struct net_driver_s *fwddev,
 
   DEBUGASSERT(fwddev != NULL);
 
-  /* Only IFF_UP device and non-loopback device need forward packet */
+  /* Only IFF_RUNNING device and non-loopback device need forward packet */
 
-  if (!IFF_IS_UP(fwddev->d_flags) || fwddev->d_lltype == NET_LL_LOOPBACK)
+  if (!IFF_IS_RUNNING(fwddev->d_flags) ||
+      fwddev->d_lltype == NET_LL_LOOPBACK)
     {
       return OK;
     }
@@ -364,20 +397,11 @@ static int ipv4_forward_callback(FAR struct net_driver_s *fwddev,
     {
       /* Backup the forward IP packet */
 
-      iob = iob_tryalloc(true);
+      iob = netdev_iob_clone(dev, true);
       if (iob == NULL)
         {
-          nerr("ERROR: iob alloc failed when forward broadcast\n");
+          nerr("ERROR: IOB clone failed when forwarding broadcast.\n");
           return -ENOMEM;
-        }
-
-      iob_reserve(iob, CONFIG_NET_LL_GUARDSIZE);
-      ret = iob_clone_partial(dev->d_iob, dev->d_iob->io_pktlen, 0,
-                              iob, 0, true, false);
-      if (ret < 0)
-        {
-          iob_free_chain(iob);
-          return ret;
         }
 
       /* Recover the pointer to the IPv4 header in the receiving device's
@@ -444,10 +468,18 @@ int ipv4_forward(FAR struct net_driver_s *dev, FAR struct ipv4_hdr_s *ipv4)
   in_addr_t srcipaddr;
   FAR struct net_driver_s *fwddev;
   int ret;
-#ifdef CONFIG_NET_ICMP
+#if defined(CONFIG_NET_ICMP) && !defined(CONFIG_NET_ICMP_NO_STACK)
   int icmp_reply_type;
   int icmp_reply_code;
 #endif /* CONFIG_NET_ICMP */
+
+  if (IFF_IS_NOSRC_FORWARD(dev->d_flags))
+    {
+      nwarn("WARNING: IP forwarding disabled on source device %s\n",
+            dev->d_ifname);
+      ret = -EOPNOTSUPP;
+      goto drop;
+    }
 
   /* Search for a device that can forward this packet. */
 
@@ -496,7 +528,7 @@ int ipv4_forward(FAR struct net_driver_s *dev, FAR struct ipv4_hdr_s *ipv4)
 
 #endif
 
-      nwarn("WARNING: Packet forwarding to same device not supportedN\n");
+      nwarn("WARNING: Packet forwarding to same device not supported\n");
       ret = -ENOSYS;
       goto drop;
     }
@@ -511,7 +543,7 @@ int ipv4_forward(FAR struct net_driver_s *dev, FAR struct ipv4_hdr_s *ipv4)
 drop:
   ipv4_dropstats(ipv4);
 
-#ifdef CONFIG_NET_ICMP
+#if defined(CONFIG_NET_ICMP) && !defined(CONFIG_NET_ICMP_NO_STACK)
   /* Reply ICMP to the sender for particular errors. */
 
   switch (ret)
@@ -531,6 +563,11 @@ drop:
         icmp_reply_code = ICMP_EXC_TTL;
         goto reply;
 
+      case -EOPNOTSUPP:
+        icmp_reply_type = ICMP_DEST_UNREACHABLE;
+        icmp_reply_code = ICMP_HOST_UNREACH;
+        goto reply;
+
       default:
         break; /* We don't know how to reply, just go on (to drop). */
     }
@@ -539,15 +576,15 @@ drop:
   dev->d_len = 0;
   return ret;
 
-#ifdef CONFIG_NET_ICMP
+#if defined(CONFIG_NET_ICMP) && !defined(CONFIG_NET_ICMP_NO_STACK)
 reply:
-#  ifdef CONFIG_NET_NAT
+#  ifdef CONFIG_NET_NAT44
   /* Before we reply ICMP, call NAT outbound to try to translate destination
    * address & port back to original status.
    */
 
   ipv4_nat_outbound(dev, ipv4, NAT_MANIP_DST);
-#  endif /* CONFIG_NET_NAT */
+#  endif /* CONFIG_NET_NAT44 */
 
   icmp_reply(dev, icmp_reply_type, icmp_reply_code);
   return OK;
@@ -584,11 +621,36 @@ reply:
 void ipv4_forward_broadcast(FAR struct net_driver_s *dev,
                             FAR struct ipv4_hdr_s *ipv4)
 {
+  /* Check if source device supports IP forwarding capability.
+   * Broadcast/multicast forwarding is only allowed if the receiving
+   * device has SRC_FORWARD enabled. This is consistent with the unicast
+   * forwarding policy enforced in ipv4_forward().
+   */
+
+  if (IFF_IS_NOSRC_FORWARD(dev->d_flags))
+    {
+      nwarn("WARNING: IP broadcast forwarding disabled "
+            "on source device %s\n", dev->d_ifname);
+      return;
+    }
+
+  /* Do not forward link-local multicast packets (224.0.0.0/24).
+   * Per RFC 3171, addresses in 224.0.0.0/24 are reserved for
+   * link-local scope and MUST NOT be forwarded by any router,
+   * regardless of TTL.
+   */
+
+  if ((net_ip4addr_conv32(ipv4->destipaddr) &
+       HTONL(0xffffff00)) == HTONL(0xe0000000))
+    {
+      return;
+    }
+
   /* Don't bother if the TTL would expire */
 
   if (ipv4->ttl > 1)
     {
-      /* Forward the the broadcast/multicast packet to all devices except,
+      /* Forward the broadcast/multicast packet to all devices except,
        * of course, the device that received the packet.
        */
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/phy62xx/flash.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -19,11 +21,11 @@
  ****************************************************************************/
 
 /****************************************************************************
- *    @file     flash.h
- *    @brief    Contains all functions support for flash driver
- *    @version  0.0
- *    @date     27. Nov. 2017
- *    @author   qing.han
+ * flash.h
+ * Contains all functions support for flash driver
+ * 0.0
+ * 27. Nov. 2017
+ * qing.han
  ****************************************************************************/
 
 /****************************************************************************
@@ -68,7 +70,7 @@
 
 #define CHIP_MADDR_LEN          6
 
-/* xip flash read instrcution */
+/* xip flash read instruction */
 
 #define XFRD_FCMD_READ          0x0000003
 #define XFRD_FCMD_READ_DUAL     0x801003B

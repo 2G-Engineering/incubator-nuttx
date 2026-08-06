@@ -1,5 +1,7 @@
 ############################################################################
-# boards/xtensa/esp32/ttgo_lora_esp32/src/Make.defs
+# boards/xtensa/esp32/lilygo_tbeam_lora_gps/src/Make.defs
+#
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -18,15 +20,10 @@
 #
 ############################################################################
 
-include $(TOPDIR)/Make.defs
-
 CSRCS = esp32_boot.c esp32_bringup.c
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += esp32_appinit.c
 ifeq ($(CONFIG_BOARDCTL_RESET),y)
 CSRCS += esp32_reset.c
-endif
 endif
 
 ifeq ($(CONFIG_MMCSD),y)
@@ -51,5 +48,5 @@ endif
 
 DEPPATH += --dep-path board
 VPATH += :board
-CFLAGS += $(shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board)
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board
 

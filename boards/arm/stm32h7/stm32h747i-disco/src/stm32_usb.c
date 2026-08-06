@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32h7/stm32h747i-disco/src/stm32_usb.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <sched.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kthread.h>
 #include <nuttx/usb/usbdev.h>
@@ -43,7 +45,7 @@
 #include "stm32_otg.h"
 #include "stm32h747i-disco.h"
 
-#ifdef CONFIG_STM32H7_OTGHS
+#ifdef CONFIG_STM32_OTGHS
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -52,7 +54,7 @@
 #if defined(CONFIG_USBDEV) || defined(CONFIG_USBHOST)
 #  define HAVE_USB 1
 #else
-#  warning "CONFIG_STM32H7_OTGHS is enabled but neither CONFIG_USBDEV nor CONFIG_USBHOST"
+#  warning "CONFIG_STM32_OTGHS is enabled but neither CONFIG_USBDEV nor CONFIG_USBHOST"
 #  undef HAVE_USB
 #endif
 
@@ -61,7 +63,7 @@
 #endif
 
 #ifndef CONFIG_STM32H747XI_DISCO_USBHOST_STACKSIZE
-#  define CONFIG_STM32H747XI_DISCO_USBHOST_STACKSIZE 1024
+#  define CONFIG_STM32H747XI_DISCO_USBHOST_STACKSIZE 2048
 #endif
 
 /****************************************************************************
@@ -121,7 +123,7 @@ static int usbhost_waiter(int argc, char *argv[])
  * Name: stm32_usbinitialize
  *
  * Description:
- *   Called from stm32_usbinitialize very early in inialization to setup
+ *   Called from stm32_usbinitialize very early in initialization to setup
  *   USB-related GPIO pins for the STM32H747I DISCO board.
  *
  ****************************************************************************/
@@ -130,7 +132,7 @@ void stm32_usbinitialize(void)
 {
   /* Configure the Overcurrent GPIO */
 
-#ifdef CONFIG_STM32H7_OTGHS
+#ifdef CONFIG_STM32_OTGHS
   stm32_configgpio(GPIO_OTGHS_OVER);
 #endif
 }

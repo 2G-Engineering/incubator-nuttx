@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nrf52/thingy52/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -62,11 +64,11 @@
 /* I2C Pins *****************************************************************/
 
 /* I2C0 (TWI0)
- *   I2C0_SCL - P0.07
- *   I2C0_SDA - P0.08
+ *   I2C0_SCL - P0.08
+ *   I2C0_SDA - P0.07
  */
 
-#define BOARD_I2C0_SCL_PIN (GPIO_OUTPUT | GPIO_PORT0 | GPIO_PIN(7))
-#define BOARD_I2C0_SDA_PIN (GPIO_INPUT  | GPIO_PORT0 | GPIO_PIN(8))
+#define BOARD_I2C0_SCL_PIN (GPIO_OUTPUT | GPIO_PORT0 | GPIO_PIN(8))
+#define BOARD_I2C0_SDA_PIN (GPIO_INPUT  | GPIO_PORT0 | GPIO_PIN(7))
 
 #endif /* __BOARDS_ARM_NRF52_THINGY52_INCLUDE_BOARD_H */

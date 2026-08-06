@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/tcp/tcp_setsockopt.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <netinet/tcp.h>
 
@@ -75,7 +77,6 @@ int tcp_setsockopt(FAR struct socket *psock, int option,
   FAR struct tcp_conn_s *conn;
   int ret = OK;
 
-  DEBUGASSERT(psock != NULL && value != NULL && psock->s_conn != NULL);
   conn = psock->s_conn;
 
   /* All of the TCP protocol options apply only TCP sockets.  The sockets
@@ -127,23 +128,6 @@ int tcp_setsockopt(FAR struct socket *psock, int option,
 
                 tcp_update_keeptimer(conn, keepalive ? conn->keepidle : 0);
                 conn->keepretries = 0;
-              }
-          }
-        break;
-
-      case TCP_NODELAY: /* Avoid coalescing of small segments. */
-        if (value_len != sizeof(int))
-          {
-            ret = -EDOM;
-          }
-        else
-          {
-            int nodelay = *(FAR int *)value;
-
-            if (!nodelay)
-              {
-                nerr("ERROR: TCP_NODELAY not supported\n");
-                ret = -ENOSYS;
               }
           }
         break;
@@ -230,6 +214,26 @@ int tcp_setsockopt(FAR struct socket *psock, int option,
           }
         break;
 #endif /* CONFIG_NET_TCP_KEEPALIVE */
+
+      case TCP_NODELAY: /* Avoid coalescing of small segments. */
+      case TCP_CORK:    /* coalescing of small segments. */
+        if (value_len != sizeof(int))
+          {
+            ret = -EDOM;
+          }
+        else
+          {
+            int nodelay = *(FAR int *)value;
+
+            if ((!nodelay && option == TCP_NODELAY) ||
+                (nodelay && option == TCP_CORK))
+              {
+                nerr("ERROR: %s not supported\n",
+                     option == TCP_NODELAY ? "TCP_NODELAY" : "TCP_CORK");
+                ret = -ENOSYS;
+              }
+          }
+        break;
 
       case TCP_MAXSEG: /* The maximum segment size */
         if (value_len != sizeof(int))

@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/iob/iob_update_pktlen.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,27 +38,29 @@
  *
  * Description:
  *   This function will update packet length of the iob, it will be
- *   trimmed if the length of the iob chain is greater than the current
- *   length.
- *   This function will not grow the iob link, any grow operation should
- *   be implemented through iob_copyin()/iob_trycopyin().
+ *   trimmed if the current length of the iob chain is greater than the
+ *   new length, and will be grown if less than new length.
+ *
+ * Returned Value:
+ *   The new effective iob packet length, or a negated errno value on error.
  *
  ****************************************************************************/
 
-void iob_update_pktlen(FAR struct iob_s *iob, unsigned int pktlen)
+int iob_update_pktlen(FAR struct iob_s *iob, unsigned int pktlen,
+                      bool throttled)
 {
   FAR struct iob_s *penultimate;
   FAR struct iob_s *next;
-  uint16_t offset = 0;
+  int remain = pktlen;
   int ninqueue = 0;
-  int nrequire;
+  int nrequire = 0;
   uint16_t len;
 
   /* The data offset must be less than CONFIG_IOB_BUFSIZE */
 
   if (iob == NULL)
     {
-      return;
+      return -EINVAL;
     }
 
   /* Calculate the total entries of the data in the I/O buffer chain */
@@ -65,18 +69,27 @@ void iob_update_pktlen(FAR struct iob_s *iob, unsigned int pktlen)
   while (next != NULL)
     {
       ninqueue++;
-      offset += next->io_offset;
-      next    = next->io_flink;
+      penultimate = next;
+      if (remain > 0)
+        {
+          nrequire++;
+          remain -= IOB_BUFSIZE(next) - next->io_offset;
+        }
+
+      next = next->io_flink;
     }
 
-  /* Trim inqueue entries if needed */
+  if (remain > 0)
+    {
+      nrequire += (remain + CONFIG_IOB_BUFSIZE - 1) / CONFIG_IOB_BUFSIZE;
+    }
 
-  nrequire = (pktlen + offset + CONFIG_IOB_BUFSIZE - 1) /
-             CONFIG_IOB_BUFSIZE;
   if (nrequire == 0)
     {
       nrequire = 1;
     }
+
+  /* Trim inqueue entries if needed */
 
   if (nrequire < ninqueue)
     {
@@ -104,17 +117,32 @@ void iob_update_pktlen(FAR struct iob_s *iob, unsigned int pktlen)
             }
         }
     }
+  else if (nrequire > ninqueue)
+    {
+      /* Start from the last IOB */
+
+      next = penultimate;
+
+      /* Loop to extend the link */
+
+      while (next != NULL && nrequire > ninqueue)
+        {
+          next->io_flink = iob_tryalloc(throttled);
+          next = next->io_flink;
+          ninqueue++;
+        }
+    }
 
   iob->io_pktlen = pktlen;
 
   /* Update size of each iob */
 
   next = iob;
-  while (next != NULL && pktlen > 0)
+  while (next != NULL && pktlen >= 0)
     {
-      if (pktlen + next->io_offset > CONFIG_IOB_BUFSIZE)
+      if (pktlen + next->io_offset > IOB_BUFSIZE(next))
         {
-          len = CONFIG_IOB_BUFSIZE - next->io_offset;
+          len = IOB_BUFSIZE(next) - next->io_offset;
         }
       else
         {
@@ -125,4 +153,10 @@ void iob_update_pktlen(FAR struct iob_s *iob, unsigned int pktlen)
       pktlen      -= len;
       next         = next->io_flink;
     }
+
+  /* Adjust final pktlen if it's not fully increased (e.g. alloc fail) */
+
+  iob->io_pktlen -= pktlen;
+
+  return iob->io_pktlen;
 }

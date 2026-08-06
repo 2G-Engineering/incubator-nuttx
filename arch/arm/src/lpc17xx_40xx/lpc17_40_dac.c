@@ -1,13 +1,10 @@
 /****************************************************************************
  * arch/arm/src/lpc17xx_40xx/lpc17_40_dac.c
  *
- *   Copyright (C) 2011 Li Zhuoyi. All rights reserved.
- *   Author: Li Zhuoyi <lzyy.cn@gmail.com>
- *   History: 0.1 2011-08-05 initial version
- *
- * This file is a part of NuttX:
- *
- *   Copyright (C) 2010, 2014, 2016 Gregory Nutt. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2010,2014,2016 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2011 Li Zhuoyi. All rights reserved.
+ * SPDX-FileContributor: Li Zhuoyi <lzyy.cn@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -49,7 +46,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 #include <nuttx/irq.h>

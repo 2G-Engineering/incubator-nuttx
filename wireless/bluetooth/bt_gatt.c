@@ -1,6 +1,8 @@
 /****************************************************************************
  * wireless/bluetooth/bt_gatt.c
  *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  *   Copyright (c) 2016, Intel Corporation
  *   All rights reserved.
  *
@@ -42,7 +44,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/wireless/bluetooth/bt_hci.h>
 #include <nuttx/wireless/bluetooth/bt_core.h>
@@ -1220,7 +1222,7 @@ int bt_gatt_read_multiple(FAR struct bt_conn_s *conn,
   FAR struct bt_buf_s *buf;
   uint8_t i;
 
-  if (!conn && conn->state != BT_CONN_CONNECTED)
+  if (!conn || conn->state != BT_CONN_CONNECTED)
     {
       return -ENOTCONN;
     }

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/cxd56xx/cxd56_icc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,7 +37,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include "arm_internal.h"
@@ -339,7 +341,7 @@ static struct iccdev_s *icc_devnew(void)
   struct iccdev_s *priv;
   int i;
 
-  priv = (struct iccdev_s *)kmm_malloc(sizeof(struct iccdev_s));
+  priv = kmm_malloc(sizeof(struct iccdev_s));
   if (!priv)
     {
       return NULL;

@@ -1,6 +1,8 @@
 ############################################################################
 # boards/avr/at32uc3/avr32dev1/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -21,13 +23,15 @@
 include $(TOPDIR)/Make.defs
 
 CSRCS = avr32_boot.c
+
 ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += avr32_leds.c
 endif
+
 ifeq ($(CONFIG_ARCH_BUTTONS),y)
 CSRCS += avr32_buttons.c
 endif
-CSRCS += avr32_appinit.c
+
 CSRCS += avr32_bringup.c
 
 include $(TOPDIR)/boards/Board.mk

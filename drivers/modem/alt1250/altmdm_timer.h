@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/modem/alt1250/altmdm_timer.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,6 +32,7 @@
 #include <signal.h>
 #include <time.h>
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
@@ -107,5 +110,5 @@ int altmdm_timer_is_running(timer_t timerid);
  ****************************************************************************/
 
 void altmdm_timer_stop(timer_t timerid);
-
+#endif  /* !CONFIG_DISABLE_ALL_SIGNALS */
 #endif  /* __DEVICES_MODEM_ALT1250_ALTMDM_TIMER_H */

@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/stm32h7/stm32h747i-disco/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -36,11 +38,11 @@ ifeq ($(CONFIG_ARCH_BUTTONS),y)
 CSRCS += stm32_buttons.c
 endif
 
-ifeq ($(CONFIG_STM32H7_SPI),y)
+ifeq ($(CONFIG_STM32_SPI),y)
 CSRCS += stm32_spi.c
 endif
 
-ifeq ($(CONFIG_STM32H7_OTGHS),y)
+ifeq ($(CONFIG_STM32_OTGHS),y)
 CSRCS += stm32_usb.c
 endif
 
@@ -48,11 +50,7 @@ ifeq ($(CONFIG_BOARDCTL_UNIQUEID),y)
 CSRCS += stm32_uid.c
 endif
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += stm32_appinitialize.c
-endif
-
-ifeq ($(CONFIG_STM32H7_SDMMC),y)
+ifeq ($(CONFIG_STM32_SDMMC),y)
 CSRCS += stm32_sdmmc.c
 endif
 

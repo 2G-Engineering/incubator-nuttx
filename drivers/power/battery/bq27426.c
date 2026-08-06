@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/power/battery/bq27426.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,12 +35,13 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
 #include <nuttx/i2c/i2c_master.h>
 #include <nuttx/power/battery_gauge.h>
+#include <nuttx/power/battery_ioctl.h>
 #include <nuttx/power/bq27426.h>
 
 /* This driver requires:
@@ -419,8 +422,7 @@ FAR struct battery_gauge_dev_s *bq27426_initialize(
 
   /* Initialize the bq27426 device structure */
 
-  priv = (FAR struct bq27426_dev_s *)kmm_zalloc(sizeof(
-                                                      struct bq27426_dev_s));
+  priv = kmm_zalloc(sizeof(struct bq27426_dev_s));
   if (priv)
     {
       /* Initialize the bq27426 device structure */

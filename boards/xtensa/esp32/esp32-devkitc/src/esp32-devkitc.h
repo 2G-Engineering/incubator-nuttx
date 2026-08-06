@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/esp32-devkitc/src/esp32-devkitc.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -66,6 +68,19 @@
 #define ONESHOT_TIMER         1
 #define ONESHOT_RESOLUTION_US 1
 
+/* RMT gpio */
+
+#define RMT_RXCHANNEL       1
+#define RMT_TXCHANNEL       0
+
+#ifdef CONFIG_RMT_LOOP_TEST_MODE
+#  define RMT_INPUT_PIN     0
+#  define RMT_OUTPUT_PIN    0
+#else
+#  define RMT_INPUT_PIN     2
+#  define RMT_OUTPUT_PIN    4
+#endif
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/
@@ -89,21 +104,9 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=y && CONFIG_BOARDCTL=y :
- *     Called from the NSH library via board_app_initialize()
- *
  ****************************************************************************/
 
 int esp32_bringup(void);
-
-/****************************************************************************
- * Name: esp32_mmcsd_initialize
- *
- * Description:
- *   Initialize SPI-based SD card and card detect thread.
- ****************************************************************************/
-
-int esp32_mmcsd_initialize(int minor);
 
 /****************************************************************************
  * Name: esp32_gpio_init
@@ -175,8 +178,8 @@ int esp32_twai_setup(void);
  *
  ****************************************************************************/
 
-#if defined(CONFIG_ESP32_I2S0) && !defined(CONFIG_AUDIO_CS4344) || \
-    defined(CONFIG_ESP32_I2S1)
+#if defined(CONFIG_ESPRESSIF_I2S0) && !defined(CONFIG_AUDIO_CS4344) || \
+    defined(CONFIG_ESPRESSIF_I2S1)
 int board_i2sdev_initialize(int port, bool enable_tx, bool enable_rx);
 #endif
 
@@ -199,6 +202,40 @@ int board_i2sdev_initialize(int port, bool enable_tx, bool enable_rx);
 
 #ifdef CONFIG_AUDIO_CS4344
 int esp32_cs4344_initialize(int port);
+#endif
+
+/****************************************************************************
+ * Name:  board_ws2812_initialize
+ *
+ * Description:
+ *   This function may called from application-specific logic during its
+ *   to perform board-specific initialization of the ws2812 device
+ *
+ *
+ ****************************************************************************/
+
+#  ifdef CONFIG_WS2812
+#    ifndef CONFIG_WS2812_NON_SPI_DRIVER
+int board_ws2812_initialize(int devno, int spino, uint16_t nleds);
+#    else
+int board_ws2812_initialize(
+    int devno,
+    uint16_t nleds,
+    void *dev);
+#    endif
+#  endif
+
+/****************************************************************************
+ * Name:  openeth_initialize
+ *
+ * Description:
+ *   This function may called from application-specific logic during its
+ *   to perform board-specific initialization of the Open ETH interface
+ *
+ *
+ ****************************************************************************/
+#ifdef CONFIG_ESP32_OPENETH
+int esp_openeth_initialize(void);
 #endif
 
 #endif /* __ASSEMBLY__ */

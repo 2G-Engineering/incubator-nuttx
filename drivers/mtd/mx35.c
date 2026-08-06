@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/mtd/mx35.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -380,7 +382,7 @@ static bool mx35_waitstatus(FAR struct mx35_dev_s *priv,
        * case will allow other peripherals to access the SPI bus.
        */
     }
-  while (((status & MX35_SR_OIP) != 0) && (!nxsig_usleep(1000)));
+  while (((status & MX35_SR_OIP) != 0) && (!nxsched_usleep(1000)));
 
   mx35info("Complete\n");
   return successif ? ((status & mask) != 0) : ((status & mask) == 0);
@@ -839,7 +841,7 @@ static int mx35_ioctl(FAR struct mtd_dev_s *dev, int cmd, unsigned long arg)
 
       case MTDIOC_ECCSTATUS:
         {
-          uint8_t *result = (uint8_t *)arg;
+          FAR uint8_t *result = (FAR uint8_t *)arg;
           *result =
               (priv->eccstatus & MX35_FEATURE_ECC_MASK) >>
                MX35_FEATURE_ECC_OFFSET;
@@ -941,7 +943,7 @@ FAR struct mtd_dev_s *mx35_initialize(FAR struct spi_dev_s *dev)
    * have to be extended to handle multiple FLASH parts on the same SPI bus.
    */
 
-  priv = (FAR struct mx35_dev_s *)kmm_zalloc(sizeof(struct mx35_dev_s));
+  priv = kmm_zalloc(sizeof(struct mx35_dev_s));
   if (priv)
     {
       /* Initialize the allocated structure. (unsupported methods were

@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/aio.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -121,7 +123,7 @@ struct aiocb
   FAR volatile void *aio_buf;    /* Location of buffer */
   off_t aio_offset;              /* File offset */
   size_t aio_nbytes;             /* Length of transfer */
-  int16_t aio_fildes;            /* File descriptor (should be int) */
+  int aio_fildes;                /* File descriptor */
   int8_t aio_reqprio;            /* Request priority offset (not used, should be int) */
   uint8_t aio_lio_opcode;        /* Operation to be performed (should be int) */
 

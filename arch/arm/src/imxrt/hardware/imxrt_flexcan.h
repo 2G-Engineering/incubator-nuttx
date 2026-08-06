@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imxrt/hardware/imxrt_flexcan.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -55,6 +57,12 @@
 #define IMXRT_CAN_CBT_OFFSET      0x0050 /* CAN Bit Timing Register */
 
 #define IMXRT_CAN_MB_OFFSET       0x0080 /* CAN MB register */
+#define IMXRT_CAN_MB_SIZE         0x0A60
+#define IMXRT_CAN_MB_END          (IMXRT_CAN_MB_OFFSET + IMXRT_CAN_MB_SIZE)
+
+#define IMXRT_CAN_MB2_OFFSET      0x0F28 /* CAN MB2 register */
+#define IMXRT_CAN_MB2_SIZE        0x00D8
+#define IMXRT_CAN_MB2_END         (IMXRT_CAN_MB2_OFFSET + IMXRT_CAN_MB2_SIZE)
 
 #define IMXRT_CAN_RXIMR_OFFSET(n) (0x0880+((n)<<2)) /* Rn Individual Mask Registers */
 #define IMXRT_CAN_RXIMR0_OFFSET   0x0880            /* R0 Individual Mask Registers */
@@ -255,7 +263,7 @@
 #define CAN_ESR1_TWRNINT           (1 << 17) /* Bit 17: Tx Warning Interrupt Flag */
 #define CAN_ESR1_SYNCH             (1 << 18) /* Bit 18: CAN Synchronization Status */
 #define CAN_ESR1_BOFFDONEINT       (1 << 19) /* Bit 19: Bus Off Done Interrupt */
-#define CAN_ESR1_ERRINTFAST        (1 << 20) /* Bit 20: Error Iterrupt for Errors Detected in Data Phase of CAN FD frames */
+#define CAN_ESR1_ERRINTFAST        (1 << 20) /* Bit 20: Error Interrupt for Errors Detected in Data Phase of CAN FD frames */
 #define CAN_ESR1_ERROVR            (1 << 21) /* Bit 21: Error Overrun */
                                              /* Bits 21-25: Reserved */
 #define CAN_ESR1_STFERRFAST        (1 << 26) /* Bit 26: Stuffing Error in the Data Phase of CAN FD frames */
@@ -367,7 +375,7 @@
 #define CAN_CBT_ERJW_SHIFT         (16)      /* Bits 16-20: Extended Resync Jump Width */
 #define CAN_CBT_ERJW_MASK          (0x1f << CAN_CBT_ERJW_SHIFT)
 #define CAN_CBT_ERJW(x)            (((uint32_t)(((uint32_t)(x)) << CAN_CBT_ERJW_SHIFT)) & CAN_CBT_ERJW_MASK)
-#define CAN_CBT_EPRESDIV_SHIFT     (21)      /* Bits 21-30: Extendet Prescaler Division Factor */
+#define CAN_CBT_EPRESDIV_SHIFT     (21)      /* Bits 21-30: Extended Prescaler Division Factor */
 #define CAN_CBT_EPRESDIV_MASK      (0x3ff << CAN_CBT_EPRESDIV_SHIFT)
 #define CAN_CBT_EPRESDIV(x)        (((uint32_t)(((uint32_t)(x)) << CAN_CBT_EPRESDIV_SHIFT)) & CAN_CBT_EPRESDIV_MASK)
 #define CAN_CBT_BTF                (1 << 31) /* Bit 31: Bit Timing Format Enable */

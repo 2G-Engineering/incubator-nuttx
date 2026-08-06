@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f746g-disco/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -88,7 +90,7 @@
  * 2 <= PLLQ <= 15
  */
 
-#if defined(CONFIG_STM32F7_OTGFS)
+#if defined(CONFIG_STM32_OTGFS)
 /* Highest SYSCLK with USB OTG FS clock = 48 MHz
  *
  * PLL_VCO = (25,000,000 / 25) * 384 = 384 MHz
@@ -105,7 +107,7 @@
 #define STM32_SYSCLK_FREQUENCY  (STM32_VCO_FREQUENCY / 2)
 #define STM32_OTGFS_FREQUENCY   (STM32_VCO_FREQUENCY / 8)
 
-#elif defined(CONFIG_STM32F7_SDMMC1) || defined(CONFIG_STM32F7_RNG)
+#elif defined(CONFIG_STM32_SDMMC1) || defined(CONFIG_STM32_RNG)
 /* Highest SYSCLK with USB OTG FS clock <= 48MHz
  *
  * PLL_VCO = (25,000,000 / 25) * 432 = 432 MHz
@@ -150,8 +152,8 @@
 /* SAIx input frequency = 25 / M * N / Q / P
  *   25000000 / 25 * 192 / 2 / 1
  */
-#define STM32F7_SAI1_FREQUENCY           (49142857)
-#define STM32F7_SAI2_FREQUENCY           (49142857)
+#define STM32_SAI1_FREQUENCY           (49142857)
+#define STM32_SAI2_FREQUENCY           (49142857)
 
 /* Configure Dedicated Clock Configuration Register */
 
@@ -526,7 +528,7 @@
 
 /* SAI2 pinset */
 
-#if defined(CONFIG_STM32F7_SAI2) && defined(CONFIG_STM32F7_SAI2_A)
+#if defined(CONFIG_STM32_SAI2) && defined(CONFIG_STM32_SAI2_A)
 #  define GPIO_SAI2_SD_A      (GPIO_SAI2_SD_A_2|GPIO_SPEED_100MHz)
 #  define GPIO_SAI2_FS_A      (GPIO_SAI2_FS_A_2|GPIO_SPEED_100MHz)
 #  define GPIO_SAI2_SCK_A     (GPIO_SAI2_SCK_A_2|GPIO_SPEED_100MHz)
@@ -573,5 +575,8 @@
 #define GPIO_FMC_D13          (GPIO_FMC_D13_0|GPIO_SPEED_100MHz)
 #define GPIO_FMC_D14          (GPIO_FMC_D14_0|GPIO_SPEED_100MHz)
 #define GPIO_FMC_D15          (GPIO_FMC_D15_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_SDCKE0       (GPIO_FMC_SDCKE0_1|GPIO_SPEED_100MHz)
+#define GPIO_FMC_SDNE0        (GPIO_FMC_SDNE0_3|GPIO_SPEED_100MHz)
+#define GPIO_FMC_SDNWE        (GPIO_FMC_SDNWE_3|GPIO_SPEED_100MHz)
 
 #endif  /* __BOARDS_ARM_STM32F7_STM32F746G_DISCO_INCLUDE_BOARD_H */

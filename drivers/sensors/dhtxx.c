@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/dhtxx.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -28,12 +43,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/signal.h>
-#include <nuttx/time.h>
 #include <nuttx/clock.h>
 #include <nuttx/mutex.h>
 #include <nuttx/sensors/dhtxx.h>
@@ -70,7 +84,7 @@
 #define DHT22_MAX_TEMP                    80.0F
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Type
  ****************************************************************************/
 
 struct dhtxx_dev_s
@@ -418,7 +432,7 @@ static int dhtxx_open(FAR struct file *filep)
 
   dht_standby_mode(priv);
 
-  nxsig_sleep(DHTXX_SAMPLING_PERIOD_S);
+  nxsched_sleep(DHTXX_SAMPLING_PERIOD_S);
 
   /* Sensor ready. */
 
@@ -433,7 +447,7 @@ static int dhtxx_open(FAR struct file *filep)
 static ssize_t dhtxx_read(FAR struct file *filep, FAR char *buffer,
                           size_t buflen)
 {
-  int ret = OK;
+  int ret;
   FAR struct inode                *inode = filep->f_inode;
   FAR struct dhtxx_dev_s          *priv  = inode->i_private;
   FAR struct dhtxx_sensor_data_s  *data  =
@@ -442,13 +456,13 @@ static ssize_t dhtxx_read(FAR struct file *filep, FAR char *buffer,
   if (!buffer)
     {
       snerr("ERROR: Buffer is null.\n");
-      return -1;
+      return -EINVAL;
     }
 
   if (buflen < sizeof(FAR struct dhtxx_sensor_data_s))
     {
       snerr("ERROR: Not enough memory to read data sample.\n");
-      return -ENOSYS;
+      return -EINVAL;
     }
 
   memset(priv->raw_data, 0u, sizeof(priv->raw_data));
@@ -464,32 +478,33 @@ static ssize_t dhtxx_read(FAR struct file *filep, FAR char *buffer,
   if (dht_prepare_reading(priv) != 0)
     {
       data->status = DHTXX_TIMEOUT;
-      ret = -1;
+      ret = -ETIMEDOUT;
       goto out;
     }
 
   if (dht_read_raw_data(priv) != 0)
     {
       data->status = DHTXX_TIMEOUT;
-      ret = -1;
+      ret = -ETIMEDOUT;
       goto out;
     }
 
   if (!dht_verify_checksum(priv))
     {
       data->status = DHTXX_CHECKSUM_ERROR;
-      ret = -1;
+      ret = -EIO;
       goto out;
     }
 
   if (dht_parse_data(priv, data) != 0)
     {
       data->status = DHTXX_READ_ERROR;
-      ret = -1;
+      ret = -EIO;
     }
   else
     {
       data->status = DHTXX_SUCCESS;
+      ret = sizeof(struct dhtxx_sensor_data_s);
     }
 
 out:
@@ -502,7 +517,7 @@ out:
    * consecutive readings.
    */
 
-  nxsig_sleep(DHTXX_SAMPLING_PERIOD_S);
+  nxsched_sleep(DHTXX_SAMPLING_PERIOD_S);
 
   /* Sensor ready for new reading */
 
@@ -546,7 +561,7 @@ int dhtxx_register(FAR const char *devpath,
 
   /* Initialize the Dhtxx device structure */
 
-  priv = (FAR struct dhtxx_dev_s *)kmm_malloc(sizeof(struct dhtxx_dev_s));
+  priv = kmm_malloc(sizeof(struct dhtxx_dev_s));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");

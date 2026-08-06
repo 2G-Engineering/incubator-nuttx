@@ -1,6 +1,8 @@
 ############################################################################
 # boards/sim/sim/sim/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -28,10 +30,6 @@ ifeq ($(CONFIG_BOARD_LATE_INITIALIZE),y)
   CSRCS += sim_boot.c
 endif
 
-ifeq ($(CONFIG_BOARDCTL),y)
-  CSRCS += sim_appinit.c
-endif
-
 ifeq ($(CONFIG_BOARD_LATE_INITIALIZE),y)
   CSRCS += sim_bringup.c
 ifeq ($(CONFIG_LIBC_ZONEINFO_ROMFS),y)
@@ -52,11 +50,9 @@ else
 endif
 endif
 
-ifeq ($(CONFIG_NSH_ROMFSETC),y)
-ifneq ($(CONFIG_NSH_CUSTOMROMFS),y)
+ifeq ($(CONFIG_ETC_ROMFS),y)
   RCSRCS = etc/init.d/rc.sysinit etc/init.d/rcS
-  RCRAWS = etc/group etc/passwd
-endif
+  RCRAWS = etc/group
 endif
 
 ifeq ($(CONFIG_ARCH_BUTTONS),y)

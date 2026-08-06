@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/renesas/src/common/renesas_initialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,7 +35,7 @@
  ****************************************************************************/
 
 /* This holds a references to the current interrupt level register storage
- * structure.  If is non-NULL only during interrupt processing.
+ * structure.  It is non-NULL only during interrupt processing.
  */
 
 /* Actually a pointer to the beginning of a uint8_t array */

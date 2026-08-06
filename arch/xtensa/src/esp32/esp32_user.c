@@ -30,9 +30,10 @@
 
 #include <sys/types.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "xtensa.h"
+#include "esp_private/cache_utils.h"
 
 /****************************************************************************
  * Public Data
@@ -323,6 +324,20 @@ static void advance_pc(uint32_t *regs, int diff)
 
 uint32_t *xtensa_user(int exccause, uint32_t *regs)
 {
+#ifdef CONFIG_ESPRESSIF_SPIFLASH
+  bool is_cache_reenabled = false;
+
+  if (!spi_flash_cache_enabled())
+    {
+      is_cache_reenabled = true;
+
+      spi_flash_restore_cache(0, 0);
+#  ifdef CONFIG_SMP
+      spi_flash_restore_cache(1, 0);
+#  endif
+    }
+#endif /* CONFIG_ESPRESSIF_SPIFLASH */
+
 #ifdef CONFIG_ARCH_USE_TEXT_HEAP
   /* Emulate byte access for module text.
    *
@@ -363,7 +378,7 @@ uint32_t *xtensa_user(int exccause, uint32_t *regs)
           store_uint8(((uint8_t *)regs[REG_A0 + s]) + imm8,
                       regs[REG_A0 + t]);
           advance_pc(regs, 3);
-          return regs;
+          goto return_with_regs;
         }
       else if (decode_s16i(pc, &imm8, &s, &t))
         {
@@ -379,7 +394,7 @@ uint32_t *xtensa_user(int exccause, uint32_t *regs)
           store_uint8((uint8_t *)va, regs[REG_A0 + t]);
           store_uint8((uint8_t *)va + 1, regs[REG_A0 + t] >> 8);
           advance_pc(regs, 3);
-          return regs;
+          goto return_with_regs;
         }
       else if (decode_l8ui(pc, &imm8, &s, &t))
         {
@@ -394,7 +409,7 @@ uint32_t *xtensa_user(int exccause, uint32_t *regs)
           regs[REG_A0 + t] = load_uint8(((uint8_t *)regs[REG_A0 + s]) +
                                         imm8);
           advance_pc(regs, 3);
-          return regs;
+          goto return_with_regs;
         }
       else if (decode_l16si(pc, &imm8, &s, &t))
         {
@@ -411,7 +426,7 @@ uint32_t *xtensa_user(int exccause, uint32_t *regs)
           uint8_t hi = load_uint8((uint8_t *)va + 1);
           regs[REG_A0 + t] = (int16_t)((hi << 8) | lo);
           advance_pc(regs, 3);
-          return regs;
+          goto return_with_regs;
         }
       else if (decode_l16ui(pc, &imm8, &s, &t))
         {
@@ -428,11 +443,29 @@ uint32_t *xtensa_user(int exccause, uint32_t *regs)
           uint8_t hi = load_uint8((uint8_t *)va + 1);
           regs[REG_A0 + t] = (hi << 8) | lo;
           advance_pc(regs, 3);
-          return regs;
+          goto return_with_regs;
         }
+
+return_with_regs:
+#  ifdef CONFIG_ESPRESSIF_SPIFLASH
+      if (is_cache_reenabled)
+        {
+          spi_flash_disable_cache(0, 0);
+#    ifdef CONFIG_SMP
+          spi_flash_disable_cache(1, 0);
+#    endif
+        }
+#  endif /* CONFIG_ESPRESSIF_SPIFLASH */
+
+      return regs;
     }
 
+#else
+#  ifdef CONFIG_ESPRESSIF_SPIFLASH
+  UNUSED(is_cache_reenabled);
+#  endif
 #endif
+
   /* xtensa_user_panic never returns. */
 
   xtensa_user_panic(exccause, regs);

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/net/w5500.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,7 +37,7 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arpa/inet.h>
 
@@ -43,9 +45,10 @@
 #include <nuttx/irq.h>
 #include <nuttx/wdog.h>
 #include <nuttx/wqueue.h>
+#include <nuttx/signal.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/w5500.h>
-#include <nuttx/signal.h>
 
 #ifdef CONFIG_NET_PKT
 #  include <nuttx/net/pkt.h>
@@ -432,9 +435,6 @@ static int  w5500_addmac(FAR struct net_driver_s *dev,
 static int  w5500_rmmac(FAR struct net_driver_s *dev,
               FAR const uint8_t *mac);
 #endif
-#ifdef CONFIG_NET_ICMPv6
-static void w5500_ipv6multicast(FAR struct w5500_driver_s *priv);
-#endif
 #endif
 #ifdef CONFIG_NETDEV_IOCTL
 static int  w5500_ioctl(FAR struct net_driver_s *dev, int cmd,
@@ -471,11 +471,11 @@ static void w5500_reset(FAR struct w5500_driver_s *self, bool keep)
 
   if (!keep)
     {
-      nxsig_usleep(500);   /* [W5500]: T_RC (Reset Cycle Time) min 500 us   */
+      nxsched_usleep(500);   /* [W5500]: T_RC (Reset Cycle Time) min 500 us   */
 
       self->lower->reset(self->lower, false);
 
-      nxsig_usleep(1000);  /* [W5500]: T_PL (RSTn to internal PLL lock) 1ms */
+      nxsched_usleep(1000);  /* [W5500]: T_PL (RSTn to internal PLL lock) 1ms */
     }
 }
 
@@ -1054,7 +1054,7 @@ static int w5500_unfence(FAR struct w5500_driver_s *self)
                           W5500_BSB_COMMON_REGS,
                           W5500_PHYCFGR);
 
-      nxsig_usleep(100000); /* 100 ms x 100 = 10 sec */
+      nxsched_usleep(100000); /* 100 ms x 100 = 10 sec */
     }
 
   if (value & PHYCFGR_LNK)
@@ -1106,13 +1106,13 @@ static void w5500_transmit(FAR struct w5500_driver_s *self)
   if (!w5500_txbuf_numfree(self))
     {
       ninfo("Dropping Tx packet due to no buffer available.\n");
-      NETDEV_TXERRORS(self->w_dev);
+      NETDEV_TXERRORS(&self->w_dev);
       return;
     }
 
   /* Increment statistics */
 
-  NETDEV_TXPACKETS(self->w_dev);
+  NETDEV_TXPACKETS(&self->w_dev);
 
   /* Copy packet data to TX buffer */
 
@@ -1459,7 +1459,7 @@ static void w5500_txdone(FAR struct w5500_driver_s *self)
 {
   /* Check for errors and update statistics */
 
-  NETDEV_TXDONE(self->w_dev);
+  NETDEV_TXDONE(&self->w_dev);
 
   /* Check if there are pending transmissions. */
 
@@ -1513,7 +1513,7 @@ static void w5500_interrupt_work(FAR void *arg)
    * thread has been configured.
    */
 
-  net_lock();
+  netdev_lock(&self->w_dev);
 
   /* Process pending Ethernet interrupts.  Read IR, MIR and SIR in one shot
    * to optimize latency, although MIR is not actually used.
@@ -1592,7 +1592,7 @@ static void w5500_interrupt_work(FAR void *arg)
     }
 
 done:
-  net_unlock();
+  netdev_unlock(&self->w_dev);
 
   /* Re-enable Ethernet interrupts */
 
@@ -1602,7 +1602,7 @@ done:
 
 error:
   w5500_fence(self);
-  net_unlock();
+  netdev_unlock(&self->w_dev);
 }
 
 /****************************************************************************
@@ -1667,11 +1667,11 @@ static void w5500_txtimeout_work(FAR void *arg)
    * thread has been configured.
    */
 
-  net_lock();
+  netdev_lock(&self->w_dev);
 
   /* Increment statistics and dump debug info */
 
-  NETDEV_TXTIMEOUTS(self->w_dev);
+  NETDEV_TXTIMEOUTS(&self->w_dev);
 
   /* Then reset the hardware */
 
@@ -1684,7 +1684,7 @@ static void w5500_txtimeout_work(FAR void *arg)
       devif_poll(&self->w_dev, w5500_txpoll);
     }
 
-  net_unlock();
+  netdev_unlock(&self->w_dev);
 }
 
 /****************************************************************************
@@ -1747,11 +1747,9 @@ static int w5500_ifup(FAR struct net_driver_s *dev)
   int ret;
 
 #ifdef CONFIG_NET_IPv4
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)dev->d_ipaddr & 0xff,
-        (int)(dev->d_ipaddr >> 8) & 0xff,
-        (int)(dev->d_ipaddr >> 16) & 0xff,
-        (int)dev->d_ipaddr >> 24);
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 #endif
 #ifdef CONFIG_NET_IPv6
   ninfo("Bringing up: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -1769,16 +1767,12 @@ static int w5500_ifup(FAR struct net_driver_s *dev)
       return ret;
     }
 
-#ifdef CONFIG_NET_ICMPv6
-  /* Set up IPv6 multicast address filtering */
-
-  w5500_ipv6multicast(self);
-#endif
-
   /* Enable the Ethernet interrupt */
 
   self->w_bifup = true;
   self->lower->enable(self->lower, true);
+
+  netdev_carrier_on(dev);
 
   return OK;
 }
@@ -1826,6 +1820,9 @@ static int w5500_ifdown(FAR struct net_driver_s *dev)
 
   self->w_bifup = false;
   leave_critical_section(flags);
+
+  netdev_carrier_off(dev);
+
   return OK;
 }
 
@@ -1856,7 +1853,7 @@ static void w5500_txavail_work(FAR void *arg)
    * thread has been configured.
    */
 
-  net_lock();
+  netdev_lock(&priv->w_dev);
 
   /* Ignore the notification if the interface is not yet up */
 
@@ -1869,7 +1866,7 @@ static void w5500_txavail_work(FAR void *arg)
       devif_poll(&priv->w_dev, w5500_txpoll);
     }
 
-  net_unlock();
+  netdev_unlock(&priv->w_dev);
 }
 
 /****************************************************************************
@@ -1935,6 +1932,7 @@ static int w5500_addmac(FAR struct net_driver_s *dev, FAR const uint8_t *mac)
 
   /* Add the MAC address to the hardware multicast routing table */
 
+  UNUSED(priv);
   return OK;
 }
 #endif
@@ -1963,81 +1961,10 @@ static int w5500_rmmac(FAR struct net_driver_s *dev, FAR const uint8_t *mac)
 
   /* Add the MAC address to the hardware multicast routing table */
 
+  UNUSED(priv);
   return OK;
 }
 #endif
-
-/****************************************************************************
- * Name: w5500_ipv6multicast
- *
- * Description:
- *   Configure the IPv6 multicast MAC address.
- *
- * Input Parameters:
- *   priv - A reference to the private driver state structure
- *
- * Returned Value:
- *   Zero (OK) on success; a negated errno value on failure.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_NET_ICMPv6
-static void w5500_ipv6multicast(FAR struct w5500_driver_s *priv)
-{
-  FAR struct net_driver_s *dev;
-  uint16_t tmp16;
-  uint8_t mac[6];
-
-  /* For ICMPv6, we need to add the IPv6 multicast address
-   *
-   * For IPv6 multicast addresses, the Ethernet MAC is derived by
-   * the four low-order octets OR'ed with the MAC 33:33:00:00:00:00,
-   * so for example the IPv6 address FF02:DEAD:BEEF::1:3 would map
-   * to the Ethernet MAC address 33:33:00:01:00:03.
-   *
-   * NOTES:  This appears correct for the ICMPv6 Router Solicitation
-   * Message, but the ICMPv6 Neighbor Solicitation message seems to
-   * use 33:33:ff:01:00:03.
-   */
-
-  mac[0] = 0x33;
-  mac[1] = 0x33;
-
-  dev    = &priv->dev;
-  tmp16  = dev->d_ipv6addr[6];
-  mac[2] = 0xff;
-  mac[3] = tmp16 >> 8;
-
-  tmp16  = dev->d_ipv6addr[7];
-  mac[4] = tmp16 & 0xff;
-  mac[5] = tmp16 >> 8;
-
-  ninfo("IPv6 Multicast: %02x:%02x:%02x:%02x:%02x:%02x\n",
-        mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
-  w5500_addmac(dev, mac);
-
-#ifdef CONFIG_NET_ICMPv6_AUTOCONF
-  /* Add the IPv6 all link-local nodes Ethernet address.  This is the
-   * address that we expect to receive ICMPv6 Router Advertisement
-   * packets.
-   */
-
-  w5500_addmac(dev, g_ipv6_ethallnodes.ether_addr_octet);
-
-#endif /* CONFIG_NET_ICMPv6_AUTOCONF */
-
-#ifdef CONFIG_NET_ICMPv6_ROUTER
-  /* Add the IPv6 all link-local routers Ethernet address.  This is the
-   * address that we expect to receive ICMPv6 Router Solicitation
-   * packets.
-   */
-
-  w5500_addmac(dev, g_ipv6_ethallrouters.ether_addr_octet);
-
-#endif /* CONFIG_NET_ICMPv6_ROUTER */
-}
-#endif /* CONFIG_NET_ICMPv6 */
 
 /****************************************************************************
  * Name: w5500_ioctl

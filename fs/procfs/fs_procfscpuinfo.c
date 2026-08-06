@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/procfs/fs_procfscpuinfo.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,12 +31,14 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/procfs.h>
+
+#include "fs_heap.h"
 
 #if defined(CONFIG_ARCH_HAVE_CPUINFO) && !defined(CONFIG_FS_PROCFS_EXCLUDE_CPUINFO)
 
@@ -79,6 +83,7 @@ const struct procfs_operations g_cpuinfo_operations =
   cpuinfo_close,  /* close */
   cpuinfo_read,   /* read */
   NULL,           /* write */
+  NULL,           /* poll */
   cpuinfo_dup,    /* dup */
   NULL,           /* opendir */
   NULL,           /* closedir */
@@ -104,7 +109,7 @@ static int cpuinfo_open(FAR struct file *filep, FAR const char *relpath,
 
   /* Allocate a container to hold the file attributes */
 
-  procfile = kmm_zalloc(sizeof(struct cpuinfo_file_s));
+  procfile = fs_heap_zalloc(sizeof(struct cpuinfo_file_s));
   if (procfile == NULL)
     {
       ferr("ERROR: Failed to allocate file attributes\n");
@@ -132,7 +137,7 @@ static int cpuinfo_close(FAR struct file *filep)
 
   /* Release the file attributes structure */
 
-  kmm_free(procfile);
+  fs_heap_free(procfile);
   filep->f_priv = NULL;
   return OK;
 }
@@ -149,13 +154,17 @@ static ssize_t cpuinfo_read(FAR struct file *filep, FAR char *buffer,
 
   finfo("buffer=%p buflen=%zu\n", buffer, buflen);
 
-  DEBUGASSERT(filep != NULL && buffer != NULL && buflen > 0);
+  DEBUGASSERT(buffer != NULL && buflen > 0);
   offset = filep->f_pos;
 
   copylen = up_show_cpuinfo(buffer, buflen, offset);
   if (copylen > 0)
     {
       filep->f_pos += copylen;
+    }
+  else
+    {
+      copylen = 0;
     }
 
   return copylen;
@@ -183,7 +192,7 @@ static int cpuinfo_dup(FAR const struct file *oldp, FAR struct file *newp)
 
   /* Allocate a new container to hold the task and attribute selection */
 
-  newattr = kmm_malloc(sizeof(struct cpuinfo_file_s));
+  newattr = fs_heap_malloc(sizeof(struct cpuinfo_file_s));
   if (newattr == NULL)
     {
       ferr("ERROR: Failed to allocate file attributes\n");

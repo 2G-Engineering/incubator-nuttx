@@ -1,15 +1,10 @@
 /****************************************************************************
  * arch/arm/src/tiva/common/tiva_adclib.c
  *
- *   Copyright (C) 2015 TRD2 Inc. All rights reserved.
- *   Author: Calvin Maguranis <calvin.maguranis@trd2inc.com>
- *
- * The Tivaware sample code has a BSD compatible license that requires this
- * copyright notice:
- *
- * Copyright (c) 2005-2014 Texas Instruments Incorporated.
- * All rights reserved.
- * Software License Agreement
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2015 TRD2 Inc. All rights reserved.
+ * SPDX-FileCopyrightText: 2005-2014 Texas Instruments Incorporated.
+ * SPDX-FileContributor: Calvin Maguranis <calvin.maguranis@trd2inc.com>
  *
  *   Redistribution and use in source and binary forms, with or without
  *   modification, are permitted provided that the following conditions
@@ -61,7 +56,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <assert.h>
 
 #include <nuttx/irq.h>
@@ -321,7 +316,7 @@ void tiva_adc_step_cfg(struct tiva_adc_step_cfg_s *stepcfg)
   uint8_t  sse   = stepcfg->sse;
   uint8_t  step  = stepcfg->step;
 #ifdef CONFIG_EXPERIMENTAL
-  uint8_t  shold = stepcfg->shold;
+  uint8_t  hold = stepcfg->hold;
 #endif
   uint8_t  flags = stepcfg->flags;
   uint8_t  ain   = stepcfg->ain;
@@ -329,8 +324,8 @@ void tiva_adc_step_cfg(struct tiva_adc_step_cfg_s *stepcfg)
 
   ainfo("configure ADC%d SSE%d STEP%d...\n", adc, sse, step);
 #ifdef CONFIG_DEBUG_ANALOG
-  ainfo("  shold=0x%02x flags=0x%02x ain=%d...\n",
-        stepcfg->shold, stepcfg->flags, stepcfg->ain);
+  ainfo("  hold=0x%02x flags=0x%02x ain=%d...\n",
+        stepcfg->hold, stepcfg->flags, stepcfg->ain);
 #endif
 
   /* Configure the AIN GPIO for analog input if not flagged to be mux'ed to
@@ -348,7 +343,7 @@ void tiva_adc_step_cfg(struct tiva_adc_step_cfg_s *stepcfg)
   tiva_adc_sse_differential(adc, sse, step, 0); /* TODO: update when differential
                                                  * support is added. */
 #ifdef CONFIG_EXPERIMENTAL
-  tiva_adc_sse_sample_hold_time(adc, sse, step, shold);
+  tiva_adc_sse_sample_hold_time(adc, sse, step, hold);
 #endif
   tiva_adc_sse_step_cfg(adc, sse, step, flags);
 }
@@ -964,17 +959,17 @@ void tiva_adc_sse_differential(uint8_t adc, uint8_t sse, uint8_t chn,
  *   adc - peripheral state
  *   sse - sample sequencer
  *   chn - sample sequencer channel
- *   shold - sample and hold time
+ *   hold - sample and hold time
  *
  ****************************************************************************/
 
 #ifdef CONFIG_EXPERIMENTAL
 void tiva_adc_sse_sample_hold_time(uint8_t adc, uint8_t sse,
-                                 uint8_t chn, uint32_t shold)
+                                   uint8_t chn, uint32_t hold)
 {
   uintptr_t sstshreg = (TIVA_ADC_BASE(adc) + TIVA_ADC_SSTSH(sse));
   modifyreg32(sstshreg, ADC_SSTSH_MASK(sse),
-              (shold << ADC_SSTSH_SHIFT(sse)));
+              (hold << ADC_SSTSH_SHIFT(sse)));
 }
 #endif
 

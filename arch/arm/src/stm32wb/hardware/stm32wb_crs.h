@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wb/hardware/stm32wb_crs.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,17 +29,17 @@
 
 /* Register Offsets *********************************************************/
 
-#define STM32WB_CRS_CR_OFFSET        0x0000  /* CRS control register */
-#define STM32WB_CRS_CFGR_OFFSET      0x0004  /* CRS configuration register */
-#define STM32WB_CRS_ISR_OFFSET       0x0008  /* CRS interrupt and status register */
-#define STM32WB_CRS_ICR_OFFSET       0x000c  /* CRS interrupt flag clear register */
+#define STM32_CRS_CR_OFFSET        0x0000  /* CRS control register */
+#define STM32_CRS_CFGR_OFFSET      0x0004  /* CRS configuration register */
+#define STM32_CRS_ISR_OFFSET       0x0008  /* CRS interrupt and status register */
+#define STM32_CRS_ICR_OFFSET       0x000c  /* CRS interrupt flag clear register */
 
 /* Register Addresses *******************************************************/
 
-#define STM32WB_CRS_CR               (STM32WB_CRS_BASE + STM32WB_CRS_CR_OFFSET)
-#define STM32WB_CRS_CFGR             (STM32WB_CRS_BASE + STM32WB_CRS_CFGR_OFFSET)
-#define STM32WB_CRS_ISR              (STM32WB_CRS_BASE + STM32WB_CRS_ISR_OFFSET)
-#define STM32WB_CRS_ICR              (STM32WB_CRS_BASE + STM32WB_CRS_ICR_OFFSET)
+#define STM32_CRS_CR               (STM32_CRS_BASE + STM32_CRS_CR_OFFSET)
+#define STM32_CRS_CFGR             (STM32_CRS_BASE + STM32_CRS_CFGR_OFFSET)
+#define STM32_CRS_ISR              (STM32_CRS_BASE + STM32_CRS_ISR_OFFSET)
+#define STM32_CRS_ICR              (STM32_CRS_BASE + STM32_CRS_ICR_OFFSET)
 
 /* Register Bitfield Definitions ********************************************/
 

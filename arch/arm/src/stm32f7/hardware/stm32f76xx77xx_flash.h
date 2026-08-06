@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/hardware/stm32f76xx77xx_flash.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,8 +20,8 @@
  *
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32F74XX75XX_FLASH_H
-#define __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32F74XX75XX_FLASH_H
+#ifndef __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32F76XX77XX_FLASH_H
+#define __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32F76XX77XX_FLASH_H
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -27,7 +29,7 @@
 
 /* Flash size is known from the chip selection:
  *
- *   When CONFIG_STM32F7_FLASH_OVERRIDE_DEFAULT is set the
+ *   When CONFIG_STM32_FLASH_OVERRIDE_DEFAULT is set the
  *   CONFIG_STM32F7_FLASH_CONFIG_x selects the default FLASH size based on
  *   the chip part number.
  *   This value can be overridden with CONFIG_STM32F7_FLASH_OVERRIDE_x
@@ -40,53 +42,53 @@
 
 #define _K(x) ((x)*1024)
 
-#if !defined(CONFIG_STM32F7_FLASH_OVERRIDE_DEFAULT) && \
-    !defined(CONFIG_STM32F7_FLASH_OVERRIDE_E) && \
-    !defined(CONFIG_STM32F7_FLASH_OVERRIDE_G) && \
-    !defined(CONFIG_STM32F7_FLASH_OVERRIDE_I) && \
-    !defined(CONFIG_STM32F7_FLASH_CONFIG_E) && \
-    !defined(CONFIG_STM32F7_FLASH_CONFIG_G) && \
-    !defined(CONFIG_STM32F7_FLASH_CONFIG_I)
-#  define CONFIG_STM32F7_FLASH_OVERRIDE_E
+#if !defined(CONFIG_STM32_FLASH_OVERRIDE_DEFAULT) && \
+    !defined(CONFIG_STM32_FLASH_OVERRIDE_E) && \
+    !defined(CONFIG_STM32_FLASH_OVERRIDE_G) && \
+    !defined(CONFIG_STM32_FLASH_OVERRIDE_I) && \
+    !defined(CONFIG_STM32_FLASH_CONFIG_E) && \
+    !defined(CONFIG_STM32_FLASH_CONFIG_G) && \
+    !defined(CONFIG_STM32_FLASH_CONFIG_I)
+#  define CONFIG_STM32_FLASH_OVERRIDE_E
 #  warning "Flash size not defined defaulting to 512KiB (E)"
 #endif
 
-#if !defined(CONFIG_STM32F7_FLASH_OVERRIDE_DEFAULT)
+#if !defined(CONFIG_STM32_FLASH_OVERRIDE_DEFAULT)
 
-#  undef CONFIG_STM32F7_FLASH_CONFIG_E
-#  undef CONFIG_STM32F7_FLASH_CONFIG_G
-#  undef CONFIG_STM32F7_FLASH_CONFIG_I
+#  undef CONFIG_STM32_FLASH_CONFIG_E
+#  undef CONFIG_STM32_FLASH_CONFIG_G
+#  undef CONFIG_STM32_FLASH_CONFIG_I
 
-#  if defined(CONFIG_STM32F7_FLASH_OVERRIDE_E)
+#  if defined(CONFIG_STM32_FLASH_OVERRIDE_E)
 
-#    define CONFIG_STM32F7_FLASH_CONFIG_E
+#    define CONFIG_STM32_FLASH_CONFIG_E
 
-#  elif defined(CONFIG_STM32F7_FLASH_OVERRIDE_G)
+#  elif defined(CONFIG_STM32_FLASH_OVERRIDE_G)
 
-#    define CONFIG_STM32F7_FLASH_CONFIG_G
+#    define CONFIG_STM32_FLASH_CONFIG_G
 
-#  elif defined(CONFIG_STM32F7_FLASH_OVERRIDE_I)
+#  elif defined(CONFIG_STM32_FLASH_OVERRIDE_I)
 
-#    define CONFIG_STM32F7_FLASH_CONFIG_I
+#    define CONFIG_STM32_FLASH_CONFIG_I
 
 #  endif
 #endif
 
-#if defined(CONFIG_STM32F7_FLASH_CONFIG_E)
+#if defined(CONFIG_STM32_FLASH_CONFIG_E)
 
 #  define STM32_FLASH_NPAGES      6
 #  define STM32_FLASH_SIZE        _K((4 * 32) + (1 * 128) + (1 * 256))
 #  define STM32_FLASH_SIZES       {_K(32), _K(32), _K(32), _K(32),  \
                                    _K(128), _K(256)}
 
-#elif defined(CONFIG_STM32F7_FLASH_CONFIG_G)
+#elif defined(CONFIG_STM32_FLASH_CONFIG_G)
 
 #  define STM32_FLASH_NPAGES      8
 #  define STM32_FLASH_SIZE        _K((4 * 32) + (1 * 128) + (3 * 256))
 #  define STM32_FLASH_SIZES       {_K(32), _K(32), _K(32), _K(32),  \
                                   _K(128), _K(256), _K(256), _K(256)}
 
-#elif defined(CONFIG_STM32F7_FLASH_CONFIG_I)
+#elif defined(CONFIG_STM32_FLASH_CONFIG_I)
 
 #  define STM32_FLASH_NPAGES      12
 #  define STM32_FLASH_SIZE        _K((4 * 32) + (1 * 128) + (7 * 256))
@@ -204,4 +206,4 @@
 #define FLASH_OPTCR1_BOOTADD1_MASK  (0xffff << FLASH_OPTCR1_BOOTADD1_SHIFT)
 #  define FLASH_OPTCR1_BOOTADD1(n)  ((uint32_t)(n) << FLASH_OPTCR1_BOOTADD1_SHIFT)
 
-#endif /* __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32F74XX75XX_FLASH_H */
+#endif /* __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32F76XX77XX_FLASH_H */

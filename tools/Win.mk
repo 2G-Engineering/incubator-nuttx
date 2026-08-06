@@ -1,6 +1,8 @@
 ############################################################################
 # tools/Win.mk
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -21,12 +23,6 @@
 export SHELL=cmd
 
 export TOPDIR := ${shell echo %CD%}
-
-# Build any necessary tools needed early in the build.
-# incdir - Is needed immediately by all Make.defs file.
-
-DUMMY  := ${shell $(MAKE) -C tools -f Makefile.host incdir \
-          INCDIR="$(TOPDIR)\tools\incdir.bat"}
 
 include $(TOPDIR)\Make.defs
 -include $(TOPDIR)\.version
@@ -198,6 +194,17 @@ else
 include\stdarg.h:
 endif
 
+# Target used to copy include\nuttx\lib\stdbit.h.  If CONFIG_ARCH_STDBIT_H or
+# CONFIG_LIBC_STDBIT_GENERIC is set, copy stdbit.h to include\ for C23 bit
+# utilities.
+
+ifeq ($(firstword $(filter y, $(CONFIG_ARCH_STDBIT_H) $(CONFIG_LIBC_STDBIT_GENERIC))),y)
+include\stdbit.h: include\nuttx\lib\stdbit.h
+	$(Q) cp -f include\nuttx\lib\stdbit.h include\stdbit.h
+else
+include\stdbit.h:
+endif
+
 # Target used to copy include\nuttx\setjmp.h.  If CONFIG_ARCH_SETJMP_H is
 # defined, then there is an architecture specific setjmp.h header file
 # that will be included indirectly from include\setjmp.h.  But first, we
@@ -209,6 +216,13 @@ include\setjmp.h: include\nuttx\lib\setjmp.h
 else
 include\setjmp.h:
 endif
+
+# Targets used to generate compiler-specific include paths
+# Build this tools needed early in the build
+# so we define it as a dependency of `context` target
+
+tools\incdir$(HOSTEXEEXT):
+	$(Q) $(MAKE) -C tools -f Makefile.host incdir INCDIR="$(TOPDIR)\tools\incdir.bat"
 
 # Targets used to build include\nuttx\version.h.  Creation of version.h is
 # part of the overall NuttX configuration sequence. Notice that the
@@ -231,14 +245,14 @@ include\nuttx\version.h: $(TOPDIR)\.version tools\mkversion$(HOSTEXEEXT)
 # part of the overall NuttX configuration sequence. Notice that the
 # tools\mkconfig tool is built and used to create include\nuttx\config.h
 
-tools\mkconfig$(HOSTEXEEXT):
+tools\mkconfig$(HOSTEXEEXT): prebuild
 	$(Q) $(MAKE) -C tools -f Makefile.host mkconfig$(HOSTEXEEXT)
 
 include\nuttx\config.h: $(TOPDIR)\.config tools\mkconfig$(HOSTEXEEXT)
 	$(Q) grep -v "CONFIG_BASE_DEFCONFIG" "$(TOPDIR)\.config" > "$(TOPDIR)\.config.tmp"
 # In-place edit can mess up permissions on Windows
 	$(Q) if ! cmp -s "$(TOPDIR)\.config.tmp" "$(TOPDIR)\.config.orig" ; then \
-		sed "/CONFIG_BASE_DEFCONFIG/s/\"$$/-dirty\"/" "$(TOPDIR)\.config" > "$(TOPDIR)\.config-temp"; \
+		sed "/CONFIG_BASE_DEFCONFIG/ { /-dirty/! s/\"$$/-dirty\"/ }" "$(TOPDIR)\.config" > "$(TOPDIR)\.config-temp"; \
 	else \
 		sed "s/-dirty//g" "$(TOPDIR)\.config" > "$(TOPDIR)\.config-temp"; \
 	fi
@@ -264,10 +278,18 @@ include\arch:
 	$(Q) $(DIRLINK) $(TOPDIR)\$(ARCH_DIR)\include $@
 
 # Link the boards\<arch>\<chip>\<board>\include directory to include\arch\board
+# If the above path does not exist, then we try to link to common
+
+LINK_INCLUDE_DIR=$(BOARD_DIR)/include
+ifeq ($(wildcard $(LINK_INCLUDE_DIR)),)
+	ifneq ($(strip $(BOARD_COMMON_DIR)),)
+		LINK_INCLUDE_DIR = $(BOARD_COMMON_DIR)/include
+	endif
+endif
 
 include\arch\board: | include\arch
 	@echo "LN: $@ to $(BOARD_DIR)\include"
-	$(Q) $(DIRLINK) $(BOARD_DIR)\include $@
+	$(Q) $(DIRLINK) $(LINK_INCLUDE_DIR) $@
 
 # Link the boards\<arch>\<chip>\common dir to arch\<arch-name>\src\board
 # Link the boards\<arch>\<chip>\<board>\src dir to arch\<arch-name>\src\board\board
@@ -386,7 +408,7 @@ DIRLINKS_FILE += $(DIRLINKS_EXTERNAL_DEP)
 # The symlink subfolders need to be removed before the parent symlinks
 
 .PHONY: clean_dirlinks
-clean_dirlinks:
+clean_dirlinks: tools\incdir$(HOSTEXEEXT)
 	$(Q) $(call DELFILE, $(DIRLINKS_FILE))
 	$(Q) $(call DELFILE, .dirlinks)
 	$(Q) $(DIRUNLINK) drivers\platform
@@ -416,7 +438,7 @@ endif
 
 CONTEXTDIRS_DEPS = $(patsubst %,%\.context,$(CONTEXTDIRS))
 
-context: include\nuttx\config.h include\nuttx\version.h $(CONTEXTDIRS_DEPS) .dirlinks | staging
+context: tools\incdir$(HOSTEXEEXT) include\nuttx\config.h include\nuttx\version.h $(CONTEXTDIRS_DEPS) .dirlinks | staging
 
 ifeq ($(NEED_MATH_H),y)
 context: include\math.h
@@ -428,6 +450,10 @@ endif
 
 ifeq ($(CONFIG_ARCH_STDARG_H),y)
 context: include\stdarg.h
+endif
+
+ifeq ($(firstword $(filter y, $(CONFIG_ARCH_STDBIT_H) $(CONFIG_LIBC_STDBIT_GENERIC))),y)
+context: include\stdbit.h
 endif
 
 ifeq ($(CONFIG_ARCH_SETJMP_H),y)
@@ -472,6 +498,16 @@ clean_context:
 # build those libraries.
 
 include tools/LibTargets.mk
+
+# prebuild
+#
+# Some architectures require the use of special tools and special handling
+# BEFORE building NuttX. The `Make.defs` files for those architectures
+# should override the following define with the correct operations for
+# that platform.
+
+prebuild:
+	$(call PREBUILD, $(TOPDIR))
 
 # pass1 and pass2
 #
@@ -710,7 +746,7 @@ endif
 # apps_distclean: Perform the distclean operation only in the user application
 #                 directory.
 
-apps_preconfig: .dirlinks
+apps_preconfig: tools\incdir$(HOSTEXEEXT) .dirlinks
 ifneq ($(APPDIR),)
 	$(Q) $(MAKE) -C "$(APPDIR)" preconfig
 endif

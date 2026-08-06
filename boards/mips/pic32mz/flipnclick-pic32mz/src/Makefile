@@ -1,6 +1,8 @@
 ############################################################################
 # boards/mips/pic32mz/flipnclick-pic32mz/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -21,10 +23,6 @@
 include $(TOPDIR)/Make.defs
 
 CSRCS = pic32mz_boot.c pic32mz_bringup.c pic32mz_userleds.c pic32mz_spi.c
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += pic32mz_appinit.c
-endif
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += pic32mz_autoleds.c

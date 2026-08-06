@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/common/gnu/arm_signal_handler.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,13 +28,12 @@
 
 #include <arch/syscall.h>
 
-#if defined(CONFIG_BUILD_PROTECTED) && !defined(__KERNEL__)
+#ifndef __KERNEL__
 
 /****************************************************************************
  * File info
  ****************************************************************************/
 
-	.syntax		unified
 	.file		"arm_signal_handler.S"
 
 /****************************************************************************
@@ -67,9 +68,19 @@
  ****************************************************************************/
 
 	.text
+#ifdef CONFIG_ARM_THUMB
+#  ifdef __ghs__
+	.thumb
+#  else
 	.thumb_func
+#  endif
+#endif
 	.globl	up_signal_handler
+#ifdef __ghs__
+	.type	up_signal_handler, $function
+#else
 	.type	up_signal_handler, function
+#endif
 up_signal_handler:
 
 	/* Save some register */
@@ -98,4 +109,4 @@ up_signal_handler:
 	.size	up_signal_handler, .-up_signal_handler
 	.end
 
-#endif /* CONFIG_BUILD_PROTECTED && !__KERNEL__ */
+#endif /* !__KERNEL__ */

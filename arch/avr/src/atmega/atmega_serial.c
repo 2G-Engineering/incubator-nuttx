@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/avr/src/atmega/atmega_serial.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,8 +33,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/serial/serial.h>
@@ -343,7 +345,7 @@ static void usart1_shutdown(struct uart_dev_s *dev)
  * Description:
  *   Configure the USART to operation in interrupt driven mode.  This method
  *   is called when the serial port is opened.  Normally, this is just after
- *   the the setup() method is called, however, the serial console may
+ *   the setup() method is called, however, the serial console may
  *   operate in a non-interrupt driven mode during the boot phase.
  *
  *   RX and TX interrupts are not enabled when by the attach method (unless
@@ -797,7 +799,7 @@ static bool usart1_txready(struct uart_dev_s *dev)
  * Name: usart0/1_txempty
  *
  * Description:
- *   Return true if the tranmsit data register and shift reqister are both
+ *   Return true if the tranmsit data register and shift register are both
  *   empty
  *
  ****************************************************************************/
@@ -827,7 +829,7 @@ static bool usart1_txempty(struct uart_dev_s *dev)
  *
  * Description:
  *   Performs the low level USART initialization early in debug so that the
- *   serial console will be available during bootup.  This must be called
+ *   serial console will be available during boot up.  This must be called
  *   before avr_serialinit.
  *
  ****************************************************************************/
@@ -889,7 +891,7 @@ void avr_serialinit(void)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef HAVE_SERIAL_CONSOLE
   uint8_t imr;
@@ -900,15 +902,6 @@ int up_putc(int ch)
   usart1_disableusartint(&imr);
 #endif
 
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      avr_lowputc('\r');
-    }
-
   avr_lowputc(ch);
 
 #if defined(CONFIG_USART0_SERIAL_CONSOLE)
@@ -917,8 +910,6 @@ int up_putc(int ch)
   usart1_restoreusartint(imr);
 #endif
 #endif
-
-  return ch;
 }
 
 #else /* USE_SERIALDRIVER */
@@ -931,21 +922,11 @@ int up_putc(int ch)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef HAVE_SERIAL_CONSOLE
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      avr_lowputc('\r');
-    }
-
   avr_lowputc(ch);
 #endif
-  return ch;
 }
 
 #endif /* USE_SERIALDRIVER */

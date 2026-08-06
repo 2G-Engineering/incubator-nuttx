@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/wqueue/kwork_inherit.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,8 +28,8 @@
 
 #include <sched.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/wqueue.h>
 
@@ -68,7 +70,10 @@ static void lpwork_boostworker(pid_t wpid, uint8_t reqprio)
 
   /* REVISIT: Priority multi-boost is not supported */
 
-  DEBUGASSERT(wtcb->boost_priority == 0);
+  if (wtcb->boost_priority != 0)
+    {
+      return;
+    }
 
   /* If the priority of the client thread that is greater than the base
    * priority of the worker thread, then we may need to adjust the worker
@@ -131,7 +136,10 @@ static void lpwork_restoreworker(pid_t wpid, uint8_t reqprio)
 
   /* REVISIT: Priority multi-boost is not supported. */
 
-  DEBUGASSERT(wtcb->boost_priority == reqprio);
+  if (wtcb->boost_priority != reqprio)
+    {
+      return;
+    }
 
   /* Clear the threat boost priority. */
 
@@ -213,7 +221,6 @@ void lpwork_boostpriority(uint8_t reqprio)
   /* Prevent context switches until we get the priorities right */
 
   flags = enter_critical_section();
-  sched_lock();
 
   /* Adjust the priority of every worker thread */
 
@@ -222,7 +229,6 @@ void lpwork_boostpriority(uint8_t reqprio)
       lpwork_boostworker(g_lpwork.worker[wndx].pid, reqprio);
     }
 
-  sched_unlock();
   leave_critical_section(flags);
 }
 
@@ -259,7 +265,6 @@ void lpwork_restorepriority(uint8_t reqprio)
   /* Prevent context switches until we get the priorities right */
 
   flags = enter_critical_section();
-  sched_lock();
 
   /* Adjust the priority of every worker thread */
 
@@ -268,7 +273,6 @@ void lpwork_restorepriority(uint8_t reqprio)
       lpwork_restoreworker(g_lpwork.worker[wndx].pid, reqprio);
     }
 
-  sched_unlock();
   leave_critical_section(flags);
 }
 

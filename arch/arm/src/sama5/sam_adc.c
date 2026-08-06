@@ -1,13 +1,11 @@
 /****************************************************************************
  * arch/arm/src/sama5/sam_adc.c
  *
- *   Copyright (C) 2013, 2014, 2017-2018 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
- *
- * The Atmel sample code has a BSD compatible license that requires this
- * copyright notice:
- *
- *   Copyright (c) 2012, Atmel Corporation
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2017-2018 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2013,2014 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2012 Atmel Corporation
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.orgr>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -58,7 +56,7 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -318,14 +316,20 @@
 /* DMA configuration flags */
 
 #ifdef CONFIG_SAMA5_ADC_DMA
+#  ifdef ATSAMA5D2
+#    define DMACH_FLAG_PERIPHAHB_AHB DMACH_FLAG_PERIPHAHB_AHB_IF1
+#  else
+#    define DMACH_FLAG_PERIPHAHB_AHB DMACH_FLAG_PERIPHAHB_AHB_IF2
+#  endif
+
 #  define DMA_FLAGS \
-     DMACH_FLAG_FIFOCFG_LARGEST | \
-     DMACH_FLAG_PERIPHPID(SAM_IRQ_ADC) | DMACH_FLAG_PERIPHAHB_AHB_IF2 | \
-     DMACH_FLAG_PERIPHH2SEL | DMACH_FLAG_PERIPHISPERIPH |  \
-     DMACH_FLAG_PERIPHWIDTH_16BITS | DMACH_FLAG_PERIPHCHUNKSIZE_1 | \
-     DMACH_FLAG_MEMPID_MAX | DMACH_FLAG_MEMAHB_AHB_IF0 | \
-     DMACH_FLAG_MEMWIDTH_16BITS | DMACH_FLAG_MEMINCREMENT | \
-     DMACH_FLAG_MEMCHUNKSIZE_1 | DMACH_FLAG_MEMBURST_4)
+      DMACH_FLAG_FIFOCFG_LARGEST   | DMACH_FLAG_PERIPHPID(SAM_IRQ_ADC) | \
+      DMACH_FLAG_PERIPHAHB_AHB     | DMACH_FLAG_PERIPHH2SEL            | \
+      DMACH_FLAG_PERIPHISPERIPH    | DMACH_FLAG_PERIPHWIDTH_16BITS     | \
+      DMACH_FLAG_PERIPHCHUNKSIZE_1 | DMACH_FLAG_MEMPID_MAX             | \
+      DMACH_FLAG_MEMAHB_AHB_IF0    | DMACH_FLAG_MEMWIDTH_16BITS        | \
+      DMACH_FLAG_MEMINCREMENT      | DMACH_FLAG_MEMCHUNKSIZE_1         | \
+      DMACH_FLAG_MEMBURST_4
 #endif
 
 /* Pick an unused channel number */
@@ -475,7 +479,9 @@ static void sam_adc_gain(struct sam_adc_s *priv);
 static void sam_adc_analogchange(struct sam_adc_s *priv);
 static void sam_adc_sequencer(struct sam_adc_s *priv);
 static void sam_adc_channels(struct sam_adc_s *priv);
+#if defined(CONFIG_SAMA5_ADC_PERIODIC_TRIG)
 static void sam_adc_trigperiod(struct sam_adc_s *priv, uint32_t period);
+#endif
 #endif
 
 /****************************************************************************
@@ -533,7 +539,7 @@ static struct adc_dev_s g_adcdev =
  *
  * Returned Value:
  *   true:  This is the first register access of this type.
- *   flase: This is the same as the preceding register access.
+ *   false: This is the same as the preceding register access.
  *
  ****************************************************************************/
 
@@ -852,14 +858,14 @@ static int sam_adc_dmasetup(struct sam_adc_s *priv, uint8_t *buffer,
  *   None
  *
  ****************************************************************************/
-
+#if defined(CONFIG_SAMA5_ADC_PERIODIC_TRIG)
 static void sam_adc_trigperiod(struct sam_adc_s *priv, uint32_t period)
 {
   uint32_t trigper;
   uint32_t regval;
   uint32_t div;
 
-  /* Divide trigger period avoid overflows.  Division by ten is awkard, but
+  /* Divide trigger period avoid overflows.  Division by ten is awkward, but
    * appropriate here because times are specified in decimal with lots of
    * zeroes.
    */
@@ -903,6 +909,7 @@ static void sam_adc_trigperiod(struct sam_adc_s *priv, uint32_t period)
   regval |=  ADC_TRGR_TRGPER(trigper);
   sam_adc_putreg(priv, SAM_ADC_TRGR, regval);
 }
+#endif
 
 /****************************************************************************
  * ADC interrupt handling
@@ -1097,7 +1104,11 @@ static int sam_adc_bind(struct adc_dev_s *dev,
 
 static void sam_adc_reset(struct adc_dev_s *dev)
 {
+#if defined(CONFIG_SAMA5_ADC_REGDEBUG) || \
+    defined(CONFIG_SAMA5_ADC_DMA)      || \
+    defined(CONFIG_SAMA5_ADC_TIOATRIG)
   struct sam_adc_s *priv = (struct sam_adc_s *)dev->ad_priv;
+#endif
   uint32_t regval;
 
   ainfo("Resetting..\n");
@@ -1244,10 +1255,6 @@ static int sam_adc_setup(struct adc_dev_s *dev)
 
 static void sam_adc_shutdown(struct adc_dev_s *dev)
 {
-#ifdef CONFIG_SAMA5_ADC_DMA
-  struct sam_adc_s *priv = (struct sam_adc_s *)dev->ad_priv;
-#endif
-
   ainfo("Shutdown\n");
 
   /* Reset the ADC peripheral */
@@ -1331,7 +1338,11 @@ static int sam_adc_ioctl(struct adc_dev_s *dev, int cmd, unsigned long arg)
 {
 #ifdef CONFIG_SAMA5_ADC_SWTRIG
   struct sam_adc_s *priv = (struct sam_adc_s *)dev->ad_priv;
+#  ifndef CONFIG_SAMA5_ADC_REGDEBUG
+  UNUSED(priv);
+#  endif
 #endif
+
   int ret = OK;
 
   ainfo("cmd=%d arg=%ld\n", cmd, arg);
@@ -1633,7 +1644,7 @@ static int sam_adc_trigger(struct sam_adc_s *priv)
     }
 
   /* Configure to trigger using Timer/counter 0, channel 1, 2, or 3.
-   * NOTE: This trigger option depends on having properly configuer
+   * NOTE: This trigger option depends on having properly configured
    * timer/counter 0 to provide this output.  That is done independently
    * the timer/counter driver.
    */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/icmp/icmp_reply.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <sys/socket.h>
 #include <stdint.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <netinet/in.h>
 #include <net/if.h>
@@ -133,7 +135,7 @@ void icmp_reply(FAR struct net_driver_s *dev, int type, int code)
 
       /* Skip icmp header from iob */
 
-      iob_update_pktlen(dev->d_iob, datalen + ipicmplen);
+      iob_update_pktlen(dev->d_iob, datalen + ipicmplen, false);
     }
   else
     {
@@ -167,8 +169,9 @@ void icmp_reply(FAR struct net_driver_s *dev, int type, int code)
 
       /* Skip icmp header from iob */
 
-      iob_update_pktlen(dev->d_iob, dev->d_iob->io_pktlen +
-                                    sizeof(struct icmp_hdr_s));
+      iob_update_pktlen(dev->d_iob,
+                        dev->d_iob->io_pktlen + sizeof(struct icmp_hdr_s),
+                        false);
 
       /* Concat new icmp packet before original datagram */
 
@@ -196,11 +199,13 @@ void icmp_reply(FAR struct net_driver_s *dev, int type, int code)
   /* Calculate the ICMP checksum. */
 
   icmp->icmpchksum  = 0;
+#ifdef CONFIG_NET_ICMP_CHECKSUMS
   icmp->icmpchksum  = ~icmp_chksum_iob(dev->d_iob);
   if (icmp->icmpchksum == 0)
     {
       icmp->icmpchksum = 0xffff;
     }
+#endif
 
   ninfo("Outgoing ICMP packet length: %d\n", dev->d_len);
 }

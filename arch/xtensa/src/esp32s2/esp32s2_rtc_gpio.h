@@ -31,7 +31,7 @@
 #include <stdint.h>
 
 #include "hardware/esp32s2_rtc_io.h"
-#include "hardware/esp32s2_rtccntl.h"
+#include "soc/rtc_cntl_reg.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -575,7 +575,40 @@ static const rtc_io_desc_t g_rtc_io_desc[RTC_GPIO_NUMBER] =
 int esp32s2_configrtcio(int rtcio_num, rtcio_pinattr_t attr);
 
 /****************************************************************************
- * Name: esp32s2_rtcioirqinitialize
+ * Name: esp32s2_rtcioread
+ *
+ * Description:
+ *   Read one or zero from the selected RTC GPIO pin
+ *
+ * Input Parameters:
+ *   rtcio_num - RTCIO rtcio_num to be read.
+ *
+ * Returned Value:
+ *   The boolean representation of the input value (true/false).
+ *
+ ****************************************************************************/
+
+int esp32s2_rtcioread(int rtcio_num);
+
+/****************************************************************************
+ * Name: esp32s2_rtciowrite
+ *
+ * Description:
+ *   Write one or zero to the selected RTC GPIO pin
+ *
+ * Input Parameters:
+ *   rtcio_num - GPIO pin to be modified.
+ *   value     - The value to be written (0 or 1).
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+void esp32s2_rtciowrite(int rtcio_num, bool value);
+
+/****************************************************************************
+ * Name: esp_rtcioirqinitialize
  *
  * Description:
  *   Initialize logic to support a second level of interrupt decoding for
@@ -584,9 +617,9 @@ int esp32s2_configrtcio(int rtcio_num, rtcio_pinattr_t attr);
  ****************************************************************************/
 
 #ifdef CONFIG_ESP32S2_RTCIO_IRQ
-void esp32s2_rtcioirqinitialize(void);
+void esp_rtcioirqinitialize(void);
 #else
-#  define esp32s2_rtcioirqinitialize()
+#  define esp_rtcioirqinitialize()
 #endif
 
 /****************************************************************************
@@ -615,6 +648,50 @@ void esp32s2_rtcioirqenable(int irq);
 void esp32s2_rtcioirqdisable(int irq);
 #else
 #  define esp32s2_rtcioirqdisable(irq)
+#endif
+
+/****************************************************************************
+ * Name: esp32s2_rtcioirqattach
+ *
+ * Description:
+ *   Attach an interrupt handler to a specified RTC IRQ
+ *
+ * Input Parameters:
+ *   irq     - RTC IRQ number to attach the handler to
+ *   handler - Interrupt handler function
+ *   arg     - Argument to pass to the handler
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; A negated errno value is returned
+ *   to indicate the nature of any failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ESP32S2_RTCIO_IRQ
+int esp32s2_rtcioirqattach(int irq, xcpt_t handler, void *arg);
+#else
+#  define esp32s2_rtcioirqattach(irq, handler, arg) (-ENOSYS)
+#endif
+
+/****************************************************************************
+ * Name: esp32s2_rtcioirqdetach
+ *
+ * Description:
+ *   Detach an interrupt handler from a specified RTC IRQ
+ *
+ * Input Parameters:
+ *   irq - RTC IRQ number to detach the handler from
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; A negated errno value is returned
+ *   to indicate the nature of any failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ESP32S2_RTCIO_IRQ
+int esp32s2_rtcioirqdetach(int irq);
+#else
+#  define esp32s2_rtcioirqdetach(irq) (-ENOSYS)
 #endif
 
 #endif /* __ASSEMBLY__ */

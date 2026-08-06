@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samv7/sam_gpio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,20 +29,27 @@
 #include <stdint.h>
 #include <time.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
+#include <nuttx/spinlock.h>
 #include <arch/board/board.h>
 
 #include "arm_internal.h"
 #include "sam_gpio.h"
+#include "sam_periphclks.h"
 #include "hardware/sam_pio.h"
 #include "hardware/sam_matrix.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+#if defined(CONFIG_SAMV7_JTAG_FULL_ENABLE) && defined(CONFIG_SAMV7_USART1)
+#  error CONFIG_SAMV7_JTAG_FULL_ENABLE is incompatible with CONFIG_SAMV7_USART1.
+#  error The SYSIO Pin4 must be bound to PB4 to use USART1
+#endif
 
 #if !defined(CONFIG_SAMV7_ERASE_ENABLE) || \
     !defined(CONFIG_SAMV7_JTAG_FULL_ENABLE)
@@ -51,7 +60,7 @@
 #  endif
 #  if defined(CONFIG_SAMV7_JTAG_DISABLE)
 #    define SYSIO_BITS (MATRIX_CCFG_SYSIO_SYSIO4 | MATRIX_CCFG_SYSIO_SYSIO5 | \
-               MATRIX_CCFG_SYSIO_SYSIO6 | MATRIX_CCFG_SYSIO_SYSIO7)
+                        MATRIX_CCFG_SYSIO_SYSIO6 | MATRIX_CCFG_SYSIO_SYSIO7)
 #  endif
 #  if defined(CONFIG_SAMV7_JTAG_FULL_SW_ENABLE)
 #    define SYSIO_BITS MATRIX_CCFG_SYSIO_SYSIO4
@@ -67,6 +76,8 @@
 /****************************************************************************
  * Private Data
  ****************************************************************************/
+
+static spinlock_t g_configgpio_lock = SP_UNLOCKED;
 
 #ifdef CONFIG_DEBUG_GPIO_INFO
 static const char g_portchar[SAMV7_NPIO] =
@@ -461,17 +472,31 @@ static inline int sam_configperiph(uintptr_t base, uint32_t pin,
  *
  ****************************************************************************/
 
-#if !defined(CONFIG_SAMV7_ERASE_ENABLE) || \
-    !defined(CONFIG_SAMV7_JTAG_FULL_ENABLE)
 void sam_gpioinit(void)
 {
+#if !defined(CONFIG_SAMV7_ERASE_ENABLE) || \
+    !defined(CONFIG_SAMV7_JTAG_FULL_ENABLE)
   uint32_t regval;
 
   regval  = getreg32(SAM_MATRIX_CCFG_SYSIO);
   regval |= (SYSIO_ERASE_BIT | SYSIO_BITS);
   putreg32(regval, SAM_MATRIX_CCFG_SYSIO);
-}
 #endif
+
+  sam_pioa_enableclk();
+#if SAMV7_NPIO > 1
+  sam_piob_enableclk();
+#endif
+#if SAMV7_NPIO > 2
+  sam_pioc_enableclk();
+#endif
+#if SAMV7_NPIO > 3
+  sam_piod_enableclk();
+#endif
+#if SAMV7_NPIO > 4
+  sam_pioe_enableclk();
+#endif
+}
 
 /****************************************************************************
  * Name: sam_configgpio
@@ -490,7 +515,7 @@ int sam_configgpio(gpio_pinset_t cfgset)
 
   /* Disable interrupts to prohibit re-entrance. */
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_configgpio_lock);
 
   /* Enable writing to GPIO registers */
 
@@ -526,7 +551,7 @@ int sam_configgpio(gpio_pinset_t cfgset)
   /* Disable writing to GPIO registers */
 
   putreg32(PIO_WPMR_WPEN | PIO_WPMR_WPKEY, base + SAM_PIO_WPMR_OFFSET);
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_configgpio_lock, flags);
 
   return ret;
 }
@@ -599,7 +624,7 @@ int sam_dumpgpio(uint32_t pinset, const char *msg)
 
   /* The following requires exclusive access to the GPIO registers */
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_configgpio_lock);
 
   gpioinfo("PIO%c pinset: %08x base: %08x -- %s\n",
            g_portchar[port], pinset, base, msg);
@@ -656,7 +681,7 @@ int sam_dumpgpio(uint32_t pinset, const char *msg)
            getreg32(base + SAM_PIO_PCISR_OFFSET),
            getreg32(base + SAM_PIO_PCRHR_OFFSET));
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_configgpio_lock, flags);
   return OK;
 }
 #endif

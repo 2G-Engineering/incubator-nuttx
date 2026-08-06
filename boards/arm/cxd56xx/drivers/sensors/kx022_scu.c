@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/cxd56xx/drivers/sensors/kx022_scu.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <fixedmath.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <arch/types.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
@@ -91,7 +93,7 @@
 #endif
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 /* Structure for kx022 device */
@@ -492,7 +494,7 @@ int kx022_register(const char *devpath, int minor,
 
   /* Initialize the KX022 device structure */
 
-  priv = (struct kx022_dev_s *)kmm_malloc(sizeof(struct kx022_dev_s));
+  priv = kmm_malloc(sizeof(struct kx022_dev_s));
   if (!priv)
     {
       snerr("Failed to allocate instance\n");

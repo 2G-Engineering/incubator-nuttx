@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/time/lib_time.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -78,5 +80,5 @@ time_t time(time_t *tloc)
       return ts.tv_sec;
     }
 
-  return (time_t)ERROR;
+  return ERROR;
 }

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f746-ws/src/stm32f746-ws.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -106,7 +108,7 @@ void weak_function stm32_spidev_initialize(void);
  *
  ****************************************************************************/
 
-#if !defined(CONFIG_DISABLE_MOUNTPOINT) && defined(CONFIG_STM32F7_SDMMC1)
+#if !defined(CONFIG_DISABLE_MOUNTPOINT) && defined(CONFIG_STM32_SDMMC1)
 int stm32_sdio_initialize(void);
 #endif
 

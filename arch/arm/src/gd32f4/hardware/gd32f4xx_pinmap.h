@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/gd32f4/hardware/gd32f4xx_pinmap.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 
 /* GD32 F4 Family ***********************************************************/
 
-#if defined(CONFIG_GD32F4_GD32F450)
+#if defined(CONFIG_GD32F4_GD32F450) || defined(CONFIG_GD32F4_GD32F470)
 #  include "hardware/gd32f450_pinmap.h"
 
 #else

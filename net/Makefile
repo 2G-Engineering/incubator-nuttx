@@ -1,6 +1,8 @@
 ############################################################################
 # net/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -47,6 +49,7 @@ include sixlowpan/Make.defs
 include bluetooth/Make.defs
 include ieee802154/Make.defs
 include devif/Make.defs
+include ipfilter/Make.defs
 include ipforward/Make.defs
 include nat/Make.defs
 include netfilter/Make.defs
@@ -66,6 +69,10 @@ COBJS = $(CSRCS:.c=$(OBJEXT))
 
 SRCS = $(ASRCS) $(CSRCS)
 OBJS = $(AOBJS) $(COBJS)
+
+ifeq ($(CONFIG_NET_NO_LTO),y)
+CFLAGS += -fno-lto
+endif
 
 BIN = libnet$(LIBEXT)
 
@@ -98,6 +105,7 @@ clean:
 	$(call CLEAN)
 
 distclean: clean
+	$(call DELFILE, $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds))
 	$(call DELFILE, Make.dep)
 	$(call DELFILE, .depend)
 

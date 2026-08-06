@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imxrt/imxrt_serial.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #ifdef CONFIG_SERIAL_TERMIOS
 #  include <termios.h>
@@ -59,6 +61,16 @@
 #include "imxrt_serial.h"
 
 #ifdef USE_SERIALDRIVER
+
+/* Alias IOMUX_PULL_{UP|DOWN} to IOMUX V1 */
+
+#if defined(IOMUX_PULL_UP_47K)
+#define IOMUX_PULL_UP IOMUX_PULL_UP_47K
+#endif
+
+#if defined(IOMUX_PULL_DOWN_100K)
+#define IOMUX_PULL_DOWN IOMUX_PULL_DOWN_100K
+#endif
 
 /* The DMA buffer size when using RX DMA to emulate a FIFO.
  *
@@ -182,6 +194,38 @@
 #  define LPUART8_TXBUFSIZE_ALGN TXDMA_BUF_ALIGN
 #endif
 
+#if !defined(CONFIG_LPUART9_TXDMA)
+#  define LPUART9_TXBUFSIZE_ADJUSTED  CONFIG_LPUART9_TXBUFSIZE
+#  define LPUART9_TXBUFSIZE_ALGN
+#else
+#  define LPUART9_TXBUFSIZE_ADJUSTED TXDMA_BUF_SIZE(CONFIG_LPUART9_TXBUFSIZE)
+#  define LPUART9_TXBUFSIZE_ALGN TXDMA_BUF_ALIGN
+#endif
+
+#if !defined(CONFIG_LPUART10_TXDMA)
+#  define LPUART10_TXBUFSIZE_ADJUSTED  CONFIG_LPUART10_TXBUFSIZE
+#  define LPUART10_TXBUFSIZE_ALGN
+#else
+#  define LPUART10_TXBUFSIZE_ADJUSTED TXDMA_BUF_SIZE(CONFIG_LPUART10_TXBUFSIZE)
+#  define LPUART10_TXBUFSIZE_ALGN TXDMA_BUF_ALIGN
+#endif
+
+#if !defined(CONFIG_LPUART11_TXDMA)
+#  define LPUART11_TXBUFSIZE_ADJUSTED  CONFIG_LPUART11_TXBUFSIZE
+#  define LPUART11_TXBUFSIZE_ALGN
+#else
+#  define LPUART11_TXBUFSIZE_ADJUSTED TXDMA_BUF_SIZE(CONFIG_LPUART11_TXBUFSIZE)
+#  define LPUART11_TXBUFSIZE_ALGN TXDMA_BUF_ALIGN
+#endif
+
+#if !defined(CONFIG_LPUART12_TXDMA)
+#  define LPUART12_TXBUFSIZE_ADJUSTED  CONFIG_LPUART12_TXBUFSIZE
+#  define LPUART12_TXBUFSIZE_ALGN
+#else
+#  define LPUART12_TXBUFSIZE_ADJUSTED TXDMA_BUF_SIZE(CONFIG_LPUART12_TXBUFSIZE)
+#  define LPUART12_TXBUFSIZE_ALGN TXDMA_BUF_ALIGN
+#endif
+
 /* Which LPUART with be tty0/console and which tty1-7?  The console will
  * always be ttyS0.  If there is no console then will use the lowest
  * numbered UART.
@@ -269,196 +313,712 @@
 #  if defined(CONFIG_LPUART9_TXDMA)
 #    define SERIAL_HAVE_CONSOLE_TXDMA 1
 #  endif
+#elif defined(CONFIG_LPUART9_SERIAL_CONSOLE)
+#  define CONSOLE_DEV         g_lpuart9priv /* LPUART9 is console */
+#  define TTYS0_DEV           g_lpuart9priv /* LPUART9 is ttyS0 */
+#  define LPUART9_ASSIGNED    1
+#  if defined(CONFIG_LPUART9_RXDMA)
+#    define SERIAL_HAVE_CONSOLE_RXDMA 1
+#  endif
+#  if defined(CONFIG_LPUART9_TXDMA)
+#    define SERIAL_HAVE_CONSOLE_TXDMA 1
+#  endif
+#elif defined(CONFIG_LPUART10_SERIAL_CONSOLE)
+#  define CONSOLE_DEV         g_lpuart10priv /* LPUART10 is console */
+#  define TTYS0_DEV           g_lpuart10priv /* LPUART10 is ttyS0 */
+#  define LPUART10_ASSIGNED   1
+#  if defined(CONFIG_LPUART10_RXDMA)
+#    define SERIAL_HAVE_CONSOLE_RXDMA 1
+#  endif
+#  if defined(CONFIG_LPUART10_TXDMA)
+#    define SERIAL_HAVE_CONSOLE_TXDMA 1
+#  endif
+#elif defined(CONFIG_LPUART11_SERIAL_CONSOLE)
+#  define CONSOLE_DEV         g_lpuart11priv /* LPUART11 is console */
+#  define TTYS0_DEV           g_lpuart11priv /* LPUART11 is ttyS0 */
+#  define LPUART11_ASSIGNED   1
+#  if defined(CONFIG_LPUART11_RXDMA)
+#    define SERIAL_HAVE_CONSOLE_RXDMA 1
+#  endif
+#  if defined(CONFIG_LPUART11_TXDMA)
+#    define SERIAL_HAVE_CONSOLE_TXDMA 1
+#  endif
+#elif defined(CONFIG_LPUART12_SERIAL_CONSOLE)
+#  define CONSOLE_DEV         g_lpuart12priv /* LPUART12 is console */
+#  define TTYS0_DEV           g_lpuart12priv /* LPUART12 is ttyS0 */
+#  define LPUART12_ASSIGNED   1
+#  if defined(CONFIG_LPUART12_RXDMA)
+#    define SERIAL_HAVE_CONSOLE_RXDMA 1
+#  endif
+#  if defined(CONFIG_LPUART12_TXDMA)
+#    define SERIAL_HAVE_CONSOLE_TXDMA 1
+#  endif
 #else
 #  undef CONSOLE_DEV                      /* No console */
-#  if defined(CONFIG_IMXRT_LPUART1)
-#    define TTYS0_DEV         g_lpuart1priv /* LPUART1 is ttyS0 */
-#    define UART1_ASSIGNED    1
-#  elif defined(CONFIG_IMXRT_LPUART2)
-#    define TTYS0_DEV         g_lpuart2priv /* LPUART2 is ttyS0 */
-#    define UART2_ASSIGNED    1
-#  elif defined(CONFIG_IMXRT_LPUART3)
-#    define TTYS0_DEV         g_lpuart3priv /* LPUART3 is ttyS0 */
-#    define UART3_ASSIGNED    1
-#  elif defined(CONFIG_IMXRT_LPUART4)
-#    define TTYS0_DEV         g_lpuart4priv /* LPUART4 is ttyS0 */
-#    define UART4_ASSIGNED    1
-#  elif defined(CONFIG_IMXRT_LPUART5)
-#    define TTYS0_DEV         g_lpuart5priv /* LPUART5 is ttyS0 */
-#    define UART5_ASSIGNED    1
-#  elif defined(CONFIG_IMXRT_LPUART6)
-#    define TTYS0_DEV         g_lpuart6priv /* LPUART6 is ttyS0 */
-#    define UART6_ASSIGNED    1
-#  elif defined(CONFIG_IMXRT_LPUART7)
-#    define TTYS0_DEV         g_lpuart7priv /* LPUART7 is ttyS0 */
-#    define UART7_ASSIGNED    1
-#  elif defined(CONFIG_IMXRT_LPUART8)
-#    define TTYS0_DEV         g_lpuart8priv /* LPUART8 is ttyS0 */
-#    define UART8_ASSIGNED    1
-#  endif
 #endif
 
 #if defined(SERIAL_HAVE_CONSOLE_RXDMA) || defined(SERIAL_HAVE_CONSOLE_TXDMA)
 #  define SERIAL_HAVE_CONSOLE_DMA
 #endif
 
-/* Pick ttys1.  This could be any of UART1-8 excluding the console UART.
- * One of UART1-8 could be the console; one of UART1-8 has already been
- * assigned to ttys0.
- */
+/* Pick ttys0 or ttys1.  This could be any of UART1-12. */
 
 #if defined(CONFIG_IMXRT_LPUART1) && !defined(LPUART1_ASSIGNED)
-#  define TTYS1_DEV           g_lpuart1priv /* LPUART1 is ttyS1 */
-#  define LPUART1_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart1priv /* LPUART1 is ttyS1 */
+#    define LPUART1_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS0_DEV           g_lpuart1priv
+#    define LPUART1_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART2) && !defined(LPUART2_ASSIGNED)
-#  define TTYS1_DEV           g_lpuart2priv /* LPUART2 is ttyS1 */
-#  define LPUART2_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart2priv /* LPUART2 is ttyS1 */
+#    define LPUART2_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS0_DEV           g_lpuart2priv
+#    define LPUART2_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART3) && !defined(LPUART3_ASSIGNED)
-#  define TTYS1_DEV           g_lpuart3priv /* LPUART3 is ttyS1 */
-#  define LPUART3_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart3priv /* LPUART3 is ttyS1 */
+#    define LPUART3_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS0_DEV           g_lpuart3priv
+#    define LPUART3_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART4) && !defined(LPUART4_ASSIGNED)
-#  define TTYS1_DEV           g_lpuart4priv /* LPUART4 is ttyS1 */
-#  define LPUART4_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart4priv /* LPUART4 is ttyS1 */
+#    define LPUART4_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS0_DEV           g_lpuart4priv
+#    define LPUART4_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART5) && !defined(LPUART5_ASSIGNED)
-#  define TTYS1_DEV           g_lpuart5priv /* LPUART5 is ttyS1 */
-#  define LPUART5_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart5priv /* LPUART5 is ttyS1 */
+#    define LPUART5_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS0_DEV           g_lpuart5priv
+#    define LPUART5_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART6) && !defined(LPUART6_ASSIGNED)
-#  define TTYS1_DEV           g_lpuart6priv /* LPUART6 is ttyS1 */
-#  define LPUART6_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart6priv /* LPUART6 is ttyS1 */
+#    define LPUART6_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS0_DEV           g_lpuart6priv
+#    define LPUART6_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART7) && !defined(LPUART7_ASSIGNED)
-#  define TTYS1_DEV           g_lpuart7priv /* LPUART7 is ttyS1 */
-#  define LPUART7_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart7priv /* LPUART7 is ttyS1 */
+#    define LPUART7_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS0_DEV           g_lpuart7priv
+#    define LPUART7_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART8) && !defined(LPUART8_ASSIGNED)
-#  define TTYS1_DEV           g_lpuart8priv /* LPUART8 is ttyS1 */
-#  define LPUART8_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart8priv /* LPUART8 is ttyS1 */
+#    define LPUART8_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS0_DEV           g_lpuart8priv
+#    define LPUART8_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART9) && !defined(LPUART9_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart9priv /* LPUART9 is ttyS1 */
+#    define LPUART9_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS0_DEV           g_lpuart9priv
+#    define LPUART9_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART10) && !defined(LPUART10_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart10priv /* LPUART10 is ttyS1 */
+#    define LPUART10_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS0_DEV           g_lpuart10priv
+#    define LPUART10_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART11) && !defined(LPUART11_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart11priv /* LPUART11 is ttyS1 */
+#    define LPUART11_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS0_DEV           g_lpuart11priv
+#    define LPUART11_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART12) && !defined(LPUART12_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart12priv /* LPUART12 is ttyS1 */
+#    define LPUART12_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS0_DEV           g_lpuart12priv
+#    define LPUART12_ASSIGNED    1
+#  endif
 #endif
 
-/* Pick ttys2.  This could be one of UART2-8. It can't be UART1 because that
- * was either assigned as ttyS0 or ttys1.  One of UART 1-8 could be the
- * console.  One of UART2-8 has already been assigned to ttys0 or ttyS1.
- */
+/* Pick ttys1/ttys2.  This could be one of UART2-12. */
 
 #if defined(CONFIG_IMXRT_LPUART2) && !defined(LPUART2_ASSIGNED)
-#  define TTYS2_DEV           g_lpuart2priv /* LPUART2 is ttyS2 */
-#  define LPUART2_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart2priv /* LPUART2 is ttyS2 */
+#    define LPUART2_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart2priv
+#    define LPUART2_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART3) && !defined(LPUART3_ASSIGNED)
-#  define TTYS2_DEV           g_lpuart3priv /* LPUART3 is ttyS2 */
-#  define LPUART3_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart3priv /* LPUART3 is ttyS2 */
+#    define LPUART3_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart3priv
+#    define LPUART3_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART4) && !defined(LPUART4_ASSIGNED)
-#  define TTYS2_DEV           g_lpuart4priv /* LPUART4 is ttyS2 */
-#  define LPUART4_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart4priv /* LPUART4 is ttyS2 */
+#    define LPUART4_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart4priv
+#    define LPUART4_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART5) && !defined(LPUART5_ASSIGNED)
-#  define TTYS2_DEV           g_lpuart5priv /* LPUART5 is ttyS2 */
-#  define LPUART5_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart5priv /* LPUART5 is ttyS2 */
+#    define LPUART5_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart5priv
+#    define LPUART5_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART6) && !defined(LPUART6_ASSIGNED)
-#  define TTYS2_DEV           g_lpuart6priv /* LPUART6 is ttyS2 */
-#  define LPUART6_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart6priv /* LPUART6 is ttyS2 */
+#    define LPUART6_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart6priv
+#    define LPUART6_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART7) && !defined(LPUART7_ASSIGNED)
-#  define TTYS2_DEV           g_lpuart7priv /* LPUART7 is ttyS2 */
-#  define LPUART7_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart7priv /* LPUART7 is ttyS2 */
+#    define LPUART7_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart7priv
+#    define LPUART7_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART8) && !defined(LPUART8_ASSIGNED)
-#  define TTYS2_DEV           g_lpuart8priv /* LPUART8 is ttyS2 */
-#  define LPUART8_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart8priv /* LPUART8 is ttyS2 */
+#    define LPUART8_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart8priv
+#    define LPUART8_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART9) && !defined(LPUART9_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart9priv /* LPUART9 is ttyS2 */
+#    define LPUART9_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart9priv
+#    define LPUART9_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART10) && !defined(LPUART10_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart10priv /* LPUART10 is ttyS2 */
+#    define LPUART10_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart10priv
+#    define LPUART10_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART11) && !defined(LPUART11_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart11priv /* LPUART11 is ttyS2 */
+#    define LPUART11_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart11priv
+#    define LPUART11_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART12) && !defined(LPUART12_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart12priv /* LPUART12 is ttyS2 */
+#    define LPUART12_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS1_DEV           g_lpuart12priv
+#    define LPUART12_ASSIGNED    1
+#  endif
 #endif
 
-/* Pick ttys3. This could be one of UART3-8. It can't be UART1-2 because
- * those have already been assigned to ttsyS0, 1, or 2.  One of
- * UART3-8 could also be the console.  One of UART3-8 has already
- * been assigned to ttys0, 1, or 3.
- */
+/* Pick ttys2/ttys3. This could be one of UART3-12. */
 
 #if defined(CONFIG_IMXRT_LPUART3) && !defined(LPUART3_ASSIGNED)
-#  define TTYS3_DEV           g_lpuart3priv /* LPUART3 is ttyS3 */
-#  define LPUART3_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart3priv /* LPUART3 is ttyS3 */
+#    define LPUART3_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart3priv
+#    define LPUART3_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART4) && !defined(LPUART4_ASSIGNED)
-#  define TTYS3_DEV           g_lpuart4priv /* LPUART4 is ttyS3 */
-#  define LPUART4_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart4priv /* LPUART4 is ttyS3 */
+#    define LPUART4_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart4priv
+#    define LPUART4_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART5) && !defined(LPUART5_ASSIGNED)
-#  define TTYS3_DEV           g_lpuart5priv /* LPUART5 is ttyS3 */
-#  define LPUART5_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart5priv /* LPUART5 is ttyS3 */
+#    define LPUART5_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart5priv
+#    define LPUART5_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART6) && !defined(LPUART6_ASSIGNED)
-#  define TTYS3_DEV           g_lpuart6priv /* LPUART6 is ttyS3 */
-#  define LPUART6_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart6priv /* LPUART6 is ttyS3 */
+#    define LPUART6_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart6priv
+#    define LPUART6_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART7) && !defined(LPUART7_ASSIGNED)
-#  define TTYS3_DEV           g_lpuart7priv /* LPUART7 is ttyS3 */
-#  define LPUART7_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart7priv /* LPUART7 is ttyS3 */
+#    define LPUART7_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart7priv
+#    define LPUART7_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART8) && !defined(LPUART8_ASSIGNED)
-#  define TTYS3_DEV           g_lpuart8priv /* LPUART8 is ttyS3 */
-#  define LPUART8_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart8priv /* LPUART8 is ttyS3 */
+#    define LPUART8_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart8priv
+#    define LPUART8_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART9) && !defined(LPUART9_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart9priv /* LPUART9 is ttyS3 */
+#    define LPUART9_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart9priv
+#    define LPUART9_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART10) && !defined(LPUART10_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart10priv /* LPUART10 is ttyS3 */
+#    define LPUART10_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart10priv
+#    define LPUART10_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART11) && !defined(LPUART11_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart11priv /* LPUART11 is ttyS3 */
+#    define LPUART11_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart11priv
+#    define LPUART11_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART12) && !defined(LPUART12_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart12priv /* LPUART12 is ttyS3 */
+#    define LPUART12_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS2_DEV           g_lpuart12priv
+#    define LPUART12_ASSIGNED    1
+#  endif
 #endif
 
-/* Pick ttys4. This could be one of UART4-8. It can't be UART1-3 because
- * those have already been assigned to ttsyS0, 1, 2 or 3.  One of
- * UART 4-8 could be the console.  One of UART4-8 has already been
- * assigned to ttys0, 1, 3, or 4.
- */
+/* Pick ttys3/ttys4. This could be one of UART4-8. */
 
 #if defined(CONFIG_IMXRT_LPUART4) && !defined(LPUART4_ASSIGNED)
-#  define TTYS4_DEV           g_lpuart4priv /* LPUART4 is ttyS4 */
-#  define LPUART4_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart4priv /* LPUART4 is ttyS4 */
+#    define LPUART4_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart4priv
+#    define LPUART4_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART5) && !defined(LPUART5_ASSIGNED)
-#  define TTYS4_DEV           g_lpuart5priv /* LPUART5 is ttyS4 */
-#  define LPUART5_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart5priv /* LPUART5 is ttyS4 */
+#    define LPUART5_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart5priv
+#    define LPUART5_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART6) && !defined(LPUART6_ASSIGNED)
-#  define TTYS4_DEV           g_lpuart6priv /* LPUART6 is ttyS4 */
-#  define LPUART6_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart6priv /* LPUART6 is ttyS4 */
+#    define LPUART6_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart6priv
+#    define LPUART6_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART7) && !defined(LPUART7_ASSIGNED)
-#  define TTYS4_DEV           g_lpuart7priv /* LPUART7 is ttyS4 */
-#  define LPUART7_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart7priv /* LPUART7 is ttyS4 */
+#    define LPUART7_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart7priv
+#    define LPUART7_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART8) && !defined(LPUART8_ASSIGNED)
-#  define TTYS4_DEV           g_lpuart8priv /* LPUART8 is ttyS4 */
-#  define LPUART8_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart8priv /* LPUART8 is ttyS4 */
+#    define LPUART8_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart8priv
+#    define LPUART8_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART9) && !defined(LPUART9_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart9priv /* LPUART9 is ttyS4 */
+#    define LPUART9_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart9priv
+#    define LPUART9_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART10) && !defined(LPUART10_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart10priv /* LPUART10 is ttyS4 */
+#    define LPUART10_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart10priv
+#    define LPUART10_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART11) && !defined(LPUART11_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart11priv /* LPUART11 is ttyS4 */
+#    define LPUART11_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart11priv
+#    define LPUART11_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART12) && !defined(LPUART12_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart12priv /* LPUART12 is ttyS4 */
+#    define LPUART12_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS3_DEV           g_lpuart12priv
+#    define LPUART12_ASSIGNED    1
+#  endif
 #endif
 
-/* Pick ttys5. This could be one of UART5-8. It can't be UART1-4 because
- * those have already been assigned to ttsyS0, 1, 2, 3 or 4.  One of
- * UART 5-8 could be the console.  One of UART5-8 has already been
- * assigned to ttys0, 1, 2, 3, or 4.
- */
+/* Pick ttys4/ttys5. This could be one of UART5-12. */
 
 #if defined(CONFIG_IMXRT_LPUART5) && !defined(LPUART5_ASSIGNED)
-#  define TTYS5_DEV           g_lpuart5priv /* LPUART5 is ttyS5 */
-#  define LPUART5_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS5_DEV           g_lpuart5priv /* LPUART5 is ttyS5 */
+#    define LPUART5_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart5priv
+#    define LPUART5_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART6) && !defined(LPUART6_ASSIGNED)
-#  define TTYS5_DEV           g_lpuart6priv /* LPUART6 is ttyS5 */
-#  define LPUART6_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS5_DEV           g_lpuart6priv /* LPUART6 is ttyS5 */
+#    define LPUART6_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart6priv
+#    define LPUART6_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART7) && !defined(LPUART7_ASSIGNED)
-#  define TTYS5_DEV           g_lpuart7priv /* LPUART7 is ttyS5 */
-#  define LPUART7_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS5_DEV           g_lpuart7priv /* LPUART7 is ttyS5 */
+#    define LPUART7_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart7priv
+#    define LPUART7_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART8) && !defined(LPUART8_ASSIGNED)
-#  define TTYS5_DEV           g_lpuart8priv /* LPUART8 is ttyS5 */
-#  define LPUART8_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS5_DEV           g_lpuart8priv /* LPUART8 is ttyS5 */
+#    define LPUART8_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart8priv
+#    define LPUART8_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART9) && !defined(LPUART9_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS5_DEV           g_lpuart9priv /* LPUART9 is ttyS5 */
+#    define LPUART9_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart9priv
+#    define LPUART9_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART10) && !defined(LPUART10_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS5_DEV           g_lpuart10priv /* LPUART10 is ttyS5 */
+#    define LPUART10_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart10priv
+#    define LPUART10_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART11) && !defined(LPUART11_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS5_DEV           g_lpuart11priv /* LPUART11 is ttyS5 */
+#    define LPUART11_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart11priv
+#    define LPUART11_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART12) && !defined(LPUART12_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS5_DEV           g_lpuart12priv /* LPUART12 is ttyS5 */
+#    define LPUART12_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS4_DEV           g_lpuart12priv
+#    define LPUART12_ASSIGNED    1
+#  endif
 #endif
 
-/* Pick ttys6. This could be one of UART6-8. It can't be UART1-5 because
- * those have already been assigned to ttsyS0, 1, 2, 3, 4 or 5.  One of
- * UART 6-8 could be the console.  One of UART6-8 has already been
- * assigned to ttys0, 1, 2, 3, 4 or 5.
- */
+/* Pick ttys5/ttys6. This could be one of UART6-12. */
 
 #if defined(CONFIG_IMXRT_LPUART6) && !defined(LPUART6_ASSIGNED)
-#  define TTYS6_DEV           g_lpuart6priv /* LPUART6 is ttyS5 */
-#  define LPUART6_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS6_DEV           g_lpuart6priv /* LPUART6 is ttyS6 */
+#    define LPUART6_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS5_DEV           g_lpuart6priv
+#    define LPUART6_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART7) && !defined(LPUART7_ASSIGNED)
-#  define TTYS6_DEV           g_lpuart7priv /* LPUART7 is ttyS5 */
-#  define LPUART7_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS6_DEV           g_lpuart7priv /* LPUART7 is ttyS6 */
+#    define LPUART7_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS5_DEV           g_lpuart7priv
+#    define LPUART7_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART8) && !defined(LPUART8_ASSIGNED)
-#  define TTYS6_DEV           g_lpuart8priv /* LPUART8 is ttyS5 */
-#  define LPUART8_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS6_DEV           g_lpuart8priv /* LPUART8 is ttyS6 */
+#    define LPUART8_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS5_DEV           g_lpuart8priv
+#    define LPUART8_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART9) && !defined(LPUART9_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS6_DEV           g_lpuart9priv /* LPUART9 is ttyS6 */
+#    define LPUART9_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS5_DEV           g_lpuart9priv
+#    define LPUART9_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART10) && !defined(LPUART10_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS6_DEV           g_lpuart10priv /* LPUART10 is ttyS6 */
+#    define LPUART10_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS5_DEV           g_lpuart10priv
+#    define LPUART10_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART11) && !defined(LPUART11_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS6_DEV           g_lpuart11priv /* LPUART11 is ttyS6 */
+#    define LPUART11_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS5_DEV           g_lpuart11priv
+#    define LPUART11_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART12) && !defined(LPUART12_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS6_DEV           g_lpuart12priv /* LPUART12 is ttyS6 */
+#    define LPUART12_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS5_DEV           g_lpuart12priv
+#    define LPUART12_ASSIGNED    1
+#  endif
 #endif
 
-/* Pick ttys7. This could be one of UART7-8. It can't be UART1-6 because
- * those have already been assigned to ttsyS0, 1, 2, 3, 4, 5 or 6.  One of
- * UART 7-8 could be the console.  One of UART7-8 has already been
- * assigned to ttys0, 1, 2, 3, 4, 5 or 6.
- */
+/* Pick ttys6/ttys7. This could be one of UART7-12. */
 
 #if defined(CONFIG_IMXRT_LPUART7) && !defined(LPUART7_ASSIGNED)
-#  define TTYS7_DEV           g_lpuart7priv /* LPUART7 is ttyS5 */
-#  define LPUART7_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS7_DEV           g_lpuart7priv /* LPUART7 is ttyS7 */
+#    define LPUART7_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS6_DEV           g_lpuart7priv
+#    define LPUART7_ASSIGNED    1
+#  endif
 #elif defined(CONFIG_IMXRT_LPUART8) && !defined(LPUART8_ASSIGNED)
-#  define TTYS7_DEV           g_lpuart8port /* LPUART8 is ttyS5 */
-#  define LPUART8_ASSIGNED    1
+#  if defined(CONSOLE_DEV)
+#    define TTYS7_DEV           g_lpuart8priv /* LPUART8 is ttyS7 */
+#    define LPUART8_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS6_DEV           g_lpuart8priv
+#    define LPUART8_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART9) && !defined(LPUART9_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS7_DEV           g_lpuart9priv /* LPUART9 is ttyS7 */
+#    define LPUART9_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS6_DEV           g_lpuart9priv
+#    define LPUART9_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART10) && !defined(LPUART10_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS7_DEV           g_lpuart10priv /* LPUART10 is ttyS7 */
+#    define LPUART10_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS6_DEV           g_lpuart10priv
+#    define LPUART10_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART11) && !defined(LPUART11_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS7_DEV           g_lpuart11priv /* LPUART11 is ttyS7 */
+#    define LPUART11_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS6_DEV           g_lpuart11priv
+#    define LPUART11_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART12) && !defined(LPUART12_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS7_DEV           g_lpuart12priv /* LPUART12 is ttyS7 */
+#    define LPUART12_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS6_DEV           g_lpuart12priv
+#    define LPUART12_ASSIGNED    1
+#  endif
+#endif
+
+/* Pick ttys7/ttys8. This could be one of UART8-12. */
+
+#if defined(CONFIG_IMXRT_LPUART8) && !defined(LPUART8_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS8_DEV           g_lpuart8priv /* LPUART8 is ttyS8 */
+#    define LPUART8_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS7_DEV           g_lpuart8priv
+#    define LPUART8_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART9) && !defined(LPUART9_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS8_DEV           g_lpuart9priv /* LPUART9 is ttyS8 */
+#    define LPUART9_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS7_DEV           g_lpuart9priv
+#    define LPUART9_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART10) && !defined(LPUART10_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS8_DEV           g_lpuart10priv /* LPUART10 is ttyS8 */
+#    define LPUART10_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS7_DEV           g_lpuart10priv
+#    define LPUART10_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART11) && !defined(LPUART11_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS8_DEV           g_lpuart11priv /* LPUART11 is ttyS8 */
+#    define LPUART11_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS7_DEV           g_lpuart11priv
+#    define LPUART11_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART12) && !defined(LPUART12_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS8_DEV           g_lpuart12priv /* LPUART12 is ttyS8 */
+#    define LPUART12_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS7_DEV           g_lpuart12priv
+#    define LPUART12_ASSIGNED    1
+#  endif
+#endif
+
+/* Pick ttys8/ttys9. This could be one of UART9-12. */
+
+#if defined(CONFIG_IMXRT_LPUART9) && !defined(LPUART9_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS9_DEV           g_lpuart9priv /* LPUART9 is ttyS9 */
+#    define LPUART9_ASSIGNED    1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS8_DEV           g_lpuart9priv
+#    define LPUART9_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART10) && !defined(LPUART10_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS9_DEV           g_lpuart10priv /* LPUART10 is ttyS9 */
+#    define LPUART10_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS8_DEV           g_lpuart10priv
+#    define LPUART10_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART11) && !defined(LPUART11_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS9_DEV           g_lpuart11priv /* LPUART11 is ttyS9 */
+#    define LPUART11_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS8_DEV           g_lpuart11priv
+#    define LPUART11_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART12) && !defined(LPUART12_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS9_DEV           g_lpuart12priv /* LPUART12 is ttyS9 */
+#    define LPUART12_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS8_DEV           g_lpuart12priv
+#    define LPUART12_ASSIGNED    1
+#  endif
+#endif
+
+/* Pick ttys9/ttys10. This could be one of UART10-12. */
+
+#if defined(CONFIG_IMXRT_LPUART10) && !defined(LPUART10_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS10_DEV          g_lpuart10priv /* LPUART10 is ttyS10 */
+#    define LPUART10_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS9_DEV           g_lpuart10priv
+#    define LPUART10_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART11) && !defined(LPUART11_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS10_DEV          g_lpuart11priv /* LPUART11 is ttyS10 */
+#    define LPUART11_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS9_DEV           g_lpuart11priv
+#    define LPUART11_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART12) && !defined(LPUART12_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS10_DEV          g_lpuart12priv /* LPUART12 is ttyS10 */
+#    define LPUART12_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS9_DEV           g_lpuart12priv
+#    define LPUART12_ASSIGNED    1
+#  endif
+#endif
+
+/* Pick ttys10/ttys11. This could be one of UART11-12. */
+
+#if defined(CONFIG_IMXRT_LPUART11) && !defined(LPUART11_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS11_DEV          g_lpuart11priv /* LPUART11 is ttyS11 */
+#    define LPUART11_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS10_DEV           g_lpuart11priv
+#    define LPUART11_ASSIGNED    1
+#  endif
+#elif defined(CONFIG_IMXRT_LPUART12) && !defined(LPUART12_ASSIGNED)
+#  if defined(CONSOLE_DEV)
+#    define TTYS11_DEV          g_lpuart12priv /* LPUART12 is ttyS11 */
+#    define LPUART12_ASSIGNED   1
+#  elif !defined(CONSOLE_DEV)
+#    define TTYS10_DEV           g_lpuart12priv
+#    define LPUART12_ASSIGNED    1
+#  endif
 #endif
 
 /* UART, if available, should have been assigned to ttyS0-7. */
@@ -478,6 +1038,7 @@ struct imxrt_uart_s
   struct uart_dev_s dev;    /* Generic UART device */
   uint32_t uartbase;        /* Base address of UART registers */
   uint32_t baud;            /* Configured baud */
+  spinlock_t lock;          /* Spinlock */
   uint32_t ie;              /* Saved enabled interrupts */
   uint8_t  irq;             /* IRQ associated with this UART */
   uint8_t  parity;          /* 0=none, 1=odd, 2=even */
@@ -491,6 +1052,7 @@ struct imxrt_uart_s
 #endif
 #ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
   const uint32_t tx_gpio;   /* TX GPIO pin configuration */
+  const struct uart_ops_s *prev_ops;
 #endif
 
   uint8_t  stopbits2:1;     /* 1: Configure with 2 stop bits vs 1 */
@@ -507,8 +1069,7 @@ struct imxrt_uart_s
 
 #ifdef SERIAL_HAVE_TXDMA
   const unsigned int dma_txreqsrc;  /* DMAMUX source of TX DMA request */
-  DMACH_HANDLE       txdma;         /* currently-open trasnmit DMA stream */
-  sem_t              txdmasem;      /* Indicate TX DMA completion */
+  DMACH_HANDLE       txdma;         /* currently-open transmit DMA stream */
 #endif
 
   /* RX DMA state */
@@ -518,6 +1079,10 @@ struct imxrt_uart_s
   DMACH_HANDLE       rxdma;         /* currently-open receive DMA stream */
   bool               rxenable;      /* DMA-based reception en/disable */
   uint32_t           rxdmanext;     /* Next byte in the DMA buffer to be read */
+#ifdef CONFIG_ARMV7M_DCACHE
+  uint32_t          rxdmaavail;     /* Number of bytes available without need to
+                                     * to invalidate the data cache */
+#endif
   char *const        rxfifo;        /* Receive DMA buffer */
 #endif
 };
@@ -551,10 +1116,16 @@ static bool imxrt_rxavailable(struct uart_dev_s *dev);
 #if !defined(SERIAL_HAVE_ONLY_TXDMA)
 static void imxrt_txint(struct uart_dev_s *dev, bool enable);
 #endif
+#ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
+static void imxrt_singlewire_txint(struct uart_dev_s *dev, bool enable);
+#endif
 
 #ifdef CONFIG_SERIAL_IFLOWCONTROL
 static bool imxrt_rxflowcontrol(struct uart_dev_s *dev,
                                 unsigned int nbuffered, bool upper);
+#endif
+#ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
+static void imxrt_singlewire_send(struct uart_dev_s *dev, int ch);
 #endif
 static void imxrt_send(struct uart_dev_s *dev, int ch);
 
@@ -599,6 +1170,49 @@ static int  up_pm_prepare(struct pm_callback_s *cb, int domain,
  ****************************************************************************/
 
 /* Serial driver UART operations */
+
+#ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
+static const struct uart_ops_s g_lpuart_singlewire_ops =
+{
+  .setup          = imxrt_setup,
+  .shutdown       = imxrt_shutdown,
+  .attach         = imxrt_attach,
+  .detach         = imxrt_detach,
+  .ioctl          = imxrt_ioctl,
+  .receive        = imxrt_receive,
+  .rxint          = imxrt_rxint,
+  .rxavailable    = imxrt_rxavailable,
+#ifdef CONFIG_SERIAL_IFLOWCONTROL
+  .rxflowcontrol  = imxrt_rxflowcontrol,
+#endif
+  .send           = imxrt_singlewire_send,
+  .txint          = imxrt_singlewire_txint,
+  .txready        = imxrt_txready,
+  .txempty        = imxrt_txempty,
+};
+
+#ifdef SERIAL_HAVE_RXDMA
+static const struct uart_ops_s g_lpuart_singlewire_rxdma_ops =
+{
+  .setup          = imxrt_dma_setup,
+  .shutdown       = imxrt_dma_shutdown,
+  .attach         = imxrt_attach,
+  .detach         = imxrt_detach,
+  .ioctl          = imxrt_ioctl,
+  .receive        = imxrt_dma_receive,
+  .rxint          = imxrt_dma_rxint,
+  .rxavailable    = imxrt_dma_rxavailable,
+#ifdef CONFIG_SERIAL_IFLOWCONTROL
+  .rxflowcontrol  = imxrt_rxflowcontrol,
+#endif
+  .send           = imxrt_singlewire_send,
+  .txint          = imxrt_singlewire_txint,
+  .txready        = imxrt_txready,
+  .txempty        = imxrt_txempty,
+};
+#endif
+
+#endif
 
 #if !defined(SERIAL_HAVE_ONLY_TXDMA) && !defined(SERIAL_HAVE_ONLY_RXDMA)
 static const struct uart_ops_s g_lpuart_ops =
@@ -737,6 +1351,26 @@ static char g_lpuart8rxfifo[RXDMA_BUFFER_SIZE]
   aligned_data(ARMV7M_DCACHE_LINESIZE);
 #endif
 
+#ifdef CONFIG_LPUART9_RXDMA
+static char g_lpuart9rxfifo[RXDMA_BUFFER_SIZE]
+  aligned_data(ARMV7M_DCACHE_LINESIZE);
+#endif
+
+#ifdef CONFIG_LPUART10_RXDMA
+static char g_lpuart10rxfifo[RXDMA_BUFFER_SIZE]
+  aligned_data(ARMV7M_DCACHE_LINESIZE);
+#endif
+
+#ifdef CONFIG_LPUART11_RXDMA
+static char g_lpuart11rxfifo[RXDMA_BUFFER_SIZE]
+  aligned_data(ARMV7M_DCACHE_LINESIZE);
+#endif
+
+#ifdef CONFIG_LPUART12_RXDMA
+static char g_lpuart12rxfifo[RXDMA_BUFFER_SIZE]
+  aligned_data(ARMV7M_DCACHE_LINESIZE);
+#endif
+
 /* Receive/Transmit buffers */
 
 #ifdef CONFIG_IMXRT_LPUART1
@@ -787,6 +1421,30 @@ static char g_lpuart8txbuffer[LPUART8_TXBUFSIZE_ADJUSTED] \
   LPUART8_TXBUFSIZE_ALGN;
 #endif
 
+#ifdef CONFIG_IMXRT_LPUART9
+static char g_lpuart9rxbuffer[CONFIG_LPUART9_RXBUFSIZE];
+static char g_lpuart9txbuffer[LPUART9_TXBUFSIZE_ADJUSTED]
+  LPUART9_TXBUFSIZE_ALGN;
+#endif
+
+#ifdef CONFIG_IMXRT_LPUART10
+static char g_lpuart10rxbuffer[CONFIG_LPUART10_RXBUFSIZE];
+static char g_lpuart10txbuffer[LPUART10_TXBUFSIZE_ADJUSTED]
+  LPUART10_TXBUFSIZE_ALGN;
+#endif
+
+#ifdef CONFIG_IMXRT_LPUART11
+static char g_lpuart11rxbuffer[CONFIG_LPUART11_RXBUFSIZE];
+static char g_lpuart11txbuffer[LPUART11_TXBUFSIZE_ADJUSTED]
+  LPUART11_TXBUFSIZE_ALGN;
+#endif
+
+#ifdef CONFIG_IMXRT_LPUART12
+static char g_lpuart12rxbuffer[CONFIG_LPUART12_RXBUFSIZE];
+static char g_lpuart12txbuffer[LPUART12_TXBUFSIZE_ADJUSTED]
+  LPUART12_TXBUFSIZE_ALGN;
+#endif
+
 /* This describes the state of the IMXRT lpuart1 port. */
 
 #ifdef CONFIG_IMXRT_LPUART1
@@ -818,6 +1476,7 @@ static struct imxrt_uart_s g_lpuart1priv =
 
   .uartbase     = IMXRT_LPUART1_BASE,
   .baud         = CONFIG_LPUART1_BAUD,
+  .lock         = SP_UNLOCKED,
   .irq          = IMXRT_IRQ_LPUART1,
   .parity       = CONFIG_LPUART1_PARITY,
   .bits         = CONFIG_LPUART1_BITS,
@@ -835,6 +1494,7 @@ static struct imxrt_uart_s g_lpuart1priv =
 #  endif
 #  ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
   .tx_gpio      = GPIO_LPUART1_TX,
+  .prev_ops     = 0,
 #  endif
 
 #  if (((defined(CONFIG_SERIAL_RS485CONTROL) || defined(CONFIG_SERIAL_IFLOWCONTROL))) \
@@ -848,7 +1508,6 @@ static struct imxrt_uart_s g_lpuart1priv =
 
 #  ifdef CONFIG_LPUART1_TXDMA
   .dma_txreqsrc = IMXRT_DMACHAN_LPUART1_TX,
-  .txdmasem     = SEM_INITIALIZER(1),
 #  endif
 #  ifdef CONFIG_LPUART1_RXDMA
   .dma_rxreqsrc = IMXRT_DMACHAN_LPUART1_RX,
@@ -888,6 +1547,7 @@ static struct imxrt_uart_s g_lpuart2priv =
 
   .uartbase     = IMXRT_LPUART2_BASE,
   .baud         = CONFIG_LPUART2_BAUD,
+  .lock         = SP_UNLOCKED,
   .irq          = IMXRT_IRQ_LPUART2,
   .parity       = CONFIG_LPUART2_PARITY,
   .bits         = CONFIG_LPUART2_BITS,
@@ -905,6 +1565,7 @@ static struct imxrt_uart_s g_lpuart2priv =
 #  endif
 #  ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
   .tx_gpio      = GPIO_LPUART2_TX,
+  .prev_ops     = 0,
 #  endif
 #  if (((defined(CONFIG_SERIAL_RS485CONTROL) || defined(CONFIG_SERIAL_IFLOWCONTROL))) \
     && defined(CONFIG_LPUART2_INVERTIFLOWCONTROL))
@@ -917,7 +1578,6 @@ static struct imxrt_uart_s g_lpuart2priv =
 
 #  ifdef CONFIG_LPUART2_TXDMA
   .dma_txreqsrc = IMXRT_DMACHAN_LPUART2_TX,
-  .txdmasem     = SEM_INITIALIZER(1),
 #  endif
 #  ifdef CONFIG_LPUART2_RXDMA
   .dma_rxreqsrc = IMXRT_DMACHAN_LPUART2_RX,
@@ -955,6 +1615,7 @@ static struct imxrt_uart_s g_lpuart3priv =
 
   .uartbase     = IMXRT_LPUART3_BASE,
   .baud         = CONFIG_LPUART3_BAUD,
+  .lock         = SP_UNLOCKED,
   .irq          = IMXRT_IRQ_LPUART3,
   .parity       = CONFIG_LPUART3_PARITY,
   .bits         = CONFIG_LPUART3_BITS,
@@ -972,6 +1633,7 @@ static struct imxrt_uart_s g_lpuart3priv =
 #  endif
 #  ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
   .tx_gpio      = GPIO_LPUART3_TX,
+  .prev_ops     = 0,
 #  endif
 #  if (((defined(CONFIG_SERIAL_RS485CONTROL) || defined(CONFIG_SERIAL_IFLOWCONTROL))) \
     && defined(CONFIG_LPUART3_INVERTIFLOWCONTROL))
@@ -984,7 +1646,6 @@ static struct imxrt_uart_s g_lpuart3priv =
 
 #  ifdef CONFIG_LPUART3_TXDMA
   .dma_txreqsrc = IMXRT_DMACHAN_LPUART3_TX,
-  .txdmasem     = SEM_INITIALIZER(1),
 #  endif
 #  ifdef CONFIG_LPUART3_RXDMA
   .dma_rxreqsrc = IMXRT_DMACHAN_LPUART3_RX,
@@ -1022,6 +1683,7 @@ static struct imxrt_uart_s g_lpuart4priv =
 
   .uartbase     = IMXRT_LPUART4_BASE,
   .baud         = CONFIG_LPUART4_BAUD,
+  .lock         = SP_UNLOCKED,
   .irq          = IMXRT_IRQ_LPUART4,
   .parity       = CONFIG_LPUART4_PARITY,
   .bits         = CONFIG_LPUART4_BITS,
@@ -1039,6 +1701,7 @@ static struct imxrt_uart_s g_lpuart4priv =
 #  endif
 #  ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
   .tx_gpio      = GPIO_LPUART4_TX,
+  .prev_ops     = 0,
 #  endif
 #  if (((defined(CONFIG_SERIAL_RS485CONTROL) || defined(CONFIG_SERIAL_IFLOWCONTROL))) \
     && defined(CONFIG_LPUART4_INVERTIFLOWCONTROL))
@@ -1051,7 +1714,6 @@ static struct imxrt_uart_s g_lpuart4priv =
 
 #  ifdef CONFIG_LPUART4_TXDMA
   .dma_txreqsrc = IMXRT_DMACHAN_LPUART4_TX,
-  .txdmasem     = SEM_INITIALIZER(1),
 #  endif
 #  ifdef CONFIG_LPUART4_RXDMA
   .dma_rxreqsrc = IMXRT_DMACHAN_LPUART4_RX,
@@ -1089,6 +1751,7 @@ static struct imxrt_uart_s g_lpuart5priv =
 
   .uartbase     = IMXRT_LPUART5_BASE,
   .baud         = CONFIG_LPUART5_BAUD,
+  .lock         = SP_UNLOCKED,
   .irq          = IMXRT_IRQ_LPUART5,
   .parity       = CONFIG_LPUART5_PARITY,
   .bits         = CONFIG_LPUART5_BITS,
@@ -1106,6 +1769,7 @@ static struct imxrt_uart_s g_lpuart5priv =
 #  endif
 #  ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
   .tx_gpio      = GPIO_LPUART5_TX,
+  .prev_ops     = 0,
 #  endif
 #  if (((defined(CONFIG_SERIAL_RS485CONTROL) || defined(CONFIG_SERIAL_IFLOWCONTROL))) \
     && defined(CONFIG_LPUART5_INVERTIFLOWCONTROL))
@@ -1118,7 +1782,6 @@ static struct imxrt_uart_s g_lpuart5priv =
 
 #  ifdef CONFIG_LPUART5_TXDMA
   .dma_txreqsrc = IMXRT_DMACHAN_LPUART5_TX,
-  .txdmasem     = SEM_INITIALIZER(1),
 #  endif
 #  ifdef CONFIG_LPUART5_RXDMA
   .dma_rxreqsrc = IMXRT_DMACHAN_LPUART5_RX,
@@ -1156,6 +1819,7 @@ static struct imxrt_uart_s g_lpuart6priv =
 
   .uartbase     = IMXRT_LPUART6_BASE,
   .baud         = CONFIG_LPUART6_BAUD,
+  .lock         = SP_UNLOCKED,
   .irq          = IMXRT_IRQ_LPUART6,
   .parity       = CONFIG_LPUART6_PARITY,
   .bits         = CONFIG_LPUART6_BITS,
@@ -1173,6 +1837,7 @@ static struct imxrt_uart_s g_lpuart6priv =
 #  endif
 #  ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
   .tx_gpio      = GPIO_LPUART6_TX,
+  .prev_ops     = 0,
 #  endif
 #  if (((defined(CONFIG_SERIAL_RS485CONTROL) || defined(CONFIG_SERIAL_IFLOWCONTROL))) \
     && defined(CONFIG_LPUART6_INVERTIFLOWCONTROL))
@@ -1185,7 +1850,6 @@ static struct imxrt_uart_s g_lpuart6priv =
 
 #  ifdef CONFIG_LPUART6_TXDMA
   .dma_txreqsrc = IMXRT_DMACHAN_LPUART6_TX,
-  .txdmasem     = SEM_INITIALIZER(1),
 #  endif
 #  ifdef CONFIG_LPUART6_RXDMA
   .dma_rxreqsrc = IMXRT_DMACHAN_LPUART6_RX,
@@ -1223,6 +1887,7 @@ static struct imxrt_uart_s g_lpuart7priv =
 
   .uartbase     = IMXRT_LPUART7_BASE,
   .baud         = CONFIG_LPUART7_BAUD,
+  .lock         = SP_UNLOCKED,
   .irq          = IMXRT_IRQ_LPUART7,
   .parity       = CONFIG_LPUART7_PARITY,
   .bits         = CONFIG_LPUART7_BITS,
@@ -1240,6 +1905,7 @@ static struct imxrt_uart_s g_lpuart7priv =
 #  endif
 #  ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
   .tx_gpio      = GPIO_LPUART7_TX,
+  .prev_ops     = 0,
 #  endif
 #  if (((defined(CONFIG_SERIAL_RS485CONTROL) || defined(CONFIG_SERIAL_IFLOWCONTROL))) \
     && defined(CONFIG_LPUART7_INVERTIFLOWCONTROL))
@@ -1252,7 +1918,6 @@ static struct imxrt_uart_s g_lpuart7priv =
 
 #  ifdef CONFIG_LPUART7_TXDMA
   .dma_txreqsrc = IMXRT_DMACHAN_LPUART7_TX,
-  .txdmasem     = SEM_INITIALIZER(1),
 #  endif
 #  ifdef CONFIG_LPUART7_RXDMA
   .dma_rxreqsrc = IMXRT_DMACHAN_LPUART7_RX,
@@ -1290,6 +1955,7 @@ static struct imxrt_uart_s g_lpuart8priv =
 
   .uartbase     = IMXRT_LPUART8_BASE,
   .baud         = CONFIG_LPUART8_BAUD,
+  .lock         = SP_UNLOCKED,
   .irq          = IMXRT_IRQ_LPUART8,
   .parity       = CONFIG_LPUART8_PARITY,
   .bits         = CONFIG_LPUART8_BITS,
@@ -1307,6 +1973,7 @@ static struct imxrt_uart_s g_lpuart8priv =
 #  endif
 #  ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
   .tx_gpio      = GPIO_LPUART8_TX,
+  .prev_ops     = 0,
 #  endif
 #  if (((defined(CONFIG_SERIAL_RS485CONTROL) || defined(CONFIG_SERIAL_IFLOWCONTROL))) \
     && defined(CONFIG_LPUART8_INVERTIFLOWCONTROL))
@@ -1319,12 +1986,283 @@ static struct imxrt_uart_s g_lpuart8priv =
 
 #  ifdef CONFIG_LPUART8_TXDMA
   .dma_txreqsrc = IMXRT_DMACHAN_LPUART8_TX,
-  .txdmasem     = SEM_INITIALIZER(1),
 #  endif
 #  ifdef CONFIG_LPUART8_RXDMA
   .dma_rxreqsrc = IMXRT_DMACHAN_LPUART8_RX,
   .rxfifo        = g_lpuart8rxfifo,
 #  endif
+};
+#endif
+
+#ifdef CONFIG_IMXRT_LPUART9
+static struct imxrt_uart_s g_lpuart9priv =
+{
+  .dev =
+    {
+      .recv         =
+      {
+        .size       = CONFIG_LPUART9_RXBUFSIZE,
+        .buffer     = g_lpuart9rxbuffer,
+      },
+      .xmit         =
+      {
+        .size       = CONFIG_LPUART9_TXBUFSIZE,
+        .buffer     = g_lpuart9txbuffer,
+      },
+    #if defined(CONFIG_LPUART9_RXDMA) && defined(CONFIG_LPUART9_TXDMA)
+        .ops       = &g_lpuart_rxtxdma_ops,
+    #elif defined(CONFIG_LPUART9_RXDMA) && !defined(CONFIG_LPUART9_TXDMA)
+        .ops       = &g_lpuart_rxdma_ops,
+    #elif !defined(CONFIG_LPUART9_RXDMA) && defined(CONFIG_LPUART9_TXDMA)
+        .ops       = &g_lpuart_txdma_ops,
+    #else
+        .ops       = &g_lpuart_ops,
+    #endif
+      .priv         = &g_lpuart9priv,
+    },
+
+  .uartbase     = IMXRT_LPUART9_BASE,
+  .baud         = CONFIG_LPUART9_BAUD,
+  .lock         = SP_UNLOCKED,
+  .irq          = IMXRT_IRQ_LPUART9,
+  .parity       = CONFIG_LPUART9_PARITY,
+  .bits         = CONFIG_LPUART9_BITS,
+  .stopbits2    = CONFIG_LPUART9_2STOP,
+#if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART9_OFLOWCONTROL)
+  .oflow        = 1,
+  .cts_gpio     = GPIO_LPUART9_CTS,
+#endif
+#if defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_LPUART9_IFLOWCONTROL)
+  .iflow        = 1,
+#endif
+# if ((defined(CONFIG_SERIAL_RS485CONTROL) && defined(CONFIG_LPUART9_RS485RTSCONTROL)) \
+   || (defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_LPUART9_IFLOWCONTROL)))
+  .rts_gpio     = GPIO_LPUART9_RTS,
+#endif
+#ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
+  .tx_gpio      = GPIO_LPUART9_TX,
+  .prev_ops     = 0,
+#endif
+#if (((defined(CONFIG_SERIAL_RS485CONTROL) || defined(CONFIG_SERIAL_IFLOWCONTROL))) \
+    && defined(CONFIG_LPUART9_INVERTIFLOWCONTROL))
+  .inviflow     = 1,
+#endif
+
+#if defined(CONFIG_SERIAL_RS485CONTROL) && defined(CONFIG_LPUART9_RS485RTSCONTROL)
+  .rs485mode    = 1,
+#endif
+
+#ifdef CONFIG_LPUART9_TXDMA
+  .dma_txreqsrc = IMXRT_DMACHAN_LPUART9_TX,
+#endif
+#ifdef CONFIG_LPUART9_RXDMA
+  .dma_rxreqsrc = IMXRT_DMACHAN_LPUART9_RX,
+  .rxfifo        = g_lpuart9rxfifo,
+#endif
+};
+#endif
+
+#ifdef CONFIG_IMXRT_LPUART10
+static struct imxrt_uart_s g_lpuart10priv =
+{
+  .dev =
+    {
+      .recv         =
+      {
+        .size       = CONFIG_LPUART10_RXBUFSIZE,
+        .buffer     = g_lpuart10rxbuffer,
+      },
+      .xmit         =
+      {
+        .size       = CONFIG_LPUART10_TXBUFSIZE,
+        .buffer     = g_lpuart10txbuffer,
+      },
+    #if defined(CONFIG_LPUART10_RXDMA) && defined(CONFIG_LPUART10_TXDMA)
+        .ops       = &g_lpuart_rxtxdma_ops,
+    #elif defined(CONFIG_LPUART10_RXDMA) && !defined(CONFIG_LPUART10_TXDMA)
+        .ops       = &g_lpuart_rxdma_ops,
+    #elif !defined(CONFIG_LPUART10_RXDMA) && defined(CONFIG_LPUART10_TXDMA)
+        .ops       = &g_lpuart_txdma_ops,
+    #else
+        .ops       = &g_lpuart_ops,
+    #endif
+      .priv         = &g_lpuart10priv,
+    },
+
+  .uartbase     = IMXRT_LPUART10_BASE,
+  .baud         = CONFIG_LPUART10_BAUD,
+  .lock         = SP_UNLOCKED,
+  .irq          = IMXRT_IRQ_LPUART10,
+  .parity       = CONFIG_LPUART10_PARITY,
+  .bits         = CONFIG_LPUART10_BITS,
+  .stopbits2    = CONFIG_LPUART10_2STOP,
+#if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART10_OFLOWCONTROL)
+  .oflow        = 1,
+  .cts_gpio     = GPIO_LPUART10_CTS,
+#endif
+#if defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_LPUART10_IFLOWCONTROL)
+  .iflow        = 1,
+#endif
+# if ((defined(CONFIG_SERIAL_RS485CONTROL) && defined(CONFIG_LPUART10_RS485RTSCONTROL)) \
+   || (defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_LPUART10_IFLOWCONTROL)))
+  .rts_gpio     = GPIO_LPUART10_RTS,
+#endif
+#ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
+  .tx_gpio      = GPIO_LPUART10_TX,
+  .prev_ops     = 0,
+#endif
+#if (((defined(CONFIG_SERIAL_RS485CONTROL) || defined(CONFIG_SERIAL_IFLOWCONTROL))) \
+    && defined(CONFIG_LPUART10_INVERTIFLOWCONTROL))
+  .inviflow     = 1,
+#endif
+
+#if defined(CONFIG_SERIAL_RS485CONTROL) && defined(CONFIG_LPUART10_RS485RTSCONTROL)
+  .rs485mode    = 1,
+#endif
+
+#ifdef CONFIG_LPUART10_TXDMA
+  .dma_txreqsrc = IMXRT_DMACHAN_LPUART10_TX,
+#endif
+#ifdef CONFIG_LPUART10_RXDMA
+  .dma_rxreqsrc = IMXRT_DMACHAN_LPUART10_RX,
+  .rxfifo        = g_lpuart10rxfifo,
+#endif
+};
+#endif
+
+#ifdef CONFIG_IMXRT_LPUART11
+static struct imxrt_uart_s g_lpuart11priv =
+{
+  .dev =
+    {
+      .recv         =
+      {
+        .size       = CONFIG_LPUART11_RXBUFSIZE,
+        .buffer     = g_lpuart11rxbuffer,
+      },
+      .xmit         =
+      {
+        .size       = CONFIG_LPUART11_TXBUFSIZE,
+        .buffer     = g_lpuart11txbuffer,
+      },
+    #if defined(CONFIG_LPUART11_RXDMA) && defined(CONFIG_LPUART11_TXDMA)
+        .ops       = &g_lpuart_rxtxdma_ops,
+    #elif defined(CONFIG_LPUART11_RXDMA) && !defined(CONFIG_LPUART11_TXDMA)
+        .ops       = &g_lpuart_rxdma_ops,
+    #elif !defined(CONFIG_LPUART11_RXDMA) && defined(CONFIG_LPUART11_TXDMA)
+        .ops       = &g_lpuart_txdma_ops,
+    #else
+        .ops       = &g_lpuart_ops,
+    #endif
+      .priv         = &g_lpuart11priv,
+    },
+
+  .uartbase     = IMXRT_LPUART11_BASE,
+  .baud         = CONFIG_LPUART11_BAUD,
+  .lock         = SP_UNLOCKED,
+  .irq          = IMXRT_IRQ_LPUART11,
+  .parity       = CONFIG_LPUART11_PARITY,
+  .bits         = CONFIG_LPUART11_BITS,
+  .stopbits2    = CONFIG_LPUART11_2STOP,
+#if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART11_OFLOWCONTROL)
+  .oflow        = 1,
+  .cts_gpio     = GPIO_LPUART11_CTS,
+#endif
+#if defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_LPUART11_IFLOWCONTROL)
+  .iflow        = 1,
+#endif
+# if ((defined(CONFIG_SERIAL_RS485CONTROL) && defined(CONFIG_LPUART11_RS485RTSCONTROL)) \
+   || (defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_LPUART11_IFLOWCONTROL)))
+  .rts_gpio     = GPIO_LPUART11_RTS,
+#endif
+#ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
+  .tx_gpio      = GPIO_LPUART11_TX,
+  .prev_ops     = 0,
+#endif
+#if (((defined(CONFIG_SERIAL_RS485CONTROL) || defined(CONFIG_SERIAL_IFLOWCONTROL))) \
+    && defined(CONFIG_LPUART11_INVERTIFLOWCONTROL))
+  .inviflow     = 1,
+#endif
+
+#if defined(CONFIG_SERIAL_RS485CONTROL) && defined(CONFIG_LPUART11_RS485RTSCONTROL)
+  .rs485mode    = 1,
+#endif
+
+#ifdef CONFIG_LPUART11_TXDMA
+  .dma_txreqsrc = IMXRT_DMACHAN_LPUART11_TX,
+#endif
+#ifdef CONFIG_LPUART11_RXDMA
+  .dma_rxreqsrc = IMXRT_DMACHAN_LPUART11_RX,
+  .rxfifo        = g_lpuart11rxfifo,
+#endif
+};
+#endif
+
+#ifdef CONFIG_IMXRT_LPUART12
+static struct imxrt_uart_s g_lpuart12priv =
+{
+  .dev =
+    {
+      .recv         =
+      {
+        .size       = CONFIG_LPUART12_RXBUFSIZE,
+        .buffer     = g_lpuart12rxbuffer,
+      },
+      .xmit         =
+      {
+        .size       = CONFIG_LPUART12_TXBUFSIZE,
+        .buffer     = g_lpuart12txbuffer,
+      },
+    #if defined(CONFIG_LPUART12_RXDMA) && defined(CONFIG_LPUART12_TXDMA)
+        .ops       = &g_lpuart_rxtxdma_ops,
+    #elif defined(CONFIG_LPUART12_RXDMA) && !defined(CONFIG_LPUART12_TXDMA)
+        .ops       = &g_lpuart_rxdma_ops,
+    #elif !defined(CONFIG_LPUART12_RXDMA) && defined(CONFIG_LPUART12_TXDMA)
+        .ops       = &g_lpuart_txdma_ops,
+    #else
+        .ops       = &g_lpuart_ops,
+    #endif
+      .priv         = &g_lpuart12priv,
+    },
+
+  .uartbase     = IMXRT_LPUART12_BASE,
+  .baud         = CONFIG_LPUART12_BAUD,
+  .lock         = SP_UNLOCKED,
+  .irq          = IMXRT_IRQ_LPUART12,
+  .parity       = CONFIG_LPUART12_PARITY,
+  .bits         = CONFIG_LPUART12_BITS,
+  .stopbits2    = CONFIG_LPUART12_2STOP,
+#if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART12_OFLOWCONTROL)
+  .oflow        = 1,
+  .cts_gpio     = GPIO_LPUART12_CTS,
+#endif
+#if defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_LPUART12_IFLOWCONTROL)
+  .iflow        = 1,
+#endif
+# if ((defined(CONFIG_SERIAL_RS485CONTROL) && defined(CONFIG_LPUART12_RS485RTSCONTROL)) \
+   || (defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_LPUART12_IFLOWCONTROL)))
+  .rts_gpio     = GPIO_LPUART12_RTS,
+#endif
+#ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
+  .tx_gpio      = GPIO_LPUART12_TX,
+  .prev_ops     = 0,
+#endif
+#if (((defined(CONFIG_SERIAL_RS485CONTROL) || defined(CONFIG_SERIAL_IFLOWCONTROL))) \
+    && defined(CONFIG_LPUART12_INVERTIFLOWCONTROL))
+  .inviflow     = 1,
+#endif
+
+#if defined(CONFIG_SERIAL_RS485CONTROL) && defined(CONFIG_LPUART12_RS485RTSCONTROL)
+  .rs485mode    = 1,
+#endif
+
+#ifdef CONFIG_LPUART12_TXDMA
+  .dma_txreqsrc = IMXRT_DMACHAN_LPUART12_TX,
+#endif
+#ifdef CONFIG_LPUART12_RXDMA
+  .dma_rxreqsrc = IMXRT_DMACHAN_LPUART12_RX,
+  .rxfifo        = g_lpuart12rxfifo,
+#endif
 };
 #endif
 
@@ -1373,8 +2311,9 @@ static inline void imxrt_serialout(struct imxrt_uart_s *priv,
 static int imxrt_dma_nextrx(struct imxrt_uart_s *priv)
 {
   int dmaresidual = imxrt_dmach_getcount(priv->rxdma);
+  DEBUGASSERT(dmaresidual <= RXDMA_BUFFER_SIZE);
 
-  return RXDMA_BUFFER_SIZE - dmaresidual;
+  return (RXDMA_BUFFER_SIZE - dmaresidual) % RXDMA_BUFFER_SIZE;
 }
 #endif
 
@@ -1389,7 +2328,7 @@ static inline void imxrt_disableuartint(struct imxrt_uart_s *priv,
   irqstate_t flags;
   uint32_t regval;
 
-  flags  = spin_lock_irqsave(NULL);
+  flags  = spin_lock_irqsave(&priv->lock);
   regval = imxrt_serialin(priv, IMXRT_LPUART_CTRL_OFFSET);
 
   /* Return the current Rx and Tx interrupt state */
@@ -1401,7 +2340,7 @@ static inline void imxrt_disableuartint(struct imxrt_uart_s *priv,
 
   regval &= ~LPUART_ALL_INTS;
   imxrt_serialout(priv, IMXRT_LPUART_CTRL_OFFSET, regval);
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 #endif
 
@@ -1420,12 +2359,12 @@ static inline void imxrt_restoreuartint(struct imxrt_uart_s *priv,
    * enabled/disabled.
    */
 
-  flags   = spin_lock_irqsave(NULL);
+  flags   = spin_lock_irqsave(&priv->lock);
   regval  = imxrt_serialin(priv, IMXRT_LPUART_CTRL_OFFSET);
   regval &= ~LPUART_ALL_INTS;
   regval |= ie;
   imxrt_serialout(priv, IMXRT_LPUART_CTRL_OFFSET, regval);
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 #endif
 
@@ -1525,13 +2464,16 @@ static int imxrt_dma_setup(struct uart_dev_s *dev)
        */
 
       priv->rxdmanext = 0;
+#ifdef CONFIG_ARMV7M_DCACHE
+      priv->rxdmaavail = 0;
+#endif
 
       /* Enable receive Rx DMA for the UART */
 
       modifyreg32(priv->uartbase + IMXRT_LPUART_BAUD_OFFSET,
                   0, LPUART_BAUD_RDMAE);
 
-      /* Enable itnerrupt on Idel and erros */
+      /* Enable interrupt on Idle and errors */
 
       modifyreg32(priv->uartbase + IMXRT_LPUART_CTRL_OFFSET, 0,
                   LPUART_CTRL_PEIE       |
@@ -1746,6 +2688,7 @@ static int imxrt_interrupt(int irq, void *context, void *arg)
 {
   struct imxrt_uart_s *priv = (struct imxrt_uart_s *)arg;
   uint32_t usr;
+  uint32_t lsr;
   int passes = 0;
   bool handled;
 
@@ -1771,30 +2714,45 @@ static int imxrt_interrupt(int irq, void *context, void *arg)
        */
 
       usr  = imxrt_serialin(priv, IMXRT_LPUART_STAT_OFFSET);
+
+      /* Removed all W1C from the last sr */
+
+      lsr  = usr & ~(LPUART_STAT_LBKDIF | LPUART_STAT_RXEDGIF |
+                     LPUART_STAT_IDLE   | LPUART_STAT_OR      |
+                     LPUART_STAT_NF     | LPUART_STAT_FE      |
+                     LPUART_STAT_PF     | LPUART_STAT_MA1F    |
+                     LPUART_STAT_MA2F);
+
+      /* Keep what we will service */
+
       usr &= (LPUART_STAT_RDRF | LPUART_STAT_TDRE | LPUART_STAT_OR |
-              LPUART_STAT_FE | LPUART_STAT_NF | LPUART_STAT_PF |
+              LPUART_STAT_FE   | LPUART_STAT_NF   | LPUART_STAT_PF |
               LPUART_STAT_IDLE);
 
       /* Clear serial overrun, parity and framing errors */
 
       if ((usr & LPUART_STAT_OR) != 0)
         {
-          imxrt_serialout(priv, IMXRT_LPUART_STAT_OFFSET, LPUART_STAT_OR);
+          imxrt_serialout(priv, IMXRT_LPUART_STAT_OFFSET,
+                          lsr | LPUART_STAT_OR);
         }
 
       if ((usr & LPUART_STAT_NF) != 0)
         {
-          imxrt_serialout(priv, IMXRT_LPUART_STAT_OFFSET, LPUART_STAT_NF);
+          imxrt_serialout(priv, IMXRT_LPUART_STAT_OFFSET,
+                          lsr | LPUART_STAT_NF);
         }
 
       if ((usr & LPUART_STAT_PF) != 0)
         {
-          imxrt_serialout(priv, IMXRT_LPUART_STAT_OFFSET, LPUART_STAT_PF);
+          imxrt_serialout(priv, IMXRT_LPUART_STAT_OFFSET,
+                          lsr | LPUART_STAT_PF);
         }
 
       if ((usr & LPUART_STAT_FE) != 0)
         {
-          imxrt_serialout(priv, IMXRT_LPUART_STAT_OFFSET, LPUART_STAT_FE);
+          imxrt_serialout(priv, IMXRT_LPUART_STAT_OFFSET,
+                          lsr | LPUART_STAT_FE);
         }
 
       if ((usr & (LPUART_STAT_FE | LPUART_STAT_PF | LPUART_STAT_NF)) != 0)
@@ -1809,7 +2767,8 @@ static int imxrt_interrupt(int irq, void *context, void *arg)
 
       if ((usr & LPUART_STAT_IDLE) != 0)
         {
-          imxrt_serialout(priv, IMXRT_LPUART_STAT_OFFSET, LPUART_STAT_IDLE);
+          imxrt_serialout(priv, IMXRT_LPUART_STAT_OFFSET,
+                          lsr | LPUART_STAT_IDLE);
           imxrt_dma_rxcallback(priv->rxdma, priv, false, LPUART_STAT_IDLE);
         }
 #endif
@@ -1846,9 +2805,12 @@ static int imxrt_interrupt(int irq, void *context, void *arg)
 
 static int imxrt_ioctl(struct file *filep, int cmd, unsigned long arg)
 {
-#if defined(CONFIG_SERIAL_TIOCSERGSTRUCT) || defined(CONFIG_SERIAL_TERMIOS)
+#if defined(CONFIG_SERIAL_TIOCSERGSTRUCT)    || \
+    defined(CONFIG_SERIAL_TERMIOS)           || \
+    defined(CONFIG_IMXRT_LPUART_SINGLEWIRE ) || \
+    defined(CONFIG_IMXRT_LPUART_INVERT )
   struct inode *inode = filep->f_inode;
-  struct uart_dev_s *dev   = inode->i_private;
+  struct uart_dev_s *dev = inode->i_private;
   irqstate_t flags;
 #endif
   int ret   = OK;
@@ -2027,7 +2989,7 @@ static int imxrt_ioctl(struct file *filep, int cmd, unsigned long arg)
              * implement TCSADRAIN / TCSAFLUSH
              */
 
-            flags  = spin_lock_irqsave(NULL);
+            flags  = spin_lock_irqsave(&priv->lock);
             imxrt_disableuartint(priv, &ie);
             ret = dev->ops->setup(dev);
 
@@ -2035,7 +2997,7 @@ static int imxrt_ioctl(struct file *filep, int cmd, unsigned long arg)
 
             imxrt_restoreuartint(priv, ie);
             priv->ie = ie;
-            spin_unlock_irqrestore(NULL, flags);
+            spin_unlock_irqrestore(&priv->lock, flags);
           }
       }
       break;
@@ -2045,24 +3007,36 @@ static int imxrt_ioctl(struct file *filep, int cmd, unsigned long arg)
     case TIOCSSINGLEWIRE:
       {
         uint32_t regval;
-        irqstate_t flags;
         struct imxrt_uart_s *priv = (struct imxrt_uart_s *)dev;
 
-        flags  = spin_lock_irqsave(NULL);
+        flags  = spin_lock_irqsave(&priv->lock);
         regval   = imxrt_serialin(priv, IMXRT_LPUART_CTRL_OFFSET);
 
         if ((arg & SER_SINGLEWIRE_ENABLED) != 0)
           {
-            uint32_t gpio_val = IOMUX_OPENDRAIN;
+            uint32_t gpio_val = (arg & SER_SINGLEWIRE_PUSHPULL) ==
+                                 SER_SINGLEWIRE_PUSHPULL ?
+                                 IOMUX_CMOS_OUTPUT : IOMUX_OPENDRAIN;
             gpio_val |= (arg & SER_SINGLEWIRE_PULL_MASK) ==
                          SER_SINGLEWIRE_PULLUP ?
-                                        IOMUX_PULL_UP_47K : IOMUX_PULL_NONE;
+                                        IOMUX_PULL_UP : IOMUX_PULL_NONE;
             gpio_val |= (arg & SER_SINGLEWIRE_PULL_MASK) ==
                          SER_SINGLEWIRE_PULLDOWN ?
-                                     IOMUX_PULL_DOWN_100K : IOMUX_PULL_NONE;
+                                     IOMUX_PULL_DOWN : IOMUX_PULL_NONE;
             imxrt_config_gpio((priv->tx_gpio &
                           ~(IOMUX_PULL_MASK | IOMUX_OPENDRAIN)) | gpio_val);
             regval |= LPUART_CTRL_LOOPS | LPUART_CTRL_RSRC;
+            priv->prev_ops = priv->dev.ops;
+#ifdef SERIAL_HAVE_RXDMA
+            if (priv->dev.ops->receive == imxrt_dma_receive)
+              {
+                priv->dev.ops = &g_lpuart_singlewire_rxdma_ops;
+              }
+            else
+#endif
+              {
+                priv->dev.ops = &g_lpuart_singlewire_ops;
+              }
           }
         else
           {
@@ -2070,11 +3044,16 @@ static int imxrt_ioctl(struct file *filep, int cmd, unsigned long arg)
                                                  IOMUX_OPENDRAIN)) |
                                                  IOMUX_PULL_NONE);
             regval &= ~(LPUART_CTRL_LOOPS | LPUART_CTRL_RSRC);
+            if (priv->prev_ops)
+              {
+                priv->dev.ops = priv->prev_ops;
+                priv->prev_ops = 0;
+              }
           }
 
         imxrt_serialout(priv, IMXRT_LPUART_CTRL_OFFSET, regval);
 
-        spin_unlock_irqrestore(NULL, flags);
+        spin_unlock_irqrestore(&priv->lock, flags);
       }
       break;
 #endif
@@ -2085,10 +3064,9 @@ static int imxrt_ioctl(struct file *filep, int cmd, unsigned long arg)
         uint32_t ctrl;
         uint32_t stat;
         uint32_t regval;
-        irqstate_t flags;
         struct imxrt_uart_s *priv = (struct imxrt_uart_s *)dev;
 
-        flags  = spin_lock_irqsave(NULL);
+        flags  = spin_lock_irqsave(&priv->lock);
         ctrl   = imxrt_serialin(priv, IMXRT_LPUART_CTRL_OFFSET);
         stat   = imxrt_serialin(priv, IMXRT_LPUART_STAT_OFFSET);
         regval = ctrl;
@@ -2124,7 +3102,7 @@ static int imxrt_ioctl(struct file *filep, int cmd, unsigned long arg)
         imxrt_serialout(priv, IMXRT_LPUART_STAT_OFFSET, stat);
         imxrt_serialout(priv, IMXRT_LPUART_CTRL_OFFSET, ctrl);
 
-        spin_unlock_irqrestore(NULL, flags);
+        spin_unlock_irqrestore(&priv->lock, flags);
       }
       break;
 #endif
@@ -2178,7 +3156,7 @@ static void imxrt_rxint(struct uart_dev_s *dev, bool enable)
 
   /* Enable interrupts for data available at Rx */
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&priv->lock);
   if (enable)
     {
 #ifndef CONFIG_SUPPRESS_SERIAL_INTS
@@ -2194,7 +3172,7 @@ static void imxrt_rxint(struct uart_dev_s *dev, bool enable)
   regval &= ~LPUART_ALL_INTS;
   regval |= priv->ie;
   imxrt_serialout(priv, IMXRT_LPUART_CTRL_OFFSET, regval);
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 #endif
 
@@ -2328,14 +3306,57 @@ static bool imxrt_rxflowcontrol(struct uart_dev_s *dev,
 #ifdef SERIAL_HAVE_RXDMA
 static int imxrt_dma_receive(struct uart_dev_s *dev, unsigned int *status)
 {
-  struct imxrt_uart_s *priv = (struct imxrt_uart_s *)dev;
-  uint32_t nextrx = imxrt_dma_nextrx(priv);
-  int c = 0;
+  struct imxrt_uart_s *priv   = (struct imxrt_uart_s *)dev;
+  uint32_t nextrx             = imxrt_dma_nextrx(priv);
+  int c                       = 0;
 
   /* Check if more data is available */
 
   if (nextrx != priv->rxdmanext)
     {
+#ifdef CONFIG_ARMV7M_DCACHE
+      /* If the data cache is enabled, then we will also need to manage
+       * cache coherency.  Are any bytes available in the currently coherent
+       * region of the data cache?
+       */
+
+      if (priv->rxdmaavail == 0)
+        {
+          uint32_t rxdmaavail;
+          uintptr_t addr;
+
+          /* No.. then we will have to invalidate additional space in the Rx
+           * DMA buffer.
+           */
+
+          if (nextrx > priv->rxdmanext)
+            {
+              /* Number of available bytes */
+
+              rxdmaavail = nextrx - priv->rxdmanext;
+            }
+          else
+            {
+              /* Number of available bytes up to the end of RXDMA buffer */
+
+              rxdmaavail = RXDMA_BUFFER_SIZE - priv->rxdmanext;
+            }
+
+          /* Invalidate the DMA buffer range */
+
+          addr = (uintptr_t)&priv->rxfifo[priv->rxdmanext];
+          up_invalidate_dcache(addr, addr + rxdmaavail);
+
+          /* We don't need to invalidate the data cache for the next
+           * rxdmaavail number of next bytes.
+           */
+
+          priv->rxdmaavail = rxdmaavail;
+        }
+
+      priv->rxdmaavail--;
+#endif
+
       /* Now read from the DMA buffer */
 
       c = priv->rxfifo[priv->rxdmanext];
@@ -2400,6 +3421,9 @@ static void imxrt_dma_reenable(struct imxrt_uart_s *priv)
    */
 
   priv->rxdmanext = 0;
+#ifdef CONFIG_ARMV7M_DCACHE
+  priv->rxdmaavail = 0;
+#endif
 
   /* Start the DMA channel, and arrange for callbacks at the half and
    * full points in the FIFO.  This ensures that we have half a FIFO
@@ -2464,8 +3488,9 @@ static bool imxrt_dma_rxavailable(struct uart_dev_s *dev)
  * Name: imxrt_dma_txcallback
  *
  * Description:
- *   This function clears dma buffer at complete of DMA transfer and wakes up
- *   threads waiting for space in buffer.
+ *   This function clears dma buffer at completion of DMA transfer. It wakes
+ *   up threads waiting for space in buffer and restarts the DMA if there is
+ *   more data to send.
  *
  ****************************************************************************/
 
@@ -2474,19 +3499,20 @@ static void imxrt_dma_txcallback(DMACH_HANDLE handle, void *arg, bool done,
                                   int result)
 {
   struct imxrt_uart_s *priv = (struct imxrt_uart_s *)arg;
+
   /* Update 'nbytes' indicating number of bytes actually transferred by DMA.
    * This is important to free TX buffer space by 'uart_xmitchars_done'.
    */
 
   priv->dev.dmatx.nbytes = priv->dev.dmatx.length + priv->dev.dmatx.nlength;
 
-  /* Adjust the pointers */
+  /* Adjust the pointers and unblock writers */
 
   uart_xmitchars_done(&priv->dev);
 
-  /* Release waiter */
+  /* Send more data if available */
 
-  nxsem_post(&priv->txdmasem);
+  imxrt_dma_txavailable(&priv->dev);
 }
 #endif
 
@@ -2505,9 +3531,10 @@ static void imxrt_dma_txavailable(struct uart_dev_s *dev)
 
   /* Only send when the DMA is idle */
 
-  nxsem_wait(&priv->txdmasem);
-
-  uart_xmitchars_dma(dev);
+  if (imxrt_dmach_idle(priv->txdma) == 0)
+    {
+      uart_xmitchars_dma(dev);
+    }
 }
 #endif
 
@@ -2581,6 +3608,34 @@ static void imxrt_dma_send(struct uart_dev_s *dev)
 }
 #endif
 
+#ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
+/****************************************************************************
+ * Name: imxrt_singlewire_send
+ *
+ * Description:
+ *   This method will will switch TXDIR to an output
+ *   and send one byte on the UART
+ *
+ ****************************************************************************/
+
+static void imxrt_singlewire_send(struct uart_dev_s *dev, int ch)
+{
+  struct imxrt_uart_s *priv = (struct imxrt_uart_s *)dev;
+  uint32_t regval;
+  irqstate_t flags;
+
+  flags  = spin_lock_irqsave(&priv->lock);
+  regval = imxrt_serialin(priv, IMXRT_LPUART_CTRL_OFFSET);
+  regval &= ~(LPUART_CTRL_RSRC);
+  regval |= (LPUART_CTRL_TXDIR);
+  imxrt_serialout(priv, IMXRT_LPUART_CTRL_OFFSET, regval);
+  spin_unlock_irqrestore(&priv->lock, flags);
+
+  imxrt_serialout(priv, IMXRT_LPUART_DATA_OFFSET, (uint32_t)ch);
+}
+
+#endif
+
 /****************************************************************************
  * Name: imxrt_send
  *
@@ -2634,7 +3689,7 @@ static void imxrt_txint(struct uart_dev_s *dev, bool enable)
 
   /* Enable interrupt for TX complete */
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&priv->lock);
   if (enable)
     {
 #ifndef CONFIG_SUPPRESS_SERIAL_INTS
@@ -2650,7 +3705,52 @@ static void imxrt_txint(struct uart_dev_s *dev, bool enable)
   regval &= ~LPUART_ALL_INTS;
   regval |= priv->ie;
   imxrt_serialout(priv, IMXRT_LPUART_CTRL_OFFSET, regval);
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
+}
+#endif
+
+/****************************************************************************
+ * Name: imxrt_singlewire_txint
+ *
+ * Description:
+ *   Call to enable or disable TX interrupts in single wire mode
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_IMXRT_LPUART_SINGLEWIRE
+static void imxrt_singlewire_txint(struct uart_dev_s *dev, bool enable)
+{
+  struct imxrt_uart_s *priv = (struct imxrt_uart_s *)dev;
+  irqstate_t flags;
+  uint32_t regval;
+
+  /* Enable interrupt for TX complete */
+
+  flags = spin_lock_irqsave(&priv->lock);
+  regval  = imxrt_serialin(priv, IMXRT_LPUART_CTRL_OFFSET);
+  if (enable)
+    {
+#ifndef CONFIG_SUPPRESS_SERIAL_INTS
+      priv->ie |= LPUART_CTRL_TIE;
+#endif
+    }
+  else
+    {
+      /* Don't disable TX interrupt yet if transmission isn't complete */
+
+      if (imxrt_txempty(dev))
+        {
+          regval |= LPUART_CTRL_RSRC;
+          regval &= ~(LPUART_CTRL_TXDIR);
+          priv->ie &= ~LPUART_CTRL_TIE;
+        }
+    }
+
+  regval &= ~LPUART_ALL_INTS;
+  regval |= priv->ie;
+
+  imxrt_serialout(priv, IMXRT_LPUART_CTRL_OFFSET, regval);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 #endif
 
@@ -2704,9 +3804,6 @@ static void imxrt_dma_rxcallback(DMACH_HANDLE handle, void *arg, bool done,
   struct imxrt_uart_s *priv = (struct imxrt_uart_s *)arg;
   uint32_t sr;
 
-  up_invalidate_dcache((uintptr_t)priv->rxfifo,
-                       (uintptr_t)priv->rxfifo + RXDMA_BUFFER_SIZE);
-
   if (priv->rxenable && imxrt_dma_rxavailable(&priv->dev))
     {
       uart_recvchars(&priv->dev);
@@ -2723,12 +3820,10 @@ static void imxrt_dma_rxcallback(DMACH_HANDLE handle, void *arg, bool done,
 
   sr = imxrt_serialin(priv, IMXRT_LPUART_STAT_OFFSET);
 
-  if ((sr & (LPUART_STAT_OR | LPUART_STAT_NF | LPUART_STAT_FE)) != 0)
+  if ((sr & (LPUART_STAT_OR | LPUART_STAT_NF | LPUART_STAT_FE |
+      LPUART_STAT_PF)) != 0)
     {
-      imxrt_serialout(priv, IMXRT_LPUART_STAT_OFFSET,
-                      sr & (LPUART_STAT_OR |
-                            LPUART_STAT_NF |
-                            LPUART_STAT_FE));
+      imxrt_serialout(priv, IMXRT_LPUART_STAT_OFFSET, sr);
     }
 }
 #endif
@@ -2760,25 +3855,25 @@ static void up_pm_notify(struct pm_callback_s *cb, int domain,
 {
   switch (pmstate)
     {
-      case(PM_NORMAL):
+      case (PM_NORMAL):
         {
           /* Logic for PM_NORMAL goes here */
         }
         break;
 
-      case(PM_IDLE):
+      case (PM_IDLE):
         {
           /* Logic for PM_IDLE goes here */
         }
         break;
 
-      case(PM_STANDBY):
+      case (PM_STANDBY):
         {
           /* Logic for PM_STANDBY goes here */
         }
         break;
 
-      case(PM_SLEEP):
+      case (PM_SLEEP):
         {
           /* Logic for PM_SLEEP goes here */
         }
@@ -2846,7 +3941,7 @@ static int up_pm_prepare(struct pm_callback_s *cb, int domain,
  *
  * Description:
  *   Performs the low level UART initialization early in debug so that the
- *   serial console will be available during bootup.  This must be called
+ *   serial console will be available during boot up.  This must be called
  *   before arm_serialinit.
  *
  ****************************************************************************/
@@ -2898,7 +3993,9 @@ void arm_serialinit(void)
 
   /* Register all UARTs */
 
+#ifdef TTYS0_DEV
   uart_register("/dev/ttyS0", &TTYS0_DEV.dev);
+#endif
 #ifdef TTYS1_DEV
   uart_register("/dev/ttyS1", &TTYS1_DEV.dev);
 #endif
@@ -2920,6 +4017,18 @@ void arm_serialinit(void)
 #ifdef TTYS7_DEV
   uart_register("/dev/ttyS7", &TTYS7_DEV.dev);
 #endif
+#ifdef TTYS8_DEV
+  uart_register("/dev/ttyS8", &TTYS8_DEV.dev);
+#endif
+#ifdef TTYS9_DEV
+  uart_register("/dev/ttyS9", &TTYS9_DEV.dev);
+#endif
+#ifdef TTYS10_DEV
+  uart_register("/dev/ttyS10", &TTYS10_DEV.dev);
+#endif
+#ifdef TTYS11_DEV
+  uart_register("/dev/ttyS11", &TTYS11_DEV.dev);
+#endif
 }
 
 /****************************************************************************
@@ -2930,28 +4039,16 @@ void arm_serialinit(void)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef CONSOLE_DEV
   struct imxrt_uart_s *priv = (struct imxrt_uart_s *)CONSOLE_DEV.dev.priv;
   uint32_t ie;
 
   imxrt_disableuartint(priv, &ie);
-
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      imxrt_lowputc('\r');
-    }
-
   imxrt_lowputc(ch);
   imxrt_restoreuartint(priv, ie);
 #endif
-
-  return ch;
 }
 
 #else /* USE_SERIALDRIVER */
@@ -2964,22 +4061,11 @@ int up_putc(int ch)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #if CONSOLE_LPUART > 0
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      arm_lowputc('\r');
-    }
-
   arm_lowputc(ch);
 #endif
-
-  return ch;
 }
 
 #endif /* USE_SERIALDRIVER */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/fs/userfs.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -44,7 +46,7 @@
  *    LocalHost UDP socket with the server portof 0x83nn where nn is the
  *    value that was provided when file system was created.
  * 3. The UserFs will receive system file system requests and forward them
- *    on the the MqUfsReqN to the user-space file system server
+ *    on the MqUfsReqN to the user-space file system server
  *    (userfs_run()). These requests may be accompanied by additional data in
  *    an provided request buffer that was provided when the UserFS was
  *    created.  This buffer would hold, for example, the data to be
@@ -357,7 +359,7 @@ struct userfs_fstat_response_s
 {
   uint8_t resp;             /* Must be USERFS_RESP_FSTAT */
   int ret;                  /* Result of the operation */
-  FAR struct stat buf;      /* Returned file system status */
+  struct stat buf;          /* Returned file system status */
 };
 
 struct userfs_truncate_request_s
@@ -507,7 +509,7 @@ struct userfs_stat_response_s
 {
   uint8_t resp;             /* Must be USERFS_RESP_STAT */
   int ret;                  /* Result of the operation */
-  FAR struct stat buf;      /* Returned status of the directory entry */
+  struct stat buf;          /* Returned status of the directory entry */
 };
 
 struct userfs_destroy_request_s

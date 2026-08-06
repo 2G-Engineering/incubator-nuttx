@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/can/mcp2515.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <strings.h>
 
 #include <nuttx/irq.h>
@@ -44,6 +46,10 @@
 #include <nuttx/spi/spi.h>
 #include <nuttx/can/can.h>
 #include <nuttx/can/mcp2515.h>
+
+#ifdef CONFIG_CAN_TIMESTAMP
+#include <time.h>
+#endif
 
 #include "mcp2515.h"
 
@@ -1204,12 +1210,12 @@ static void mcp2515_reset_lowlevel(FAR struct mcp2515_can_s *priv)
 
   /* Wait 1ms to let MCP2515 restart */
 
-  nxsig_usleep(1000);
+  nxsched_usleep(1000);
 
   /* Make sure that all buffers are released. */
 
   nxsem_reset(&priv->txfsem, MCP2515_NUM_TX_BUFFERS);
-  priv->txbuffers = 0b111;
+  priv->txbuffers = (1 << MCP2515_NUM_TX_BUFFERS) - 1;
 
   /* Define the current state and unlock */
 
@@ -1520,7 +1526,8 @@ static int mcp2515_ioctl(FAR struct can_dev_s *dev, int cmd,
           uint8_t regval;
 
           DEBUGASSERT(bt != NULL);
-          DEBUGASSERT(bt->bt_baud < MCP2515_CANCLK_FREQUENCY);
+          DEBUGASSERT(bt->bt_baud > 0 &&
+            bt->bt_baud < MCP2515_CANCLK_FREQUENCY);
           DEBUGASSERT(bt->bt_sjw > 0 && bt->bt_sjw <= 4);
           DEBUGASSERT(bt->bt_tseg1 > 1 && bt->bt_tseg1 <= 16);
           DEBUGASSERT(bt->bt_tseg2 > 1 && bt->bt_tseg2 <= 8);
@@ -2031,7 +2038,7 @@ static void mcp2515_error(FAR struct can_dev_s *dev, uint8_t status,
 #ifdef CONFIG_CAN_EXTID
       hdr.ch_extid  = 0;
 #endif
-      hdr.ch_unused = 0;
+      hdr.ch_tcf    = 0;
 
       /* And provide the error report to the upper half logic */
 
@@ -2063,10 +2070,19 @@ static void mcp2515_error(FAR struct can_dev_s *dev, uint8_t status,
 
 static void mcp2515_receive(FAR struct can_dev_s *dev, uint8_t offset)
 {
+#ifdef CONFIG_CAN_TIMESTAMP
+  clock_t clkval;
+  struct timespec ts;
+#endif
   FAR struct mcp2515_can_s *priv;
   struct can_hdr_s hdr;
   int ret;
   uint8_t regval;
+
+#ifdef CONFIG_CAN_TIMESTAMP
+  clkval = up_perf_gettime();
+  up_perf_convert(clkval, &ts);
+#endif
 
   DEBUGASSERT(dev);
   priv = dev->cd_priv;
@@ -2141,7 +2157,7 @@ static void mcp2515_receive(FAR struct can_dev_s *dev, uint8_t offset)
 #ifdef CONFIG_CAN_ERRORS
   hdr.ch_error  = 0; /* Error reporting not supported */
 #endif
-  hdr.ch_unused = 0;
+  hdr.ch_tcf    = 0;
 
   /* Extract the RTR bit */
 
@@ -2152,6 +2168,11 @@ static void mcp2515_receive(FAR struct can_dev_s *dev, uint8_t offset)
 
   regval = RXREGVAL(MCP2515_RXB0DLC);
   hdr.ch_dlc = (regval & RXBDLC_DLC_MASK) >> RXBDLC_DLC_SHIFT;
+
+#ifdef CONFIG_CAN_TIMESTAMP
+    hdr.ch_ts.tv_sec = ts.tv_sec;
+    hdr.ch_ts.tv_usec = ts.tv_nsec / 1000u;
+#endif
 
   /* Save the message data */
 
@@ -2437,7 +2458,7 @@ static int mcp2515_hw_initialize(struct mcp2515_can_s *priv)
   regval = (regval & ~CANCTRL_REQOP_MASK) | (CANCTRL_REQOP_NORMAL);
   mcp2515_writeregs(priv, MCP2515_CANCTRL, &regval, 1);
 
-  nxsig_usleep(100);
+  nxsched_usleep(100);
 
   /* Read the CANINTF */
 
@@ -2540,7 +2561,7 @@ FAR struct mcp2515_can_s *
 
   /* Initialize bitmask */
 
-  priv->txbuffers = (1 << MCP2515_NUM_TX_BUFFERS)-1;
+  priv->txbuffers = (1 << MCP2515_NUM_TX_BUFFERS) - 1;
 
   /* And put the hardware in the initial state */
 
@@ -2586,7 +2607,7 @@ FAR struct can_dev_s *mcp2515_initialize(
 
   /* Allocate a CAN Device structure */
 
-  dev = (FAR struct can_dev_s *)kmm_zalloc(sizeof(struct can_dev_s));
+  dev = kmm_zalloc(sizeof(struct can_dev_s));
   if (dev == NULL)
     {
       canerr("ERROR: Failed to allocate instance of can_dev_s!\n");

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/kxtj9.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -27,8 +42,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdlib.h>
-#include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -43,12 +57,6 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-/* Configuration ************************************************************/
-
-#ifndef CONFIG_KXTJ9_I2C_BUS_SPEED
-#  define CONFIG_KXTJ9_I2C_BUS_SPEED 400000
-#endif
 
 /* Register Definitions *****************************************************/
 
@@ -282,7 +290,7 @@ static void kxtj9_soft_reset(FAR struct kxtj9_dev_s *priv)
 
   /* Delay 10ms for the accel parts to re-initialize */
 
-  nxsig_usleep(10000);
+  nxsched_usleep(10000);
 }
 
 /****************************************************************************
@@ -427,7 +435,7 @@ static int kxtj9_read_sensor_data(FAR struct kxtj9_dev_s *priv,
       return ret;
     }
 
-  kxtj9_reg_read(priv, XOUT_L, (uint8_t *)acc_data, 6);
+  kxtj9_reg_read(priv, XOUT_L, (FAR uint8_t *)acc_data, 6);
 
   /* 12 bit resolution, get rid of the lowest 4 bits */
 
@@ -480,10 +488,10 @@ static ssize_t kxtj9_read(FAR struct file *filep, FAR char *buffer,
       return (ssize_t)-EINVAL;
     }
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL && buffer != NULL);
+  DEBUGASSERT(buffer != NULL);
   inode = filep->f_inode;
 
-  priv = (FAR struct kxtj9_dev_s *)inode->i_private;
+  priv = inode->i_private;
   DEBUGASSERT(priv != NULL  && priv->i2c != NULL);
 
   /* Return all of the samples that will fit in the user-provided buffer */
@@ -538,10 +546,9 @@ static int kxtj9_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   /* Sanity check */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
 
-  priv = (FAR struct kxtj9_dev_s *)inode->i_private;
+  priv = inode->i_private;
   DEBUGASSERT(priv != NULL && priv->i2c != NULL);
 
   /* Handle ioctl commands */
@@ -615,7 +622,7 @@ int kxtj9_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
 
   /* Initialize the device's structure */
 
-  priv = (FAR struct kxtj9_dev_s *)kmm_zalloc(sizeof(struct kxtj9_dev_s));
+  priv = kmm_zalloc(sizeof(struct kxtj9_dev_s));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate driver instance\n");

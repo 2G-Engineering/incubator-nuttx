@@ -1,6 +1,8 @@
 ############################################################################
 # arch/arm/src/tiva/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -73,6 +75,12 @@ endif
 
 ifeq ($(CONFIG_TIVA_PWM),y)
   CHIP_CSRCS += tiva_pwm.c
+endif
+
+ifeq ($(CONFIG_TIVA_PULSECOUNT),y)
+ifeq ($(CONFIG_PULSECOUNT),y)
+  CHIP_CSRCS += tiva_pulsecount.c
+endif
 endif
 
 ifeq ($(CONFIG_TIVA_QEI),y)

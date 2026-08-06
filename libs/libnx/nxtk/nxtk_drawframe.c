@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libnx/nxtk/nxtk_drawframe.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdlib.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/nx/nxglib.h>
 #include <nuttx/nx/nx.h>
@@ -155,7 +157,7 @@ int nxtk_drawframe(FAR struct nxtk_framedwindow_s *fwnd,
 #if CONFIG_NXTK_BORDERWIDTH > 2
   frame.pt2.y = frame.pt1.y;
   nxtk_drawframeside(fwnd, &frame, bounds, g_bordercolor3);
-  frame.pt1.y ++;
+  frame.pt1.y++;
 #endif
 
   /* Draw the central part */

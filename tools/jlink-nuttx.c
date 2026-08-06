@@ -1,6 +1,8 @@
 /****************************************************************************
  * tools/jlink-nuttx.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -97,9 +99,10 @@ begin_packed_struct struct tcbinfo_s
   uint16_t state_off;
   uint16_t pri_off;
   uint16_t name_off;
+  uint16_t stack_off;
+  uint16_t stack_size_off;
   uint16_t regs_off;
-  uint16_t basic_num;
-  uint16_t total_num;
+  uint16_t regs_num;
   begin_packed_struct
   union
   {
@@ -252,7 +255,7 @@ static int setget_reg(struct plugin_priv_s *priv, uint32_t idx,
 {
   uint32_t regaddr;
 
-  if (regidx >= priv->tcbinfo->total_num)
+  if (regidx >= priv->tcbinfo->regs_num)
     {
       return -EINVAL;
     }
@@ -290,19 +293,19 @@ static int update_tcbinfo(struct plugin_priv_s *priv)
 {
   if (!priv->tcbinfo)
     {
-      uint16_t total_num;
+      uint16_t regs_num;
       uint32_t reg_off;
       int ret;
 
       ret = READU16(g_symbols[TCBINFO].address +
-                    offsetof(struct tcbinfo_s, total_num), &total_num);
+                    offsetof(struct tcbinfo_s, regs_num), &regs_num);
       if (ret != 0)
         {
           PERROR("error reading regs ret %d\n", ret);
           return ret;
         }
 
-      if (!total_num)
+      if (!regs_num)
         {
           return -EIO;
         }
@@ -316,7 +319,7 @@ static int update_tcbinfo(struct plugin_priv_s *priv)
         }
 
       priv->tcbinfo = ALLOC(sizeof(struct tcbinfo_s) +
-                            total_num * sizeof(uint16_t));
+                            regs_num * sizeof(uint16_t));
 
       if (!priv->tcbinfo)
         {
@@ -333,8 +336,8 @@ static int update_tcbinfo(struct plugin_priv_s *priv)
         }
 
       ret = READMEM(reg_off, (char *)&priv->tcbinfo->reg_offs[0],
-                    total_num * sizeof(uint16_t));
-      if (ret != total_num * sizeof(uint16_t))
+                    regs_num * sizeof(uint16_t));
+      if (ret != regs_num * sizeof(uint16_t))
         {
           PERROR("error in read tcbinfo_s reg_offs ret %d\n", ret);
           return ret;
@@ -641,7 +644,7 @@ int RTOS_GetThreadRegList(char *hexreglist, uint32_t threadid)
       return idx;
     }
 
-  for (j = 0; j < g_plugin_priv.tcbinfo->basic_num; j++)
+  for (j = 0; j < g_plugin_priv.tcbinfo->regs_num; j++)
     {
       regval = 0;
 
@@ -702,7 +705,7 @@ int RTOS_SetThreadRegList(char *hexreglist, uint32_t threadid)
       return idx;
     }
 
-  for (j = 0; j < g_plugin_priv.tcbinfo->basic_num; j++)
+  for (j = 0; j < g_plugin_priv.tcbinfo->regs_num; j++)
     {
       regval = decode_hex(hexreglist);
 

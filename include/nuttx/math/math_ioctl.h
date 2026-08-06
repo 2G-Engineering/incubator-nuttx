@@ -1,6 +1,7 @@
 /****************************************************************************
  * include/nuttx/math/math_ioctl.h
- * NuttX MATH-related IOCTLs definitions
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -39,5 +40,7 @@
  */
 
 #define MATHIOC_CORDIC_CALC     _MATHIOC(1)
+#define MATHIOC_FFT_CALC        _MATHIOC(2)
+#define MATHIOC_MPI_CALC        _MATHIOC(3)
 
 #endif /* __INCLUDE_NUTTX_MATH_MATH_IOCTL_H */

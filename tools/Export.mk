@@ -1,6 +1,8 @@
 ############################################################################
 # tools/Export.mk
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -78,8 +80,38 @@ endif
 	@echo "NXFLATLDFLAGS2=\"$(NXFLATLDFLAGS2)\"" >> $(EXPORTDIR)/makeinfo.sh
 	@echo "OBJCOPY=\"$(OBJCOPY)\"" >> $(EXPORTDIR)/makeinfo.sh
 	@echo "OBJDUMP=\"$(OBJDUMP)\"" >> $(EXPORTDIR)/makeinfo.sh
+	@echo "ZIG=\"$(ZIG)\"" >> $(EXPORTDIR)/makeinfo.sh
+	@echo "ZIGFLAGS=\"$(ZIGFLAGS)\"" >> $(EXPORTDIR)/makeinfo.sh
 	@echo "OBJEXT=\"$(OBJEXT)\"" >> $(EXPORTDIR)/makeinfo.sh
 	@echo "STRIP=\"$(STRIP)\"" >> $(EXPORTDIR)/makeinfo.sh
+	@echo "NUTTX_ARCH=\"$(CONFIG_ARCH)\"" >> $(EXPORTDIR)/makeinfo.sh
+ifdef CONFIG_ARCH_CHIP
+	@echo "NUTTX_ARCH_CHIP=\"$(CONFIG_ARCH_CHIP)\"" >> $(EXPORTDIR)/makeinfo.sh
+else
+	@echo "NUTTX_ARCH_CHIP=\"$(ARCH_CHIP_CUSTOM_NAME)\"" >> $(EXPORTDIR)/makeinfo.sh
+endif
+ifdef CONFIG_ARCH_BOARD
+	@echo "NUTTX_BOARD=\"$(CONFIG_ARCH_BOARD)\"" >> $(EXPORTDIR)/makeinfo.sh
+else
+	@echo "NUTTX_BOARD=\"$(CONFIG_ARCH_BOARD_CUSTOM_NAME)\"" >> $(EXPORTDIR)/makeinfo.sh
+endif
+ifdef CONFIG_BUILD_FLAT
+	@echo "NUTTX_BUILD=\"flat\"" >> $(EXPORTDIR)/makeinfo.sh
+endif
+ifdef CONFIG_BUILD_PROTECTED
+	@echo "NUTTX_BUILD=\"protected\"" >> $(EXPORTDIR)/makeinfo.sh
+endif
+ifdef CONFIG_BUILD_KERNEL
+	@echo "NUTTX_BUILD=\"kernel\"" >> $(EXPORTDIR)/makeinfo.sh
+endif
+ifdef CONFIG_LIBCXX
+	@echo "NUTTX_CXX=\"libcxx\"" >> $(EXPORTDIR)/makeinfo.sh
+else
+	@echo "NUTTX_CXX=\"cxx\"" >> $(EXPORTDIR)/makeinfo.sh
+endif
+	@echo "LLVM_ARCHTYPE=\"$(LLVM_ARCHTYPE)\"" >> $(EXPORTDIR)/makeinfo.sh
+	@echo "LLVM_CPUTYPE=\"$(LLVM_CPUTYPE)\"" >> $(EXPORTDIR)/makeinfo.sh
+	@echo "LLVM_ABITYPE=\"$(LLVM_ABITYPE)\"" >> $(EXPORTDIR)/makeinfo.sh
 	$(Q) chmod 755 $(EXPORTDIR)/makeinfo.sh
 
 clean:

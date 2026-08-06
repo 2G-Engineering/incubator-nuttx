@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s3/common/src/esp32s3_board_tim.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #ifdef CONFIG_ONESHOT
 #include <nuttx/timers/oneshot.h>

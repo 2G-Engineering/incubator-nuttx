@@ -1,6 +1,8 @@
 ############################################################################
 # arch/arm/src/sama5/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -80,7 +82,7 @@ ifeq ($(CONFIG_SAMA5_FLEXCOM_USART),y)
 CHIP_CSRCS += sam_flexcom_serial.c
 endif
 
-ifeq ($(CONFIG_SAMA5_FLEXCOM_SPI), y)
+ifeq ($(CONFIG_SAMA5_FLEXCOM_SPI),y)
 CHIP_CSRCS += sam_flexcom_spi.c
 endif
 
@@ -93,7 +95,15 @@ else
 endif
 endif
 
-ifeq ($(CONFIG_SAMA5D2_CLASSD), y)
+ifeq ($(CONFIG_SAMA5_QSPI0),y)
+CHIP_CSRCS += sam_qspi.c
+else
+ifeq ($(CONFIG_SAMA5_QSPI1),y)
+CHIP_CSRCS += sam_qspi.c
+endif
+endif
+
+ifeq ($(CONFIG_SAMA5D2_CLASSD),y)
 CHIP_CSRCS += sam_classd.c
 endif
 
@@ -221,7 +231,7 @@ CHIP_CSRCS += sam_tickless.c
 endif
 endif
 
-ifeq ($(CONFIG_SAMA5_SFC), y)
+ifeq ($(CONFIG_SAMA5_SFC),y)
 CHIP_CSRCS += sam_sfc.c
 endif
 

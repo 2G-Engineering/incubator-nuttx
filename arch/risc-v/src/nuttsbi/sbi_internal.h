@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/nuttsbi/sbi_internal.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -43,7 +45,15 @@
 
 #define MMODE_IRQSTACK      (1024)
 
-/* Timer interrupt is the only one we handle, others are discarded */
+/* IPI memory mapped registers */
+
+#define IPI_IRQ             (3)
+
+/* IPI memory mapped registers */
+
+#define IPI_BASE            (CONFIG_NUTTSBI_IPI_BASE)
+
+/* Timer interrupt */
 
 #define MTIMER_IRQ          (7)
 
@@ -52,18 +62,11 @@
 #define MTIMER_TIME_BASE    (CONFIG_NUTTSBI_MTIME_BASE)
 #define MTIMER_CMP_BASE     (CONFIG_NUTTSBI_MTIMECMP_BASE)
 
-/* For stack alignment */
-
-#define STACK_ALIGNMENT     16
-#define STACK_ALIGN_MASK    (STACK_ALIGNMENT - 1)
-#define STACK_ALIGN_DOWN(a) ((a) & ~STACK_ALIGN_MASK)
-#define STACK_ALIGN_UP(a)   (((a) + STACK_ALIGN_MASK) & ~STACK_ALIGN_MASK)
-
 /* Temporary stack placement and size */
 
 #define TEMP_STACK_BASE     (_ebss)
 #define TEMP_STACK          (1024)
-#define TEMP_STACK_SIZE     (STACK_ALIGN_DOWN(TEMP_STACK))
+#define TEMP_STACK_SIZE     (STACKFRAME_ALIGN_DOWN(TEMP_STACK))
 
 /****************************************************************************
  * Public Function Prototypes
@@ -96,6 +99,20 @@ void sbi_mscratch_assign(uintptr_t hartid);
  ****************************************************************************/
 
 void sbi_start(void) noreturn_function;
+
+/****************************************************************************
+ * Name: sbi_send_ipi
+ *
+ * Description:
+ *   Send an inter-processor interrupt to all the harts defined
+ *
+ * Input Parameters:
+ *   hmask - Mask for CPU to send IPI
+ *   hbase - The firset CPU id to send
+ *
+ ****************************************************************************/
+
+void sbi_send_ipi(uintptr_t hmask, uintptr_t hbase);
 
 /****************************************************************************
  * Name: sbi_init_mtimer
@@ -139,6 +156,24 @@ uint64_t sbi_get_mtime(void);
  ****************************************************************************/
 
 void sbi_set_mtimecmp(uint64_t value);
+
+#ifdef CONFIG_NUTTSBI_LATE_INIT
+/****************************************************************************
+ * Name: sbi_late_initialize
+ *
+ * Description:
+ *   Conduct any device specific initialization before entering S-mode from
+ *   NUTTSBI as some chips need such preparations. This function still runs
+ *   in M-mode. Things like PMP setting up or device specific prepration
+ *   before entering S-mode can be done here.
+ *
+ *   If this is enabled, PMP setup logic in sbi_start.c is bypassed so that
+ *   PMP management is done at one place.
+ *
+ ****************************************************************************/
+
+void sbi_late_initialize(void);
+#endif
 
 #endif /* __ASSEMBLY__ */
 #endif /* __ARCH_RISC_V_SRC_NUTTSBI_SBI_INTERNAL_H */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/z80/src/common/z80_internal.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -60,18 +62,6 @@
 #if !defined(USE_SERIALDRIVER) && defined(CONFIG_STANDARD_SERIAL)
 #  define USE_SERIALDRIVER 1
 #endif
-
-/* The Z80 stack does not need to be aligned.  Here is is aligned at word
- * (4 byte) boundary.
- */
-
-#define STACK_ALIGNMENT     4
-
-/* Stack alignment macros */
-
-#define STACK_ALIGN_MASK    (STACK_ALIGNMENT - 1)
-#define STACK_ALIGN_DOWN(a) ((a) & ~STACK_ALIGN_MASK)
-#define STACK_ALIGN_UP(a)   (((a) + STACK_ALIGN_MASK) & ~STACK_ALIGN_MASK)
 
 /* Register access macros ***************************************************
  *

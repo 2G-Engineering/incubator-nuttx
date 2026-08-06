@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wl5/stm32wl5_lowputc.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -45,7 +47,7 @@ extern "C"
 #endif
 
 /****************************************************************************
- * Name: stm32wl5_lowsetup
+ * Name: stm32_lowsetup
  *
  * Description:
  *   Called at the very beginning of _start.  Performs low level
@@ -53,7 +55,7 @@ extern "C"
  *
  ****************************************************************************/
 
-void stm32wl5_lowsetup(void);
+void stm32_lowsetup(void);
 
 #undef EXTERN
 #if defined(__cplusplus)

@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/strings.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,6 +28,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/compiler.h>
 
 #include <string.h>
 
@@ -41,12 +44,16 @@
  * IEEE Std 1003.1-2008
  */
 
-#ifndef bcmp /* See mm/README.txt */
+#ifndef bcmp
 #define bcmp(b1,b2,len)  memcmp(b1,b2,(size_t)len)
 #endif
 
-#ifndef bcopy /* See mm/README.txt */
+#ifndef bcopy
 #define bcopy(b1,b2,len) memmove(b2,b1,len)
+#endif
+
+#ifndef bzero
+#define bzero(s,n)       memset(s,0,n)
 #endif
 
 #define strcasecmp_l(s1, s2, l)     strcasecmp(s1, s2)
@@ -70,15 +77,45 @@ extern "C"
  ****************************************************************************/
 
 int ffs(int j);
+
+#ifdef CONFIG_HAVE_BUILTIN_FFS
+#  define ffs(j)  __builtin_ffs(j)
+#elif defined (CONFIG_HAVE_BUILTIN_CTZ)
+#  define ffs(j)  (__builtin_ctz(j) + 1)
+#endif
+
 int ffsl(long j);
-#ifdef CONFIG_HAVE_LONG_LONG
+
+#ifdef CONFIG_HAVE_BUILTIN_FFSL
+#  define ffsl(j) __builtin_ffsl(j)
+#elif defined (CONFIG_HAVE_BUILTIN_CTZ)
+#  define ffsl(j) (__builtin_ctzl(j) + 1)
+#endif
+
 int ffsll(long long j);
+
+#ifdef CONFIG_HAVE_BUILTIN_FFSLL
+#  define ffsll(j)  __builtin_ffsll(j)
+#elif defined (CONFIG_HAVE_BUILTIN_CTZ)
+#  define ffsll(j)  (__builtin_ctzll(j) + 1)
 #endif
 
 int fls(int j);
+
+#ifdef CONFIG_HAVE_BUILTIN_CLZ
+#  define fls(j)  ((8 * sizeof(int)) - __builtin_clz(j))
+#endif
+
 int flsl(long j);
-#ifdef CONFIG_HAVE_LONG_LONG
+
+#ifdef CONFIG_HAVE_BUILTIN_CLZ
+#  define flsl(j)  ((8 * sizeof(long)) - __builtin_clzl(j))
+#endif
+
 int flsll(long long j);
+
+#ifdef CONFIG_HAVE_BUILTIN_CLZ
+#  define flsll(j)  ((8 * sizeof(long long)) - __builtin_clzll(j))
 #endif
 
 unsigned int popcount(unsigned int j);
@@ -90,8 +127,6 @@ FAR char *rindex(FAR const char *s, int c);
 
 int strcasecmp(FAR const char *, FAR const char *);
 int strncasecmp(FAR const char *, FAR const char *, size_t);
-
-void bzero(FAR void *s, size_t n);
 
 #undef EXTERN
 #if defined(__cplusplus)

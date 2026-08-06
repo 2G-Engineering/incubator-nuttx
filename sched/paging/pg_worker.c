@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/paging/pg_worker.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/queue.h>
 #include <nuttx/sched.h>
@@ -37,12 +39,11 @@
 #include <nuttx/signal.h>
 #include <nuttx/page.h>
 #include <nuttx/clock.h>
-#include <nuttx/signal.h>
 
 #include "sched/sched.h"
 #include "paging/paging.h"
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 
 /****************************************************************************
  * Public Data
@@ -136,7 +137,8 @@ static void pg_callback(FAR struct tcb_s *tcb, int result)
   pginfo("g_pftcb: %p\n", g_pftcb);
   if (g_pftcb)
     {
-      FAR struct tcb_s *htcb = (FAR struct tcb_s *)g_waitingforfill.head;
+      FAR struct tcb_s *htcb = (FAR struct tcb_s *)
+                               list_waitingforfill()->head;
       FAR struct tcb_s *wtcb = nxsched_get_tcb(g_pgworker);
 
       /* Find the higher priority between the task waiting for the fill to
@@ -225,7 +227,7 @@ static inline bool pg_dequeue(void)
     {
       /* Remove the TCB from the head of the list (if any) */
 
-      g_pftcb = (FAR struct tcb_s *)dq_remfirst(&g_waitingforfill);
+      g_pftcb = (FAR struct tcb_s *)dq_remfirst(list_waitingforfill());
       pginfo("g_pftcb: %p\n", g_pftcb);
       if (g_pftcb != NULL)
         {
@@ -295,7 +297,7 @@ static inline bool pg_dequeue(void)
 
           if (nxsched_add_readytorun(g_pftcb))
             {
-              up_switch_context(g_pftcb, wtcb);
+              up_switch_context(this_task(), wtcb);
             }
         }
     }
@@ -492,7 +494,7 @@ static inline void pg_fillcomplete(void)
 
   if (nxsched_add_readytorun(g_pftcb))
     {
-      up_switch_context(g_pftcb, wtcb);
+      up_switch_context(this_task(), wtcb);
     }
 }
 
@@ -543,7 +545,7 @@ int pg_worker(int argc, FAR char *argv[])
     {
       /* Wait awhile.  We will wait here until either the configurable
        * timeout elapses or until we are awakened by a signal (which
-       * terminates the nxsig_usleep with an EINTR error).  Note that
+       * terminates the nxsched_usleep with an EINTR error).  Note that
        * interrupts will be re- enabled while this task sleeps.
        *
        * The timeout is a failsafe that will handle any cases where a single
@@ -551,7 +553,7 @@ int pg_worker(int argc, FAR char *argv[])
        * supports timeouts for case of non-blocking, asynchronous fills.
        */
 
-      nxsig_usleep(CONFIG_PAGING_WORKPERIOD);
+      nxsched_usleep(CONFIG_PAGING_WORKPERIOD);
 
       /* The page fill worker thread will be awakened on one of 3 conditions:
        *
@@ -595,7 +597,7 @@ int pg_worker(int argc, FAR char *argv[])
 
               if (nxsched_add_readytorun(g_pftcb))
                 {
-                  up_switch_context(g_pftcb, wtcb);
+                  up_switch_context(this_task(), wtcb);
                 }
 
               /* Yes .. Start the next asynchronous fill.  Check the return
@@ -680,7 +682,7 @@ int pg_worker(int argc, FAR char *argv[])
 
           if (nxsched_add_readytorun(g_pftcb))
             {
-              up_switch_context(g_pftcb, wtcb);
+              up_switch_context(this_task(), wtcb);
             }
         }
 
@@ -693,4 +695,4 @@ int pg_worker(int argc, FAR char *argv[])
 
   return OK; /* To keep some compilers happy */
 }
-#endif /* CONFIG_PAGING */
+#endif /* CONFIG_LEGACY_PAGING */

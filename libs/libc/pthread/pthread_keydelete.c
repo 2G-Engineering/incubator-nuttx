@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/pthread/pthread_keydelete.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <nuttx/mutex.h>
 #include <nuttx/tls.h>
 
-#if CONFIG_TLS_NELEM > 0
+#if defined(CONFIG_TLS_NELEM) && CONFIG_TLS_NELEM > 0
 
 /****************************************************************************
  * Public Functions
@@ -58,10 +60,10 @@
 int pthread_key_delete(pthread_key_t key)
 {
   FAR struct task_info_s *info = task_get_info();
-  tls_ndxset_t mask;
+  FAR struct tls_info_s *tls = tls_get_info();
   int ret = EINVAL;
 
-  DEBUGASSERT(info != NULL);
+  DEBUGASSERT(info != NULL && tls != NULL);
   DEBUGASSERT(key >= 0 && key < CONFIG_TLS_NELEM);
   if (key >= 0 && key < CONFIG_TLS_NELEM)
     {
@@ -69,12 +71,11 @@ int pthread_key_delete(pthread_key_t key)
        * modification of the group TLS index set.
        */
 
-      mask = (tls_ndxset_t)1 << key;
       ret = nxmutex_lock(&info->ta_lock);
       if (ret == OK)
         {
-          DEBUGASSERT((info->ta_tlsset & mask) != 0);
-          info->ta_tlsset &= ~mask;
+          info->ta_tlsdtor[key] = NULL;
+          tls->tl_elem[key]     = 0;
           nxmutex_unlock(&info->ta_lock);
         }
       else

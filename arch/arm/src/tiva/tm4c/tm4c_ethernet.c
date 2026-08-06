@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/tiva/tm4c/tm4c_ethernet.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <time.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <arpa/inet.h>
@@ -42,7 +44,9 @@
 #include <nuttx/wdog.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/net/mii.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/spinlock.h>
 
 #ifdef CONFIG_TIVA_PHY_INTERRUPTS
 #  include <nuttx/net/phy.h>
@@ -625,6 +629,7 @@ struct tiva_ethmac_s
   struct wdog_s        txtimeout;   /* TX timeout timer */
   struct work_s        irqwork;     /* For deferring interrupt work to the work queue */
   struct work_s        pollwork;    /* For deferring poll work to the work queue */
+  spinlock_t           lock;        /* Spinlock */
 
 #ifdef CONFIG_TIVA_PHY_INTERRUPTS
   xcpt_t               handler;     /* Attached PHY interrupt handler */
@@ -757,9 +762,6 @@ static inline void tiva_phy_initialize(struct tiva_ethmac_s *priv);
 static void tiva_ethreset(struct tiva_ethmac_s *priv);
 static int  tiva_macconfig(struct tiva_ethmac_s *priv);
 static void tiva_macaddress(struct tiva_ethmac_s *priv);
-#ifdef CONFIG_NET_ICMPv6
-static void tiva_ipv6multicast(struct tiva_ethmac_s *priv);
-#endif
 static int  tiva_macenable(struct tiva_ethmac_s *priv);
 static int  tive_emac_configure(struct tiva_ethmac_s *priv);
 
@@ -1527,7 +1529,7 @@ static int tiva_recvframe(struct tiva_ethmac_s *priv)
    *   3) All of the TX descriptors are in flight.
    *
    * This last case is obscure.  It is due to that fact that each packet
-   * that we receive can generate an unstoppable transmisson.  So we have
+   * that we receive can generate an unstoppable transmission.  So we have
    * to stop receiving when we can not longer transmit.  In this case, the
    * transmit logic should also have disabled further RX interrupts.
    */
@@ -1762,7 +1764,7 @@ static void tiva_receive(struct tiva_ethmac_s *priv)
         }
 
       /* We are finished with the RX buffer.  NOTE:  If the buffer is
-       * re-used for transmission, the dev->d_buf field will have been
+       * reused for transmission, the dev->d_buf field will have been
        * nullified.
        */
 
@@ -2000,7 +2002,7 @@ static void tiva_interrupt_work(void *arg)
       tiva_putreg(EMAC_DMAINT_NIS, TIVA_EMAC_DMARIS);
     }
 
-  /* Handle error interrupt only if CONFIG_DEBUG_NET is eanbled */
+  /* Handle error interrupt only if CONFIG_DEBUG_NET is enabled */
 
 #ifdef CONFIG_DEBUG_NET
 
@@ -2196,11 +2198,9 @@ static int tiva_ifup(struct net_driver_s *dev)
   int ret;
 
 #ifdef CONFIG_NET_IPv4
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff),
-        (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff),
-        (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 #endif
 #ifdef CONFIG_NET_IPv6
   ninfo("Bringing up: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -2223,6 +2223,9 @@ static int tiva_ifup(struct net_driver_s *dev)
   up_enable_irq(TIVA_IRQ_ETHCON);
 
   tiva_checksetup();
+
+  netdev_carrier_on(dev);
+
   return OK;
 }
 
@@ -2252,7 +2255,7 @@ static int tiva_ifdown(struct net_driver_s *dev)
 
   /* Disable the Ethernet interrupt */
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&priv->lock);
   up_disable_irq(TIVA_IRQ_ETHCON);
 
   /* Cancel the TX timeout timers */
@@ -2269,7 +2272,10 @@ static int tiva_ifdown(struct net_driver_s *dev)
   /* Mark the device "down" */
 
   priv->ifup = false;
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
+
+  netdev_carrier_off(dev);
+
   return OK;
 }
 
@@ -3182,6 +3188,8 @@ static int tiva_phyinit(struct tiva_ethmac_s *priv)
 #endif
 #endif
 
+  spin_lock_init(&priv->lock);
+
   ninfo("Duplex: %s Speed: %d MBps\n",
         priv->fduplex ? "FULL" : "HALF",
         priv->mbps100 ? 100 : 10);
@@ -3649,79 +3657,6 @@ static void tiva_macaddress(struct tiva_ethmac_s *priv)
 }
 
 /****************************************************************************
- * Function: tiva_ipv6multicast
- *
- * Description:
- *   Configure the IPv6 multicast MAC address.
- *
- * Input Parameters:
- *   priv - A reference to the private driver state structure
- *
- * Returned Value:
- *   OK on success; Negated errno on failure.
- *
- * Assumptions:
- *
- ****************************************************************************/
-
-#ifdef CONFIG_NET_ICMPv6
-static void tiva_ipv6multicast(struct tiva_ethmac_s *priv)
-{
-  struct net_driver_s *dev;
-  uint16_t tmp16;
-  uint8_t mac[6];
-
-  /* For ICMPv6, we need to add the IPv6 multicast address
-   *
-   * For IPv6 multicast addresses, the Ethernet MAC is derived by
-   * the four low-order octets OR'ed with the MAC 33:33:00:00:00:00,
-   * so for example the IPv6 address FF02:DEAD:BEEF::1:3 would map
-   * to the Ethernet MAC address 33:33:00:01:00:03.
-   *
-   * NOTES:  This appears correct for the ICMPv6 Router Solicitation
-   * Message, but the ICMPv6 Neighbor Solicitation message seems to
-   * use 33:33:ff:01:00:03.
-   */
-
-  mac[0] = 0x33;
-  mac[1] = 0x33;
-
-  dev    = &priv->dev;
-  tmp16  = dev->d_ipv6addr[6];
-  mac[2] = 0xff;
-  mac[3] = tmp16 >> 8;
-
-  tmp16  = dev->d_ipv6addr[7];
-  mac[4] = tmp16 & 0xff;
-  mac[5] = tmp16 >> 8;
-
-  ninfo("IPv6 Multicast: %02x:%02x:%02x:%02x:%02x:%02x\n",
-        mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
-  tiva_addmac(dev, mac);
-
-#ifdef CONFIG_NET_ICMPv6_AUTOCONF
-  /* Add the IPv6 all link-local nodes Ethernet address.  This is the
-   * address that we expect to receive ICMPv6 Router Advertisement
-   * packets.
-   */
-
-  tiva_addmac(dev, g_ipv6_ethallnodes.ether_addr_octet);
-
-#endif /* CONFIG_NET_ICMPv6_AUTOCONF */
-#ifdef CONFIG_NET_ICMPv6_ROUTER
-  /* Add the IPv6 all link-local routers Ethernet address.  This is the
-   * address that we expect to receive ICMPv6 Router Solicitation
-   * packets.
-   */
-
-  tiva_addmac(dev, g_ipv6_ethallrouters.ether_addr_octet);
-
-#endif /* CONFIG_NET_ICMPv6_ROUTER */
-}
-#endif /* CONFIG_NET_ICMPv6 */
-
-/****************************************************************************
  * Function: tiva_macenable
  *
  * Description:
@@ -3744,12 +3679,6 @@ static int tiva_macenable(struct tiva_ethmac_s *priv)
   /* Set the MAC address */
 
   tiva_macaddress(priv);
-
-#ifdef CONFIG_NET_ICMPv6
-  /* Set up the IPv6 multicast address */
-
-  tiva_ipv6multicast(priv);
-#endif
 
   /* Enable transmit state machine of the MAC for transmission on the MII */
 
@@ -4116,7 +4045,7 @@ int arch_phy_irq(const char *intf, xcpt_t handler, void *arg,
    * following operations are atomic.
    */
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&priv->lock);
 
   /* Save the new interrupt handler information */
 
@@ -4134,7 +4063,7 @@ int arch_phy_irq(const char *intf, xcpt_t handler, void *arg,
       *enable = handler ? tiva_phy_intenable : NULL;
     }
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
   return OK;
 }
 #endif /* CONFIG_TIVA_PHY_INTERRUPTS */

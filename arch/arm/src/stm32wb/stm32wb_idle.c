@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wb/stm32wb_idle.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -117,12 +119,12 @@ static void up_idlepm(void)
             /* Enter STOP mode */
 
             BEGIN_IDLE();
-            stm32wb_pmstop(true);
+            stm32_pmstop(true);
             END_IDLE();
 
             /* Set correct clock again after returning from STOP */
 
-            stm32wb_clockenable();
+            stm32_clockenable();
 
             /* Inform of all drivers of the new state */
 
@@ -135,7 +137,7 @@ static void up_idlepm(void)
             break;
 
           case PM_SLEEP:
-            stm32wb_pmstandby();
+            stm32_pmstandby();
             break;
 
           default:
@@ -182,7 +184,7 @@ void up_idle(void)
 
   /* Sleep until an interrupt occurs to save power. */
 
-#if !(defined(CONFIG_DEBUG_SYMBOLS) && defined(CONFIG_STM32WB_DISABLE_IDLE_SLEEP_DURING_DEBUG))
+#if !(defined(CONFIG_DEBUG_SYMBOLS) && defined(CONFIG_STM32_DISABLE_IDLE_SLEEP_DURING_DEBUG))
   BEGIN_IDLE();
   __asm__ volatile ("wfi");
   END_IDLE();

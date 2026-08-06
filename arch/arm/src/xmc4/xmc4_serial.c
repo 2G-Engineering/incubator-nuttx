@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/xmc4/xmc4_serial.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,11 +33,12 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/serial/serial.h>
+#include <nuttx/spinlock.h>
 
 #include <arch/board/board.h>
 
@@ -235,6 +238,7 @@ struct xmc4_dev_s
   /* UART configuration */
 
   struct uart_config_s config;
+  spinlock_t lock;
 };
 
 /****************************************************************************
@@ -310,17 +314,21 @@ static char g_uart5txbuffer[CONFIG_UART5_TXBUFSIZE];
 #ifdef HAVE_UART0
 static struct xmc4_dev_s g_uart0priv =
 {
-  .uartbase       = XMC4_USIC0_CH0_BASE,
-  .channel        = (uint8_t)USIC0_CHAN0,
-  .irq            = XMC4_IRQ_USIC0_SR0,
-  .config         =
+  .uartbase         = XMC4_USIC0_CH0_BASE,
+  .channel          = (uint8_t)USIC0_CHAN0,
+  .irq              = XMC4_IRQ_USIC0_SR0,
+  .config           =
   {
-    .baud         = CONFIG_UART0_BAUD,
-    .dx           = BOARD_UART0_DX,
-    .parity       = CONFIG_UART0_PARITY,
-    .nbits        = CONFIG_UART0_BITS,
-    .stop2        = CONFIG_UART0_2STOP,
-  }
+    .baud           = CONFIG_UART0_BAUD,
+    .dx             = BOARD_UART0_DX,
+    .parity         = CONFIG_UART0_PARITY,
+    .nbits          = CONFIG_UART0_BITS,
+    .stop2          = CONFIG_UART0_2STOP,
+    .startbufferptr = 0,
+    .txbuffersize   = CONFIG_XMC4_USIC0_CHAN0_TX_BUFFER_SIZE,
+    .rxbuffersize   = CONFIG_XMC4_USIC0_CHAN0_RX_BUFFER_SIZE,
+  },
+  .lock = SP_UNLOCKED,
 };
 
 static uart_dev_t g_uart0port =
@@ -345,17 +353,22 @@ static uart_dev_t g_uart0port =
 #ifdef HAVE_UART1
 static struct xmc4_dev_s g_uart1priv =
 {
-  .uartbase       = XMC4_USIC0_CH1_BASE,
-  .channel        = (uint8_t)USIC0_CHAN1,
-  .irq            = XMC4_IRQ_USIC0_SR1,
-  .config         =
+  .uartbase         = XMC4_USIC0_CH1_BASE,
+  .channel          = (uint8_t)USIC0_CHAN1,
+  .irq              = XMC4_IRQ_USIC0_SR1,
+  .config           =
   {
-    .baud         = CONFIG_UART1_BAUD,
-    .dx           = BOARD_UART1_DX,
-    .parity       = CONFIG_UART1_PARITY,
-    .nbits        = CONFIG_UART1_BITS,
-    .stop2        = CONFIG_UART1_2STOP,
-  }
+    .baud           = CONFIG_UART1_BAUD,
+    .dx             = BOARD_UART1_DX,
+    .parity         = CONFIG_UART1_PARITY,
+    .nbits          = CONFIG_UART1_BITS,
+    .stop2          = CONFIG_UART1_2STOP,
+    .startbufferptr = CONFIG_XMC4_USIC0_CHAN0_TX_BUFFER_SIZE
+                    + CONFIG_XMC4_USIC0_CHAN0_RX_BUFFER_SIZE,
+    .txbuffersize   = CONFIG_XMC4_USIC0_CHAN1_TX_BUFFER_SIZE,
+    .rxbuffersize   = CONFIG_XMC4_USIC0_CHAN1_RX_BUFFER_SIZE,
+  },
+  .lock = SP_UNLOCKED,
 };
 
 static uart_dev_t g_uart1port =
@@ -380,17 +393,21 @@ static uart_dev_t g_uart1port =
 #ifdef HAVE_UART2
 static struct xmc4_dev_s g_uart2priv =
 {
-  .uartbase       = XMC4_USIC1_CH0_BASE,
-  .channel        = (uint8_t)USIC1_CHAN0,
-  .irq            = XMC4_IRQ_USIC1_SR0,
-  .config         =
+  .uartbase         = XMC4_USIC1_CH0_BASE,
+  .channel          = (uint8_t)USIC1_CHAN0,
+  .irq              = XMC4_IRQ_USIC1_SR0,
+  .config           =
   {
-    .baud         = CONFIG_UART2_BAUD,
-    .dx           = BOARD_UART2_DX,
-    .parity       = CONFIG_UART2_PARITY,
-    .nbits        = CONFIG_UART2_BITS,
-    .stop2        = CONFIG_UART2_2STOP,
-  }
+    .baud           = CONFIG_UART2_BAUD,
+    .dx             = BOARD_UART2_DX,
+    .parity         = CONFIG_UART2_PARITY,
+    .nbits          = CONFIG_UART2_BITS,
+    .stop2          = CONFIG_UART2_2STOP,
+    .startbufferptr = 0,
+    .txbuffersize   = CONFIG_XMC4_USIC1_CHAN0_TX_BUFFER_SIZE,
+    .rxbuffersize   = CONFIG_XMC4_USIC1_CHAN0_RX_BUFFER_SIZE,
+  },
+  .lock = SP_UNLOCKED,
 };
 
 static uart_dev_t g_uart2port =
@@ -415,17 +432,22 @@ static uart_dev_t g_uart2port =
 #ifdef HAVE_UART3
 static struct xmc4_dev_s g_uart3priv =
 {
-  .uartbase       = XMC4_USIC1_CH1_BASE,
-  .channel        = (uint8_t)USIC1_CHAN1,
-  .irq            = XMC4_IRQ_USIC1_SR1,
-  .config         =
+  .uartbase         = XMC4_USIC1_CH1_BASE,
+  .channel          = (uint8_t)USIC1_CHAN1,
+  .irq              = XMC4_IRQ_USIC1_SR1,
+  .config           =
   {
-    .baud         = CONFIG_UART3_BAUD,
-    .dx           = BOARD_UART3_DX,
-    .parity       = CONFIG_UART3_PARITY,
-    .nbits        = CONFIG_UART3_BITS,
-    .stop2        = CONFIG_UART3_2STOP,
-  }
+    .baud           = CONFIG_UART3_BAUD,
+    .dx             = BOARD_UART3_DX,
+    .parity         = CONFIG_UART3_PARITY,
+    .nbits          = CONFIG_UART3_BITS,
+    .stop2          = CONFIG_UART3_2STOP,
+    .startbufferptr = CONFIG_XMC4_USIC1_CHAN0_TX_BUFFER_SIZE
+                    + CONFIG_XMC4_USIC1_CHAN0_RX_BUFFER_SIZE,
+    .txbuffersize   = CONFIG_XMC4_USIC1_CHAN1_TX_BUFFER_SIZE,
+    .rxbuffersize   = CONFIG_XMC4_USIC1_CHAN1_RX_BUFFER_SIZE,
+  },
+  .lock = SP_UNLOCKED,
 };
 
 static uart_dev_t g_uart3port =
@@ -450,17 +472,21 @@ static uart_dev_t g_uart3port =
 #ifdef HAVE_UART4
 static struct xmc4_dev_s g_uart4priv =
 {
-  .uartbase       = XMC4_USIC2_CH0_BASE,
-  .channel        = (uint8_t)USIC2_CHAN0,
-  .irq            = XMC4_IRQ_USIC2_SR0,
-  .config         =
+  .uartbase         = XMC4_USIC2_CH0_BASE,
+  .channel          = (uint8_t)USIC2_CHAN0,
+  .irq              = XMC4_IRQ_USIC2_SR0,
+  .config           =
   {
-    .baud         = CONFIG_UART4_BAUD,
-    .dx           = BOARD_UART4_DX,
-    .parity       = CONFIG_UART4_PARITY,
-    .nbits        = CONFIG_UART4_BITS,
-    .stop2        = CONFIG_UART4_2STOP,
-  }
+    .baud           = CONFIG_UART4_BAUD,
+    .dx             = BOARD_UART4_DX,
+    .parity         = CONFIG_UART4_PARITY,
+    .nbits          = CONFIG_UART4_BITS,
+    .stop2          = CONFIG_UART4_2STOP,
+    .startbufferptr = 0,
+    .txbuffersize   = CONFIG_XMC4_USIC2_CHAN0_TX_BUFFER_SIZE,
+    .rxbuffersize   = CONFIG_XMC4_USIC2_CHAN0_RX_BUFFER_SIZE,
+  },
+  .lock = SP_UNLOCKED,
 };
 
 static uart_dev_t g_uart4port =
@@ -485,17 +511,22 @@ static uart_dev_t g_uart4port =
 #ifdef HAVE_UART5
 static struct xmc4_dev_s g_uart5priv =
 {
-  .uartbase       = XMC4_USIC2_CH1_BASE,
-  .channel        = (uint8_t)USIC2_CHAN1,
-  .irq            = XMC4_IRQ_USIC2_SR1,
-  .config         =
+  .uartbase         = XMC4_USIC2_CH1_BASE,
+  .channel          = (uint8_t)USIC2_CHAN1,
+  .irq              = XMC4_IRQ_USIC2_SR1,
+  .config           =
   {
-    .baud         = CONFIG_UART5_BAUD,
-    .dx           = BOARD_UART5_DX,
-    .parity       = CONFIG_UART5_PARITY,
-    .nbits        = CONFIG_UART5_BITS,
-    .stop2        = CONFIG_UART5_2STOP,
-  }
+    .baud           = CONFIG_UART5_BAUD,
+    .dx             = BOARD_UART5_DX,
+    .parity         = CONFIG_UART5_PARITY,
+    .nbits          = CONFIG_UART5_BITS,
+    .stop2          = CONFIG_UART5_2STOP,
+    .startbufferptr = CONFIG_XMC4_USIC2_CHAN0_TX_BUFFER_SIZE
+                    + CONFIG_XMC4_USIC2_CHAN0_RX_BUFFER_SIZE,
+    .txbuffersize   = CONFIG_XMC4_USIC2_CHAN1_TX_BUFFER_SIZE,
+    .rxbuffersize   = CONFIG_XMC4_USIC2_CHAN1_RX_BUFFER_SIZE,
+  },
+  .lock = SP_UNLOCKED,
 };
 
 static uart_dev_t g_uart5port =
@@ -543,22 +574,28 @@ static inline void xmc4_serialout(struct xmc4_dev_s *priv,
  * Name: xmc4_modifyreg
  ****************************************************************************/
 
-static inline void xmc4_modifyreg(struct xmc4_dev_s *priv, unsigned
+static inline void xmc4_modifyreg_nolock(struct xmc4_dev_s *priv, unsigned
                                   int offset, uint32_t setbits,
                                   uint32_t clrbits)
 {
-  irqstate_t flags;
   uintptr_t regaddr = priv->uartbase + offset;
   uint32_t regval;
-
-  flags = enter_critical_section();
 
   regval = getreg32(regaddr);
   regval &= ~clrbits;
   regval |= setbits;
   putreg32(regval, regaddr);
+}
 
-  leave_critical_section(flags);
+static inline void xmc4_modifyreg(struct xmc4_dev_s *priv, unsigned
+                                  int offset, uint32_t setbits,
+                                  uint32_t clrbits)
+{
+  irqstate_t flags;
+
+  flags = spin_lock_irqsave(&priv->lock);
+  xmc4_modifyreg_nolock(priv, offset, setbits, clrbits);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 
 /****************************************************************************
@@ -567,15 +604,11 @@ static inline void xmc4_modifyreg(struct xmc4_dev_s *priv, unsigned
 
 static void xmc4_setuartint(struct xmc4_dev_s *priv)
 {
-  irqstate_t flags;
-
   /* Re-enable/re-disable event interrupts corresponding to the state of
    * bits in priv->ccr.
    */
 
-  flags = enter_critical_section();
   xmc4_modifyreg(priv, XMC4_USIC_CCR_OFFSET, CCR_ALL_EVENTS, priv->ccr);
-  leave_critical_section(flags);
 }
 
 /****************************************************************************
@@ -590,10 +623,11 @@ static void xmc4_restoreuartint(struct xmc4_dev_s *priv, uint32_t ccr)
    * in the ccr argument.
    */
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&priv->lock);
   priv->ccr = ccr;
-  xmc4_setuartint(priv);
-  leave_critical_section(flags);
+  xmc4_modifyreg_nolock(priv, XMC4_USIC_CCR_OFFSET, CCR_ALL_EVENTS,
+                        priv->ccr);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 
 /****************************************************************************
@@ -602,16 +636,12 @@ static void xmc4_restoreuartint(struct xmc4_dev_s *priv, uint32_t ccr)
 
 static void xmc4_disableuartint(struct xmc4_dev_s *priv, uint32_t *ccr)
 {
-  irqstate_t flags;
-
-  flags = enter_critical_section();
   if (ccr)
     {
       *ccr = priv->ccr;
     }
 
   xmc4_restoreuartint(priv, 0);
-  leave_critical_section(flags);
 }
 
 /****************************************************************************
@@ -802,7 +832,6 @@ static int xmc4_ioctl(struct file *filep, int cmd, unsigned long arg)
   struct xmc4_dev_s   *priv;
   int                ret = OK;
 
-  DEBUGASSERT(filep, filep->f_inode);
   inode = filep->f_inode;
   dev   = inode->i_private;
 
@@ -1010,7 +1039,7 @@ static bool xmc4_txempty(struct uart_dev_s *dev)
  *
  * Description:
  *   Performs the low level UART initialization early in debug so that the
- *   serial console will be available during bootup.  This must be called
+ *   serial console will be available during boot up.  This must be called
  *   before xmc4_serialinit.  NOTE:  This function depends on GPIO pin
  *   configuration performed in xmc4_lowsetup() and main clock initialization
  *   performed in xmc4_clock_configure().
@@ -1099,28 +1128,16 @@ void arm_serialinit(void)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef HAVE_UART_CONSOLE
   struct xmc4_dev_s *priv = (struct xmc4_dev_s *)CONSOLE_DEV.priv;
   uint32_t ccr;
 
   xmc4_disableuartint(priv, &ccr);
-
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      arm_lowputc('\r');
-    }
-
   arm_lowputc(ch);
   xmc4_restoreuartint(priv, ccr);
 #endif
-
-  return ch;
 }
 
 #else /* USE_SERIALDRIVER */
@@ -1133,21 +1150,11 @@ int up_putc(int ch)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef HAVE_UART_CONSOLE
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      arm_lowputc('\r');
-    }
-
   arm_lowputc(ch);
-  return ch;
-}
 #endif
+}
 
 #endif /* HAVE_UART_DEVICE && USE_SERIALDRIVER */

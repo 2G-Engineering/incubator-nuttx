@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/risc-v/k210/maix-bit/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,18 +33,20 @@
 #  include <stdint.h>
 #endif
 
-#include "k210.h"
-
-#include "k210_fpioa.h"
-
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define BOARD_LED_PAD     14 /* Connected to red led */
+/* GPIOHS allocation:
+ *
+ *   GPIOHS0 - System LED (pad 14, red)    - k210_leds.c
+ *   GPIOHS1 - User LED 1 (pad 12)         - k210_userleds.c
+ *   GPIOHS2 - User LED 2 (pad 13)         - k210_userleds.c
+ */
 
-/* Map pad 14 to gpiohs io 0 */
+/* System LED (CONFIG_ARCH_LEDS) */
 
+#define BOARD_LED_PAD     14
 #define BOARD_LED_IO_FUNC K210_IO_FUNC_GPIOHS0
 #define BOARD_LED_IO      0
 
@@ -55,10 +59,16 @@
 #define LED_ASSERTION     6  /* N/C */
 #define LED_PANIC         7  /* blink */
 
-/* GPIO pins used by the GPIO Subsystem */
+/* User LED definitions */
 
-#define BOARD_NGPIOOUT    2 /* Amount of GPIO Output pins */
-#define BOARD_NGPIOINT    0 /* Amount of GPIO Input */
+#define BOARD_LEDS  2
+
+/* User LED pin mappings */
+
+#define BOARD_USERLED1_PAD    12
+#define BOARD_USERLED1_IO     1
+#define BOARD_USERLED2_PAD    13
+#define BOARD_USERLED2_IO     2
 
 /****************************************************************************
  * Public Types

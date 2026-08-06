@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/contactless/mfrc522.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -409,6 +411,7 @@
 struct mfrc522_dev_s
 {
   uint8_t state;
+  uint8_t pm_level;
   FAR struct spi_dev_s *spi;          /* SPI interface */
 };
 

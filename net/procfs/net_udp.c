@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/procfs/net_udp.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -60,16 +62,11 @@ static ssize_t netprocfs_udpstats(FAR struct netprocfs_file_s *priv,
   int addrlen = (domain == PF_INET) ?
                 INET_ADDRSTRLEN : INET6_ADDRSTRLEN;
   FAR struct udp_conn_s *conn = NULL;
-  char remote[INET6_ADDRSTRLEN + 1];
-  char local[INET6_ADDRSTRLEN + 1];
+  char remote[INET6_ADDRSTRLEN];
+  char local[INET6_ADDRSTRLEN];
   int len = 0;
-  void *laddr;
-  void *raddr;
-
-  net_lock();
-
-  local[addrlen] = '\0';
-  remote[addrlen] = '\0';
+  FAR void *laddr;
+  FAR void *raddr;
 
   while ((conn = udp_nextconn(conn)) != NULL)
     {
@@ -90,39 +87,22 @@ static ssize_t netprocfs_udpstats(FAR struct netprocfs_file_s *priv,
           break;
         }
 
-#ifdef CONFIG_NET_IPv4
-#  ifdef CONFIG_NET_IPv6
-      if (domain == PF_INET)
-#  endif /* CONFIG_NET_IPv6 */
-        {
-          laddr = &conn->u.ipv4.laddr;
-          raddr = &conn->u.ipv4.raddr;
-        }
-#endif /* CONFIG_NET_IPv4 */
-
-#ifdef CONFIG_NET_IPv6
-#  ifdef CONFIG_NET_IPv4
-      else
-#  endif /* CONFIG_NET_IPv4 */
-        {
-          laddr = &conn->u.ipv6.laddr;
-          raddr = &conn->u.ipv6.raddr;
-        }
-#endif /* CONFIG_NET_IPv6 */
+      laddr = net_ip_binding_laddr(&conn->u, domain);
+      raddr = net_ip_binding_raddr(&conn->u, domain);
 
       len += snprintf(buffer + len, buflen - len,
                       "    %2" PRIu8
                       ": %3" PRIx8
-#if CONFIG_NET_SEND_BUFSIZE > 0
+#ifdef CONFIG_NET_UDP_WRITE_BUFFERS
                       " %6" PRIu32
 #endif
                       " %6u",
                       priv->offset++,
                       conn->sconn.s_flags,
-#if CONFIG_NET_SEND_BUFSIZE > 0
+#ifdef CONFIG_NET_UDP_WRITE_BUFFERS
                       udp_wrbuffer_inqueue_size(conn),
 #endif
-                      iob_get_queue_size(&conn->readahead));
+                      (conn->readahead) ? conn->readahead->io_pktlen : 0);
 
       len += snprintf(buffer + len, buflen - len,
                       " %*s:%-6" PRIu16 " %*s:%-6" PRIu16 "\n",
@@ -133,8 +113,6 @@ static ssize_t netprocfs_udpstats(FAR struct netprocfs_file_s *priv,
                       inet_ntop(domain, raddr, remote, addrlen),
                       ntohs(conn->rport));
     }
-
-  net_unlock();
 
   return len;
 }
@@ -167,8 +145,7 @@ ssize_t netprocfs_read_udpstats(FAR struct netprocfs_file_s *priv,
   int skip = 1;
   int len = 0;
 
-  net_lock();
-
+  udp_conn_list_lock();
   if (udp_nextconn(NULL) != NULL)
     {
       if (priv->offset == 0)
@@ -201,9 +178,8 @@ ssize_t netprocfs_read_udpstats(FAR struct netprocfs_file_s *priv,
 #endif /* CONFIG_NET_IPv6 */
     }
 
-  net_unlock();
-
+  udp_conn_list_unlock();
   return len;
 }
 
-#endif /* CONFIG_NET_UDP && !CONFIG_NET_UDP_NO_STACK */
+#endif /* NET_UDP_HAVE_STACK */

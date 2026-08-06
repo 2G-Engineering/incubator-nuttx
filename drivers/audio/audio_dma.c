@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/audio/audio_dma.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,11 +25,13 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/arch.h>
+#include <nuttx/irq.h>
 #include <nuttx/audio/audio_dma.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/queue.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 /****************************************************************************
  * Private Types
@@ -156,10 +160,8 @@ static int audio_dma_getcaps(struct audio_lowerhalf_s *dev, int type,
 
         caps->ac_channels = 2;       /* Stereo output */
 
-        switch (caps->ac_subtype)
+        if (caps->ac_subtype == AUDIO_TYPE_QUERY)
           {
-            case AUDIO_TYPE_QUERY:
-
               /* We don't decode any formats!  Only something above us in
                * the audio stream can perform decoding on our behalf.
                */
@@ -167,17 +169,18 @@ static int audio_dma_getcaps(struct audio_lowerhalf_s *dev, int type,
               /* The types of audio units we implement */
 
               if (audio_dma->playback)
+              {
                 caps->ac_controls.b[0] = AUDIO_TYPE_OUTPUT;
+              }
               else
+              {
                 caps->ac_controls.b[0] = AUDIO_TYPE_INPUT;
-              caps->ac_format.hw = 1 << (AUDIO_FMT_PCM - 1);
-              break;
+              }
 
-            default:
-              caps->ac_controls.b[0] = AUDIO_SUBFMT_END;
-              break;
+              caps->ac_format.hw = 1 << (AUDIO_FMT_PCM - 1);
           }
 
+        caps->ac_controls.b[0] = AUDIO_SUBFMT_END;
         break;
 
         /* Provide capabilities of our OUTPUT unit */
@@ -187,25 +190,11 @@ static int audio_dma_getcaps(struct audio_lowerhalf_s *dev, int type,
 
         caps->ac_channels = 2;
 
-        switch (caps->ac_subtype)
+        if (caps->ac_subtype == AUDIO_TYPE_QUERY)
           {
-            case AUDIO_TYPE_QUERY:
-
             /* Report the Sample rates we support */
 
-              caps->ac_controls.hw[0] = AUDIO_SAMP_RATE_8K  |
-                                        AUDIO_SAMP_RATE_11K |
-                                        AUDIO_SAMP_RATE_16K |
-                                        AUDIO_SAMP_RATE_22K |
-                                        AUDIO_SAMP_RATE_32K |
-                                        AUDIO_SAMP_RATE_44K |
-                                        AUDIO_SAMP_RATE_48K |
-                                        AUDIO_SAMP_RATE_96K |
-                                        AUDIO_SAMP_RATE_128K |
-                                        AUDIO_SAMP_RATE_160K |
-                                        AUDIO_SAMP_RATE_172K |
-                                        AUDIO_SAMP_RATE_192K;
-              break;
+              caps->ac_controls.hw[0] = AUDIO_SAMP_RATE_DEF_ALL;
           }
 
         break;
@@ -600,9 +589,9 @@ struct audio_lowerhalf_s *audio_dma_initialize(struct dma_dev_s *dma_dev,
   audio_dma->fifo_width = fifo_width;
 
   if (audio_dma->playback)
-    audio_dma->dst_addr = up_addrenv_va_to_pa((void *)fifo_addr);
+    audio_dma->dst_addr = up_addrenv_va_to_pa((FAR void *)fifo_addr);
   else
-    audio_dma->src_addr = up_addrenv_va_to_pa((void *)fifo_addr);
+    audio_dma->src_addr = up_addrenv_va_to_pa((FAR void *)fifo_addr);
 
   audio_dma->buffer_size = CONFIG_AUDIO_BUFFER_NUMBYTES;
   audio_dma->buffer_num  = CONFIG_AUDIO_NUM_BUFFERS;

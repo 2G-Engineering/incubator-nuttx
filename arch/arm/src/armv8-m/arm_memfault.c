@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv8-m/arm_memfault.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <inttypes.h>
 
 #include <arch/irq.h>
@@ -66,9 +68,9 @@ int arm_memfault(int irq, void *context, void *arg)
 
   mfalert("PANIC!!! Memory Management Fault:\n");
   mfalert("\tIRQ: %d context: %p\n", irq, context);
-  mfalert("\tCFSR: %08x MMFAR: %08x\n",
+  mfalert("\tCFSR: %08" PRIx32 " MMFAR: %08" PRIx32 "\n",
           getreg32(NVIC_CFAULTS), getreg32(NVIC_MEMMANAGE_ADDR));
-  mfalert("\tBASEPRI: %08x PRIMASK: %08x IPSR: %08"
+  mfalert("\tBASEPRI: %08" PRIx32 " PRIMASK: %08" PRIx32 " IPSR: %08"
           PRIx32 " CONTROL: %08" PRIx32 "\n",
           getbasepri(), getprimask(), getipsr(), getcontrol());
 
@@ -96,6 +98,40 @@ int arm_memfault(int irq, void *context, void *arg)
   if (cfsr & NVIC_CFAULTS_MLSPERR)
     {
       mfalert("\tFloating-point lazy state preservation error\n");
+    }
+
+  /* In some scenarios (e.g. testing, debugging, etc.) where we want to
+   * ignore the memory management fault and proceed, we can set the parameter
+   * arg to 0xffffffff to skip the Memory Management Fault exception
+   */
+
+  if (arg == (void *)0xffffffff)
+    {
+      uint32_t *regs = context;
+      uint16_t insn;
+      mfalert("Skip the memory management fault and proceed\n");
+
+      /* regs[REG_PC] advance by 2/4 bytes depends on whether the encoded
+       * faulty instructions are 16-bit/32-bit thumb instructions
+       */
+
+      insn = (*(volatile uint16_t *)(regs[REG_PC]) >> 11) & 0x1f;
+
+      if (insn == 0x1d || insn == 0x1e || insn == 0x1f)
+        {
+          regs[REG_PC] += 4;
+        }
+      else
+        {
+          regs[REG_PC] += 2;
+        }
+
+      /* Clear the MMFSR and MMFAR register */
+
+      putreg32(0xff, NVIC_CFAULTS);
+      putreg32(0, NVIC_MEMMANAGE_ADDR);
+
+      return OK;
     }
 
   up_irq_save();

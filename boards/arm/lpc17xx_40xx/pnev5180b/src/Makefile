@@ -1,6 +1,8 @@
 ##############################################################################
 # boards/arm/lpc17xx_40xx/pnev5180b/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -24,10 +26,6 @@ CSRCS = lpc17_40_boot.c lpc17_40_bringup.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += lpc17_40_leds.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += lpc17_40_appinit.c
 endif
 
 ifeq ($(CONFIG_USBDEV_COMPOSITE),y)

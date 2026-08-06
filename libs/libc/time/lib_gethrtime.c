@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/time/lib_gethrtime.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -47,5 +49,5 @@ hrtime_t gethrtime(void)
   struct timespec ts;
 
   clock_gettime(CLOCK_MONOTONIC, &ts);
-  return (hrtime_t)1000000000 * ts.tv_sec + ts.tv_nsec;
+  return 1000000000 * ts.tv_sec + ts.tv_nsec;
 }

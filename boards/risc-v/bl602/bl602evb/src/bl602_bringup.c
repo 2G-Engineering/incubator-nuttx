@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/risc-v/bl602/bl602evb/src/bl602_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <syslog.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/board.h>
@@ -58,10 +60,7 @@
 #include <nuttx/net/bluetooth.h>
 #include <nuttx/wireless/bluetooth/bt_driver.h>
 #include <nuttx/wireless/bluetooth/bt_uart.h>
-#include <nuttx/mm/circbuf.h>
-#if defined(CONFIG_UART_BTH4)
-#include <nuttx/serial/uart_bth4.h>
-#endif
+#include <nuttx/circbuf.h>
 #endif /* CONFIG_BL602_BLE_CONTROLLER */
 
 #ifdef CONFIG_FS_ROMFS
@@ -293,7 +292,7 @@ static struct bthci_s *bthci_alloc(void)
   struct bthci_s *dev;
   struct bt_driver_s *drv;
 
-  dev = (struct bthci_s *)kmm_zalloc(sizeof(*dev));
+  dev = kmm_zalloc(sizeof(*dev));
   if (dev == NULL)
     {
       return NULL;
@@ -320,18 +319,14 @@ int bthci_register(void)
       return -ENOMEM;
     }
 
-  #if defined(CONFIG_UART_BTH4)
-  ret = uart_bth4_register("/dev/ttyHCI0", &hci_dev->drv);
-  #elif defined(CONFIG_NET_BLUETOOTH)
-  ret = bt_netdev_register(&hci_dev->drv);
-  #elif defined(BL602_BLE_CONTROLLER)
-    #error "Must select CONFIG_UART_BTH4 or CONFIG_NET_BLUETOOTH"
-  #endif
+#  ifdef CONFIG_DRIVERS_BLUETOOTH
+  ret = bt_driver_register(&hci_dev->drv);
   if (ret < 0)
     {
-      printf("register faile[%d] errno %d\n", ret, errno);
+      printf("bt_driver_register failed[%d] errno %d\n", ret, errno);
       kmm_free(hci_dev);
     }
+#  endif
 
   return ret;
 }

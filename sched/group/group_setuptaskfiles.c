@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/group/group_setuptaskfiles.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,6 +30,7 @@
 #include <assert.h>
 
 #include <nuttx/fs/fs.h>
+#include <nuttx/trace.h>
 
 #include "sched/sched.h"
 #include "group/group.h"
@@ -44,7 +47,9 @@
  *   file descriptors and streams from the parent task.
  *
  * Input Parameters:
- *   tcb - tcb of the new task.
+ *   tcb     - tcb of the new task.
+ *   actions - The spawn file actions
+ *   cloexec - Perform O_CLOEXEC on setup task files
  *
  * Returned Value:
  *   Zero (OK) is returned on success; A negated errno value is returned on
@@ -54,37 +59,44 @@
  *
  ****************************************************************************/
 
-int group_setuptaskfiles(FAR struct task_tcb_s *tcb)
+int group_setuptaskfiles(FAR struct tcb_s *tcb,
+                         FAR const posix_spawn_file_actions_t *actions,
+                         bool cloexec)
 {
-  FAR struct task_group_s *group = tcb->cmn.group;
+  FAR struct task_group_s *group = tcb->group;
+  int ret = OK;
 #ifndef CONFIG_FDCLONE_DISABLE
   FAR struct tcb_s *rtcb = this_task();
-  int ret;
 #endif
 
+  sched_trace_begin();
   DEBUGASSERT(group);
 #ifndef CONFIG_DISABLE_PTHREAD
-  DEBUGASSERT((tcb->cmn.flags & TCB_FLAG_TTYPE_MASK) !=
+  DEBUGASSERT((tcb->flags & TCB_FLAG_TTYPE_MASK) !=
               TCB_FLAG_TTYPE_PTHREAD);
 #endif
 
 #ifndef CONFIG_FDCLONE_DISABLE
   DEBUGASSERT(rtcb->group);
 
-  /* Duplicate the parent task's file descriptors */
+  /* With the exception of kernel threads, duplicate the parent task's
+   * file descriptors.
+   */
 
-  ret = files_duplist(&rtcb->group->tg_filelist, &group->tg_filelist);
-  if (ret < 0)
+  if (group != rtcb->group &&
+      (tcb->flags & TCB_FLAG_TTYPE_MASK) != TCB_FLAG_TTYPE_KERNEL)
     {
-      return ret;
+      ret = fdlist_copy(&rtcb->group->tg_fdlist,
+                        &group->tg_fdlist, actions, cloexec);
+    }
+
+  if (ret >= 0 && actions != NULL &&
+      (tcb->flags & TCB_FLAG_TTYPE_MASK) != TCB_FLAG_TTYPE_KERNEL)
+    {
+      ret = spawn_file_actions(tcb, actions);
     }
 #endif
 
-  /* Allocate file/socket streams for the new TCB */
-
-#ifdef CONFIG_FILE_STREAM
-  return group_setupstreams(tcb);
-#else
-  return OK;
-#endif
+  sched_trace_end();
+  return ret;
 }

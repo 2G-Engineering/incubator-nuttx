@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/spi/spi_driver.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,14 +32,12 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/mutex.h>
 #include <nuttx/spi/spi_transfer.h>
-
-#ifdef CONFIG_SPI_DRIVER
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -101,7 +101,9 @@ static const struct file_operations g_spidrvr_fops =
   spidrvr_ioctl,   /* ioctl */
   NULL,            /* mmap */
   NULL,            /* truncate */
-  NULL             /* poll */
+  NULL,            /* poll */
+  NULL,            /* readv */
+  NULL             /* writev */
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
   , spidrvr_unlink /* unlink */
 #endif
@@ -118,17 +120,16 @@ static const struct file_operations g_spidrvr_fops =
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
 static int spidrvr_open(FAR struct file *filep)
 {
-  FAR struct inode *inode;
   FAR struct spi_driver_s *priv;
   int ret;
 
+  /* Sanity check */
+
+  DEBUGASSERT(filep->f_inode->i_private != NULL);
+
   /* Get our private data structure */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
-  inode = filep->f_inode;
-
-  priv = (FAR struct spi_driver_s *)inode->i_private;
-  DEBUGASSERT(priv);
+  priv = filep->f_inode->i_private;
 
   /* Get exclusive access to the SPI driver state structure */
 
@@ -155,17 +156,16 @@ static int spidrvr_open(FAR struct file *filep)
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
 static int spidrvr_close(FAR struct file *filep)
 {
-  FAR struct inode *inode;
   FAR struct spi_driver_s *priv;
   int ret;
 
+  /* Sanity check */
+
+  DEBUGASSERT(filep->f_inode->i_private != NULL);
+
   /* Get our private data structure */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
-  inode = filep->f_inode;
-
-  priv = (FAR struct spi_driver_s *)inode->i_private;
-  DEBUGASSERT(priv);
+  priv = filep->f_inode->i_private;
 
   /* Get exclusive access to the SPI driver state structure */
 
@@ -188,6 +188,7 @@ static int spidrvr_close(FAR struct file *filep)
     {
       nxmutex_destroy(&priv->lock);
       kmm_free(priv);
+      filep->f_inode->i_private = NULL;
       return OK;
     }
 
@@ -222,20 +223,18 @@ static ssize_t spidrvr_write(FAR struct file *filep, FAR const char *buffer,
 
 static int spidrvr_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 {
-  FAR struct inode *inode;
   FAR struct spi_driver_s *priv;
   FAR struct spi_sequence_s *seq;
   int ret;
 
+  /* Sanity check */
+
+  DEBUGASSERT(filep->f_inode->i_private != NULL);
   spiinfo("cmd=%d arg=%lu\n", cmd, arg);
 
   /* Get our private data structure */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
-  inode = filep->f_inode;
-
-  priv = (FAR struct spi_driver_s *)inode->i_private;
-  DEBUGASSERT(priv);
+  priv = filep->f_inode->i_private;
 
   /* Get exclusive access to the SPI driver state structure */
 
@@ -293,8 +292,8 @@ static int spidrvr_unlink(FAR struct inode *inode)
 
   /* Get our private data structure */
 
-  DEBUGASSERT(inode != NULL && inode->i_private != NULL);
-  priv = (FAR struct spi_driver_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private != NULL);
+  priv = inode->i_private;
 
   /* Get exclusive access to the SPI driver state structure */
 
@@ -310,6 +309,7 @@ static int spidrvr_unlink(FAR struct inode *inode)
     {
       nxmutex_destroy(&priv->lock);
       kmm_free(priv);
+      inode->i_private = NULL;
       return OK;
     }
 
@@ -344,7 +344,7 @@ static int spidrvr_unlink(FAR struct inode *inode)
  *     where N is the minor number
  *
  * Returned Value:
- *   OK if the driver was successfully register; A negated errno value is
+ *   OK if the driver was successfully registered; A negated errno value is
  *   returned on any failure.
  *
  ****************************************************************************/
@@ -361,7 +361,7 @@ int spi_register(FAR struct spi_dev_s *spi, int bus)
 
   /* Allocate a SPI character device structure */
 
-  priv = (FAR struct spi_driver_s *)kmm_zalloc(sizeof(struct spi_driver_s));
+  priv = kmm_zalloc(sizeof(struct spi_driver_s));
   if (priv)
     {
       /* Initialize the SPI character device structure */
@@ -373,7 +373,7 @@ int spi_register(FAR struct spi_dev_s *spi, int bus)
 
       /* Create the character device name */
 
-      snprintf(devname, DEVNAME_FMTLEN, DEVNAME_FMT, bus);
+      snprintf(devname, sizeof(devname), DEVNAME_FMT, bus);
       ret = register_driver(devname, &g_spidrvr_fops, 0666, priv);
       if (ret < 0)
         {
@@ -396,4 +396,3 @@ int spi_register(FAR struct spi_dev_s *spi, int bus)
   return -ENOMEM;
 }
 
-#endif /* CONFIG_SPI_DRIVER */

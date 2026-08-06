@@ -24,19 +24,22 @@ if HAVE_CXX
 
 choice
 	prompt "C++ Library"
-	default LIBCXXMINI
+	default LIBCXXNONE
 
-config LIBCXXMINI
-	bool "Basic C++ support"
+config LIBCXXNONE
+	bool "No default C++ Standard Template Library"
+
+config LIBCXXTOOLCHAIN
+	bool "Toolchain C++ support"
+	select HAVE_CXXINITIALIZE
 	---help---
-		A fragmentary C++ library that will allow to build only
-		the simplest of C++ applications. Only contain basic C++
-		runtime support function.
+		Use Standard C++ library from toolchain.
 
 config LIBCXX
 	bool "LLVM libc++ C++ Standard Library"
 	select HAVE_CXXINITIALIZE
-	select LIBC_LOCALE
+	select PTHREAD_MUTEX_TYPES
+	depends on TLS_NELEM > 0
 	---help---
 		LLVM "libc++" C++ Standard Library
 		https://libcxx.llvm.org/
@@ -44,13 +47,12 @@ config LIBCXX
 config UCLIBCXX
 	bool "uClibc++ Standard C++ Library"
 	select HAVE_CXXINITIALIZE
+	depends on ALLOW_GPL_COMPONENTS
 	---help---
 		uClibc++ C++ library
 		https://cxx.uclibc.org/
 
 endchoice
-
-if LIBCXXMINI
 
 config ETL
 	bool "Embedded Template Library (ETL)"
@@ -60,13 +62,17 @@ config ETL
 		Implements C++ templates such as containers, string
 		singleton math without C++ STL libraries
 
-endif
-
-if LIBCXX || UCLIBCXX
-
 choice
 	prompt "C++ low level library select"
-	default LIBSUPCXX
+	default LIBMINIABI if LIBCXXNONE
+	default LIBSUPCXX_TOOLCHAIN
+
+config LIBMINIABI
+	bool "Basic C++ support"
+	---help---
+		A fragmentary C++ library that will allow to build only
+		the simplest of C++ applications. Only contain basic C++
+		runtime support function.
 
 config LIBCXXABI
 	bool "LLVM low level C++ Library"
@@ -76,18 +82,35 @@ config LIBCXXABI
 		Select if your use libc++abi as lower level c++ library
 
 config LIBSUPCXX
+	bool "GNU compile low level libsupc++"
+	---help---
+		Select if your compile libsupc++ and use libsupc++ as lower
+		level c++ library.
+
+config LIBSUPCXX_TOOLCHAIN
 	bool "GNU low level libsupc++"
 	---help---
-		Select if your toolchain provides libsupc++ and use libsupc++ as lower
+		Select if your toolchain provides libsupc++ and use toolchain libsupc++ as lower
 		level c++ library.
 
 endchoice
 
-endif
+config LIBCXXABI_VERSION
+	string "Select libcxxabi version"
+	depends on LIBCXXABI
+	default LIBCXX_VERSION if LIBCXX
+	default "17.0.6" if !LIBCXX
+
+config LIBSTDCXX_VERSION
+	string "Select libstdcxx version"
+	depends on LIBSUPCXX
+	default "14.2.0"
 
 config CXX_STANDARD
 	string "Language standard"
-	default "gnu++17"
+	default "c++14"   if TRICORE_TOOLCHAIN_TASKING
+	default "gnu++20" if LIBCXX
+	default "gnu++17" if !LIBCXX
 	---help---
 		Possible values:
 		gnu++98/c++98, gnu++11/c++11, gnu++14/c++14, gnu++17/c++17 and gnu++20/c++20
@@ -98,15 +121,41 @@ config CXX_EXCEPTION
 config CXX_RTTI
 	bool "Enable RTTI Support"
 
-if UCLIBCXX
+config CXX_WCHAR
+	bool "Enable Wide Character Support"
 
-config UCLIBCXX_WCHAR
-	bool "Enable Wide Stream Support"
-	default n
+choice
+	prompt "C++ Locale and Stream select"
+	default CXX_NO_LOCALIZATION
+
+config CXX_NO_LOCALIZATION
+	bool "No Locale and Stream Support"
+
+config CXX_MINI_LOCALIZATION
+	bool "Enable mini Locale and Stream Support"
+
+config CXX_LOCALIZATION
+	bool "Enable Locale and Stream Support"
+	depends on LIBC_LOCALE
+
+endchoice
+
+if UCLIBCXX
 
 config UCLIBCXX_BUFSIZE
 	int "IO Stream/Container Buffer Size"
 	default 32
 
 endif
+
+config LIBCXX_VERSION
+	string "Select libcxx version"
+	depends on LIBCXX
+	default "17.0.6"
+
+config LIBCXX_TEST
+	bool "LLVM Libcxx Library Test"
+	depends on LIBCXX && CXX_EXCEPTION
+	default n
+
 endif

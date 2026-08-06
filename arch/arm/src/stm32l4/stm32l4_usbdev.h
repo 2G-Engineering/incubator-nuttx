@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l4/stm32l4_usbdev.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -48,17 +50,17 @@ extern "C"
 #endif
 
 /****************************************************************************
- * Name:  stm32l4_usbsuspend
+ * Name:  stm32_usbsuspend
  *
  * Description:
- *   Board logic must provide the stm32l4_usbsuspend logic if the USBDEV
+ *   Board logic must provide the stm32_usbsuspend logic if the USBDEV
  *   driver is used.  This function is called whenever the USB enters or
  *   leaves suspend mode. This is an opportunity for the board logic to
  *   shutdown clocks, power, etc. while the USB is suspended.
  *
  ****************************************************************************/
 
-void stm32l4_usbsuspend(struct usbdev_s *dev, bool resume);
+void stm32_usbsuspend(struct usbdev_s *dev, bool resume);
 
 #undef EXTERN
 #if defined(__cplusplus)

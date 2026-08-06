@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/xen1210.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /* This driver is used to interface with Sensixs XEN1210 3D-board. */
 
 /****************************************************************************
@@ -29,7 +44,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <inttypes.h>
 #include <stdio.h>
 
@@ -101,11 +116,10 @@ static ssize_t xen1210_read(FAR struct file *filep, FAR char *buffer,
   int                       ret;
 
   sninfo("len=%d\n", len);
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv  = (FAR struct xen1210_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv  = inode->i_private;
 
   /* Verify that the caller has provided a buffer large enough to receive
    * the magnetometer data.
@@ -138,7 +152,7 @@ static ssize_t xen1210_read(FAR struct file *filep, FAR char *buffer,
 
   /* Return read sample */
 
-  buffer = (FAR char *) &priv->sample;
+  buffer = (FAR char *)&priv->sample;
 
   nxmutex_unlock(&priv->lock);
   return sizeof(struct xen1210_sample_s);

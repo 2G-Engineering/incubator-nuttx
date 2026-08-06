@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/kinetis/kinetis_usbhshost.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -74,7 +76,7 @@ extern "C"
  *
  ****************************************************************************/
 
-extern void kinetis_usbhost_vbusdrive(int rhport, bool enable);
+void kinetis_usbhost_vbusdrive(int rhport, bool enable);
 
 /****************************************************************************
  * Name: kinetis_setup_overcurrent
@@ -93,7 +95,7 @@ extern void kinetis_usbhost_vbusdrive(int rhport, bool enable);
  *
  ****************************************************************************/
 
-extern int kinetis_setup_overcurrent(xcpt_t handler, void *arg);
+int kinetis_setup_overcurrent(xcpt_t handler, void *arg);
 
 /****************************************************************************
  * Name: kinetis_ehci_initialize

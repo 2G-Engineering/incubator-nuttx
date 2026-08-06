@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/video/vnc/vnc_rre.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -43,7 +45,7 @@
 #  define CONFIG_DEBUG_GRAPHICS_WARN  1
 #  define CONFIG_DEBUG_GRAPHICS_INFO  1
 #endif
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "vnc_server.h"
 

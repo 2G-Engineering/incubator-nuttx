@@ -1,9 +1,11 @@
 /****************************************************************************
  * arch/arm/src/stm32l4/hardware/stm32l4_lptim.h
  *
- *   Copyright (C) 2016 Motorola Mobility, LLC. All rights reserved.
- *   Copyright (C) 2009, 2011-2012, 2017 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2017 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2016 Motorola Mobility LLC. All rights reserved.
+ * SPDX-FileCopyrightText: 2009, 2011-2012 Gregory Nutt. All rights reserved.
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -45,36 +47,36 @@
 
 /* Basic Timers - TIM6 and TIM7 */
 
-#define STM32L4_LPTIM_ISR_OFFSET  0x0000  /* Interrupt and Status Register */
-#define STM32L4_LPTIM_ICR_OFFSET  0x0004  /* Interrupt Clear Register */
-#define STM32L4_LPTIM_IER_OFFSET  0x0008  /* Interrupt Enable Register */
-#define STM32L4_LPTIM_CFGR_OFFSET 0x000c  /* Configuration Register */
-#define STM32L4_LPTIM_CR_OFFSET   0x0010  /* Control Register */
-#define STM32L4_LPTIM_CMP_OFFSET  0x0014  /* Compare Register */
-#define STM32L4_LPTIM_ARR_OFFSET  0x0018  /* Autoreload Register */
-#define STM32L4_LPTIM_CNT_OFFSET  0x001c  /* Counter Register */
+#define STM32_LPTIM_ISR_OFFSET  0x0000  /* Interrupt and Status Register */
+#define STM32_LPTIM_ICR_OFFSET  0x0004  /* Interrupt Clear Register */
+#define STM32_LPTIM_IER_OFFSET  0x0008  /* Interrupt Enable Register */
+#define STM32_LPTIM_CFGR_OFFSET 0x000c  /* Configuration Register */
+#define STM32_LPTIM_CR_OFFSET   0x0010  /* Control Register */
+#define STM32_LPTIM_CMP_OFFSET  0x0014  /* Compare Register */
+#define STM32_LPTIM_ARR_OFFSET  0x0018  /* Autoreload Register */
+#define STM32_LPTIM_CNT_OFFSET  0x001c  /* Counter Register */
 
 /* Register Addresses *******************************************************/
 
 /* Low-Power Timers - LPTIM1 and LPTIM2 */
 
-#define STM32L4_LPTIM1_ISR        (STM32L4_LPTIM1_BASE+STM32L4_LPTIM_ISR_OFFSET)
-#define STM32L4_LPTIM1_ICR        (STM32L4_LPTIM1_BASE+STM32L4_LPTIM_ICR_OFFSET)
-#define STM32L4_LPTIM1_IER        (STM32L4_LPTIM1_BASE+STM32L4_LPTIM_IER_OFFSET)
-#define STM32L4_LPTIM1_CFGR       (STM32L4_LPTIM1_BASE+STM32L4_LPTIM_CFGR_OFFSET)
-#define STM32L4_LPTIM1_CR         (STM32L4_LPTIM1_BASE+STM32L4_LPTIM_CR_OFFSET)
-#define STM32L4_LPTIM1_CMP        (STM32L4_LPTIM1_BASE+STM32L4_LPTIM_CMP_OFFSET)
-#define STM32L4_LPTIM1_ARR        (STM32L4_LPTIM1_BASE+STM32L4_LPTIM_ARR_OFFSET)
-#define STM32L4_LPTIM1_CNT        (STM32L4_LPTIM1_BASE+STM32L4_LPTIM_CNT_OFFSET)
+#define STM32_LPTIM1_ISR        (STM32_LPTIM1_BASE+STM32_LPTIM_ISR_OFFSET)
+#define STM32_LPTIM1_ICR        (STM32_LPTIM1_BASE+STM32_LPTIM_ICR_OFFSET)
+#define STM32_LPTIM1_IER        (STM32_LPTIM1_BASE+STM32_LPTIM_IER_OFFSET)
+#define STM32_LPTIM1_CFGR       (STM32_LPTIM1_BASE+STM32_LPTIM_CFGR_OFFSET)
+#define STM32_LPTIM1_CR         (STM32_LPTIM1_BASE+STM32_LPTIM_CR_OFFSET)
+#define STM32_LPTIM1_CMP        (STM32_LPTIM1_BASE+STM32_LPTIM_CMP_OFFSET)
+#define STM32_LPTIM1_ARR        (STM32_LPTIM1_BASE+STM32_LPTIM_ARR_OFFSET)
+#define STM32_LPTIM1_CNT        (STM32_LPTIM1_BASE+STM32_LPTIM_CNT_OFFSET)
 
-#define STM32L4_LPTIM2_ISR        (STM32L4_LPTIM2_BASE+STM32L4_LPTIM_ISR_OFFSET)
-#define STM32L4_LPTIM2_ICR        (STM32L4_LPTIM2_BASE+STM32L4_LPTIM_ICR_OFFSET)
-#define STM32L4_LPTIM2_IER        (STM32L4_LPTIM2_BASE+STM32L4_LPTIM_IER_OFFSET)
-#define STM32L4_LPTIM2_CFGR       (STM32L4_LPTIM2_BASE+STM32L4_LPTIM_CFGR_OFFSET)
-#define STM32L4_LPTIM2_CR         (STM32L4_LPTIM2_BASE+STM32L4_LPTIM_CR_OFFSET)
-#define STM32L4_LPTIM2_CMP        (STM32L4_LPTIM2_BASE+STM32L4_LPTIM_CMP_OFFSET)
-#define STM32L4_LPTIM2_ARR        (STM32L4_LPTIM2_BASE+STM32L4_LPTIM_ARR_OFFSET)
-#define STM32L4_LPTIM2_CNT        (STM32L4_LPTIM2_BASE+STM32L4_LPTIM_CNT_OFFSET)
+#define STM32_LPTIM2_ISR        (STM32_LPTIM2_BASE+STM32_LPTIM_ISR_OFFSET)
+#define STM32_LPTIM2_ICR        (STM32_LPTIM2_BASE+STM32_LPTIM_ICR_OFFSET)
+#define STM32_LPTIM2_IER        (STM32_LPTIM2_BASE+STM32_LPTIM_IER_OFFSET)
+#define STM32_LPTIM2_CFGR       (STM32_LPTIM2_BASE+STM32_LPTIM_CFGR_OFFSET)
+#define STM32_LPTIM2_CR         (STM32_LPTIM2_BASE+STM32_LPTIM_CR_OFFSET)
+#define STM32_LPTIM2_CMP        (STM32_LPTIM2_BASE+STM32_LPTIM_CMP_OFFSET)
+#define STM32_LPTIM2_ARR        (STM32_LPTIM2_BASE+STM32_LPTIM_ARR_OFFSET)
+#define STM32_LPTIM2_CNT        (STM32_LPTIM2_BASE+STM32_LPTIM_CNT_OFFSET)
 
 /* Register Bitfield Definitions ********************************************/
 

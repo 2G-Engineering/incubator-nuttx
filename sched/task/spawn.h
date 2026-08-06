@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/task/spawn.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -57,20 +59,5 @@
  ****************************************************************************/
 
 int spawn_execattrs(pid_t pid, FAR const posix_spawnattr_t *attr);
-
-/****************************************************************************
- * Name: spawn_proxyattrs
- *
- * Description:
- *   Set attributes of the proxy task before it has started the new child
- *   task.
- *
- * Input Parameters:
- *
- *   attr - The attributes to use
- *
- ****************************************************************************/
-
-void spawn_proxyattrs(FAR const posix_spawnattr_t *attr);
 
 #endif /* __SCHED_TASK_SPAWN_H */

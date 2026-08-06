@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/string/lib_memcpy.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,14 +38,18 @@
  * Name: memcpy
  ****************************************************************************/
 
-#if !defined(CONFIG_LIBC_ARCH_MEMCPY) && defined(LIBC_BUILD_STRING)
-#undef memcpy /* See mm/README.txt */
+#if !defined(CONFIG_LIBC_ARCH_MEMCPY) && defined(LIBC_BUILD_MEMCPY)
+#undef memcpy
 no_builtin("memcpy")
 FAR void *memcpy(FAR void *dest, FAR const void *src, size_t n)
 {
   FAR unsigned char *pout = (FAR unsigned char *)dest;
   FAR unsigned char *pin  = (FAR unsigned char *)src;
-  while (n-- > 0) *pout++ = *pin++;
+  while (n-- > 0)
+    {
+      *pout++ = *pin++;
+    }
+
   return dest;
 }
 #endif

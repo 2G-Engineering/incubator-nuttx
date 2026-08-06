@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imxrt/imxrt_rtc_lowerhalf.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/mutex.h>
@@ -461,7 +463,7 @@ static int imxrt_rdalarm(struct rtc_lowerhalf_s *lower,
 
       /* Get the current alarm setting in seconds */
 
-      alarm = (time_t)imxrt_hprtc_getalarm();
+      alarm = imxrt_hprtc_getalarm();
 
       /* Convert the one second epoch time to a struct tm */
 

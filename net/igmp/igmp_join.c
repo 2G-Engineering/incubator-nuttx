@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/igmp/igmp_join.c
  *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  *   Copyright (C) 2010, 2018 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
@@ -44,7 +46,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <inttypes.h>
 #include <stdint.h>
 
@@ -160,12 +162,12 @@ int igmp_joingroup(struct net_driver_s *dev,
       /* Add the group (MAC) address to the ether drivers MAC filter list */
 
       igmp_addmcastmac(dev, (FAR in_addr_t *)&grpaddr->s_addr);
-      return OK;
     }
 
-  /* Return EEXIST if the address is already a member of the group */
+  DEBUGASSERT(group->njoins < UINT8_MAX);
+  group->njoins++;
 
-  return -EEXIST;
+  return OK;
 }
 
 #endif /* CONFIG_NET_IGMP */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/route/net_fileroute.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/mutex.h>
 #include <nuttx/fs/fs.h>
@@ -263,7 +265,7 @@ int net_openroute_ipv6(int oflags, FAR struct file *filep)
  *   route - Location to return the next route read from the file
  *
  * Returned Value:
- *   The number of bytes read on success.  The special return valud of zero
+ *   The number of bytes read on success.  The special return value of zero
  *   indicates that the endof of file was encountered (and nothing was read).
  *   A negated errno value is returned on any failure.
  *
@@ -473,7 +475,7 @@ ssize_t net_writeroute_ipv6(FAR struct file *filep,
   while (ntotal < sizeof(struct net_route_ipv6_s));
 
   net_unlockroute_ipv6();
-  return ret;
+  return ntotal;
 }
 #endif
 

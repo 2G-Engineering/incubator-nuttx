@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/signal/sig_kill.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <sys/types.h>
 #include <sched.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/signal.h>
 
@@ -75,11 +77,12 @@
 
 int nxsig_kill(pid_t pid, int signo)
 {
-#ifdef CONFIG_SCHED_HAVE_PARENT
+#if !defined(CONFIG_DISABLE_ALL_SIGNALS) && defined(CONFIG_SCHED_HAVE_PARENT)
   FAR struct tcb_s *rtcb = this_task();
 #endif
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   siginfo_t info;
-  int ret;
+#endif
 
   /* We do not support sending signals to process groups */
 
@@ -88,16 +91,20 @@ int nxsig_kill(pid_t pid, int signo)
       return -ENOSYS;
     }
 
+  if (signo == 0)
+    {
+      return (nxsched_get_tcb(pid) != NULL) ? 0 : -ESRCH;
+    }
+
+#ifdef CONFIG_DISABLE_ALL_SIGNALS
+  return -ENOSYS;
+#else
   /* Make sure that the signal is valid */
 
   if (!GOOD_SIGNO(signo))
     {
       return -EINVAL;
     }
-
-  /* Keep things stationary through the following */
-
-  sched_lock();
 
   /* Create the siginfo structure */
 
@@ -112,10 +119,8 @@ int nxsig_kill(pid_t pid, int signo)
 
   /* Send the signal */
 
-  ret = nxsig_dispatch(pid, &info);
-
-  sched_unlock();
-  return ret;
+  return nxsig_dispatch(pid, &info, false);
+#endif
 }
 
 /****************************************************************************

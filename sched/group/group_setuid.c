@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/group/group_setuid.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -78,9 +80,27 @@ int setuid(uid_t uid)
   rtcb   = this_task();
   rgroup = rtcb->group;
 
-  /* Set the task group's group identity. */
-
   DEBUGASSERT(rgroup != NULL);
-  rgroup->tg_uid = uid;
+
+  if (rgroup->tg_euid == 0)
+    {
+      /* Root: set real, effective, and saved set-user-ID. */
+
+      rgroup->tg_uid  = uid;
+      rgroup->tg_euid = uid;
+      rgroup->tg_suid = uid;
+    }
+  else if (uid == rgroup->tg_uid || uid == rgroup->tg_suid)
+    {
+      /* Non-root: may only set effective UID to real or saved value. */
+
+      rgroup->tg_euid = uid;
+    }
+  else
+    {
+      set_errno(EPERM);
+      return ERROR;
+    }
+
   return OK;
 }

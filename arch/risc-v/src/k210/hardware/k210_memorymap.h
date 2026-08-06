@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/k210/hardware/k210_memorymap.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,13 +32,12 @@
 #define K210_CLINT_BASE   0x02000000
 #define K210_PLIC_BASE    0x0c000000
 
-#ifdef CONFIG_K210_WITH_QEMU
-#define K210_UART0_BASE   0x10010000
-#else
 #define K210_UART0_BASE   0x38000000
-#endif
 #define K210_GPIOHS_BASE  0x38001000
 #define K210_FPIOA_BASE   0x502B0000
+
+#define K210_WDT0_BASE    0x50400000
+#define K210_WDT1_BASE    0x50410000
 
 #define K210_SYSCTL_BASE  0x50440000
 

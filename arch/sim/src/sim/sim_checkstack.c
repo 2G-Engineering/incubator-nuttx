@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/sim_checkstack.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <stdint.h>
 #include <sched.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
@@ -89,7 +91,7 @@ size_t sim_stack_check(void *alloc, size_t size)
    */
 
   for (ptr = (uint32_t *)start, mark = (size >> 2);
-       *ptr == STACK_COLOR && mark > 0;
+       mark > 0 && *ptr == STACK_COLOR;
        ptr++, mark--);
 
   /* If the stack is completely used, then this might mean that the stack
@@ -152,8 +154,7 @@ size_t sim_stack_check(void *alloc, size_t size)
  *
  ****************************************************************************/
 
-size_t up_check_tcbstack(struct tcb_s *tcb)
+size_t up_check_tcbstack(struct tcb_s *tcb, size_t check_size)
 {
-  return sim_stack_check((void *)(uintptr_t)tcb->stack_base_ptr,
-                                            tcb->adj_stack_size);
+  return sim_stack_check((void *)(uintptr_t)tcb->stack_base_ptr, check_size);
 }

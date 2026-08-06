@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/x86/include/i486/irq.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -138,7 +140,7 @@
  *   change occurred.
  */
 
-#define TOP_PUSHA    	 REG_IRQNO
+#define TOP_PUSHA         REG_IRQNO
 #define BOTTOM_PRIO      (XCPTCONTEXT_REGS-REG_IRQNO)
 #define BOTTOM_NOPRIO    (REG_SP-REG_IRQNO)
 
@@ -151,12 +153,7 @@
 #ifndef __ASSEMBLY__
 struct xcptcontext
 {
-  /* The following function pointer is non-zero if there are pending signals
-   * to be processed.
-   */
-
-  void *sigdeliver; /* Actual type is sig_deliver_t */
-
+#ifdef CONFIG_ENABLE_ALL_SIGNALS
   /* These are saved copies of instruction pointer and EFLAGS used during
    * signal processing.
    *
@@ -168,7 +165,7 @@ struct xcptcontext
 
   uint32_t saved_eip;
   uint32_t saved_eflags;
-
+#endif
   /* Register save area */
 
   uint32_t regs[XCPTCONTEXT_REGS];
@@ -183,7 +180,7 @@ struct xcptcontext
 
 /* Return stack pointer */
 
-static inline uint32_t up_getsp(void)
+static inline_function uint32_t up_getsp(void)
 {
   uint32_t regval;
 
@@ -197,7 +194,7 @@ static inline uint32_t up_getsp(void)
 
 /* Get segment registers */
 
-static inline uint32_t up_getds(void)
+static inline_function uint32_t up_getds(void)
 {
   uint32_t regval;
 
@@ -209,7 +206,7 @@ static inline uint32_t up_getds(void)
   return regval;
 }
 
-static inline uint32_t up_getcs(void)
+static inline_function uint32_t up_getcs(void)
 {
   uint32_t regval;
 
@@ -221,7 +218,7 @@ static inline uint32_t up_getcs(void)
   return regval;
 }
 
-static inline uint32_t up_getss(void)
+static inline_function uint32_t up_getss(void)
 {
   uint32_t regval;
 
@@ -244,7 +241,7 @@ static inline uint32_t up_getss(void)
 
 /* Get the current FLAGS register contents */
 
-static inline irqstate_t irqflags()
+static inline_function irqstate_t irqflags()
 {
   irqstate_t flags;
 
@@ -262,33 +259,33 @@ static inline irqstate_t irqflags()
  * if the X86_FLAGS_IF is set by sti, then interrupts are enable.
  */
 
-static inline bool up_irq_disabled(irqstate_t flags)
+static inline_function bool up_irq_disabled(irqstate_t flags)
 {
   return ((flags & X86_FLAGS_IF) == 0);
 }
 
-static inline bool up_irq_enabled(irqstate_t flags)
+static inline_function bool up_irq_enabled(irqstate_t flags)
 {
   return ((flags & X86_FLAGS_IF) != 0);
 }
 
 /* Disable interrupts unconditionally */
 
-static inline void up_irq_disable(void)
+static inline_function void up_irq_disable(void)
 {
   asm volatile("cli": : :"memory");
 }
 
 /* Enable interrupts unconditionally */
 
-static inline void up_irq_enable(void)
+static inline_function void up_irq_enable(void)
 {
   asm volatile("sti": : :"memory");
 }
 
 /* Disable interrupts, but return previous interrupt state */
 
-static inline irqstate_t up_irq_save(void)
+static inline_function irqstate_t up_irq_save(void)
 {
   irqstate_t flags = irqflags();
   up_irq_disable();
@@ -297,7 +294,7 @@ static inline irqstate_t up_irq_save(void)
 
 /* Conditionally disable interrupts */
 
-static inline void up_irq_restore(irqstate_t flags)
+static inline_function void up_irq_restore(irqstate_t flags)
 {
   if (up_irq_enabled(flags))
     {
@@ -305,8 +302,8 @@ static inline void up_irq_restore(irqstate_t flags)
     }
 }
 
-static inline void system_call3(unsigned int nbr, uintptr_t parm1,
-                                uintptr_t parm2, uintptr_t parm3)
+static inline_function void system_call3(unsigned int nbr, uintptr_t parm1,
+                                         uintptr_t parm2, uintptr_t parm3)
 {
   /* To be provided */
 }

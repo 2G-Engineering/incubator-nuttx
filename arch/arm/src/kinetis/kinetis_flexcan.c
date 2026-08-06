@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/kinetis/kinetis_flexcan.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,10 +32,9 @@
 #include <unistd.h>
 #include <time.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
-#include <nuttx/can.h>
 #include <nuttx/wdog.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
@@ -725,7 +726,7 @@ static int kinetis_transmit(struct kinetis_driver_s *priv)
 
       cs.rtr = frame->can_id & FLAGRTR ? 1 : 0;
 
-      cs.dlc = len_to_can_dlc[frame->len];
+      cs.dlc = g_len_to_can_dlc[frame->len];
 
       frame_data_word = (uint32_t *)&frame->data[0];
 
@@ -857,9 +858,11 @@ static void kinetis_receive(struct kinetis_driver_s *priv,
       /* Read the frame contents */
 
 #ifdef CONFIG_NET_CAN_CANFD
-      if (rf->cs.edl) /* CAN FD frame */
+      if (rf->cs.edl)
         {
-        struct canfd_frame *frame = (struct canfd_frame *)priv->rxdesc;
+          /* CAN FD frame */
+
+          struct canfd_frame *frame = (struct canfd_frame *)priv->rxdesc;
 
           if (rf->cs.ide)
             {
@@ -876,7 +879,7 @@ static void kinetis_receive(struct kinetis_driver_s *priv,
               frame->can_id |= FLAGRTR;
             }
 
-          frame->len = can_dlc_to_len[rf->cs.dlc];
+          frame->len = g_can_dlc_to_len[rf->cs.dlc];
 
           frame_data_word = (uint32_t *)&frame->data[0];
 
@@ -897,10 +900,12 @@ static void kinetis_receive(struct kinetis_driver_s *priv,
           priv->dev.d_len = sizeof(struct canfd_frame);
           priv->dev.d_buf = (uint8_t *)frame;
         }
-      else /* CAN 2.0 Frame */
+      else
 #endif
         {
-        struct can_frame *frame = (struct can_frame *)priv->rxdesc;
+          /* CAN 2.0 Frame */
+
+          struct can_frame *frame = (struct can_frame *)priv->rxdesc;
 
           if (rf->cs.ide)
             {
@@ -1333,6 +1338,8 @@ static int kinetis_ifup(struct net_driver_s *dev)
 
   up_enable_irq(priv->config->mb_irq);
 
+  netdev_carrier_on(dev);
+
   return OK;
 }
 
@@ -1360,6 +1367,9 @@ static int kinetis_ifdown(struct net_driver_s *dev)
   kinetis_reset(priv);
 
   priv->bifup = false;
+
+  netdev_carrier_off(dev);
+
   return OK;
 }
 
@@ -1480,10 +1490,10 @@ static int kinetis_ioctl(struct net_driver_s *dev, int cmd,
         {
           struct can_ioctl_data_s *req =
               (struct can_ioctl_data_s *)((uintptr_t)arg);
-          req->arbi_bitrate = priv->arbi_timing.bitrate / 1000; /* kbit/s */
+          req->arbi_bitrate = priv->arbi_timing.bitrate;
           req->arbi_samplep = priv->arbi_timing.samplep;
 #ifdef CONFIG_NET_CAN_CANFD
-          req->data_bitrate = priv->data_timing.bitrate / 1000; /* kbit/s */
+          req->data_bitrate = priv->data_timing.bitrate;
           req->data_samplep = priv->data_timing.samplep;
 #else
           req->data_bitrate = 0;
@@ -1499,7 +1509,7 @@ static int kinetis_ioctl(struct net_driver_s *dev, int cmd,
               (struct can_ioctl_data_s *)((uintptr_t)arg);
 
           struct flexcan_timeseg arbi_timing;
-          arbi_timing.bitrate = req->arbi_bitrate * 1000;
+          arbi_timing.bitrate = req->arbi_bitrate;
           arbi_timing.samplep = req->arbi_samplep;
 
           if (kinetis_bitratetotimeseg(&arbi_timing, 10, 0))
@@ -1513,7 +1523,7 @@ static int kinetis_ioctl(struct net_driver_s *dev, int cmd,
 
 #ifdef CONFIG_NET_CAN_CANFD
           struct flexcan_timeseg data_timing;
-          data_timing.bitrate = req->data_bitrate * 1000;
+          data_timing.bitrate = req->data_bitrate;
           data_timing.samplep = req->data_samplep;
 
           if (ret == OK && kinetis_bitratetotimeseg(&data_timing, 10, 1))
@@ -1528,13 +1538,12 @@ static int kinetis_ioctl(struct net_driver_s *dev, int cmd,
 
           if (ret == OK)
             {
-              /* Reset CAN controller and start with new timings */
+              /* Apply the new timings (interface is guaranteed to be down) */
 
               priv->arbi_timing = arbi_timing;
 #ifdef CONFIG_NET_CAN_CANFD
               priv->data_timing = data_timing;
 #endif
-              kinetis_ifup(dev);
             }
         }
         break;

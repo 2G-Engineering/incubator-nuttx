@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f746g-disco/src/stm32_userleds.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,9 +25,10 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <arch/board/board.h>
 
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "stm32_gpio.h"
 #include "stm32f746g-disco.h"
@@ -65,9 +68,9 @@ uint32_t board_userled_initialize(void)
 
 void board_userled(int led, bool ledon)
 {
-  if (led == BOARD_STATUS_LED)
+  if (led == BOARD_LED1)
     {
-      stm32_gpiowrite(GPIO_LD1, !ledon);
+      stm32_gpiowrite(GPIO_LD1, ledon);
     }
 }
 
@@ -84,7 +87,7 @@ void board_userled(int led, bool ledon)
 
 void board_userled_all(uint32_t ledset)
 {
-  stm32_gpiowrite(GPIO_LD1, (ledset & BOARD_STATUS_LED_BIT) != 0);
+  stm32_gpiowrite(GPIO_LD1, (ledset & BOARD_LED1_BIT) != 0);
 }
 
 #endif /* !CONFIG_ARCH_LEDS */

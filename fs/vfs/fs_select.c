@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_select.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,13 +33,24 @@
 #include <poll.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/cancelpt.h>
 #include <nuttx/fs/fs.h>
 
 #include "inode/inode.h"
+#include "fs_heap.h"
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#ifdef CONFIG_FDCHECK
+#  undef FD_ISSET
+#  define FD_ISSET(fd,set) \
+ (((((fd_set*)(set))->arr)[_FD_NDX(fd)] & (UINT32_C(1) << _FD_BIT(fd))) != 0)
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -91,6 +104,10 @@ int select(int nfds, FAR fd_set *readfds, FAR fd_set *writefds,
       return ERROR;
     }
 
+#ifdef CONFIG_FDCHECK
+  nfds = fdcheck_restore(nfds - 1) + 1;
+#endif
+
   /* How many pollfd structures do we need to allocate? */
 
   /* Initialize the descriptor list for poll() */
@@ -114,7 +131,7 @@ int select(int nfds, FAR fd_set *readfds, FAR fd_set *writefds,
   if (npfds > 0)
     {
       pollset = (FAR struct pollfd *)
-        kmm_zalloc(npfds * sizeof(struct pollfd));
+        fs_heap_zalloc(npfds * sizeof(struct pollfd));
 
       if (pollset == NULL)
         {
@@ -138,7 +155,11 @@ int select(int nfds, FAR fd_set *readfds, FAR fd_set *writefds,
 
       if (readfds && FD_ISSET(fd, readfds))
         {
+#ifdef CONFIG_FDCHECK
+          pollset[ndx].fd      = fdcheck_protect(fd);
+#else
           pollset[ndx].fd      = fd;
+#endif
           pollset[ndx].events |= POLLIN;
           incr                 = 1;
         }
@@ -149,7 +170,11 @@ int select(int nfds, FAR fd_set *readfds, FAR fd_set *writefds,
 
       if (writefds && FD_ISSET(fd, writefds))
         {
+#ifdef CONFIG_FDCHECK
+          pollset[ndx].fd      = fdcheck_protect(fd);
+#else
           pollset[ndx].fd      = fd;
+#endif
           pollset[ndx].events |= POLLOUT;
           incr                 = 1;
         }
@@ -160,7 +185,11 @@ int select(int nfds, FAR fd_set *readfds, FAR fd_set *writefds,
 
       if (exceptfds && FD_ISSET(fd, exceptfds))
         {
+#ifdef CONFIG_FDCHECK
+          pollset[ndx].fd      = fdcheck_protect(fd);
+#else
           pollset[ndx].fd      = fd;
+#endif
           incr                  = 1;
         }
 
@@ -175,7 +204,7 @@ int select(int nfds, FAR fd_set *readfds, FAR fd_set *writefds,
     {
       /* Calculate the timeout in milliseconds */
 
-      msec = timeout->tv_sec * 1000 + timeout->tv_usec / 1000;
+      msec = timeout->tv_sec * 1000 + (timeout->tv_usec + 999) / 1000;
     }
   else
     {
@@ -251,6 +280,6 @@ int select(int nfds, FAR fd_set *readfds, FAR fd_set *writefds,
         }
     }
 
-  kmm_free(pollset);
+  fs_heap_free(pollset);
   return ret;
 }

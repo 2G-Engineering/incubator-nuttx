@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/procfs/netdev_statistics.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,19 +31,30 @@
 #include <string.h>
 #include <inttypes.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <netinet/ether.h>
 
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/sixlowpan.h>
 
+#include "inet/inet.h"
 #include "netdev/netdev.h"
 #include "utils/utils.h"
 #include "procfs/procfs.h"
 
 #if !defined(CONFIG_DISABLE_MOUNTPOINT) && defined(CONFIG_FS_PROCFS) && \
     !defined(CONFIG_FS_PROCFS_EXCLUDE_NET)
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_IPv4
+#  define NETSTAT_IPv6_IDX 2
+#else
+#  define NETSTAT_IPv6_IDX 1
+#endif
 
 /****************************************************************************
  * Private Function Prototypes
@@ -83,7 +96,13 @@ static const linegen_t g_netstat_linegen[] =
   , netprocfs_inet4addresses
 #endif
 #ifdef CONFIG_NET_IPv6
+#  if defined(CONFIG_NETDEV_MULTIPLE_IPv6) && \
+      defined(CONFIG_DESIGNATED_INITIALIZERS)
+  , [NETSTAT_IPv6_IDX ... NETSTAT_IPv6_IDX + CONFIG_NETDEV_MAX_IPv6_ADDR - 1]
+  = netprocfs_inet6address
+#  else
   , netprocfs_inet6address
+#  endif
   , netprocfs_inet6draddress
 #endif
 #if !defined(CONFIG_NET_IPv4) && !defined(CONFIG_NET_IPv6)
@@ -172,7 +191,7 @@ static int netprocfs_linklayer(FAR struct netprocfs_file_s *netfile)
 
   /* Get the interface status:  RUNNING, UP, or DOWN */
 
-  if ((dev->d_flags & IFF_RUNNING) != 0)
+  if (IFF_IS_RUNNING(dev->d_flags) != 0)
     {
       status = "RUNNING";
     }
@@ -276,6 +295,13 @@ static int netprocfs_inet4addresses(FAR struct netprocfs_file_s *netfile)
   len += snprintf(&netfile->line[len], NET_LINELEN - len,
                   "\tinet addr:%s ", inet_ntoa_r(addr, inetaddr,
                                                  sizeof(inetaddr)));
+#ifdef CONFIG_NET_ARP_ACD
+  if (dev->d_acd.conflict_flag == ARP_ACD_ADDRESS_CONFLICT)
+    {
+      len += snprintf(&netfile->line[len], NET_LINELEN - len,
+                      "(conflict!) ");
+    }
+#endif
 
   /* Show the IPv4 default router address */
 
@@ -309,18 +335,26 @@ static int netprocfs_inet6address(FAR struct netprocfs_file_s *netfile)
   FAR struct net_driver_s *dev;
   char addrstr[INET6_ADDRSTRLEN];
   uint8_t preflen;
+  int idx = netfile->lineno - NETSTAT_IPv6_IDX;
   int len = 0;
 
   DEBUGASSERT(netfile != NULL && netfile->dev != NULL);
   dev = netfile->dev;
 
+#ifdef CONFIG_NETDEV_MULTIPLE_IPv6
+  if (net_ipv6addr_cmp(dev->d_ipv6[idx].addr, g_ipv6_unspecaddr))
+    {
+      return 0;
+    }
+#endif
+
   /* Convert the 128 network mask to a human friendly prefix length */
 
-  preflen = net_ipv6_mask2pref(dev->d_ipv6netmask);
+  preflen = net_ipv6_mask2pref(dev->d_ipv6[idx].mask);
 
   /* Show the assigned IPv6 address */
 
-  if (inet_ntop(AF_INET6, dev->d_ipv6addr, addrstr, INET6_ADDRSTRLEN))
+  if (inet_ntop(AF_INET6, dev->d_ipv6[idx].addr, addrstr, INET6_ADDRSTRLEN))
     {
       len += snprintf(&netfile->line[len], NET_LINELEN - len,
                       "\tinet6 addr: %s/%d\n", addrstr, preflen);
@@ -339,22 +373,17 @@ static int netprocfs_inet6draddress(FAR struct netprocfs_file_s *netfile)
 {
   FAR struct net_driver_s *dev;
   char addrstr[INET6_ADDRSTRLEN];
-  uint8_t preflen;
   int len = 0;
 
   DEBUGASSERT(netfile != NULL && netfile->dev != NULL);
   dev = netfile->dev;
-
-  /* Convert the 128 network mask to a human friendly prefix length */
-
-  preflen = net_ipv6_mask2pref(dev->d_ipv6netmask);
 
   /* Show the IPv6 default router address */
 
   if (inet_ntop(AF_INET6, dev->d_ipv6draddr, addrstr, INET6_ADDRSTRLEN))
     {
       len += snprintf(&netfile->line[len], NET_LINELEN - len,
-                      "\tinet6 DRaddr: %s/%d\n\n", addrstr, preflen);
+                      "\tinet6 DRaddr: %s\n\n", addrstr);
     }
 
   return len;
@@ -383,8 +412,8 @@ static int netprocfs_rxstatistics_header(
     FAR struct netprocfs_file_s *netfile)
 {
   DEBUGASSERT(netfile != NULL);
-  return snprintf(netfile->line, NET_LINELEN , "\tRX: %-8s %-8s %-8s\n",
-                  "Received", "Fragment", "Errors");
+  return snprintf(netfile->line, NET_LINELEN , "\tRX: %-8s %-8s %-8s %-8s\n",
+                  "Received", "Fragment", "Errors", "Bytes");
 }
 #endif /* CONFIG_NETDEV_STATISTICS */
 
@@ -402,10 +431,12 @@ static int netprocfs_rxstatistics(FAR struct netprocfs_file_s *netfile)
   dev = netfile->dev;
   stats = &dev->d_statistics;
 
-  return snprintf(netfile->line, NET_LINELEN, "\t    %08lx %08lx %08lx\n",
+  return snprintf(netfile->line, NET_LINELEN, \
+                  "\t    %08lx %08lx %08lx %-16llx\n",
                   (unsigned long)stats->rx_packets,
                   (unsigned long)stats->rx_fragments,
-                  (unsigned long)stats->rx_errors);
+                  (unsigned long)stats->rx_errors,
+                  (unsigned long long)stats->rx_bytes);
 }
 #endif /* CONFIG_NETDEV_STATISTICS */
 
@@ -497,8 +528,9 @@ static int netprocfs_txstatistics_header(
 {
   DEBUGASSERT(netfile != NULL);
 
-  return snprintf(netfile->line, NET_LINELEN, "\tTX: %-8s %-8s %-8s %-8s\n",
-                 "Queued", "Sent", "Errors", "Timeouts");
+  return snprintf(netfile->line, NET_LINELEN,
+                 "\tTX: %-8s %-8s %-8s %-8s %-8s\n",
+                 "Queued", "Sent", "Errors", "Timeouts", "Bytes");
 }
 #endif /* CONFIG_NETDEV_STATISTICS */
 
@@ -517,11 +549,12 @@ static int netprocfs_txstatistics(FAR struct netprocfs_file_s *netfile)
   stats = &dev->d_statistics;
 
   return snprintf(netfile->line, NET_LINELEN,
-                  "\t    %08lx %08lx %08lx %08lx\n",
+                  "\t    %08lx %08lx %08lx %08lx %-16llx \n",
                   (unsigned long)stats->tx_packets,
                   (unsigned long)stats->tx_done,
                   (unsigned long)stats->tx_errors,
-                  (unsigned long)stats->tx_timeouts);
+                  (unsigned long)stats->tx_timeouts,
+                  (unsigned long long)stats->tx_bytes);
 }
 #endif /* CONFIG_NETDEV_STATISTICS */
 

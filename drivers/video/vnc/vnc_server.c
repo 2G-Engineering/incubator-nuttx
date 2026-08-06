@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/video/vnc/vnc_server.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -45,7 +47,7 @@
 #  define CONFIG_DEBUG_GRAPHICS_WARN  1
 #  define CONFIG_DEBUG_GRAPHICS_INFO  1
 #endif
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -76,7 +78,7 @@ FAR struct vnc_session_s *g_vnc_sessions[RFB_MAX_DISPLAYS];
  * Description:
  *  Conclude the current VNC session.  This function re-initializes the
  *  session structure; it does not free either the session structure nor
- *  the framebuffer so that they may be re-used.
+ *  the framebuffer so that they may be reused.
  *
  * Input Parameters:
  *   session - An instance of the session structure.
@@ -205,7 +207,7 @@ errout_with_listener:
 }
 
 /****************************************************************************
- * Pubic Functions
+ * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
@@ -260,7 +262,7 @@ int vnc_server(int argc, FAR char *argv[])
    * the KMM allocator will align memory to 32-bits or better.
    */
 
-  fb = (FAR uint8_t *)kmm_zalloc(RFB_SIZE);
+  fb = kmm_zalloc(RFB_SIZE);
   if (fb == NULL)
     {
       gerr("ERROR: Failed to allocate framebuffer memory: %lu KB\n",

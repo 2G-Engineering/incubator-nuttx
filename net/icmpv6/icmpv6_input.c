@@ -1,6 +1,7 @@
 /****************************************************************************
  * net/icmpv6/icmpv6_input.c
- * Handling incoming ICMPv6 input
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -27,7 +28,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/net/netconfig.h>
 #include <nuttx/net/netdev.h>
@@ -36,6 +37,7 @@
 #include <nuttx/net/dns.h>
 
 #include "devif/devif.h"
+#include "netlink/netlink.h"
 #include "neighbor/neighbor.h"
 #include "utils/utils.h"
 #include "icmpv6/icmpv6.h"
@@ -299,7 +301,7 @@ void icmpv6_input(FAR struct net_driver_s *dev, unsigned int iplen)
         /* Check if we are the target of the solicitation */
 
         sol = ICMPv6SOLICIT;
-        if (net_ipv6addr_cmp(sol->tgtaddr, dev->d_ipv6addr))
+        if (NETDEV_IS_MY_V6ADDR(dev, sol->tgtaddr))
           {
             if (sol->opttype == ICMPv6_OPT_SRCLLADDR)
               {
@@ -312,7 +314,7 @@ void icmpv6_input(FAR struct net_driver_s *dev, unsigned int iplen)
              * solicitation came from.
              */
 
-            icmpv6_advertise(dev, ipv6->srcipaddr);
+            icmpv6_advertise(dev, sol->tgtaddr, ipv6->srcipaddr);
 
             /* All statistics have been updated.  Nothing to do but exit. */
 
@@ -341,7 +343,7 @@ void icmpv6_input(FAR struct net_driver_s *dev, unsigned int iplen)
          */
 
         adv = ICMPv6ADVERTISE;
-        if (net_ipv6addr_cmp(ipv6->destipaddr, dev->d_ipv6addr))
+        if (NETDEV_IS_MY_V6ADDR(dev, ipv6->destipaddr))
           {
             /* This message is required to support the Target link-layer
              * address option.
@@ -426,6 +428,15 @@ void icmpv6_input(FAR struct net_driver_s *dev, unsigned int iplen)
            FAR struct icmpv6_generic_s *opt =
                                 (FAR struct icmpv6_generic_s *)&options[ndx];
 
+            /* RFC 4861 4.6: "The value 0 is invalid. Nodes MUST silently
+             * discard a packet that contains an option with length zero."
+             */
+
+            if (opt->optlen == 0)
+              {
+                goto icmpv6_drop_packet;
+              }
+
             switch (opt->opttype)
               {
                 case ICMPv6_OPT_SRCLLADDR:
@@ -441,7 +452,7 @@ void icmpv6_input(FAR struct net_driver_s *dev, unsigned int iplen)
                     FAR struct icmpv6_prefixinfo_s *prefixopt =
                                       (FAR struct icmpv6_prefixinfo_s *)opt;
 
-                    /* Is the "A" flag set? */
+                   /* Is the "A" flag set? */
 
                     if ((prefixopt->flags & ICMPv6_PRFX_FLAG_A) != 0)
                       {
@@ -449,12 +460,20 @@ void icmpv6_input(FAR struct net_driver_s *dev, unsigned int iplen)
 
                         icmpv6_setaddresses(dev, ipv6->srcipaddr,
                                     prefixopt->prefix, prefixopt->preflen);
-
-                        /* Notify any waiting threads */
-
-                        icmpv6_rnotify(dev);
-                        prefix = true;
+                        netlink_ipv6_prefix_notify(dev, RTM_NEWPREFIX,
+                                                   prefixopt);
                       }
+                    else if ((adv->flags & ICMPv6_RADV_FLAG_M) != 0)
+                      {
+                        net_ipv6addr_copy(dev->d_ipv6draddr,
+                                          ipv6->srcipaddr);
+                      }
+
+                      /* Notify any waiting threads */
+
+                      icmpv6_rnotify(dev, (adv->flags & ICMPv6_RADV_FLAG_M) ?
+                                          -EADDRNOTAVAIL : OK);
+                      prefix = true;
                   }
                   break;
 
@@ -462,7 +481,8 @@ void icmpv6_input(FAR struct net_driver_s *dev, unsigned int iplen)
                   {
                     FAR struct icmpv6_mtu_s *mtuopt =
                                         (FAR struct icmpv6_mtu_s *)opt;
-                    dev->d_pktsize = NTOHS(mtuopt->mtu[1]) + dev->d_llhdrlen;
+                    dev->d_pktsize = MIN(dev->d_pktsize,
+                        NTOHS(mtuopt->mtu[1]) + dev->d_llhdrlen);
                   }
                   break;
 
@@ -475,7 +495,6 @@ void icmpv6_input(FAR struct net_driver_s *dev, unsigned int iplen)
                     struct sockaddr_in6 addr;
                     int nservers;
                     int ret;
-                    int i;
 
                     if (rdnss->optlen < 3)
                       {
@@ -492,15 +511,13 @@ void icmpv6_input(FAR struct net_driver_s *dev, unsigned int iplen)
                     servers  = (FAR struct in6_addr *)rdnss->servers;
                     nservers = (rdnss->optlen - 1) / 2;
 
-                    /* Set the IPv6 DNS server address */
-
-                    memset(&addr, 0, sizeof(addr));
-                    addr.sin6_family = AF_INET6;
-
-                    for (i = 0; i < CONFIG_NETDB_DNSSERVER_NAMESERVERS &&
-                         i < nservers; i++)
+                    if (nservers > 0)
                       {
-                        net_ipv6addr_copy(&addr.sin6_addr, servers + i);
+                        /* Set the IPv6 DNS server address */
+
+                        memset(&addr, 0, sizeof(addr));
+                        addr.sin6_family = AF_INET6;
+                        net_ipv6addr_copy(&addr.sin6_addr, servers);
                         ret = dns_add_nameserver(
                                           (FAR const struct sockaddr *)&addr,
                                           sizeof(struct sockaddr_in6));
@@ -541,13 +558,19 @@ void icmpv6_input(FAR struct net_driver_s *dev, unsigned int iplen)
          * ICMPv6 checksum before we return the packet.
          */
 
+        FAR const uint16_t *srcaddr;
+
         icmpv6->type = ICMPv6_ECHO_REPLY;
 
+        srcaddr = netdev_ipv6_srcaddr(dev, ipv6->destipaddr);
         net_ipv6addr_copy(ipv6->destipaddr, ipv6->srcipaddr);
-        net_ipv6addr_copy(ipv6->srcipaddr, dev->d_ipv6addr);
+        net_ipv6addr_copy(ipv6->srcipaddr, srcaddr);
 
         icmpv6->chksum = 0;
+
+#ifdef CONFIG_NET_ICMPv6_CHECKSUMS
         icmpv6->chksum = ~icmpv6_chksum(dev, iplen);
+#endif
       }
       break;
 

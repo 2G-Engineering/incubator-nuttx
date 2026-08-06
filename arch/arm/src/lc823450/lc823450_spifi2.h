@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lc823450/lc823450_spifi2.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -78,7 +80,7 @@
 #define SF_CMD_READ_JID       0x9f
 
 #define SF_STATUS1_BUSY       (1 << 0)
-#define SF_STATUS2_QE    	    (1 << 1)
+#define SF_STATUS2_QE         (1 << 1)
 
 #define SF_JID_MID_MASK       0xff0000
 #define SF_JID_MID_WINBOND    0xef0000

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/mb7040.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -26,7 +41,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdlib.h>
 
 #include <nuttx/kmalloc.h>
@@ -36,14 +51,6 @@
 #include <nuttx/random.h>
 
 #if defined(CONFIG_I2C) && defined(CONFIG_SENSORS_MB7040)
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-#ifndef CONFIG_MB7040_I2C_FREQUENCY
-#  define CONFIG_MB7040_I2C_FREQUENCY 400000
-#endif
 
 /****************************************************************************
  * Private Types
@@ -287,7 +294,7 @@ static int mb7040_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
       case SNIOC_CHANGEADDR:
         ret = mb7040_changeaddr(priv, (uint8_t)arg);
-        sninfo("new addr: %02x ret: %d\n", *(uint8_t *)arg, ret);
+        sninfo("new addr: %02x ret: %d\n", *(FAR uint8_t *)arg, ret);
         break;
 
       /* Unrecognized commands */
@@ -333,7 +340,7 @@ int mb7040_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
 
   /* Initialize the device's structure */
 
-  priv = (FAR struct mb7040_dev_s *)kmm_malloc(sizeof(*priv));
+  priv = kmm_malloc(sizeof(*priv));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");

@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/pthread/pthread_detach.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "sched/sched.h"
 #include "group/group.h"
@@ -64,65 +66,43 @@ int pthread_detach(pthread_t thread)
 {
   FAR struct tcb_s *rtcb = this_task();
   FAR struct task_group_s *group = rtcb->group;
-  FAR struct join_s *pjoin;
-  int ret = OK;
+  FAR struct task_join_s *join;
+  FAR struct tcb_s *tcb;
+  int ret;
 
-  sinfo("Thread=%d group=%p\n", thread, group);
-  DEBUGASSERT(group);
+  nxrmutex_lock(&group->tg_mutex);
 
-  /* Find the entry associated with this pthread. */
-
-  nxmutex_lock(&group->tg_joinlock);
-  pjoin = pthread_findjoininfo(group, (pid_t)thread);
-  if (!pjoin)
+  tcb = nxsched_get_tcb((pid_t)thread);
+  if (tcb == NULL || (tcb->flags & TCB_FLAG_JOIN_COMPLETED) != 0)
     {
-      FAR struct tcb_s *tcb = nxsched_get_tcb((pid_t)thread);
+      /* Destroy the join information */
 
-      serr("ERROR: Could not find thread entry\n");
-
-      if (tcb == NULL)
+      ret = pthread_findjoininfo(group, (pid_t)thread, &join, false);
+      if (ret == OK)
+        {
+          pthread_destroyjoin(group, join);
+        }
+      else
         {
           ret = ESRCH;
         }
 
-      /* The thread is still active but has no join info.  In that
-       * case, it must be a task and not a pthread.
-       */
+      goto errout;
+    }
 
-      else
-        {
-          ret = EINVAL;
-        }
+  if ((group != tcb->group) ||
+      (tcb->flags & TCB_FLAG_DETACHED) != 0)
+    {
+      ret = EINVAL;
     }
   else
     {
-      /* Has the thread already terminated? */
-
-      if (pjoin->terminated)
-        {
-          /* YES.. just remove the thread entry. */
-
-          pthread_destroyjoin(group, pjoin);
-        }
-      else
-        {
-          /* NO.. Just mark the thread as detached.  It
-           * will be removed and deallocated when the
-           * thread exits
-           */
-
-          if (pjoin->detached)
-            {
-              ret = EINVAL;
-            }
-          else
-            {
-              pjoin->detached = true;
-            }
-        }
+      tcb->flags |= TCB_FLAG_DETACHED;
+      ret = OK;
     }
 
-  nxmutex_unlock(&group->tg_joinlock);
+errout:
+  nxrmutex_unlock(&group->tg_mutex);
 
   sinfo("Returning %d\n", ret);
   return ret;

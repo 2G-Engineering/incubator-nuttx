@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/z80/src/z8/z8_i2c.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/mutex.h>
 #include <nuttx/i2c/i2c_master.h>
@@ -638,7 +640,7 @@ FAR struct i2c_master_s *z8_i2cbus_initialize(int port)
 
   /* Now, allocate an I2C instance for this caller */
 
-  i2c = (FAR struct z8_i2cdev_s *)kmm_zalloc(sizeof(FAR struct z8_i2cdev_s));
+  i2c = kmm_zalloc(sizeof(struct z8_i2cdev_s));
   if (i2c)
     {
       /* Initialize the allocated instance */

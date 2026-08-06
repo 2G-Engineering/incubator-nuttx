@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/hardware/stm32_sdmmc.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,9 +30,9 @@
 #include <nuttx/config.h>
 #include "chip.h"
 
-#if defined(CONFIG_STM32F7_STM32F72XX) || defined(CONFIG_STM32F7_STM32F73XX) || \
-   defined(CONFIG_STM32F7_STM32F74XX) || defined(CONFIG_STM32F7_STM32F75XX) || \
-   defined(CONFIG_STM32F7_STM32F76XX) || defined(CONFIG_STM32F7_STM32F77XX)
+#if defined(CONFIG_STM32_STM32F72XX) || defined(CONFIG_STM32_STM32F73XX) || \
+   defined(CONFIG_STM32_STM32F74XX) || defined(CONFIG_STM32_STM32F75XX) || \
+   defined(CONFIG_STM32_STM32F76XX) || defined(CONFIG_STM32_STM32F77XX)
 #else
 #  error "Unsupported STM32 F7 part"
 #endif

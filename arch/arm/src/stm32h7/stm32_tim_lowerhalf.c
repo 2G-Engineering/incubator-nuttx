@@ -1,12 +1,13 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_tim_lowerhalf.c
  *
- *   Copyright (C) 2023 Max Kriegleder. All rights reserved.
- *   Copyright (C) 2015 Wail Khemir. All rights reserved.
- *   Copyright (C) 2015 Omni Hoverboards Inc. All rights reserved.
- *   Authors: Wail Khemir <khemirwail@gmail.com>
- *            Paul Alexander Patience <paul-a.patience@polymtl.ca>
- *            Max Kriegleder <max.kriegleder@gmail.com>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2023 Max Kriegleder. All rights reserved.
+ * SPDX-FileCopyrightText: 2015 Wail Khemir. All rights reserved.
+ * SPDX-FileCopyrightText: 2015 Omni Hoverboards Inc. All rights reserved.
+ * SPDX-FileContributor: Wail Khemir <khemirwail@gmail.com>
+ * SPDX-FileContributor: Paul Alexander Patience <paul-a.patience@polymtl.ca>
+ * SPDX-FileContributor: Max Kriegleder <max.kriegleder@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -57,20 +58,20 @@
 #include "stm32_tim.h"
 
 #if defined(CONFIG_TIMER) && \
-    (defined(CONFIG_STM32H7_TIM1)  || defined(CONFIG_STM32H7_TIM2)  || \
-     defined(CONFIG_STM32H7_TIM3)  || defined(CONFIG_STM32H7_TIM4)  || \
-     defined(CONFIG_STM32H7_TIM5)  || defined(CONFIG_STM32H7_TIM6)  || \
-     defined(CONFIG_STM32H7_TIM7)  || defined(CONFIG_STM32H7_TIM8)  || \
-     defined(CONFIG_STM32H7_TIM9)  || defined(CONFIG_STM32H7_TIM10) || \
-     defined(CONFIG_STM32H7_TIM11) || defined(CONFIG_STM32H7_TIM12) || \
-     defined(CONFIG_STM32H7_TIM13) || defined(CONFIG_STM32H7_TIM14))
+    (defined(CONFIG_STM32_TIM1)  || defined(CONFIG_STM32_TIM2)  || \
+     defined(CONFIG_STM32_TIM3)  || defined(CONFIG_STM32_TIM4)  || \
+     defined(CONFIG_STM32_TIM5)  || defined(CONFIG_STM32_TIM6)  || \
+     defined(CONFIG_STM32_TIM7)  || defined(CONFIG_STM32_TIM8)  || \
+     defined(CONFIG_STM32_TIM9)  || defined(CONFIG_STM32_TIM10) || \
+     defined(CONFIG_STM32_TIM11) || defined(CONFIG_STM32_TIM12) || \
+     defined(CONFIG_STM32_TIM13) || defined(CONFIG_STM32_TIM14))
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
 #define STM32_TIM1_RES   16
-#define STM32_TIM2_RES 	 32
+#define STM32_TIM2_RES   32
 #define STM32_TIM3_RES   16
 #define STM32_TIM4_RES   16
 #define STM32_TIM5_RES   32
@@ -134,7 +135,7 @@ static const struct timer_ops_s g_timer_ops =
   .ioctl       = NULL,
 };
 
-#ifdef CONFIG_STM32H7_TIM1
+#ifdef CONFIG_STM32_TIM1
 static struct stm32_lowerhalf_s g_tim1_lowerhalf =
 {
   .ops         = &g_timer_ops,
@@ -142,7 +143,7 @@ static struct stm32_lowerhalf_s g_tim1_lowerhalf =
 };
 #endif
 
-#ifdef CONFIG_STM32H7_TIM2
+#ifdef CONFIG_STM32_TIM2
 static struct stm32_lowerhalf_s g_tim2_lowerhalf =
 {
   .ops         = &g_timer_ops,
@@ -150,7 +151,7 @@ static struct stm32_lowerhalf_s g_tim2_lowerhalf =
 };
 #endif
 
-#ifdef CONFIG_STM32H7_TIM3
+#ifdef CONFIG_STM32_TIM3
 static struct stm32_lowerhalf_s g_tim3_lowerhalf =
 {
   .ops         = &g_timer_ops,
@@ -158,7 +159,7 @@ static struct stm32_lowerhalf_s g_tim3_lowerhalf =
 };
 #endif
 
-#ifdef CONFIG_STM32H7_TIM4
+#ifdef CONFIG_STM32_TIM4
 static struct stm32_lowerhalf_s g_tim4_lowerhalf =
 {
   .ops         = &g_timer_ops,
@@ -166,7 +167,7 @@ static struct stm32_lowerhalf_s g_tim4_lowerhalf =
 };
 #endif
 
-#ifdef CONFIG_STM32H7_TIM5
+#ifdef CONFIG_STM32_TIM5
 static struct stm32_lowerhalf_s g_tim5_lowerhalf =
 {
   .ops         = &g_timer_ops,
@@ -174,7 +175,7 @@ static struct stm32_lowerhalf_s g_tim5_lowerhalf =
 };
 #endif
 
-#ifdef CONFIG_STM32H7_TIM6
+#ifdef CONFIG_STM32_TIM6
 static struct stm32_lowerhalf_s g_tim6_lowerhalf =
 {
   .ops         = &g_timer_ops,
@@ -182,7 +183,7 @@ static struct stm32_lowerhalf_s g_tim6_lowerhalf =
 };
 #endif
 
-#ifdef CONFIG_STM32H7_TIM7
+#ifdef CONFIG_STM32_TIM7
 static struct stm32_lowerhalf_s g_tim7_lowerhalf =
 {
   .ops         = &g_timer_ops,
@@ -190,7 +191,7 @@ static struct stm32_lowerhalf_s g_tim7_lowerhalf =
 };
 #endif
 
-#ifdef CONFIG_STM32H7_TIM8
+#ifdef CONFIG_STM32_TIM8
 static struct stm32_lowerhalf_s g_tim8_lowerhalf =
 {
   .ops         = &g_timer_ops,
@@ -198,7 +199,7 @@ static struct stm32_lowerhalf_s g_tim8_lowerhalf =
 };
 #endif
 
-#ifdef CONFIG_STM32H7_TIM9
+#ifdef CONFIG_STM32_TIM9
 static struct stm32_lowerhalf_s g_tim9_lowerhalf =
 {
   .ops         = &g_timer_ops,
@@ -206,7 +207,7 @@ static struct stm32_lowerhalf_s g_tim9_lowerhalf =
 };
 #endif
 
-#ifdef CONFIG_STM32H7_TIM10
+#ifdef CONFIG_STM32_TIM10
 static struct stm32_lowerhalf_s g_tim10_lowerhalf =
 {
   .ops         = &g_timer_ops,
@@ -214,7 +215,7 @@ static struct stm32_lowerhalf_s g_tim10_lowerhalf =
 };
 #endif
 
-#ifdef CONFIG_STM32H7_TIM11
+#ifdef CONFIG_STM32_TIM11
 static struct stm32_lowerhalf_s g_tim11_lowerhalf =
 {
   .ops         = &g_timer_ops,
@@ -222,7 +223,7 @@ static struct stm32_lowerhalf_s g_tim11_lowerhalf =
 };
 #endif
 
-#ifdef CONFIG_STM32H7_TIM12
+#ifdef CONFIG_STM32_TIM12
 static struct stm32_lowerhalf_s g_tim12_lowerhalf =
 {
   .ops         = &g_timer_ops,
@@ -230,7 +231,7 @@ static struct stm32_lowerhalf_s g_tim12_lowerhalf =
 };
 #endif
 
-#ifdef CONFIG_STM32H7_TIM13
+#ifdef CONFIG_STM32_TIM13
 static struct stm32_lowerhalf_s g_tim13_lowerhalf =
 {
   .ops         = &g_timer_ops,
@@ -238,7 +239,7 @@ static struct stm32_lowerhalf_s g_tim13_lowerhalf =
 };
 #endif
 
-#ifdef CONFIG_STM32H7_TIM14
+#ifdef CONFIG_STM32_TIM14
 static struct stm32_lowerhalf_s g_tim14_lowerhalf =
 {
   .ops         = &g_timer_ops,
@@ -472,72 +473,72 @@ int stm32_timer_initialize(const char *devpath, int timer)
 
   switch (timer)
     {
-#ifdef CONFIG_STM32H7_TIM1
+#ifdef CONFIG_STM32_TIM1
       case 1:
         lower = &g_tim1_lowerhalf;
         break;
 #endif
-#ifdef CONFIG_STM32H7_TIM2
+#ifdef CONFIG_STM32_TIM2
       case 2:
         lower = &g_tim2_lowerhalf;
         break;
 #endif
-#ifdef CONFIG_STM32H7_TIM3
+#ifdef CONFIG_STM32_TIM3
       case 3:
         lower = &g_tim3_lowerhalf;
         break;
 #endif
-#ifdef CONFIG_STM32H7_TIM4
+#ifdef CONFIG_STM32_TIM4
       case 4:
         lower = &g_tim4_lowerhalf;
         break;
 #endif
-#ifdef CONFIG_STM32H7_TIM5
+#ifdef CONFIG_STM32_TIM5
       case 5:
         lower = &g_tim5_lowerhalf;
         break;
 #endif
-#ifdef CONFIG_STM32H7_TIM6
+#ifdef CONFIG_STM32_TIM6
       case 6:
         lower = &g_tim6_lowerhalf;
         break;
 #endif
-#ifdef CONFIG_STM32H7_TIM7
+#ifdef CONFIG_STM32_TIM7
       case 7:
         lower = &g_tim7_lowerhalf;
         break;
 #endif
-#ifdef CONFIG_STM32H7_TIM8
+#ifdef CONFIG_STM32_TIM8
       case 8:
         lower = &g_tim8_lowerhalf;
         break;
 #endif
-#ifdef CONFIG_STM32H7_TIM9
+#ifdef CONFIG_STM32_TIM9
       case 9:
         lower = &g_tim9_lowerhalf;
         break;
 #endif
-#ifdef CONFIG_STM32H7_TIM10
+#ifdef CONFIG_STM32_TIM10
       case 10:
         lower = &g_tim10_lowerhalf;
         break;
 #endif
-#ifdef CONFIG_STM32H7_TIM11
+#ifdef CONFIG_STM32_TIM11
       case 11:
         lower = &g_tim11_lowerhalf;
         break;
 #endif
-#ifdef CONFIG_STM32H7_TIM12
+#ifdef CONFIG_STM32_TIM12
       case 12:
         lower = &g_tim12_lowerhalf;
         break;
 #endif
-#ifdef CONFIG_STM32H7_TIM13
+#ifdef CONFIG_STM32_TIM13
       case 13:
         lower = &g_tim13_lowerhalf;
         break;
 #endif
-#ifdef CONFIG_STM32H7_TIM14
+#ifdef CONFIG_STM32_TIM14
       case 14:
         lower = &g_tim14_lowerhalf;
         break;

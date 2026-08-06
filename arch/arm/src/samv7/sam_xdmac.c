@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samv7/sam_xdmac.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/irq.h>
@@ -1114,7 +1116,7 @@ static int sam_txbuffer(struct sam_xdmach_s *xdmach, uint32_t paddr,
 {
   uint32_t cubc;
 
-  /* If we are appending a buffer to a linklist, then re-use the previously
+  /* If we are appending a buffer to a linklist, then reuse the previously
    * calculated CC register value.  Otherwise, create the CC register value
    * from the properties of the transfer.
    */
@@ -1154,7 +1156,7 @@ static int sam_rxbuffer(struct sam_xdmach_s *xdmach, uint32_t paddr,
 {
   uint32_t cubc;
 
-  /* If we are appending a buffer to a linklist, then re-use the previously
+  /* If we are appending a buffer to a linklist, then reuse the previously
    * calculated CC register value.  Otherwise, create the CC register value
    * from the properties of the transfer.
    */
@@ -1427,9 +1429,14 @@ static void sam_dmaterminate(struct sam_xdmach_s *xdmach, int result)
   sam_putdmac(xdmac, chanbit, SAM_XDMAC_GD_OFFSET);
   while ((sam_getdmac(xdmac, SAM_XDMAC_GS_OFFSET) & chanbit) != 0);
 
-  /* Free the linklist */
+  /* Free the linklist. Circular buffers do not use link list so any free
+   * operation should be handled in peripheral driver that calls DMA.
+   */
 
-  sam_freelinklist(xdmach);
+  if (!xdmach->circular)
+    {
+      sam_freelinklist(xdmach);
+    }
 
   /* Perform the DMA complete callback */
 
@@ -1908,7 +1915,7 @@ int sam_dmarxsetup(DMA_HANDLE handle, uint32_t paddr, uint32_t maddr,
  *   maddr - array of memory addresses (i.e. destination addresses)
  *   paddr - peripheral address (i.e. source address)
  *   nbytes - number of bytes to transfer
- *   ndescrs - number of descriptors (i.e. the lenght of descr array)
+ *   ndescrs - number of descriptors (i.e. the length of descr array)
  *
  ****************************************************************************/
 
@@ -1954,7 +1961,7 @@ int sam_dmarxsetup_circular(DMA_HANDLE handle,
       nextdescr = i;
     }
 
-  /* Settup of llhead and lltail does not really matter in this case */
+  /* Setup of llhead and lltail does not really matter in this case */
 
   xdmach->llhead = descr[0];
   xdmach->lltail = descr[0];
@@ -2111,6 +2118,25 @@ size_t sam_destaddr(DMA_HANDLE handle)
   struct sam_xdmach_s *xdmach = (struct sam_xdmach_s *)handle;
 
   return sam_getdmach(xdmach, SAM_XDMACH_CDA_OFFSET);
+}
+
+/****************************************************************************
+ * Name: sam_dmaresidual
+ *
+ * Description:
+ *   Returns the number of bytes remaining to be transferred
+ *
+ * Assumptions:
+ *   - DMA handle allocated by sam_dmachannel()
+ *
+ ****************************************************************************/
+
+size_t sam_dmaresidual(DMA_HANDLE handle)
+{
+  struct sam_xdmach_s *xdmach = (struct sam_xdmach_s *)handle;
+  uint32_t cubc = sam_getdmach(xdmach, SAM_XDMACH_CUBC_OFFSET);
+
+  return cubc & XDMACH_CUBC_UBLEN_MASK;
 }
 
 /****************************************************************************

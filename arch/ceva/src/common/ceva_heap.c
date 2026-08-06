@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/ceva/src/common/ceva_heap.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -177,7 +179,7 @@ void up_allocate_heap(void **heap_start, size_t *heap_size)
 
 #ifdef CONFIG_BUILD_PROTECTED
   struct mm_heap_s *const *heap =
-    (struct mm_heap_s *const *)USERSPACE->us_heap;
+    (struct mm_heap_s *const *)USERSPACE_HEAP;
   void *const *bssend = (void *const *)USERSPACE->us_bssend;
   void *const *heapend = (void *const *)USERSPACE->us_heapend;
 

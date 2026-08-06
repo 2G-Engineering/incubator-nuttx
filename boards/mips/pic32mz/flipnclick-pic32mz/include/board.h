@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/mips/pic32mz/flipnclick-pic32mz/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -231,7 +233,7 @@
 #define LED_SIGNAL       4 /* In a signal handler     GLO N/C N/C N/C N/C */
 #define LED_ASSERTION    4 /* An assertion failed     GLO N/C N/C N/C N/C */
 #define LED_PANIC        4 /* The system has crashed  2Hz N/C N/C N/C N/C */
-#undef  LED_IDLE           /* MCU is is sleep mode    ---- Not used ----- */
+#undef  LED_IDLE           /* MCU is in sleep mode    ---- Not used ----- */
 
 /* Thus if LED L is faintly glowing and all other LEDs are off (except LED D
  * which was left on but is no longer controlled by NuttX and so may be

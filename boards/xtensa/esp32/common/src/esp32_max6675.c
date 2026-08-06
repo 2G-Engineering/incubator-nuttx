@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/common/src/esp32_max6675.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <nuttx/sensors/max6675.h>
 #include <nuttx/spi/spi.h>
 #include <stdio.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include "esp32_spi.h"
 
 #ifdef CONFIG_SENSORS_MAX6675
@@ -88,7 +90,7 @@ int board_max6675_initialize(int devno, int busno)
       return -ENODEV;
     }
 
-  /* Then register the barometer sensor */
+  /* Then register the temperature sensor */
 
   snprintf(devpath, sizeof(devpath), "/dev/temp%d", devno);
   ret = max6675_register(devpath, spi);

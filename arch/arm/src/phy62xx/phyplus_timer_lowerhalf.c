@@ -1,10 +1,11 @@
 /****************************************************************************
  * arch/arm/src/phy62xx/phyplus_timer_lowerhalf.c
  *
- *   Copyright (C) 2015 Wail Khemir. All rights reserved.
- *   Copyright (C) 2015 Omni Hoverboards Inc. All rights reserved.
- *   Authors: Wail Khemir <khemirwail@gmail.com>
- *            Paul Alexander Patience <paul-a.patience@polymtl.ca>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2015 Wail Khemir. All rights reserved.
+ * SPDX-FileCopyrightText: 2015 Omni Hoverboards Inc. All rights reserved.
+ * SPDX-FileContributor: Wail Khemir <khemirwail@gmail.com>
+ * SPDX-FileContributor: Paul Alexander Patience <paul-a.patience@polymtl.ca>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -47,8 +48,9 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
-#include <nuttx/irq.h>
+
+#include <nuttx/debug.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/timers/timer.h>
 
 #include <arch/board/board.h>
@@ -77,13 +79,14 @@ struct phyplus_lowerhalf_s
   void                     *arg;     /* Argument to upper half cb    */
   bool                     started;  /* True: Timer has been started */
   uint32_t                 timeout;  /* Current timeout value (us)   */
+  spinlock_t               lock;     /* Ensure mutually exclusive access */
 };
 
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
 
-static int phyplus_timer_handler(int irq, void * context, void * arg);
+static int phyplus_timer_handler(int irq, void *context, void *arg);
 
 /* "Lower half" driver methods **********************************************/
 
@@ -97,7 +100,7 @@ static void phyplus_setcallback(struct timer_lowerhalf_s *lower,
                                 tccb_t callback, void *arg);
 
 /* static int phyplus_ioctl(struct timer_lowerhalf_s *lower, int cmd,
- *                           unsigned long arg);
+ *                          unsigned long arg);
  */
 
 /****************************************************************************
@@ -194,9 +197,9 @@ static struct phyplus_lowerhalf_s g_tim6_lowerhalf =
  *
  ****************************************************************************/
 
-static int phyplus_timer_handler(int irq, void * context, void * arg)
+static int phyplus_timer_handler(int irq, void *context, void *arg)
 {
-  struct phyplus_lowerhalf_s *lower = (struct phyplus_lowerhalf_s *) arg;
+  struct phyplus_lowerhalf_s *lower = (struct phyplus_lowerhalf_s *)arg;
 
   /* PHYPLUS_TIM_ACKINT(lower->tim); */
 
@@ -311,7 +314,7 @@ static int phyplus_stop(struct timer_lowerhalf_s *lower)
  ****************************************************************************/
 
 static int phyplus_settimeout(struct timer_lowerhalf_s *lower,
-                            uint32_t timeout)
+                              uint32_t timeout)
 {
   struct phyplus_lowerhalf_s *priv =
       (struct phyplus_lowerhalf_s *)lower;
@@ -368,7 +371,7 @@ static void phyplus_setcallback(struct timer_lowerhalf_s *lower,
   struct phyplus_lowerhalf_s *priv =
       (struct phyplus_lowerhalf_s *)lower;
   int ret = OK;
-  irqstate_t flags = enter_critical_section();
+  irqstate_t flags = spin_lock_irqsave_nopreempt(&priv->lock);
 
   /* Save the new callback */
 
@@ -396,8 +399,8 @@ static void phyplus_setcallback(struct timer_lowerhalf_s *lower,
       ret = phyplus_tim_setisr(priv->tim, NULL, NULL);
     }
 
-  leave_critical_section(flags);
-  assert(ret == OK);
+  spin_unlock_irqrestore_nopreempt(&priv->lock, flags);
+  ASSERT(ret == OK);
 
   /* #if 0
    *  irqstate_t flags = enter_critical_section();
@@ -518,6 +521,8 @@ int phyplus_timer_initialize(const char *devpath, int timer)
       return -EINVAL;
     }
 
+  spin_lock_init(&lower->lock);
+
   /* Register the timer driver as /dev/timerX.  The returned value from
    * timer_register is a handle that could be uswithed  timer_unregister().
    * REVISIT: The returned handle is discard here.
@@ -593,13 +598,9 @@ static int phyplus_getstatus(struct timer_lowerhalf_s *lower,
   return OK;
 }
 
-int phyplus_timer_register(struct phyplus_timer_param_s
-                           *phyplus_timer_param)
+int phyplus_timer_register(struct phyplus_timer_param_s *phyplus_timer_param)
 {
-  const char *fmt;
   char devname[16];
-
-  fmt = "/dev/timer%u";
 
   if ((phyplus_timer_param->timer_idx < 1) ||
       (phyplus_timer_param->timer_idx > 6))
@@ -607,12 +608,12 @@ int phyplus_timer_register(struct phyplus_timer_param_s
       return -ENODEV;
     }
 
-  snprintf(devname, 16, fmt, (unsigned int)phyplus_timer_param->timer_idx);
+  snprintf(devname, sizeof(devname), "/dev/timer%u",
+           phyplus_timer_param->timer_idx);
   return phyplus_timer_initialize(devname, phyplus_timer_param->timer_idx);
 }
 
-int phyplus_timer_ungister(struct phyplus_timer_param_s
-                           *phyplus_timer_param)
+int phyplus_timer_ungister(struct phyplus_timer_param_s *phyplus_timer_param)
 {
   return 0;
 }

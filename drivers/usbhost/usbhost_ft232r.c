@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/usbhost/usbhost_ft232r.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,8 +32,8 @@
 #include <unistd.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/arch.h>
@@ -2306,11 +2308,10 @@ static int usbhost_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   int ret = 0;
 
   uinfo("Entry\n");
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  uartdev = (FAR struct uart_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  uartdev = inode->i_private;
 
   DEBUGASSERT(uartdev && uartdev->priv);
   priv = (FAR struct usbhost_ft232r_s *)uartdev->priv;

@@ -1,7 +1,7 @@
 /****************************************************************************
  * include/nuttx/net/netdev_lowerhalf.h
- * Defines architecture-specific device driver interfaces to the NuttX
- * network.
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -28,6 +28,9 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/compiler.h>
+#include <nuttx/spinlock.h>
+#include <nuttx/atomic.h>
 
 #include <net/if.h>
 #include <netinet/in.h>
@@ -35,12 +38,15 @@
 #include <nuttx/net/ip.h>
 #include <nuttx/net/net.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/wireless/wireless.h>
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* | <-------------- NETPKT_BUFLEN ---------------> |
+/* Layout for net packet:
+ *
+ * | <-------------- NETPKT_BUFLEN ---------------> |
  * +---------------------+-------------------+------+      +-------------+
  * | reserved for driver |       data        | free | ---> | next netpkt |
  * +---------------------+-------------------+------+      +-------------+
@@ -48,7 +54,19 @@
  * ^base                 ^data
  */
 
+/* Layout for linked net packet, you can get list of (data, len) by
+ * netpkt_to_iov() interface:
+ *
+ *            | <----------- datalen = sum(len) ------------> |
+ * +----------+-----------+     +-----------+     +-----------+------+
+ * | reserved |   data    | --> |   data    | --> |   data    | free |
+ * +----------+-----------+     +-----------+     +-----------+------+
+ * |          | <- len -> |     | <- len -> |     | <- len -> |
+ * ^base      ^data             ^data             ^data
+ */
+
 #define NETPKT_BUFLEN   CONFIG_IOB_BUFSIZE
+#define NETPKT_BUFNUM   CONFIG_IOB_NBUFFERS
 
 /****************************************************************************
  * Public Types
@@ -60,12 +78,21 @@
  */
 
 typedef struct iob_s netpkt_t;
+typedef struct iob_queue_s netpkt_queue_t;
 
 enum netpkt_type_e
 {
   NETPKT_TX,
   NETPKT_RX,
   NETPKT_TYPENUM
+};
+
+enum netdev_rx_e
+{
+  NETDEV_RX_WORK,      /* Use work queue thread */
+  NETDEV_RX_DIRECT,    /* Directly based on the current thread */
+  NETDEV_RX_THREAD,    /* Upper half dedicated thread */
+  NETDEV_RX_THREAD_RSS /* RSS mode, upper half thread */
 };
 
 /* This structure is the generic form of state structure used by lower half
@@ -81,10 +108,24 @@ enum netpkt_type_e
  */
 
 struct netdev_ops_s;
+struct wireless_ops_s;
 struct netdev_lowerhalf_s
 {
   FAR const struct netdev_ops_s *ops;
-  int quota[NETPKT_TYPENUM]; /* Max # of buffer held by driver */
+
+  /* Extended operations. */
+
+#ifdef CONFIG_NETDEV_WIRELESS_HANDLER
+  FAR const struct wireless_ops_s *iw_ops;
+#endif
+
+  /* Max # of buffer held by driver */
+
+  FAR atomic_t *quota_ptr; /* Shared quota, ignore `quota` if ptr is set */
+  atomic_t quota[NETPKT_TYPENUM];
+
+  uint8_t rxtype;
+  uint8_t priority;
 
   /* The structure used by net stack.
    * Note: Do not change its fields unless you know what you are doing.
@@ -103,8 +144,8 @@ struct netdev_lowerhalf_s
 
 struct netdev_ops_s
 {
-  int (*ifup)(FAR struct netdev_lowerhalf_s *dev);
-  int (*ifdown)(FAR struct netdev_lowerhalf_s *dev);
+  CODE int (*ifup)(FAR struct netdev_lowerhalf_s *dev);
+  CODE int (*ifdown)(FAR struct netdev_lowerhalf_s *dev);
 
   /* transmit - Try to send a packet, non-blocking, own the netpkt and
    *            need to call netpkt_free to free it sometime later.
@@ -115,24 +156,71 @@ struct netdev_ops_s
    *       will be recycled by upper half.
    */
 
-  int (*transmit)(FAR struct netdev_lowerhalf_s *dev, FAR netpkt_t *pkt);
+  CODE int (*transmit)(FAR struct netdev_lowerhalf_s *dev,
+                       FAR netpkt_t *pkt);
 
   /* receive - Try to receive a packet, non-blocking
    *   Returned Value:
    *     A netpkt contains the packet, or NULL if no more packets.
    */
 
-  FAR netpkt_t *(*receive)(FAR struct netdev_lowerhalf_s *dev);
+  CODE FAR netpkt_t *(*receive)(FAR struct netdev_lowerhalf_s *dev);
 
 #ifdef CONFIG_NET_MCASTGROUP
-  int (*addmac)(FAR struct netdev_lowerhalf_s *dev, FAR const uint8_t *mac);
-  int (*rmmac)(FAR struct netdev_lowerhalf_s *dev, FAR const uint8_t *mac);
+  CODE int (*addmac)(FAR struct netdev_lowerhalf_s *dev,
+                     FAR const uint8_t *mac);
+  CODE int (*rmmac)(FAR struct netdev_lowerhalf_s *dev,
+                    FAR const uint8_t *mac);
 #endif
 #ifdef CONFIG_NETDEV_IOCTL
-  int (*ioctl)(FAR struct netdev_lowerhalf_s *dev, int cmd,
-               unsigned long arg);
+  CODE int (*ioctl)(FAR struct netdev_lowerhalf_s *dev, int cmd,
+                    unsigned long arg);
 #endif
+
+  /* reclaim - try to reclaim packets sent by netdev. */
+
+  CODE void (*reclaim)(FAR struct netdev_lowerhalf_s *dev);
 };
+
+/* This structure is a set of wireless handlers, leave unsupported operations
+ * as NULL is OK.
+ */
+
+#ifdef CONFIG_NETDEV_WIRELESS_HANDLER
+typedef CODE int (*iw_handler_rw)(FAR struct netdev_lowerhalf_s *dev,
+                                 FAR struct iwreq *iwr, bool set);
+typedef CODE int (*iw_handler_ro)(FAR struct netdev_lowerhalf_s *dev,
+                                 FAR struct iwreq *iwr);
+
+struct wireless_ops_s
+{
+  /* Connect / disconnect operation, should exist if essid or bssid exists */
+
+  CODE int (*connect)(FAR struct netdev_lowerhalf_s *dev);
+  CODE int (*disconnect)(FAR struct netdev_lowerhalf_s *dev);
+
+  /* The following attributes need both set and get. */
+
+  iw_handler_rw essid;
+  iw_handler_rw bssid;
+  iw_handler_rw passwd;
+  iw_handler_rw mode;
+  iw_handler_rw auth;
+  iw_handler_rw freq;
+  iw_handler_rw bitrate;
+  iw_handler_rw txpower;
+  iw_handler_rw country;
+  iw_handler_rw sensitivity;
+
+  /* Scan operation: start scan (set=1) / get scan result (set=0). */
+
+  iw_handler_rw scan;
+
+  /* Get-only attributes. */
+
+  iw_handler_ro range;
+};
+#endif
 
 /****************************************************************************
  * Public Function Prototypes
@@ -184,12 +272,9 @@ int netdev_lower_unregister(FAR struct netdev_lowerhalf_s *dev);
  * Input Parameters:
  *   dev - The lower half device driver structure
  *
- * Returned Value:
- *   0:Success; negated errno on failure
- *
  ****************************************************************************/
 
-int netdev_lower_carrier_on(FAR struct netdev_lowerhalf_s *dev);
+void netdev_lower_carrier_on(FAR struct netdev_lowerhalf_s *dev);
 
 /****************************************************************************
  * Name: netdev_lower_carrier_off
@@ -201,12 +286,9 @@ int netdev_lower_carrier_on(FAR struct netdev_lowerhalf_s *dev);
  * Input Parameters:
  *   dev - The lower half device driver structure
  *
- * Returned Value:
- *   0:Success; negated errno on failure
- *
  ****************************************************************************/
 
-int netdev_lower_carrier_off(FAR struct netdev_lowerhalf_s *dev);
+void netdev_lower_carrier_off(FAR struct netdev_lowerhalf_s *dev);
 
 /****************************************************************************
  * Name: netdev_lower_rxready
@@ -233,6 +315,58 @@ void netdev_lower_rxready(FAR struct netdev_lowerhalf_s *dev);
  ****************************************************************************/
 
 void netdev_lower_txdone(FAR struct netdev_lowerhalf_s *dev);
+
+/****************************************************************************
+ * Name: netdev_lower_quota_load
+ *
+ * Description:
+ *   Fetch the quota, use this interface when device is running.
+ *
+ * Input Parameters:
+ *   dev  - The lower half device driver structure
+ *   type - Whether get quota for TX or RX
+ *
+ ****************************************************************************/
+
+#define netdev_lower_quota_load(dev, type) atomic_read(&dev->quota[type])
+
+/****************************************************************************
+ * Name: netdev_lower_vlan_add
+ *
+ * Description:
+ *   Add a VLAN device to the network device.
+ *
+ * Input Parameters:
+ *   dev  - The lower half device driver structure
+ *   vid  - VLAN ID
+ *   vlan - The VLAN device to add
+ *
+ * Returned Value:
+ *   0:Success; negated errno on failure
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_VLAN
+int netdev_lower_vlan_add(FAR struct netdev_lowerhalf_s *dev, uint16_t vid,
+                          FAR struct netdev_lowerhalf_s *vlan);
+
+/****************************************************************************
+ * Name: netdev_lower_vlan_del
+ *
+ * Description:
+ *   Delete a VLAN device from the network device.
+ *
+ * Input Parameters:
+ *   dev - The lower half device driver structure
+ *   vid - VLAN ID
+ *
+ * Returned Value:
+ *   0:Success; negated errno on failure
+ *
+ ****************************************************************************/
+
+int netdev_lower_vlan_del(FAR struct netdev_lowerhalf_s *dev, uint16_t vid);
+#endif
 
 /****************************************************************************
  * Name: netpkt_alloc
@@ -338,17 +472,20 @@ FAR uint8_t *netpkt_getbase(FAR netpkt_t *pkt);
  * Description:
  *   Set the length of data in netpkt, used when data is written into
  *   netpkt by data/base pointer, no need to set this length after
- *   copyin.
+ *   copying.
  *
  * Input Parameters:
  *   dev    - The lower half device driver structure
  *   pkt    - The net packet
  *   len    - The length of data in netpkt
  *
+ * Returned Value:
+ *   The new effective data length, or a negated errno value on error.
+ *
  ****************************************************************************/
 
-void netpkt_setdatalen(FAR struct netdev_lowerhalf_s *dev,
-                       FAR netpkt_t *pkt, unsigned int len);
+int netpkt_setdatalen(FAR struct netdev_lowerhalf_s *dev,
+                      FAR netpkt_t *pkt, unsigned int len);
 
 /****************************************************************************
  * Name: netpkt_getdatalen
@@ -397,5 +534,76 @@ void netpkt_reset_reserved(FAR struct netdev_lowerhalf_s *dev,
  ****************************************************************************/
 
 bool netpkt_is_fragmented(FAR netpkt_t *pkt);
+
+/****************************************************************************
+ * Name: netpkt_to_iov
+ *
+ * Description:
+ *   Write each piece of data/len into iov array.
+ *
+ * Input Parameters:
+ *   dev    - The lower half device driver structure
+ *   pkt    - The net packet
+ *   iov    - The iov array to write
+ *   iovcnt - The number of elements in the iov array
+ *
+ * Returned Value:
+ *   The actual written count of iov entries.
+ *
+ ****************************************************************************/
+
+int netpkt_to_iov(FAR struct netdev_lowerhalf_s *dev, FAR netpkt_t *pkt,
+                  FAR struct iovec *iov, int iovcnt);
+
+/****************************************************************************
+ * Name: netpkt_tryadd_queue
+ *
+ * Description:
+ *   Add one net packet to the end of a queue without waiting for resources
+ *   to become free.
+ *
+ * Input Parameters:
+ *   pkt   - The packet to add
+ *   queue - The queue to add the packet to
+ *
+ * Returned Value:
+ *   0:Success; negated errno on failure
+ *
+ ****************************************************************************/
+
+#define netpkt_tryadd_queue(pkt, queue) iob_tryadd_queue(pkt, queue)
+
+/****************************************************************************
+ * Name: netpkt_remove_queue
+ *
+ * Description:
+ *   Remove one net packet from the head of a queue.
+ *
+ * Input Parameters:
+ *   queue - The queue to remove the packet from
+ *
+ * Returned Value:
+ *   The packet removed from the queue.  NULL is returned if the queue is
+ *   empty.
+ *
+ ****************************************************************************/
+
+#define netpkt_remove_queue(queue) iob_remove_queue(queue)
+
+/****************************************************************************
+ * Name: netpkt_free_queue
+ *
+ * Description:
+ *   Free all net packets in a queue.
+ *
+ * Input Parameters:
+ *   queue - The queue to free
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+#define netpkt_free_queue(queue) iob_free_queue(queue)
 
 #endif /* __INCLUDE_NUTTX_NET_NETDEV_LOWERHALF_H */

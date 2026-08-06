@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/tcp/tcp_netpoll.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <poll.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/net/net.h>
 #include <nuttx/net/tcp.h>
@@ -37,6 +39,7 @@
 #include "netdev/netdev.h"
 #include "socket/socket.h"
 #include "inet/inet.h"
+#include "utils/utils.h"
 #include "tcp/tcp.h"
 
 /****************************************************************************
@@ -63,12 +66,12 @@
  *
  ****************************************************************************/
 
-static uint16_t tcp_poll_eventhandler(FAR struct net_driver_s *dev,
-                                      FAR void *pvpriv, uint16_t flags)
+static uint32_t tcp_poll_eventhandler(FAR struct net_driver_s *dev,
+                                      FAR void *pvpriv, uint32_t flags)
 {
   FAR struct tcp_poll_s *info = pvpriv;
 
-  ninfo("flags: %04x\n", flags);
+  ninfo("flags: %" PRIx32 "\n", flags);
 
   DEBUGASSERT(info == NULL || (info->conn != NULL && info->fds != NULL));
 
@@ -80,7 +83,7 @@ static uint16_t tcp_poll_eventhandler(FAR struct net_driver_s *dev,
 
       /* Check for data or connection availability events. */
 
-      if ((flags & (TCP_NEWDATA | TCP_BACKLOG)) != 0)
+      if ((flags & (TCP_NEWDATA | TCP_BACKLOG | TCP_RXCLOSE)) != 0)
         {
           eventset |= POLLIN;
         }
@@ -119,9 +122,7 @@ static uint16_t tcp_poll_eventhandler(FAR struct net_driver_s *dev,
               reason = ENETUNREACH;
             }
 
-          /* TCP_CLOSE: The remote host has closed the connection
-           * TCP_ABORT: The remote host has aborted the connection
-           */
+          /* TCP_ABORT: The remote host has aborted the connection */
 
           else
             {
@@ -165,9 +166,9 @@ static uint16_t tcp_poll_eventhandler(FAR struct net_driver_s *dev,
         {
           /* Stop further callbacks */
 
-          info->cb->flags   = 0;
-          info->cb->priv    = NULL;
-          info->cb->event   = NULL;
+          info->cb->flags = 0;
+          info->cb->priv  = NULL;
+          info->cb->event = NULL;
         }
     }
 
@@ -205,21 +206,21 @@ int tcp_pollsetup(FAR struct socket *psock, FAR struct pollfd *fds)
 
   /* Some of the following must be atomic */
 
-  net_lock();
-
   conn = psock->s_conn;
 
   /* Sanity check */
 
   if (!conn || !fds)
     {
-      ret = -EINVAL;
-      goto errout_with_lock;
+      return -EINVAL;
     }
+
+  conn_dev_lock(&conn->sconn, conn->dev);
 
   /* Non-blocking connection ? */
 
-  nonblock_conn = (conn->tcpstateflags == TCP_SYN_SENT &&
+  nonblock_conn = ((conn->tcpstateflags == TCP_ALLOCATED ||
+                    conn->tcpstateflags == TCP_SYN_SENT) &&
                    _SS_ISNONBLOCK(conn->sconn.s_flags));
 
   /* Find a container to hold the poll information */
@@ -233,6 +234,28 @@ int tcp_pollsetup(FAR struct socket *psock, FAR struct pollfd *fds)
           ret = -ENOMEM;
           goto errout_with_lock;
         }
+    }
+
+  /* If a network device is already associated with this connection but
+   * either the device pointer is not valid anymore or the interface is not
+   * up, report the condition immediately and wake up the waiter:
+   *
+   * - Set per-connection socket error to ENETDOWN so that the application
+   *   can retrieve the cause via getsockopt(SO_ERROR).
+   * - Notify poll() with POLLERR|POLLHUP to return without arming any
+   *   further TCP callbacks.
+   *
+   * Rationale: there is no point in registering poll callbacks when the
+   * underlying interface is down. This mirrors the error paths elsewhere in
+   * the TCP stack and provides a prompt, deterministic wake-up.
+   */
+
+  if (conn->dev &&
+      !(netdev_verify(conn->dev) && IFF_IS_UP(conn->dev->d_flags)))
+    {
+      _SO_CONN_SETERRNO(conn, ENETDOWN);
+      eventset |= POLLERR | POLLHUP;
+      goto notify;
     }
 
   /* Allocate a TCP/IP callback structure */
@@ -255,17 +278,16 @@ int tcp_pollsetup(FAR struct socket *psock, FAR struct pollfd *fds)
    * callback processing.
    */
 
-  cb->flags    = TCP_DISCONN_EVENTS;
-  cb->priv     = (FAR void *)info;
-  cb->event    = tcp_poll_eventhandler;
+  cb->flags = TCP_DISCONN_EVENTS;
+  cb->priv  = info;
+  cb->event = tcp_poll_eventhandler;
 
   if ((fds->events & POLLOUT) != 0)
     {
-      cb->flags |= TCP_POLL
+      cb->flags |= TCP_POLL;
 #if defined(CONFIG_NET_TCP_WRITE_BUFFERS)
-                   | TCP_ACKDATA
+      cb->flags |= TCP_ACKDATA;
 #endif
-                   ;
 
       /* Monitor the connected event */
 
@@ -277,18 +299,19 @@ int tcp_pollsetup(FAR struct socket *psock, FAR struct pollfd *fds)
 
   if ((fds->events & POLLIN) != 0)
     {
-      cb->flags |= TCP_NEWDATA | TCP_BACKLOG;
+      cb->flags |= TCP_NEWDATA | TCP_BACKLOG | TCP_RXCLOSE;
     }
 
   /* Save the reference in the poll info structure as fds private as well
    * for use during poll teardown as well.
    */
 
-  fds->priv    = (FAR void *)info;
+  fds->priv = info;
 
   /* Check for read data or backlogged connection availability now */
 
-  if (conn->readahead != NULL || tcp_backlogpending(conn))
+  if (conn->readahead != NULL || tcp_backlogpending(conn) ||
+      (conn->shutdown & SHUT_RD) != 0)
     {
       /* Normal data may be read without blocking. */
 
@@ -343,6 +366,15 @@ int tcp_pollsetup(FAR struct socket *psock, FAR struct pollfd *fds)
        * exceptional event.
        */
 
+      if (_SS_ISCLOSED(conn->sconn.s_flags))
+        {
+          _SO_CONN_SETERRNO(conn, ECONNREFUSED);
+        }
+      else
+        {
+          _SO_CONN_SETERRNO(conn, ENOTCONN);
+        }
+
       eventset |= POLLERR | POLLHUP;
     }
   else if (_SS_ISCONNECTED(conn->sconn.s_flags) &&
@@ -353,10 +385,17 @@ int tcp_pollsetup(FAR struct socket *psock, FAR struct pollfd *fds)
 
   /* Check if any requested events are already in effect */
 
+notify:
+
+  /* At this point, eventset contains any immediate conditions discovered
+   * during setup (e.g., data already available, write possible, or an early
+   * error such as ENETDOWN above). Propagate these to the poller now.
+   */
+
   poll_notify(&fds, 1, eventset);
 
 errout_with_lock:
-  net_unlock();
+  conn_dev_unlock(&conn->sconn, conn->dev);
   return ret;
 }
 
@@ -383,17 +422,16 @@ int tcp_pollteardown(FAR struct socket *psock, FAR struct pollfd *fds)
 
   /* Some of the following must be atomic */
 
-  net_lock();
-
   conn = psock->s_conn;
 
   /* Sanity check */
 
   if (!conn || !fds->priv)
     {
-      net_unlock();
       return -EINVAL;
     }
+
+  conn_dev_lock(&conn->sconn, conn->dev);
 
   /* Recover the socket descriptor poll state info from the poll structure */
 
@@ -414,7 +452,7 @@ int tcp_pollteardown(FAR struct socket *psock, FAR struct pollfd *fds)
       info->conn = NULL;
     }
 
-  net_unlock();
+  conn_dev_unlock(&conn->sconn, conn->dev);
 
   return OK;
 }

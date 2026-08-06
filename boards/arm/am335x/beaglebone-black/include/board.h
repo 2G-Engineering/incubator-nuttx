@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/am335x/beaglebone-black/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,8 +28,6 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-
-#include "hardware/am335x_pinmux.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -90,7 +90,7 @@
 #define LED_ASSERTION       3   /* An assertion failed      N/C  N/C  Soft glow */
 #define LED_PANIC           3   /* The system has crashed   N/C  N/C  2Hz Flashing */
 
-/*      LED_IDLE           ---     MCU is is sleep mode         Not used
+/*      LED_IDLE           ---     MCU is in sleep mode         Not used
  *
  * After booting, LED0 and 1 are not longer used by the system and can be
  * used for other purposes by the application (Of course, all LEDs are

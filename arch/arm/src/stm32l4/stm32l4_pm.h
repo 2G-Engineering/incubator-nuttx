@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l4/stm32l4_pm.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -46,7 +48,7 @@ extern "C"
 #endif
 
 /****************************************************************************
- * Name: stm32l4_pmstop
+ * Name: stm32_pmstop
  *
  * Description:
  *   Enter STOP mode.
@@ -64,10 +66,10 @@ extern "C"
  *
  ****************************************************************************/
 
-int stm32l4_pmstop(bool lpds);
+int stm32_pmstop(bool lpds);
 
 /****************************************************************************
- * Name: stm32l4_pmstop2
+ * Name: stm32_pmstop2
  *
  * Description:
  *   Enter STOP2 mode.
@@ -82,10 +84,10 @@ int stm32l4_pmstop(bool lpds);
  *
  ****************************************************************************/
 
-int stm32l4_pmstop2(void);
+int stm32_pmstop2(void);
 
 /****************************************************************************
- * Name: stm32l4_pmstandby
+ * Name: stm32_pmstandby
  *
  * Description:
  *   Enter STANDBY mode.
@@ -101,10 +103,10 @@ int stm32l4_pmstop2(void);
  *
  ****************************************************************************/
 
-int stm32l4_pmstandby(void);
+int stm32_pmstandby(void);
 
 /****************************************************************************
- * Name: stm32l4_pmsleep
+ * Name: stm32_pmsleep
  *
  * Description:
  *   Enter SLEEP mode.
@@ -120,10 +122,10 @@ int stm32l4_pmstandby(void);
  *
  ****************************************************************************/
 
-void stm32l4_pmsleep(bool sleeponexit);
+void stm32_pmsleep(bool sleeponexit);
 
 /****************************************************************************
- * Name: stm32l4_pmlpr
+ * Name: stm32_pmlpr
  *
  * Description:
  *   Enter Low-Power Run (LPR) mode.
@@ -138,7 +140,7 @@ void stm32l4_pmsleep(bool sleeponexit);
  *
  ****************************************************************************/
 
-int stm32l4_pmlpr(void);
+int stm32_pmlpr(void);
 
 #undef EXTERN
 #ifdef __cplusplus

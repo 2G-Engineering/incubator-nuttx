@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stream/lib_rawoutstream.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -40,19 +42,19 @@
  * Name: rawoutstream_puts
  ****************************************************************************/
 
-static int rawoutstream_puts(FAR struct lib_outstream_s *this,
-                             FAR const void *buf, int len)
+static ssize_t rawoutstream_puts(FAR struct lib_outstream_s *self,
+                                 FAR const void *buf, size_t len)
 {
-  FAR struct lib_rawoutstream_s *rthis =
-                                (FAR struct lib_rawoutstream_s *)this;
-  int nwritten = 0;
+  FAR struct lib_rawoutstream_s *stream =
+                                (FAR struct lib_rawoutstream_s *)self;
+  ssize_t nwritten = 0;
 
   do
     {
-      nwritten = _NX_WRITE(rthis->fd, buf, len);
+      nwritten = _NX_WRITE(stream->fd, buf, len);
       if (nwritten >= 0)
         {
-          this->nput += nwritten;
+          self->nput += nwritten;
           return nwritten;
         }
 
@@ -73,10 +75,10 @@ static int rawoutstream_puts(FAR struct lib_outstream_s *this,
  * Name: rawoutstream_putc
  ****************************************************************************/
 
-static void rawoutstream_putc(FAR struct lib_outstream_s *this, int ch)
+static void rawoutstream_putc(FAR struct lib_outstream_s *self, int ch)
 {
   char tmp = ch;
-  rawoutstream_puts(this, &tmp, 1);
+  rawoutstream_puts(self, &tmp, 1);
 }
 
 /****************************************************************************
@@ -90,21 +92,21 @@ static void rawoutstream_putc(FAR struct lib_outstream_s *this, int ch)
  *   Initializes a stream for use with a file descriptor.
  *
  * Input Parameters:
- *   outstream - User allocated, uninitialized instance of struct
- *               lib_rawoutstream_s to be initialized.
- *   fd        - User provided file/socket descriptor (must have been opened
- *               for write access).
+ *   stream - User allocated, uninitialized instance of struct
+ *            lib_rawoutstream_s to be initialized.
+ *   fd     - User provided file/socket descriptor (must have been opened
+ *            for write access).
  *
  * Returned Value:
  *   None (User allocated instance initialized).
  *
  ****************************************************************************/
 
-void lib_rawoutstream(FAR struct lib_rawoutstream_s *outstream, int fd)
+void lib_rawoutstream(FAR struct lib_rawoutstream_s *stream, int fd)
 {
-  outstream->public.putc  = rawoutstream_putc;
-  outstream->public.puts  = rawoutstream_puts;
-  outstream->public.flush = lib_noflush;
-  outstream->public.nput  = 0;
-  outstream->fd           = fd;
+  stream->common.putc  = rawoutstream_putc;
+  stream->common.puts  = rawoutstream_puts;
+  stream->common.flush = lib_noflush;
+  stream->common.nput  = 0;
+  stream->fd           = fd;
 }

@@ -17,12 +17,13 @@ in other header files.
   iob.rst
   led.rst
   mutex.rst
-  nat.rst
   newreno.rst
   notifier.rst
   nuttx.rst
   paging.rst
   shm.rst
   smp.rst
+  sleep.rst
   time_clock.rst
   wqueue.rst
+  events.rst

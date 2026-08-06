@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdlib/lib_mkstemp.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -66,7 +68,7 @@ int mkstemp(FAR char *path_template)
 
   if (path)
     {
-      ret = open(path, O_RDWR | O_CREAT | O_EXCL, 0666);
+      ret = open(path, O_RDWR | O_CREAT | O_EXCL, 0600);
     }
 
   return ret;

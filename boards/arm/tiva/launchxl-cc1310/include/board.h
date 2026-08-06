@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/tiva/launchxl-cc1310/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -82,7 +84,7 @@
 #define LED_SIGNAL       3 /* In a signal handler     N/C  GLOW  */
 #define LED_ASSERTION    3 /* An assertion failed     N/C  GLOW  */
 #define LED_PANIC        4 /* The system has crashed  OFF  BLINK */
-#undef  LED_IDLE           /* MCU is is sleep mode    -Not used- */
+#undef  LED_IDLE           /* MCU is in sleep mode    -Not used- */
 
 /* Thus iF GLED is statically on, NuttX has successfully  booted and is,
  * apparently, running normally.  A soft glow of the RLED means that the

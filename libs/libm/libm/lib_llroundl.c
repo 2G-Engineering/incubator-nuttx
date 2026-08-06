@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libm/libm/lib_llroundl.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,11 +33,9 @@
  * Public Functions
  ****************************************************************************/
 
-#ifdef CONFIG_HAVE_LONG_LONG
 #ifdef CONFIG_HAVE_LONG_DOUBLE
 long long llroundl(long double x)
 {
   return (long long)roundl(x);
 }
-#endif
 #endif

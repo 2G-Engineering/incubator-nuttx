@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/lpc43xx/bambino-200e/src/lpc43_timer.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <sys/ioctl.h>
 
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <sched.h>
 #include <stdio.h>
 #include <fcntl.h>

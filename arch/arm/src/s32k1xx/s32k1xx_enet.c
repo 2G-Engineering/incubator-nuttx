@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/s32k1xx/s32k1xx_enet.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <time.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <endian.h>
 
@@ -44,6 +46,7 @@
 #include <nuttx/signal.h>
 #include <nuttx/net/mii.h>
 #include <nuttx/net/phy.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 
 #ifdef CONFIG_NET_PKT
@@ -257,6 +260,7 @@ struct s32k1xx_driver_s
   struct work_s pollwork;      /* For deferring poll work to the work queue */
   struct enet_desc_s *txdesc;  /* A pointer to the list of TX descriptor */
   struct enet_desc_s *rxdesc;  /* A pointer to the list of RX descriptors */
+  spinlock_t lock;             /* Spinlock */
 
   /* This holds the information visible to the NuttX network */
 
@@ -538,7 +542,7 @@ static int s32k1xx_transmit(struct s32k1xx_driver_s *priv)
 
   /* Make the following operations atomic */
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&priv->lock);
 
   /* Enable TX interrupts */
 
@@ -555,7 +559,7 @@ static int s32k1xx_transmit(struct s32k1xx_driver_s *priv)
 
   putreg32(ENET_TDAR, S32K1XX_ENET_TDAR);
 
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
   return OK;
 }
 
@@ -1150,9 +1154,9 @@ static int s32k1xx_ifup_action(struct net_driver_s *dev, bool resetphy)
   uint32_t regval;
   int ret;
 
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 
   /* Initialize ENET buffers */
 
@@ -1265,7 +1269,13 @@ static int s32k1xx_ifup(struct net_driver_s *dev)
 {
   /* The externally available ifup action includes resetting the phy */
 
-  return s32k1xx_ifup_action(dev, true);
+  int ret = s32k1xx_ifup_action(dev, true);
+  if (ret == OK)
+    {
+      netdev_carrier_on(dev);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -1290,9 +1300,9 @@ static int s32k1xx_ifdown(struct net_driver_s *dev)
     (struct s32k1xx_driver_s *)dev->d_private;
   irqstate_t flags;
 
-  ninfo("Taking down: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
+  ninfo("Taking down: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 
   /* Flush and disable the Ethernet interrupts at the NVIC */
 
@@ -1317,6 +1327,9 @@ static int s32k1xx_ifdown(struct net_driver_s *dev)
 
   priv->bifup = false;
   leave_critical_section(flags);
+
+  netdev_carrier_off(dev);
+
   return OK;
 }
 
@@ -1905,7 +1918,7 @@ static inline int s32k1xx_initphy(struct s32k1xx_driver_s *priv,
       retries = 0;
       do
         {
-          nxsig_usleep(LINK_WAITUS);
+          nxsched_usleep(LINK_WAITUS);
 
           ninfo("%s: Read PHYID1, retries=%d\n",
                 BOARD_PHY_NAME, retries + 1);
@@ -2036,7 +2049,7 @@ static inline int s32k1xx_initphy(struct s32k1xx_driver_s *priv,
               break;
             }
 
-          nxsig_usleep(LINK_WAITUS);
+          nxsched_usleep(LINK_WAITUS);
         }
 
       if (phydata & MII_MSR_ANEGCOMPLETE)
@@ -2439,6 +2452,8 @@ int s32k1xx_netinitialize(int intf)
   priv->dev.d_ioctl   = s32k1xx_ioctl;    /* Support PHY ioctl() calls */
 #endif
   priv->dev.d_private = g_enet;           /* Used to recover private state from dev */
+
+  spin_lock_init(&priv->lock);
 
 #ifdef CONFIG_NET_ETHERNET
   /* Determine a semi-unique MAC address from MCU UID

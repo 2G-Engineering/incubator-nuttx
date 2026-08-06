@@ -1,6 +1,8 @@
 /****************************************************************************
  * wireless/bluetooth/bt_services.c
  *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  *   Copyright (c) 2016, Intel Corporation
  *   All rights reserved.
  *
@@ -41,7 +43,7 @@
 
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <arpa/inet.h>
 #include <sys/param.h>
 

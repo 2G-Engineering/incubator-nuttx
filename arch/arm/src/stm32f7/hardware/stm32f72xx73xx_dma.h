@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/hardware/stm32f72xx73xx_dma.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 
 #include <nuttx/config.h>
 
-#if defined(CONFIG_STM32F7_STM32F72XX) || defined(CONFIG_STM32F7_STM32F73XX)
+#if defined(CONFIG_STM32_STM32F72XX) || defined(CONFIG_STM32_STM32F73XX)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -537,5 +539,5 @@
 #define DMAMAP_SDMMC2_1            STM32_DMA_MAP(DMA2,DMA_STREAM0,DMA_CHAN11)
 #define DMAMAP_SDMMC2_2            STM32_DMA_MAP(DMA2,DMA_STREAM5,DMA_CHAN11)
 
-#endif /* CONFIG_STM32F7_STM32F72XX || CONFIG_STM32F7_STM32F73XX */
+#endif /* CONFIG_STM32_STM32F72XX || CONFIG_STM32_STM32F73XX */
 #endif /* __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32F72XX73XX_DMA_H */

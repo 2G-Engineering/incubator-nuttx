@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/max44009.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -26,7 +41,7 @@
 #include <sys/types.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <poll.h>
 #include <stdio.h>
 
@@ -46,10 +61,6 @@
 #  define max44009_dbg(x, ...)      _info(x, ##__VA_ARGS__)
 #else
 #  define max44009_dbg(x, ...)      sninfo(x, ##__VA_ARGS__)
-#endif
-
-#ifndef CONFIG_MAX44009_I2C_FREQUENCY
-#  define CONFIG_MAX44009_I2C_FREQUENCY 400000
 #endif
 
 /* Registers */
@@ -79,7 +90,7 @@ struct max44009_dev_s
   uint8_t addr;
   uint8_t cref;
   bool int_pending;
-  struct pollfd *fds[CONFIG_MAX44009_NPOLLWAITERS];
+  FAR struct pollfd *fds[CONFIG_MAX44009_NPOLLWAITERS];
 };
 
 /****************************************************************************
@@ -168,14 +179,14 @@ static int max44009_write_reg8(FAR struct max44009_dev_s *dev,
       .frequency = CONFIG_MAX44009_I2C_FREQUENCY,
       .addr      = dev->addr,
       .flags     = 0,
-      .buffer    = (void *)&command[0],
+      .buffer    = (FAR void *)&command[0],
       .length    = 1
     },
     {
       .frequency = CONFIG_MAX44009_I2C_FREQUENCY,
       .addr      = dev->addr,
       .flags     = I2C_M_NOSTART,
-      .buffer    = (void *)&command[1],
+      .buffer    = (FAR void *)&command[1],
       .length    = 1
     }
   };
@@ -215,11 +226,10 @@ static int max44009_open(FAR struct file *filep)
   unsigned int use_count;
   int ret;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct max44009_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   ret = nxmutex_lock(&priv->dev_lock);
   if (ret < 0)
@@ -264,11 +274,10 @@ static int max44009_close(FAR struct file *filep)
   int use_count;
   int ret;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct max44009_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   ret = nxmutex_lock(&priv->dev_lock);
   if (ret < 0)
@@ -307,11 +316,10 @@ static ssize_t max44009_read(FAR struct file *filep, FAR char *buffer,
   int ret;
   struct max44009_data_s data;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct max44009_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   ret = nxmutex_lock(&priv->dev_lock);
   if (ret < 0)
@@ -711,11 +719,10 @@ static int max44009_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   FAR struct max44009_dev_s *priv;
   int ret;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct max44009_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   ret = nxmutex_lock(&priv->dev_lock);
   if (ret < 0)
@@ -783,11 +790,11 @@ static int max44009_poll(FAR struct file *filep, FAR struct pollfd *fds,
   int ret = OK;
   int i;
 
-  DEBUGASSERT(filep && fds);
+  DEBUGASSERT(fds);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct max44009_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   ret = nxmutex_lock(&priv->dev_lock);
   if (ret < 0)
@@ -832,14 +839,15 @@ static int max44009_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
       if (priv->int_pending)
         {
-          max44009_notify(priv);
+          poll_notify(&fds, 1, POLLIN);
+          priv->int_pending = false;
         }
     }
   else if (fds->priv)
     {
       /* This is a request to tear down the poll. */
 
-      struct pollfd **slot = (struct pollfd **)fds->priv;
+      FAR struct pollfd **slot = (FAR struct pollfd **)fds->priv;
       DEBUGASSERT(slot != NULL);
 
       /* Remove all memory of the poll setup */

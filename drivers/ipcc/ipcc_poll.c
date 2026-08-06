@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/ipcc/ipcc_poll.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <nuttx/semaphore.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -62,7 +64,7 @@
  ****************************************************************************/
 
 int ipcc_poll(FAR struct file *filep, FAR struct pollfd *fds,
-                     bool setup)
+              bool setup)
 {
   FAR struct ipcc_driver_s *priv;
   FAR struct pollfd **slot;
@@ -72,7 +74,6 @@ int ipcc_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
   /* Get our private data structure */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   priv = filep->f_inode->i_private;
 
   /* Get exclusive access to driver */
@@ -145,7 +146,7 @@ int ipcc_poll(FAR struct file *filep, FAR struct pollfd *fds,
     }
 #endif
 
-  poll_notify(priv->fds, CONFIG_IPCC_NPOLLWAITERS, eventset);
+  poll_notify(&fds, 1, eventset);
 
   nxmutex_unlock(&priv->lock);
   return OK;

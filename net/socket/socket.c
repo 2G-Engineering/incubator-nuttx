@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/socket/socket.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,8 +29,9 @@
 #include <sys/socket.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
+#include "usrsock/usrsock.h"
 #include "socket/socket.h"
 
 #ifdef CONFIG_NET
@@ -93,12 +96,41 @@ int psock_socket(int domain, int type, int protocol,
   psock->s_conn   = NULL;
   psock->s_type   = type & SOCK_TYPE_MASK;
 
+#ifdef CONFIG_NET_USRSOCK
+  /* Get the usrsock interface */
+
+  sockif = &g_usrsock_sockif;
+  psock->s_sockif = sockif;
+
+  ret = sockif->si_setup(psock);
+
+  /* When usrsock daemon returns -ENOSYS or -ENOTSUP, it means to use
+   * kernel's network stack, so fallback to kernel socket.
+   * When -ENETDOWN is returned, it means the usrsock daemon was never
+   * launched or is no longer running, so fallback to kernel socket.
+   */
+
+  if (ret == 0 || (ret != -ENOSYS && ret != -ENOTSUP && ret != -ENETDOWN))
+    {
+      return ret;
+    }
+
+#endif
+
   /* Get the socket interface */
 
   sockif = net_sockif(domain, psock->s_type, psock->s_proto);
   if (sockif == NULL)
     {
       nerr("ERROR: socket address family unsupported: %d\n", domain);
+#ifdef CONFIG_NET_USRSOCK
+
+      /* We tried to fallback to kernel socket, but one is not available,
+       * so use the return code from usrsock.
+       */
+
+      return ret;
+#endif
       return -EAFNOSUPPORT;
     }
 

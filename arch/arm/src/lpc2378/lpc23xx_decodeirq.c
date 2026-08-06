@@ -1,13 +1,11 @@
 /****************************************************************************
  * arch/arm/src/lpc2378/lpc23xx_decodeirq.c
  *
- *   Copyright (C) 2010 Rommel Marcelo. All rights reserved.
- *   Author: Rommel Marcelo
- *
- * This file is part of the NuttX RTOS and based on the lpc2148 port:
- *
- *   Copyright (C) 2010, 2011 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2010 Rommel Marcelo. All rights reserved.
+ * SPDX-FileCopyrightText: 2010,2011 Gregory Nutt. All rights reserved.
+ * SPDX-FileContributor: Rommel Marcelo
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -49,20 +47,21 @@
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
 #include "arm_internal.h"
 #include "lpc2378.h"
 #include "lpc23xx_vic.h"
+#include "sched/sched.h"
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
- * arm_decodeirq() and/or lpc23xx_decodeirq()
+ * arm_decodeirq()
  *
  * Description:
  *   The vectored interrupt controller (VIC) takes 32 interrupt request
@@ -85,17 +84,11 @@
  *
  ****************************************************************************/
 
-#ifndef CONFIG_VECTORED_INTERRUPTS
 uint32_t *arm_decodeirq(uint32_t *regs)
-#else
-static uint32_t *lpc23xx_decodeirq(uint32_t *regs)
-#endif
 {
 #ifdef CONFIG_SUPPRESS_INTERRUPTS
   err("ERROR: Unexpected IRQ\n");
-  CURRENT_REGS = regs;
   PANIC();
-  return NULL;
 #else
 
   /* Check which IRQ fires */
@@ -113,54 +106,13 @@ static uint32_t *lpc23xx_decodeirq(uint32_t *regs)
 
   /* Verify that the resulting IRQ number is valid */
 
-  if (irq < NR_IRQS)            /* redundant check ?? */
+  if (irq < NR_IRQS)
     {
-       uint32_t *savestate;
-
-      /* Current regs non-zero indicates that we are processing an
-       * interrupt; CURRENT_REGS is also used to manage interrupt level
-       * context switches.
-       */
-
-      savestate    = (uint32_t *)CURRENT_REGS;
-      CURRENT_REGS = regs;
-
-      /* Acknowledge the interrupt */
-
-      arm_ack_irq(irq);
-
       /* Deliver the IRQ */
 
-      irq_dispatch(irq, regs);
-
-      /* Restore the previous value of CURRENT_REGS.
-       * NULL would indicate that we are no longer in an interrupt handler.
-       * It will be non-NULL if we are returning from a nested interrupt.
-       */
-
-      CURRENT_REGS = savestate;
+      regs = arm_doirq(irq, regs);
     }
-
-  return NULL;  /* Return not used in this architecture */
 #endif
+
+  return regs;
 }
-
-#ifdef CONFIG_VECTORED_INTERRUPTS
-uint32_t *arm_decodeirq(uint32_t *regs)
-{
-  vic_vector_t vector = (vic_vector_t) vic_getreg(VIC_ADDRESS_OFFSET);
-
-  /* Acknowledge the interrupt */
-
-  arm_ack_irq(irq);
-
-  /* Valid Interrupt */
-
-  if (vector != NULL)
-    {
-      (vector)(regs);
-    }
-
-  return NULL;  /* Return not used in this architecture */
-}
-#endif

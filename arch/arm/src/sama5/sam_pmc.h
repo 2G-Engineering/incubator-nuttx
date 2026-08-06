@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/sama5/sam_pmc.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -54,7 +56,7 @@ extern "C"
  *   the frequency of the PPA output clock, PLLACK
  *
  * Assumptions:
- *   PLLA is enabled.  If the PLL is is disabled, either at the input divider
+ *   PLLA is enabled.  If the PLL is disabled, either at the input divider
  *   or the output multiplier, the value zero is returned.
  *
  ****************************************************************************/

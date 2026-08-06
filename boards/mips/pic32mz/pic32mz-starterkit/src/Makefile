@@ -1,6 +1,8 @@
 ############################################################################
 # boards/mips/pic32mz/pic32mz-starterkit/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -30,10 +32,6 @@ endif
 
 ifeq ($(CONFIG_ARCH_BUTTONS),y)
 CSRCS += pic32mz_buttons.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += pic32mz_appinit.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rtl8720c/ameba_hci.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,6 +26,7 @@
 
 #include <nuttx/config.h>
 #include <fcntl.h>
+#include <nuttx/signal.h>
 #include <nuttx/serial/serial.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/netdev/netdev.h>
@@ -327,7 +330,7 @@ static int hci_load_firmware(struct file *filep)
       command[1] = 0x20;
       command[2] = 0xfc;
       buffer_size = header_size + command[3];
-      usleep(10);
+      nxsched_usleep(10);
       ret = hci_send(filep, command, buffer_size);
       if (ret != buffer_size)
         {
@@ -389,7 +392,7 @@ static int hci_open(struct file *filep)
   hci_dev_t *dev = inode->i_private;
   int ret;
   ret = file_open(&dev->filep,
-                  CONFIG_AMEBA_HCI_DEV_NAME, O_RDWR);
+                  CONFIG_AMEBA_HCI_DEV_NAME, O_RDWR | O_CLOEXEC);
   if (ret < 0)
     {
       return ret;

@@ -1,7 +1,7 @@
 /****************************************************************************
  * arch/arm/src/s32k3xx/s32k3xx_edma.c
  *
- *   Copyright (C) 2019, 2021 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2019, 2021, 2023 Gregory Nutt. All rights reserved.
  *   Copyright 2022 NXP
  *   Authors: Gregory Nutt <gnutt@nuttx.org>
  *            David Sidrane <david.sidrane@nscdg.com>
@@ -54,7 +54,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/irq.h>
@@ -156,6 +156,7 @@ struct s32k3xx_edma_s
   /* This array describes each DMA channel */
 
   struct s32k3xx_dmach_s dmach[S32K3XX_EDMA_NCHANNELS];
+  spinlock_t lock;
 };
 
 /****************************************************************************
@@ -206,6 +207,7 @@ static struct s32k3xx_edma_s g_edma =
 #if CONFIG_S32K3XX_EDMA_NTCD > 0
   .dsem = SEM_INITIALIZER(CONFIG_S32K3XX_EDMA_NTCD),
 #endif
+  .lock = SP_UNLOCKED
 };
 
 #if CONFIG_S32K3XX_EDMA_NTCD > 0
@@ -442,7 +444,7 @@ static struct s32k3xx_edmatcd_s *s32k3xx_tcd_alloc(void)
   struct s32k3xx_edmatcd_s *tcd;
   irqstate_t flags;
 
-  /* Take the 'dsem'.  When we hold the the 'dsem', then we know that one
+  /* Take the 'dsem'.  When we hold the 'dsem', then we know that one
    * TCD is reserved for us in the free list.
    *
    * NOTE: We use a critical section here because we may block waiting for
@@ -450,15 +452,15 @@ static struct s32k3xx_edmatcd_s *s32k3xx_tcd_alloc(void)
    * waiting.
    */
 
-  flags = enter_critical_section();
   nxsem_wait_uninterruptible(&g_edma.dsem);
 
   /* Now there should be a TCD in the free list reserved just for us */
 
+  flags = spin_lock_irqsave(&g_edma.lock);
   tcd = (struct s32k3xx_edmatcd_s *)sq_remfirst(&g_tcd_free);
   DEBUGASSERT(tcd != NULL);
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_edma.lock, flags);
   return tcd;
 }
 #endif
@@ -472,19 +474,29 @@ static struct s32k3xx_edmatcd_s *s32k3xx_tcd_alloc(void)
  ****************************************************************************/
 
 #if CONFIG_S32K3XX_EDMA_NTCD > 0
-static void s32k3xx_tcd_free(struct s32k3xx_edmatcd_s *tcd)
+static void s32k3xx_tcd_free_nolock(struct s32k3xx_edmatcd_s *tcd)
 {
-  irqstate_t flags;
-
-  /* Add the the TCD to the end of the free list and post the 'dsem',
+  /* Add the TCD to the end of the free list and post the 'dsem',
    * possibly waking up another thread that might be waiting for
    * a TCD.
    */
 
-  flags = spin_lock_irqsave(NULL);
   sq_addlast((sq_entry_t *)tcd, &g_tcd_free);
   nxsem_post(&g_edma.dsem);
-  spin_unlock_irqrestore(NULL, flags);
+}
+
+static void s32k3xx_tcd_free(struct s32k3xx_edmatcd_s *tcd)
+{
+  irqstate_t flags;
+
+  /* Add the TCD to the end of the free list and post the 'dsem',
+   * possibly waking up another thread that might be waiting for
+   * a TCD.
+   */
+
+  flags = spin_lock_irqsave_nopreempt(&g_edma.lock);
+  s32k3xx_tcd_free_nolock(tcd);
+  spin_unlock_irqrestore_nopreempt(&g_edma.lock, flags);
 }
 #endif
 
@@ -708,6 +720,11 @@ static void s32k3xx_dmaterminate(struct s32k3xx_dmach_s *dmach, int result)
   struct s32k3xx_edmatcd_s *next;
 #endif
   uint8_t chan;
+  edma_callback_t callback;
+  irqstate_t flags;
+  void *arg;
+
+  flags = spin_lock_irqsave_nopreempt(&g_edma.lock);
 
   chan            = dmach->chan;
 
@@ -740,7 +757,7 @@ static void s32k3xx_dmaterminate(struct s32k3xx_dmach_s *dmach, int result)
        next = dmach->flags & EDMA_CONFIG_LOOPDEST ?
               NULL : (struct s32k3xx_edmatcd_s *)tcd->dlastsga;
 
-       s32k3xx_tcd_free(tcd);
+       s32k3xx_tcd_free_nolock(tcd);
     }
 
   dmach->head = NULL;
@@ -749,14 +766,19 @@ static void s32k3xx_dmaterminate(struct s32k3xx_dmach_s *dmach, int result)
 
   /* Perform the DMA complete callback */
 
-  if (dmach->callback)
-    {
-      dmach->callback((DMACH_HANDLE)dmach, dmach->arg, true, result);
-    }
+  callback = dmach->callback;
+  arg      = dmach->arg;
 
   dmach->callback = NULL;
   dmach->arg      = NULL;
   dmach->state    = S32K3XX_DMA_IDLE;
+
+  if (callback)
+    {
+      callback((DMACH_HANDLE)dmach, arg, true, result);
+    }
+
+  spin_unlock_irqrestore_nopreempt(&g_edma.lock, flags);
 }
 
 /****************************************************************************
@@ -1338,7 +1360,7 @@ int s32k3xx_dmach_xfrsetup(DMACH_HANDLE *handle,
  *   this will be generated with the final TCD.
  *
  *   At the conclusion of the DMA, the DMA channel is reset, all TCDs are
- *   freed, and the callback function is called with the the success/fail
+ *   freed, and the callback function is called with the success/fail
  *   result of the DMA.
  *
  *   NOTE: On Rx DMAs (peripheral-to-memory or memory-to-memory), it is
@@ -1372,7 +1394,7 @@ int s32k3xx_dmach_start(DMACH_HANDLE handle, edma_callback_t callback,
 
   /* Save the callback info.  This will be invoked when the DMA completes */
 
-  flags           = spin_lock_irqsave(NULL);
+  flags           = spin_lock_irqsave(&g_edma.lock);
   dmach->callback = callback;
   dmach->arg      = arg;
 
@@ -1392,7 +1414,7 @@ int s32k3xx_dmach_start(DMACH_HANDLE handle, edma_callback_t callback,
       putreg32(regval, S32K3XX_EDMA_TCD[chan] + S32K3XX_EDMA_CH_CSR_OFFSET);
     }
 
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_edma.lock, flags);
   return OK;
 }
 
@@ -1420,9 +1442,9 @@ void s32k3xx_dmach_stop(DMACH_HANDLE handle)
   dmainfo("dmach: %p\n", dmach);
   DEBUGASSERT(dmach != NULL);
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_edma.lock);
   s32k3xx_dmaterminate(dmach, -EINTR);
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_edma.lock, flags);
 }
 
 /****************************************************************************
@@ -1430,7 +1452,7 @@ void s32k3xx_dmach_stop(DMACH_HANDLE handle)
  *
  * Description:
  *   This function checks the TCD (Task Control Descriptor) status for a
- *   specified eDMA channel and returns the the number of major loop counts
+ *   specified eDMA channel and returns the number of major loop counts
  *   that have not finished.
  *
  *   NOTES:
@@ -1496,6 +1518,24 @@ unsigned int s32k3xx_dmach_getcount(DMACH_HANDLE *handle)
 }
 
 /****************************************************************************
+ * Name: s32k3xx_dmach_idle
+ *
+ * Description:
+ *   This function checks if the dma is idle
+ *
+ * Returned Value:
+ *   0  - if idle
+ *   !0 - not
+ *
+ ****************************************************************************/
+
+unsigned int s32k3xx_dmach_idle(DMACH_HANDLE handle)
+{
+  struct s32k3xx_dmach_s *dmach = (struct s32k3xx_dmach_s *)handle;
+  return dmach->state == S32K3XX_DMA_IDLE ? 0 : -1;
+}
+
+/****************************************************************************
  * Name: s32k3xx_dmasample
  *
  * Description:
@@ -1521,7 +1561,7 @@ void s32k3xx_dmasample(DMACH_HANDLE handle, struct s32k3xx_dmaregs_s *regs)
 
   /* eDMA Global Registers */
 
-  flags          = spin_lock_irqsave(NULL);
+  flags          = spin_lock_irqsave(&g_edma.lock);
 
   regs->cr       = getreg32(S32K3XX_EDMA_CSR);  /* Control */
   regs->es       = getreg32(S32K3XX_EDMA_ES);   /* Error Status */
@@ -1553,7 +1593,7 @@ void s32k3xx_dmasample(DMACH_HANDLE handle, struct s32k3xx_dmaregs_s *regs)
       regs->dmamux   = getreg32(S32K3XX_DMAMUX1_CHCFG(chan - 16)); /* Channel configuration */
     }
 
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_edma.lock, flags);
 }
 #endif /* CONFIG_DEBUG_DMA */
 

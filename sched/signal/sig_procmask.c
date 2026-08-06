@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/signal/sig_procmask.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,8 +32,8 @@
 #include <sched.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/wdog.h>
@@ -91,8 +93,6 @@ int nxsig_procmask(int how, FAR const sigset_t *set, FAR sigset_t *oset)
   irqstate_t flags;
   int        ret = OK;
 
-  sched_lock();
-
   /* Return the old signal mask if requested */
 
   if (oset != NULL)
@@ -119,8 +119,7 @@ int nxsig_procmask(int how, FAR const sigset_t *set, FAR sigset_t *oset)
            */
 
           case SIG_BLOCK:
-            sigorset(&rtcb->sigprocmask, &rtcb->sigprocmask,
-                     (FAR sigset_t *)set);
+            sigorset(&rtcb->sigprocmask, &rtcb->sigprocmask, set);
             break;
 
           /* The resulting set is the intersection of the current set and
@@ -149,7 +148,6 @@ int nxsig_procmask(int how, FAR const sigset_t *set, FAR sigset_t *oset)
       nxsig_unmask_pendingsignal();
     }
 
-  sched_unlock();
   return ret;
 }
 
@@ -188,7 +186,18 @@ int nxsig_procmask(int how, FAR const sigset_t *set, FAR sigset_t *oset)
 
 int sigprocmask(int how, FAR const sigset_t *set, FAR sigset_t *oset)
 {
+  sigset_t nset;
   int ret;
+
+  /* SIGKILL and SIGSTOP should not be added to signal mask */
+
+  if (set != NULL)
+    {
+      nset = *set;
+      nxsig_delset(&nset, SIGKILL);
+      nxsig_delset(&nset, SIGSTOP);
+      set = &nset;
+    }
 
   /* Let nxsig_procmask do all of the work */
 

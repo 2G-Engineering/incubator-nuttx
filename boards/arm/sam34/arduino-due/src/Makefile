@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/sam34/arduino-due/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -45,8 +47,8 @@ CSRCS += sam_lcd.c
 endif
 endif
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += sam_appinit.c
+ifeq ($(CONFIG_SAM34_SPI0),y)
+CSRCS += sam_spidev.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

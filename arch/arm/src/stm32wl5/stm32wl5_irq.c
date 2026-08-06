@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wl5/stm32wl5_irq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,8 +28,8 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <arch/irq.h>
@@ -36,8 +38,7 @@
 #include "nvic.h"
 #include "ram_vectors.h"
 #include "arm_internal.h"
-#include "arm_internal.h"
-#include "stm32wl5.h"
+#include "stm32.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -63,7 +64,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32wl5_dumpnvic
+ * Name: stm32_dumpnvic
  *
  * Description:
  *   Dump some interesting NVIC registers
@@ -71,63 +72,67 @@
  ****************************************************************************/
 
 #if defined(CONFIG_DEBUG_IRQ_INFO)
-static void stm32wl5_dumpnvic(const char *msg, int irq)
+static void stm32_dumpnvic(const char *msg, int irq)
 {
   irqstate_t flags;
 
   flags = enter_critical_section();
 
   irqinfo("NVIC (%s, irq=%d):\n", msg, irq);
-  irqinfo("  INTCTRL:    %08x VECTAB:  %08x\n",
+  irqinfo("  INTCTRL:    %08" PRIx32 " VECTAB:  %08" PRIx32 "\n",
           getreg32(NVIC_INTCTRL), getreg32(NVIC_VECTAB));
 #if 0
-  irqinfo("  SYSH ENABLE MEMFAULT: %08x BUSFAULT: %08x USGFAULT: %08x "
-          "SYSTICK: %08x\n",
+  irqinfo("  SYSH ENABLE MEMFAULT: %08" PRIx32
+          " BUSFAULT: %08" PRIx32 " USGFAULT: %08" PRIx32 " "
+          "SYSTICK: %08" PRIx32 "\n",
           getreg32(NVIC_SYSHCON_MEMFAULTENA),
           getreg32(NVIC_SYSHCON_BUSFAULTENA),
           getreg32(NVIC_SYSHCON_USGFAULTENA),
           getreg32(NVIC_SYSTICK_CTRL_ENABLE));
 #endif
-  irqinfo("  IRQ ENABLE: %08x %08x %08x\n",
+  irqinfo("  IRQ ENABLE: %08" PRIx32 " %08" PRIx32 " %08" PRIx32 "\n",
           getreg32(NVIC_IRQ0_31_ENABLE),
           getreg32(NVIC_IRQ32_63_ENABLE),
           getreg32(NVIC_IRQ64_95_ENABLE));
-  irqinfo("  SYSH_PRIO:  %08x %08x %08x\n",
+  irqinfo("  SYSH_PRIO:  %08" PRIx32 " %08" PRIx32 " %08" PRIx32 "\n",
           getreg32(NVIC_SYSH4_7_PRIORITY),
           getreg32(NVIC_SYSH8_11_PRIORITY),
           getreg32(NVIC_SYSH12_15_PRIORITY));
-  irqinfo("  IRQ PRIO:   %08x %08x %08x %08x\n",
+  irqinfo("  IRQ PRIO:   %08" PRIx32 " %08" PRIx32
+          " %08" PRIx32 " %08" PRIx32 "\n",
           getreg32(NVIC_IRQ0_3_PRIORITY),
           getreg32(NVIC_IRQ4_7_PRIORITY),
           getreg32(NVIC_IRQ8_11_PRIORITY),
           getreg32(NVIC_IRQ12_15_PRIORITY));
-  irqinfo("              %08x %08x %08x %08x\n",
+  irqinfo("              %08" PRIx32 " %08" PRIx32
+          " %08" PRIx32 " %08" PRIx32 "\n",
           getreg32(NVIC_IRQ16_19_PRIORITY),
           getreg32(NVIC_IRQ20_23_PRIORITY),
           getreg32(NVIC_IRQ24_27_PRIORITY),
           getreg32(NVIC_IRQ28_31_PRIORITY));
-  irqinfo("              %08x %08x %08x %08x\n",
+  irqinfo("              %08" PRIx32 " %08" PRIx32
+          " %08" PRIx32 " %08" PRIx32 "\n",
           getreg32(NVIC_IRQ32_35_PRIORITY),
           getreg32(NVIC_IRQ36_39_PRIORITY),
           getreg32(NVIC_IRQ40_43_PRIORITY),
           getreg32(NVIC_IRQ44_47_PRIORITY));
-  irqinfo("              %08x %08x %08x %08x\n",
+  irqinfo("              %08" PRIx32 " %08" PRIx32
+          " %08" PRIx32 " %08" PRIx32 "\n",
           getreg32(NVIC_IRQ48_51_PRIORITY),
           getreg32(NVIC_IRQ52_55_PRIORITY),
           getreg32(NVIC_IRQ56_59_PRIORITY),
           getreg32(NVIC_IRQ60_63_PRIORITY));
-  irqinfo("              %08x\n",
+  irqinfo("              %08" PRIx32 "\n",
           getreg32(NVIC_IRQ64_67_PRIORITY));
 
   leave_critical_section(flags);
 }
 #else
-#  define stm32wl5_dumpnvic(msg, irq)
+#  define stm32_dumpnvic(msg, irq)
 #endif
 
 /****************************************************************************
- * Name: stm32wl5_nmi, stm32wl5_pendsv,
- *       stm32wl5_dbgmonitor, stm32wl5_pendsv, stm32wl5_reserved
+ * Name: stm32_nmi, stm32_pendsv, stm32_pendsv, stm32_reserved
  *
  * Description:
  *   Handlers for various exceptions.  None are handled and all are fatal
@@ -137,7 +142,7 @@ static void stm32wl5_dumpnvic(const char *msg, int irq)
  ****************************************************************************/
 
 #ifdef CONFIG_DEBUG_FEATURES
-static int stm32wl5_nmi(int irq, void *context, void *arg)
+static int stm32_nmi(int irq, void *context, void *arg)
 {
   up_irq_save();
   _err("PANIC!!! NMI received\n");
@@ -145,7 +150,7 @@ static int stm32wl5_nmi(int irq, void *context, void *arg)
   return 0;
 }
 
-static int stm32wl5_pendsv(int irq, void *context, void *arg)
+static int stm32_pendsv(int irq, void *context, void *arg)
 {
   up_irq_save();
   _err("PANIC!!! PendSV received\n");
@@ -153,15 +158,7 @@ static int stm32wl5_pendsv(int irq, void *context, void *arg)
   return 0;
 }
 
-static int stm32wl5_dbgmonitor(int irq, void *context, void *arg)
-{
-  up_irq_save();
-  _err("PANIC!!! Debug Monitor received\n");
-  PANIC();
-  return 0;
-}
-
-static int stm32wl5_reserved(int irq, void *context, void *arg)
+static int stm32_reserved(int irq, void *context, void *arg)
 {
   up_irq_save();
   _err("PANIC!!! Reserved interrupt\n");
@@ -171,7 +168,7 @@ static int stm32wl5_reserved(int irq, void *context, void *arg)
 #endif
 
 /****************************************************************************
- * Name: stm32wl5_prioritize_syscall
+ * Name: stm32_prioritize_syscall
  *
  * Description:
  *   Set the priority of an exception.  This function may be needed
@@ -179,8 +176,7 @@ static int stm32wl5_reserved(int irq, void *context, void *arg)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ARMV7M_USEBASEPRI
-static inline void stm32wl5_prioritize_syscall(int priority)
+static inline void stm32_prioritize_syscall(int priority)
 {
   uint32_t regval;
 
@@ -191,10 +187,9 @@ static inline void stm32wl5_prioritize_syscall(int priority)
   regval |= (priority << NVIC_SYSH_PRIORITY_PR11_SHIFT);
   putreg32(regval, NVIC_SYSH8_11_PRIORITY);
 }
-#endif
 
 /****************************************************************************
- * Name: stm32wl5_irqinfo
+ * Name: stm32_irqinfo
  *
  * Description:
  *   Given an IRQ number, provide the register and bit setting to enable or
@@ -202,18 +197,18 @@ static inline void stm32wl5_prioritize_syscall(int priority)
  *
  ****************************************************************************/
 
-static int stm32wl5_irqinfo(int irq, uintptr_t *regaddr, uint32_t *bit,
+static int stm32_irqinfo(int irq, uintptr_t *regaddr, uint32_t *bit,
                          uintptr_t offset)
 {
   int n;
 
-  DEBUGASSERT(irq >= STM32WL5_IRQ_NMI && irq < NR_IRQS);
+  DEBUGASSERT(irq >= STM32_IRQ_NMI && irq < NR_IRQS);
 
   /* Check for external interrupt */
 
-  if (irq >= STM32WL5_IRQ_FIRST)
+  if (irq >= STM32_IRQ_FIRST)
     {
-      n        = irq - STM32WL5_IRQ_FIRST;
+      n        = irq - STM32_IRQ_FIRST;
       *regaddr = NVIC_IRQ_ENABLE(n) + offset;
       *bit     = (uint32_t)1 << (n & 0x1f);
     }
@@ -223,19 +218,19 @@ static int stm32wl5_irqinfo(int irq, uintptr_t *regaddr, uint32_t *bit,
   else
     {
       *regaddr = NVIC_SYSHCON;
-      if (irq == STM32WL5_IRQ_MEMFAULT)
+      if (irq == STM32_IRQ_MEMFAULT)
         {
           *bit = NVIC_SYSHCON_MEMFAULTENA;
         }
-      else if (irq == STM32WL5_IRQ_BUSFAULT)
+      else if (irq == STM32_IRQ_BUSFAULT)
         {
           *bit = NVIC_SYSHCON_BUSFAULTENA;
         }
-      else if (irq == STM32WL5_IRQ_USAGEFAULT)
+      else if (irq == STM32_IRQ_USAGEFAULT)
         {
           *bit = NVIC_SYSHCON_USGFAULTENA;
         }
-      else if (irq == STM32WL5_IRQ_SYSTICK)
+      else if (irq == STM32_IRQ_SYSTICK)
         {
           *regaddr = NVIC_SYSTICK_CTRL;
           *bit = NVIC_SYSTICK_CTRL_ENABLE;
@@ -265,7 +260,7 @@ void up_irqinitialize(void)
 
   /* Disable all interrupts */
 
-  for (i = 0; i < NR_IRQS - STM32WL5_IRQ_FIRST; i += 32)
+  for (i = 0; i < NR_IRQS - STM32_IRQ_FIRST; i += 32)
     {
       putreg32(0xffffffff, NVIC_IRQ_CLEAR(i));
     }
@@ -319,47 +314,48 @@ void up_irqinitialize(void)
    * under certain conditions.
    */
 
-  irq_attach(STM32WL5_IRQ_SVCALL, arm_svcall, NULL);
-  irq_attach(STM32WL5_IRQ_HARDFAULT, arm_hardfault, NULL);
+  irq_attach(STM32_IRQ_SVCALL, arm_svcall, NULL);
+  irq_attach(STM32_IRQ_HARDFAULT, arm_hardfault, NULL);
 
   /* Set the priority of the SVCall interrupt */
 
 #ifdef CONFIG_ARCH_IRQPRIO
-  /* up_prioritize_irq(STM32WL5_IRQ_PENDSV, NVIC_SYSH_PRIORITY_MIN); */
+  /* up_prioritize_irq(STM32_IRQ_PENDSV, NVIC_SYSH_PRIORITY_MIN); */
 #endif
-#ifdef CONFIG_ARMV7M_USEBASEPRI
-  stm32wl5_prioritize_syscall(NVIC_SYSH_SVCALL_PRIORITY);
-#endif
+
+  stm32_prioritize_syscall(NVIC_SYSH_SVCALL_PRIORITY);
 
   /* If the MPU is enabled, then attach and enable the Memory Management
    * Fault handler.
    */
 
 #ifdef CONFIG_ARM_MPU
-  irq_attach(STM32WL5_IRQ_MEMFAULT, arm_memfault, NULL);
-  up_enable_irq(STM32WL5_IRQ_MEMFAULT);
+  irq_attach(STM32_IRQ_MEMFAULT, arm_memfault, NULL);
+  up_enable_irq(STM32_IRQ_MEMFAULT);
 #endif
 
   /* Attach all other processor exceptions (except reset and sys tick) */
 
 #ifdef CONFIG_DEBUG_FEATURES
-  irq_attach(STM32WL5_IRQ_NMI, stm32wl5_nmi, NULL);
+  irq_attach(STM32_IRQ_NMI, stm32_nmi, NULL);
 #ifndef CONFIG_ARM_MPU
-  irq_attach(STM32WL5_IRQ_MEMFAULT, arm_memfault, NULL);
+  irq_attach(STM32_IRQ_MEMFAULT, arm_memfault, NULL);
 #endif
-  irq_attach(STM32WL5_IRQ_BUSFAULT, arm_busfault, NULL);
-  irq_attach(STM32WL5_IRQ_USAGEFAULT, arm_usagefault, NULL);
-  irq_attach(STM32WL5_IRQ_PENDSV, stm32wl5_pendsv, NULL);
-  irq_attach(STM32WL5_IRQ_DBGMONITOR, stm32wl5_dbgmonitor, NULL);
-  irq_attach(STM32WL5_IRQ_RESERVED, stm32wl5_reserved, NULL);
+  irq_attach(STM32_IRQ_BUSFAULT, arm_busfault, NULL);
+  irq_attach(STM32_IRQ_USAGEFAULT, arm_usagefault, NULL);
+  irq_attach(STM32_IRQ_PENDSV, stm32_pendsv, NULL);
+  arm_enable_dbgmonitor();
+  irq_attach(STM32_IRQ_DBGMONITOR, arm_dbgmonitor, NULL);
+  irq_attach(STM32_IRQ_RESERVED, stm32_reserved, NULL);
 #endif
 
-  stm32wl5_dumpnvic("initial", NR_IRQS);
+  stm32_dumpnvic("initial", NR_IRQS);
 
 #ifndef CONFIG_SUPPRESS_INTERRUPTS
 
   /* And finally, enable interrupts */
 
+  arm_color_intstack();
   up_irq_enable();
 #endif
 }
@@ -378,7 +374,7 @@ void up_disable_irq(int irq)
   uint32_t regval;
   uint32_t bit;
 
-  if (stm32wl5_irqinfo(irq, &regaddr, &bit, NVIC_CLRENA_OFFSET) == 0)
+  if (stm32_irqinfo(irq, &regaddr, &bit, NVIC_CLRENA_OFFSET) == 0)
     {
       /* Modify the appropriate bit in the register to disable the interrupt.
        * For normal interrupts, we need to set the bit in the associated
@@ -386,7 +382,7 @@ void up_disable_irq(int irq)
        * clear the bit in the System Handler Control and State Register.
        */
 
-      if (irq >= STM32WL5_IRQ_FIRST)
+      if (irq >= STM32_IRQ_FIRST)
         {
           putreg32(bit, regaddr);
         }
@@ -413,7 +409,7 @@ void up_enable_irq(int irq)
   uint32_t regval;
   uint32_t bit;
 
-  if (stm32wl5_irqinfo(irq, &regaddr, &bit, NVIC_ENA_OFFSET) == 0)
+  if (stm32_irqinfo(irq, &regaddr, &bit, NVIC_ENA_OFFSET) == 0)
     {
       /* Modify the appropriate bit in the register to enable the interrupt.
        * For normal interrupts, we need to set the bit in the associated
@@ -421,7 +417,7 @@ void up_enable_irq(int irq)
        * set the bit in the System Handler Control and State Register.
        */
 
-      if (irq >= STM32WL5_IRQ_FIRST)
+      if (irq >= STM32_IRQ_FIRST)
         {
           putreg32(bit, regaddr);
         }
@@ -464,10 +460,10 @@ int up_prioritize_irq(int irq, int priority)
   uint32_t regval;
   int shift;
 
-  DEBUGASSERT(irq >= STM32WL5_IRQ_MEMFAULT && irq < NR_IRQS &&
+  DEBUGASSERT(irq >= STM32_IRQ_MEMFAULT && irq < NR_IRQS &&
               (unsigned)priority <= NVIC_SYSH_PRIORITY_MIN);
 
-  if (irq < STM32WL5_IRQ_FIRST)
+  if (irq < STM32_IRQ_FIRST)
     {
       /* NVIC_SYSH_PRIORITY() maps {0..15} to one of three priority
        * registers (0-3 are invalid)
@@ -480,7 +476,7 @@ int up_prioritize_irq(int irq, int priority)
     {
       /* NVIC_IRQ_PRIORITY() maps {0..} to one of many priority registers */
 
-      irq    -= STM32WL5_IRQ_FIRST;
+      irq    -= STM32_IRQ_FIRST;
       regaddr = NVIC_IRQ_PRIORITY(irq);
     }
 
@@ -490,7 +486,7 @@ int up_prioritize_irq(int irq, int priority)
   regval     |= (priority << shift);
   putreg32(regval, regaddr);
 
-  stm32wl5_dumpnvic("prioritize", irq);
+  stm32_dumpnvic("prioritize", irq);
   return OK;
 }
 #endif

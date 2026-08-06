@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/input/mxt.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -40,8 +42,8 @@
 #include <poll.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
@@ -202,7 +204,7 @@ struct mxt_dev_s
    * retained in the f_priv field of the 'struct file'.
    */
 
-  struct pollfd *fds[CONFIG_MXT_NPOLLWAITERS];
+  FAR struct pollfd *fds[CONFIG_MXT_NPOLLWAITERS];
 };
 
 /****************************************************************************
@@ -212,21 +214,21 @@ struct mxt_dev_s
 /* MXT register access */
 
 static int  mxt_getreg(FAR struct mxt_dev_s *priv, uint16_t regaddr,
-              FAR uint8_t *buffer, size_t buflen);
+                       FAR uint8_t *buffer, size_t buflen);
 static int  mxt_putreg(FAR struct mxt_dev_s *priv, uint16_t regaddr,
-              FAR const uint8_t *buffer, size_t buflen);
+                       FAR const uint8_t *buffer, size_t buflen);
 
 /* MXT object/message access */
 
 static FAR struct mxt_object_s *mxt_object(FAR struct mxt_dev_s *priv,
-              uint8_t type);
+                                           uint8_t type);
 static int mxt_getmessage(FAR struct mxt_dev_s *priv,
-              FAR struct mxt_msg_s *msg);
+                          FAR struct mxt_msg_s *msg);
 static int mxt_putobject(FAR struct mxt_dev_s *priv, uint8_t type,
-              uint8_t offset, uint8_t value);
+                         uint8_t offset, uint8_t value);
 #if 0 /* Not used */
 static int mxt_getobject(FAR struct mxt_dev_s *priv, uint8_t type,
-              uint8_t offset, FAR uint8_t *value);
+                         uint8_t offset, FAR uint8_t *value);
 #endif
 static int  mxt_flushmsgs(FAR struct mxt_dev_s *priv);
 
@@ -236,33 +238,34 @@ static void mxt_notify(FAR struct mxt_dev_s *priv);
 
 /* Touch event waiting */
 
-static inline int  mxt_checksample(FAR struct mxt_dev_s *priv);
-static inline int  mxt_waitsample(FAR struct mxt_dev_s *priv);
+static inline int mxt_checksample(FAR struct mxt_dev_s *priv);
+static inline int mxt_waitsample(FAR struct mxt_dev_s *priv);
 
 /* Interrupt handling/position sampling */
 
 #ifdef CONFIG_MXT_BUTTONS
 static void mxt_button_event(FAR struct mxt_dev_s *priv,
-              FAR struct mxt_msg_s *msg);
+                             FAR struct mxt_msg_s *msg);
 #endif
 static void mxt_touch_event(FAR struct mxt_dev_s *priv,
-              FAR struct mxt_msg_s *msg, int ndx);
+                            FAR struct mxt_msg_s *msg, int ndx);
 static void mxt_worker(FAR void *arg);
 static int  mxt_interrupt(FAR const struct mxt_lower_s *lower,
-              FAR void *context);
+                          FAR void *context);
 
 /* Character driver methods */
 
 static int  mxt_open(FAR struct file *filep);
 static int  mxt_close(FAR struct file *filep);
 static ssize_t mxt_read(FAR struct file *filep, FAR char *buffer,
-              size_t len);
+                        size_t len);
 static int  mxt_ioctl(FAR struct file *filep, int cmd, unsigned long arg);
-static int  mxt_poll(FAR struct file *filep, struct pollfd *fds, bool setup);
+static int  mxt_poll(FAR struct file *filep, FAR struct pollfd *fds,
+                     bool setup);
 
 /* Initialization */
 
-static int  mxt_getinfo(struct mxt_dev_s *priv);
+static int  mxt_getinfo(FAR struct mxt_dev_s *priv);
 static int  mxt_getobjtab(FAR struct mxt_dev_s *priv);
 static int  mxt_hwinitialize(FAR struct mxt_dev_s *priv);
 
@@ -657,7 +660,7 @@ static inline int mxt_waitsample(FAR struct mxt_dev_s *priv)
   irqstate_t flags;
   int ret;
 
-  /* Interrupts me be disabled when this is called to (1) prevent posting
+  /* Interrupts must be disabled when this is called to (1) prevent posting
    * of semaphores from interrupt handlers, and (2) to prevent sampled data
    * from changing until it has been reported.
    */
@@ -1104,11 +1107,10 @@ static int mxt_open(FAR struct file *filep)
   uint8_t tmp;
   int ret;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv  = (FAR struct mxt_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv  = inode->i_private;
 
   /* Get exclusive access to the driver data structure */
 
@@ -1182,11 +1184,10 @@ static int mxt_close(FAR struct file *filep)
   FAR struct mxt_dev_s *priv;
   int ret;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv  = (FAR struct mxt_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv  = inode->i_private;
 
   /* Get exclusive access to the driver data structure */
 
@@ -1237,11 +1238,10 @@ static ssize_t mxt_read(FAR struct file *filep, FAR char *buffer, size_t len)
   int i;
   int j;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv  = (FAR struct mxt_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv  = inode->i_private;
 
   /* Verify that the caller has provided a buffer large enough to receive
    * the touch data.
@@ -1263,12 +1263,6 @@ static ssize_t mxt_read(FAR struct file *filep, FAR char *buffer, size_t len)
     {
       return ret;
     }
-
-  /* Locking the scheduler will prevent the worker thread from running
-   * until we finish here.
-   */
-
-  sched_lock();
 
   /* Try to read sample data. */
 
@@ -1455,7 +1449,6 @@ static ssize_t mxt_read(FAR struct file *filep, FAR char *buffer, size_t len)
   ret = samplesize;
 
 errout:
-  sched_unlock();
   nxmutex_unlock(&priv->devlock);
   return ret;
 }
@@ -1471,11 +1464,10 @@ static int mxt_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   int                       ret;
 
   iinfo("cmd: %d arg: %ld\n", cmd, arg);
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv  = (FAR struct mxt_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv  = inode->i_private;
 
   /* Get exclusive access to the driver data structure */
 
@@ -1520,19 +1512,19 @@ static int mxt_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
  ****************************************************************************/
 
 static int mxt_poll(FAR struct file *filep, FAR struct pollfd *fds,
-                        bool setup)
+                    bool setup)
 {
-  FAR struct inode         *inode;
+  FAR struct inode     *inode;
   FAR struct mxt_dev_s *priv;
-  int                       ret;
-  int                       i;
+  int                   ret;
+  int                   i;
 
   iinfo("setup: %d\n", (int)setup);
-  DEBUGASSERT(filep && fds);
+  DEBUGASSERT(fds);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv  = (FAR struct mxt_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv  = inode->i_private;
 
   /* Are we setting up the poll?  Or tearing it down? */
 
@@ -1575,8 +1567,8 @@ static int mxt_poll(FAR struct file *filep, FAR struct pollfd *fds,
       if (i >= CONFIG_MXT_NPOLLWAITERS)
         {
           ierr("ERROR: No available slot found: %d\n", i);
-          fds->priv    = NULL;
-          ret          = -EBUSY;
+          fds->priv = NULL;
+          ret       = -EBUSY;
           goto errout;
         }
 
@@ -1584,20 +1576,20 @@ static int mxt_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
       if (priv->event)
         {
-          mxt_notify(priv);
+          poll_notify(&fds, 1, POLLIN);
         }
     }
   else if (fds->priv)
     {
       /* This is a request to tear down the poll. */
 
-      struct pollfd **slot = (struct pollfd **)fds->priv;
+      FAR struct pollfd **slot = (FAR struct pollfd **)fds->priv;
       DEBUGASSERT(slot != NULL);
 
       /* Remove all memory of the poll setup */
 
-      *slot                = NULL;
-      fds->priv            = NULL;
+      *slot     = NULL;
+      fds->priv = NULL;
     }
 
 errout:
@@ -1609,7 +1601,7 @@ errout:
  * Name: mxt_getinfo
  ****************************************************************************/
 
-static int mxt_getinfo(struct mxt_dev_s *priv)
+static int mxt_getinfo(FAR struct mxt_dev_s *priv)
 {
   int ret;
 
@@ -1750,7 +1742,7 @@ static int mxt_hwinitialize(FAR struct mxt_dev_s *priv)
       goto errout_with_objtab;
     }
 
-  nxsig_usleep(MXT_RESET_TIME);
+  nxsched_usleep(MXT_RESET_TIME);
 
   /* Update matrix size in the info structure */
 
@@ -1845,7 +1837,7 @@ int mxt_register(FAR struct i2c_master_s *i2c,
 
   /* Create and initialize a maXTouch device driver instance */
 
-  priv = (FAR struct mxt_dev_s *)kmm_zalloc(sizeof(struct mxt_dev_s));
+  priv = kmm_zalloc(sizeof(struct mxt_dev_s));
   if (priv == NULL)
     {
       ierr("ERROR: Failed allocate device structure\n");

@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/addrenv/addrenv.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,9 +27,10 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/addrenv.h>
+#include <nuttx/atomic.h>
 #include <nuttx/irq.h>
 #include <nuttx/sched.h>
 #include <nuttx/wqueue.h>
@@ -52,6 +55,7 @@
  */
 
 static FAR struct addrenv_s *g_addrenv[CONFIG_SMP_NCPUS];
+static spinlock_t g_addrenv_lock = SP_UNLOCKED;
 
 /****************************************************************************
  * Private Functions
@@ -126,16 +130,6 @@ int addrenv_switch(FAR struct tcb_s *tcb)
   int cpu;
   int ret;
 
-  /* NULL for the tcb means to use the TCB of the task at the head of the
-   * ready to run list.
-   */
-
-  if (!tcb)
-    {
-      tcb = this_task();
-    }
-
-  DEBUGASSERT(tcb);
   next = tcb->addrenv_curr;
 
   /* Does the group have an address environment? */
@@ -149,7 +143,7 @@ int addrenv_switch(FAR struct tcb_s *tcb)
       return OK;
     }
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave_nopreempt(&g_addrenv_lock);
 
   cpu = this_cpu();
   curr = g_addrenv[cpu];
@@ -197,7 +191,7 @@ int addrenv_switch(FAR struct tcb_s *tcb)
       g_addrenv[cpu] = next;
     }
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore_nopreempt(&g_addrenv_lock, flags);
   return OK;
 }
 
@@ -219,12 +213,12 @@ FAR struct addrenv_s *addrenv_allocate(void)
 {
   FAR struct addrenv_s *addrenv;
 
-  addrenv = (FAR struct addrenv_s *)kmm_zalloc(sizeof(struct addrenv_s));
+  addrenv = kmm_zalloc(sizeof(struct addrenv_s));
   if (addrenv)
     {
       /* Take reference so this won't get freed */
 
-      addrenv->refs = 1;
+      atomic_set(&addrenv->refs, 1);
     }
 
   return addrenv;
@@ -346,6 +340,9 @@ int addrenv_leave(FAR struct tcb_s *tcb)
  *   0 (OK) is returned on success and a negated errno is returned on
  *   failure.
  *
+ * Note:
+ *   This API is not safe to use from interrupt.
+ *
  ****************************************************************************/
 
 int addrenv_select(FAR struct addrenv_s *addrenv,
@@ -398,9 +395,7 @@ int addrenv_restore(FAR struct addrenv_s *addrenv)
 
 void addrenv_take(FAR struct addrenv_s *addrenv)
 {
-  irqstate_t flags = enter_critical_section();
-  addrenv->refs++;
-  leave_critical_section(flags);
+  atomic_fetch_add(&addrenv->refs, 1);
 }
 
 /****************************************************************************
@@ -420,14 +415,7 @@ void addrenv_take(FAR struct addrenv_s *addrenv)
 
 int addrenv_give(FAR struct addrenv_s *addrenv)
 {
-  irqstate_t flags;
-  int refs;
-
-  flags = enter_critical_section();
-  refs = --addrenv->refs;
-  leave_critical_section(flags);
-
-  return refs;
+  return atomic_fetch_sub(&addrenv->refs, 1) - 1;
 }
 
 /****************************************************************************

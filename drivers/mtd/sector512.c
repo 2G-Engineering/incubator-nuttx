@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/mtd/sector512.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -38,7 +40,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/ioctl.h>
@@ -642,7 +644,7 @@ FAR struct mtd_dev_s *s512_initialize(FAR struct mtd_dev_s *mtd)
    * have to be extended to handle multiple FLASH parts on the same SPI bus.
    */
 
-  priv = (FAR struct s512_dev_s *)kmm_zalloc(sizeof(struct s512_dev_s));
+  priv = kmm_zalloc(sizeof(struct s512_dev_s));
   if (priv)
     {
       /* Initialize the allocated structure. (unsupported methods/fields
@@ -664,7 +666,7 @@ FAR struct mtd_dev_s *s512_initialize(FAR struct mtd_dev_s *mtd)
 
       /* Allocate a buffer for the erase block cache */
 
-      priv->eblock = (FAR uint8_t *)kmm_malloc(priv->eblocksize);
+      priv->eblock = kmm_malloc(priv->eblocksize);
       if (!priv->eblock)
         {
           /* Allocation failed! Discard all of that work we just did and

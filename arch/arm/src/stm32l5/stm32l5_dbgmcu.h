@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l5/stm32l5_dbgmcu.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 
 #include "chip.h"
 
-#if defined(CONFIG_STM32L5_STM32L562XX)
+#if defined(CONFIG_STM32_STM32L562XX)
 #  include "hardware/stm32l562xx_dbgmcu.h"
 #else
 #  error "Unsupported STM32L5 chip"

@@ -1,9 +1,10 @@
 /****************************************************************************
  * arch/arm/src/nrf52/nrf52_wdt_lowerhalf.c
  *
- *   Copyright (C) 2018 Zglue Inc. All rights reserved.
- *   Author: Levin Li <zhiqiang@zglue.com>
- *   Author: Alan Carvalho de Assis <acassis@gmail.com>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2018 Zglue Inc. All rights reserved.
+ * SPDX-FileContributor: Levin Li <zhiqiang@zglue.com>
+ * SPDX-FileContributor: Alan Carvalho de Assis <acassis@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -45,8 +46,8 @@
 #include <stdint.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/clock.h>
 #include <nuttx/timers/watchdog.h>
@@ -361,7 +362,7 @@ static int nrf52_settimeout(struct watchdog_lowerhalf_s *lower,
 
   nrf52_wdt_behaviour_set(priv->mode);
 
-  nrf52_wdt_reload_value_set(((uint64_t) timeout * 32768) / 1000);
+  nrf52_wdt_reload_value_set(((uint64_t)timeout * 32768) / 1000);
 
   up_enable_irq(NRF52_IRQ_WDT);
 

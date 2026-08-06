@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/unistd/lib_getegid.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -48,15 +50,7 @@
 
 gid_t getegid(void)
 {
-#ifdef CONFIG_SCHED_USER_IDENTITY
-  /* If we have real UID/GID support, then treat the real group as the
-   * effective group ID.
-   */
-
-  return getgid();
-#else
   /* Return group identity 'root' with a gid value of 0. */
 
   return 0;
-#endif
 }

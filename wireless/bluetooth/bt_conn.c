@@ -1,6 +1,8 @@
 /****************************************************************************
  * wireless/bluetooth/bt_conn.c
  *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  *   Copyright (c) 2016, Intel Corporation
  *   All rights reserved.
  *
@@ -46,7 +48,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kthread.h>
 #include <nuttx/mm/iob.h>
@@ -294,7 +296,7 @@ void bt_conn_receive(FAR struct bt_conn_s *conn, FAR struct bt_buf_s *buf,
 
         /* First packet */
 
-        hdr = (void *)buf->data;
+        hdr = (FAR void *)buf->data;
         len = BT_LE162HOST(hdr->len);
 
         wlinfo("First, len %u final %u\n", buf->len, len);
@@ -367,7 +369,7 @@ void bt_conn_receive(FAR struct bt_conn_s *conn, FAR struct bt_buf_s *buf,
         return;
     }
 
-  hdr = (void *)buf->data;
+  hdr = (FAR void *)buf->data;
   len = BT_LE162HOST(hdr->len);
 
   if (sizeof(*hdr) + len != buf->len)
@@ -409,7 +411,7 @@ void bt_conn_send(FAR struct bt_conn_s *conn, FAR struct bt_buf_s *buf)
 
   sq_init(&fraglist);
 
-  wlinfo("conn handle %u buf len %u\n", conn->handle, buf->len);
+  wlwarn("conn handle %u buf len %u\n", conn->handle, buf->len);
 
   if (conn->state != BT_CONN_CONNECTED)
     {
@@ -559,7 +561,7 @@ void bt_conn_set_state(FAR struct bt_conn_s *conn,
         {
           int ret;
 
-          ret = bt_queue_open(BT_CONN_TX, O_RDWR | O_CREAT,
+          ret = bt_queue_open(BT_CONN_TX, O_RDWR | O_CREAT | O_CLOEXEC,
                               CONFIG_BLUETOOTH_TXCONN_NMSGS,
                               &conn->tx_queue);
           DEBUGASSERT(ret >= 0);
@@ -760,7 +762,8 @@ FAR struct bt_conn_s *bt_conn_addref(FAR struct bt_conn_s *conn)
 {
   bt_atomic_incr(&conn->ref);
 
-  wlinfo("handle %u ref %u\n", conn->handle, bt_atomic_get(&conn->ref));
+  wlinfo("handle %u ref %" PRId32 "\n", conn->handle,
+         bt_atomic_get(&conn->ref));
 
   return conn;
 }
@@ -785,7 +788,8 @@ void bt_conn_release(FAR struct bt_conn_s *conn)
 
   old_ref = bt_atomic_decr(&conn->ref);
 
-  wlinfo("handle %u ref %u\n", conn->handle, bt_atomic_get(&conn->ref));
+  wlinfo("handle %u ref %" PRId32 "\n", conn->handle,
+          bt_atomic_get(&conn->ref));
 
   if (old_ref > 1)
     {
@@ -849,6 +853,10 @@ int bt_conn_security(FAR struct bt_conn_s *conn, enum bt_security_e sec)
       return -ENOTCONN;
     }
 
+  /* Store the requested security level */
+
+  conn->sec_level = sec;
+
   /* Nothing to do */
 
   if (sec == BT_SECURITY_LOW)
@@ -856,9 +864,9 @@ int bt_conn_security(FAR struct bt_conn_s *conn, enum bt_security_e sec)
       return 0;
     }
 
-  /* For now we only support JustWorks */
+  /* For now we only support Just Works and MITM with passkey (Legacy only) */
 
-  if (sec > BT_SECURITY_MEDIUM)
+  if (sec > BT_SECURITY_HIGH)
     {
       return -EINVAL;
     }
@@ -966,7 +974,7 @@ int bt_conn_disconnect(FAR struct bt_conn_s *conn, uint8_t reason)
  *
  * Description:
  *  Allows initiate new LE link to remote peer using its address.
- *  Returns a new reference that the the caller is responsible for managing.
+ *  Returns a new reference that the caller is responsible for managing.
  *
  * Input Parameters:
  *   peer - Remote address.

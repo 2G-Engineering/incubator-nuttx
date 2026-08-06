@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/timer/timer_release.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,6 +31,7 @@
 #include <nuttx/irq.h>
 #include <nuttx/queue.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/spinlock.h>
 
 #include "timer/timer.h"
 
@@ -54,23 +57,23 @@ static inline void timer_free(struct posix_timer_s *timer)
 
   /* Remove the timer from the allocated list */
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_locktimers);
   sq_rem((FAR sq_entry_t *)timer, (FAR sq_queue_t *)&g_alloctimers);
 
   /* Return it to the free list if it is one of the preallocated timers */
 
 #if CONFIG_PREALLOC_TIMERS > 0
-  if ((timer->pt_flags & PT_FLAGS_PREALLOCATED) != 0)
+  if ((timer->pt_flags & PT_FLAGS_PREALLOCATED) != 0u)
     {
       sq_addlast((FAR sq_entry_t *)timer, (FAR sq_queue_t *)&g_freetimers);
-      leave_critical_section(flags);
+      spin_unlock_irqrestore(&g_locktimers, flags);
     }
   else
 #endif
     {
       /* Otherwise, return it to the heap */
 
-      leave_critical_section(flags);
+      spin_unlock_irqrestore(&g_locktimers, flags);
       kmm_free(timer);
     }
 }
@@ -102,35 +105,40 @@ static inline void timer_free(struct posix_timer_s *timer)
 
 int timer_release(FAR struct posix_timer_s *timer)
 {
+  int ret = OK;
+
   /* Some sanity checks */
 
   if (timer == NULL)
     {
-      return -EINVAL;
+      ret = -EINVAL;
     }
 
   /* Release one reference to timer.  Don't delete the timer until the count
    * would decrement to zero.
    */
 
-  if (timer->pt_crefs > 1)
+  else if (timer->pt_crefs > 1u)
     {
       timer->pt_crefs--;
-      return 1;
+      ret = 1;
+    }
+  else
+    {
+      /* Cancel the underlying watchdog instance */
+
+      wd_cancel(&timer->pt_wdog);
+
+      /* Cancel any pending notification */
+
+      nxsig_cancel_notification(&timer->pt_work);
+
+      /* Release the timer structure */
+
+      timer_free(timer);
     }
 
-  /* Cancel the underlying watchdog instance */
-
-  wd_cancel(&timer->pt_wdog);
-
-  /* Cancel any pending notification */
-
-  nxsig_cancel_notification(&timer->pt_work);
-
-  /* Release the timer structure */
-
-  timer_free(timer);
-  return OK;
+  return ret;
 }
 
 #endif /* CONFIG_DISABLE_POSIX_TIMERS */

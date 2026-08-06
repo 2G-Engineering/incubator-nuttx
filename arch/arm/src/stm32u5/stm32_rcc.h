@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32u5/stm32_rcc.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,8 +32,8 @@
 #include "arm_internal.h"
 #include "chip.h"
 
-#if defined(CONFIG_STM32U5_STM32U585XX)
-#  include "hardware/stm32u585xx_rcc.h"
+#if defined(CONFIG_STM32_STM32U585XX) || defined(CONFIG_STM32_STM32U5A5XX)
+#  include "hardware/stm32u5xx_rcc.h"
 #else
 #  error "Unsupported STM32U5 chip"
 #endif
@@ -95,7 +97,7 @@ static inline void stm32_mcoconfig(uint32_t source)
  *   and enable peripheral clocking for all periperipherals enabled in the
  *   NuttX configuration file.
  *
- *   If CONFIG_ARCH_BOARD_STM32U5_CUSTOM_CLOCKCONFIG is defined, then
+ *   If CONFIG_ARCH_BOARD_STM32_CUSTOM_CLOCKCONFIG is defined, then
  *   clocking will be enabled by an externally provided, board-specific
  *   function called stm32_board_clockconfig().
  *
@@ -118,7 +120,7 @@ void stm32_clockconfig(void);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ARCH_BOARD_STM32U5_CUSTOM_CLOCKCONFIG
+#ifdef CONFIG_ARCH_BOARD_STM32_CUSTOM_CLOCKCONFIG
 void stm32_board_clockconfig(void);
 #endif
 
@@ -133,7 +135,7 @@ void stm32_board_clockconfig(void);
  *
  ****************************************************************************/
 
-#ifndef CONFIG_ARCH_BOARD_STM32U5_CUSTOM_CLOCKCONFIG
+#ifndef CONFIG_ARCH_BOARD_STM32_CUSTOM_CLOCKCONFIG
 void stm32_stdclockconfig(void);
 #endif
 
@@ -150,7 +152,7 @@ void stm32_stdclockconfig(void);
  *   stm32_clockconfig():  It does not reset any devices, and it does not
  *   reset the currently enabled peripheral clocks.
  *
- *   If CONFIG_ARCH_BOARD_STM32U5_CUSTOM_CLOCKCONFIG is defined, then
+ *   If CONFIG_ARCH_BOARD_STM32_CUSTOM_CLOCKCONFIG is defined, then
  *   clocking will be enabled by an externally provided, board-specific
  *   function called stm32_board_clockconfig().
  *

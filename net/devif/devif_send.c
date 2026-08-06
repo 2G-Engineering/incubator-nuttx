@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/devif/devif_send.c
  *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  *   Copyright (C) 2007, 2008 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
@@ -43,7 +45,7 @@
 
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/net/netdev.h>
@@ -67,7 +69,7 @@
  ****************************************************************************/
 
 int devif_send(FAR struct net_driver_s *dev, FAR const void *buf,
-               int len, unsigned int offset)
+               int len, int offset)
 {
   int ret;
 
@@ -102,7 +104,7 @@ int devif_send(FAR struct net_driver_s *dev, FAR const void *buf,
 
   /* Prepare device buffer before poll callback */
 
-  iob_update_pktlen(dev->d_iob, offset);
+  iob_update_pktlen(dev->d_iob, offset < 0 ? 0 : offset, false);
 
   ret = iob_trycopyin(dev->d_iob, buf, len, offset, false);
   if (ret != len)

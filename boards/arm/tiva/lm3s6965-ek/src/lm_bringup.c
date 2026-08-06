@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/tiva/lm3s6965-ek/src/lm_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <nuttx/spi/spi.h>
 #include <nuttx/mmcsd.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <syslog.h>
 #include <errno.h>
@@ -54,28 +56,12 @@
 
 /* PORT and SLOT number depend on the board configuration */
 
-#ifdef CONFIG_NSH_ARCHINIT
-#  if !defined(CONFIG_NSH_MMCSDSPIPORTNO) || CONFIG_NSH_MMCSDSPIPORTNO != 0
-#    error "The LM3S6965 Eval Kit MMC/SD is on SSI0"
-#    undef CONFIG_NSH_MMCSDSPIPORTNO
-#    define CONFIG_NSH_MMCSDSPIPORTNO 0
-#  endif
-#  if !defined(CONFIG_NSH_MMCSDSLOTNO) || CONFIG_NSH_MMCSDSLOTNO != 0
-#    error "The LM3S6965 Eval Kit MMC/SD is on SSI0 slot 0"
-#    undef CONFIG_NSH_MMCSDSLOTNO
-#    define CONFIG_NSH_MMCSDSLOTNO 0
-#  endif
-#  ifndef CONFIG_NSH_MMCSDMINOR
-#    define CONFIG_NSH_MMCSDMINOR 0
-#  endif
-#else
 #  undef  CONFIG_NSH_MMCSDSPIPORTNO
 #  define CONFIG_NSH_MMCSDSPIPORTNO 0
 #  undef  CONFIG_NSH_MMCSDSLOTNO
 #  define CONFIG_NSH_MMCSDSLOTNO 0
 #  undef  CONFIG_NSH_MMCSDMINOR
 #  define CONFIG_NSH_MMCSDMINOR 0
-#endif
 
 /****************************************************************************
  * Public Functions

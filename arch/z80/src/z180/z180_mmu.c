@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/z80/src/z180/z180_mmu.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,8 +30,8 @@
 
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/mm/gran.h>
 
@@ -317,7 +319,7 @@ int up_addrenv_destroy(FAR arch_addrenv_t *addrenv)
 
   gran_free(g_physhandle, (FAR void *)cbr->cbr, cbr->pages);
 
-  /* And make the CBR structure available for re-use */
+  /* And make the CBR structure available for reuse */
 
   z180_mmu_freecbr(cbr);
   return OK;

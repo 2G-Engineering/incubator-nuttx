@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/netinet/in.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -199,7 +201,7 @@
   ((a)->s6_addr[0] == 0xff)
 
 #define IN6_IS_ADDR_LINKLOCAL(a) \
-  ((a)->s6_addr16[0] & HTONS(0xffc0) == HTONS(0xfe80))
+  (((a)->s6_addr16[0] & HTONS(0xffc0)) == HTONS(0xfe80))
 
 #define IN6_IS_ADDR_LOOPBACK(a) \
   ((a)->s6_addr32[0] == 0 && \
@@ -213,6 +215,12 @@
    (a)->s6_addr32[2] == 0 && \
    (a)->s6_addr32[3] == 0)
 
+#define IN6_IS_ADDR_GLOBAL(a) \
+  (!IN6_IS_ADDR_MULTICAST(a) && \
+   !IN6_IS_ADDR_LINKLOCAL(a) && \
+   !IN6_IS_ADDR_LOOPBACK(a) && \
+   !IN6_IS_ADDR_UNSPECIFIED(a))
+
 #define IN6_IS_ADDR_V4COMPAT(a) \
   ((a)->s6_addr32[0] == 0 && \
    (a)->s6_addr32[1] == 0 && \
@@ -225,21 +233,23 @@
    (a)->s6_addr32[1] == 0 && \
    (a)->s6_addr32[2] == HTONL(0xffff))
 
+#define IN6_IS_ADDR_MC_LINKLOCAL(a) \
+  (IN6_IS_ADDR_MULTICAST(a) && ((a)->s6_addr[1] & 0xf) == 0x2)
+
+#define IN6_IS_ADDR_SITELOCAL(a) \
+  (((a)->s6_addr16[0] & HTONS(0xffc0)) == HTONS(0xfec0))
+
 /* This macro to convert a 16/32-bit constant values quantity from host byte
  * order to network byte order.  The 16-bit version of this macro is required
  * for uIP:
  */
 
-#ifdef CONFIG_ENDIAN_BIG
-#  define HTONS(ns) (ns)
-#  define HTONL(nl) (nl)
-#else
-#  define HTONS __swap_uint16
-#  define HTONL __swap_uint32
-#endif
-
-#define NTOHS(hs) HTONS(hs)
-#define NTOHL(hl) HTONL(hl)
+#define HTONS htobe16
+#define HTONL htobe32
+#define HTONQ htobe64
+#define NTOHS be16toh
+#define NTOHL be32toh
+#define NTOHQ be64toh
 
 /****************************************************************************
  * Public Type Definitions
@@ -277,7 +287,7 @@ struct ip_mreq
 struct ip_mreqn
 {
   struct in_addr  imr_multiaddr;    /* IPv4 multicast address of group */
-  struct in_addr  imr_interface;    /* Local IPv4 address of interface */
+  struct in_addr  imr_address;      /* Local IPv4 address of interface */
   unsigned int    imr_ifindex;      /* Local interface index */
 };
 
@@ -339,6 +349,13 @@ struct in6_pktinfo
   int             ipi6_ifindex;     /* send/recv interface index */
 };
 
+struct in6_ifreq
+{
+  struct in6_addr ifr6_addr;        /* The IPv6 address of the request */
+  uint32_t        ifr6_prefixlen;   /* The IPv6 prefix length */
+  int             ifr6_ifindex;     /* The interface index of the request */
+};
+
 /****************************************************************************
  * Public Data
  ****************************************************************************/
@@ -373,8 +390,10 @@ EXTERN const struct in6_addr in6addr_any;
 
 uint32_t    ntohl(uint32_t nl);
 uint16_t    ntohs(uint16_t ns);
+uint64_t    ntohq(uint64_t nq);
 uint32_t    htonl(uint32_t hl);
 uint16_t    htons(uint16_t hs);
+uint64_t    htonq(uint64_t hq);
 
 #undef EXTERN
 #if defined(__cplusplus)

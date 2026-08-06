@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_clearerr.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -46,8 +48,15 @@
  *
  ****************************************************************************/
 
-void clearerr(FAR FILE *stream)
+void clearerr_unlocked(FAR FILE *stream)
 {
   stream->fs_flags &= (__FS_FLAG_LBF | __FS_FLAG_UBF);
+}
+
+void clearerr(FAR FILE *stream)
+{
+  flockfile(stream);
+  clearerr_unlocked(stream);
+  funlockfile(stream);
 }
 #endif /* CONFIG_FILE_STREAM */

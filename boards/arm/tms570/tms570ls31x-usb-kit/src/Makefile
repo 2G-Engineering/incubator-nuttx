@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/tms570/tms570ls31x-usb-kit/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -21,10 +23,6 @@
 include $(TOPDIR)/Make.defs
 
 CSRCS = tms570_initialize.c tms570_bringup.c tms570_spi.c
-
-ifeq ($(CONFIG_BOARDCTL),y)
-  CSRCS += tms570_appinit.c
-endif
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
   CSRCS += tms570_autoleds.c

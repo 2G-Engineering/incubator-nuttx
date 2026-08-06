@@ -1,6 +1,8 @@
 ############################################################################
 # boards/risc-v/hpm6750/hpm6750evk2/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -21,9 +23,5 @@
 include $(TOPDIR)/Make.defs
 
 CSRCS  = hpm6750_bringup.c hpm6750_boot.c
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += hpm6750_appinit.c
-endif
 
 include $(TOPDIR)/boards/Board.mk

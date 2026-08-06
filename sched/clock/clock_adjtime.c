@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/clock/clock_adjtime.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,10 +32,13 @@
 #include <stdint.h>
 #include <time.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
+#include <nuttx/spinlock.h>
+#include <nuttx/fs/fs.h>
+#include <nuttx/timers/ptp_clock.h>
 
 #include "clock/clock.h"
 
@@ -41,34 +46,107 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Current adjtime implementation uses periodic clock tick to adjust clock
- * period. Therefore this implementation will not work when tickless mode
- * is enabled by CONFIG_SCHED_TICKLESS=y
- */
-
-#ifdef CONFIG_SCHED_TICKLESS
-# error CONFIG_CLOCK_ADJTIME is not supported when CONFIG_SCHED_TICKLESS \
-        is enabled!
-#endif
-
-/* Set slew limit. In real time systems we don't want the time to adjust
- * too quickly. ADJTIME_SLEWLIMIT defines how many seconds can time change
- * during each clock.
- */
-
-#define ADJTIME_SLEWLIMIT      (CONFIG_CLOCK_ADJTIME_SLEWLIMIT * 0.01)
-
-/* Define system clock adjustment period. */
-
-#define ADJTIME_PERIOD         (CONFIG_CLOCK_ADJTIME_PERIOD    * 0.01)
-
 /****************************************************************************
  * Private Data
  ****************************************************************************/
 
+static struct wdog_s g_adjtime_wdog;
+static long g_adjtime_ppb;
+static spinlock_t g_adjtime_lock = SP_UNLOCKED;
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/* Restore default rate after adjustment period expires */
+
+static void adjtime_wdog_callback(wdparm_t arg)
+{
+  irqstate_t flags;
+
+  UNUSED(arg);
+
+  flags = spin_lock_irqsave(&g_adjtime_lock);
+
+#ifdef CONFIG_ARCH_HAVE_ADJTIME
+  up_adjtime(0);
+#endif
+
+#ifdef CONFIG_RTC_ADJTIME
+  up_rtc_adjtime(0);
+#endif
+
+  g_adjtime_ppb = 0;
+  spin_unlock_irqrestore(&g_adjtime_lock, flags);
+}
+
+/* Query remaining adjustment in microseconds */
+
+static long long adjtime_remaining_usec(void)
+{
+  return (long long)g_adjtime_ppb
+    * TICK2MSEC(wd_gettime(&g_adjtime_wdog))
+    / (MSEC_PER_SEC * NSEC_PER_USEC);
+}
+
+/* Start new adjustment period */
+
+static int adjtime_start(long long adjust_usec)
+{
+  long long ppb;
+  long long ppb_limit;
+  irqstate_t flags;
+  int ret = OK;
+
+  /* Calculate rate adjustmend to get adjust_usec change over the
+   * CONFIG_CLOCK_ADJTIME_PERIOD_MS.
+   */
+
+  ppb = adjust_usec * NSEC_PER_USEC;
+  ppb = ppb * MSEC_PER_SEC / CONFIG_CLOCK_ADJTIME_PERIOD_MS;
+
+  /* Limit to maximum rate adjustment */
+
+  ppb_limit = CONFIG_CLOCK_ADJTIME_SLEWLIMIT_PPM * 1000;
+  if (ppb > ppb_limit)
+    {
+      ppb = ppb_limit;
+    }
+  else if (ppb < -ppb_limit)
+    {
+      ppb = -ppb_limit;
+    }
+
+  flags = spin_lock_irqsave_nopreempt(&g_adjtime_lock);
+
+  /* Set new adjustment */
+
+  g_adjtime_ppb = ppb;
+
+#ifdef CONFIG_ARCH_HAVE_ADJTIME
+  up_adjtime(g_adjtime_ppb);
+#endif
+
+#ifdef CONFIG_RTC_ADJTIME
+  ret = up_rtc_adjtime(g_adjtime_ppb);
+#endif
+
+  /* Queue cancellation of adjustment after configured period */
+
+  if (g_adjtime_ppb != 0)
+    {
+      wd_start(&g_adjtime_wdog, MSEC2TICK(CONFIG_CLOCK_ADJTIME_PERIOD_MS),
+               adjtime_wdog_callback, 0);
+    }
+  else
+    {
+      wd_cancel(&g_adjtime_wdog);
+    }
+
+  spin_unlock_irqrestore_nopreempt(&g_adjtime_lock, flags);
+
+  return ret;
+}
 
 /****************************************************************************
  * Public Functions
@@ -111,98 +189,124 @@
 
 int adjtime(FAR const struct timeval *delta, FAR struct timeval *olddelta)
 {
-  irqstate_t flags;
-  long long adjust_usec;
-  long long period_usec;
-  long long adjust_usec_old;
-  long long count;                /* Number of cycles over which
-                                   * we adjust the period
-                                   */
-  long long incr;                 /* Period increment applied on
-                                   * every cycle.
-                                   */
-  long long count_old;            /* Previous number of cycles over which
-                                   * we adjust the period
-                                   */
-  long long incr_old;             /* Previous period increment applied on
-                                   * every cycle.
-                                   */
-  long long incr_limit;
-  int is_negative;
+  long long adjust_usec = 0;
+  long long adjust_usec_old = 0;
+  int ret = OK;
 
-  is_negative = 0;
-
-  if (!delta)
-    {
-      set_errno(EINVAL);
-      return -1;
-    }
-
-  flags = enter_critical_section();
-
-  adjust_usec = (long long)delta->tv_sec * USEC_PER_SEC + delta->tv_usec;
-
-  if (adjust_usec < 0)
-    {
-      adjust_usec = -adjust_usec;
-      is_negative = 1;
-    }
-
-  /* Get period in usec. Target hardware has to provide support for
-   * this function call.
-   */
-
-  up_get_timer_period(&period_usec);
-
-  /* Determine how much we want to adjust timer period and the number
-   * of cycles over which we want to do the adjustment.
-   */
-
-  count = (USEC_PER_SEC * ADJTIME_PERIOD) / period_usec;
-  incr = adjust_usec / count;
-
-  /* Compute maximum possible period increase and check
-   * whether previously computed increase exceeds the maximum
-   * one.
-   */
-
-  incr_limit = ADJTIME_SLEWLIMIT * period_usec;
-  if (incr > incr_limit)
-    {
-      /* It does... limit computed increase and increment count. */
-
-      incr = incr_limit;
-      count = adjust_usec / incr;
-    }
-
-  if (is_negative == 1)
-    {
-      /* Positive or negative? */
-
-      incr = -incr;
-    }
-
-  /* Ignore small differences. */
-
-  if (incr == 0)
-    {
-      count = 0;
-    }
-
-  leave_critical_section(flags);
-
-  /* Initialize clock adjustment and get old adjust values. */
-
-  clock_set_adjust(incr, count, &incr_old, &count_old);
-
-  adjust_usec_old = count_old * incr_old;
   if (olddelta)
     {
+      adjust_usec_old = adjtime_remaining_usec();
       olddelta->tv_sec  = adjust_usec_old / USEC_PER_SEC;
       olddelta->tv_usec = adjust_usec_old;
     }
 
-  return OK;
+  if (delta)
+    {
+      adjust_usec = delta->tv_sec * USEC_PER_SEC + delta->tv_usec;
+      ret = adjtime_start(adjust_usec);
+    }
+
+  if (ret < 0)
+    {
+      set_errno(-ret);
+      return -1;
+    }
+  else
+    {
+      return OK;
+    }
+}
+
+/****************************************************************************
+ * Name: nxclock_adjtime
+ *
+ * Description:
+ *   Adjust the frequency and/or phase of a clock.
+ *   This function allows the adjustment of the frequency and/or phase of a
+ *   specified clock. It can be used to synchronize the clock with an
+ *   external time source or to apply a frequency offset.
+ *
+ * Input Parameters:
+ *   clk_id - The identifier of the clock to be adjusted. This is typically
+ *            one of the predefined clock IDs such as CLOCK_REALTIME,
+ *            CLOCK_MONOTONIC, or CLOCK_BOOTTIME.
+ *
+ *   buf    - A pointer to a `timex` structure that specifies the adjustment
+ *            parameters. This structure includes fields for the frequency
+ *            adjustment (`freq`), the maximum frequency error (`maxerror`),
+ *            the estimated error (`esterror`), the phase offset (`offset`),
+ *            and flags to indicate the type of adjustment (`status`).
+ *
+ * Returned Value:
+ *            Return On success, the function returns 0. On error, it returns
+ *            -1 and sets 'errno` to indicate the specific error that
+ *            occurred.
+ *
+ ****************************************************************************/
+
+int nxclock_adjtime(clockid_t clock_id, FAR struct timex *buf)
+{
+  int ret = -EINVAL;
+
+#ifdef CONFIG_PTP_CLOCK
+  if ((clock_id & CLOCK_MASK) == CLOCK_FD)
+    {
+      FAR struct file *filep;
+
+      ret = ptp_clockid_to_filep(clock_id, &filep);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      ret = file_ioctl(filep, PTP_CLOCK_ADJTIME,
+                       (unsigned long)(uintptr_t)buf);
+      fs_putfilep(filep);
+    }
+#endif
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: clock_adjtime
+ *
+ * Description:
+ *   Adjust the frequency and/or phase of a clock.
+ *   This function allows the adjustment of the frequency and/or phase of a
+ *   specified clock. It can be used to synchronize the clock with an
+ *   external time source or to apply a frequency offset.
+ *
+ * Input Parameters:
+ *   clk_id - The identifier of the clock to be adjusted. This is typically
+ *            one of the predefined clock IDs such as CLOCK_REALTIME,
+ *            CLOCK_MONOTONIC, or CLOCK_BOOTTIME.
+ *
+ *   buf    - A pointer to a `timex` structure that specifies the adjustment
+ *            parameters. This structure includes fields for the frequency
+ *            adjustment (`freq`), the maximum frequency error (`maxerror`),
+ *            the estimated error (`esterror`), the phase offset (`offset`),
+ *            and flags to indicate the type of adjustment (`status`).
+ *
+ * Returned Value:
+ *            Return On success, the function returns 0. On error, it returns
+ *            -1 and sets 'errno` to indicate the specific error that
+ *            occurred.
+ *
+ ****************************************************************************/
+
+int clock_adjtime(clockid_t clk_id, FAR struct timex *buf)
+{
+  int ret;
+
+  ret = nxclock_adjtime(clk_id, buf);
+  if (ret < 0)
+    {
+      set_errno(-ret);
+      return ERROR;
+    }
+
+  return ret;
 }
 
 #endif /* CONFIG_CLOCK_ADJTIME */

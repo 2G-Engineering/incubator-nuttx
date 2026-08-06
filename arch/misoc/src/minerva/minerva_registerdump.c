@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/misoc/src/minerva/minerva_registerdump.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,8 +28,8 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 
@@ -38,22 +40,12 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_getusrsp
- ****************************************************************************/
-
-uintptr_t up_getusrsp(void *regs)
-{
-  uint32_t *ptr = regs;
-  return ptr[REG_X2];
-}
-
-/****************************************************************************
  * Name: up_dump_register
  ****************************************************************************/
 
 void up_dump_register(void *dumpregs)
 {
-  volatile uint32_t *regs = dumpregs ? dumpregs : g_current_regs;
+  volatile uint32_t *regs = dumpregs ? dumpregs : up_current_regs();
 
   /* Are user registers available from interrupt processing? */
 

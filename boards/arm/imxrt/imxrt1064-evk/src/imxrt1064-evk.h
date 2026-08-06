@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/imxrt/imxrt1064-evk/src/imxrt1064-evk.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -329,7 +331,7 @@ int imxrt_flexspi_nor_initialize(void);
 
 #ifdef HAVE_PROGMEM_CHARDEV
 int imxrt_progmem_init(void);
-#endif  /* HAVE_PROGMEM_CHARDEV */
+#endif /* HAVE_PROGMEM_CHARDEV */
 #endif
 
 #endif /* __ASSEMBLY__ */

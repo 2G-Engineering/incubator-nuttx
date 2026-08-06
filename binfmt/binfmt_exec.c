@@ -1,6 +1,8 @@
 /****************************************************************************
  * binfmt/binfmt_exec.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,16 +27,134 @@
 #include <nuttx/config.h>
 
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/kmalloc.h>
-#include <nuttx/sched.h>
 #include <nuttx/binfmt/binfmt.h>
 
 #include "binfmt.h"
 
 #ifndef CONFIG_BINFMT_DISABLE
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+/****************************************************************************
+ * Name: exec_internal
+ *
+ * Description:
+ *   exec() configurable version, delivery the spawn attribute if this
+ *   process has special customization.
+ *
+ * Input Parameters:
+ *   filename - The path to the program to be executed. If
+ *              CONFIG_LIBC_ENVPATH is defined in the configuration, then
+ *              this may be a relative path from the current working
+ *              directory. Otherwise, path must be the absolute path to the
+ *              program.
+ *   argv     - A pointer to an array of string arguments. The end of the
+ *              array is indicated with a NULL entry.
+ *   envp     - A pointer to an array of environment strings. Terminated with
+ *              a NULL entry.
+ *   exports  - The address of the start of the caller-provided symbol
+ *              table. This symbol table contains the addresses of symbols
+ *              exported by the caller and made available for linking the
+ *              module into the system.
+ *   nexports - The number of symbols in the exports table.
+ *   actions  - The spawn file actions
+ *   attr     - The spawn attributes.
+ *   spawn    - Is spawn in new task.
+ *
+ * Returned Value:
+ *   It returns the PID of the exec'ed module.  On failure, it returns
+ *   the negative errno value appropriately.
+ *
+ ****************************************************************************/
+
+static int exec_internal(FAR const char *filename,
+                         FAR char * const *argv, FAR char * const *envp,
+                         FAR const struct symtab_s *exports, int nexports,
+                         FAR const posix_spawn_file_actions_t *actions,
+                         FAR const posix_spawnattr_t *attr, bool spawn)
+{
+  FAR struct binary_s *bin;
+#ifndef CONFIG_BINFMT_LOADABLE
+  struct binary_s sbin;
+#endif
+  int pid;
+  int ret;
+
+#ifndef CONFIG_BINFMT_LOADABLE
+  bin = &sbin;
+  memset(bin, 0, sizeof(*bin));
+#else
+
+  /* Allocate the load information */
+
+  bin = kmm_zalloc(sizeof(struct binary_s));
+  if (bin == NULL)
+    {
+      berr("ERROR: Failed to allocate binary_s\n");
+      ret = -ENOMEM;
+      goto errout;
+    }
+#endif
+
+  /* Load the module into memory */
+
+  ret = load_module(bin, filename, exports, nexports);
+  if (ret < 0)
+    {
+      berr("ERROR: Failed to load program '%s': %d\n", filename, ret);
+      goto errout_with_bin;
+    }
+
+  /* Update the spawn attribute */
+
+  if (attr)
+    {
+      if (attr->priority > 0)
+        {
+          bin->priority = attr->priority;
+        }
+
+      if (attr->stacksize > 0)
+        {
+          bin->stacksize = attr->stacksize;
+        }
+
+#ifndef CONFIG_BUILD_KERNEL
+      if (attr->stackaddr != NULL)
+        {
+          bin->stackaddr = attr->stackaddr;
+        }
+#endif
+    }
+
+  /* Then start the module */
+
+  pid = exec_module(bin, filename, argv, envp, actions, attr, spawn);
+  if (pid < 0)
+    {
+      ret = pid;
+      berr("ERROR: Failed to execute program '%s': %d\n",
+           filename, ret);
+      goto errout_with_lock;
+    }
+
+  return pid;
+
+errout_with_lock:
+  unload_module(bin);
+errout_with_bin:
+#ifdef CONFIG_BINFMT_LOADABLE
+  kmm_free(bin);
+errout:
+#endif
+  return ret;
+}
 
 /****************************************************************************
  * Public Functions
@@ -76,99 +196,8 @@ int exec_spawn(FAR const char *filename, FAR char * const *argv,
                int nexports, FAR const posix_spawn_file_actions_t *actions,
                FAR const posix_spawnattr_t *attr)
 {
-  FAR struct binary_s *bin;
-  int pid;
-  int ret;
-
-  /* Allocate the load information */
-
-  bin = (FAR struct binary_s *)kmm_zalloc(sizeof(struct binary_s));
-  if (!bin)
-    {
-      berr("ERROR: Failed to allocate binary_s\n");
-      ret = -ENOMEM;
-      goto errout;
-    }
-
-  /* Load the module into memory */
-
-  ret = load_module(bin, filename, exports, nexports);
-  if (ret < 0)
-    {
-      berr("ERROR: Failed to load program '%s': %d\n", filename, ret);
-      goto errout_with_bin;
-    }
-
-  /* Update the spawn attribute */
-
-  if (attr)
-    {
-      if (attr->priority > 0)
-        {
-          bin->priority = attr->priority;
-        }
-
-      if (attr->stacksize > 0)
-        {
-          bin->stacksize = attr->stacksize;
-        }
-
-#ifndef CONFIG_BUILD_KERNEL
-      if (attr->stackaddr != NULL)
-        {
-          bin->stackaddr = attr->stackaddr;
-        }
-#endif
-    }
-
-  /* Disable pre-emption so that the executed module does
-   * not return until we get a chance to connect the on_exit
-   * handler.
-   */
-
-  sched_lock();
-
-  /* Then start the module */
-
-  pid = exec_module(bin, filename, argv, envp, actions);
-  if (pid < 0)
-    {
-      ret = pid;
-      berr("ERROR: Failed to execute program '%s': %d\n",
-           filename, ret);
-      goto errout_with_lock;
-    }
-
-#ifdef CONFIG_BINFMT_LOADABLE
-  /* Set up to unload the module (and free the binary_s structure)
-   * when the task exists.
-   */
-
-  ret = group_exitinfo(pid, bin);
-  if (ret < 0)
-    {
-      berr("ERROR: Failed to schedule unload '%s': %d\n", filename, ret);
-    }
-
-#else
-  /* Free the binary_s structure here */
-
-  kmm_free(bin);
-
-  /* TODO: How does the module get unloaded in this case? */
-
-#endif
-
-  sched_unlock();
-  return pid;
-
-errout_with_lock:
-  sched_unlock();
-  unload_module(bin);
-errout_with_bin:
-  kmm_free(bin);
-errout:
-  return ret;
+  return exec_internal(filename, argv, envp,
+                       exports, nexports, actions, attr, true);
 }
 
 /****************************************************************************
@@ -241,7 +270,8 @@ int exec(FAR const char *filename, FAR char * const *argv,
 {
   int ret;
 
-  ret = exec_spawn(filename, argv, envp, exports, nexports, NULL, NULL);
+  ret = exec_internal(filename, argv, envp,
+                      exports, nexports, NULL, NULL, false);
   if (ret < 0)
     {
       set_errno(-ret);

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/input/stmpe811_base.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -222,7 +224,7 @@ static void stmpe811_reset(FAR struct stmpe811_dev_s *priv)
 
   /* Wait a bit */
 
-  nxsig_usleep(20 * 1000);
+  nxsched_usleep(20 * 1000);
 
   /* Then power on again.  All registers will be in their reset state. */
 
@@ -266,8 +268,7 @@ STMPE811_HANDLE stmpe811_instantiate(FAR struct i2c_master_s *dev,
   /* Allocate the device state structure */
 
 #ifdef CONFIG_STMPE811_MULTIPLE
-  priv = (FAR struct stmpe811_dev_s *)kmm_zalloc(
-    sizeof(struct stmpe811_dev_s));
+  priv = kmm_zalloc(sizeof(struct stmpe811_dev_s));
   if (!priv)
     {
       return NULL;

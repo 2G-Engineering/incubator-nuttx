@@ -1,6 +1,8 @@
 /****************************************************************************
  * binfmt/libnxflat/libnxflat_addrenv.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <sys/param.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/addrenv.h>
 #include <nuttx/arch.h>
@@ -81,7 +83,7 @@ int nxflat_addrenv_alloc(FAR struct nxflat_loadinfo_s *loadinfo,
 
   /* Allocate the struct dspace_s container for the D-Space allocation */
 
-  dspace = (FAR struct dspace_s *)kmm_malloc(sizeof(struct dspace_s));
+  dspace = kmm_malloc(sizeof(struct dspace_s));
   if (dspace == 0)
     {
       berr("ERROR: Failed to allocate DSpace\n");
@@ -163,7 +165,7 @@ errout_with_dspace:
 #else
   /* Allocate (and zero) memory to hold the ELF image */
 
-  dspace->region = (FAR uint8_t *)kumm_zalloc(envsize);
+  dspace->region = kumm_zalloc(envsize);
   if (!dspace->region)
     {
       kmm_free(dspace);

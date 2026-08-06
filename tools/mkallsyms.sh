@@ -2,6 +2,8 @@
 ############################################################################
 # tools/mkallsyms.sh
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -62,7 +64,8 @@ if [ -f "${1}" ];then
   ${nm} -n ${1} | grep -E " [T|t] "  | uniq | \
   while read addr type name
   do
-    echo "  { \"$(${filt} $name | sed -e "s/(.*)$//")\", (FAR ${CONST} void *)0x$addr },"
+    demangled=$(printf '%s\n' "$name" | ${filt} | sed -e "s/(.*)$//")
+    echo "  { \"${demangled}\", (FAR ${CONST} void *)0x$addr },"
   done
 fi
 

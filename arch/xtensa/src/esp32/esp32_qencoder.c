@@ -27,7 +27,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <inttypes.h>
 
 #include <nuttx/arch.h>
@@ -38,8 +38,8 @@
 #include <arch/board/board.h>
 
 #include "chip.h"
-#include "esp32_gpio.h"
-#include "esp32_irq.h"
+#include "esp_gpio.h"
+#include "esp_irq.h"
 
 #include "xtensa.h"
 #include "hardware/esp32_soc.h"
@@ -414,55 +414,71 @@ static void esp32_dumpregs(struct esp32_lowerhalf_s *priv,
                            const char *msg)
 {
   sninfo("%s:\n", msg);
-  sninfo("  PCNT_U0_CONF0_REG: %08x PCNT_U1_CONF0_REG:  %08x\n",
+  sninfo("  PCNT_U0_CONF0_REG: 0x08%" PRIx32 ""
+         " PCNT_U1_CONF0_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CONF0_U(0)),
          getreg32(PCNT_CONF0_U(1)));
-  sninfo("  PCNT_U2_CONF0_REG: %08x PCNT_U3_CONF0_REG:  %08x\n",
+  sninfo("  PCNT_U2_CONF0_REG: 0x08%" PRIx32 ""
+         " PCNT_U3_CONF0_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CONF0_U(2)),
          getreg32(PCNT_CONF0_U(3)));
-  sninfo("  PCNT_U4_CONF0_REG: %08x PCNT_U5_CONF0_REG:  %08x\n",
+  sninfo("  PCNT_U4_CONF0_REG: 0x08%" PRIx32 ""
+         " PCNT_U5_CONF0_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CONF0_U(4)),
          getreg32(PCNT_CONF0_U(5)));
-  sninfo("  PCNT_U6_CONF0_REG: %08x PCNT_U7_CONF0_REG:  %08x\n",
+  sninfo("  PCNT_U6_CONF0_REG: 0x08%" PRIx32 ""
+         " PCNT_U7_CONF0_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CONF0_U(6)),
          getreg32(PCNT_CONF0_U(7)));
-  sninfo("  PCNT_U0_CONF1_REG: %08x PCNT_U1_CONF1_REG:  %08x\n",
+  sninfo("  PCNT_U0_CONF1_REG: 0x08%" PRIx32 ""
+         " PCNT_U1_CONF1_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CONF1_U(0)),
          getreg32(PCNT_CONF1_U(1)));
-  sninfo("  PCNT_U2_CONF1_REG: %08x PCNT_U3_CONF1_REG:  %08x\n",
+  sninfo("  PCNT_U2_CONF1_REG: 0x08%" PRIx32 ""
+         " PCNT_U3_CONF1_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CONF1_U(2)),
          getreg32(PCNT_CONF1_U(3)));
-  sninfo("  PCNT_U4_CONF1_REG: %08x PCNT_U5_CONF1_REG:  %08x\n",
+  sninfo("  PCNT_U4_CONF1_REG: 0x08%" PRIx32 ""
+         " PCNT_U5_CONF1_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CONF1_U(4)),
          getreg32(PCNT_CONF1_U(5)));
-  sninfo("  PCNT_U6_CONF1_REG: %08x PCNT_U7_CONF1_REG:  %08x\n",
+  sninfo("  PCNT_U6_CONF1_REG: 0x08%" PRIx32 ""
+         " PCNT_U7_CONF1_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CONF1_U(6)),
          getreg32(PCNT_CONF1_U(7)));
-  sninfo("  PCNT_U0_CONF2_REG: %08x PCNT_U1_CONF2_REG:  %08x\n",
+  sninfo("  PCNT_U0_CONF2_REG: 0x08%" PRIx32 ""
+         " PCNT_U1_CONF2_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CONF2_U(0)),
          getreg32(PCNT_CONF2_U(1)));
-  sninfo("  PCNT_U2_CONF2_REG: %08x PCNT_U3_CONF2_REG:  %08x\n",
+  sninfo("  PCNT_U2_CONF2_REG: 0x08%" PRIx32 ""
+         " PCNT_U3_CONF2_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CONF2_U(2)),
          getreg32(PCNT_CONF2_U(3)));
-  sninfo("  PCNT_U4_CONF2_REG: %08x PCNT_U5_CONF2_REG:  %08x\n",
+  sninfo("  PCNT_U4_CONF2_REG: 0x08%" PRIx32 ""
+         " PCNT_U5_CONF2_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CONF2_U(4)),
          getreg32(PCNT_CONF2_U(5)));
-  sninfo("  PCNT_U6_CONF2_REG: %08x PCNT_U7_CONF2_REG:  %08x\n",
+  sninfo("  PCNT_U6_CONF2_REG: 0x08%" PRIx32 ""
+         " PCNT_U7_CONF2_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CONF2_U(6)),
          getreg32(PCNT_CONF2_U(7)));
-  sninfo("  PCNT_U0_CNT_REG: %08x PCNT_U1_CNT_REG:  %08x\n",
+  sninfo("  PCNT_U0_CNT_REG: 0x08%" PRIx32 ""
+         " PCNT_U1_CNT_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CNT_U(0)),
          getreg32(PCNT_CNT_U(1)));
-  sninfo("  PCNT_U2_CNT_REG: %08x PCNT_U3_CNT_REG:  %08x\n",
+  sninfo("  PCNT_U2_CNT_REG: 0x08%" PRIx32 ""
+         " PCNT_U3_CNT_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CNT_U(2)),
          getreg32(PCNT_CNT_U(3)));
-  sninfo("  PCNT_U4_CNT_REG: %08x PCNT_U5_CNT_REG:  %08x\n",
+  sninfo("  PCNT_U4_CNT_REG: 0x08%" PRIx32 ""
+         " PCNT_U5_CNT_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CNT_U(4)),
          getreg32(PCNT_CNT_U(5)));
-  sninfo("  PCNT_U6_CNT_REG: %08x PCNT_U7_CNT_REG:  %08x\n",
+  sninfo("  PCNT_U6_CNT_REG: 0x08%" PRIx32 ""
+         " PCNT_U7_CNT_REG:  0x08%" PRIx32 "\n",
          getreg32(PCNT_CNT_U(6)),
          getreg32(PCNT_CNT_U(7)));
-  sninfo("  PCNT_CTRL_REF: %08x\n",
+  sninfo("  PCNT_CTRL_REF: 0x08%" PRIx32 "\n",
          getreg32(PCNT_CTRL_REG));
 }
 #endif
@@ -592,19 +608,19 @@ static int esp32_setup(struct qe_lowerhalf_s *lower)
 
   /* Configure GPIO pins as Input with Pull-Up enabled */
 
-  esp32_configgpio(priv->config->ch0_gpio, INPUT_FUNCTION_3 | PULLUP);
-  esp32_configgpio(priv->config->ch1_gpio, INPUT_FUNCTION_3 | PULLUP);
+  esp_configgpio(priv->config->ch0_gpio, INPUT_FUNCTION_3 | PULLUP);
+  esp_configgpio(priv->config->ch1_gpio, INPUT_FUNCTION_3 | PULLUP);
 
   /* Connect Channel A (ch0_gpio) and Channel B (ch1_gpio) crossed for X4 */
 
-  esp32_gpio_matrix_in(priv->config->ch0_gpio,
+  esp_gpio_matrix_in(priv->config->ch0_gpio,
                        priv->config->ch0_pulse_sig, 0);
-  esp32_gpio_matrix_in(priv->config->ch1_gpio,
+  esp_gpio_matrix_in(priv->config->ch1_gpio,
                        priv->config->ch0_ctrl_sig, 0);
 
-  esp32_gpio_matrix_in(priv->config->ch1_gpio,
+  esp_gpio_matrix_in(priv->config->ch1_gpio,
                        priv->config->ch1_pulse_sig, 0);
-  esp32_gpio_matrix_in(priv->config->ch0_gpio,
+  esp_gpio_matrix_in(priv->config->ch0_gpio,
                        priv->config->ch1_ctrl_sig, 0);
 
   /* Clear the Reset bit to enable the Pulse Counter */

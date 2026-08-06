@@ -32,10 +32,11 @@
 #include <time.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <sys/param.h>
+#include <arch/barriers.h>
 
 #include <arpa/inet.h>
 
@@ -47,6 +48,7 @@
 #include <nuttx/signal.h>
 #include <nuttx/net/mii.h>
 #include <nuttx/net/phy.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 
 #ifdef CONFIG_NET_PKT
@@ -70,10 +72,6 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-/* Memory synchronization */
-
-#define MEMORY_SYNC() //do { ARM_DSB(); ARM_ISB(); } while (0)
 
 /* If processing is not done at the interrupt level, then work queue support
  * is required.
@@ -838,7 +836,7 @@ static int s32k3xx_transmit(struct s32k3xx_driver_s *priv)
       s32k3xx_disableint(priv, EMAC_DMA_CH0_INTERRUPT_ENABLE_RIE);
     }
 
-  MEMORY_SYNC();
+  UP_MB();
 
   /* Enable TX interrupts */
 
@@ -1232,7 +1230,7 @@ static int s32k3xx_recvframe(struct s32k3xx_driver_s *priv)
    *   3) All of the TX descriptors are in flight.
    *
    * This last case is obscure.  It is due to that fact that each packet
-   * that we receive can generate an unstoppable transmisson.  So we have
+   * that we receive can generate an unstoppable transmission.  So we have
    * to stop receiving when we can not longer transmit.  In this case, the
    * transmit logic should also have disabled further RX interrupts.
    */
@@ -1501,7 +1499,7 @@ static void s32k3xx_receive(struct s32k3xx_driver_s *priv)
         }
 
       /* We are finished with the RX buffer.  NOTE:  If the buffer is
-       * re-used for transmission, the dev->d_buf field will have been
+       * reused for transmission, the dev->d_buf field will have been
        * nullified.
        */
 
@@ -1753,7 +1751,7 @@ static void s32k3xx_interrupt_work(void *arg)
       putreg32(EMAC_DMA_CH0_STATUS_NIS, S32K3XX_EMAC_DMA_CH0_STATUS);
     }
 
-  /* Handle error interrupt only if CONFIG_DEBUG_NET is eanbled */
+  /* Handle error interrupt only if CONFIG_DEBUG_NET is enabled */
 
 #ifdef CONFIG_DEBUG_NET
   /* Check if there are pending "abnormal" interrupts */
@@ -1947,9 +1945,9 @@ static int s32k3xx_ifup_action(struct net_driver_s *dev, bool resetphy)
   uint32_t regval;
   int ret;
 
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 
   /* Initialize the free buffer list */
 
@@ -2035,7 +2033,14 @@ static int s32k3xx_ifup(struct net_driver_s *dev)
 {
   /* The externally available ifup action includes resetting the phy */
 
-  return s32k3xx_ifup_action(dev, true);
+  int ret = s32k3xx_ifup_action(dev, true);
+
+  if (ret == OK)
+    {
+      netdev_carrier_on(dev);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -2059,9 +2064,9 @@ static int s32k3xx_ifdown(struct net_driver_s *dev)
   struct s32k3xx_driver_s *priv = (struct s32k3xx_driver_s *)dev->d_private;
   irqstate_t flags;
 
-  ninfo("Taking down: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
+  ninfo("Taking down: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 
   /* Flush and disable the Ethernet interrupts at the NVIC */
 
@@ -2089,6 +2094,9 @@ static int s32k3xx_ifdown(struct net_driver_s *dev)
 
   priv->bifup = false;
   leave_critical_section(flags);
+
+  netdev_carrier_off(dev);
+
   return OK;
 }
 
@@ -2808,7 +2816,7 @@ static inline int s32k3xx_initphy(struct s32k3xx_driver_s *priv,
       retries = 0;
       do
         {
-          nxsig_usleep(LINK_WAITUS);
+          nxsched_usleep(LINK_WAITUS);
 
           ninfo("%s: Read PHYID1, retries=%d\n",
                 BOARD_PHY_NAME, retries + 1);
@@ -2965,7 +2973,7 @@ static inline int s32k3xx_initphy(struct s32k3xx_driver_s *priv,
               break;
             }
 
-          nxsig_usleep(LINK_WAITUS);
+          nxsched_usleep(LINK_WAITUS);
         }
 
       if (phydata & MII_MSR_ANEGCOMPLETE)
@@ -3485,23 +3493,19 @@ int s32k3xx_netinitialize(int intf)
    * b1, 1st octet)
    */
 
-  /* hardcoded offset: todo: need proper header file */
-
   mac    = priv->dev.d_mac.ether.ether_addr_octet;
+  uidl   = getreg32(S32K3XX_UTEST_UID);
+  uidml  = getreg32(S32K3XX_UTEST_UID + 0x4);
+
   uidml |= 0x00000200;
   uidml &= 0x0000feff;
 
-  /* FIXME UTEST DCF records */
-
-  uidml = 0x2211;
-  uidl = 0x66554433;
-
-  mac[5] = (uidml & 0x000000ff);
-  mac[4] = (uidml & 0x0000ff00) >> 8;
-  mac[3] = (uidl &  0x000000ff);
-  mac[2] = (uidl &  0x0000ff00) >> 8;
-  mac[1] = (uidl &  0x00ff0000) >> 16;
-  mac[0] = (uidl &  0xff000000) >> 24;
+  mac[0] = (uidml & 0x0000ff00) >> 8;
+  mac[1] = (uidml & 0x000000ff);
+  mac[2] = (uidl &  0xff000000) >> 24;
+  mac[3] = (uidl &  0x00ff0000) >> 16;
+  mac[4] = (uidl &  0x0000ff00) >> 8;
+  mac[5] = (uidl &  0x000000ff);
 #endif
 
 #ifdef CONFIG_S32K3XX_ENET_PHYINIT

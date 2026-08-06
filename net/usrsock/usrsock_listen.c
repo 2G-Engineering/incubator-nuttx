@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/usrsock/usrsock_listen.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/net/net.h>
 #include <nuttx/net/usrsock.h>
@@ -38,8 +40,8 @@
  * Private Functions
  ****************************************************************************/
 
-static uint16_t listen_event(FAR struct net_driver_s *dev,
-                             FAR void *pvpriv, uint16_t flags)
+static uint32_t listen_event(FAR struct net_driver_s *dev,
+                             FAR void *pvpriv, uint32_t flags)
 {
   FAR struct usrsock_reqstate_s *pstate = pvpriv;
   FAR struct usrsock_conn_s *conn = pstate->conn;
@@ -148,9 +150,7 @@ int usrsock_listen(FAR struct socket *psock, int backlog)
 
   int ret;
 
-  DEBUGASSERT(conn);
-
-  net_lock();
+  usrsock_lock();
 
   if (conn->state == USRSOCK_CONN_STATE_UNINITIALIZED ||
       conn->state == USRSOCK_CONN_STATE_ABORTED)
@@ -210,7 +210,7 @@ int usrsock_listen(FAR struct socket *psock, int backlog)
 
   /* Wait for completion of request (or signal). */
 
-  ret = net_sem_wait(&state.recvsem);
+  ret = usrsock_sem_timedwait(&state.recvsem, true, UINT_MAX);
   if (ret < 0)
     {
       /* Wait interrupted, exit early. */
@@ -223,7 +223,7 @@ int usrsock_listen(FAR struct socket *psock, int backlog)
 errout_teardown:
   usrsock_teardown_request_callback(&state);
 errout_unlock:
-  net_unlock();
+  usrsock_unlock();
   return ret;
 }
 

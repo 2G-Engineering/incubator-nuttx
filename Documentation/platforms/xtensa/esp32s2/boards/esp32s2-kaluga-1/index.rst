@@ -2,6 +2,8 @@
 ESP32-S2-Kaluga-1 Kit v1.3
 ==========================
 
+.. tags:: chip:esp32, chip:esp32s2
+
 The `ESP32-S2-Kaluga-1 kit v1.3 <https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/hw-reference/esp32s2/user-guide-esp32-s2-kaluga-1-kit.html>`_
 is a development kit by Espressif that is mainly created to:
 
@@ -60,7 +62,7 @@ The ESP32-S2-Kaluga-1 board has connectors for boards with:
 
 - Extension header (ESP-LyraT-8311A, ESP-LyraP-LCD32)
 - Camera header (ESP-LyraP-CAM)
-- Touch FPC coneector (ESP-LyraP-TouchA)
+- Touch FPC connector (ESP-LyraP-TouchA)
 - LCD FPC connector (no official extension boards yet)
 - I2C FPC connector (no official extension boards yet)
 
@@ -74,7 +76,7 @@ The ESP32-S2-Kaluga-1 board has connectors for boards with:
 
     ESP32-S2-Kaluga-1 (click to enlarge)
 
-All the four extension boards are specially desgined to support the following
+All the four extension boards are specially designed to support the following
 features:
 
 * Touch panel control
@@ -248,6 +250,23 @@ You can scan for all I2C devices using the following command::
 
     nsh> i2c dev 0x00 0x7f
 
+To use slave mode, you can enable `ESP32S2_I2S_ROLE_SLAVE` option.
+To use slave mode driver following snippet demonstrates how write to i2c bus
+using slave driver:
+
+.. code-block:: C
+
+   #define ESP_I2C_SLAVE_PATH  "/dev/i2cslv0"
+   int main(int argc, char *argv[])
+     {
+       int i2c_slave_fd;
+       int ret;
+       uint8_t buffer[5] = {0xAA};
+       i2c_slave_fd = open(ESP_I2C_SLAVE_PATH, O_RDWR);
+       ret = write(i2c_slave_fd, buffer, 5);
+       close(i2c_slave_fd);
+    }
+
 lvgl_ili9341
 ------------
 
@@ -296,3 +315,55 @@ After successfully built and flashed, run on the boards' terminal::
   different audio formats, for instance::
 
     nxlooper> loopback 2 8 44100
+
+rtc
+---
+
+This configuration demonstrates the use of the RTC driver through alarms.
+You can set an alarm, check its progress and receive a notification after it expires::
+
+    nsh> alarm 10
+    alarm_daemon started
+    alarm_daemon: Running
+    Opening /dev/rtc0
+    Alarm 0 set in 10 seconds
+    nsh> alarm -r
+    Opening /dev/rtc0
+    Alarm 0 is active with 10 seconds to expiration
+    nsh> alarm_daemon: alarm 0 received
+
+twai
+----
+
+This configuration enables the support for the TWAI (Two-Wire Automotive Interface) driver.
+You can test it by connecting TWAI RX and TWAI TX pins which are GPIO0 and GPIO2 by default
+to a external transceiver or connecting TWAI RX to TWAI TX pin by enabling
+the ``Device Drivers -> CAN Driver Support -> CAN loopback mode`` option and running the ``can`` example::
+
+    nsh> can
+    nmsgs: 0
+    min ID: 1 max ID: 2047
+    Bit timing:
+      Baud: 1000000
+      TSEG1: 15
+      TSEG2: 4
+        SJW: 3
+      ID:    1 DLC: 1
+
+watchdog
+--------
+
+This config test the watchdog timers. It includes the 2 MWDTs,
+adds driver support, registers the WDTs as devices and includes the watchdog
+example.
+
+To test it, just run the following::
+
+    nsh> wdog -i /dev/watchdogx
+
+Where x is the watchdog instance.
+
+To test the XTWDT(/dev/watchdog3) an interrupt handler needs to be
+implemented because XTWDT does not have system reset feature. To implement
+an interrupt handler `WDIOC_CAPTURE` command can be used. When interrupt
+rises, XTAL32K clock can be restored with `WDIOC_RSTCLK` command.

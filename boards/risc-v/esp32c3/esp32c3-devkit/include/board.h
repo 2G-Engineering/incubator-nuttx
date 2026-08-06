@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/risc-v/esp32c3/esp32c3-devkit/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,14 +27,15 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Clocking *****************************************************************/
-
-#define BOARD_XTAL_FREQUENCY  40000000
-
 /* GPIO pins used by the GPIO Subsystem */
 
 #define BOARD_NGPIOOUT    2 /* Amount of GPIO Output pins */
 #define BOARD_NGPIOINT    1 /* Amount of GPIO Input w/ Interruption pins */
 
-#endif /* __BOARDS_RISCV_ESP32C3_ESP32C3_DEVKIT_INCLUDE_BOARD_H */
+/* esp32c3-devkit GPIOs */
 
+/* BOOT Button */
+
+#define BUTTON_BOOT  9
+
+#endif /* __BOARDS_RISCV_ESP32C3_ESP32C3_DEVKIT_INCLUDE_BOARD_H */

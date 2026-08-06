@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/sgp30.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -31,7 +46,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <time.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -53,16 +68,12 @@
 #  define sgp30_dbg(x, ...)    sninfo(x, ##__VA_ARGS__)
 #endif
 
-#ifndef CONFIG_SGP30_I2C_FREQUENCY
-#  define CONFIG_SGP30_I2C_FREQUENCY 100000
-#endif
-
 #define SGP30_I2C_RETRIES 3
 #define SGP30_INIT_RETRIES 5
 #define SGP30_INIT_LIMIT_MS 10
 
 /****************************************************************************
- * Private
+ * Private Types
  ****************************************************************************/
 
 struct sgp30_dev_s
@@ -161,7 +172,9 @@ static const struct file_operations g_sgp30fops =
   sgp30_ioctl,    /* ioctl */
   NULL,           /* mmap */
   NULL,           /* truncate */
-  NULL            /* poll */
+  NULL,           /* poll */
+  NULL,           /* readv */
+  NULL            /* writev */
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
   , sgp30_unlink /* unlink */
 #endif
@@ -447,12 +460,12 @@ static bool has_time_passed(FAR struct timespec *curr,
                             FAR struct timespec *start,
                             unsigned int secs_since_start)
 {
-  if ((long)((start->tv_sec + secs_since_start) - curr->tv_sec) == 0)
+  if ((start->tv_sec + secs_since_start) - curr->tv_sec == 0)
     {
       return start->tv_nsec <= curr->tv_nsec;
     }
 
-  return (long)((start->tv_sec + secs_since_start) - curr->tv_sec) <= 0;
+  return (start->tv_sec + secs_since_start) - curr->tv_sec <= 0;
 }
 
 /****************************************************************************
@@ -472,7 +485,7 @@ static bool time_has_passed_ms(FAR struct timespec *curr,
 
   if (start->tv_sec < curr->tv_sec)
     {
-      curr_msec += 1000 * ((long)(curr->tv_sec - start->tv_sec));
+      curr_msec += 1000 * (curr->tv_sec - start->tv_sec);
     }
 
   return (start_msec + msecs_since_start) <= curr_msec;
@@ -628,7 +641,7 @@ static int sgp30_open(FAR struct file *filep)
                       return ret;
                     }
 
-                  nxsig_usleep(CONFIG_SGP30_RESET_DELAY_US);
+                  nxsched_usleep(CONFIG_SGP30_RESET_DELAY_US);
 
                   clock_systime_timespec(&start);
                   ret = sgp30_write_cmd(priv, SGP30_CMD_INIT_AIR_QUALITY,
@@ -760,7 +773,7 @@ static ssize_t sgp30_read(FAR struct file *filep, FAR char *buffer,
           ts_sleep.tv_nsec += NSEC_PER_SEC;
         }
 
-      if ((long)ts_sleep.tv_sec >= 0)
+      if (ts_sleep.tv_sec >= 0)
         {
           ret = nxsig_nanosleep(&ts_sleep, NULL);
           if (ret == -EINTR)
@@ -989,8 +1002,8 @@ static int sgp30_unlink(FAR struct inode *inode)
   FAR struct sgp30_dev_s *priv;
   int ret;
 
-  DEBUGASSERT(inode != NULL && inode->i_private != NULL);
-  priv = (FAR struct sgp30_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private != NULL);
+  priv = inode->i_private;
 
   /* Get exclusive access */
 
@@ -1053,7 +1066,7 @@ int sgp30_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
 
   /* Initialize the device structure */
 
-  priv = (FAR struct sgp30_dev_s *)kmm_zalloc(sizeof(struct sgp30_dev_s));
+  priv = kmm_zalloc(sizeof(struct sgp30_dev_s));
   if (priv == NULL)
     {
       sgp30_dbg("ERROR: Failed to allocate instance\n");

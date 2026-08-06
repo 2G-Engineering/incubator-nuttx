@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/common/include/esp32_board_i2c.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -42,8 +44,6 @@ extern "C"
  * Public Function Prototypes
  ****************************************************************************/
 
-#ifdef CONFIG_I2C_DRIVER
-
 /****************************************************************************
  * Name: esp32_i2c_register
  *
@@ -57,8 +57,6 @@ extern "C"
  ****************************************************************************/
 
 int esp32_i2c_register(int bus);
-
-#endif /* CONFIG_I2C_DRIVER */
 
 #undef EXTERN
 #if defined(__cplusplus)

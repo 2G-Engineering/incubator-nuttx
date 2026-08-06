@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/bmg160.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -26,9 +41,10 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/fs/fs.h>
@@ -39,7 +55,7 @@
 #if defined(CONFIG_SPI) && defined(CONFIG_SENSORS_BMG160)
 
 /****************************************************************************
- * Private
+ * Private Types
  ****************************************************************************/
 
 struct bmg160_sensor_data_s
@@ -510,7 +526,7 @@ int bmg160_register(FAR const char *devpath, FAR struct spi_dev_s *spi,
 
   /* Initialize the BMG160 device structure */
 
-  priv = (FAR struct bmg160_dev_s *)kmm_malloc(sizeof(struct bmg160_dev_s));
+  priv = kmm_malloc(sizeof(struct bmg160_dev_s));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");

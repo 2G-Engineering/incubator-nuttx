@@ -28,37 +28,34 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/sched.h>
-#include <nuttx/spinlock.h>
 #include <nuttx/sched_note.h>
 
 #include "sched/sched.h"
 #include "xtensa.h"
 
 #include "hardware/esp32_dport.h"
-#include "hardware/esp32_rtccntl.h"
+#include "soc/rtc_cntl_reg.h"
 
 #include "esp32_region.h"
-#include "esp32_irq.h"
+#include "espressif/esp_irq.h"
 #include "esp32_smp.h"
-#include "esp32_gpio.h"
+#include "esp32_start.h"
+#include "espressif/esp_gpio.h"
 
 /****************************************************************************
  * Private Data
  ****************************************************************************/
 
 static volatile bool g_appcpu_started;
-static volatile spinlock_t g_appcpu_interlock;
 
 /****************************************************************************
  * ROM function prototypes
  ****************************************************************************/
 
-extern void cache_flush(int cpu);
-extern void cache_read_enable(int cpu);
 extern void ets_set_appcpu_boot_addr(uint32_t start);
 
 /****************************************************************************
@@ -67,20 +64,23 @@ extern void ets_set_appcpu_boot_addr(uint32_t start);
 
 /****************************************************************************
  * Name: xtensa_attach_fromcpu0_interrupt
+ *
+ * Description:
+ *   Attach the inter-CPU interrupt for CPU1 to receive from CPU0.
+ *   This is called during early CPU1 boot.
+ *
  ****************************************************************************/
 
-static inline void xtensa_attach_fromcpu0_interrupt(void)
+static inline void IRAM_ATTR xtensa_attach_fromcpu0_interrupt(void)
 {
   int cpuint;
 
   /* Connect all CPU peripheral source to allocated CPU interrupt */
 
-  cpuint = esp32_setup_irq(1, ESP32_PERIPH_CPU_CPU0, 1, ESP32_CPUINT_LEVEL);
+  cpuint = esp_setup_irq(ESP32_PERIPH_CPU_CPU0, 1,
+                         ESP_IRQ_TRIGGER_LEVEL, esp32_fromcpu0_interrupt,
+                         NULL);
   DEBUGASSERT(cpuint >= 0);
-
-  /* Attach the inter-CPU interrupt. */
-
-  irq_attach(ESP32_IRQ_CPU_CPU0, (xcpt_t)esp32_fromcpu0_interrupt, NULL);
 
   /* Enable the inter 0 CPU interrupts. */
 
@@ -122,24 +122,13 @@ void IRAM_ATTR xtensa_appcpu_start(void)
                  XCPTCONTEXT_SIZE;
   __asm__ __volatile__("mov sp, %0\n" : : "r"(sp));
 
-  sinfo("CPU%d Started\n", up_cpu_index());
+  sinfo("CPU%d Started\n", this_cpu());
 
 #ifdef CONFIG_SCHED_INSTRUMENTATION
   /* Notify that this CPU has started */
 
   sched_note_cpu_started(tcb);
 #endif
-
-  /* Release the spinlock to signal to the PRO CPU that the APP CPU has
-   * started.
-   */
-
-  g_appcpu_started = true;
-  spin_unlock(&g_appcpu_interlock);
-
-  /* Reset scheduler parameters */
-
-  nxsched_resume_scheduler(tcb);
 
   /* Move CPU0 exception vectors to IRAM */
 
@@ -151,28 +140,16 @@ void IRAM_ATTR xtensa_appcpu_start(void)
 
   /* Initialize CPU interrupts */
 
-  esp32_cpuint_initialize();
-
-  /* Attach and enable internal interrupts */
+  esp_cpuint_initialize();
 
   /* Attach and enable the inter-CPU interrupt */
 
   xtensa_attach_fromcpu0_interrupt();
 
-  /* Enable the software interrupt */
-
-  up_enable_irq(XTENSA_IRQ_SWINT);
-
   /* Dump registers so that we can see what is going to happen on return */
 
 #if 0
   up_dump_register(tcb->xcp.regs);
-#endif
-
-#ifdef CONFIG_ESP32_GPIO_IRQ
-  /* Initialize GPIO interrupt support */
-
-  esp32_gpioirqinitialize(1);
 #endif
 
 #ifndef CONFIG_SUPPRESS_INTERRUPTS
@@ -185,12 +162,18 @@ void IRAM_ATTR xtensa_appcpu_start(void)
   xtensa_set_cpenable(CONFIG_XTENSA_CP_INITSET);
 #endif
 
+  sys_startup_fn();
+
+  /* Signal to the PRO CPU that the APP CPU has started. */
+
+  g_appcpu_started = true;
+
   /* Then switch contexts. This instantiates the exception context of the
    * tcb at the head of the assigned task list.  In this case, this should
    * be the CPUs NULL task.
    */
 
-  xtensa_context_restore(tcb->xcp.regs);
+  xtensa_context_restore();
 }
 
 /****************************************************************************
@@ -222,82 +205,67 @@ void IRAM_ATTR xtensa_appcpu_start(void)
 
 int up_cpu_start(int cpu)
 {
+  uint32_t regval;
+
   DEBUGASSERT(cpu >= 0 && cpu < CONFIG_SMP_NCPUS && cpu != this_cpu());
 
-  if (!g_appcpu_started)
-    {
-      uint32_t regval;
+  /* Start CPU1 */
 
-      /* Start CPU1 */
-
-      sinfo("Starting CPU%d\n", cpu);
+  sinfo("Starting CPU%d\n", cpu);
 
 #ifdef CONFIG_SCHED_INSTRUMENTATION
-      /* Notify of the start event */
+  /* Notify of the start event */
 
-      sched_note_cpu_start(this_task(), cpu);
+  sched_note_cpu_start(this_task(), cpu);
 #endif
 
-      /* This spinlock will be used as a handshake between the two CPUs.
-       * It's first initialized to its locked state, later the PRO CPU will
-       * try to lock it but spins until the APP CPU starts and unlocks it.
-       */
+  /* Un-stall the APP CPU */
 
-      spin_initialize(&g_appcpu_interlock, SP_LOCKED);
+  regval  = getreg32(RTC_CNTL_SW_CPU_STALL_REG);
+  regval &= ~RTC_CNTL_SW_STALL_APPCPU_C1_M;
+  putreg32(regval, RTC_CNTL_SW_CPU_STALL_REG);
 
-      /* Flush and enable I-cache for APP CPU */
+  regval  = getreg32(RTC_CNTL_OPTIONS0_REG);
+  regval &= ~RTC_CNTL_SW_STALL_APPCPU_C0_M;
+  putreg32(regval, RTC_CNTL_OPTIONS0_REG);
 
-      cache_flush(cpu);
-      cache_read_enable(cpu);
+  /* OpenOCD might have already enabled clock gating and taken APP CPU
+   * out of reset.  Don't reset the APP CPU if that's the case as this
+   * will clear the breakpoints that may have already been set.
+   */
 
-      /* Unstall the APP CPU */
+  regval = getreg32(DPORT_APPCPU_CTRL_B_REG);
+  if ((regval & DPORT_APPCPU_CLKGATE_EN_M) == 0)
+    {
+      /* Enable clock gating for the APP CPU */
 
-      regval  = getreg32(RTC_CNTL_SW_CPU_STALL_REG);
-      regval &= ~RTC_CNTL_SW_STALL_APPCPU_C1_M;
-      putreg32(regval, RTC_CNTL_SW_CPU_STALL_REG);
+      regval |= DPORT_APPCPU_CLKGATE_EN;
+      putreg32(regval, DPORT_APPCPU_CTRL_B_REG);
 
-      regval  = getreg32(RTC_CNTL_OPTIONS0_REG);
-      regval &= ~RTC_CNTL_SW_STALL_APPCPU_C0_M;
-      putreg32(regval, RTC_CNTL_OPTIONS0_REG);
+      regval  = getreg32(DPORT_APPCPU_CTRL_C_REG);
+      regval &= ~DPORT_APPCPU_RUNSTALL;
+      putreg32(regval, DPORT_APPCPU_CTRL_C_REG);
 
-      /* OpenOCD might have already enabled clock gating and taken APP CPU
-       * out of reset.  Don't reset the APP CPU if that's the case as this
-       * will clear the breakpoints that may have already been set.
-       */
+      /* Reset the APP CPU */
 
-      regval = getreg32(DPORT_APPCPU_CTRL_B_REG);
-      if ((regval & DPORT_APPCPU_CLKGATE_EN_M) == 0)
-        {
-          /* Enable clock gating for the APP CPU */
+      regval  = getreg32(DPORT_APPCPU_CTRL_A_REG);
+      regval |= DPORT_APPCPU_RESETTING;
+      putreg32(regval, DPORT_APPCPU_CTRL_A_REG);
 
-          regval |= DPORT_APPCPU_CLKGATE_EN;
-          putreg32(regval, DPORT_APPCPU_CTRL_B_REG);
-
-          regval  = getreg32(DPORT_APPCPU_CTRL_C_REG);
-          regval &= ~DPORT_APPCPU_RUNSTALL;
-          putreg32(regval, DPORT_APPCPU_CTRL_C_REG);
-
-          /* Reset the APP CPU */
-
-          regval  = getreg32(DPORT_APPCPU_CTRL_A_REG);
-          regval |= DPORT_APPCPU_RESETTING;
-          putreg32(regval, DPORT_APPCPU_CTRL_A_REG);
-
-          regval  = getreg32(DPORT_APPCPU_CTRL_A_REG);
-          regval &= ~DPORT_APPCPU_RESETTING;
-          putreg32(regval, DPORT_APPCPU_CTRL_A_REG);
-        }
-
-      /* Set the CPU1 start address */
-
-      ets_set_appcpu_boot_addr((uint32_t)xtensa_appcpu_start);
-
-      /* And wait until the APP CPU starts and releases the spinlock. */
-
-      spin_lock(&g_appcpu_interlock);
-      DEBUGASSERT(g_appcpu_started);
+      regval  = getreg32(DPORT_APPCPU_CTRL_A_REG);
+      regval &= ~DPORT_APPCPU_RESETTING;
+      putreg32(regval, DPORT_APPCPU_CTRL_A_REG);
     }
+
+  /* Set the CPU1 start address */
+
+  ets_set_appcpu_boot_addr((uint32_t)xtensa_appcpu_start);
+
+  /* And wait until the APP CPU starts */
+
+  while (!g_appcpu_started);
+
+  /* prev cpu boot done */
 
   return OK;
 }
-

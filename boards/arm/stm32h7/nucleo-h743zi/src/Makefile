@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/stm32h7/nucleo-h743zi/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -40,11 +42,11 @@ ifeq ($(CONFIG_STM32_ROMFS),y)
 CSRCS += stm32_romfs_initialize.c
 endif
 
-ifeq ($(CONFIG_STM32H7_SPI),y)
+ifeq ($(CONFIG_STM32_SPI),y)
 CSRCS += stm32_spi.c
 endif
 
-ifeq ($(CONFIG_STM32H7_OTGFS),y)
+ifeq ($(CONFIG_STM32_OTGFS),y)
 CSRCS += stm32_usb.c
 endif
 
@@ -72,11 +74,7 @@ ifeq ($(CONFIG_LCD_SSD1306),y)
 CSRCS += stm32_ssd1306.c
 endif
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += stm32_appinitialize.c
-endif
-
-ifeq ($(CONFIG_STM32H7_PROGMEM),y)
+ifeq ($(CONFIG_STM32_PROGMEM),y)
 CSRCS += stm32_progmem.c
 endif
 

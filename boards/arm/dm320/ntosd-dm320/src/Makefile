@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/dm320/ntosd-dm320/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -24,10 +26,6 @@ CSRCS = dm320_leds.c dm320_network.c
 
 ifeq ($(CONFIG_BOARD_LATE_INITIALIZE),y)
 CSRCS += dm320_boardinit.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += dm320_appinit.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

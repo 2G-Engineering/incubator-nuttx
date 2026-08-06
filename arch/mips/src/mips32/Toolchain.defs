@@ -1,6 +1,8 @@
 ############################################################################
 # arch/mips/src/mips32/Toolchain.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -120,7 +122,7 @@ endif
 ifeq ($(CONFIG_ARCH_MIPS_M5150),y)
   MIPS_MARCH = mips32r2
   MIPS_MPROCESSOR = elf32pic32mz
-else ifeq ($(CONFIG_ARCH_MIPS_MICROAPTIV), y)
+else ifeq ($(CONFIG_ARCH_MIPS_MICROAPTIV),y)
   MIPS_MARCH = mips32r2
   MIPS_MPROCESSOR = elf32pic32mz
 else
@@ -249,6 +251,12 @@ ifeq ($(CONFIG_DEBUG_OPT_UNUSED_SECTIONS),y)
   ARCHOPTIMIZATION += -ffunction-sections -fdata-sections
 endif
 
+# Debug --whole-archive
+
+ifeq ($(CONFIG_DEBUG_LINK_WHOLE_ARCHIVE),y)
+  LDFLAGS += --whole-archive
+endif
+
 # Debug link map
 
 ifeq ($(CONFIG_DEBUG_LINK_MAP),y)
@@ -256,14 +264,18 @@ ifeq ($(CONFIG_DEBUG_LINK_MAP),y)
 endif
 
 ifeq ($(CONFIG_DEBUG_SYMBOLS),y)
-  ARCHOPTIMIZATION += -g
+  ARCHOPTIMIZATION += $(CONFIG_DEBUG_SYMBOLS_LEVEL)
 endif
 
 ARCHCFLAGS += -fno-common
-ARCHCXXFLAGS += -fno-common -nostdinc++
+ARCHCXXFLAGS += -fno-common
 
-ARCHCFLAGS += -Wall -Wstrict-prototypes -Wshadow -Wundef
-ARCHCXXFLAGS += -Wall -Wshadow -Wundef
+ARCHCFLAGS += -Wall -Wstrict-prototypes -Wshadow -Wundef -Wno-attributes -Wno-unknown-pragmas
+ARCHCXXFLAGS += -Wall -Wshadow -Wundef -Wno-attributes -Wno-unknown-pragmas
+
+ifneq ($(CONFIG_LIBCXXTOOLCHAIN),y)
+  ARCHCXXFLAGS += -nostdinc++
+endif
 
 ifneq ($(CONFIG_CXX_STANDARD),)
   ARCHCXXFLAGS += -std=$(CONFIG_CXX_STANDARD)
@@ -287,6 +299,7 @@ CPP = $(CROSSDEV)gcc -E -P -x c
 LD = $(CROSSDEV)ld
 STRIP = $(CROSSDEV)strip --strip-unneeded
 AR = $(CROSSDEV)ar rcs
+UNAR = $(CROSSDEV)ar x
 NM = $(CROSSDEV)nm
 OBJCOPY = $(CROSSDEV)objcopy
 OBJDUMP = $(CROSSDEV)objdump
@@ -299,6 +312,23 @@ ifeq ($(CONFIG_LIBM_TOOLCHAIN),y)
   EXTRA_LIBS += $(wildcard $(shell $(CC) $(ARCHCPUFLAGS) --print-file-name=libm.a))
 endif
 
-ifeq ($(CONFIG_LIBSUPCXX),y)
+ifeq ($(CONFIG_LIBSUPCXX_TOOLCHAIN),y)
   EXTRA_LIBS += $(wildcard $(shell $(CC) $(ARCHCPUFLAGS) --print-file-name=libsupc++.a))
 endif
+
+ifeq ($(CONFIG_LIBCXXTOOLCHAIN),y)
+  EXTRA_LIBS += $(wildcard $(shell $(CC) $(ARCHCPUFLAGS) --print-file-name=libstdc++.a))
+endif
+
+# Loadable module definitions
+
+CMODULEFLAGS = $(CFLAGS) -fvisibility=hidden
+LDMODULEFLAGS = -r -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/elf/gnu-elf.ld)
+
+# ELF module definitions
+
+CELFFLAGS = $(CFLAGS) -fvisibility=hidden
+CXXELFFLAGS = $(CXXFLAGS) -fvisibility=hidden
+
+LDELFFLAGS = -r -e _start
+LDELFFLAGS += -T $(call CONVERT_PATH,$(TOPDIR)$(DELIM)libs$(DELIM)libc$(DELIM)elf$(DELIM)gnu-elf.ld)

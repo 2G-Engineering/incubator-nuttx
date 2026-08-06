@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/tls/tls_dupinfo.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -68,5 +70,16 @@ int tls_dup_info(FAR struct tcb_s *dst, FAR struct tcb_s *src)
   /* Attach per-task info in group to TLS */
 
   info->tl_task = dst->group->tg_info;
+
+  /* Initialize the starting address of argv to NULL to prevent
+   * it from being misused.
+   */
+
+  info->tl_argv = NULL;
+
+  /* Thread ID */
+
+  info->tl_tid = dst->pid;
+
   return OK;
 }

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/cxd56xx/spresense/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -57,6 +59,7 @@
 #include "cxd56_bm1383glv.h"
 #include "cxd56_bm1422gmv.h"
 #include "cxd56_bmi160.h"
+#include "cxd56_bmi270.h"
 #include "cxd56_bmp280.h"
 #include "cxd56_emmcdev.h"
 #include "cxd56_spisd.h"
@@ -65,6 +68,8 @@
 #include "cxd56_rpr0521rs.h"
 #include "cxd56_scd41.h"
 #include "cxd56_sensors.h"
+#include "cxd56_gnss_addon.h"
+#include "cxd56_cxd5602pwbimu.h"
 
 #ifdef CONFIG_VIDEO_ISX012
 #  include "cxd56_isx012.h"
@@ -133,7 +138,7 @@
 #define LED_CPU1                (101)
 #define LED_CPU2                (102)
 #define LED_CPU3                (103)
-#define LED_CPU                 (LED_CPU0 + up_cpu_index())
+#define LED_CPU                 (LED_CPU0 + this_cpu())
 #endif
 
 /* Buttons definitions ******************************************************/
@@ -199,7 +204,13 @@ enum board_power_device
   POWER_AUDIO_MUTE      = PMIC_GPO(6),
   POWER_IMAGE_SENSOR    = PMIC_GPO(4),
 
+#if defined(CONFIG_CXD56_BLE1507_RESET_PIN_I2S0_DATA_IN)
+  POWER_BTBLE           = CHIP_GPIO(PIN_I2S0_DATA_IN),
+#elif defined(CONFIG_CXD56_BLE1507_RESET_PIN_EMMC_DATA2)
+  POWER_BTBLE           = CHIP_GPIO(PIN_EMMC_DATA2),
+#else
   POWER_BTBLE           = PMIC_NONE,
+#endif
   POWER_SENSOR          = PMIC_NONE,
 #if defined(CONFIG_CXD56_EMMC_POWER_PIN_I2S0_BCK)
   POWER_EMMC            = CHIP_GPIO(PIN_I2S0_BCK),
@@ -215,6 +226,11 @@ enum board_power_device
 
 #define BOARD_POWEROFF_DEEP (0)
 #define BOARD_POWEROFF_COLD (1)
+
+/* Power domain definitions *************************************************/
+
+#define BOARD_PM_IDLE       (0)
+#define BOARD_PM_APPS       (1)
 
 /* CXD5247 audio control definitions ****************************************/
 
@@ -286,7 +302,7 @@ enum board_power_device
  * supply current value.
  * signal returns "usbdev_notify_s" struct pointer in sival_ptr.
  *
- * Arg: Value of sinal number
+ * Arg: Value of signal number
  */
 
 #define BOARDIOC_USBDEV_SETNOTIFYSIG      (BOARDIOC_USER+0x0001)

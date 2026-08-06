@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/mm_heap/mm_brkaddr.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -54,5 +56,5 @@ FAR void *mm_brkaddr(FAR struct mm_heap_s *heap, int region)
 #endif
 
   brkaddr = (uintptr_t)heap->mm_heapend[region];
-  return brkaddr ? (FAR void *)(brkaddr + SIZEOF_MM_ALLOCNODE) : NULL;
+  return brkaddr ? (FAR void *)(brkaddr + MM_SIZEOF_ALLOCNODE) : NULL;
 }

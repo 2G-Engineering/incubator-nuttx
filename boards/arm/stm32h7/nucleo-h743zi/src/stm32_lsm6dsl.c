@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32h7/nucleo-h743zi/src/stm32_lsm6dsl.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 #include <nuttx/arch.h>
 
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include "stm32.h"
@@ -37,8 +39,8 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#ifndef CONFIG_STM32H7_I2C1
-#  error "LSM6DSL driver requires CONFIG_STM32H7_I2C1 to be enabled"
+#ifndef CONFIG_STM32_I2C1
+#  error "LSM6DSL driver requires CONFIG_STM32_I2C1 to be enabled"
 #endif
 
 /****************************************************************************
@@ -64,7 +66,7 @@ int stm32_lsm6dsl_initialize(char *devpath)
 
   stm32_configgpio(GPIO_LPS22HB_INT1);
 
-#if defined(CONFIG_STM32H7_I2C1)
+#if defined(CONFIG_STM32_I2C1)
   i2c = stm32_i2cbus_initialize(1);
   if (i2c == NULL)
     {

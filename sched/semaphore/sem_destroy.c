@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/semaphore/sem_destroy.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -58,6 +60,11 @@
 
 int nxsem_destroy(FAR sem_t *sem)
 {
+  int32_t old;
+  bool mutex = NXSEM_IS_MUTEX(sem);
+  FAR atomic_t *val = mutex ? NXSEM_MHOLDER(sem) : NXSEM_COUNT(sem);
+  int32_t new = mutex ? NXSEM_NO_MHOLDER : 1;
+
   DEBUGASSERT(sem != NULL);
 
   /* There is really no particular action that we need
@@ -70,59 +77,19 @@ int nxsem_destroy(FAR sem_t *sem)
    * leave the count unchanged but still return OK.
    */
 
-  if (sem->semcount >= 0)
+  old = atomic_read(val);
+  do
     {
-      sem->semcount = 1;
+      if ((mutex && NXSEM_MBLOCKING(old)) ||
+          (!mutex && old < 0))
+        {
+          break;
+        }
     }
+  while (!atomic_try_cmpxchg_release(val, &old, new));
 
   /* Release holders of the semaphore */
 
   nxsem_destroyholder(sem);
   return OK;
-}
-
-/****************************************************************************
- * Name: sem_destroy
- *
- * Description:
- *   This function is used to destroy the un-named semaphore indicated by
- *   'sem'.  Only a semaphore that was created using nxsem_init() may be
- *   destroyed using sem_destroy(); the effect of calling sem_destroy() with
- *   a named semaphore is undefined.  The effect of subsequent use of the
- *   semaphore sem is undefined until sem is re-initialized by another call
- *   to nxsem_init().
- *
- *   The effect of destroying a semaphore upon which other processes are
- *   currently blocked is undefined.
- *
- * Input Parameters:
- *   sem - Semaphore to be destroyed.
- *
- * Returned Value:
- *   This function is a application interface.  It returns zero (OK) if
- *   successful.  Otherwise, -1 (ERROR) is returned and the errno value is
- *   set appropriately.
- *
- ****************************************************************************/
-
-int sem_destroy (FAR sem_t *sem)
-{
-  int ret;
-
-  /* Assure a valid semaphore is specified */
-
-  if (sem == NULL)
-    {
-      set_errno(EINVAL);
-      return ERROR;
-    }
-
-  ret = nxsem_destroy(sem);
-  if (ret < 0)
-    {
-      set_errno(-ret);
-      ret = ERROR;
-    }
-
-  return ret;
 }

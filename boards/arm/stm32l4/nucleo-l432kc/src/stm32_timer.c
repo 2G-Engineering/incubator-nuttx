@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/nucleo-l432kc/src/stm32_timer.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 #include <nuttx/timers/timer.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "stm32l4_tim.h"
 #include "nucleo-l432kc.h"
@@ -59,7 +61,7 @@
 
 int board_timer_driver_initialize(const char *devpath, int timer)
 {
-  return stm32l4_timer_initialize(devpath, timer);
+  return stm32_timer_initialize(devpath, timer);
 }
 
 #endif

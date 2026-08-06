@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/imxrt/imxrt1020-evk/src/imxrt1020-evk.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -70,7 +72,7 @@
 /* ETH Disambiguation *******************************************************/
 
 #define GPIO_ENET_INT   (IOMUX_ENET_INT_DEFAULT | GPIO_INTERRUPT | \
-                         GPIO_INT_FALLINGEDGE |	GPIO_PORT1 | GPIO_PIN22) /* AD_B1_06 */
+                         GPIO_INT_FALLINGEDGE | GPIO_PORT1 | GPIO_PIN22) /* AD_B1_06 */
 #define GPIO_ENET_IRQ   IMXRT_IRQ_GPIO1_12
 #define GPIO_ENET_RST   (GPIO_OUTPUT | IOMUX_ENET_RST_DEFAULT | \
                          GPIO_OUTPUT_ZERO | GPIO_PORT1 | GPIO_PIN4 )  /* AD_B0_04, Inverted logic */

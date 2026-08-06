@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/nucleo-l452re/src/stm32_autoleds.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 
@@ -51,7 +53,7 @@ void board_autoled_initialize(void)
 {
   /* Configure LD2 GPIO for output */
 
-  stm32l4_configgpio(GPIO_LD2);
+  stm32_configgpio(GPIO_LD2);
 }
 
 /****************************************************************************
@@ -62,7 +64,7 @@ void board_autoled_on(int led)
 {
   if (led == 1)
     {
-      stm32l4_gpiowrite(GPIO_LD2, true);
+      stm32_gpiowrite(GPIO_LD2, true);
     }
 }
 
@@ -74,7 +76,7 @@ void board_autoled_off(int led)
 {
   if (led == 1)
     {
-      stm32l4_gpiowrite(GPIO_LD2, false);
+      stm32_gpiowrite(GPIO_LD2, false);
     }
 }
 

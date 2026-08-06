@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/win/sim_hostirq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -79,14 +81,6 @@ void up_irq_restore(uint64_t flags)
 }
 
 /****************************************************************************
- * Name: up_irqinitialize
- ****************************************************************************/
-
-void up_irqinitialize(void)
-{
-}
-
-/****************************************************************************
  * Name: up_enable_irq
  *
  * Description:
@@ -107,5 +101,13 @@ void up_enable_irq(int irq)
  ****************************************************************************/
 
 void up_disable_irq(int irq)
+{
+}
+
+/****************************************************************************
+ * Name: host_irqinitialize
+ ****************************************************************************/
+
+void host_irqinitialize(void)
 {
 }

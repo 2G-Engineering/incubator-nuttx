@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/xtensa/src/common/xtensa_cpenable.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <nuttx/irq.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/sched.h>
 
 #include <arch/xtensa/xtensa_coproc.h>
@@ -33,6 +35,12 @@
 #include "xtensa.h"
 
 #if XCHAL_CP_NUM > 0
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+static spinlock_t g_lock = SP_UNLOCKED;
 
 /****************************************************************************
  * Public Functions
@@ -61,7 +69,7 @@ void xtensa_coproc_enable(int cpset)
 
   /* These operations must be atomic */
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_lock);
 
   if (cpset != 0)
     {
@@ -72,7 +80,7 @@ void xtensa_coproc_enable(int cpset)
       xtensa_set_cpenable(cpenable);
     }
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_lock, flags);
 }
 
 /****************************************************************************
@@ -98,7 +106,7 @@ void xtensa_coproc_disable(int cpset)
 
   /* These operations must be atomic */
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_lock);
 
   if (cpset != 0)
     {
@@ -109,7 +117,7 @@ void xtensa_coproc_disable(int cpset)
       xtensa_set_cpenable(cpenable);
     }
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_lock, flags);
 }
 
 #endif /* XCHAL_CP_NUM */

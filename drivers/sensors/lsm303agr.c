@@ -1,17 +1,13 @@
 /****************************************************************************
  * drivers/sensors/lsm303agr.c
  *
- *   Copyright (C) 2018 Inc. All rights reserved.
- *   Author: Ben vd Veen <disruptivesolutionsnl@gmail.com>
- *   Alias: DisruptiveNL
- *
- * Based on:
- *
- *   Copyright (C) 2016 Omni Hoverboards Inc. All rights reserved.
- *   Author: Paul Alexander Patience <paul-a.patience@polymtl.ca>
- *
- *   Copyright (C) 2016, 2019 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2018 Inc. All rights reserved.
+ * SPDX-FileCopyrightText: 2016 Omni Hoverboards Inc. All rights reserved.
+ * SPDX-FileCopyrightText: 2016, 2019 Gregory Nutt. All rights reserved.
+ * SPDX-FileContributor: Ben vd Veen <disruptivesolutionsnl@gmail.com>
+ * SPDX-FileContributor: Paul Alexander Patience <paul-a.patience@polymtl.ca>
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -42,6 +38,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -50,7 +59,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdlib.h>
 
 #include <nuttx/kmalloc.h>
@@ -61,14 +70,6 @@
 #include <nuttx/sensors/lsm303agr.h>
 
 #if defined(CONFIG_I2C) && defined(CONFIG_SENSORS_LSM303AGR)
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-#ifndef CONFIG_LSM303AGR_I2C_FREQUENCY
-#  define CONFIG_LSM303AGR_I2C_FREQUENCY 400000
-#endif
 
 /****************************************************************************
  * Private Function Prototypes
@@ -522,7 +523,7 @@ static int lsm303agr_selftest(FAR struct lsm303agr_dev_s *priv,
       g_magnetofactor = 1;
     }
 
-  nxsig_usleep(100000);         /* 100ms */
+  nxsched_usleep(100000);         /* 100ms */
 
   /* Read the output registers after checking XLDA bit 5 times */
 
@@ -544,7 +545,7 @@ static int lsm303agr_selftest(FAR struct lsm303agr_dev_s *priv,
         }
     }
 
-  nxsig_usleep(100000);         /* 100ms */
+  nxsched_usleep(100000);         /* 100ms */
 
   /* Read OUT registers Gyro is starting at 22h and Accelero at 28h */
 
@@ -630,7 +631,7 @@ static int lsm303agr_selftest(FAR struct lsm303agr_dev_s *priv,
       lsm303agr_writereg8(priv, LSM303AGR_CFG_REG_C_M, 0x12);
     }
 
-  nxsig_usleep(100000);         /* 100ms */
+  nxsched_usleep(100000);         /* 100ms */
 
   checkbit = false;
   while (checkbit)
@@ -647,7 +648,7 @@ static int lsm303agr_selftest(FAR struct lsm303agr_dev_s *priv,
         }
     }
 
-  nxsig_usleep(100000);    /* 100ms */
+  nxsched_usleep(100000);    /* 100ms */
 
   /* Now do all the ST values */
 
@@ -685,7 +686,7 @@ static int lsm303agr_selftest(FAR struct lsm303agr_dev_s *priv,
           checkbit = lsm303agr_isbitset(value, LSM303AGR_STATUS_REG_M_ZYXDA);
         }
 
-      nxsig_usleep(100000);    /* 100ms */
+      nxsched_usleep(100000);    /* 100ms */
 
       lsm303agr_readreg8(priv,
                          LSM303AGR_OUT_X_L_A + registershift,
@@ -824,7 +825,7 @@ static int lsm303agr_selftest(FAR struct lsm303agr_dev_s *priv,
       sninfo("\n");
     }
 
-  nxsig_sleep(2);
+  nxsched_sleep(2);
 
   /* Disable test */
 
@@ -954,11 +955,9 @@ static ssize_t lsm303agr_read(FAR struct file *filep,
 
   /* Sanity check */
 
-  DEBUGASSERT(filep != NULL);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode != NULL);
-  priv = (FAR struct lsm303agr_dev_s *)inode->i_private;
+  priv = inode->i_private;
 
   DEBUGASSERT(priv != NULL);
   DEBUGASSERT(priv->datareg == LSM303AGR_OUTX_L_A_SHIFT ||
@@ -1077,11 +1076,9 @@ static int lsm303agr_ioctl(FAR struct file *filep, int cmd,
 
   /* Sanity check */
 
-  DEBUGASSERT(filep != NULL);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode != NULL);
-  priv = (FAR struct lsm303agr_dev_s *)inode->i_private;
+  priv = inode->i_private;
 
   DEBUGASSERT(priv != NULL);
 
@@ -1172,7 +1169,7 @@ static int lsm303agr_register(FAR const char *devpath,
 
   /* Initialize the device's structure */
 
-  priv = (FAR struct lsm303agr_dev_s *)kmm_malloc(sizeof(*priv));
+  priv = kmm_malloc(sizeof(*priv));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");

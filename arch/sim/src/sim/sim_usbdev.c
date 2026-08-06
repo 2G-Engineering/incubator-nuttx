@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/sim_usbdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,9 +35,10 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/wqueue.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/usb/usb.h>
 #include <nuttx/usb/usbdev.h>
@@ -97,6 +100,7 @@
 #else
 #  define SIM_USB_SPEED                   USB_SPEED_FULL
 #endif
+#define SIM_USB_PERIOD                    MSEC2TICK(CONFIG_SIM_LOOP_INTERVAL)
 
 /****************************************************************************
  * Private Types
@@ -154,6 +158,8 @@ struct sim_usbdev_s
   uint8_t                       selfpowered:1;        /* 1: Device is self powered */
   uint16_t                      epavail;              /* Bitset of available endpoints */
   struct sim_ep_s               eps[SIM_USB_EPNUM];
+  spinlock_t                    lock;                 /* Spinlock */
+  struct work_s                 work;                 /* Work for event loop */
 };
 
 struct sim_req_s
@@ -218,6 +224,55 @@ static const struct usbdev_ops_s g_devops =
   .getframe    = sim_usbdev_getframe,
   .wakeup      = sim_usbdev_wakeup,
 };
+
+/* Device error strings that may be enabled for more descriptive USB trace
+ * output.
+ */
+
+#ifdef CONFIG_USBDEV_TRACE_STRINGS
+const struct trace_msg_t g_usb_trace_strings_deverror[] =
+{
+  TRACE_STR(SIM_TRACEERR_ALLOCFAIL),
+  TRACE_STR(SIM_TRACEERR_BADCLEARFEATURE),
+  TRACE_STR(SIM_TRACEERR_BADDEVGETSTATUS),
+  TRACE_STR(SIM_TRACEERR_BADEPGETSTATUS),
+  TRACE_STR(SIM_TRACEERR_BADEPNO),
+  TRACE_STR(SIM_TRACEERR_BADEPTYPE),
+  TRACE_STR(SIM_TRACEERR_BADGETCONFIG),
+  TRACE_STR(SIM_TRACEERR_BADGETSETDESC),
+  TRACE_STR(SIM_TRACEERR_BADGETSTATUS),
+  TRACE_STR(SIM_TRACEERR_BADSETADDRESS),
+  TRACE_STR(SIM_TRACEERR_BADSETCONFIG),
+  TRACE_STR(SIM_TRACEERR_BADSETFEATURE),
+  TRACE_STR(SIM_TRACEERR_BINDFAILED),
+  TRACE_STR(SIM_TRACEERR_DISPATCHSTALL),
+  TRACE_STR(SIM_TRACEERR_DRIVER),
+  TRACE_STR(SIM_TRACEERR_DRIVERREGISTERED),
+  TRACE_STR(SIM_TRACEERR_EP0BADCTR),
+  TRACE_STR(SIM_TRACEERR_EP0SETUPSTALLED),
+  TRACE_STR(SIM_TRACEERR_EPBUFFER),
+  TRACE_STR(SIM_TRACEERR_EPDISABLED),
+  TRACE_STR(SIM_TRACEERR_EPOUTNULLPACKET),
+  TRACE_STR(SIM_TRACEERR_EPRESERVE),
+  TRACE_STR(SIM_TRACEERR_INVALIDCTRLREQ),
+  TRACE_STR(SIM_TRACEERR_INVALIDPARMS),
+  TRACE_STR(SIM_TRACEERR_IRQREGISTRATION),
+  TRACE_STR(SIM_TRACEERR_NOTCONFIGURED),
+  TRACE_STR(SIM_TRACEERR_REQABORTED),
+  TRACE_STR_END
+};
+#endif
+
+/* Interrupt event strings that may be enabled for more descriptive USB trace
+ * output.
+ */
+
+#ifdef CONFIG_USBDEV_TRACE_STRINGS
+const struct trace_msg_t g_usb_trace_strings_intdecode[] =
+{
+  TRACE_STR_END
+};
+#endif
 
 /****************************************************************************
  * Private Functions
@@ -379,7 +434,7 @@ static int sim_reqwrite(struct sim_usbdev_s *priv, struct sim_ep_s *privep)
 }
 
 /****************************************************************************
- * Name: sim_ep_configure
+ * Name: sim_usbdev_getctrlreq
  ****************************************************************************/
 
 static void sim_usbdev_getctrlreq(struct usb_ctrlreq_s *usb_req,
@@ -396,7 +451,7 @@ static void sim_usbdev_getctrlreq(struct usb_ctrlreq_s *usb_req,
 }
 
 /****************************************************************************
- * Name: sim_ep_configure
+ * Name: sim_usbdev_setepdesc
  ****************************************************************************/
 
 static void sim_usbdev_setepdesc(struct host_usb_epdesc_s *host_epdesc,
@@ -611,7 +666,7 @@ static struct usbdev_req_s *sim_ep_allocreq(struct usbdev_ep_s *ep)
 
   usbtrace(TRACE_EPALLOCREQ, USB_EPNO(ep->eplog));
 
-  privreq = (struct sim_req_s *)kmm_malloc(sizeof(struct sim_req_s));
+  privreq = kmm_malloc(sizeof(struct sim_req_s));
   if (!privreq)
     {
       usbtrace(TRACE_DEVERROR(SIM_TRACEERR_ALLOCFAIL), 0);
@@ -737,13 +792,9 @@ static int sim_ep_submit(struct usbdev_ep_s *ep, struct usbdev_req_s *req)
 
 static int sim_ep_cancel(struct usbdev_ep_s *ep, struct usbdev_req_s *req)
 {
-  irqstate_t flags;
-
   usbtrace(TRACE_EPCANCEL, USB_EPNO(ep->eplog));
 
-  flags = enter_critical_section();
   host_usbdev_epcancel(USB_EPNO(ep->eplog));
-  leave_critical_section(flags);
   return OK;
 }
 
@@ -802,7 +853,7 @@ static struct sim_ep_s *sim_ep_reserve(struct sim_usbdev_s *priv,
  *
  * Description:
  *   The endpoint is no long in-used.  It will be un-reserved and can be
- *   re-used if needed.
+ *   reused if needed.
  *
  ****************************************************************************/
 
@@ -994,6 +1045,45 @@ static void sim_usbdev_devinit(struct sim_usbdev_s *dev)
   dev->epavail = SIM_EPSET_NOEP0;
 }
 
+static void sim_usbdev_work(void *arg)
+{
+  struct sim_usbdev_s *priv = (struct sim_usbdev_s *)arg;
+  struct sim_ep_s *privep;
+  struct host_usb_ctrlreq_s *ctrlreq;
+  uint8_t *recv_data;
+  uint16_t data_len;
+  uint8_t epcnt;
+
+  /* Loop ep0 */
+
+  ctrlreq = host_usbdev_ep0read();
+  if (ctrlreq)
+    {
+      sim_usbdev_ep0read(ctrlreq);
+      host_usbdev_epread_end(0);
+    }
+
+  /* Loop other eps */
+
+  for (epcnt = 1; epcnt < SIM_USB_EPNUM; epcnt++)
+    {
+      privep = &priv->eps[epcnt];
+      if (privep->epstate == SIM_EPSTATE_IDLE &&
+          !USB_ISEPIN(privep->ep.eplog))
+        {
+          recv_data = host_usbdev_epread(epcnt, &data_len);
+          if (recv_data)
+            {
+              sim_usbdev_epread(privep->ep.eplog, recv_data, data_len);
+              host_usbdev_epread_end(epcnt);
+            }
+        }
+    }
+
+  work_queue_next_wq(g_work_queue, &priv->work, sim_usbdev_work, priv,
+                     SIM_USB_PERIOD);
+}
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -1043,11 +1133,14 @@ int usbdev_register(struct usbdevclass_driver_s *driver)
       /* Setup the USB host controller */
 
 #ifdef CONFIG_USBDEV_DUALSPEED
-      host_usbdev_init(SIM_USB_SPEED);
+      ret = host_usbdev_init(SIM_USB_SPEED);
 #else
-      host_usbdev_init(USB_SPEED_FULL);
+      ret = host_usbdev_init(USB_SPEED_FULL);
 #endif
     }
+
+  work_queue_wq(g_work_queue, &priv->work, sim_usbdev_work, priv,
+                SIM_USB_PERIOD);
 
   return ret;
 }
@@ -1082,7 +1175,7 @@ int usbdev_unregister(struct usbdevclass_driver_s *driver)
    */
 
   flags = enter_critical_section();
-  host_usbdev_deinit();
+  CLASS_DISCONNECT(driver, &priv->usbdev);
   leave_critical_section(flags);
 
   /* Unbind the class driver */
@@ -1096,6 +1189,7 @@ int usbdev_unregister(struct usbdevclass_driver_s *driver)
   /* Disconnect device */
 
   host_usbdev_pullup(false);
+  host_usbdev_deinit();
 
   /* Unhook the driver */
 
@@ -1105,48 +1199,3 @@ int usbdev_unregister(struct usbdevclass_driver_s *driver)
   return OK;
 }
 
-/****************************************************************************
- * Name: sim_usbdev_loop
- *
- * Description:
- *   USB Dev receive ep0 control request.
- *
- ****************************************************************************/
-
-int sim_usbdev_loop(void)
-{
-  struct sim_usbdev_s *priv = &g_sim_usbdev;
-  struct sim_ep_s *privep;
-  struct host_usb_ctrlreq_s *ctrlreq;
-  uint8_t *recv_data;
-  uint16_t data_len;
-  uint8_t epcnt;
-
-  /* Loop ep0 */
-
-  ctrlreq = host_usbdev_ep0read();
-  if (ctrlreq)
-    {
-      sim_usbdev_ep0read(ctrlreq);
-      host_usbdev_epread_end(0);
-    }
-
-  /* Loop other eps */
-
-  for (epcnt = 1; epcnt < SIM_USB_EPNUM; epcnt++)
-    {
-      privep = &priv->eps[epcnt];
-      if (privep->epstate == SIM_EPSTATE_IDLE &&
-          !USB_ISEPIN(privep->ep.eplog))
-        {
-          recv_data = host_usbdev_epread(epcnt, &data_len);
-          if (recv_data)
-            {
-              sim_usbdev_epread(privep->ep.eplog, recv_data, data_len);
-              host_usbdev_epread_end(epcnt);
-            }
-        }
-    }
-
-  return OK;
-}

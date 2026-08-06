@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/nrf53/thingy53/src/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,11 +22,7 @@
 
 include $(TOPDIR)/Make.defs
 
-CSRCS = nrf53_boot.c nrf53_bringup.c
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += nrf53_appinit.c
-endif
+CSRCS = nrf53_boot.c nrf53_bringup.c nrf53_sensors.c
 
 ifeq ($(CONFIG_NRF53_APPCORE),y)
 CSRCS += nrf53_cpunet_boot.c
@@ -32,6 +30,14 @@ endif
 
 ifeq ($(CONFIG_ARCH_BUTTONS),y)
 CSRCS += nrf53_buttons.c
+endif
+
+ifeq ($(CONFIG_NRF53_SPI_MASTER),y)
+CSRCS += nrf53_spi.c
+endif
+
+ifeq ($(CONFIG_I2C),y)
+CSRCS += nrf53_i2c.c
 endif
 
 ifeq ($(CONFIG_USBDEV),y)
@@ -42,6 +48,10 @@ ifeq ($(CONFIG_USBDEV_COMPOSITE),y)
 CSRCS += nrf53_composite.c
 endif
 
+ifeq ($(CONFIG_RGBLED),y)
+CSRCS += nrf53_rgbled.c
+endif
+
 DEPPATH += --dep-path board
 VPATH += :board
-CFLAGS += $(shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board)
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board

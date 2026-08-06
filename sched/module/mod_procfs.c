@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/module/mod_procfs.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,11 +35,11 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/module.h>
-#include <nuttx/lib/modlib.h>
+#include <nuttx/lib/elf.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/procfs.h>
 
@@ -106,6 +108,7 @@ const struct procfs_operations g_module_operations =
   modprocfs_close,      /* close */
   modprocfs_read,       /* read */
   NULL,                 /* write */
+  NULL,                 /* poll */
   modprocfs_dup,        /* dup */
 
   NULL,                 /* opendir */
@@ -134,8 +137,8 @@ static int modprocfs_callback(FAR struct module_s *modp, FAR void *arg)
   priv = (FAR struct modprocfs_file_s *)arg;
 
   linesize = snprintf(priv->line, MOD_LINELEN,
-                      "%s,%p,%p,%p,%u,%p,%lu,%p,%lu\n",
-                      modp->modname, modp->initializer,
+                      "%s,%p,%p,%u,%p,%lu,%p,%lu\n",
+                      modp->modname,
                       modp->modinfo.uninitializer, modp->modinfo.arg,
                       modp->modinfo.nexports,
                       modp->textalloc,
@@ -148,7 +151,7 @@ static int modprocfs_callback(FAR struct module_s *modp, FAR void *arg)
   priv->buffer    += copysize;
   priv->remaining -= copysize;
 
-  return (priv->totalsize >= priv->buflen) ? 1 : 0;
+  return priv->totalsize >= priv->buflen;
 }
 
 /****************************************************************************
@@ -168,7 +171,7 @@ static int modprocfs_open(FAR struct file *filep, FAR const char *relpath,
    * REVISIT:  Write-able proc files could be quite useful.
    */
 
-  if (((oflags & O_WRONLY) != 0 || (oflags & O_RDONLY) == 0))
+  if ((oflags & O_ACCMODE) != O_RDONLY)
     {
       ferr("ERROR: Only O_RDONLY supported\n");
       return -EACCES;
@@ -188,7 +191,7 @@ static int modprocfs_open(FAR struct file *filep, FAR const char *relpath,
    * filep->f_priv.
    */
 
-  filep->f_priv = (FAR void *)priv;
+  filep->f_priv = priv;
   return OK;
 }
 
@@ -222,7 +225,7 @@ static ssize_t modprocfs_read(FAR struct file *filep, FAR char *buffer,
   FAR struct modprocfs_file_s *priv;
   int ret;
 
-  finfo("buffer=%p buflen=%lu\n", buffer, (unsigned long)buflen);
+  finfo("buffer=%p buflen=%zu\n", buffer, buflen);
 
   /* Recover our private data from the struct file instance */
 
@@ -237,7 +240,7 @@ static ssize_t modprocfs_read(FAR struct file *filep, FAR char *buffer,
   priv->buflen    = buflen;
   priv->offset    = filep->f_pos;
 
-  ret = modlib_registry_foreach(modprocfs_callback, priv);
+  ret = libelf_registry_foreach(modprocfs_callback, priv);
   if (ret >= 0)
     {
       filep->f_pos += priv->totalsize;
@@ -283,7 +286,7 @@ static int modprocfs_dup(FAR const struct file *oldp, FAR struct file *newp)
 
   /* Save the new attributes in the new file structure */
 
-  newp->f_priv = (FAR void *)newpriv;
+  newp->f_priv = newpriv;
   return OK;
 }
 
@@ -297,7 +300,7 @@ static int modprocfs_dup(FAR const struct file *oldp, FAR struct file *newp)
 static int modprocfs_stat(FAR const char *relpath, FAR struct stat *buf)
 {
   memset(buf, 0, sizeof(struct stat));
-  buf->st_mode    = S_IFREG | S_IROTH | S_IRGRP | S_IRUSR;
+  buf->st_mode = S_IFREG | S_IROTH | S_IRGRP | S_IRUSR;
   return OK;
 }
 

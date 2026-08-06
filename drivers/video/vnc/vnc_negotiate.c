@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/video/vnc/vnc_negotiate.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -44,7 +46,7 @@
 #  define CONFIG_DEBUG_GRAPHICS_WARN  1
 #  define CONFIG_DEBUG_GRAPHICS_INFO  1
 #endif
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #ifdef CONFIG_NET_SOCKOPTS
 #  include <sys/time.h>
@@ -279,7 +281,7 @@ int vnc_negotiate(FAR struct vnc_session_s *session)
 
   /* Receive the ClientInit message
    *
-   * "Once the client and server are sure that they’re happy to talk to one
+   * "Once the client and server are sure that they're happy to talk to one
    *  another using the agreed security type, the protocol passes to the
    *  initialization phase. The client sends a ClientInit message followed
    *  by the server sending a ServerInit message."
@@ -307,7 +309,7 @@ int vnc_negotiate(FAR struct vnc_session_s *session)
   /* Send the ServerInit message
    *
    * "After receiving the ClientInit message, the server sends a ServerInit
-   *  message. This tells the client the width and height of the server’s
+   *  message. This tells the client the width and height of the server's
    *  framebuffer, its pixel format and the name associated with the
    *  desktop:"
    *

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/rv32m1/rv32m1_irq_dispatch.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -49,7 +51,7 @@
  ****************************************************************************/
 
 LOCATE_ITCM
-void *rv32m1_dispatch_irq(uintptr_t vector, uintptr_t *regs)
+void *rv32m1_dispatch_irq(uintreg_t vector, uintreg_t *regs)
 {
   uint32_t vec = vector & 0x1f;
   int irq = (vector >> RV_IRQ_MASK) + vec;

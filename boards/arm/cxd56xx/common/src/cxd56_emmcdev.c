@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/cxd56xx/common/src/cxd56_emmcdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,8 @@
 
 #include <stdio.h>
 #include <errno.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/board.h>
 #include <nuttx/signal.h>
 #include <nuttx/fs/fs.h>
@@ -76,7 +79,7 @@ int board_emmc_initialize(void)
     {
       /* Wait time until eMMC device is turned power on */
 
-      nxsig_usleep(EMMC_POWER_ON_WAIT_MSEC * USEC_PER_MSEC);
+      nxsched_usleep(EMMC_POWER_ON_WAIT_MSEC * USEC_PER_MSEC);
     }
 
   /* Initialize the eMMC device */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/signal.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,7 +41,6 @@
 
 #define MIN_SIGNO       1               /* Lowest valid signal number */
 #define MAX_SIGNO       63              /* Highest valid signal number */
-#define GOOD_SIGNO(s)   ((((unsigned)(s)) <= MAX_SIGNO))
 
 /* Definitions for "standard" signals */
 
@@ -164,11 +165,14 @@
 #define SIGXFSZ         25
 #define SIGVTALRM       26
 #define SIGPROF         27
+#define SIGWINCH        28
 #define SIGPOLL         29
 
 #define SIGIO           SIGPOLL
 
 #define SIGSYS          31
+
+#define SIGIOT          SIGABRT
 
 /* sigprocmask() "how" definitions.
  * Only one of the following can be specified:
@@ -197,7 +201,11 @@
                                   * is delivered */
 #define SA_KERNELHAND   (1 << 7) /* Invoke the handler in kernel space directly */
 
-/* These are the possible values of the signfo si_code field */
+/* SA_NOMASK is a nonstandard synonym of SA_NODEFER */
+
+#define SA_NOMASK       SA_NODEFER
+
+/* These are the possible values of the siginfo si_code field */
 
 #define SI_USER         0  /* Signal sent from kill, raise, or abort */
 #define SI_QUEUE        1  /* Signal sent from sigqueue */
@@ -212,13 +220,72 @@
 #define CLD_STOPPED     9  /* Child has stopped (SIGCHLD only) */
 #define CLD_CONTINUED   10 /* Stopped child had continued (SIGCHLD only) */
 
+/* SIGILL si_codes */
+
+#define ILL_ILLOPC      1 /* Illegal opcode */
+#define ILL_ILLOPN      2 /* Illegal operand */
+#define ILL_ILLADR      3 /* Illegal addressing mode */
+#define ILL_ILLTRP      4 /* Illegal trap */
+#define ILL_PRVOPC      5 /* Privileged opcode */
+#define ILL_PRVREG      6 /* Privileged register */
+#define ILL_COPROC      7 /* Coprocessor error */
+#define ILL_BADSTK      8 /* Internal stack error */
+
+/* SIGFPE si_codes */
+
+#define FPE_INTDIV      1 /* Integer divide by zero */
+#define FPE_INTOVF      2 /* Integer overflow */
+#define FPE_FLTDIV      3 /* Floating point divide by zero */
+#define FPE_FLTOVF      4 /* Floating point overflow */
+#define FPE_FLTUND      5 /* Floating point underflow */
+#define FPE_FLTRES      6 /* Floating point inexact result */
+#define FPE_FLTINV      7 /* Floating point invalid operation */
+#define FPE_FLTSUB      8 /* Subscript out of range */
+
+/* SIGSEGV si_codes */
+
+#define SEGV_MAPERR     1 /* Address not mapped to object */
+#define SEGV_ACCERR     2 /* Invalid permissions for mapped object */
+
+/* SIGBUS si_codes */
+
+#define BUS_ADRALN      1 /* Invalid address alignment */
+#define BUS_ADRERR      2 /* Non-existent physical address */
+#define BUS_OBJERR      3 /* Object specific hardware error */
+
+/* SIGTRAP si_codes */
+
+#define TRAP_BRKPT      1 /* Process breakpoint */
+#define TRAP_TRACE      2 /* Process trace trap */
+
+/* SIGPOLL si_codes */
+
+#define POLL_IN         1 /* Data input available */
+#define POLL_OUT        2 /* Output buffers available */
+#define POLL_MSG        3 /* Input message available */
+#define POLL_ERR        4 /* I/O error */
+#define POLL_PRI        5 /* High priority input available */
+#define POLL_HUP        6 /* Device disconnected */
+
 /* Values for the sigev_notify field of struct sigevent */
 
 #define SIGEV_NONE      0 /* No asynchronous notification is delivered */
 #define SIGEV_SIGNAL    1 /* Notify via signal,with an application-defined value */
 #ifdef CONFIG_SIG_EVTHREAD
-#  define SIGEV_THREAD  3 /* A notification function is called */
+#  define SIGEV_THREAD  2 /* A notification function is called */
 #endif
+
+#define SIGEV_THREAD_ID 4 /* Notify a specific thread via signal. */
+
+/* sigaltstack stack size */
+
+#define MINSIGSTKSZ     CONFIG_PTHREAD_STACK_MIN     /* Smallest signal stack size */
+#define SIGSTKSZ        CONFIG_PTHREAD_STACK_DEFAULT /* Default signal stack size */
+
+/* define signal handlers stack on an alternate stack or the current thread */
+
+#define SS_ONSTACK      1
+#define SS_DISABLE      2
 
 /* Special values of sa_handler used by sigaction and sigset.  They are all
  * treated like NULL for now.  This is okay for SIG_DFL and SIG_IGN because
@@ -236,7 +303,10 @@
 #  define SIG_HOLD      ((_sa_handler_t)1)   /* Used only with sigset() */
 #endif
 
-#define tkill(tid, signo)  tgkill((pid_t)-1, tid, signo)
+#define GOOD_SIGNO(s)     (((unsigned)(s)) <= ((unsigned)(MAX_SIGNO)))
+#define UNCAUGHT_SIGNO(s) ((s) == SIGKILL || (s) == SIGSTOP)
+
+#define tkill(tid, signo) tgkill((pid_t)-1, tid, signo)
 
 /****************************************************************************
  * Public Types
@@ -275,17 +345,33 @@ union sigval
 
 typedef CODE void (*sigev_notify_function_t)(union sigval value);
 
-struct sigevent
+typedef struct sigevent
 {
-  uint8_t      sigev_notify; /* Notification method: SIGEV_SIGNAL, SIGEV_NONE, or SIGEV_THREAD */
-  uint8_t      sigev_signo;  /* Notification signal */
+  int          sigev_notify; /* Notification method: SIGEV_SIGNAL, SIGEV_NONE, or SIGEV_THREAD */
+  int          sigev_signo;  /* Notification signal */
   union sigval sigev_value;  /* Data passed with notification */
 
+  union
+    {
 #ifdef CONFIG_SIG_EVTHREAD
-  sigev_notify_function_t sigev_notify_function;      /* Notification function */
-  FAR struct pthread_attr_s *sigev_notify_attributes; /* Notification attributes (not used) */
+      struct
+        {
+          /* Notification function */
+
+          sigev_notify_function_t _function;
+
+          /* Notification attributes (not used) */
+
+          FAR struct pthread_attr_s *_attribute;
+        } _sigev_thread;
 #endif
-};
+      pid_t _tid; /* ID of thread to signal */
+    } _sigev_un;
+} sigevent_t;
+
+#define sigev_notify_function   _sigev_un._sigev_thread._function
+#define sigev_notify_attributes _sigev_un._sigev_thread._attribute
+#define sigev_notify_thread_id  _sigev_un._tid
 
 /* The following types is used to pass parameters to/from signal handlers */
 
@@ -330,13 +416,28 @@ struct sigaction
   } sa_u;
   sigset_t          sa_mask;
   int               sa_flags;
-  FAR void         *sa_user;
+  union
+  {
+    CODE void (*sa_restorer)(void);
+    FAR void         *sa_user; /* Passed to siginfo.si_user (non-standard) */
+  };
 };
 
 /* Definitions that adjust the non-standard naming */
 
 #define sa_handler   sa_u._sa_handler
 #define sa_sigaction sa_u._sa_sigaction
+
+/* Structure describing a signal stack.  */
+
+typedef struct
+{
+  FAR void *ss_sp;
+  int ss_flags;
+  size_t ss_size;
+} stack_t;
+
+typedef CODE void (*sig_t)(int);
 
 /****************************************************************************
  * Public Function Prototypes
@@ -351,6 +452,7 @@ extern "C"
 #endif
 
 int  kill(pid_t pid, int signo);
+int  killpg(pid_t pgrp, int signo);
 int  tgkill(pid_t pid, pid_t tid, int signo);
 void psignal(int signum, FAR const char *message);
 void psiginfo(FAR const siginfo_t *pinfo, FAR const char *message);
@@ -358,7 +460,8 @@ int  raise(int signo);
 int  sigaction(int signo, FAR const struct sigaction *act,
                FAR struct sigaction *oact);
 int  sigaddset(FAR sigset_t *set, int signo);
-int  sigandset(FAR sigset_t *dest, FAR sigset_t *left, FAR sigset_t *right);
+int  sigandset(FAR sigset_t *dest, FAR const sigset_t *left,
+               FAR const sigset_t *right);
 int  sigdelset(FAR sigset_t *set, int signo);
 int  sigemptyset(FAR sigset_t *set);
 int  sigfillset(FAR sigset_t *set);
@@ -367,7 +470,8 @@ int  sigisemptyset(FAR sigset_t *set);
 int  sigismember(FAR const sigset_t *set, int signo);
 int  sigignore(int signo);
 _sa_handler_t signal(int signo, _sa_handler_t func);
-int  sigorset(FAR sigset_t *dest, FAR sigset_t *left, FAR sigset_t *right);
+int  sigorset(FAR sigset_t *dest, FAR const sigset_t *left,
+              FAR const sigset_t *right);
 int  sigpause(int signo);
 int  sigpending(FAR sigset_t *set);
 int  sigprocmask(int how, FAR const sigset_t *set, FAR sigset_t *oset);
@@ -379,6 +483,13 @@ int  sigtimedwait(FAR const sigset_t *set, FAR struct siginfo *value,
                   FAR const struct timespec *timeout);
 int  sigsuspend(FAR const sigset_t *sigmask);
 int  sigwaitinfo(FAR const sigset_t *set, FAR struct siginfo *value);
+int  sigaltstack(FAR const stack_t *ss, FAR stack_t *oss);
+int  siginterrupt(int signo, int flag);
+
+/* Pthread signal management APIs */
+
+int pthread_kill(pthread_t thread, int sig);
+int pthread_sigmask(int how, FAR const sigset_t *set, FAR sigset_t *oset);
 
 #undef EXTERN
 #ifdef __cplusplus

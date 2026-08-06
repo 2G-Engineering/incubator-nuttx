@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/kinetis/freedom-k28f/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -21,10 +23,6 @@
 include $(TOPDIR)/Make.defs
 
 CSRCS = k28_boot.c k28_bringup.c k28_spi.c k28_i2c.c
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += k28_appinit.c
-endif
 
 # If the RGB driver is not enabled, then treat the RGB as 3 LEDs
 

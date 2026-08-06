@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/samv7/samv71-xult/src/sam_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,9 @@
 #include <stdio.h>
 #include <syslog.h>
 #include <errno.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
+#include <nuttx/signal.h>
 
 #ifdef CONFIG_USBMONITOR
 #  include <nuttx/usb/usbmonitor.h>
@@ -60,6 +64,10 @@
 #  include <nuttx/leds/userled.h>
 #endif
 
+#ifdef CONFIG_VNCSERVER
+#  include <nuttx/video/vnc.h>
+#endif
+
 #if defined(HAVE_RTC_DSXXXX) || defined(HAVE_RTC_PCF85263)
 #  include <nuttx/clock.h>
 #  include <nuttx/i2c/i2c_master.h>
@@ -85,6 +93,10 @@
 
 #ifdef HAVE_PROGMEM_CHARDEV
 #  include "board_progmem.h"
+#endif
+
+#ifdef CONFIG_NET_OA_TC6
+#  include "board_oa_tc6.h"
 #endif
 
 /****************************************************************************
@@ -211,10 +223,7 @@ int sam_bringup(void)
   struct i2c_master_s *i2c;
 #endif
 #if defined(HAVE_S25FL1_CHARDEV)
-#if defined(CONFIG_BCH)
-  char blockdev[18];
-  char chardev[12];
-#endif /* defined(CONFIG_BCH) */
+  char mtddev[12];
 #endif
   int ret;
 
@@ -225,7 +234,7 @@ int sam_bringup(void)
 #ifdef HAVE_LED_DRIVER
   /* Register the LED driver */
 
-  ret = userled_lower_initialize(LED_DRIVER_PATH);
+  ret = userled_lower_initialize("/dev/userleds");
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n",
@@ -349,7 +358,7 @@ int sam_bringup(void)
     {
       if (sam_cardinserted(HSMCI0_SLOTNO))
         {
-          usleep(1000 * 1000);
+          nxsched_usleep(1000 * 1000);
 
           /* Mount the volume on HSMCI0 */
 
@@ -450,33 +459,19 @@ int sam_bringup(void)
         }
 
 #else /* if  defined(HAVE_S25FL1_CHARDEV) */
-      /* Use the FTL layer to wrap the MTD driver as a block driver */
-
-      ret = ftl_initialize(S25FL1_MTD_MINOR, mtd);
-      if (ret < 0)
-        {
-          syslog(LOG_ERR, "ERROR: Failed to initialize the FTL layer: %d\n",
-                 ret);
-          return ret;
-        }
-
-#if defined(CONFIG_BCH)
       /* Use the minor number to create device paths */
 
-      snprintf(blockdev, sizeof(blockdev), "/dev/mtdblock%d",
-               S25FL1_MTD_MINOR);
-      snprintf(chardev, sizeof(chardev), "/dev/mtd%d", S25FL1_MTD_MINOR);
+      snprintf(mtddev, sizeof(mtddev), "/dev/mtd%d", S25FL1_MTD_MINOR);
 
-      /* Now create a character device on the block device */
+      /* Register the MTD driver */
 
-      ret = bchdev_register(blockdev, chardev, false);
+      ret = register_mtddriver(mtddev, mtd, 0755, NULL);
       if (ret < 0)
         {
-          syslog(LOG_ERR, "ERROR: bchdev_register %s failed: %d\n",
-                 chardev, ret);
+          syslog(LOG_ERR, "ERROR: register_mtddriver %s failed: %d\n",
+                 mtddev, ret);
           return ret;
         }
-#endif /* defined(CONFIG_BCH) */
 #endif
     }
 #endif
@@ -561,10 +556,26 @@ int sam_bringup(void)
 #ifdef CONFIG_VIDEO_FB
   /* Initialize and register the LCD framebuffer driver */
 
+#  ifdef CONFIG_VNCSERVER
+  ret = vnc_fb_register(0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: vnc_fb_register() failed: %d\n", ret);
+    }
+#  else
   ret = fb_register(0, 0);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: fb_register() failed: %d\n", ret);
+    }
+#  endif
+#endif
+
+#ifdef CONFIG_NET_OA_TC6
+  ret = board_oa_tc6_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_oa_tc6_initialize() failed: %d\n", ret);
     }
 #endif
 

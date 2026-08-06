@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/stm32l476vg-disco/src/stm32l476vg-disco.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -72,7 +74,7 @@
 #  undef HAVE_N25QXXX_CHARDEV
 #endif
 
-#ifndef CONFIG_STM32L4_QSPI
+#ifndef CONFIG_STM32_QSPI
 #  undef HAVE_N25QXXX
 #  undef HAVE_N25QXXX_NXFFS
 #  undef HAVE_N25QXXX_SMARTFS
@@ -114,7 +116,7 @@
 
 /* Can't support USB host or device features if USB OTG FS is not enabled */
 
-#ifndef CONFIG_STM32L4_OTGFS
+#ifndef CONFIG_STM32_OTGFS
 #  undef HAVE_USBDEV
 #  undef HAVE_USBHOST
 #endif
@@ -249,6 +251,19 @@ extern struct spi_dev_s *g_spi2;
  ****************************************************************************/
 
 /****************************************************************************
+ * Name: stm32_bringup
+ *
+ * Description:
+ *   Perform architecture-specific initialization
+ *
+ *   CONFIG_BOARD_LATE_INITIALIZE=y :
+ *     Called from board_late_initialize().
+ *
+ ****************************************************************************/
+
+int stm32_bringup(void);
+
+/****************************************************************************
  * Name: stm32_spiinitialize
  *
  * Description:
@@ -259,13 +274,13 @@ extern struct spi_dev_s *g_spi2;
 void stm32_spiinitialize(void);
 
 /****************************************************************************
- * Name: stm32l4_usbinitialize
+ * Name: stm32_usbinitialize
  *
  * Description:
  *   Called to setup USB-related GPIO pins.
  *
  ****************************************************************************/
 
-void stm32l4_usbinitialize(void);
+void stm32_usbinitialize(void);
 
 #endif /* __BOARDS_ARM_STM32L4_STM32L476VG_DISCO_SRC_STM32L476VG_DISCO_H */

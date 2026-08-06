@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/loop/losetup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,6 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/mount.h>
 
@@ -38,7 +39,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/kmalloc.h>
@@ -110,8 +111,8 @@ static int loop_open(FAR struct inode *inode)
   FAR struct loop_struct_s *dev;
   int ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (FAR struct loop_struct_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   /* Make sure we have exclusive access to the state structure */
 
@@ -147,8 +148,8 @@ static int loop_close(FAR struct inode *inode)
   FAR struct loop_struct_s *dev;
   int ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (FAR struct loop_struct_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   /* Make sure we have exclusive access to the state structure */
 
@@ -187,8 +188,8 @@ static ssize_t loop_read(FAR struct inode *inode, FAR unsigned char *buffer,
   off_t offset;
   off_t ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (FAR struct loop_struct_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   if (start_sector + nsectors > dev->nsectors)
     {
@@ -241,8 +242,8 @@ static ssize_t loop_write(FAR struct inode *inode,
   off_t offset;
   off_t ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (FAR struct loop_struct_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   /* Calculate the offset to write the sectors and seek to the position */
 
@@ -284,10 +285,9 @@ static int loop_geometry(FAR struct inode *inode,
 {
   FAR struct loop_struct_s *dev;
 
-  DEBUGASSERT(inode);
   if (geometry)
     {
-      dev = (FAR struct loop_struct_s *)inode->i_private;
+      dev = inode->i_private;
 
       memset(geometry, 0, sizeof(*geometry));
 
@@ -373,7 +373,7 @@ int losetup(FAR const char *devname, FAR const char *filename,
   ret = -ENOSYS;
   if (!readonly)
     {
-      ret = file_open(&dev->devfile, filename, O_RDWR);
+      ret = file_open(&dev->devfile, filename, O_RDWR | O_CLOEXEC);
     }
 
   if (ret >= 0)
@@ -384,7 +384,7 @@ int losetup(FAR const char *devname, FAR const char *filename,
     {
       /* If that fails, then try to open the device read-only */
 
-      ret = file_open(&dev->devfile, filename, O_RDONLY);
+      ret = file_open(&dev->devfile, filename, O_RDONLY | O_CLOEXEC);
       if (ret < 0)
         {
           ferr("ERROR: Failed to open %s: %d\n", filename, ret);
@@ -448,7 +448,7 @@ int loteardown(FAR const char *devname)
 
   /* Inode private data is a reference to the loop device structure */
 
-  dev = (FAR struct loop_struct_s *)inode->i_private;
+  dev = inode->i_private;
   close_blockdriver(inode);
 
   DEBUGASSERT(dev != NULL);

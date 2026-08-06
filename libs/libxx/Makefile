@@ -1,6 +1,8 @@
 ############################################################################
 # libs/libxx/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -30,29 +32,32 @@ include $(TOPDIR)/Make.defs
 # in the NuttX uClibc++ GIT repository for more information
 
 ifeq ($(CONFIG_UCLIBCXX),y)
-include uClibc++.defs
+include uClibc++/Make.defs
 else ifeq ($(CONFIG_LIBCXX),y)
-include libcxx.defs
-else
-include libcxxmini.defs
-ifeq ($(CONFIG_ETL),y)
-include etl.defs
+include libcxx/Make.defs
 endif
+
+ifeq ($(CONFIG_ETL),y)
+include etl/Make.defs
 endif
 
 ifeq ($(CONFIG_LIBCXXABI),y)
-include libcxxabi.defs
+include libcxxabi/Make.defs
+else ifeq ($(CONFIG_LIBMINIABI),y)
+include libminiabi/Make.defs
+else ifeq ($(CONFIG_LIBSUPCXX),y)
+include libstdc++/libsupc++.defs
 endif
 
 # Object Files
 
-AOBJS = $(ASRCS:.S=$(OBJEXT))
-COBJS = $(CSRCS:.c=$(OBJEXT))
-CXXOBJS = $(CXXSRCS:.cxx=$(OBJEXT))
-CPPOBJS = $(CPPSRCS:.cpp=$(OBJEXT))
+AOBJS += $(ASRCS:.S=$(OBJEXT))
+COBJS += $(CSRCS:.c=$(OBJEXT))
+CXXOBJS += $(CXXSRCS:.cxx=$(OBJEXT))
+CPPOBJS += $(CPPSRCS:.cpp=$(OBJEXT))
 
-SRCS = $(ASRCS) $(CSRCS) $(CXXSRCS) $(CPPSRCS)
-OBJS = $(AOBJS) $(COBJS) $(CXXOBJS) $(CPPOBJS)
+SRCS += $(ASRCS) $(CSRCS) $(CXXSRCS) $(CPPSRCS)
+OBJS += $(AOBJS) $(COBJS) $(CXXOBJS) $(CPPOBJS)
 
 BIN = libxx$(LIBEXT)
 
@@ -91,6 +96,7 @@ clean:
 	$(call CLEAN)
 
 distclean:: clean
+	$(call DELFILE, $(CXXSRCS:.cxx=.ddx) $(CPPSRCS:.cpp=.ddp))
 	$(call DELFILE, Make.dep)
 	$(call DELFILE, .depend)
 

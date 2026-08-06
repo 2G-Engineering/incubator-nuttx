@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32h7x3xx_rcc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -22,6 +24,8 @@
  * Included Files
  ****************************************************************************/
 
+#include <assert.h>
+
 #include "stm32_pwr.h"
 #include "hardware/stm32_axi.h"
 #include "hardware/stm32_syscfg.h"
@@ -29,6 +33,9 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+static_assert(CONFIG_BOARD_LOOPSPERMSEC != -1,
+              "Configure BOARD_LOOPSPERMSEC to non-default value.");
 
 /* Allow up to 100 milliseconds for the high speed clock to become ready.
  * that is a very long delay, but if the clock does not become ready we are
@@ -76,6 +83,8 @@
 #    else
 #      define BOARD_FLASH_PROGDELAY  2
 #    endif
+#  else
+#    define BOARD_FLASH_PROGDELAY    2
 #  endif
 #endif
 
@@ -131,6 +140,36 @@
 #  endif
 #endif
 
+/* When the SoC supports SMPS we currently support 2 configurations:
+ * Direct SMP Supply OR LDO only supply.
+ *
+ * When the Soc does not supports SMPS we support only the LDO supply.
+ */
+
+#ifdef CONFIG_STM32_HAVE_SMPS
+#  define STM32_PWR_CR3_MASK  ~(STM32_PWR_CR3_BYPASS      | \
+                              STM32_PWR_CR3_LDOEN         | \
+                              STM32_PWR_CR3_SDEN          | \
+                              STM32_PWR_CR3_SMPSEXTHP     | \
+                              STM32_PWR_CR3_SMPSLEVEL_MASK)
+
+#  if defined(CONFIG_STM32_PWR_DIRECT_SMPS_SUPPLY)
+#    define STM32_PWR_CR3_SELECTION STM32_PWR_CR3_SDEN
+#  elif defined(CONFIG_STM32_PWR_EXTERNAL_SOURCE_SUPPLY)
+#    define STM32_PWR_CR3_SELECTION STM32_PWR_CR3_BYPASS
+#  else
+#    define STM32_PWR_CR3_SELECTION STM32_PWR_CR3_LDOEN
+#  endif
+#else
+#  define STM32_PWR_CR3_MASK  0xffffffff
+#  if defined(CONFIG_STM32_PWR_EXTERNAL_SOURCE_SUPPLY)
+#    define STM32_PWR_CR3_SELECTION (STM32_PWR_CR3_BYPASS | STM32_PWR_CR3_SCUEN)
+#  else
+#    define STM32_PWR_CR3_SELECTION (STM32_PWR_CR3_LDOEN | STM32_PWR_CR3_SCUEN)
+#  endif
+
+#endif
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -153,7 +192,7 @@ static inline void rcc_reset(void)
   regval |= RCC_CR_HSION;
   putreg32(regval, STM32_RCC_CR);
 
-#if defined(CONFIG_STM32H7_AXI_SRAM_CORRUPTION_WAR)
+#if defined(CONFIG_STM32_AXI_SRAM_CORRUPTION_WAR)
   /* Errata 2.2.9 Enable workaround for Reading from AXI SRAM may lead to
    * data read corruption. See ES0392 Rev 6.
    */
@@ -211,32 +250,32 @@ static inline void rcc_enableahb1(void)
    */
 
   regval = getreg32(STM32_RCC_AHB1ENR);
-#if defined(CONFIG_STM32H7_ADC1) || defined(CONFIG_STM32H7_ADC2)
+#if defined(CONFIG_STM32_ADC1) || defined(CONFIG_STM32_ADC2)
   /* ADC1 & 2 clock enable */
 
   regval |= RCC_AHB1ENR_ADC12EN;
 #endif
 
-#ifdef CONFIG_STM32H7_DMA1
+#ifdef CONFIG_STM32_DMA1
   /* DMA 1 clock enable */
 
   regval |= RCC_AHB1ENR_DMA1EN;
 #endif
 
-#ifdef CONFIG_STM32H7_DMA2
+#ifdef CONFIG_STM32_DMA2
   /* DMA 2 clock enable */
 
   regval |= RCC_AHB1ENR_DMA2EN;
 #endif
 
-#ifdef CONFIG_STM32H7_OTGFS
+#ifdef CONFIG_STM32_OTGFS
   /* USB OTG FS clock enable */
 
   regval |= RCC_AHB1ENR_OTGFSEN;
 #endif
 
-#ifdef CONFIG_STM32H7_OTGHS
-#  ifndef CONFIG_STM32H7_OTGHS_EXTERNAL_ULPI
+#ifdef CONFIG_STM32_OTGHS
+#  ifndef CONFIG_STM32_OTGHS_EXTERNAL_ULPI
   /* Enable only clocking for USB OTG HS */
 
   regval |= RCC_AHB1ENR_OTGHSEN;
@@ -247,7 +286,7 @@ static inline void rcc_enableahb1(void)
 #  endif
 #endif
 
-#ifdef CONFIG_STM32H7_ETHMAC
+#ifdef CONFIG_STM32_ETHMAC
   /* Enable ethernet clocks */
 
   regval |= (RCC_AHB1ENR_ETH1MACEN | RCC_AHB1ENR_ETH1TXEN |
@@ -275,16 +314,22 @@ static inline void rcc_enableahb2(void)
 
   regval = getreg32(STM32_RCC_AHB2ENR);
 
-#ifdef CONFIG_STM32H7_SDMMC2
+#ifdef CONFIG_STM32_SDMMC2
   /* SDMMC2 clock enable */
 
   regval |= RCC_AHB2ENR_SDMMC2EN;
 #endif
 
-#ifdef CONFIG_STM32H7_RNG
+#ifdef CONFIG_STM32_RNG
   /* Random number generator clock enable */
 
   regval |= RCC_AHB2ENR_RNGEN;
+#endif
+
+#ifdef CONFIG_STM32_CRYP
+  /* Cryptographic clock enable */
+
+  regval |= RCC_AHB2ENR_CRYPTEN;
 #endif
 
   putreg32(regval, STM32_RCC_AHB2ENR);   /* Enable peripherals */
@@ -308,22 +353,28 @@ static inline void rcc_enableahb3(void)
 
   regval = getreg32(STM32_RCC_AHB3ENR);
 
-#ifdef CONFIG_STM32H7_MDMA
+#ifdef CONFIG_STM32_MDMA
   /* MDMA clock enable */
 
   regval |= RCC_AHB3ENR_MDMAEN;
 #endif
 
-#ifdef CONFIG_STM32H7_SDMMC1
+#ifdef CONFIG_STM32_SDMMC1
   /* SDMMC clock enable */
 
   regval |= RCC_AHB3ENR_SDMMC1EN;
 #endif
 
-#ifdef CONFIG_STM32H7_FMC
+#ifdef CONFIG_STM32_FMC
   /* Flexible static memory controller module clock enable */
 
   regval |= RCC_AHB3ENR_FMCEN;
+#endif
+
+#if defined(CONFIG_STM32_LTDC) && defined(CONFIG_STM32_DMA2D)
+  /* Enable DMA2D */
+
+  regval |= RCC_AHB3ENR_DMA2DEN;
 #endif
 
   /* TODO: ... */
@@ -349,7 +400,7 @@ static inline void rcc_enableahb4(void)
 
   regval = getreg32(STM32_RCC_AHB4ENR);
 
-#ifdef CONFIG_STM32H7_ADC3
+#ifdef CONFIG_STM32_ADC3
   /* ADC3 clock enable */
 
   regval |= RCC_AHB4ENR_ADC3EN;
@@ -357,57 +408,63 @@ static inline void rcc_enableahb4(void)
 
   /* Enable GPIO, GPIOB, ... GPIOK */
 
-#if STM32H7_NGPIO > 0
+#if STM32_NGPIO > 0
   regval |= (RCC_AHB4ENR_GPIOAEN
-#if STM32H7_NGPIO > 1
+#if STM32_NGPIO > 1
              | RCC_AHB4ENR_GPIOBEN
 #endif
-#if STM32H7_NGPIO > 2
+#if STM32_NGPIO > 2
              | RCC_AHB4ENR_GPIOCEN
 #endif
-#if STM32H7_NGPIO > 3
+#if STM32_NGPIO > 3
              | RCC_AHB4ENR_GPIODEN
 #endif
-#if STM32H7_NGPIO > 4
+#if STM32_NGPIO > 4
              | RCC_AHB4ENR_GPIOEEN
 #endif
-#if (STM32H7_NGPIO > 5) && (defined(CONFIG_STM32H7_HAVE_GPIOF))
+#if (STM32_NGPIO > 5) && (defined(CONFIG_STM32_HAVE_GPIOF))
              | RCC_AHB4ENR_GPIOFEN
 #endif
-#if (STM32H7_NGPIO > 6) && (defined(CONFIG_STM32H7_HAVE_GPIOG))
+#if (STM32_NGPIO > 6) && (defined(CONFIG_STM32_HAVE_GPIOG))
              | RCC_AHB4ENR_GPIOGEN
 #endif
-#if STM32H7_NGPIO > 7
+#if STM32_NGPIO > 7
              | RCC_AHB4ENR_GPIOHEN
 #endif
-#if STM32H7_NGPIO > 8
+#if STM32_NGPIO > 8
              | RCC_AHB4ENR_GPIOIEN
 #endif
-#if STM32H7_NGPIO > 9
+#if STM32_NGPIO > 9
              | RCC_AHB4ENR_GPIOJEN
 #endif
-#if STM32H7_NGPIO > 10
+#if STM32_NGPIO > 10
              | RCC_AHB4ENR_GPIOKEN
 #endif
     );
 #endif
 
-#ifdef CONFIG_STM32H7_BDMA
+#ifdef CONFIG_STM32_BDMA
   /* BDMA clock enable */
 
   regval |= RCC_AHB4ENR_BDMAEN;
 #endif
 
-#ifdef CONFIG_STM32H7_CRC
+#ifdef CONFIG_STM32_CRC
   /* CRC clock enable */
 
   regval |= RCC_AHB4ENR_CRCEN;
 #endif
 
-#ifdef CONFIG_STM32H7_BKPSRAM
+#ifdef CONFIG_STM32_BKPSRAM
   /* Backup SRAM clock enable */
 
   regval |= RCC_AHB4ENR_BKPSRAMEN;
+#endif
+
+#ifdef CONFIG_STM32_HSEM
+  /* HSEM clock enable */
+
+  regval |= RCC_AHB4ENR_HSEMEN;
 #endif
 
   putreg32(regval, STM32_RCC_AHB4ENR);   /* Enable peripherals */
@@ -431,31 +488,31 @@ static inline void rcc_enableapb1(void)
 
   regval = getreg32(STM32_RCC_APB1LENR);
 
-#ifdef CONFIG_STM32H7_SPI2
+#ifdef CONFIG_STM32_SPI2
   /* SPI2 clock enable */
 
   regval |= RCC_APB1LENR_SPI2EN;
 #endif
 
-#ifdef CONFIG_STM32H7_SPI3
+#ifdef CONFIG_STM32_SPI3
   /* SPI3 clock enable */
 
   regval |= RCC_APB1LENR_SPI3EN;
 #endif
 
-#ifdef CONFIG_STM32H7_I2C1
+#ifdef CONFIG_STM32_I2C1
   /* I2C1 clock enable */
 
   regval |= RCC_APB1LENR_I2C1EN;
 #endif
 
-#ifdef CONFIG_STM32H7_I2C2
+#ifdef CONFIG_STM32_I2C2
   /* I2C2 clock enable */
 
   regval |= RCC_APB1LENR_I2C2EN;
 #endif
 
-#ifdef CONFIG_STM32H7_I2C3
+#ifdef CONFIG_STM32_I2C3
   /* I2C3 clock enable */
 
   regval |= RCC_APB1LENR_I2C3EN;
@@ -465,7 +522,7 @@ static inline void rcc_enableapb1(void)
 
   regval = getreg32(STM32_RCC_APB1HENR);
 
-#ifdef CONFIG_STM32H7_FDCAN
+#ifdef CONFIG_STM32_FDCAN
   /* FDCAN clock enable */
 
   regval |= RCC_APB1HENR_FDCANEN;
@@ -492,31 +549,31 @@ static inline void rcc_enableapb2(void)
 
   regval = getreg32(STM32_RCC_APB2ENR);
 
-#ifdef CONFIG_STM32H7_SPI1
+#ifdef CONFIG_STM32_SPI1
   /* SPI1 clock enable */
 
   regval |= RCC_APB2ENR_SPI1EN;
 #endif
 
-#ifdef CONFIG_STM32H7_SPI4
+#ifdef CONFIG_STM32_SPI4
   /* SPI4 clock enable */
 
   regval |= RCC_APB2ENR_SPI4EN;
 #endif
 
-#ifdef CONFIG_STM32H7_SPI5
+#ifdef CONFIG_STM32_SPI5
   /* SPI5 clock enable */
 
   regval |= RCC_APB2ENR_SPI5EN;
 #endif
 
-#ifdef CONFIG_STM32H7_USART1
+#ifdef CONFIG_STM32_USART1
   /* USART1 clock enable */
 
   regval |= RCC_APB2ENR_USART1EN;
 #endif
 
-#ifdef CONFIG_STM32H7_USART6
+#ifdef CONFIG_STM32_USART6
   /* USART6 clock enable */
 
   regval |= RCC_APB2ENR_USART6EN;
@@ -543,7 +600,35 @@ static inline void rcc_enableapb3(void)
 
   regval = getreg32(STM32_RCC_APB3ENR);
 
-  /* TODO: ... */
+#ifdef CONFIG_STM32_LTDC
+  /* LTDC clock enable */
+
+  regval |= RCC_APB3ENR_LTDCEN;
+#endif
+
+#ifdef CONFIG_STM32_WWDG
+
+  /* RM0433 Rev 8
+   * Reference manual - STM32H742, STM32H743/753 and STM32H750 Value line
+   * advanced Arm-based 32-bit MCUs
+   * https://www.st.com/resource/en/reference_manual/rm0433-stm32h742-
+   * stm32h743753-and-stm32h750-value-line-advanced-armbased-32bit-mcus-
+   * stmicroelectronics.pdf
+   * (Access date: 10-09-2025)
+   * Reset and Clock Control (RCC) -> RCC clock block functional
+   * description --> Kernel clock selection -> Watchdog clocks (page 365)
+   * "before enabling the WWDG1, the application must set the WW1RSC
+   * bit to 1.
+   * If the WW1RSC remains 0, when the WWDG1 is enabled, the behavior is
+   * not guaranteed"
+   */
+
+  uint32_t rcc_gcr = getreg32(STM32_RCC_GCR);
+  rcc_gcr |= RCC_GCR_WW1RSC;
+  putreg32(rcc_gcr, STM32_RCC_GCR);
+  regval |= RCC_APB3ENR_WWDG1EN;
+
+#endif
 
   putreg32(regval, STM32_RCC_APB3ENR);   /* Enable peripherals */
 }
@@ -566,19 +651,19 @@ static inline void rcc_enableapb4(void)
 
   regval = getreg32(STM32_RCC_APB4ENR);
 
-#ifdef CONFIG_STM32H7_SYSCFG
+#ifdef CONFIG_STM32_SYSCFG
   /* System configuration controller clock enable */
 
   regval |= RCC_APB4ENR_SYSCFGEN;
 #endif
 
-#ifdef CONFIG_STM32H7_I2C4
+#ifdef CONFIG_STM32_I2C4
   /* I2C4 clock enable */
 
   regval |= RCC_APB4ENR_I2C4EN;
 #endif
 
-#ifdef CONFIG_STM32H7_SPI6
+#ifdef CONFIG_STM32_SPI6
   /* SPI6 clock enable */
 
   regval |= RCC_APB4ENR_SPI6EN;
@@ -677,7 +762,7 @@ void stm32_stdclockconfig(void)
     }
 #endif
 
-#ifdef CONFIG_STM32H7_HSI48
+#ifdef CONFIG_STM32_HSI48
   /* Enable HSI48 */
 
   regval  = getreg32(STM32_RCC_CR);
@@ -691,7 +776,7 @@ void stm32_stdclockconfig(void)
     }
 #endif
 
-#ifdef CONFIG_STM32H7_CSI
+#ifdef CONFIG_STM32_CSI
   /* Enable CSI */
 
   regval  = getreg32(STM32_RCC_CR);
@@ -747,7 +832,7 @@ void stm32_stdclockconfig(void)
       regval |= STM32_RCC_D3CFGR_D3PPRE;
       putreg32(regval, STM32_RCC_D3CFGR);
 
-#ifdef CONFIG_STM32H7_RTC_HSECLOCK
+#ifdef CONFIG_STM32_RTC_HSECLOCK
       /* Set the RTC clock divisor */
 
       regval = getreg32(STM32_RCC_CFGR);
@@ -756,7 +841,7 @@ void stm32_stdclockconfig(void)
       putreg32(regval, STM32_RCC_CFGR);
 #endif
 
-      /* Configure PLL123 clock source and multipiers */
+      /* Configure PLL123 clock source and multipliers */
 
 #ifdef STM32_BOARD_USEHSI
       regval = (RCC_PLLCKSELR_PLLSRC_HSI |
@@ -862,17 +947,10 @@ void stm32_stdclockconfig(void)
        * N.B. The system shall be power cycled before writing a new value.
        */
 
-#if defined(CONFIG_STM32H7_PWR_DIRECT_SMPS_SUPPLY)
       regval = getreg32(STM32_PWR_CR3);
-      regval &= ~(STM32_PWR_CR3_BYPASS | STM32_PWR_CR3_LDOEN |
-          STM32_PWR_CR3_SMPSEXTHP | STM32_PWR_CR3_SMPSLEVEL_MASK);
-      regval |= STM32_PWR_CR3_LDOESCUEN;
+      regval &= STM32_PWR_CR3_MASK;
+      regval |= STM32_PWR_CR3_SELECTION;
       putreg32(regval, STM32_PWR_CR3);
-#else
-      regval = getreg32(STM32_PWR_CR3);
-      regval |= STM32_PWR_CR3_LDOEN | STM32_PWR_CR3_LDOESCUEN;
-      putreg32(regval, STM32_PWR_CR3);
-#endif
 
       /* Set the voltage output scale */
 
@@ -885,11 +963,13 @@ void stm32_stdclockconfig(void)
         {
         }
 
+#ifndef CONFIG_STM32_PWR_IGNORE_ACTVOSRDY
       /* See Reference manual Section 5.4.1, System supply startup */
 
       while ((getreg32(STM32_PWR_CSR1) & PWR_CSR1_ACTVOSRDY) == 0)
         {
         }
+#endif
 
 #if STM32_VOS_OVERDRIVE && (STM32_PWR_VOS_SCALE == PWR_D3CR_VOS_SCALE_1)
       /* Over-drive support for VOS1 */
@@ -989,12 +1069,30 @@ void stm32_stdclockconfig(void)
       putreg32(regval, STM32_RCC_D2CCIP2R);
 #endif
 
+      /* Configure USART2, 3, 4, 5, 7, and 8 kernel clock source selection */
+
+#if defined(STM32_RCC_D2CCIP2R_USART234578_SEL)
+      regval = getreg32(STM32_RCC_D2CCIP2R);
+      regval &= ~RCC_D2CCIP2R_USART234578SEL_MASK;
+      regval |= STM32_RCC_D2CCIP2R_USART234578_SEL;
+      putreg32(regval, STM32_RCC_D2CCIP2R);
+#endif
+
+      /* Configure USART1 and 6 kernel clock source selection */
+
+#if defined(STM32_RCC_D2CCIP2R_USART16_SEL)
+      regval = getreg32(STM32_RCC_D2CCIP2R);
+      regval &= ~RCC_D2CCIP2R_USART16SEL_MASK;
+      regval |= STM32_RCC_D2CCIP2R_USART16_SEL;
+      putreg32(regval, STM32_RCC_D2CCIP2R);
+#endif
+
       /* Configure ADC source clock */
 
-#if defined(STM32_RCC_D3CCIPR_ADCSEL)
+#if defined(STM32_RCC_D3CCIPR_ADCSRC)
       regval = getreg32(STM32_RCC_D3CCIPR);
       regval &= ~RCC_D3CCIPR_ADCSEL_MASK;
-      regval |= STM32_RCC_D3CCIPR_ADCSEL;
+      regval |= STM32_RCC_D3CCIPR_ADCSRC;
       putreg32(regval, STM32_RCC_D3CCIPR);
 #endif
 
@@ -1007,13 +1105,13 @@ void stm32_stdclockconfig(void)
       putreg32(regval, STM32_RCC_D2CCIP1R);
 #endif
 
-#if defined(CONFIG_STM32H7_IWDG) || defined(CONFIG_STM32H7_RTC_LSICLOCK)
+#if defined(CONFIG_STM32_IWDG) || defined(CONFIG_STM32_RTC_LSICLOCK)
       /* Low speed internal clock source LSI */
 
       stm32_rcc_enablelsi();
 #endif
 
-#if defined(CONFIG_STM32H7_RTC_LSECLOCK)
+#if defined(CONFIG_STM32_RTC_LSECLOCK)
       /* Low speed external clock source LSE
        *
        * TODO: There is another case where the LSE needs to

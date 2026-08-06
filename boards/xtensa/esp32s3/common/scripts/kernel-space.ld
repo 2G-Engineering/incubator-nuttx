@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s3/common/scripts/kernel-space.ld
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -19,6 +21,8 @@
  ****************************************************************************/
 
 /* Provide these so there is no need for using config files for this */
+
+#include "esp32s3_aliases.ld"
 
 __uirom_start = ORIGIN(UIROM);
 __uirom_size = LENGTH(UIROM);
@@ -102,13 +106,34 @@ SECTIONS
 
     _iram_text_start = ABSOLUTE(.);
     *(.iram1 .iram1.*)
-    esp32s3_userspace.*(.literal .text .literal.* .text.*)
+
     *librtc.a:(.literal .text .literal.* .text.*)
     *libkarch.a:esp32s3_spiflash.*(.literal .text .literal.* .text.*)
+    *libkarch.a:cache_hal.*(.literal .text .literal.* .text.*)
+    *libkarch.a:esp_rom_cache_esp32s2_esp32s3.*(.literal .text .literal.* .text.*)
     *libkarch.a:xtensa_cpupause.*(.literal .text .literal.* .text.*)
     *libkarch.a:xtensa_copystate.*(.literal .text .literal.* .text.*)
     *libkarch.a:xtensa_interruptcontext.*(.literal .text .literal.* .text.*)
     *libkarch.a:xtensa_testset.*(.literal .text .literal.* .text.*)
+    *libkarch.a:esp_app_desc.*(.literal .text .literal.* .text.*)
+    *libkarch.a:intr_alloc.*(.literal.esp_intr_get_intno .text.esp_intr_get_intno)
+    *libkarch.a:xtensa_intr.*(.literal.xt_get_interrupt_handler .text.xt_get_interrupt_handler)
+    *libkarch.a:xtensa_intr.*(.literal.xt_get_interrupt_handler_arg .text.xt_get_interrupt_handler_arg)
+    *libkarch.a:esp_spiflash.*(.literal .text .literal.* .text.*)
+    *libkarch.a:esp_flash_api.*(.text .text.* .literal .literal.*)
+    *libkarch.a:esp_flash_spi_init.*(.text .text.* .literal .literal.*)
+    *libkarch.a:spi_flash_hal_iram.*(.literal .literal.* .text .text.*)
+    *libkarch.a:spi_flash_encrypt_hal_iram.*(.text .text.* .literal .literal.*)
+    *libkarch.a:spi_flash_hal_gpspi.*(.literal .literal.* .text .text.*)
+    *libkarch.a:spi_flash_chip*.*(.literal .literal.* .text .text.*)
+    *libkarch.a:spi_flash_wrap.*(.literal .literal.* .text .text.*)
+    *libkarch.a:spi_flash_os_func_noos.*(.literal .literal.* .text .text.*)
+    *libkarch.a:spi_flash_os_func_app.*(.literal .literal.* .text .text.*)
+    *libkarch.a:flash_brownout_hook.*(.literal .literal.* .text .text.*)
+    *libkarch.a:esp_cache_utils.*(.literal .literal.* .text .text.*)
+    *libkarch.a:esp_cache.*(.literal .literal.* .text .text.*)
+    *libkarch.a:cache_utils.*(.literal .literal.* .text .text.*)
+    *libkarch.a:memspi_host_driver.*(.literal .literal.* .text .text.*)
 
     *libsched.a:sched_suspendscheduler.*(.literal .text .literal.* .text.*)
     *libsched.a:sched_note.*(.literal .text .literal.* .text.*)
@@ -116,6 +141,14 @@ SECTIONS
     *libsched.a:spinlock.*(.literal .text .literal.* .text.*)
     *libsched.a:irq_csection.*(.literal .text .literal.* .text.*)
     *libsched.a:irq_dispatch.*(.literal .text .literal.* .text.*)
+
+    *libc.a:*lib_instrument.*(.text .text.* .literal .literal.*)
+
+    *(.wifirxiram .wifirxiram.*)
+    *(.wifi0iram  .wifi0iram.*)
+    *(.wifiorslpiram .wifiorslpiram.*)
+    *(.wifislpiram .wifislpiram.*)
+    *(.wifislprxiram .wifislprxiram.*)
 
     /* align + add 16B for CPU dummy speculative instr. fetch */
 
@@ -161,6 +194,8 @@ SECTIONS
     *libsched.a:irq_csection.*(.bss  .bss.*  COMMON)
     *libsched.a:irq_dispatch.*(.bss  .bss.*  COMMON)
 
+    *libc.a:*lib_instrument.*(.bss  .bss.*  COMMON)
+
     . = ALIGN(8);
     _ebss = ABSOLUTE(.);
   } >KDRAM
@@ -193,12 +228,27 @@ SECTIONS
     KEEP (*(.jcr))
     *(.dram1 .dram1.*)
     *libphy.a:(.rodata  .rodata.*)
-    esp32s3_userspace.*(.rodata  .rodata.*)
     *libkarch.a:esp32s3_spiflash.*(.rodata  .rodata.*)
     *libkarch.a:xtensa_cpupause.*(.rodata  .rodata.*)
     *libkarch.a:xtensa_copystate.*(.rodata  .rodata.*)
     *libkarch.a:xtensa_interruptcontext.*(.rodata  .rodata.*)
     *libkarch.a:xtensa_testset.*(.rodata  .rodata.*)
+    *libkarch.a:esp_spiflash.*(.rodata .rodata.*)
+    *libkarch.a:esp_flash_api.*(.rodata .rodata.*)
+    *libkarch.a:esp_flash_spi_init.*(.rodata .rodata.*)
+    *libkarch.a:spi_flash_hal_iram.*(.rodata .rodata.*)
+    *libkarch.a:spi_flash_encrypt_hal_iram.*(.rodata .rodata.*)
+    *libkarch.a:spi_flash_hal_gpspi.*(.rodata .rodata.*)
+    *libkarch.a:spi_flash_chip*.*(.rodata .rodata.*)
+    *libkarch.a:spi_flash_wrap.*(.rodata .rodata.*)
+    *libkarch.a:spi_flash_os_func_noos.*(.rodata .rodata.*)
+    *libkarch.a:spi_flash_os_func_app.*(.rodata .rodata.*)
+    *libkarch.a:flash_brownout_hook.*(.rodata .rodata.*)
+    *libkarch.a:esp_cache.*(.rodata .rodata.*)
+    *libkarch.a:cache_utils.*(.rodata .rodata.*)
+    *libkarch.a:memspi_host_driver.*(.rodata .rodata.*)
+    *libkarch.a:esp_mmu_map.*(.rodata .rodata.*)
+    *libkarch.a:ext_mem_layout.*(.rodata .rodata.*)
 
     *libsched.a:sched_suspendscheduler.*(.rodata  .rodata.*)
     *libsched.a:sched_thistask.*(.rodata  .rodata.*)
@@ -206,6 +256,9 @@ SECTIONS
     *libsched.a:spinlock.*(.rodata  .rodata.*)
     *libsched.a:irq_csection.*(.rodata  .rodata.*)
     *libsched.a:irq_dispatch.*(.rodata  .rodata.*)
+
+    *libc.a:*lib_instrument.*(.rodata  .rodata.*)
+    *libc.a:arch_atomic.*(.rodata .rodata.*)
 
     . = ALIGN(4);
     _edata = ABSOLUTE(.);
@@ -218,6 +271,8 @@ SECTIONS
   .flash.text :
   {
     _stext = .;
+    _instruction_reserved_start = ABSOLUTE(.);
+
     *(.literal .text .literal.* .text.* .stub .gnu.warning .gnu.linkonce.literal.* .gnu.linkonce.t.*.literal .gnu.linkonce.t.*)
     *(.irom0.text) /* catch stray ICACHE_RODATA_ATTR */
     *(.fini.literal)
@@ -232,6 +287,7 @@ SECTIONS
 
     . += 16;
 
+    _instruction_reserved_end = ABSOLUTE(.);
     _etext = .;
   } >KIROM
 
@@ -259,10 +315,20 @@ SECTIONS
 
   .flash.rodata : ALIGN(0x10)
   {
+    _rodata_reserved_start = ABSOLUTE(.);
     _srodata = ABSOLUTE(.);
+
+    /* !DO NOT PUT ANYTHING BEFORE THIS! */
+    /* Should be the first.  App version info. */
+    *(.rodata_desc .rodata_desc.*)
 
     *(.rodata)
     *(.rodata.*)
+    *(.rodata_wlog_verbose.*)
+    *(.rodata_wlog_debug.*)
+    *(.rodata_wlog_info.*)
+    *(.rodata_wlog_warning.*)
+    *(.rodata_wlog_error.*)
     *(.irom1.text) /* catch stray ICACHE_RODATA_ATTR */
     *(.gnu.linkonce.r.*)
     *(.rodata1)
@@ -275,19 +341,6 @@ SECTIONS
     *(.eh_frame)
 
     . = ALIGN(4);
-
-    /* C++ constructor and destructor tables, properly ordered: */
-
-    _sinit = ABSOLUTE(.);
-    KEEP (*crtbegin.o(.ctors))
-    KEEP (*(EXCLUDE_FILE (*crtend.o) .ctors))
-    KEEP (*(SORT(.ctors.*)))
-    KEEP (*(.ctors))
-    _einit = ABSOLUTE(.);
-    KEEP (*crtbegin.o(.dtors))
-    KEEP (*(EXCLUDE_FILE (*crtend.o) .dtors))
-    KEEP (*(SORT(.dtors.*)))
-    KEEP (*(.dtors))
 
     /* C++ exception handlers table: */
 
@@ -309,5 +362,53 @@ SECTIONS
     _lit4_end = ABSOLUTE(.);
     _rodata_reserved_end = ABSOLUTE(.);
     . = ALIGN(4);
+
+    /* C++ constructor tables. Those are initialized by lib_cxx_initialize
+     * which calls constructor functions that may be on common source code.
+     */
+
+    . = ALIGN(4);
+    _sinit = ABSOLUTE(.);
+    __init_array_start = ABSOLUTE(.);
+    KEEP (*(EXCLUDE_FILE (*crtend.* *crtbegin.*) .ctors SORT(.ctors.*)))
+    __init_array_end = ABSOLUTE(.);
+    _einit = ABSOLUTE(.);
+
+    /* Addresses of memory regions reserved via SOC_RESERVE_MEMORY_REGION() */
+
+    . = ALIGN(4);
+    soc_reserved_memory_region_start = ABSOLUTE(.);
+    KEEP (*(.reserved_memory_address))
+    soc_reserved_memory_region_end = ABSOLUTE(.);
+
+    /* System init functions registered via ESP_SYSTEM_INIT_FN */
+
+    . = ALIGN(4);
+    _esp_system_init_fn_array_start = ABSOLUTE(.);
+    KEEP (*(SORT_BY_INIT_PRIORITY(.esp_system_init_fn.*)))
+    _esp_system_init_fn_array_end = ABSOLUTE(.);
+
+    . = ALIGN(4);
   } >KDROM
+
+  /*
+   * This section holds RTC data that should have fixed addresses.
+   * The data are not initialized at power-up and are retained during deep sleep.
+   */
+
+  .rtc_reserved (NOLOAD):
+  {
+    . = ALIGN(4);
+    _rtc_reserved_start = ABSOLUTE(.);
+
+    /* New data can only be added here to ensure existing data are not moved.
+     * Because data have adhered to the end of the segment and code is relied
+     * on it.
+     * >> put new data here <<
+     */
+
+    *(.rtc_timer_data_in_rtc_mem .rtc_timer_data_in_rtc_mem.*)
+    KEEP(*(.bootloader_data_rtc_mem .bootloader_data_rtc_mem.*))
+    _rtc_reserved_end = ABSOLUTE(.);
+  } > rtc_reserved_seg
 }

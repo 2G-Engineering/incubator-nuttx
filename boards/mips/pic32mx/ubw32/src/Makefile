@@ -1,6 +1,8 @@
 ############################################################################
 # boards/mips/pic32mx/ubw32/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -24,10 +26,6 @@ CSRCS = pic32_boot.c pic32_leds.c
 
 ifeq ($(CONFIG_ARCH_BUTTONS),y)
 CSRCS += pic32_buttons.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += pic32_appinit.c
 endif
 
 ifeq ($(CONFIG_PIC32MX_USBDEV),y)

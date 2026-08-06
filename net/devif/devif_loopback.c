@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/devif/devif_loopback.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/net/ip.h>
 #include <nuttx/net/pkt.h>
@@ -62,7 +64,7 @@ bool devif_is_loopback(FAR struct net_driver_s *dev)
 
 #ifdef CONFIG_NET_IPv6
       if ((IPv6BUF->vtc & IP_VERSION_MASK) == IPv6_VERSION &&
-          net_ipv6addr_hdrcmp(IPv6BUF->destipaddr, dev->d_ipv6addr))
+          NETDEV_IS_MY_V6ADDR(dev, IPv6BUF->destipaddr))
         {
           return true;
         }

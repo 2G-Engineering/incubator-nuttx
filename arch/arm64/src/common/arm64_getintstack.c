@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm64/src/common/arm64_getintstack.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,13 +38,9 @@
  * Name: up_get_intstackbase
  ****************************************************************************/
 
-#if CONFIG_ARCH_INTERRUPTSTACK > 7
-uintptr_t up_get_intstackbase(void)
+#if !defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
+uintptr_t up_get_intstackbase(int cpu)
 {
-#ifdef CONFIG_SMP
-  return arm64_intstack_alloc();
-#else
   return (uintptr_t)g_interrupt_stack;
-#endif
 }
 #endif

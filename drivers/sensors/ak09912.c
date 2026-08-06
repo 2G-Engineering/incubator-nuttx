@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/ak09912.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -28,7 +43,7 @@
 #include <stdlib.h>
 #include <fixedmath.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <arch/types.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
@@ -85,7 +100,7 @@
  * The unit is 10 millisecond.
  */
 
-#define AK09912_POLLING_TIMEOUT (1)  // 10 ms
+#define AK09912_POLLING_TIMEOUT (1)  /* 10 ms */
 
 /* The parameter for compensating. */
 
@@ -127,7 +142,7 @@ do {                                     \
     ((low & 0xff) | ((high << 8) & ~0xff))
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 /* Structure for compensating data. */
@@ -190,7 +205,7 @@ static const struct file_operations g_ak09912fops =
  * Name: ak09912_getreg8
  *
  * Description:
- *   Read from an 8-bit BMP280 register
+ *   Read from an 8-bit ak09912 register
  *
  ****************************************************************************/
 
@@ -227,7 +242,7 @@ static uint8_t ak09912_getreg8(FAR struct ak09912_dev_s *priv,
  * Name: ak09912_putreg8
  *
  * Description:
- *   Write to an 8-bit BMP280 register
+ *   Write to an 8-bit ak09912 register
  *
  ****************************************************************************/
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/netdb/lib_gethostentbynamer.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 #include <netdb.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arpa/inet.h>
 
@@ -42,10 +44,8 @@
 #include "netdb/lib_dns.h"
 #include "netdb/lib_netdb.h"
 
-#ifdef CONFIG_LIBC_NETDB
-
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 /* This is the layout of the caller provided memory area */
@@ -228,7 +228,10 @@ static int lib_localhost(FAR const char *name, FAR struct hostent_s *host,
   FAR struct hostent_info_s *info;
   FAR char *dest;
   int namelen;
+
+#if defined(CONFIG_NET_IPv4) || defined(CONFIG_NET_IPv6)
   int i = 0;
+#endif
 
   if (strcmp(name, g_lo_hostname) == 0)
     {
@@ -430,7 +433,7 @@ static int lib_find_answer(FAR const char *name, FAR struct hostent_s *host,
 
 #ifdef CONFIG_NETDB_DNSCLIENT
 static int lib_dns_query(FAR const char *hostname,
-                         FAR union dns_addr_u *addr, int *naddr)
+                         FAR union dns_addr_u *addr, FAR int *naddr)
 {
   /* Perform the query to get the IP address */
 
@@ -499,15 +502,15 @@ static int lib_dns_lookup(FAR const char *name, FAR struct hostent_s *host,
 
   naddr = (buflen - (namelen + 1)) / sizeof(union dns_addr_u);
   DEBUGASSERT(naddr >= 1);
+
+  /* We can read more than maximum, limit here. */
+
+  naddr = MIN(naddr, CONFIG_NETDB_MAX_IPADDR);
   ret = lib_dns_query(name, (FAR union dns_addr_u *)ptr, &naddr);
   if (ret < 0)
     {
       return ret;
     }
-
-  /* We can read more than maximum, limit here. */
-
-  naddr = MIN(naddr, CONFIG_NETDB_MAX_IPADDR);
 
   for (i = 0; i < naddr; i++)
     {
@@ -786,4 +789,3 @@ int gethostentbyname_r(FAR const char *name,
   return ERROR;
 }
 
-#endif /* CONFIG_LIBC_NETDB */

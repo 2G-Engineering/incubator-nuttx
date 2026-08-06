@@ -1,6 +1,8 @@
 /****************************************************************************
  * binfmt/libnxflat/libnxflat_init.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,12 +31,14 @@
 #include <string.h>
 #include <fcntl.h>
 #include <nxflat.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <arpa/inet.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/binfmt/nxflat.h>
+
+#include "libnxflat.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -94,7 +98,7 @@ int nxflat_init(const char *filename, struct nxflat_loadinfo_s *loadinfo)
 
   /* Open the binary file */
 
-  ret = file_open(&loadinfo->file, filename, O_RDONLY);
+  ret = file_open(&loadinfo->file, filename, O_RDONLY | O_CLOEXEC);
   if (ret < 0)
     {
       berr("ERROR: Failed to open NXFLAT binary %s: %d\n", filename, ret);

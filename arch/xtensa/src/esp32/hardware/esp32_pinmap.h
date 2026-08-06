@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/xtensa/src/esp32/hardware/esp32_pinmap.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,8 +31,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/**
- * Peripheral' fixed mapped pins by IOMUX, these GPIO pins can have better
+/* Peripheral' fixed mapped pins by IOMUX, these GPIO pins can have better
  * speed performance.
  */
 

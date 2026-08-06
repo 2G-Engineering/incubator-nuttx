@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/mtd/mtd_config.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -37,9 +39,11 @@
 #include <stdbool.h>
 #include <string.h>
 #include <poll.h>
+#include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/fs/fs.h>
 
 #include <nuttx/mutex.h>
@@ -572,7 +576,7 @@ static off_t mtdconfig_ramconsolidate(FAR struct mtdconfig_struct_s *dev)
 
   /* Allocate a consolidation buffer */
 
-  pbuf = (FAR uint8_t *)kmm_malloc(dev->erasesize);
+  pbuf = kmm_malloc(dev->erasesize);
   if (pbuf == NULL)
     {
       /* Unable to allocate buffer, can't consolidate! */
@@ -772,7 +776,7 @@ static off_t  mtdconfig_consolidate(FAR struct mtdconfig_struct_s *dev)
 
   /* Allocate a small buffer for moving data */
 
-  pbuf = (FAR uint8_t *)kmm_malloc(dev->blocksize);
+  pbuf = kmm_malloc(dev->blocksize);
   if (pbuf == NULL)
     {
       return 0;
@@ -1164,7 +1168,7 @@ static int mtdconfig_setconfig(FAR struct mtdconfig_struct_s *dev,
 
   /* Allocate a temp block buffer */
 
-  dev->buffer = (FAR uint8_t *)kmm_malloc(dev->blocksize);
+  dev->buffer = kmm_malloc(dev->blocksize);
   if (dev->buffer == NULL)
     {
       return -ENOMEM;
@@ -1392,7 +1396,7 @@ static int mtdconfig_getconfig(FAR struct mtdconfig_struct_s *dev,
 
   /* Allocate a temp block buffer */
 
-  dev->buffer = (FAR uint8_t *)kmm_malloc(dev->blocksize);
+  dev->buffer = kmm_malloc(dev->blocksize);
   if (dev->buffer == NULL)
     {
       return -ENOMEM;
@@ -1423,14 +1427,17 @@ static int mtdconfig_getconfig(FAR struct mtdconfig_struct_s *dev,
 
       /* Perform the read */
 
-      ret = mtdconfig_readbytes(dev, offset + sizeof(hdr), pdata->configdata,
-                                bytes_to_read);
-      if (ret != OK)
+      if (pdata->configdata && bytes_to_read)
         {
-          /* Error reading the data */
+          ret = mtdconfig_readbytes(dev, offset + sizeof(hdr),
+                                    pdata->configdata, bytes_to_read);
+          if (ret != OK)
+            {
+              /* Error reading the data */
 
-          ret = -EIO;
-          goto errout;
+              ret = -EIO;
+              goto errout;
+            }
         }
 
       /* Set return data length to match the config item length */
@@ -1460,7 +1467,7 @@ static int mtdconfig_deleteconfig(FAR struct mtdconfig_struct_s *dev,
 
   /* Allocate a temp block buffer */
 
-  dev->buffer = (FAR uint8_t *)kmm_malloc(dev->blocksize);
+  dev->buffer = kmm_malloc(dev->blocksize);
   if (dev->buffer == NULL)
     {
       return -ENOMEM;
@@ -1508,7 +1515,7 @@ static int mtdconfig_firstconfig(FAR struct mtdconfig_struct_s *dev,
 
   /* Allocate a temp block buffer */
 
-  dev->buffer = (FAR uint8_t *)kmm_malloc(dev->blocksize);
+  dev->buffer = kmm_malloc(dev->blocksize);
   if (dev->buffer == NULL)
     {
       return -ENOMEM;
@@ -1576,7 +1583,7 @@ static int mtdconfig_nextconfig(FAR struct mtdconfig_struct_s *dev,
 
   /* Allocate a temp block buffer */
 
-  dev->buffer = (FAR uint8_t *)kmm_malloc(dev->blocksize);
+  dev->buffer = kmm_malloc(dev->blocksize);
   if (dev->buffer == NULL)
     {
       return -ENOMEM;
@@ -1678,7 +1685,7 @@ static int mtdconfig_ioctl(FAR struct file *filep, int cmd,
 
       case CFGDIOC_FIRSTCONFIG:
 
-        /* Get the the first config item */
+        /* Get the first config item */
 
         pdata = (FAR struct config_data_s *)arg;
         ret = mtdconfig_firstconfig(dev, pdata);
@@ -1724,14 +1731,15 @@ static int mtdconfig_poll(FAR struct file *filep, FAR struct pollfd *fds,
  ****************************************************************************/
 
 /****************************************************************************
- * Name: mtdconfig_register
+ * Name: mtdconfig_register_by_path
  *
  * Description:
- *   Register a /dev/config device backed by an MTD
+ *   Register a "path" device backed by an MTD
  *
  ****************************************************************************/
 
-int mtdconfig_register(FAR struct mtd_dev_s *mtd)
+int mtdconfig_register_by_path(FAR struct mtd_dev_s *mtd,
+                               FAR const char *path)
 {
   int ret = -ENOMEM;
   struct mtdconfig_struct_s *dev;
@@ -1776,11 +1784,58 @@ int mtdconfig_register(FAR struct mtd_dev_s *mtd)
         }
 
       nxmutex_init(&dev->lock);
-      register_driver("/dev/config", &g_mtdconfig_fops, 0666, dev);
+      register_driver(path, &g_mtdconfig_fops, 0666, dev);
     }
 
 errout:
   return ret;
+}
+
+/****************************************************************************
+ * Name: mtdconfig_register
+ *
+ * Description:
+ *   Register a /dev/config device backed by an MTD
+ *
+ ****************************************************************************/
+
+int mtdconfig_register(FAR struct mtd_dev_s *mtd)
+{
+  return mtdconfig_register_by_path(mtd, "/dev/config");
+}
+
+/****************************************************************************
+ * Name: mtdconfig_unregister_by_path
+ *
+ * Description:
+ *   Unregister a "path" device backed by a MTD.
+ *
+ ****************************************************************************/
+
+int mtdconfig_unregister_by_path(FAR const char *path)
+{
+  int ret;
+  struct file file;
+  FAR struct inode *inode;
+  FAR struct mtdconfig_struct_s *dev;
+
+  ret = file_open(&file, path, O_CLOEXEC);
+  if (ret < 0)
+    {
+      ferr("ERROR: open %s failed: %d\n", path, ret);
+      return ret;
+    }
+
+  inode = file.f_inode;
+  dev = inode->i_private;
+  nxmutex_destroy(&dev->lock);
+  kmm_free(dev);
+
+  file_close(&file);
+
+  unregister_driver(path);
+
+  return OK;
 }
 
 /****************************************************************************
@@ -1793,28 +1848,7 @@ errout:
 
 int mtdconfig_unregister(void)
 {
-  int ret;
-  struct file file;
-  FAR struct inode *inode;
-  FAR struct mtdconfig_struct_s *dev;
-
-  ret = file_open(&file, "/dev/config", 0);
-  if (ret < 0)
-    {
-      ferr("ERROR: open /dev/config failed: %d\n", ret);
-      return ret;
-    }
-
-  inode = file.f_inode;
-  dev = (FAR struct mtdconfig_struct_s *)inode->i_private;
-  nxmutex_destroy(&dev->lock);
-  kmm_free(dev);
-
-  file_close(&file);
-
-  unregister_driver("/dev/config");
-
-  return OK;
+  return mtdconfig_unregister_by_path("/dev/config");
 }
 
 #endif /* CONFIG_MTD_CONFIG */

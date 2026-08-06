@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/mount/fs_automount.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,12 +35,13 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/wdog.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/fs/automount.h>
+#include <nuttx/lib/lib.h>
 
 #ifdef CONFIG_FS_AUTOMOUNTER_DRIVER
 #  include <stdio.h>
@@ -49,6 +52,7 @@
 #endif /* CONFIG_FS_AUTOMOUNTER_DRIVER */
 
 #include "inode/inode.h"
+#include "fs_heap.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -213,8 +217,7 @@ static int automount_open(FAR struct file *filep)
 
   /* Allocate a new open structure */
 
-  opriv = (FAR struct automounter_open_s *)kmm_zalloc(
-      sizeof(struct automounter_open_s));
+  opriv = fs_heap_zalloc(sizeof(struct automounter_open_s));
   if (opriv == NULL)
     {
       ferr("ERROR: Failed to allocate open structure\n");
@@ -250,11 +253,11 @@ static int automount_close(FAR struct file *filep)
   FAR struct automounter_open_s *prev;
   int ret;
 
-  DEBUGASSERT(filep && filep->f_priv && filep->f_inode);
+  DEBUGASSERT(filep->f_priv);
   opriv = filep->f_priv;
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
-  priv  = (FAR struct automounter_state_s *)inode->i_private;
+  priv  = inode->i_private;
 
   /* Get exclusive access to the driver structure */
 
@@ -296,7 +299,7 @@ static int automount_close(FAR struct file *filep)
 
   /* And free the open structure */
 
-  kmm_free(opriv);
+  fs_heap_free(opriv);
 
   ret = OK;
 
@@ -317,11 +320,11 @@ static int automount_ioctl(FAR struct file *filep, int cmd,
   FAR struct automounter_open_s *opriv;
   int ret;
 
-  DEBUGASSERT(filep && filep->f_priv && filep->f_inode);
+  DEBUGASSERT(filep->f_priv);
   opriv = filep->f_priv;
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
-  priv  = (FAR struct automounter_state_s *)inode->i_private;
+  priv  = inode->i_private;
 
   /* Get exclusive access to the driver structure */
 
@@ -402,11 +405,7 @@ static int automount_findinode(FAR const char *path)
 
   /* Get exclusive access to the in-memory inode tree. */
 
-  ret = inode_lock();
-  if (ret < 0)
-    {
-      return ret;
-    }
+  inode_rlock();
 
   /* Find the inode */
 
@@ -440,7 +439,7 @@ static int automount_findinode(FAR const char *path)
 
   /* Relinquish our exclusive access to the inode try and return the result */
 
-  inode_unlock();
+  inode_runlock();
   RELEASE_SEARCH(&desc);
   return ret;
 }
@@ -660,8 +659,6 @@ static void automount_timeout(wdparm_t arg)
   ret = work_queue(LPWORK, &priv->work, automount_worker, priv, 0);
   if (ret < 0)
     {
-      /* NOTE: Currently, work_queue only returns success */
-
       ferr("ERROR: Failed to schedule work: %d\n", ret);
     }
 }
@@ -773,8 +770,6 @@ static int automount_interrupt(FAR const struct automount_lower_s *lower,
                    priv->lower->ddelay);
   if (ret < 0)
     {
-      /* NOTE: Currently, work_queue only returns success */
-
       ferr("ERROR: Failed to schedule work: %d\n", ret);
     }
   else
@@ -811,7 +806,11 @@ FAR void *automount_initialize(FAR const struct automount_lower_s *lower)
   FAR struct automounter_state_s *priv;
   int ret;
 #ifdef CONFIG_FS_AUTOMOUNTER_DRIVER
-  char devpath[PATH_MAX];
+  FAR char *devpath = lib_get_pathbuffer();
+  if (devpath == NULL)
+    {
+      return NULL;
+    }
 #endif /* CONFIG_FS_AUTOMOUNTER_DRIVER */
 
   finfo("lower=%p\n", lower);
@@ -819,12 +818,13 @@ FAR void *automount_initialize(FAR const struct automount_lower_s *lower)
 
   /* Allocate an auto-mounter state structure */
 
-  priv = (FAR struct automounter_state_s *)
-    kmm_zalloc(sizeof(struct automounter_state_s));
-
+  priv = fs_heap_zalloc(sizeof(struct automounter_state_s));
   if (priv == NULL)
     {
       ferr("ERROR: Failed to allocate state structure\n");
+#ifdef CONFIG_FS_AUTOMOUNTER_DRIVER
+      lib_put_pathbuffer(devpath);
+#endif /* CONFIG_FS_AUTOMOUNTER_DRIVER */
       return NULL;
     }
 
@@ -844,8 +844,6 @@ FAR void *automount_initialize(FAR const struct automount_lower_s *lower)
                    priv->lower->ddelay);
   if (ret < 0)
     {
-      /* NOTE: Currently, work_queue only returns success */
-
       ferr("ERROR: Failed to schedule work: %d\n", ret);
     }
 
@@ -857,10 +855,11 @@ FAR void *automount_initialize(FAR const struct automount_lower_s *lower)
 
   /* Register driver */
 
-  snprintf(devpath, sizeof(devpath),
+  snprintf(devpath, PATH_MAX,
            CONFIG_FS_AUTOMOUNTER_VFS_PATH "%s", lower->mountpoint);
 
   ret = register_driver(devpath, &g_automount_fops, 0444, priv);
+  lib_put_pathbuffer(devpath);
   if (ret < 0)
     {
       ferr("ERROR: Failed to register automount driver: %d\n", ret);
@@ -917,12 +916,17 @@ void automount_uninitialize(FAR void *handle)
 #ifdef CONFIG_FS_AUTOMOUNTER_DRIVER
   if (priv->registered)
     {
-      char devpath[PATH_MAX];
+      FAR char *devpath = lib_get_pathbuffer();
+      if (devpath == NULL)
+        {
+          return;
+        }
 
-      snprintf(devpath, sizeof(devpath),
+      snprintf(devpath, PATH_MAX,
                CONFIG_FS_AUTOMOUNTER_VFS_PATH "%s", lower->mountpoint);
 
       unregister_driver(devpath);
+      lib_put_pathbuffer(devpath);
     }
 
   nxmutex_destroy(&priv->lock);
@@ -934,5 +938,5 @@ void automount_uninitialize(FAR void *handle)
 
   /* And free the state structure */
 
-  kmm_free(priv);
+  fs_heap_free(priv);
 }

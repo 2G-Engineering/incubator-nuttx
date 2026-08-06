@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/inet/ipv4_build_header.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,7 +25,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <nuttx/net/ip.h>
 #include <nuttx/net/netconfig.h>
 
@@ -57,6 +59,7 @@ static uint16_t g_ipid;
  *   src_ip     Source IPv4 address
  *   dst_ip     Destination IPv4 address
  *   ttl        Time to live(IPv4)
+ *   tos        Type of Service(IPv4)
  *   opt        IPv4 options
  *
  * Returned Value:
@@ -71,7 +74,7 @@ uint16_t ipv4_build_header(FAR struct ipv4_hdr_s *ipv4, uint16_t total_len,
 {
   /* Initialize the IP header. */
 
-  ipv4->vhl         = 0x45;   /* orginal initial value like this */
+  ipv4->vhl         = 0x45;   /* original initial value like this */
   ipv4->tos         = tos;
   ipv4->len[0]      = (total_len >> 8);
   ipv4->len[1]      = (total_len & 0xff);
@@ -99,7 +102,10 @@ uint16_t ipv4_build_header(FAR struct ipv4_hdr_s *ipv4, uint16_t total_len,
   /* Calculate IP checksum. */
 
   ipv4->ipchksum    = 0;
+
+#ifdef CONFIG_NET_IPV4_CHECKSUMS
   ipv4->ipchksum    = ~ipv4_chksum(ipv4);
+#endif
 
   ninfo("IPv4 Packet: ipid:%d, length: %d\n", g_ipid, total_len);
 

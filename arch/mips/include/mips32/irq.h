@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/mips/include/mips32/irq.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -65,7 +67,7 @@
 #define REG_EPC_NDX         2
 #define REG_STATUS_NDX      3
 
-/* General pupose registers */
+/* General purpose registers */
 
 /* $0: Zero register does not need to be saved */
 
@@ -321,12 +323,7 @@ struct xcpt_syscall_s
 
 struct xcptcontext
 {
-  /* The following function pointer is non-NULL if there are pending signals
-   * to be processed.
-   */
-
-  void *sigdeliver; /* Actual type is sig_deliver_t */
-
+#ifdef CONFIG_ENABLE_ALL_SIGNALS
   /* These additional register save locations are used to implement the
    * signal delivery trampoline.
    *
@@ -338,6 +335,7 @@ struct xcptcontext
 
   uint32_t saved_epc;    /* Trampoline PC */
   uint32_t saved_status; /* Status with interrupts disabled. */
+#endif /* CONFIG_ENABLE_ALL_SIGNALS */
 
 #ifdef CONFIG_BUILD_KERNEL
   /* This is the saved address to use when returning from a user-space
@@ -381,7 +379,7 @@ struct xcptcontext
  *
  ****************************************************************************/
 
-static inline irqstate_t cp0_getstatus(void)
+static inline_function irqstate_t cp0_getstatus(void)
 {
   register irqstate_t status;
   __asm__ __volatile__
@@ -412,7 +410,7 @@ static inline irqstate_t cp0_getstatus(void)
  *
  ****************************************************************************/
 
-static inline void cp0_putstatus(irqstate_t status)
+static inline_function void cp0_putstatus(irqstate_t status)
 {
   __asm__ __volatile__
     (
@@ -445,7 +443,7 @@ static inline void cp0_putstatus(irqstate_t status)
  *
  ****************************************************************************/
 
-static inline uint32_t cp0_getcause(void)
+static inline_function uint32_t cp0_getcause(void)
 {
   register uint32_t cause;
   __asm__ __volatile__
@@ -476,7 +474,7 @@ static inline uint32_t cp0_getcause(void)
  *
  ****************************************************************************/
 
-static inline void cp0_putcause(uint32_t cause)
+static inline_function void cp0_putcause(uint32_t cause)
 {
   __asm__ __volatile__
     (

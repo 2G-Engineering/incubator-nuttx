@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/s32k1xx/s32k1xx_eeeprom.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "hardware/s32k1xx_ftfc.h"
 #include "hardware/s32k1xx_sim.h"
@@ -138,7 +140,7 @@ static uint32_t execute_ftfc_command()
   if (retval & (FTTC_FSTAT_MGSTAT0 | FTTC_FSTAT_FPVIOL |
                 FTTC_FSTAT_ACCERR | FTTC_FSTAT_RDCOLERR))
     {
-      return retval; /* Error has occured */
+      return retval; /* Error has occurred */
     }
 
   return retval;
@@ -156,8 +158,8 @@ static int eeed_open(struct inode *inode)
 {
   struct eeed_struct_s *dev;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (struct eeed_struct_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   /* Increment the open reference count */
 
@@ -181,8 +183,8 @@ static int eeed_close(struct inode *inode)
 {
   struct eeed_struct_s *dev;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (struct eeed_struct_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   /* Increment the open reference count */
 
@@ -206,8 +208,8 @@ static ssize_t eeed_read(struct inode *inode, unsigned char *buffer,
 {
   struct eeed_struct_s *dev;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (struct eeed_struct_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   finfo("sector: %" PRIu64 " nsectors: %u sectorsize: %d\n",
         start_sector, nsectors, dev->eeed_sectsize);
@@ -243,8 +245,8 @@ static ssize_t eeed_write(struct inode *inode,
 {
   struct eeed_struct_s *dev;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (struct eeed_struct_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   finfo("sector: %" PRIu64 " nsectors: %u sectorsize: %d\n",
         start_sector, nsectors, dev->eeed_sectsize);
@@ -288,10 +290,9 @@ static int eeed_geometry(struct inode *inode, struct geometry *geometry)
 
   finfo("Entry\n");
 
-  DEBUGASSERT(inode);
   if (geometry)
     {
-      dev = (struct eeed_struct_s *)inode->i_private;
+      dev = inode->i_private;
 
       memset(geometry, 0, sizeof(*geometry));
 
@@ -329,10 +330,10 @@ static int eeed_ioctl(struct inode *inode, int cmd, unsigned long arg)
 
   /* Only one ioctl command is supported */
 
-  DEBUGASSERT(inode && inode->i_private);
+  DEBUGASSERT(inode->i_private);
   if (cmd == BIOC_XIPBASE && ppv)
     {
-      dev  = (struct eeed_struct_s *)inode->i_private;
+      dev  = inode->i_private;
       *ppv = (void *)dev->eeed_buffer;
 
       finfo("ppv: %p\n", *ppv);
@@ -355,8 +356,8 @@ static int eeed_unlink(struct inode *inode)
 {
   struct eeed_struct_s *dev;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (struct eeed_struct_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   /* And free the block driver itself */
 
@@ -393,7 +394,7 @@ int s32k1xx_eeeprom_register(int minor, uint32_t size)
 
   /* Allocate a eeeprom device structure */
 
-  dev = (struct eeed_struct_s *)kmm_zalloc(sizeof(struct eeed_struct_s));
+  dev = kmm_zalloc(sizeof(struct eeed_struct_s));
   if (dev)
     {
       /* Initialize the eeeprom device structure */
@@ -404,7 +405,7 @@ int s32k1xx_eeeprom_register(int minor, uint32_t size)
 
       /* Create a eeeprom device name */
 
-      snprintf(devname, 16, "/dev/eeeprom%d", minor);
+      snprintf(devname, sizeof(devname), "/dev/eeeprom%d", minor);
 
       /* Inode private data is a reference to the eeeprom device structure */
 

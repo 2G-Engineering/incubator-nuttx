@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/pthread/pthread_once.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,8 +30,8 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <pthread.h>
-#include <sched.h>
-#include <debug.h>
+#include <nuttx/mutex.h>
+#include <nuttx/debug.h>
 
 /****************************************************************************
  * Public Functions
@@ -71,25 +73,20 @@ int pthread_once(FAR pthread_once_t *once_control,
       return EINVAL;
     }
 
-  /* Prohibit pre-emption while we test and set the once_control. */
-
-  sched_lock();
-
-  if (!*once_control)
+  if (!once_control->done)
     {
-      *once_control = true;
+      pthread_mutex_lock(&once_control->mutex);
 
-      /* Call the init_routine with pre-emption enabled. */
+      if (!once_control->done)
+        {
+          /* Call the init_routine with pre-emption enabled. */
 
-      sched_unlock();
-      init_routine();
-      return OK;
+          init_routine();
+          once_control->done = true;
+        }
+
+      pthread_mutex_unlock(&once_control->mutex);
     }
 
-  /* The init_routine has already been called.
-   * Restore pre-emption and return.
-   */
-
-  sched_unlock();
   return OK;
 }

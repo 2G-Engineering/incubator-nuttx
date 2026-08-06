@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/samv7/same70-qmtech/src/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,12 +22,10 @@
 
 include $(TOPDIR)/Make.defs
 
-CSRCS = sam_boot.c
+CSRCS = sam_boot.c sam_bringup.c
 
 ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += sam_appinit.c sam_bringup.c
-else ifeq ($(CONFIG_BOARD_LATE_INITIALIZE),y)
-CSRCS += sam_bringup.c
+CSRCS += sam_boardctl.c
 endif
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
@@ -70,4 +70,4 @@ distclean::
 
 DEPPATH += --dep-path board
 VPATH += :board
-CFLAGS += $(shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board)
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board

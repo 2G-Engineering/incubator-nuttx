@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_oneshot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,14 +32,14 @@
 #include <sched.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/clock.h>
 
 #include "stm32_oneshot.h"
 
-#ifdef CONFIG_STM32H7_ONESHOT
+#ifdef CONFIG_STM32_ONESHOT
 
 /****************************************************************************
  * Private Function Prototypes
@@ -49,7 +51,7 @@ static int stm32_oneshot_handler(int irg_num, void * context, void *arg);
  * Private Data
  ****************************************************************************/
 
-static struct stm32_oneshot_s *g_oneshot[CONFIG_STM32H7_ONESHOT_MAXTIMERS];
+static struct stm32_oneshot_s *g_oneshot[CONFIG_STM32_ONESHOT_MAXTIMERS];
 
 /****************************************************************************
  * Private Functions
@@ -115,20 +117,19 @@ static int stm32_oneshot_handler(int irg_num, void * context, void *arg)
  *
  * Returned Value:
  *   Returns zero (OK) on success.  This can only fail if the number of
- *   timers exceeds CONFIG_STM32H7_ONESHOT_MAXTIMERS.
+ *   timers exceeds CONFIG_STM32_ONESHOT_MAXTIMERS.
  *
  ****************************************************************************/
 
 static inline int stm32_allocate_handler(struct stm32_oneshot_s *oneshot)
 {
-#if CONFIG_STM32H7_ONESHOT_MAXTIMERS > 1
+#if CONFIG_STM32_ONESHOT_MAXTIMERS > 1
   int ret = -EBUSY;
   int i;
 
   /* Search for an unused handler */
 
-  sched_lock();
-  for (i = 0; i < CONFIG_STM32H7_ONESHOT_MAXTIMERS; i++)
+  for (i = 0; i < CONFIG_STM32_ONESHOT_MAXTIMERS; i++)
     {
       /* Is this handler available? */
 
@@ -143,7 +144,6 @@ static inline int stm32_allocate_handler(struct stm32_oneshot_s *oneshot)
         }
     }
 
-  sched_unlock();
   return ret;
 
 #else
@@ -185,14 +185,14 @@ int stm32_oneshot_initialize(struct stm32_oneshot_s *oneshot, int chan,
 {
   uint32_t frequency;
 
-  tmrinfo("chan=%d resolution=%d usec, USEC_PER_SEC:%d\n", chan, resolution,
+  tmrinfo("chan=%d resolution=%u usec, USEC_PER_SEC:%ld\n", chan, resolution,
           USEC_PER_SEC);
   DEBUGASSERT(oneshot && resolution > 0);
 
   /* Get the TC frequency the corresponds to the requested resolution */
 
   frequency = USEC_PER_SEC / (uint32_t)resolution;
-  tmrinfo("frequency: %d\n", frequency);
+  tmrinfo("frequency: %" PRIu32 "\n", frequency);
   oneshot->frequency = frequency;
 
   oneshot->tch = stm32_tim_init(chan);
@@ -228,7 +228,7 @@ int stm32_oneshot_max_delay(struct stm32_oneshot_s *oneshot, uint64_t *usec)
 {
   DEBUGASSERT(oneshot != NULL && usec != NULL);
 
-  tmrinfo("frequency: %d, USEC_PER_SEC: %d\n", oneshot->frequency,
+  tmrinfo("frequency: %" PRIu32 ", USEC_PER_SEC: %ld\n", oneshot->frequency,
           USEC_PER_SEC);
   *usec = (uint64_t)(UINT32_MAX / oneshot->frequency) *
           (uint64_t)USEC_PER_SEC;
@@ -263,8 +263,8 @@ int stm32_oneshot_start(struct stm32_oneshot_s *oneshot,
   uint64_t period;
   irqstate_t flags;
 
-  tmrinfo("handler=%p arg=%p, ts=(%lu, %lu)\n", handler, arg,
-          (unsigned long)ts->tv_sec, (unsigned long)ts->tv_nsec);
+  tmrinfo("handler=%p arg=%p, ts=(%jd, %ld)\n", handler, arg,
+          (intmax_t)ts->tv_sec, ts->tv_nsec);
   DEBUGASSERT(oneshot && handler && ts);
   DEBUGASSERT(oneshot->tch);
 
@@ -286,8 +286,8 @@ int stm32_oneshot_start(struct stm32_oneshot_s *oneshot,
 
   /* Express the delay in microseconds */
 
-  usec = (uint64_t)ts->tv_sec * USEC_PER_SEC +
-         (uint64_t)(ts->tv_nsec / NSEC_PER_USEC);
+  usec = ts->tv_sec * USEC_PER_SEC +
+         (ts->tv_nsec / NSEC_PER_USEC);
 
   /* Get the timer counter frequency and determine the number of counts need
    * to achieve the requested delay.
@@ -401,4 +401,4 @@ int stm32_oneshot_cancel(struct stm32_oneshot_s *oneshot,
   return OK;
 }
 
-#endif /* CONFIG_STM32H7_ONESHOT */
+#endif /* CONFIG_STM32_ONESHOT */

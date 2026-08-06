@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stream/lib_memsostream.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,6 +25,7 @@
  ****************************************************************************/
 
 #include <assert.h>
+#include <errno.h>
 
 #include "libc.h"
 
@@ -34,23 +37,24 @@
  * Name: memsostream_putc
  ****************************************************************************/
 
-static void memsostream_putc(FAR struct lib_sostream_s *this, int ch)
+static void memsostream_putc(FAR struct lib_sostream_s *self, int ch)
 {
-  FAR struct lib_memsostream_s *mthis = (FAR struct lib_memsostream_s *)this;
+  FAR struct lib_memsostream_s *stream =
+                                       (FAR struct lib_memsostream_s *)self;
 
-  DEBUGASSERT(this);
+  DEBUGASSERT(self);
 
   /* If this will not overrun the buffer, then write the character to the
-   * buffer.  Not that buflen was pre-decremented when the stream was
+   * buffer.  Note that buflen was pre-decremented when the stream was
    * created so it is okay to write past the end of the buflen by one.
    */
 
-  if (mthis->offset < mthis->buflen)
+  if (stream->offset < stream->buflen)
     {
-      mthis->buffer[mthis->offset] = ch;
-      mthis->offset++;
-      this->nput++;
-      mthis->buffer[mthis->offset] = '\0';
+      stream->buffer[stream->offset] = ch;
+      stream->offset++;
+      self->nput++;
+      stream->buffer[stream->offset] = '\0';
     }
 }
 
@@ -58,22 +62,23 @@ static void memsostream_putc(FAR struct lib_sostream_s *this, int ch)
  * Name: memoutstream_puts
  ****************************************************************************/
 
-static int memsostream_puts(FAR struct lib_sostream_s *this,
-                            FAR const void *buf, int len)
+static ssize_t memsostream_puts(FAR struct lib_sostream_s *self,
+                                FAR const void *buf, size_t len)
 {
-  int ncopy;
-  FAR struct lib_memsostream_s *mthis = (FAR struct lib_memsostream_s *)this;
+  ssize_t ncopy;
+  FAR struct lib_memsostream_s *stream =
+                                       (FAR struct lib_memsostream_s *)self;
 
-  DEBUGASSERT(this);
+  DEBUGASSERT(self);
 
-  ncopy = mthis->offset + len + 1 < mthis->buflen ? len :
-          mthis->buflen - mthis->offset - 1;
+  ncopy = stream->offset + len + 1 < stream->buflen ? len :
+          stream->buflen - stream->offset - 1;
   if (ncopy > 0)
     {
-      memcpy(mthis->buffer + mthis->offset, buf, ncopy);
-      mthis->public.nput += ncopy;
-      mthis->offset += ncopy;
-      mthis->buffer[mthis->offset] = '\0';
+      memcpy(stream->buffer + stream->offset, buf, ncopy);
+      stream->common.nput += ncopy;
+      stream->offset += ncopy;
+      stream->buffer[stream->offset] = '\0';
     }
 
   return ncopy;
@@ -83,18 +88,19 @@ static int memsostream_puts(FAR struct lib_sostream_s *this,
  * Name: memsostream_seek
  ****************************************************************************/
 
-static off_t memsostream_seek(FAR struct lib_sostream_s *this, off_t offset,
+static off_t memsostream_seek(FAR struct lib_sostream_s *self, off_t offset,
                               int whence)
 {
-  FAR struct lib_memsostream_s *mthis = (FAR struct lib_memsostream_s *)this;
+  FAR struct lib_memsostream_s *stream =
+                                       (FAR struct lib_memsostream_s *)self;
   off_t newpos;
 
-  DEBUGASSERT(this);
+  DEBUGASSERT(self);
 
   switch (whence)
     {
       case SEEK_CUR:
-        newpos = (off_t)mthis->offset + offset;
+        newpos = stream->offset + offset;
         break;
 
       case SEEK_SET:
@@ -102,23 +108,23 @@ static off_t memsostream_seek(FAR struct lib_sostream_s *this, off_t offset,
         break;
 
       case SEEK_END:
-        newpos = (off_t)mthis->buflen + offset;
+        newpos = stream->buflen + offset;
         break;
 
       default:
-        return (off_t)ERROR;
+        return -EINVAL;
     }
 
   /* Make sure that the new position is within range */
 
-  if (newpos < 0 || newpos >= (off_t)mthis->buflen)
+  if (newpos < 0 || newpos >= stream->buflen)
     {
-      return (off_t)ERROR;
+      return -EINVAL;
     }
 
   /* Return the new position */
 
-  mthis->offset = (size_t)newpos;
+  stream->offset = newpos;
   return newpos;
 }
 
@@ -144,13 +150,13 @@ static off_t memsostream_seek(FAR struct lib_sostream_s *this, off_t offset,
  ****************************************************************************/
 
 void lib_memsostream(FAR struct lib_memsostream_s *outstream,
-                     FAR char *bufstart, int buflen)
+                     FAR char *bufstart, size_t buflen)
 {
-  outstream->public.putc  = memsostream_putc;
-  outstream->public.puts  = memsostream_puts;
-  outstream->public.flush = lib_snoflush;
-  outstream->public.seek  = memsostream_seek;
-  outstream->public.nput  = 0;          /* Total number of characters written */
+  outstream->common.putc  = memsostream_putc;
+  outstream->common.puts  = memsostream_puts;
+  outstream->common.flush = lib_snoflush;
+  outstream->common.seek  = memsostream_seek;
+  outstream->common.nput  = 0;          /* Total number of characters written */
   outstream->buffer       = bufstart;   /* Start of buffer */
   outstream->offset       = 0;          /* Will be the buffer index */
   outstream->buflen       = buflen - 1; /* Save space for null terminator */

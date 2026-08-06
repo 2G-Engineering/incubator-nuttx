@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/ctype/lib_isprint.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,4 +33,9 @@
 int isprint(int c)
 {
   return c >= 0x20 && c < 0x7f;
+}
+
+int isprint_l(int c, locale_t locale)
+{
+  return isprint(c);
 }

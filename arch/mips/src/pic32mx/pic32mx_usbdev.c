@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/mips/src/pic32mx/pic32mx_usbdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -41,7 +43,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/wdog.h>
@@ -294,7 +296,7 @@
 #endif
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 /* Overvall device state */
@@ -877,10 +879,10 @@ static void pic32mx_wrcomplete(struct pic32mx_usbdev_s *priv,
   epno   = USB_EPNO(privep->ep.eplog);
 
 #ifdef CONFIG_USBDEV_NOWRITEAHEAD
-  uinfo("EP%d: len=%d xfrd=%d inflight=%d\n",
+  uinfo("EP%d: len=%zu xfrd=%zu inflight=%d\n",
         epno, privreq->req.len, privreq->req.xfrd, privreq->inflight[0]);
 #else
-  uinfo("EP%d: len=%d xfrd=%d inflight={%d, %d}\n",
+  uinfo("EP%d: len=%zu xfrd=%zu inflight={%d, %d}\n",
         epno, privreq->req.len, privreq->req.xfrd,
         privreq->inflight[0], privreq->inflight[1]);
 #endif
@@ -1199,7 +1201,7 @@ static int pic32mx_wrstart(struct pic32mx_usbdev_s *priv,
       bytesleft = privreq->req.len;
     }
 
-  uinfo("epno=%d req=%p: len=%d xfrd=%d index=%d nullpkt=%d\n",
+  uinfo("epno=%d req=%p: len=%zu xfrd=%zu index=%d nullpkt=%d\n",
         epno, privreq, privreq->req.len, xfrd, index, privep->txnullpkt);
 
   /* Get the number of bytes left to be sent in the packet */
@@ -1314,7 +1316,7 @@ static int pic32mx_rdcomplete(struct pic32mx_usbdev_s *priv,
   bdtout = privep->bdtout;
   epno   = USB_EPNO(privep->ep.eplog);
 
-  uinfo("EP%d: len=%d xfrd=%d\n",
+  uinfo("EP%d: len=%zu xfrd=%zu\n",
         epno, privreq->req.len, privreq->req.xfrd);
   bdtinfo("EP%d BDT OUT [%p] {%08x, %08x}\n",
         epno, bdtout, bdtout->status, bdtout->addr);
@@ -3365,7 +3367,7 @@ static struct usbdev_req_s *pic32mx_epallocreq(struct usbdev_ep_s *ep)
 
   usbtrace(TRACE_EPALLOCREQ, USB_EPNO(ep->eplog));
 
-  privreq = (struct pic32mx_req_s *)kmm_malloc(sizeof(struct pic32mx_req_s));
+  privreq = kmm_malloc(sizeof(struct pic32mx_req_s));
   if (!privreq)
     {
       usbtrace(TRACE_DEVERROR(PIC32MX_TRACEERR_ALLOCFAIL), 0);

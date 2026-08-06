@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/umm_heap/umm_zalloc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-
+#include <errno.h>
 #include <nuttx/mm/mm.h>
 
 #include "umm_heap/umm_heap.h"
@@ -49,7 +51,7 @@
  *
  ****************************************************************************/
 
-#undef zalloc /* See mm/README.txt */
+#undef zalloc
 FAR void *zalloc(size_t size)
 {
 #ifdef CONFIG_ARCH_ADDRENV
@@ -63,8 +65,21 @@ FAR void *zalloc(size_t size)
 
   return mem;
 #else
+  FAR void *ret;
+
   /* Use mm_zalloc() because it implements the clear */
 
-  return mm_zalloc(USR_HEAP, size);
+  ret = mm_zalloc(USR_HEAP, size);
+  if (ret == NULL)
+    {
+      set_errno(ENOMEM);
+    }
+  else
+    {
+      mm_notify_pressure(mm_heapfree(USR_HEAP),
+                         mm_heapfree_largest(USR_HEAP));
+    }
+
+  return ret;
 #endif
 }

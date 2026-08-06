@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/moxart/moxart_head.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -20,7 +22,7 @@
 
 /* Place a branch to the real head at the entry point */
 
-.section	.text.start
+.section	.text.start, "ax"
 	b	__start
 
 /* Exception Vectors like they are needed for the exception vector
@@ -28,7 +30,7 @@
  * linked to appear at 0x80001c
  */
 
-.section	.text.exceptions
+.section	.text.exceptions, "ax"
 _undef_instr:
 	b	arm_vectorundefinsn
 _sw_interr:

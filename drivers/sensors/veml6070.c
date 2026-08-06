@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/veml6070.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /* Character driver for the Vishay UV-A Light Sensor VEML6070 */
 
 /****************************************************************************
@@ -28,7 +43,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdlib.h>
 
 #include <nuttx/kmalloc.h>
@@ -39,14 +54,6 @@
 #include <nuttx/sensors/veml6070.h>
 
 #if defined(CONFIG_I2C) && defined(CONFIG_SENSORS_VEML6070)
-
-/****************************************************************************
- * Pre-process Definitions
- ****************************************************************************/
-
-#ifndef CONFIG_VEML6070_I2C_FREQUENCY
-#  define CONFIG_VEML6070_I2C_FREQUENCY 100000
-#endif
 
 /****************************************************************************
  * Private Types
@@ -175,11 +182,10 @@ static ssize_t veml6070_read(FAR struct file *filep, FAR char *buffer,
   int msb = 1;
   uint16_t regdata;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv  = (FAR struct veml6070_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv  = inode->i_private;
 
   /* Check if the user is reading the right size */
 
@@ -200,7 +206,7 @@ static ssize_t veml6070_read(FAR struct file *filep, FAR char *buffer,
 
   /* 1T for Rset 270Kohms is 125ms */
 
-  nxsig_usleep(125000);
+  nxsched_usleep(125000);
 
   /* Read the MSB first */
 
@@ -266,6 +272,7 @@ static ssize_t veml6070_write(FAR struct file *filep,
 int veml6070_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
                        uint8_t addr)
 {
+  FAR struct veml6070_dev_s *priv;
   int ret;
 
   /* Sanity check */
@@ -274,9 +281,7 @@ int veml6070_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
 
   /* Initialize the VEML6070 device structure */
 
-  FAR struct veml6070_dev_s *priv =
-    (FAR struct veml6070_dev_s *)kmm_malloc(sizeof(struct veml6070_dev_s));
-
+  priv = kmm_malloc(sizeof(struct veml6070_dev_s));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/nrf53/nrf53_oscconfig.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <stdint.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <arch/board/board.h>
@@ -40,7 +42,7 @@
  ****************************************************************************/
 
 #ifdef CONFIG_NRF53_NETCORE
-#  error Oscillators configuration availalbe only for the App core
+#  error Oscillators configuration available only for the App core
 #endif
 
 /* LFXO pins */

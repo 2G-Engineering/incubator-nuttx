@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l5/stm32l5_pwr.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -68,10 +70,10 @@ extern "C"
  *
  ****************************************************************************/
 
-bool stm32l5_pwr_enableclk(bool enable);
+bool stm32_pwr_enableclk(bool enable);
 
 /****************************************************************************
- * Name: stm32l5_pwr_enablebkp
+ * Name: stm32_pwr_enablebkp
  *
  * Description:
  *   Enables access to the backup domain (RTC registers, RTC backup data
@@ -85,10 +87,10 @@ bool stm32l5_pwr_enableclk(bool enable);
  *
  ****************************************************************************/
 
-bool stm32l5_pwr_enablebkp(bool writable);
+bool stm32_pwr_enablebkp(bool writable);
 
 /****************************************************************************
- * Name: stm32l5_pwr_enableusv
+ * Name: stm32_pwr_enableusv
  *
  * Description:
  *   Enables or disables the USB Supply Valid monitoring.  Setting this bit
@@ -103,10 +105,10 @@ bool stm32l5_pwr_enablebkp(bool writable);
  *
  ****************************************************************************/
 
-bool stm32l5_pwr_enableusv(bool set);
+bool stm32_pwr_enableusv(bool set);
 
 /****************************************************************************
- * Name: stm32l5_pwr_vddio2_valid
+ * Name: stm32_pwr_vddio2_valid
  *
  * Description:
  *   Report that the Vddio2 independent I/Os supply voltage is valid or not.
@@ -118,9 +120,10 @@ bool stm32l5_pwr_enableusv(bool set);
  *
  * Returned Value:
  *   True: The bit was previously set.
+ *
  ****************************************************************************/
 
-bool stm32l5_pwr_vddio2_valid(bool set);
+bool stm32_pwr_vddio2_valid(bool set);
 
 #undef EXTERN
 #if defined(__cplusplus)

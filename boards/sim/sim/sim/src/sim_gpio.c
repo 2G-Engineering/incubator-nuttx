@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/sim/sim/sim/src/sim_gpio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdbool.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/clock.h>
 #include <nuttx/wdog.h>
@@ -129,7 +131,7 @@ static struct simgpint_dev_s g_gpint =
  * Private Functions
  ****************************************************************************/
 
-static int sim_interrupt(wdparm_t arg)
+static void sim_interrupt(wdparm_t arg)
 {
   struct simgpint_dev_s *simgpint = (struct simgpint_dev_s *)arg;
 
@@ -137,7 +139,6 @@ static int sim_interrupt(wdparm_t arg)
   gpioinfo("Interrupt! callback=%p\n", simgpint->callback);
 
   simgpint->callback(&simgpint->simgpio.gpio, simgpint->simgpio.id);
-  return OK;
 }
 
 static int gpin_read(struct gpio_dev_s *dev, bool *value)

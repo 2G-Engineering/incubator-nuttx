@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/stm32_otghost.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -34,7 +36,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
@@ -58,7 +60,7 @@
 #include "stm32_otg.h"
 #include "stm32_usbhost.h"
 
-#if defined(CONFIG_USBHOST) && defined(CONFIG_STM32F7_OTGFS)
+#if defined(CONFIG_USBHOST) && defined(CONFIG_STM32_OTGFS)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -71,8 +73,8 @@
  * Pre-requisites
  *
  *  CONFIG_USBHOST                       - Enable general USB host support
- *  CONFIG_STM32F7_OTGFS                 - Enable the STM32 USB OTG FS block
- *  CONFIG_STM32F7_SYSCFG_IOCOMPENSATION - Needed
+ *  CONFIG_STM32_OTGFS                 - Enable the STM32 USB OTG FS block
+ *  CONFIG_STM32_SYSCFG_IOCOMPENSATION - Needed
  *
  * Options:
  *
@@ -85,16 +87,16 @@
  *  CONFIG_STM32F7_OTG_DESCSIZE - Maximum size of a descriptor.  Default: 128
  *  CONFIG_STM32F7_OTG_SOFINTR - Enable SOF interrupts.  Why would you ever
  *    want to do that?
- *  CONFIG_STM32F7_USBHOST_REGDEBUG - Enable very low-level register access
+ *  CONFIG_STM32_USBHOST_REGDEBUG - Enable very low-level register access
  *    debug.  Depends on CONFIG_DEBUG_FEATURES.
- *  CONFIG_STM32F7_USBHOST_PKTDUMP - Dump all incoming and outgoing USB
+ *  CONFIG_STM32_USBHOST_PKTDUMP - Dump all incoming and outgoing USB
  *    packets. Depends on CONFIG_DEBUG_FEATURES.
  */
 
 /* Pre-requisites (partial) */
 
-#ifndef CONFIG_STM32F7_SYSCFG_IOCOMPENSATION
-#  error "CONFIG_STM32F7_SYSCFG_IOCOMPENSATION is required"
+#ifndef CONFIG_STM32_SYSCFG_IOCOMPENSATION
+#  error "CONFIG_STM32_SYSCFG_IOCOMPENSATION is required"
 #endif
 
 /* Default RxFIFO size */
@@ -124,8 +126,8 @@
 /* Register/packet debug depends on CONFIG_DEBUG_FEATURES */
 
 #ifndef CONFIG_DEBUG_FEATURES
-#  undef CONFIG_STM32F7_USBHOST_REGDEBUG
-#  undef CONFIG_STM32F7_USBHOST_PKTDUMP
+#  undef CONFIG_STM32_USBHOST_REGDEBUG
+#  undef CONFIG_STM32_USBHOST_PKTDUMP
 #endif
 
 /* HCD Setup ****************************************************************/
@@ -270,7 +272,7 @@ struct stm32_usbhost_s
 
 /* Register operations ******************************************************/
 
-#ifdef CONFIG_STM32F7_USBHOST_REGDEBUG
+#ifdef CONFIG_STM32_USBHOST_REGDEBUG
 static void stm32_printreg(uint32_t addr, uint32_t val, bool iswrite);
 static void stm32_checkreg(uint32_t addr, uint32_t val, bool iswrite);
 static uint32_t stm32_getreg(uint32_t addr);
@@ -283,7 +285,7 @@ static void stm32_putreg(uint32_t addr, uint32_t value);
 static inline void stm32_modifyreg(uint32_t addr, uint32_t clrbits,
                                    uint32_t setbits);
 
-#ifdef CONFIG_STM32F7_USBHOST_PKTDUMP
+#ifdef CONFIG_STM32_USBHOST_PKTDUMP
 #  define stm32_pktdump(m,b,n) lib_dumpbuffer(m,b,n)
 #else
 #  define stm32_pktdump(m,b,n)
@@ -494,10 +496,10 @@ static struct usbhost_connection_s g_usbconn =
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32F7_USBHOST_REGDEBUG
+#ifdef CONFIG_STM32_USBHOST_REGDEBUG
 static void stm32_printreg(uint32_t addr, uint32_t val, bool iswrite)
 {
-  uinfo("%08x%s%08x\n", addr, iswrite ? "<-" : "->", val);
+  uinfo("%08" PRIx32 "%s%08" PRIx32 "\n", addr, iswrite ? "<-" : "->", val);
 }
 #endif
 
@@ -509,7 +511,7 @@ static void stm32_printreg(uint32_t addr, uint32_t val, bool iswrite)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32F7_USBHOST_REGDEBUG
+#ifdef CONFIG_STM32_USBHOST_REGDEBUG
 static void stm32_checkreg(uint32_t addr, uint32_t val, bool iswrite)
 {
   static uint32_t prevaddr = 0;
@@ -573,7 +575,7 @@ static void stm32_checkreg(uint32_t addr, uint32_t val, bool iswrite)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32F7_USBHOST_REGDEBUG
+#ifdef CONFIG_STM32_USBHOST_REGDEBUG
 static uint32_t stm32_getreg(uint32_t addr)
 {
   /* Read the value from the register */
@@ -595,7 +597,7 @@ static uint32_t stm32_getreg(uint32_t addr)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32F7_USBHOST_REGDEBUG
+#ifdef CONFIG_STM32_USBHOST_REGDEBUG
 static void stm32_putreg(uint32_t addr, uint32_t val)
 {
   /* Check if we need to print this value */
@@ -1933,7 +1935,7 @@ static ssize_t stm32_in_transfer(struct stm32_usbhost_s *priv, int chidx,
                    * Small delays could require more resolution than is
                    * provided by the system timer.  For example, if the
                    * system timer resolution is 10MS, then
-                   * nxsig_usleep(1000) will actually request a delay 20MS
+                   * nxsched_usleep(1000) will actually request a delay 20MS
                    * (due to both quantization and rounding).
                    *
                    * REVISIT: So which is better?  To ignore tiny delays and
@@ -1943,7 +1945,7 @@ static ssize_t stm32_in_transfer(struct stm32_usbhost_s *priv, int chidx,
 
                   if (delay > CONFIG_USEC_PER_TICK)
                     {
-                      nxsig_usleep(delay - CONFIG_USEC_PER_TICK);
+                      nxsched_usleep(delay - CONFIG_USEC_PER_TICK);
                     }
                 }
             }
@@ -2248,7 +2250,7 @@ static ssize_t stm32_out_transfer(struct stm32_usbhost_s *priv,
            * transfer using the same buffer pointer and length.
            */
 
-          nxsig_usleep(20 * 1000);
+          nxsched_usleep(20 * 1000);
         }
       else
         {
@@ -2757,7 +2759,7 @@ static inline void stm32_gint_hcoutisr(struct stm32_usbhost_s *priv,
 
   else if ((pending & OTG_HCINT_STALL) != 0)
     {
-      /* Clear the pending the STALL response receiv (STALL) interrupt */
+      /* Clear the pending STALL response receive (STALL) interrupt */
 
       stm32_putreg(STM32_OTG_HCINT(chidx), OTG_HCINT_STALL);
 
@@ -3932,7 +3934,7 @@ static int stm32_rh_enumerate(struct stm32_usbhost_s *priv,
    * 100ms.
    */
 
-  nxsig_usleep(100 * 1000);
+  nxsched_usleep(100 * 1000);
 
   /* Reset the host port */
 
@@ -4243,7 +4245,7 @@ static int stm32_alloc(struct usbhost_driver_s *drvr,
 
   /* There is no special memory requirement for the STM32. */
 
-  alloc = (uint8_t *)kmm_malloc(CONFIG_STM32F7_OTG_DESCSIZE);
+  alloc = kmm_malloc(CONFIG_STM32F7_OTG_DESCSIZE);
   if (!alloc)
     {
       return -ENOMEM;
@@ -4327,7 +4329,7 @@ static int stm32_ioalloc(struct usbhost_driver_s *drvr,
 
   /* There is no special memory requirement */
 
-  alloc = (uint8_t *)kmm_malloc(buflen);
+  alloc = kmm_malloc(buflen);
   if (!alloc)
     {
       return -ENOMEM;
@@ -5405,7 +5407,7 @@ struct usbhost_connection_s *stm32_otgfshost_initialize(int controller)
 
   /* SOF output pin configuration is configurable */
 
-#ifdef CONFIG_STM32F7_OTG_SOFOUTPUT
+#ifdef CONFIG_STM32_OTG_SOFOUTPUT
   stm32_configgpio(GPIO_OTG_SOF);
 #endif
 
@@ -5431,4 +5433,4 @@ struct usbhost_connection_s *stm32_otgfshost_initialize(int controller)
   return &g_usbconn;
 }
 
-#endif /* CONFIG_USBHOST && CONFIG_STM32F7_OTGFS */
+#endif /* CONFIG_USBHOST && CONFIG_STM32_OTGFS */

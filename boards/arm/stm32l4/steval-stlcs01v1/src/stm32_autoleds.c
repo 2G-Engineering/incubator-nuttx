@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/steval-stlcs01v1/src/stm32_autoleds.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <nuttx/board.h>
 #include <arch/board/board.h>
 
-#include "stm32l4.h"
+#include "stm32.h"
 
 #include "steval-stlcs01v1.h"
 
@@ -45,7 +47,7 @@ void board_autoled_initialize(void)
 {
   /* Configure LD1 GPIO for output */
 
-  stm32l4_configgpio(GPIO_LD1);
+  stm32_configgpio(GPIO_LD1);
 }
 
 /****************************************************************************
@@ -56,7 +58,7 @@ void board_autoled_on(int led)
 {
   if (led == 1)
     {
-      stm32l4_gpiowrite(GPIO_LD1, true);
+      stm32_gpiowrite(GPIO_LD1, true);
     }
 }
 
@@ -68,6 +70,6 @@ void board_autoled_off(int led)
 {
   if (led == 1)
     {
-      stm32l4_gpiowrite(GPIO_LD1, false);
+      stm32_gpiowrite(GPIO_LD1, false);
     }
 }

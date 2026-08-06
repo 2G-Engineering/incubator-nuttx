@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/imxrt/imxrt1020-evk/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -222,10 +224,10 @@
 
 /* LPI2Cs *******************************************************************/
 
-#define GPIO_LPI2C1_SDA   GPIO_LPI2C1_SDA_1|IOMUX_I2C_DEFAULT /* AD_B1_15 */
-#define GPIO_LPI2C1_SCL   GPIO_LPI2C1_SCL_1|IOMUX_I2C_DEFAULT /* AD_B1_14 */
-#define GPIO_LPI2C4_SDA   GPIO_LPI2C4_SDA_1|IOMUX_I2C_DEFAULT /* SD_B1_02 */
-#define GPIO_LPI2C4_SCL   GPIO_LPI2C4_SCL_1|IOMUX_I2C_DEFAULT /* SD_B1_03 */
+#define GPIO_LPI2C1_SDA   GPIO_LPI2C1_SDA_1|IOMUX_LPI2C_DEFAULT /* AD_B1_15 */
+#define GPIO_LPI2C1_SCL   GPIO_LPI2C1_SCL_1|IOMUX_LPI2C_DEFAULT /* AD_B1_14 */
+#define GPIO_LPI2C4_SDA   GPIO_LPI2C4_SDA_1|IOMUX_LPI2C_DEFAULT /* SD_B1_02 */
+#define GPIO_LPI2C4_SCL   GPIO_LPI2C4_SCL_1|IOMUX_LPI2C_DEFAULT /* SD_B1_03 */
 
 /* LPSPI ********************************************************************/
 

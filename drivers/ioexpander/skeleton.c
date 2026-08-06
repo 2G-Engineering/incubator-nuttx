@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/ioexpander/skeleton.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
@@ -92,12 +94,14 @@ static int skel_readbuf(FAR struct ioexpander_dev_s *dev, uint8_t pin,
                         FAR bool *value);
 #ifdef CONFIG_IOEXPANDER_MULTIPIN
 static int skel_multiwritepin(FAR struct ioexpander_dev_s *dev,
-                              FAR uint8_t *pins, FAR bool *values,
-                              int count);
+                              FAR const uint8_t *pins,
+                              FAR const bool *values, int count);
 static int skel_multireadpin(FAR struct ioexpander_dev_s *dev,
-                             FAR uint8_t *pins, FAR bool *values, int count);
+                             FAR const uint8_t *pins,
+                             FAR bool *values, int count);
 static int skel_multireadbuf(FAR struct ioexpander_dev_s *dev,
-                             FAR uint8_t *pins, FAR bool *values, int count);
+                             FAR const uint8_t *pins,
+                             FAR bool *values, int count);
 #endif
 #ifdef CONFIG_IOEXPANDER_INT_ENABLE
 static int skel_attach(FAR struct ioexpander_dev_s *dev,
@@ -427,7 +431,8 @@ static int skel_getmultibits(FAR struct skel_dev_s *priv, FAR uint8_t *pins,
 
 #ifdef CONFIG_IOEXPANDER_MULTIPIN
 static int skel_multiwritepin(FAR struct ioexpander_dev_s *dev,
-                              FAR uint8_t *pins, FAR bool *values, int count)
+                              FAR const uint8_t *pins,
+                              FAR const bool *values, int count)
 {
   FAR struct skel_dev_s *priv = (FAR struct skel_dev_s *)dev;
   ioe_pinset_t pinset;
@@ -494,7 +499,8 @@ static int skel_multiwritepin(FAR struct ioexpander_dev_s *dev,
 
 #ifdef CONFIG_IOEXPANDER_MULTIPIN
 static int skel_multireadpin(FAR struct ioexpander_dev_s *dev,
-                             FAR uint8_t *pins, FAR bool *values, int count)
+                             FAR const uint8_t *pins,
+                             FAR bool *values, int count)
 {
   FAR struct skel_dev_s *priv = (FAR struct skel_dev_s *)dev;
   int ret;
@@ -536,7 +542,8 @@ static int skel_multireadpin(FAR struct ioexpander_dev_s *dev,
 
 #ifdef CONFIG_IOEXPANDER_MULTIPIN
 static int skel_multireadbuf(FAR struct ioexpander_dev_s *dev,
-                             FAR uint8_t *pins, FAR bool *values, int count)
+                             FAR const uint8_t *pins,
+                             FAR bool *values, int count)
 {
   FAR struct skel_dev_s *priv = (FAR struct skel_dev_s *)dev;
   int ret;
@@ -780,7 +787,7 @@ FAR struct ioexpander_dev_s *skel_initialize(void)
 #ifdef CONFIG_skeleton_MULTIPLE
   /* Allocate the device state structure */
 
-  priv = (FAR struct skel_dev_s *)kmm_zalloc(sizeof(struct skel_dev_s));
+  priv = kmm_zalloc(sizeof(struct skel_dev_s));
   if (!priv)
     {
       gpioerr("ERROR: Failed to allocate driver instance\n");

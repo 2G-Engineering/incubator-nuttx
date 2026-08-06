@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/iob/iob_clone.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <sys/param.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/mm/iob.h>
 
@@ -139,8 +141,8 @@ int iob_clone_partial(FAR struct iob_s *iob1, unsigned int len,
 
   while (iob2 != NULL)
     {
-      avail2 = CONFIG_IOB_BUFSIZE - iob2->io_offset;
-      if (offset2 < avail2)
+      avail2 = IOB_BUFSIZE(iob2) - iob2->io_offset;
+      if ((int)(offset2 - avail2) < 0)
         {
           break;
         }
@@ -173,7 +175,7 @@ int iob_clone_partial(FAR struct iob_s *iob1, unsigned int len,
        */
 
       dest   = &iob2->io_data[iob2->io_offset + offset2];
-      avail2 = CONFIG_IOB_BUFSIZE - iob2->io_offset - offset2;
+      avail2 = IOB_BUFSIZE(iob2) - iob2->io_offset - offset2;
 
       /* Copy the smaller of the two and update the srce and destination
        * offsets.
@@ -218,7 +220,7 @@ int iob_clone_partial(FAR struct iob_s *iob1, unsigned int len,
        * transferred?
        */
 
-      if ((int)(offset2 + iob2->io_offset - CONFIG_IOB_BUFSIZE) >= 0 &&
+      if ((int)(offset2 + iob2->io_offset - IOB_BUFSIZE(iob2)) >= 0 &&
           iob1 != NULL)
         {
           ret = iob_next(iob2, throttled, block);

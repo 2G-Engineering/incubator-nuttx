@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lpc31xx/lpc31_usbdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
@@ -47,6 +49,7 @@
 #include "lpc31_usbotg.h"
 #include "lpc31_evntrtr.h"
 #include "lpc31_syscreg.h"
+#include "lpc31_cgudrvr.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -1868,7 +1871,7 @@ static int lpc31_usbinterrupt(int irq, void *context, void *arg)
     {
       usbtrace(TRACE_INTDECODE(LPC31_TRACEINTID_FRAME), 0);
 
-      priv->sof = (int)lpc31_getreg(LPC31_USBDEV_FRINDEX_OFFSET);
+      priv->sof = lpc31_getreg(LPC31_USBDEV_FRINDEX);
     }
 #endif
 
@@ -2136,7 +2139,7 @@ static struct usbdev_req_s *lpc31_epallocreq(struct usbdev_ep_s *ep)
 
   usbtrace(TRACE_EPALLOCREQ, ((struct lpc31_ep_s *)ep)->epphy);
 
-  privreq = (struct lpc31_req_s *)kmm_malloc(sizeof(struct lpc31_req_s));
+  privreq = kmm_malloc(sizeof(struct lpc31_req_s));
   if (!privreq)
     {
       usbtrace(TRACE_DEVERROR(LPC31_TRACEERR_ALLOCFAIL), 0);
@@ -2422,7 +2425,7 @@ static struct usbdev_ep_s *lpc31_allocep(struct usbdev_s *dev,
 
       /* Convert the logical address to a physical OUT endpoint address and
        * remove all of the candidate endpoints from the bitset except for
-       * the the IN/OUT pair for this logical address.
+       * the IN/OUT pair for this logical address.
        */
 
       epset &= 3 << (eplog << 1);
@@ -2556,7 +2559,7 @@ static int lpc31_getframe(struct usbdev_s *dev)
 
   /* FIXME: this actually returns the micro frame number! */
 
-  return (int)lpc31_getreg(LPC31_USBDEV_FRINDEX_OFFSET);
+  return (int)lpc31_getreg(LPC31_USBDEV_FRINDEX);
 #endif
 }
 

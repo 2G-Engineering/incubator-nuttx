@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/mlx90614.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /* Character driver for the Melexis MLX90614 Infrared Thermometer */
 
 /****************************************************************************
@@ -28,7 +43,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdlib.h>
 
 #include <nuttx/kmalloc.h>
@@ -44,10 +59,6 @@
 #endif
 
 #if defined(CONFIG_I2C) && defined(CONFIG_SENSORS_MLX90614)
-
-/****************************************************************************
- * Pre-process Definitions
- ****************************************************************************/
 
 /****************************************************************************
  * Private Types
@@ -127,7 +138,7 @@ static int mlx90614_read_word(FAR struct mlx90614_dev_s *priv, uint8_t cmd,
 
   /* Point "buffer" to checkcrc[3] to fill it with received bytes */
 
-  buffer = (uint8_t *) &checkcrc[3];
+  buffer = (FAR uint8_t *)&checkcrc[3];
 #endif
 
   /* Set up the I2C configuration */
@@ -217,7 +228,7 @@ static int mlx90614_write_word(FAR struct mlx90614_dev_s *priv, uint8_t cmd,
 
   /* Wait the EEPROM erase */
 
-  nxsig_usleep(10 * 1000);
+  nxsched_usleep(10 * 1000);
 
   /* Create the I2C command that will be sent to device */
 
@@ -260,11 +271,10 @@ static ssize_t mlx90614_read(FAR struct file *filep, FAR char *buffer,
   uint8_t cmd;
   int ret;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv  = (FAR struct mlx90614_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv  = inode->i_private;
 
   /* Check if the user is reading the right size */
 
@@ -404,7 +414,7 @@ int mlx90614_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
   /* Initialize the MLX90614 device structure */
 
   FAR struct mlx90614_dev_s *priv =
-    (FAR struct mlx90614_dev_s *)kmm_malloc(sizeof(struct mlx90614_dev_s));
+    kmm_malloc(sizeof(struct mlx90614_dev_s));
 
   if (priv == NULL)
     {

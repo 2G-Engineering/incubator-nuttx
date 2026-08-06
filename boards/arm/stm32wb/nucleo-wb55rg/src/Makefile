@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/stm32wb/nucleo-wb55rg/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -26,10 +28,6 @@ ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += stm32_autoleds.c
 else
 CSRCS += stm32_userleds.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += stm32_appinit.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

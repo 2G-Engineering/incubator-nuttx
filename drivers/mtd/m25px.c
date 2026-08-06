@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/mtd/m25px.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,7 +37,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -562,7 +564,7 @@ static void m25p_waitwritecomplete(struct m25p_dev_s *priv)
       if ((status & M25P_SR_WIP) != 0)
         {
           m25p_unlock(priv->dev);
-          nxsig_usleep(1000);
+          nxsched_usleep(1000);
           m25p_lock(priv->dev);
         }
     }
@@ -1158,7 +1160,7 @@ FAR struct mtd_dev_s *m25p_initialize(FAR struct spi_dev_s *dev)
    * have to be extended to handle multiple FLASH parts on the same SPI bus.
    */
 
-  priv = (FAR struct m25p_dev_s *)kmm_zalloc(sizeof(struct m25p_dev_s));
+  priv = kmm_zalloc(sizeof(struct m25p_dev_s));
   if (priv)
     {
       /* Initialize the allocated structure. (unsupported methods were

@@ -1,6 +1,8 @@
 ############################################################################
 # libs/libc/fixedmath/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,7 +22,7 @@
 
 # Add the fixed precision math C files to the build
 
-CSRCS += lib_fixedmath.c lib_b16sin.c lib_b16cos.c lib_b16atan2.c
+CSRCS += lib_b16sin.c lib_b16cos.c lib_b16atan2.c
 CSRCS += lib_ubsqrt.c
 
 # Add the fixed precision math directory to the build

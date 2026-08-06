@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/cxd56xx/cxd56_farapistub.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -19,7 +21,7 @@
  ****************************************************************************/
 
     .syntax	unified
-    .section	.text.stub
+    .section	.text.stub, "ax"
     .align	1
 1:
     push    {r0-r3}
@@ -191,7 +193,7 @@ _modulelist_power_mgr:
     .word   0
 
     .syntax	unified
-    .section	.text.stub
+    .section	.text.stub, "ax"
     .align	1
 1:
     push    {r0-r3}
@@ -317,7 +319,7 @@ _modulelist_flash_mgr:
     .word   0
 
     .syntax	unified
-    .section	.text.stub
+    .section	.text.stub, "ax"
     .align	1
 1:
     push    {r0-r3}
@@ -387,7 +389,7 @@ _modulelist_rtc_mgr:
     .word   0
 
     .syntax	unified
-    .section	.text.stub
+    .section	.text.stub, "ax"
     .align	1
 1:
     push    {r0-r3}
@@ -549,7 +551,7 @@ _modulelist_gnss_pwr:
     .word   0
 
     .syntax	unified
-    .section	.text.stub
+    .section	.text.stub, "ax"
     .align	1
 1:
     push    {r0-r3}
@@ -589,7 +591,7 @@ _modulelist_aca:
     .word   0
 
     .syntax	unified
-    .section	.text.stub
+    .section	.text.stub, "ax"
     .align	1
 1:
     push    {r0-r3}
@@ -629,7 +631,7 @@ _modulelist_pinconfig:
     .word   0
 
     .syntax	unified
-    .section	.text.stub
+    .section	.text.stub, "ax"
     .align	1
 1:
     push    {r0-r3}
@@ -705,7 +707,7 @@ _modulelist_uart:
     .word   0
 
     .syntax	unified
-    .section	.text.stub
+    .section	.text.stub, "ax"
     .align	1
 1:
     push    {r0-r3}
@@ -781,7 +783,7 @@ _modulelist_update_mgr:
     .word   0
 
     .syntax	unified
-    .section	.text.stub
+    .section	.text.stub, "ax"
     .align	1
 1:
     push    {r0-r3}

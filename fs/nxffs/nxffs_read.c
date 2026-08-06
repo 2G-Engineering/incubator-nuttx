@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/nxffs/nxffs_read.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/crc32.h>
 #include <nuttx/fs/fs.h>
@@ -142,7 +144,7 @@ ssize_t nxffs_read(FAR struct file *filep, FAR char *buffer, size_t buflen)
 
   /* Sanity checks */
 
-  DEBUGASSERT(filep->f_priv != NULL && filep->f_inode != NULL);
+  DEBUGASSERT(filep->f_priv != NULL);
 
   /* Recover the open file state from the struct file instance */
 
@@ -150,7 +152,7 @@ ssize_t nxffs_read(FAR struct file *filep, FAR char *buffer, size_t buflen)
 
   /* Recover the volume state from the open file */
 
-  volume = (FAR struct nxffs_volume_s *)filep->f_inode->i_private;
+  volume = filep->f_inode->i_private;
   DEBUGASSERT(volume != NULL);
 
   /* Get exclusive access to the volume.  Note that the volume lock
@@ -166,7 +168,7 @@ ssize_t nxffs_read(FAR struct file *filep, FAR char *buffer, size_t buflen)
 
   /* Check if the file was opened with read access */
 
-  if ((ofile->oflags & O_RDOK) == 0)
+  if ((ofile->oflags & O_ACCMODE) == O_WRONLY)
     {
       ferr("ERROR: File not open for read access\n");
       ret = -EACCES;
@@ -301,7 +303,7 @@ int nxffs_nextblock(FAR struct nxffs_volume_s *volume, off_t offset,
 
           /* Check for the magic sequence indicating the start of an NXFFS
            * data block or start of the next inode. There is the possibility
-           * of this magic sequnce occurring in FLASH data.  However, the
+           * of this magic sequence occurring in FLASH data.  However, the
            * data block CRC should distinguish between real NXFFS data blocks
            * headers and such false alarms.
            */

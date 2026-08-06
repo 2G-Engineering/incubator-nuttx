@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/xmc4/xmc4700-relax/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -95,13 +97,13 @@
 
 /*      120 MHz
  *
- * fVCO = 12MHz * 40 / 2  = 480MHz
- * fPLL = 480MHz / 2  = 240MHz
- * fSYS = fPLL / 2    = 120MHz
- * fCCU = fSYS / 2    =  60MHz
- * fCPU = fSYS / 1    = 120MHz
- * fPB  = fCPU / 2    =  60MHz
- * fETH = fSYS / 2    =  60MHz
+ * fVCO = 12MHz * 40 / 1 = 480MHz
+ * fPLL = 480MHz / 4     = 120MHz
+ * fSYS = fPLL / 1       = 120MHz
+ * fCCU = fSYS / 2       =  60MHz
+ * fCPU = fSYS / 1       = 120MHz
+ * fPERIPH  = fCPU / 2   =  60MHz
+ * fETH = fSYS / 2       =  60MHz
  */
 
 #  define BOARD_PLL_NDIV            40
@@ -154,9 +156,6 @@
 #  define BOARD_WDTDIV              1
 #  define BOARD_WDT_FREQUENCY       24000000
 
-#  define BOARD_EXT_SOURCE          EXT_CLKSRC_FPLL
-#  define BOARD_PLL_ECKDIV          480     /* [1,512] */
-
 #  define kHz_1     1000
 #  define MHz_1     (kHz_1 * kHz_1)
 #  define MHz_50    ( 50 * MHz_1)
@@ -200,12 +199,10 @@
 #  define EXTCLK_PIN_P1_15          15
 #  define BOARD_EXTCLK_PIN          EXTCLK_PIN_P0_8
 #  define BOARD_EXT_SOURCE          EXT_CLKSRC_FPLL
-#  define BOARD_EXT_FREQUENCY       (250 * kHz_1)   /* Desired output freq */
-#  define BOARD_EXTDIV              (BOARD_PLL_FREQUENCY / BOARD_EXT_FREQUENCY)
+#  define BOARD_PLL_ECKDIV          480     /* [1,512] */
 
 /* range check EXTDIV */
-
-#  if BOARD_EXTDIV > 512
+#  if BOARD_PLL_ECKDIV > 512
 #    error "EXTCLK Divisor out of range!"
 #  endif
 #endif
@@ -222,15 +219,16 @@
 
 /* USB PLL settings.
  *
- *   fUSBPLL = 48MHz and fUSBPLLVCO = 384 MHz
+ *   fUSBPLL = fXTAL * N / 2P = 192MHz
+ *   fUSB = fUSBPLL / USBDIV = 192MHz / 4 = 48 MHz
  *
  * Note: Implicit divider of 2 and fUSBPLLVCO >= 260 MHz and
  * fUSBPLLVCO <= 520 MHz
  */
 
 #undef  BOARD_ENABLE_USBPLL
-#define BOARD_USB_PDIV            2
-#define BOARD_USB_NDIV            64
+#define BOARD_USBPLL_PDIV            2
+#define BOARD_USBPLL_NDIV            64
 
 /* FLASH wait states */
 
@@ -277,7 +275,7 @@
 #define LED_SIGNAL        2 /* In a signal handler       No change    */
 #define LED_ASSERTION     2 /* An assertion failed       No change    */
 #define LED_PANIC         3 /* The system has crashed   N/C  Blinking */
-#undef  LED_IDLE            /* MCU is is sleep mode      Not used     */
+#undef  LED_IDLE            /* MCU is in sleep mode      Not used     */
 
 /* Thus if LED1 is statically on, NuttX has successfully booted and is,
  * apparently, running normally.  If LED2 is flashing at approximately
@@ -299,7 +297,7 @@
 #define BUTTON_0_BIT      (1 << BUTTON_0)
 #define BUTTON_1_BIT      (1 << BUTTON_1)
 
-/* USIC0 ********************************************************************/
+/* USIC *********************************************************************/
 
 /* USIC0 CH0 is used as UART0
  *
@@ -310,6 +308,18 @@
 #define BOARD_UART0_DX    USIC_DXB
 #define GPIO_UART0_RXD    GPIO_U0C0_DX0B
 #define GPIO_UART0_TXD    (GPIO_U0C0_DOUT0_3 | GPIO_PADA1P_STRONGSOFT | GPIO_OUTPUT_SET)
+
+/* USIC2 CH0 is used as SPI4
+ *
+ *  MOSI - P3.8  (UC2C0.DOUT0)
+ *  MISO - P3.7  (UC2C0.DX0C)
+ *  SCLK - P3.9 (UC2C0.SCLKOUT)
+ */
+
+#define BOARD_SPI_DX      USIC_DXC
+#define GPIO_SPI4_MOSI    (GPIO_U2C0_DOUT0_2 | GPIO_PADA2_STRONGMEDIUM)
+#define GPIO_SPI4_MISO    (GPIO_U2C0_DX0C)
+#define GPIO_SPI4_SCLK    (GPIO_U2C0_SCLKOUT_1 | GPIO_PADA2_STRONGMEDIUM)
 
 /****************************************************************************
  * Public Data

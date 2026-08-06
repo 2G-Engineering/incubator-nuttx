@@ -5,6 +5,14 @@
 
 if 16550_UART
 
+config 16550_POLLING
+	bool "Force polling mode for TX"
+	default n
+	---help---
+		Force using polling mode for transmission. This avoids using TX interrupts
+		and potentially reduces interrupt latency, at the cost of blocking execution
+		during transmission.
+
 config 16550_SERIAL_DISABLE_REORDERING
 	bool "Disable reordering of ttySx devices."
 	default n
@@ -57,6 +65,11 @@ config 16550_UART0_2STOP
 	---help---
 		0=1 stop bit, 1=Two stop bits.  Default: 1 stop bit
 
+config 16550_UART0_RX_TRIGGER
+  int "16550 UART0 RX interrupt trigger level"
+	default 2
+	range 0 3
+
 config 16550_UART0_RXBUFSIZE
 	int "16550 UART0 Rx buffer size"
 	default 256
@@ -87,7 +100,8 @@ config 16550_UART0_DMA
 	bool "16550 UART0 DMA support"
 	default n
 	select ARCH_DMA
-	select SERIAL_DMA
+	select SERIAL_TXDMA
+	select SERIAL_RXDMA
 	---help---
 		Enable DMA transfers on 16550 UART0
 
@@ -165,6 +179,11 @@ config 16550_UART1_2STOP
 	---help---
 		0=1 stop bit, 1=Two stop bits.  Default: 1 stop bit
 
+config 16550_UART1_RX_TRIGGER
+  int "16550 UART1 RX interrupt trigger level"
+	default 2
+	range 0 3
+
 config 16550_UART1_RXBUFSIZE
 	int "16550 UART1 Rx buffer size"
 	default 256
@@ -195,7 +214,8 @@ config 16550_UART1_DMA
 	bool "16550 UART1 DMA support"
 	default n
 	select ARCH_DMA
-	select SERIAL_DMA
+	select SERIAL_TXDMA
+	select SERIAL_RXDMA
 	---help---
 		Enable DMA transfers on 16550 UART1
 
@@ -273,6 +293,11 @@ config 16550_UART2_2STOP
 	---help---
 		0=1 stop bit, 1=Two stop bits.  Default: 1 stop bit
 
+config 16550_UART2_RX_TRIGGER
+  int "16550 UART2 RX interrupt trigger level"
+	default 2
+	range 0 3
+
 config 16550_UART2_RXBUFSIZE
 	int "16550 UART2 Rx buffer size"
 	default 256
@@ -303,7 +328,8 @@ config 16550_UART2_DMA
 	bool "16550 UART2 DMA support"
 	default n
 	select ARCH_DMA
-	select SERIAL_DMA
+	select SERIAL_TXDMA
+	select SERIAL_RXDMA
 	---help---
 		Enable DMA transfers on 16550 UART2
 
@@ -381,6 +407,11 @@ config 16550_UART3_2STOP
 	---help---
 		0=1 stop bit, 1=Two stop bits.  Default: 1 stop bit
 
+config 16550_UART3_RX_TRIGGER
+  int "16550 UART3 RX interrupt trigger level"
+	default 2
+	range 0 3
+
 config 16550_UART3_RXBUFSIZE
 	int "16550 UART3 Rx buffer size"
 	default 256
@@ -411,7 +442,8 @@ config 16550_UART3_DMA
 	bool "16550 UART3 DMA support"
 	default n
 	select ARCH_DMA
-	select SERIAL_DMA
+	select SERIAL_TXDMA
+	select SERIAL_RXDMA
 	---help---
 		Enable DMA transfers on 16550 UART3
 
@@ -518,5 +550,27 @@ config 16550_ADDRWIDTH
 		The bit width of registers.  Options are 0, 8, 16, or 32.
 		Default: 8
 		Note: 0 means auto detect address size (uintptr_t)
+
+config 16550_WAIT_LCR
+	bool "Wait for UART before setting LCR"
+	default n
+	---help---
+		Before setting the Line Control Register (LCR), wait until UART is
+		not busy.  This is required for Synopsys DesignWare 8250, which
+		will trigger spurious interrupts when setting the LCR without
+		waiting.  Default: n
+
+config 16550_SET_MCR_OUT2
+	bool "Set MCR OUT2 bit high"
+	default n
+	---help---
+		Some platforms require OUT2 of MCR being set for interrupt to be triggered
+
+config 16550_DLF_SIZE
+	int "DLF(Divisor Latch Fraction) size of DesignWare APB UART"
+	default 0
+	---help---
+		The bit width of DLF register for DesignWare APB UART.
+		DLF_SIZE=0 means no support. Default: 0
 
 endif # 16550_UART

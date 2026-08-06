@@ -23,6 +23,10 @@ config ARCH_HAVE_NETDEV_STATISTICS
 	bool
 	default n
 
+config ARCH_HAVE_NETDEV_TIMESTAMP
+	bool
+	default n
+
 config NET_WRITE_BUFFERS
 	bool
 	default n
@@ -52,6 +56,20 @@ config NET_PROMISCUOUS
 	---help---
 		Force the Ethernet driver to operate in promiscuous mode (if supported
 		by the Ethernet driver).
+
+config NET_DEFAULT_MIN_PORT
+	int "Net Default Min Port"
+	range 1 65535
+	default 4096
+	---help---
+		Default Network min port
+
+config NET_DEFAULT_MAX_PORT
+	int "Net Default Max Port"
+	range NET_DEFAULT_MIN_PORT 65535
+	default 32000
+	---help---
+		Default Network max port
 
 menu "Driver buffer configuration"
 
@@ -119,6 +137,8 @@ config NET_GUARDSIZE
 
 config NET_LL_GUARDSIZE
 	int "Data Link Layer(L2) Guard size of Network buffer(IOB)"
+	default 50 if RNDIS
+	default 18 if NET_VLAN
 	default 16 if NET_CAN && NET_TIMESTAMP
 	default 14 if NET_ETHERNET
 	default 0
@@ -127,18 +147,41 @@ config NET_LL_GUARDSIZE
 		the L2/L3 (MAC/IP) data on Network layer, which will be beneficial
 		to L3 network layer protocol transparent transmission and forwarding
 
+config NET_JUMBO_FRAME
+	bool "Net jumbo frame"
+	depends on IOB_ALLOC
+	default n
+	---help---
+		Optimize the sending of the JUMBO frame in network stack.
+
 config NET_RECV_BUFSIZE
-	int "Net Receive buffer size"
+	int "Net Default Receive buffer size"
 	default 0
 	---help---
 		This is the default value for receive buffer size.
 
+config NET_MAX_RECV_BUFSIZE
+	int "Net Max Receive buffer size"
+	depends on NET_RECV_BUFSIZE > 0
+	default 0
+	---help---
+		Limit the max value for receive buffer size to avoid overconsumption.
+		Zero means no limit.
+
 config NET_SEND_BUFSIZE
-	int "Net Send buffer size"
-	depends on NET_TCP_WRITE_BUFFERS || NET_UDP_WRITE_BUFFERS
+	int "Net Default Send buffer size"
+	depends on NET_TCP_WRITE_BUFFERS || NET_UDP_WRITE_BUFFERS || NET_CAN_WRITE_BUFFERS
 	default 0
 	---help---
 		This is the default value for send buffer size.
+
+config NET_MAX_SEND_BUFSIZE
+	int "Net Max Send buffer size"
+	depends on NET_SEND_BUFSIZE > 0
+	default 0
+	---help---
+		Limit the max value for send buffer size to avoid overconsumption.
+		Zero means no limit.
 
 endmenu # Driver buffer configuration
 
@@ -186,7 +229,6 @@ config NET_LOOPBACK_PKTSIZE
 
 menuconfig NET_MBIM
 	bool "MBIM modem support"
-	depends on USBHOST_CDCMBIM
 	default n
 
 menuconfig NET_SLIP
@@ -255,13 +297,33 @@ config NET_TUN_PKTSIZE
 
 endif # NET_TUN
 
+menuconfig NET_VLAN
+	bool "VLAN support"
+	default n
+	depends on NET_ETHERNET
+	---help---
+		Enable support for VLANs (Virtual Local Area Networks) on Ethernet
+		devices.
+
+if NET_VLAN
+
+config NET_VLAN_COUNT
+	int "MAX number of VLAN interfaces per physical interface"
+	default 2
+	range 1 32
+	---help---
+		Selects the number of VLAN interfaces per physical interface to support.
+		Default: 2
+
+endif # NET_VLAN
+
 config NETDEV_LATEINIT
 	bool "Late driver initialization"
 	default n
 	---help---
 		Normally, networking initialization occur in the later phase of the
 		boot process in the function up_initialize() when it calls the
-		driver initialization function, up_netinitialize().  This
+		driver initialization function, xxx_netinitialize().  This
 		initialization occurs after a sufficient amount of the OS has been
 		initialized so that driver registration can be performed, but
 		before the completion of OS initialization and before the first
@@ -273,15 +335,15 @@ config NETDEV_LATEINIT
 			- If you are using SLIP or PPPD, then there will be no network
 			  driver to be initialized,
 			- Certain multi-network configurations where a simple call to
-			  up_netinitialize() may be insufficient, and
+			  xxx_netinitialize() may be insufficient, and
 			- Situations where there are other board-level hardware
 			  dependencies so that the hardware is not in an appropriate
-			  state for up_netinitialize() to be called.
+			  state for xxx_netinitialize() to be called.
 
 		Examples of this latter situation include such things as network
 		drivers that required some setup via an I2C I/O expander, or network
 		drivers that depend on USB, SPI, I2C, PCI, serial, or other
-		interfaces that may not be ready when up_netinitialize() is normally
+		interfaces that may not be ready when xxx_netinitialize() is normally
 		called.
 
 endmenu # Link layer support
@@ -317,6 +379,7 @@ menuconfig NET_6LOWPAN
 source "net/sixlowpan/Kconfig"
 source "net/ipforward/Kconfig"
 source "net/nat/Kconfig"
+source "net/ipfilter/Kconfig"
 source "net/netfilter/Kconfig"
 source "net/ipfrag/Kconfig"
 
@@ -373,7 +436,7 @@ choice
 	depends on NET_STAR
 	default NET_STARPOINT
 	---help---
-		Specifies the role of this not in the star configuration.
+		Specifies the role of this node in the star configuration.
 
 config NET_STARPOINT
 	bool "Point node in star"
@@ -393,5 +456,20 @@ endchoice # Node role
 endmenu # Network Topologies
 
 source "net/route/Kconfig"
+
+config NET_NO_LTO
+	bool "Support no-lto option for the network Makefile"
+	default n
+	---help---
+		This option disables Link Time Optimization (LTO) specifically for the
+		network subsystem.
+
+		LTO can sometimes introduce build issues, excessive compilation time,
+		or difficult-to-debug runtime behaviors in complex network stacks
+		depending on the compiler version and architecture.
+
+		Enable this option if you encounter LTO-related issues in the network
+		stack or need to debug network code without the aggressive optimizations
+		introduced by LTO, while keeping LTO enabled for the rest of the system.
 
 endif # NET

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv8-r/arm_dataabort.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,8 +28,8 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 
 #include "sched/sched.h"
@@ -53,16 +55,15 @@
 
 uint32_t *arm_dataabort(uint32_t *regs, uint32_t dfar, uint32_t dfsr)
 {
-  /* Save the saved processor context in CURRENT_REGS where it can be
-   * accessed for register dumps and possibly context switching.
-   */
+  struct tcb_s *tcb = this_task();
 
-  CURRENT_REGS = regs;
+  tcb->xcp.regs = regs;
+  up_set_interrupt_context(true);
 
   /* Crash -- possibly showing diagnostic debug information. */
 
-  _alert("Data abort. PC: %08x DFAR: %08x DFSR: %08x\n",
-        regs[REG_PC], dfar, dfsr);
+  _alert("Data abort. PC: %08" PRIx32 " DFAR: %08" PRIx32 " DFSR: %08"
+         PRIx32 "\n", regs[REG_PC], dfar, dfsr);
   PANIC_WITH_REGS("panic", regs);
   return regs; /* To keep the compiler happy */
 }

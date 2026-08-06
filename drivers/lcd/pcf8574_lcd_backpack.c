@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/lcd/pcf8574_lcd_backpack.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,8 +29,9 @@
 #include <poll.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
 #include <nuttx/signal.h>
@@ -119,7 +122,9 @@ static const struct file_operations g_pcf8574_lcd_fops =
   pcf8574_lcd_ioctl,            /* ioctl */
   NULL,                         /* mmap */
   NULL,                         /* truncate */
-  pcf8574_lcd_poll              /* poll */
+  pcf8574_lcd_poll,             /* poll */
+  NULL,                         /* readv */
+  NULL                          /* writev */
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
   , pcf8574_lcd_unlink          /* unlink */
 #endif
@@ -530,7 +535,7 @@ static void lcd_init(FAR struct pcf8574_lcd_dev_s *priv)
 {
   /* Wait for more than 15 ms after Vcc for the LCD to stabilize */
 
-  nxsig_usleep(50000);
+  nxsched_usleep(50000);
 
   /* Perform the init sequence.  This sequence of commands is constructed so
    * that it will get the device into nybble mode irrespective of what state
@@ -543,24 +548,24 @@ static void lcd_init(FAR struct pcf8574_lcd_dev_s *priv)
   /* Send Command 0x30, set 8-bit mode, and wait > 4.1 ms */
 
   latch_nybble(priv, 0x30 >> 4, false);
-  nxsig_usleep(5000);
+  nxsched_usleep(5000);
 
   /* Send Command 0x30, set 8-bit mode, and wait > 100 us */
 
   latch_nybble(priv, 0x30 >> 4, false);
-  nxsig_usleep(5000);
+  nxsched_usleep(5000);
 
   /* Send Command 0x30, set 8-bit mode */
 
   latch_nybble(priv, 0x30 >> 4, false);
-  nxsig_usleep(200);
+  nxsched_usleep(200);
 
   /* now Function set: Set interface to be 4 bits long (only 1 cycle write
    * for the first time).
    */
 
   latch_nybble(priv, 0x20 >> 4, false);
-  nxsig_usleep(5000);
+  nxsched_usleep(5000);
 
   /* Function set: DL=0;Interface is 4 bits, N=1 (2 Lines), F=0 (5x8 dots
    * font)
@@ -678,7 +683,7 @@ static void lcd_scroll_up(FAR struct pcf8574_lcd_dev_s *priv)
   int nrow;
   int ncol;
 
-  data = (FAR uint8_t *)kmm_malloc(priv->cfg.cols);
+  data = kmm_malloc(priv->cfg.cols);
   if (NULL == data)
     {
       lcdinfo("Failed to allocate buffer in lcd_scroll_up()\n");
@@ -1026,7 +1031,7 @@ static int pcf8574_lcd_open(FAR struct file *filep)
 {
   FAR struct inode *inode = filep->f_inode;
   FAR struct pcf8574_lcd_dev_s *priv =
-    (FAR struct pcf8574_lcd_dev_s *)inode->i_private;
+    inode->i_private;
 
   /* Increment the reference count */
 
@@ -1057,7 +1062,7 @@ static int pcf8574_lcd_close(FAR struct file *filep)
 {
   FAR struct inode *inode = filep->f_inode;
   FAR struct pcf8574_lcd_dev_s *priv =
-    (FAR struct pcf8574_lcd_dev_s *)inode->i_private;
+    inode->i_private;
   int ret;
 
   /* Decrement the reference count */
@@ -1103,7 +1108,7 @@ static ssize_t pcf8574_lcd_read(FAR struct file *filep, FAR char *buffer,
 {
   FAR struct inode *inode = filep->f_inode;
   FAR struct pcf8574_lcd_dev_s *priv =
-    (FAR struct pcf8574_lcd_dev_s *)inode->i_private;
+    inode->i_private;
   int nidx;
   uint8_t addr;
   uint8_t row;
@@ -1185,7 +1190,7 @@ static ssize_t pcf8574_lcd_write(FAR struct file *filep,
 {
   FAR struct inode *inode = filep->f_inode;
   FAR struct pcf8574_lcd_dev_s *priv =
-    (FAR struct pcf8574_lcd_dev_s *)inode->i_private;
+    inode->i_private;
   struct lib_meminstream_s instream;
   uint8_t row;
   uint8_t col;
@@ -1207,7 +1212,7 @@ static ssize_t pcf8574_lcd_write(FAR struct file *filep,
   /* Now decode and process every byte in the input buffer */
 
   memset(&state, 0, sizeof(struct slcdstate_s));
-  while ((result = slcd_decode(&instream.public,
+  while ((result = slcd_decode(&instream.common,
                                &state, &ch, &count)) != SLCDRET_EOF)
     {
       if (result == SLCDRET_CHAR)       /* A normal character was returned */
@@ -1342,7 +1347,7 @@ static off_t pcf8574_lcd_seek(FAR struct file *filep, off_t offset,
 {
   FAR struct inode *inode = filep->f_inode;
   FAR struct pcf8574_lcd_dev_s *priv =
-    (FAR struct pcf8574_lcd_dev_s *)inode->i_private;
+    inode->i_private;
   off_t pos;
   int maxpos;
 
@@ -1425,7 +1430,7 @@ static int pcf8574_lcd_ioctl(FAR struct file *filep, int cmd,
       {
         FAR struct inode *inode = filep->f_inode;
         FAR struct pcf8574_lcd_dev_s *priv =
-          (FAR struct pcf8574_lcd_dev_s *)inode->i_private;
+          inode->i_private;
         FAR struct slcd_attributes_s *attr =
           (FAR struct slcd_attributes_s *)((uintptr_t) arg);
 
@@ -1448,7 +1453,7 @@ static int pcf8574_lcd_ioctl(FAR struct file *filep, int cmd,
       {
         FAR struct inode *inode = filep->f_inode;
         FAR struct pcf8574_lcd_dev_s *priv =
-          (FAR struct pcf8574_lcd_dev_s *)inode->i_private;
+          inode->i_private;
         FAR struct slcd_curpos_s *attr =
           (FAR struct slcd_curpos_s *)((uintptr_t) arg);
         uint8_t row;
@@ -1468,7 +1473,7 @@ static int pcf8574_lcd_ioctl(FAR struct file *filep, int cmd,
       {
         FAR struct inode *inode = filep->f_inode;
         FAR struct pcf8574_lcd_dev_s *priv =
-          (FAR struct pcf8574_lcd_dev_s *)inode->i_private;
+          inode->i_private;
         bool bon;
 
         bon = (priv->bl_bit && priv->cfg.bl_active_high) ||
@@ -1481,7 +1486,7 @@ static int pcf8574_lcd_ioctl(FAR struct file *filep, int cmd,
       {
         FAR struct inode *inode = filep->f_inode;
         FAR struct pcf8574_lcd_dev_s *priv =
-          (FAR struct pcf8574_lcd_dev_s *)inode->i_private;
+          inode->i_private;
 
         nxmutex_lock(&priv->lock);
         lcd_backlight(priv, arg ? true : false);
@@ -1493,7 +1498,7 @@ static int pcf8574_lcd_ioctl(FAR struct file *filep, int cmd,
       {
         FAR struct inode *inode = filep->f_inode;
         FAR struct pcf8574_lcd_dev_s *priv =
-          (FAR struct pcf8574_lcd_dev_s *)inode->i_private;
+          inode->i_private;
         FAR struct slcd_createchar_s *attr =
           (FAR struct slcd_createchar_s *)((uintptr_t) arg);
 
@@ -1540,7 +1545,7 @@ static int pcf8574_lcd_poll(FAR struct file *filep, FAR struct pollfd *fds,
 static int pcf8574_lcd_unlink(FAR struct inode *inode)
 {
   FAR struct pcf8574_lcd_dev_s *priv =
-    (FAR struct pcf8574_lcd_dev_s *)inode->i_private;
+    inode->i_private;
   int ret = OK;
 
   nxmutex_lock(&priv->lock);

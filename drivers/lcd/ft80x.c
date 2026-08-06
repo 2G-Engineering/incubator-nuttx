@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/lcd/ft80x.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -44,7 +46,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/semaphore.h>
@@ -136,7 +138,9 @@ static const struct file_operations g_ft80x_fops =
   ft80x_ioctl,   /* ioctl */
   NULL,          /* mmap */
   NULL,          /* truncate */
-  NULL           /* poll */
+  NULL,          /* poll */
+  NULL,          /* readv */
+  NULL           /* writev */
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
   , ft80x_unlink /* unlink */
 #endif
@@ -201,7 +205,7 @@ static int ft80x_fade(FAR struct ft80x_dev_s *priv,
     {
       /* Wait for FADE_STEP_MSEC msec (or whatever we get) */
 
-      nxsig_usleep(FADE_STEP_MSEC * 1000);
+      nxsched_usleep(FADE_STEP_MSEC * 1000);
 
       /* Get the elapsed time */
 
@@ -254,6 +258,11 @@ static int ft80x_fade(FAR struct ft80x_dev_s *priv,
 static void ft80x_notify(FAR struct ft80x_dev_s *priv,
                          enum ft80x_notify_e id, int value)
 {
+#ifdef CONFIG_DISABLE_ALL_SIGNALS
+    UNUSED(priv);
+    UNUSED(id);
+    UNUSED(value);
+#else
   FAR struct ft80x_eventinfo_s *info = &priv->notify[id];
 
   /* Are notifications enabled for this event? */
@@ -267,6 +276,7 @@ static void ft80x_notify(FAR struct ft80x_dev_s *priv,
       info->event.sigev_value.sival_int = value;
       nxsig_notification(info->pid, &info->event, SI_QUEUE, &info->work);
     }
+#endif
 }
 
 /****************************************************************************
@@ -451,9 +461,8 @@ static int ft80x_open(FAR struct file *filep)
   uint8_t tmp;
   int ret;
 
-  DEBUGASSERT(filep != NULL);
   inode = filep->f_inode;
-  DEBUGASSERT(inode != NULL && inode->i_private != NULL);
+  DEBUGASSERT(inode->i_private != NULL);
   priv  = inode->i_private;
 
   lcdinfo("crefs: %d\n", priv->crefs);
@@ -507,9 +516,8 @@ static int ft80x_close(FAR struct file *filep)
   FAR struct ft80x_dev_s *priv;
   int ret;
 
-  DEBUGASSERT(filep != NULL);
   inode = filep->f_inode;
-  DEBUGASSERT(inode != NULL && inode->i_private != NULL);
+  DEBUGASSERT(inode->i_private != NULL);
   priv  = inode->i_private;
 
   lcdinfo("crefs: %d\n", priv->crefs);
@@ -583,9 +591,8 @@ static ssize_t ft80x_write(FAR struct file *filep, FAR const char *buffer,
   DEBUGASSERT(buffer != NULL && ((uintptr_t)buffer & 3) == 0 &&
               len > 0 && (len & 3) == 0 && len <= FT80X_RAM_DL_SIZE);
 
-  DEBUGASSERT(filep != NULL);
   inode = filep->f_inode;
-  DEBUGASSERT(inode != NULL && inode->i_private != NULL);
+  DEBUGASSERT(inode->i_private != NULL);
   priv  = inode->i_private;
 
   if (buffer == NULL || ((uintptr_t)buffer & 3) != 0 ||
@@ -632,9 +639,8 @@ static int ft80x_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   FAR struct ft80x_dev_s *priv;
   int ret;
 
-  DEBUGASSERT(filep != NULL);
   inode = filep->f_inode;
-  DEBUGASSERT(inode != NULL && inode->i_private != NULL);
+  DEBUGASSERT(inode->i_private != NULL);
   priv  = inode->i_private;
 
   lcdinfo("cmd: %d arg: %lu\n", cmd, arg);
@@ -997,6 +1003,7 @@ static int ft80x_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
        *   Returns:      None
        */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
       case FT80X_IOC_EVENTNOTIFY:
         {
           FAR struct ft80x_notify_s *notify =
@@ -1059,7 +1066,7 @@ static int ft80x_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
             }
         }
         break;
-
+#endif
        /* FT80X_IOC_FADE:
         *   Description:  Change the backlight intensity with a controllable
         *                 fade.
@@ -1159,7 +1166,7 @@ static int ft80x_unlink(FAR struct inode *inode)
    * structure.
    */
 
-  DEBUGASSERT(inode && inode->i_private);
+  DEBUGASSERT(inode->i_private);
   priv = inode->i_private;
 
   /* Indicate that the driver has been unlinked */
@@ -1516,7 +1523,7 @@ int ft80x_register(FAR struct i2c_master_s *i2c,
 
   /* Allocate the driver state structure */
 
-  priv = (FAR struct ft80x_dev_s *)kmm_zalloc(sizeof(struct ft80x_dev_s));
+  priv = kmm_zalloc(sizeof(struct ft80x_dev_s));
   if (priv == NULL)
     {
       lcderr("ERROR: Failed to allocate state structure\n");

@@ -42,6 +42,12 @@ config USERLED_LOWER_READSTATE
 		checks the actual state of the pin controlling the LED,
 		which can be used to find malfunctioning LEDs.
 
+config USERLED_EFFECTS
+	bool "LED driver supports LED effects"
+	default n
+	---help---
+		Enable support for LED effects (PWM, blinking, breathing).
+
 endif # USERLED
 
 config LEDS_APA102
@@ -50,6 +56,13 @@ config LEDS_APA102
 	select SPI
 	---help---
 		Enable support for the APA102 LED Strip driver.
+
+config KTD2052
+	bool "KTD2052 I2C LED Driver"
+	default n
+	select I2C
+	---help---
+		Enable support for the KTD2052 LED driver
 
 config LEDS_MAX7219
 	bool "MAX7219 Numeric Display"
@@ -61,9 +74,17 @@ config LEDS_MAX7219
 config RGBLED
 	bool "RGB LED Driver Support"
 	default n
+	depends on PWM_NCHANNELS >= 3
 	---help---
 		This selection enables building of the "upper-half" RGB LED driver.
 		See include/nuttx/rgbled.h for further PWM driver information.
+
+config RGBLED_PWM_FREQ
+	int "PWM Frequency (Hz)"
+	depends on RGBLED
+	default 100
+	---help---
+		This controls the frequency of the PWM channel powering each led.
 
 config RGBLED_INVERT
 	bool "Invert RGB LED Output"

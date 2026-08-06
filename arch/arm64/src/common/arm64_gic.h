@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm64/src/common/arm64_gic.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -84,6 +86,8 @@
 #define ICENABLER(base, n)      (base + GIC_DIST_ICENABLER + (n) * 4)
 #define ISPENDR(base, n)        (base + GIC_DIST_ISPENDR + (n) * 4)
 #define ICPENDR(base, n)        (base + GIC_DIST_ICPENDR + (n) * 4)
+#define ISACTIVER(base, n)      (base + GIC_DIST_ISACTIVER + (n) * 4)
+#define ICACTIVER(base, n)      (base + GIC_DIST_ICACTIVER + (n) * 4)
 #define IPRIORITYR(base, n)     (base + GIC_DIST_IPRIORITYR + n)
 #define ITARGETSR(base, n)      (base + GIC_DIST_ITARGETSR + (n) * 4)
 #define ICFGR(base, n)          (base + GIC_DIST_ICFGR + (n) * 4)
@@ -244,10 +248,6 @@
 #define GICD_ICFGR_MASK             BIT_MASK(2)
 #define GICD_ICFGR_TYPE             BIT(1)
 
-/* BIT(0) reserved for IRQ_ZERO_LATENCY */
-#define IRQ_TYPE_LEVEL              BIT(1)
-#define IRQ_TYPE_EDGE               BIT(2)
-
 #define GIC_SPI_INT_BASE            32
 #define GIC_SPI_MAX_INTID           1019
 #define GIC_IS_SPI(intid)   (((intid) >= GIC_SPI_INT_BASE) && \
@@ -257,28 +257,34 @@
 #define GIC_DIST_IROUTER            0x6000
 #define IROUTER(base, n)    (base + GIC_DIST_IROUTER + (n) * 8)
 
-/* BIT(0) reserved for IRQ_ZERO_LATENCY */
-#define IRQ_TYPE_LEVEL              BIT(1)
-#define IRQ_TYPE_EDGE               BIT(2)
-
 #define IRQ_DEFAULT_PRIORITY        0xa0
 
-#define GIC_IRQ_SGI0              0
-#define GIC_IRQ_SGI1              1
-#define GIC_IRQ_SGI2              2
-#define GIC_IRQ_SGI3              3
-#define GIC_IRQ_SGI4              4
-#define GIC_IRQ_SGI5              5
-#define GIC_IRQ_SGI6              6
-#define GIC_IRQ_SGI7              7
-#define GIC_IRQ_SGI8              8
-#define GIC_IRQ_SGI9              9
-#define GIC_IRQ_SGI10            10
-#define GIC_IRQ_SGI11            11
-#define GIC_IRQ_SGI12            12
-#define GIC_IRQ_SGI13            13
-#define GIC_IRQ_SGI14            14
-#define GIC_IRQ_SGI15            15
+#define GIC_IRQ_SGI0                0
+#define GIC_IRQ_SGI1                1
+#define GIC_IRQ_SGI2                2
+#define GIC_IRQ_SGI3                3
+#define GIC_IRQ_SGI4                4
+#define GIC_IRQ_SGI5                5
+#define GIC_IRQ_SGI6                6
+#define GIC_IRQ_SGI7                7
+#define GIC_IRQ_SGI8                8
+#define GIC_IRQ_SGI9                9
+#define GIC_IRQ_SGI10               10
+#define GIC_IRQ_SGI11               11
+#define GIC_IRQ_SGI12               12
+#define GIC_IRQ_SGI13               13
+#define GIC_IRQ_SGI14               14
+#define GIC_IRQ_SGI15               15
+
+#ifdef CONFIG_ARCH_TRUSTZONE_SECURE
+#  define GIC_SMP_SCHED             GIC_IRQ_SGI9
+#  define GIC_SMP_CPUSTART          GIC_IRQ_SGI10
+#  define GIC_SMP_CALL              GIC_IRQ_SGI11
+#else
+#  define GIC_SMP_SCHED             GIC_IRQ_SGI1
+#  define GIC_SMP_CPUSTART          GIC_IRQ_SGI2
+#  define GIC_SMP_CALL              GIC_IRQ_SGI3
+#endif
 
 /****************************************************************************
  * Public Function Prototypes
@@ -286,9 +292,6 @@
 
 bool arm64_gic_irq_is_enabled(unsigned int intid);
 int  arm64_gic_initialize(void);
-void arm64_gic_irq_set_priority(unsigned int intid, unsigned int prio,
-                                uint32_t flags);
-int arm64_gic_irq_trigger(unsigned int intid, uint32_t flags);
 
 /****************************************************************************
  * Name: arm64_decodeirq
@@ -307,19 +310,23 @@ int arm64_gic_irq_trigger(unsigned int intid, uint32_t flags);
 
 uint64_t * arm64_decodeirq(uint64_t *regs);
 
-int arm64_gic_raise_sgi(unsigned int sgi_id, uint16_t target_list);
+void arm64_gic_raise_sgi(unsigned int sgi_id, uint16_t target_list);
+
+#ifdef CONFIG_ARM64_GICV2M
+int arm64_gic_v2m_initialize(void);
+#endif
 
 #ifdef CONFIG_SMP
 
 /****************************************************************************
- * Name: arm64_pause_handler
+ * Name: arm64_smp_sched_handler
  *
  * Description:
- *   This is the handler for SGI2.  It performs the following operations:
+ *   This is the handler for sched.
  *
  *   1. It saves the current task state at the head of the current assigned
  *      task list.
- *   2. It waits on a spinlock, then
+ *   2. It processes g_delivertasks
  *   3. Returns from interrupt, restoring the state of the new task at the
  *      head of the ready to run list.
  *
@@ -331,7 +338,7 @@ int arm64_gic_raise_sgi(unsigned int sgi_id, uint16_t target_list);
  *
  ****************************************************************************/
 
-int arm64_pause_handler(int irq, void *context, void *arg);
+int arm64_smp_sched_handler(int irq, void *context, void *arg);
 
 void arm64_gic_secondary_init(void);
 

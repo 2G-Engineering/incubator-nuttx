@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/mld/mld_group.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/irq.h>
 
@@ -103,7 +105,7 @@ FAR struct mld_group_s *mld_grpalloc(FAR struct net_driver_s *dev,
   FAR struct mld_group_s *group;
 
   mldinfo("addr: %08x dev: %p\n", *addr, dev);
-  group = (FAR struct mld_group_s *)kmm_zalloc(sizeof(struct mld_group_s));
+  group = kmm_zalloc(sizeof(struct mld_group_s));
 
   mldinfo("group: %p\n", group);
 
@@ -156,17 +158,18 @@ FAR struct mld_group_s *mld_grpfind(FAR struct net_driver_s *dev,
   FAR struct mld_group_s *group;
 
   mldinfo("Searching for group: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
-          addr[0], addr[1], addr[2], addr[3], addr[4], addr[5], addr[6],
-          addr[7]);
+          NTOHS(addr[0]), NTOHS(addr[1]), NTOHS(addr[2]), NTOHS(addr[3]),
+          NTOHS(addr[4]), NTOHS(addr[5]), NTOHS(addr[6]), NTOHS(addr[7]));
 
   for (group = (FAR struct mld_group_s *)dev->d_mld.grplist.head;
        group;
        group = group->next)
     {
       mldinfo("Compare: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
-              group->grpaddr[0], group->grpaddr[1], group->grpaddr[2],
-              group->grpaddr[3], group->grpaddr[4], group->grpaddr[5],
-              group->grpaddr[6], group->grpaddr[7]);
+              NTOHS(group->grpaddr[0]), NTOHS(group->grpaddr[1]),
+              NTOHS(group->grpaddr[2]), NTOHS(group->grpaddr[3]),
+              NTOHS(group->grpaddr[4]), NTOHS(group->grpaddr[5]),
+              NTOHS(group->grpaddr[6]), NTOHS(group->grpaddr[7]));
 
       if (net_ipv6addr_cmp(group->grpaddr, addr))
         {
@@ -281,5 +284,30 @@ void mld_new_pollcycle(FAR struct net_driver_s *dev)
     }
 }
 #endif
+
+/****************************************************************************
+ * Name:  mld_grpfree_all
+ *
+ * Description:
+ *   Release all previously allocated groups for a device.
+ *
+ * Assumptions:
+ *   The network is locked.
+ *
+ ****************************************************************************/
+
+void mld_grpfree_all(FAR struct net_driver_s *dev)
+{
+  FAR struct mld_group_s *group =
+                         (FAR struct mld_group_s *)dev->d_mld.grplist.head;
+  FAR struct mld_group_s *next;
+
+  while (group != NULL)
+    {
+      next = group->next;
+      mld_grpfree(dev, group);
+      group = next;
+    }
+}
 
 #endif /* CONFIG_NET_MLD */

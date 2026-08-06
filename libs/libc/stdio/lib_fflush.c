@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_fflush.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -52,13 +54,48 @@
  *
  ****************************************************************************/
 
+int fflush_unlocked(FAR FILE *stream)
+{
+  int ret;
+
+  /* Is the stream argument NULL? */
+
+  if (stream == NULL)
+    {
+      /* Yes... then this is a request to flush all streams */
+
+      ret = lib_flushall_unlocked(lib_get_streams());
+    }
+  else
+    {
+      ret = lib_fflush_unlocked(stream);
+    }
+
+  /* Check the return value */
+
+  if (ret < 0)
+    {
+      /* An error occurred during the flush AND/OR we were unable to flush
+       * all of the buffered write data. Set the errno value.
+       */
+
+      set_errno(-ret);
+
+      /* And return EOF on failure. */
+
+      return EOF;
+    }
+
+  return OK;
+}
+
 int fflush(FAR FILE *stream)
 {
   int ret;
 
   /* Is the stream argument NULL? */
 
-  if (!stream)
+  if (stream == NULL)
     {
       /* Yes... then this is a request to flush all streams */
 
@@ -66,7 +103,7 @@ int fflush(FAR FILE *stream)
     }
   else
     {
-      ret = lib_fflush(stream, true);
+      ret = lib_fflush(stream);
     }
 
   /* Check the return value */

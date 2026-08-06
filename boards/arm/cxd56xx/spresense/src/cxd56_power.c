@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/cxd56xx/spresense/src/cxd56_power.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,10 +31,11 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/mutex.h>
+#include <nuttx/signal.h>
 
 #include "chip.h"
 #include "arm_internal.h"
@@ -130,7 +133,6 @@ int board_pmic_write(uint8_t addr, void *buf, uint32_t size)
 
 int board_power_setup(int status)
 {
-  int      pin;
 #ifdef CONFIG_BOARD_USB_DISABLE_IN_DEEP_SLEEPING
   int      ret;
   uint8_t  val = 0;
@@ -145,17 +147,14 @@ int board_power_setup(int status)
       case PM_BOOT_POR_DEADBATT:
       case PM_BOOT_WDT_REBOOT:
       case PM_BOOT_WDT_RESET:
-        /* Power off Hi-Z of GPO switches (except for GPO0)
-         * in first boot-up stage
+
+        /* Power off GPO switches (except for GPO0) in power-on-reset
+         * and watchdog reset.
          */
 
-        for (pin = 1; pin <= BOARD_GPO_MAX_PIN_NUM; pin++)
-          {
-            if (cxd56_pmic_get_gpo_hiz(PMIC_GET_CH(PMIC_GPO(pin))) == -1)
-              {
-                board_power_control(PMIC_GPO(pin), false);
-              }
-          }
+        board_power_control(PMIC_GPO(1) | PMIC_GPO(2) | PMIC_GPO(3) |
+                            PMIC_GPO(4) | PMIC_GPO(5) | PMIC_GPO(6) |
+                            PMIC_GPO(7), false);
         break;
 #ifdef CONFIG_BOARD_USB_DISABLE_IN_DEEP_SLEEPING
       case PM_BOOT_DEEP_WKUPL:
@@ -237,7 +236,7 @@ int board_power_control(int target, bool en)
 
       if (!g_rtc_enabled && (PMIC_GET_TYPE(target) == PMIC_TYPE_GPO))
         {
-          usleep(1);
+          nxsched_usleep(1);
         }
     }
 
@@ -275,7 +274,7 @@ int board_power_control_tristate(int target, int value)
 
       if (!g_rtc_enabled)
         {
-          usleep(1);
+          nxsched_usleep(1);
         }
     }
   else if (PMIC_GET_TYPE(target) == CHIP_TYPE_GPIO)
@@ -543,7 +542,7 @@ int board_reset(int status)
 {
   board_power_control(PMIC_TYPE_GPO | g_reset_gpo_targets, false);
 
-  /* Restore the original state for bootup after power cycle  */
+  /* Restore the original state for boot up after power cycle  */
 
   if (!up_interrupt_context())
     {

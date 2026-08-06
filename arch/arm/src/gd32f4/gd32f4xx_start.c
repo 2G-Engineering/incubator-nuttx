@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/gd32f4/gd32f4xx_start.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,11 +28,12 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/init.h>
 
 #include "arm_internal.h"
+#include "itm_syslog.h"
 #include "nvic.h"
 #include "mpu.h"
 
@@ -236,6 +239,10 @@ void __start(void)
     {
       *dest++ = *src++;
     }
+
+#ifdef CONFIG_ARMV7M_STACKCHECK
+  arm_stack_check_init();
+#endif
 
   /* Configure the UART so that we can get debug output as soon as possible */
 

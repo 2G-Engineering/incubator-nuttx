@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/b-l475e-iot01a/src/stm32_userleds.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,7 +25,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 #include "b-l475e-iot01a.h"
@@ -44,8 +46,8 @@ uint32_t board_userled_initialize(void)
 {
   /* Configure LED gpio as output */
 
-  stm32l4_configgpio(GPIO_LED1);
-  stm32l4_configgpio(GPIO_LED2);
+  stm32_configgpio(GPIO_LED1);
+  stm32_configgpio(GPIO_LED2);
   return BOARD_NLEDS;
 }
 
@@ -57,11 +59,11 @@ void board_userled(int led, bool ledon)
 {
   if (led == BOARD_LED1)
     {
-      stm32l4_gpiowrite(GPIO_LED1, ledon);
+      stm32_gpiowrite(GPIO_LED1, ledon);
     }
   else if (led == BOARD_LED2)
     {
-      stm32l4_gpiowrite(GPIO_LED2, ledon);
+      stm32_gpiowrite(GPIO_LED2, ledon);
     }
 }
 
@@ -71,8 +73,8 @@ void board_userled(int led, bool ledon)
 
 void board_userled_all(uint32_t ledset)
 {
-  stm32l4_gpiowrite(GPIO_LED1, !!(ledset & BOARD_LED1_BIT));
-  stm32l4_gpiowrite(GPIO_LED2, !!(ledset & BOARD_LED2_BIT));
+  stm32_gpiowrite(GPIO_LED1, !!(ledset & BOARD_LED1_BIT));
+  stm32_gpiowrite(GPIO_LED2, !!(ledset & BOARD_LED2_BIT));
 }
 
 #endif /* !CONFIG_ARCH_LEDS */

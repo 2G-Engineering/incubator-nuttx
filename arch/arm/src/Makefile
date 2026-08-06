@@ -1,6 +1,8 @@
 ############################################################################
 # arch/arm/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -18,8 +20,17 @@
 #
 ############################################################################
 
-include $(TOPDIR)/Make.defs
+include $(TOPDIR)/tools/Make.defs
+
+# Allow cleanup targets to run even if the configured chip dirlink is gone.
+CLEAN_GOALS = clean distclean
+ifeq ($(strip $(MAKECMDGOALS)),)
 include chip/Make.defs
+else ifeq ($(strip $(filter-out $(CLEAN_GOALS),$(MAKECMDGOALS))),)
+-include chip/Make.defs
+else
+include chip/Make.defs
+endif
 
 ifeq ($(CONFIG_ARCH_ARMV7A),y)          # ARMv7-A
 ARCH_SUBDIR = armv7-a
@@ -105,11 +116,19 @@ EXTRA_LIBS += $(wildcard $(APPDIR)$(DELIM)staging$(DELIM)*$(LIBEXT))
 
 ifeq ($(CONFIG_ARM_TOOLCHAIN_ARMCLANG),)
   ifeq ($(LD),$(CC))
+    ifeq ($(CONFIG_STACK_CANARIES),y)
+      # filter out ssp(Stack Smashing Protector) related flags:
+      #  -fstack-protector
+      #  -fstack-protector-all
+      #  -fstack-protector-strong
+      #  -fstack-protector-explicit
+      STRIPCFLAGS = $(filter -fstack-protector%,$(CFLAGS))
+    endif
     LDSTARTGROUP ?= -Wl,--start-group
     LDENDGROUP   ?= -Wl,--end-group
     LDFLAGS      := $(addprefix -Xlinker ,$(LDFLAGS))
-    LDFLAGS      += $(CFLAGS)
-  else
+    LDFLAGS      += $(filter-out $(STRIPCFLAGS),$(CFLAGS))
+  else ifneq ($(CONFIG_ARM_TOOLCHAIN_GHS),y)
     LDSTARTGROUP ?= --start-group
     LDENDGROUP   ?= --end-group
   endif
@@ -142,15 +161,16 @@ VPATH += chip
 VPATH += common
 VPATH += $(ARCH_SUBDIR)
 
+vpath nuttx$(EXEEXT) $(TOPDIR)
+
 ifeq ($(CONFIG_ARM_TOOLCHAIN_IAR),y)
   VPATH += common$(DELIM)iar
 else # ifeq ($(CONFIG_ARCH_TOOLCHAIN_GNU),y)
   VPATH += common$(DELIM)gnu
+  VPATH += common$(DELIM)ghs
 endif
 
 all: $(HEAD_OBJ) $(BIN)
-
-.PHONY: board$(DELIM)libboard$(LIBEXT)
 
 $(AOBJS) $(UAOBJS) $(HEAD_OBJ): %$(OBJEXT): %.S
 	$(call ASSEMBLE, $<, $@)
@@ -158,52 +178,74 @@ $(AOBJS) $(UAOBJS) $(HEAD_OBJ): %$(OBJEXT): %.S
 $(COBJS) $(UCOBJS): %$(OBJEXT): %.c
 	$(call COMPILE, $<, $@)
 
+$(STARTUP_OBJS): %$(OBJEXT): %.c
+	$(Q) $(CC) $(CELFFLAGS) -c common$(DELIM)crt0.c -o crt0$(OBJEXT)
+
 ifeq ($(CONFIG_BUILD_FLAT),y)
-$(BIN): $(OBJS)
+$(BIN): $(STARTUP_OBJS) $(OBJS)
 	$(call ARCHIVE, $@, $(OBJS))
 else
-$(BIN): $(UOBJS)
+$(BIN): $(STARTUP_OBJS) $(UOBJS)
 	$(call ARCHIVE, $@, $(UOBJS))
 endif
 
 $(KBIN): $(OBJS)
 	$(call ARCHIVE, $@, $(OBJS))
 
-board$(DELIM)libboard$(LIBEXT):
+board$(DELIM)libboard$(LIBEXT): FORCE
 	$(Q) $(MAKE) -C board libboard$(LIBEXT) EXTRAFLAGS="$(EXTRAFLAGS)"
 
-define LINK_ALLSYMS
-	$(Q) $(TOPDIR)/tools/mkallsyms.py $(NUTTX) allsyms.tmp
+.PHONY: FORCE
+
+FORCE:
+
+# When multiple linking, these two additional linking objects will be included
+
+ifeq ($(CONFIG_MM_KASAN_GLOBAL),y)
+EXTRA_LIBS += kasan_globals$(OBJEXT)
+endif
+ifeq ($(CONFIG_ALLSYMS),y)
+EXTRA_LIBS += allsyms$(OBJEXT)
+endif
+
+define LINK_ALLSYMS_KASAN
+	$(if $(CONFIG_ALLSYMS),
+	$(Q) $(TOPDIR)/tools/mkallsyms.py $(NUTTX) allsyms.tmp --orderbyname $(CONFIG_SYMTAB_ORDEREDBYNAME)
 	$(Q) $(call COMPILE, allsyms.tmp, allsyms$(OBJEXT), -x c)
-	$(Q) $(LD) --entry=__start $(LDFLAGS) $(LIBPATHS) $(EXTRA_LIBPATHS) \
-		-o $(NUTTX) $(HEAD_OBJ) allsyms$(OBJEXT) $(EXTRA_OBJS) \
+	$(Q) $(call DELFILE, allsyms.tmp))
+	$(if $(CONFIG_MM_KASAN_GLOBAL),
+	$(Q) $(TOPDIR)/tools/kasan_global.py -e $(NUTTX) -o kasan_globals.tmp -a $(CONFIG_MM_KASAN_GLOBAL_ALIGN)
+	$(Q) $(call COMPILE, kasan_globals.tmp, kasan_globals$(OBJEXT) -fno-sanitize=kernel-address, -x c)
+	$(Q) $(call DELFILE, kasan_globals.tmp))
+	$(Q) $(LD) $(LDFLAGS) $(LIBPATHS) $(EXTRA_LIBPATHS) \
+		-o $(NUTTX) $(HEAD_OBJ) $(EXTRA_OBJS) \
 		$(LDSTARTGROUP) $(LDLIBS) $(EXTRA_LIBS) $(LDENDGROUP)
-	$(Q) $(call DELFILE, allsyms.tmp allsyms$(OBJEXT))
 endef
 
-$(addsuffix .tmp,$(ARCHSCRIPT)): $(ARCHSCRIPT)
+$(addsuffix .tmp,$(ARCHSCRIPT)): $(ARCHSCRIPT) $(TOPDIR)$(DELIM).config
 	$(call PREPROCESS, $(patsubst %.tmp,%,$@), $@)
 
-nuttx$(EXEEXT): $(HEAD_OBJ) board$(DELIM)libboard$(LIBEXT) $(addsuffix .tmp,$(ARCHSCRIPT))
+nuttx$(EXEEXT): $(HEAD_OBJ) board$(DELIM)libboard$(LIBEXT) $(addsuffix .tmp,$(ARCHSCRIPT)) $(addprefix $(TOPDIR)$(DELIM)staging$(DELIM),$(LINKLIBS))
 	$(Q) echo "LD: nuttx"
-ifneq ($(CONFIG_ALLSYMS),y)
-	$(Q) $(LD) --entry=__start $(LDFLAGS) $(LIBPATHS) $(EXTRA_LIBPATHS) \
+ifeq ($(CONFIG_ALLSYMS)$(CONFIG_MM_KASAN_GLOBAL),)
+	$(Q) $(LD) $(LDFLAGS) $(LIBPATHS) $(EXTRA_LIBPATHS) \
 		-o $(NUTTX) $(HEAD_OBJ) $(EXTRA_OBJS) \
 		$(LDSTARTGROUP) $(LDLIBS) $(EXTRA_LIBS) $(LDENDGROUP)
 else
-	$(Q) # Link and generate default table
-	$(Q) $(if $(wildcard $(shell echo $(NUTTX))),,$(call LINK_ALLSYMS,$^))
-	$(Q) # Extract all symbols
-	$(Q) $(call LINK_ALLSYMS, $^)
-	$(Q) # Extract again since the table offset may changed
-	$(Q) $(call LINK_ALLSYMS, $^)
+	$(Q) $(call LINK_ALLSYMS_KASAN)
+	$(Q) $(call LINK_ALLSYMS_KASAN)
+	$(Q) $(call LINK_ALLSYMS_KASAN)
+	$(Q) $(call LINK_ALLSYMS_KASAN)
+endif
+ifeq ($(CONFIG_MM_KASAN_GLOBAL),y)
+	$(Q) $(OBJCOPY) -R .kasan.global $(NUTTX)
+	$(Q) $(OBJCOPY) -R .kasan.unused $(NUTTX)
 endif
 ifneq ($(CONFIG_WINDOWS_NATIVE),y)
 	$(Q) $(NM) $(NUTTX) | \
 	grep -v '\(compiled\)\|\(\$(OBJEXT)$$\)\|\( [aUw] \)\|\(\.\.ng$$\)\|\(LASH[RL]DI\)' | \
 	sort > $(TOPDIR)$(DELIM)System.map
 endif
-	$(Q) $(call DELFILE, $(addsuffix .tmp,$(ARCHSCRIPT)))
 
 # This is part of the top-level export target
 # Note that there may not be a head object if layout is handled
@@ -252,6 +294,7 @@ distclean:: clean
 ifeq ($(BOARDMAKE),y)
 	$(Q) $(MAKE) -C board distclean
 endif
+	$(call DELFILE, $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds) $(HEAD_ASRC:.S=.dds))
 	$(call DELFILE, Make.dep)
 	$(call DELFILE, .depend)
 

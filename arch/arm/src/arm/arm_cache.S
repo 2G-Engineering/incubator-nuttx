@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/arm/arm_cache.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -67,9 +69,9 @@
  * Wait for interrupt SBZ                              MCR p15, 0, <Rd>, c7, c0, 4
  */
 
-/* Esure coherency between the Icache and the Dcache in the region described
- * by r0=start and r1=end.  Cleans the corresponding D-cache lines and invalidates
- * the corresponding I-Cache lines.
+/* Ensure coherency between the Icache and the Dcache in the region described
+ * by r0=start and r1=end.  Cleans the corresponding Dcache lines and invalidates
+ * the corresponding ICache lines.
  */
 
 	.globl	up_get_dcache_linesize
@@ -197,7 +199,7 @@ up_clean_dcache:
 	.type	up_clean_dcache_all, function
 
 up_clean_dcache_all:
-	mrc		p15, 0, r0, c7, c10, 3
+	mrc		p15, 0, r15, c7, c10, 3
 	bne		up_clean_dcache_all
 	bx		lr
 	.size	up_clean_dcache_all, . - up_clean_dcache_all
@@ -225,7 +227,7 @@ up_flush_dcache:
 	.type	up_flush_dcache_all, function
 
 up_flush_dcache_all:
-	mrc		p15, 0, r0, c7, c14, 3
+	mrc		p15, 0, r15, c7, c14, 3
 	bne		up_flush_dcache_all
 	bx		lr
 	.size	up_flush_dcache_all, . - up_flush_dcache_all

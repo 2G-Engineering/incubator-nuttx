@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/ctype/lib_isupper.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,4 +33,9 @@
 int isupper(int c)
 {
   return c >= 'A' && c <= 'Z';
+}
+
+int isupper_l(int c, locale_t locale)
+{
+  return isupper(c);
 }

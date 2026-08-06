@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/lcd/st7032.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 
 #include <stdlib.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
 #include <nuttx/kmalloc.h>
@@ -152,7 +154,7 @@ static inline void st7032_write_inst(FAR struct st7032_dev_s *priv,
 
   /* Delay 30us */
 
-  nxsig_usleep(30);
+  nxsched_usleep(30);
 }
 
 /****************************************************************************
@@ -193,7 +195,7 @@ static inline void st7032_write_data(FAR struct st7032_dev_s *priv,
 
   /* Delay 30us */
 
-  nxsig_usleep(30);
+  nxsched_usleep(30);
 }
 
 static inline void st7032_setcontrast(FAR struct st7032_dev_s *priv,
@@ -330,7 +332,7 @@ static void lcd_scroll_up(FAR struct st7032_dev_s *priv)
   int currow;
   int curcol;
 
-  data = (FAR uint8_t *)kmm_malloc(ST7032_MAX_COL);
+  data = kmm_malloc(ST7032_MAX_COL);
   if (NULL == data)
     {
       lcdinfo("Failed to allocate buffer in lcd_scroll_up()\n");
@@ -701,7 +703,7 @@ static ssize_t st7032_write(FAR struct file *filep, FAR const char *buffer,
   /* Now decode and process every byte in the input buffer */
 
   memset(&state, 0, sizeof(struct slcdstate_s));
-  while ((result = slcd_decode(&instream.public,
+  while ((result = slcd_decode(&instream.common,
                                &state, &ch, &count)) != SLCDRET_EOF)
     {
       /* Is there some pending scroll? */
@@ -821,7 +823,7 @@ static off_t st7032_seek(FAR struct file *filep, off_t offset, int whence)
 {
   FAR struct inode *inode = filep->f_inode;
   FAR struct st7032_dev_s *priv =
-    (FAR struct st7032_dev_s *)inode->i_private;
+    inode->i_private;
   off_t maxpos;
   off_t pos;
 
@@ -924,7 +926,7 @@ static int st7032_ioctl(FAR struct file *filep, int cmd,
         {
           FAR struct inode *inode = filep->f_inode;
           FAR struct st7032_dev_s *priv =
-            (FAR struct st7032_dev_s *)inode->i_private;
+            inode->i_private;
           FAR struct slcd_curpos_s *attr =
             (FAR struct slcd_curpos_s *)((uintptr_t)arg);
 
@@ -937,7 +939,7 @@ static int st7032_ioctl(FAR struct file *filep, int cmd,
         {
           FAR struct inode *inode = filep->f_inode;
           FAR struct st7032_dev_s *priv =
-            (FAR struct st7032_dev_s *)inode->i_private;
+            inode->i_private;
 
           nxmutex_lock(&priv->lock);
           *(FAR int *)((uintptr_t)arg) = 1; /* Hardcoded */
@@ -949,7 +951,7 @@ static int st7032_ioctl(FAR struct file *filep, int cmd,
         {
           FAR struct inode *inode = filep->f_inode;
           FAR struct st7032_dev_s *priv =
-            (FAR struct st7032_dev_s *)inode->i_private;
+            inode->i_private;
 
           nxmutex_lock(&priv->lock);
 
@@ -996,7 +998,7 @@ int st7032_register(FAR const char *devpath, FAR struct i2c_master_s *i2c)
 
   /* Initialize the ST7032 device structure */
 
-  priv = (FAR struct st7032_dev_s *)kmm_malloc(sizeof(struct st7032_dev_s));
+  priv = kmm_malloc(sizeof(struct st7032_dev_s));
   if (!priv)
     {
       snerr("ERROR: Failed to allocate instance\n");

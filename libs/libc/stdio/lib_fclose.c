@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_fclose.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -34,6 +36,8 @@
 #  include <android/fdsan.h>
 #endif
 
+#include <nuttx/queue.h>
+
 #include "libc.h"
 
 /****************************************************************************
@@ -59,8 +63,6 @@
 int fclose(FAR FILE *stream)
 {
   FAR struct streamlist *slist;
-  FAR FILE *prev = NULL;
-  FAR FILE *next;
   int errcode = EINVAL;
   int ret = ERROR;
   int status;
@@ -69,78 +71,84 @@ int fclose(FAR FILE *stream)
 
   if (stream)
     {
+      bool stdstream = (stream == stdin || stream == stdout ||
+                        stream == stderr);
+      bool found = stdstream;
+      FAR sq_entry_t *curr;
+
+      slist = lib_get_streams();
+
+      nxmutex_lock(&slist->sl_lock);
+
+      /* Verify that the stream pointer is valid. */
+
+      for (curr = sq_peek(&slist->sl_queue); curr && !found;
+           curr = sq_next(curr))
+        {
+          if (stream == (FAR FILE *)curr)
+            {
+              found = true;
+            }
+        }
+
+      if (!found)
+        {
+          nxmutex_unlock(&slist->sl_lock);
+          errcode = EINVAL;
+          goto done;
+        }
+
       ret = OK;
 
       /* If the stream was opened for writing, then flush the stream */
 
-      if ((stream->fs_oflags & O_WROK) != 0)
+      if ((stream->fs_oflags & O_ACCMODE) != O_RDONLY)
         {
-          ret = lib_fflush(stream, true);
+          ret = lib_fflush(stream);
           errcode = get_errno();
         }
 
       /* Skip close the builtin streams(stdin, stdout and stderr) */
 
-      if (stream == stdin || stream == stdout || stream == stderr)
+      if (stdstream)
         {
+          nxmutex_unlock(&slist->sl_lock);
           goto done;
         }
 
       /* Remove FILE structure from the stream list */
 
-      slist = lib_get_streams();
-      nxmutex_lock(&slist->sl_lock);
-
-      for (next = slist->sl_head; next; prev = next, next = next->fs_next)
-        {
-          if (next == stream)
-            {
-              if (next == slist->sl_head)
-                {
-                  slist->sl_head = next->fs_next;
-                }
-              else
-                {
-                  prev->fs_next = next->fs_next;
-                }
-
-              if (next == slist->sl_tail)
-                {
-                  slist->sl_tail = prev;
-                }
-
-              break;
-            }
-        }
+      sq_rem(&stream->fs_entry, &slist->sl_queue);
 
       nxmutex_unlock(&slist->sl_lock);
 
-      /* Check that the underlying file descriptor corresponds to an an open
-       * file.
-       */
+      /* Call user custom callback if it is not NULL. */
 
-      if (stream->fs_fd >= 0)
+      if (stream->fs_iofunc.close != NULL)
         {
-          /* Close the file descriptor and save the return status */
-
+          status = stream->fs_iofunc.close(stream->fs_cookie);
+        }
+      else
+        {
+          int fd = (int)(intptr_t)stream->fs_cookie;
 #ifdef CONFIG_FDSAN
           uint64_t tag;
           tag = android_fdsan_create_owner_tag(ANDROID_FDSAN_OWNER_TYPE_FILE,
                                                (uintptr_t)stream);
-          status = android_fdsan_close_with_tag(stream->fs_fd, tag);
+          status = android_fdsan_close_with_tag(fd, tag);
 #else
-          status = close(stream->fs_fd);
+          status = close(fd);
 #endif
+        }
 
-          /* If close() returns an error but flush() did not then make sure
-           * that we return the close() error condition.
-           */
+      /* If close() returns an error but flush() did not then make sure
+       * that we return the close() error condition.
+       */
 
-          if (ret == OK)
-            {
-              ret = status;
-              errcode = get_errno();
-            }
+      if (ret == OK)
+        {
+          ret = status;
+          errcode = get_errno();
         }
 
 #ifndef CONFIG_STDIO_DISABLE_BUFFERING

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/wireless/ieee802154/mrf24j40/mrf24j40_radif.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
@@ -175,14 +177,14 @@ static void mrf24j40_slpclkcal(FAR struct mrf24j40_radio_s *dev)
                   0x01 | MRF24J40_SLPCON1_CLKOUT_DISABLED);
 
   /* Begin calibration by setting the SLPCALEN bit (SLPCAL2 0x20b<4>) to
-   * ‘1’. Sixteen samples of the SLPCLK are counted and stored in the
+   * '1'. Sixteen samples of the SLPCLK are counted and stored in the
    * SLPCAL register. No need to mask, this is the only writable bit
    */
 
   mrf24j40_setreg(dev->spi, MRF24J40_SLPCAL2, MRF24J40_SLPCAL2_SLPCALEN);
 
   /* Calibration is complete when the SLPCALRDY bit (SLPCAL2 0x20b<7>) is
-   * set to ‘1’.
+   * set to '1'.
    */
 
   while (!(mrf24j40_getreg(dev->spi, MRF24J40_SLPCAL2) &
@@ -439,7 +441,7 @@ int mrf24j40_reset(FAR struct ieee802154_radio_s *radio)
   mrf24j40_setreg(dev->spi, MRF24J40_BBREG6 , 0x40); /* 01000000 Append RSSI to rx packets */
 
   /* Calibrate the Sleep Clock (SLPCLK) frequency. Refer to Section 3.15.1.2
-   * “Sleep Clock Calibration”.
+   * "Sleep Clock Calibration".
    */
 
   mrf24j40_slpclkcal(dev);
@@ -551,6 +553,12 @@ int mrf24j40_getattr(FAR struct ieee802154_radio_s *radio,
         {
           attrval->phy.fcslen = 2;
           ret = IEEE802154_STATUS_SUCCESS;
+        }
+        break;
+
+      case IEEE802154_ATTR_PHY_REGDUMP:
+        {
+          ret = mrf24j40_regdump(dev);
         }
         break;
 

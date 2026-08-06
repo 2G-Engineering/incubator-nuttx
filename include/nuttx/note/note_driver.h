@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/note/note_driver.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,6 +32,7 @@
 #include <stddef.h>
 
 #include <nuttx/sched.h>
+#include <nuttx/sched_note.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -68,8 +71,8 @@ struct note_driver_ops_s
 #  endif
 #endif
 #ifdef CONFIG_SCHED_INSTRUMENTATION_PREEMPTION
-  CODE void (*premption)(FAR struct note_driver_s *drv,
-                         FAR struct tcb_s *tcb, bool locked);
+  CODE void (*preemption)(FAR struct note_driver_s *drv,
+                          FAR struct tcb_s *tcb, bool locked);
 #endif
 #ifdef CONFIG_SCHED_INSTRUMENTATION_CSECTION
   CODE void (*csection)(FAR struct note_driver_s *drv,
@@ -89,21 +92,45 @@ struct note_driver_ops_s
   CODE void (*irqhandler)(FAR struct note_driver_s *drv, int irq,
                           FAR void *handler, bool enter);
 #endif
+#ifdef CONFIG_SCHED_INSTRUMENTATION_WDOG
+  CODE void (*wdog)(FAR struct note_driver_s *drv, uint8_t event,
+                    FAR void *handler, FAR const void *arg);
+#endif
+#ifdef CONFIG_SCHED_INSTRUMENTATION_HEAP
+  CODE void (*heap)(FAR struct note_driver_s *drv, uint8_t event,
+                    FAR void *heap, FAR void *mem, size_t size,
+                    size_t curused);
+#endif
 #ifdef CONFIG_SCHED_INSTRUMENTATION_DUMP
-  CODE void (*string)(FAR struct note_driver_s *drv, uintptr_t ip,
-                      FAR const char *buf);
-  CODE void (*dump)(FAR struct note_driver_s *drv, uintptr_t ip,
-                    uint8_t event, FAR const void *buf, size_t len);
+  CODE void (*event)(FAR struct note_driver_s *drv, uintptr_t ip,
+                     uint8_t event, FAR const void *buf, size_t len);
   CODE void (*vprintf)(FAR struct note_driver_s *drv, uintptr_t ip,
                        FAR const char *fmt, va_list va) printf_like(3, 0);
-  CODE void (*vbprintf)(FAR struct note_driver_s *drv, uintptr_t ip,
-                        uint8_t event, FAR const char *fmt,
-                        va_list va) printf_like(4, 0);
 #endif
 };
 
+#ifdef CONFIG_SCHED_INSTRUMENTATION_FILTER
+struct note_filter_s
+{
+  struct note_filter_mode_s mode;
+#  ifdef CONFIG_SCHED_INSTRUMENTATION_DUMP
+  struct note_filter_tag_s tag_mask;
+#  endif
+#  ifdef CONFIG_SCHED_INSTRUMENTATION_IRQHANDLER
+  struct note_filter_irq_s irq_mask;
+#  endif
+#  ifdef CONFIG_SCHED_INSTRUMENTATION_SYSCALL
+  struct note_filter_syscall_s syscall_mask;
+#  endif
+};
+#endif
+
 struct note_driver_s
 {
+#ifdef CONFIG_SCHED_INSTRUMENTATION_FILTER
+  FAR const char *name;
+  struct note_filter_s filter;
+#endif
   FAR const struct note_driver_ops_s *ops;
 };
 
@@ -112,6 +139,25 @@ struct note_driver_s
  ****************************************************************************/
 
 #if defined(__KERNEL__) || defined(CONFIG_BUILD_FLAT)
+
+#ifdef CONFIG_DRIVERS_NOTE
+
+/****************************************************************************
+ * Name: note_early_initialize
+ *
+ * Description:
+ *   Early register sched note related drivers that do not rely on system
+ *   features like mm.
+ *
+ * Input Parameters:
+ *   None.
+ *
+ * Returned Value:
+ *   Zero on success. A negative errno value is returned on a failure.
+ *
+ ****************************************************************************/
+
+int note_early_initialize(void);
 
 /****************************************************************************
  * Name: note_initialize
@@ -124,18 +170,14 @@ struct note_driver_s
  *   None.
  *
  * Returned Value:
- *   Zero on succress. A negated errno value is returned on a failure.
+ *   Zero on success. A negative errno value is returned on a failure.
  *
  ****************************************************************************/
 
-#ifdef CONFIG_DRIVERS_NOTE
 int note_initialize(void);
 #endif
 
 #endif /* defined(__KERNEL__) || defined(CONFIG_BUILD_FLAT) */
-
-#if defined(CONFIG_DRIVERS_NOTE_TASKNAME_BUFSIZE) && \
-    CONFIG_DRIVERS_NOTE_TASKNAME_BUFSIZE > 0
 
 /****************************************************************************
  * Name: note_get_taskname
@@ -145,19 +187,15 @@ int note_initialize(void);
  *
  * Input Parameters:
  *   PID - Task ID
- *   name - Task name buffer
- *          this buffer must be greater than CONFIG_TASK_NAME_SIZE + 1
+ *   buf - A writable buffer to hold the task name
+ *   len - The length of the buffer
  *
  * Returned Value:
- *   Retrun OK if task name can be retrieved, otherwise -ESRCH
+ *   Return name if task name can be retrieved, otherwise "<noname>"
  *
  ****************************************************************************/
 
-int note_get_taskname(pid_t pid, FAR char *name);
-
-#endif /* defined(CONFIG_DRIVERS_NOTE_TASKNAME_BUFSIZE) && \
-        * CONFIG_DRIVERS_NOTE_TASKNAME_BUFSIZE > 0
-        */
+FAR char *note_get_taskname(pid_t pid, FAR char *buf, size_t len);
 
 /****************************************************************************
  * Name: note_driver_register

@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/signal/sig_signal.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -62,7 +64,7 @@ _sa_handler_t signal(int signo, _sa_handler_t func)
   struct sigaction oact;
   int ret = -EINVAL;
 
-  if (!GOOD_SIGNO(signo))
+  if (!GOOD_SIGNO(signo) || UNCAUGHT_SIGNO(signo))
     {
       goto err;
     }

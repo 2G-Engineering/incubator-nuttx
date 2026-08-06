@@ -1,8 +1,11 @@
 /****************************************************************************
  * arch/arm/src/s32k1xx/s32k1xx_periphclocks.c
  *
- *   Copyright (C) 2019 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2019 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2016-2018 NXP
+ * SPDX-FileCopyrightText: 2013 - 2015, Freescale Semiconductor, Inc.
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -60,7 +63,7 @@
 
 #include <sys/types.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "arm_internal.h"
 #include "hardware/s32k1xx_scg.h"
@@ -76,7 +79,7 @@
  * Name: s32k1xx_get_pclkctrl
  *
  * Description:
- *   Given a clock name, this functions returns the address the the PCC
+ *   Given a clock name, this functions returns the address the PCC
  *   control register for the peripheral.
  *
  * Input Parameters:

@@ -1,7 +1,7 @@
 /****************************************************************************
  * arch/arm/src/s32k3xx/s32k3xx_edma.h
  *
- *   Copyright (C) 2019, 2021 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2019, 2021, 2023 Gregory Nutt. All rights reserved.
  *   Copyright 2022 NXP
  *   Authors: Gregory Nutt <gnutt@nuttx.org>
  *            David Sidrane <david.sidrane@nscdg.com>
@@ -87,7 +87,7 @@
  *     i mxrt_dmach_stop(handle);
  *
  * 7. The callback will be received when the DMA completes (or an error
- *    occurs). After that, you may free  the DMA channel, or re-use it on
+ *    occurs). After that, you may free  the DMA channel, or reuse it on
  *    subsequent DMAs.
  *
  *      s32k3xx_dmach_free(handle);
@@ -354,7 +354,7 @@ int s32k3xx_dmach_xfrsetup(DMACH_HANDLE *handle,
  *   interrupts will be generated with the final being the DONE interrupt.
  *
  *   At the conclusion of the DMA, the DMA channel is reset, all TCDs are
- *   freed, and the callback function is called with the the success/fail
+ *   freed, and the callback function is called with the success/fail
  *   result of the DMA.
  *
  *   NOTE:
@@ -401,7 +401,7 @@ void s32k3xx_dmach_stop(DMACH_HANDLE handle);
  *
  * Description:
  *   This function checks the TCD (Task Control Descriptor) status for a
- *   specified eDMA channel and returns the the number of major loop counts
+ *   specified eDMA channel and returns the number of major loop counts
  *   that have not finished.
  *
  *   NOTES:
@@ -430,6 +430,20 @@ void s32k3xx_dmach_stop(DMACH_HANDLE handle);
  ****************************************************************************/
 
 unsigned int s32k3xx_dmach_getcount(DMACH_HANDLE *handle);
+
+/****************************************************************************
+ * Name: s32k3xx_dmach_idle
+ *
+ * Description:
+ *   This function checks if the dma is idle
+ *
+ * Returned Value:
+ *   0  - if idle
+ *   !0 - not
+ *
+ ****************************************************************************/
+
+unsigned int s32k3xx_dmach_idle(DMACH_HANDLE handle);
 
 /****************************************************************************
  * Name: s32k3xx_dmasample

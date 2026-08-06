@@ -1,6 +1,8 @@
 ############################################################################
 # binfmt/libnxflat/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -19,10 +21,6 @@
 ############################################################################
 
 ifeq ($(CONFIG_NXFLAT),y)
-
-# NXFLAT application interfaces
-
-CSRCS += nxflat.c
 
 # NXFLAT library
 

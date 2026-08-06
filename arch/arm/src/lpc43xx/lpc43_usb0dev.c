@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lpc43xx/lpc43_usb0dev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
@@ -1893,7 +1895,7 @@ static int lpc43_usbinterrupt(int irq, void *context, void *arg)
     {
       usbtrace(TRACE_INTDECODE(LPC43_TRACEINTID_FRAME), 0);
 
-      priv->sof = (int)lpc43_getreg(LPC43_USBDEV_FRINDEX_OFFSET);
+      priv->sof = lpc43_getreg(LPC43_USBDEV_FRINDEX);
     }
 #endif
 
@@ -2180,7 +2182,7 @@ usbdev_req_s *lpc43_epallocreq(struct usbdev_ep_s *ep)
 
   usbtrace(TRACE_EPALLOCREQ, ((struct lpc43_ep_s *)ep)->epphy);
 
-  privreq = (struct lpc43_req_s *)kmm_malloc(sizeof(struct lpc43_req_s));
+  privreq = kmm_malloc(sizeof(struct lpc43_req_s));
   if (!privreq)
     {
       usbtrace(TRACE_DEVERROR(LPC43_TRACEERR_ALLOCFAIL), 0);
@@ -2602,7 +2604,7 @@ static int lpc43_getframe(struct usbdev_s *dev)
 
   /* FIXME: this actually returns the micro frame number! */
 
-  return (int)lpc43_getreg(LPC43_USBDEV_FRINDEX_OFFSET);
+  return (int)lpc43_getreg(LPC43_USBDEV_FRINDEX);
 #endif
 }
 

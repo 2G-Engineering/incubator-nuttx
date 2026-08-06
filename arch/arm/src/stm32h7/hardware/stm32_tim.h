@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/hardware/stm32_tim.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -421,7 +423,7 @@
 #define ATIM_CR2_OIS3             (1 << 12) /* Bit 12: Output Idle state 3 (OC3 output) */
 #define ATIM_CR2_OIS3N            (1 << 13) /* Bit 13: Output Idle state 3 (OC3N output) */
 #define ATIM_CR2_OIS4             (1 << 14) /* Bit 14: Output Idle state 4 (OC4 output) */
-#define ATIM_CR2_OIS5             (1 << 16) /* Bit 16: OOutput Idle state 5 (OC5 output) */
+#define ATIM_CR2_OIS5             (1 << 16) /* Bit 16: Output Idle state 5 (OC5 output) */
 #define ATIM_CR2_OIS6             (1 << 18) /* Bit 18: Output Idle state 6 (OC6 output) */
 #define ATIM_CR2_MMS2_SHIFT       (20)      /* Bits 20-23: Master Mode Selection 2 */
 #define ATIM_CR2_MMS2_MASK        (15 << ATIM_CR2_MMS2_SHIFT)
@@ -763,7 +765,7 @@
 #  define ATIM_BDTR_LOCKOFF       (0 << ATIM_BDTR_LOCK_SHIFT) /* 00: LOCK OFF - No bit is write protected */
 #  define ATIM_BDTR_LOCK1         (1 << ATIM_BDTR_LOCK_SHIFT) /* 01: LOCK Level 1 protection */
 #  define ATIM_BDTR_LOCK2         (2 << ATIM_BDTR_LOCK_SHIFT) /* 10: LOCK Level 2 protection */
-#  define ATIM_BDTR_LOCK3         (3 << ATIM_BDTR_LOCK_SHIFT) /* 11: LOCK Level 3 protection */ */
+#  define ATIM_BDTR_LOCK3         (3 << ATIM_BDTR_LOCK_SHIFT) /* 11: LOCK Level 3 protection */
 
 #define ATIM_BDTR_OSSI            (1 << 10) /* Bit 10: Off-State Selection for Idle mode */
 #define ATIM_BDTR_OSSR            (1 << 11) /* Bit 11: Off-State Selection for Run mode */

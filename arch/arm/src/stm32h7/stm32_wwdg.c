@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_wwdg.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,8 +30,8 @@
 #include <stdint.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/timers/watchdog.h>
 #include <arch/board/board.h>
@@ -37,7 +39,7 @@
 #include "arm_internal.h"
 #include "stm32_wdg.h"
 
-#if defined(CONFIG_WATCHDOG) && defined(CONFIG_STM32H7_WWDG)
+#if defined(CONFIG_WATCHDOG) && defined(CONFIG_STM32_WWDG)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -47,7 +49,7 @@
 
 /* The minimum frequency of the WWDG clock is:
  *
- *  Fmin = PCLK1 / 4096 / 8
+ *  Fmin = PCLK1 / 4096 / 128
  *
  * So the maximum delay (in milliseconds) is then:
  *
@@ -55,11 +57,11 @@
  *
  * For example, if PCLK1 = 42MHz, then the maximum delay is:
  *
- *   Fmin = 1281.74
- *   1000 * 64 / Fmin = 49.93 msec
+ *   Fmin = 42,000,000 / 4096 / 128 = ~80.11 Hz
+ *   1000 * 64 / Fmin = ~798.92 msec
  */
 
-#define WWDG_FMIN       (STM32_PCLK1_FREQUENCY / 4096 / 8)
+#define WWDG_FMIN       (STM32_PCLK1_FREQUENCY / 4096 / 128)
 #define WWDG_MAXTIMEOUT (1000 * (WWDG_CR_T_MAX+1) / WWDG_FMIN)
 
 /* Configuration ************************************************************/
@@ -209,7 +211,7 @@ static uint16_t stm32_getreg(uint32_t addr)
 
   /* Show the register value read */
 
-  wdinfo("%08x->%04x\n", addr, val);
+  wdinfo("%08" PRIx32 "->%04x\n", addr, val);
   return val;
 }
 #endif
@@ -227,7 +229,7 @@ static void stm32_putreg(uint16_t val, uint32_t addr)
 {
   /* Show the register value being written */
 
-  wdinfo("%08x<-%04x\n", addr, val);
+  wdinfo("%08" PRIx32 "<-%04x\n", addr, val);
 
   /* Write the value */
 
@@ -331,6 +333,10 @@ static int stm32_start(struct watchdog_lowerhalf_s *lower)
 
   wdinfo("Entry\n");
   DEBUGASSERT(priv);
+
+  /* Clear the pending interrupt bit */
+
+  modifyreg32(STM32_WWDG_SR, WWDG_SR_EWIF, 0);
 
   /* The watchdog is always disabled after a reset. It is enabled by setting
    * the WDGA bit in the WWDG_CR register, then it cannot be disabled again
@@ -452,13 +458,13 @@ static int stm32_getstatus(struct watchdog_lowerhalf_s *lower,
   /* Get the time remaining until the watchdog expires (in milliseconds) */
 
   reload = (stm32_getreg(STM32_WWDG_CR) >> WWDG_CR_T_SHIFT) & 0x7f;
-  elapsed = priv->reload - reload;
+  elapsed = (WWDG_CR_T_RESET | priv->reload) - reload;
   status->timeleft = (priv->timeout * elapsed) / (priv->reload + 1);
 
   wdinfo("Status     :\n");
-  wdinfo("  flags    : %08x\n", status->flags);
+  wdinfo("  flags    : %08" PRIx32 "\n", status->flags);
   wdinfo("  timeout  : %d\n", status->timeout);
-  wdinfo("  timeleft : %d\n", status->flags);
+  wdinfo("  timeleft : %d\n", status->timeleft);
   return OK;
 }
 
@@ -546,7 +552,7 @@ static int stm32_settimeout(struct watchdog_lowerhalf_s *lower,
       wdinfo("wdgtb=%d fwwdg=%d reload=%d timeout=%d\n",
              wdgtb, fwwdg, reload,  1000 * (reload + 1) / fwwdg);
 #endif
-      if (reload <= WWDG_CR_T_MAX || wdgtb == 3)
+      if (reload <= WWDG_CR_T_MAX || wdgtb == 7)
         {
           /* Note that we explicitly break out of the loop rather than using
            * the 'for' loop termination logic because we do not want the
@@ -777,9 +783,9 @@ void stm32_wwdginitialize(const char *devpath)
    * on the WWDG1 STOP configuration bit in DBG module.
    */
 
-#if defined(CONFIG_STM32H7_JTAG_FULL_ENABLE) || \
-    defined(CONFIG_STM32H7_JTAG_NOJNTRST_ENABLE) || \
-    defined(CONFIG_STM32H7_JTAG_SW_ENABLE)
+#if defined(CONFIG_STM32_JTAG_FULL_ENABLE) || \
+    defined(CONFIG_STM32_JTAG_NOJNTRST_ENABLE) || \
+    defined(CONFIG_STM32_JTAG_SW_ENABLE)
     {
       uint32_t cr = getreg32(STM32_DBGMCU_APB3_FZ1);
       cr |= DBGMCU_APB3_WWDG1STOP;
@@ -788,4 +794,4 @@ void stm32_wwdginitialize(const char *devpath)
 #endif
 }
 
-#endif /* CONFIG_WATCHDOG && CONFIG_STM32H7_WWDG */
+#endif /* CONFIG_WATCHDOG && CONFIG_STM32_WWDG */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/net/telnet.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <termios.h>
 
 #include <nuttx/kmalloc.h>
@@ -105,8 +107,8 @@ enum telnet_state_e
   STATE_DO,
   STATE_DONT,
   STATE_SB,
-  STATE_SB_NAWS,
-  STATE_SE
+  STATE_SB_DATA,
+  STATE_SB_NAWS
 };
 
 /* This structure describes the internal state of the driver */
@@ -116,6 +118,7 @@ struct telnet_dev_s
   uint8_t           td_state;     /* (See telnet_state_e) */
   uint8_t           td_crefs;     /* The number of open references to the session */
   uint8_t           td_minor;     /* Minor device number */
+  bool              td_sb_iac;    /* Saw IAC within sub-negotiation payload */
   uint16_t          td_offset;    /* Offset to the valid, pending bytes in the rxbuffer */
   uint16_t          td_pending;   /* Number of valid, pending bytes in the rxbuffer */
 #ifdef CONFIG_TELNET_SUPPORT_NAWS
@@ -159,13 +162,13 @@ static void    telnet_sendopt(FAR struct telnet_dev_s *priv, uint8_t option,
 static int     telnet_open(FAR struct file *filep);
 static int     telnet_close(FAR struct file *filep);
 static ssize_t telnet_read(FAR struct file *filep, FAR char *buffer,
-                 size_t len);
+                           size_t len);
 static ssize_t telnet_write(FAR struct file *filep, FAR const char *buffer,
-                 size_t len);
+                            size_t len);
 static int     telnet_ioctl(FAR struct file *filep, int cmd,
-                 unsigned long arg);
+                            unsigned long arg);
 static int     telnet_poll(FAR struct file *filep, FAR struct pollfd *fds,
-                 bool setup);
+                           bool setup);
 
 /* Telnet session creation */
 
@@ -207,9 +210,9 @@ static const struct file_operations g_factory_fops =
   factory_ioctl, /* ioctl */
 };
 
-/* This is an global data set of all of all active Telnet drivers.  This
- * additional logic in included to handle killing of task via control
- * characters received via Telenet (via Ctrl-C SIGINT, in particular).
+/* This is a global data set of all active Telnet drivers. This
+ * additional logic is included to handle killing tasks via control
+ * characters received via Telnet (via Ctrl-C SIGINT, in particular).
  */
 
 static struct telnet_dev_s *g_telnet_clients[CONFIG_TELNET_MAXLCLIENTS];
@@ -370,16 +373,17 @@ static ssize_t telnet_receive(FAR struct telnet_dev_s *priv,
                       priv->td_state = STATE_DONT;
                       break;
 
-#ifdef CONFIG_TELNET_SUPPORT_NAWS
                     case TELNET_SB:
                       priv->td_state = STATE_SB;
+                      priv->td_sb_iac = false;
+#ifdef CONFIG_TELNET_SUPPORT_NAWS
                       priv->td_sb_count = 0;
+#endif
                       break;
 
                     case TELNET_SE:
                       priv->td_state = STATE_NORMAL;
                       break;
-#endif
 
                     default:
                       priv->td_state = STATE_NORMAL;
@@ -456,25 +460,58 @@ static ssize_t telnet_receive(FAR struct telnet_dev_s *priv,
               }
             break;
 
-#ifdef CONFIG_TELNET_SUPPORT_NAWS
-          /* Handle Telnet Sub negotiation request */
+          /* Handle Telnet sub-negotiation requests. */
 
           case STATE_SB:
             switch (ch)
               {
+#ifdef CONFIG_TELNET_SUPPORT_NAWS
                 case TELNET_NAWS:
                   priv->td_state = STATE_SB_NAWS;
                   break;
+#endif
 
                 default:
-                  priv->td_state = STATE_NORMAL;
+                  priv->td_state = STATE_SB_DATA;
                   break;
               }
             break;
 
+          /* Ignore unsupported sub-negotiation payload until IAC SE. */
+
+          case STATE_SB_DATA:
+            if (priv->td_sb_iac)
+              {
+                priv->td_sb_iac = false;
+                if (ch == TELNET_SE)
+                  {
+                    priv->td_state = STATE_NORMAL;
+                  }
+              }
+            else if (ch == TELNET_IAC)
+              {
+                priv->td_sb_iac = true;
+              }
+            break;
+
+#ifdef CONFIG_TELNET_SUPPORT_NAWS
           /* Handle NAWS sub-option negotiation */
 
           case STATE_SB_NAWS:
+            if (priv->td_sb_iac)
+              {
+                priv->td_sb_iac = false;
+                if (ch == TELNET_SE)
+                  {
+                    priv->td_state = STATE_NORMAL;
+                    break;
+                  }
+              }
+            else if (ch == TELNET_IAC)
+              {
+                priv->td_sb_iac = true;
+                break;
+              }
 
             /* Update cols / rows based on received byte count */
 
@@ -498,11 +535,11 @@ static ssize_t telnet_receive(FAR struct telnet_dev_s *priv,
                   break;
               }
 
-            /* Increment SB count and switch to NORMAL when complete */
+            /* Increment SB count and keep discarding until IAC SE. */
 
             if (++priv->td_sb_count == 4)
               {
-                priv->td_state = STATE_NORMAL;
+                priv->td_state = STATE_SB_DATA;
               }
 
             break;
@@ -901,11 +938,12 @@ static int telnet_session(FAR struct telnet_session_s *session)
 {
   FAR struct telnet_dev_s *priv;
   FAR struct socket *psock;
+  FAR struct file *filep;
   int ret;
 
   /* Allocate instance data for this driver */
 
-  priv = (FAR struct telnet_dev_s *)kmm_zalloc(sizeof(struct telnet_dev_s));
+  priv = kmm_zalloc(sizeof(struct telnet_dev_s));
   if (!priv)
     {
       nerr("ERROR: Failed to allocate the driver data structure\n");
@@ -931,7 +969,7 @@ static int telnet_session(FAR struct telnet_session_s *session)
    * instance resided in the daemon's task group`).
    */
 
-  ret = sockfd_socket(session->ts_sd, &psock);
+  ret = sockfd_socket(session->ts_sd, &filep, &psock);
   if (ret != OK)
     {
       nerr("ERROR: Failed to convert sd=%d to a socket structure\n",
@@ -940,6 +978,7 @@ static int telnet_session(FAR struct telnet_session_s *session)
     }
 
   ret = psock_dup2(psock, &priv->td_psock);
+  file_put(filep);
   if (ret < 0)
     {
       nerr("ERROR: psock_dup2 failed: %d\n", ret);

@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/tiva/lm4f120-launchpad/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -24,10 +26,6 @@ CSRCS = lm4f_boot.c lm4f_ssi.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += lm4f_autoleds.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += lm4f_appinit.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

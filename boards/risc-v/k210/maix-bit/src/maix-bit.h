@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/risc-v/k210/maix-bit/src/maix-bit.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,9 +30,5 @@
 #include <nuttx/config.h>
 
 int k210_bringup(void);
-
-#ifdef CONFIG_DEV_GPIO
-int k210_gpio_init(void);
-#endif
 
 #endif /* __BOARDS_RISCV_K210_MAIX_BIT_SRC_MAIX_BIT_H */

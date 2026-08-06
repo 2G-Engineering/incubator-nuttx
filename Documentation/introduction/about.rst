@@ -120,7 +120,7 @@ Key features of NuttX include:
   * Graphics: framebuffer drivers, graphic- and segment-LCD drivers. VNC server.
   * Audio subsystem: CODECs, audio input and output drivers. Command line and graphic media player applications.
   * Cryptographic subsystem.
-  * :doc:`/components/power` sub-system.
+  * :doc:`/components/drivers/special/power/pm/index` sub-system.
   * ModBus support provided by built-in `FreeModBus <https://www.embedded-experts.at/en/freemodbus/>`__ version 1.5.0.
 
 * **C/C++ Libraries**
@@ -179,7 +179,7 @@ Key features of NuttX include:
 * **USB Device Support**
 
   * *Gadget*-like architecture for USB device controller drivers and device-dependent USB class drivers.
-  * USB device controller drivers available for the most MCU architectures includeing PIC32,
+  * USB device controller drivers available for the most MCU architectures including PIC32,
     Atmel AVR, SAM3, SAM4, SAMv7, and SAMA5Dx, NXP/Freescale LPC17xx, LPC214x, LPC313x, LPC43xx, and
     Kinetis, Silicon Laboraties EFM32, STMicro STM32 F1, F2, F3, F4, and F7, TI DM320, and others.
   * Device-dependent USB class drivers available for USB serial (CDC/ACM and a PL2303 emulation),
@@ -197,7 +197,7 @@ Key features of NuttX include:
   * NX: A graphics library, tiny windowing system and tiny font support that works with either
     framebuffer or LCD drivers. Documented in the :doc:`/components/nxgraphics/index` manual.
   * Font management sub-system.
-  * :doc:`/components/nxwidgets`: NXWidgets is library of graphic objects, or "widgets," (labels,
+  * :doc:`/applications/graphics/nxwidgets/index`: NXWidgets is library of graphic objects, or "widgets," (labels,
     buttons, text boxes, images, sliders, progress bars, etc.). NXWidgets is written in C++ and
     integrates seamlessly with the NuttX NX graphics and font management subsystems.
   * NxWM is the tiny NuttX window manager based on NX and NxWidgets.
@@ -239,7 +239,7 @@ OS with all of that?
     you actually use.
 
     Using a variety of technologies, NuttX can scale from the very tiny to the moderate-size system.
-    I have executed NuttX with some simple applications in as little as 32K *total* memory (code and
+    NuttX was seen operating with some simple applications in as little as 32K *total* memory (code and
     data). On the other hand, typical, richly featured NuttX builds require more like 64K (and
     if all of the features are used, this can push 100K).
 

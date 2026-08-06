@@ -1,6 +1,8 @@
 /***************************************************************************
  * arch/arm64/src/common/arm64_cpu_psci.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,7 +25,7 @@
  ***************************************************************************/
 
 #include <nuttx/config.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <assert.h>
 #include <nuttx/arch.h>
 #include <arch/irq.h>
@@ -128,7 +130,7 @@ static int psci_detect(void)
   uint32_t ver = psci_get_version();
 
   sinfo("Detected PSCI v%d.%d\n",
-       PSCI_VERSION_MAJOR(ver), PSCI_VERSION_MINOR(ver));
+        PSCI_VERSION_MAJOR(ver), PSCI_VERSION_MINOR(ver));
 
   if (PSCI_VERSION_MAJOR(ver) == 0 && PSCI_VERSION_MINOR(ver) < 2)
     {
@@ -164,7 +166,22 @@ int psci_cpu_off(void)
   return psci_to_dev_err(ret);
 }
 
-int psci_cpu_reset(void)
+int psci_cpu_on(unsigned long cpuid, uintptr_t entry_point)
+{
+  int ret;
+
+  if (psci_data.conduit == SMCCC_CONDUIT_NONE)
+    {
+      return -EINVAL;
+    }
+
+  ret = psci_data.invoke_psci_fn(PSCI_0_2_FN_CPU_ON,
+                                 cpuid, (unsigned long)entry_point, 0);
+
+  return psci_to_dev_err(ret);
+}
+
+int psci_sys_reset(void)
 {
   int ret;
 
@@ -178,7 +195,7 @@ int psci_cpu_reset(void)
   return psci_to_dev_err(ret);
 }
 
-int psci_cpu_on(unsigned long cpuid, uintptr_t entry_point)
+int psci_sys_poweroff(void)
 {
   int ret;
 
@@ -187,8 +204,7 @@ int psci_cpu_on(unsigned long cpuid, uintptr_t entry_point)
       return -EINVAL;
     }
 
-  ret = psci_data.invoke_psci_fn(PSCI_FN_NATIVE(0_2, CPU_ON),
-                      cpuid, (unsigned long)entry_point, 0);
+  ret = psci_data.invoke_psci_fn(PSCI_0_2_FN_SYSTEM_OFF, 0, 0, 0);
 
   return psci_to_dev_err(ret);
 }
@@ -203,4 +219,54 @@ int arm64_psci_init(const char * method)
     }
 
   return psci_detect();
+}
+
+/***************************************************************************
+ * Name: up_systempoweroff
+ *
+ * Description:
+ *   Internal, arm64 poweroff logic.
+ *
+ ***************************************************************************/
+
+void up_systempoweroff(void)
+{
+  int ret;
+
+  /* Set up for the system poweroff */
+
+  ret = psci_sys_poweroff();
+  if (ret)
+    {
+      serr("Failed to power off CPU, error code: %d\n", ret);
+    }
+
+  /* Wait for power off */
+
+  for (; ; );
+}
+
+/***************************************************************************
+ * Name: up_systemreset
+ *
+ * Description:
+ *   Internal, arm64 reset logic.
+ *
+ ***************************************************************************/
+
+void up_systemreset(void)
+{
+  int ret;
+
+  /* Set up for the system reset */
+
+  ret = psci_sys_reset();
+  if (ret)
+    {
+      serr("Failed to reset CPU, error code: %d\n", ret);
+    }
+
+  /* Wait for the reset */
+
+  for (; ; );
 }

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/adt7320.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -28,7 +43,7 @@
 #include <fixedmath.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
@@ -44,10 +59,6 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#ifndef CONFIG_ADT7320_SPI_FREQUENCY
-#  define CONFIG_ADT7320_SPI_FREQUENCY 1000000
-#endif
-
 #define ADT7320_SPI_MODE (SPIDEV_MODE3) /* SPI Mode 3: CPOL=1,CPHA=1 */
 
 /* Centigrade to Fahrenheit conversion:  F = 9*C/5 + 32 */
@@ -56,7 +67,7 @@
 #define B16_32     (32 * 65536)
 
 /****************************************************************************
- * Private
+ * Private Types
  ****************************************************************************/
 
 struct adt7320_dev_s

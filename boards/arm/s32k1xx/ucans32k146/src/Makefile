@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/s32k1xx/ucans32k146/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -33,16 +35,16 @@ else
 CSRCS += s32k1xx_userleds.c
 endif
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += s32k1xx_appinit.c
-endif
-
-ifeq ($(CONFIG_S32K1XX_LPI2C),y)
+ifeq ($(CONFIG_I2C_DRIVER),y)
 CSRCS += s32k1xx_i2c.c
 endif
 
 ifeq ($(CONFIG_S32K1XX_LPSPI),y)
 CSRCS += s32k1xx_spi.c
+endif
+
+ifeq ($(CONFIG_DEV_SE05X),y)
+CSRCS += s32k1xx_se05x.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

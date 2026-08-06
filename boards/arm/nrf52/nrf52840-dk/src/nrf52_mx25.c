@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nrf52/nrf52840-dk/src/nrf52_mx25.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <sys/types.h>
 
@@ -42,7 +44,7 @@
  * Name: nrf52_mx25_initialize
  *
  * Description:
- *   Initialize the MX25RXX QSPI memeory
+ *   Initialize the MX25RXX QSPI memory
  *
  ****************************************************************************/
 

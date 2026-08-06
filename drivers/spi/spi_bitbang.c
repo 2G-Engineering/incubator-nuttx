@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/spi/spi_bitbang.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,15 +29,13 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/spi/spi.h>
 #include <nuttx/spi/spi_bitbang.h>
 
 #include <nuttx/mutex.h>
-
-#ifdef CONFIG_SPI_BITBANG
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -559,4 +559,3 @@ void spi_destroy_bitbang(FAR struct spi_dev_s *dev)
   kmm_free(dev);
 }
 
-#endif /* CONFIG_SPI_BITBANG */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/mm/iob.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,6 +31,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <sys/param.h>
 
 #ifdef CONFIG_IOB_NOTIFIER
 #  include <nuttx/wqueue.h>
@@ -72,9 +75,7 @@
 
 /* Default config of alignment and head padding size */
 
-#if !defined(CONFIG_IOB_ALIGNMENT)
-#  define CONFIG_IOB_ALIGNMENT      1
-#endif
+#define IOB_ALIGNMENT    MAX(CONFIG_IOB_ALIGNMENT, sizeof(uintptr_t))
 
 /* IOB helpers */
 
@@ -88,9 +89,17 @@
 #  define IOB_QEMPTY(q)  ((q)->qh_head == NULL)
 #endif
 
+#ifdef CONFIG_IOB_ALLOC
+#  define IOB_BUFSIZE(p) ((p)->io_bufsize)
+#else
+#  define IOB_BUFSIZE(p) CONFIG_IOB_BUFSIZE
+#endif
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/
+
+typedef CODE void (*iob_free_cb_t)(FAR void *data);
 
 /* Represents one I/O buffer.  A packet is contained by one or more I/O
  * buffers in a chain.  The io_pktlen is only valid for the I/O buffer at
@@ -105,16 +114,24 @@ struct iob_s
 
   /* Payload */
 
-#if CONFIG_IOB_BUFSIZE < 256
+#if CONFIG_IOB_BUFSIZE < 256 && !defined(CONFIG_IOB_ALLOC)
   uint8_t  io_len;      /* Length of the data in the entry */
   uint8_t  io_offset;   /* Data begins at this offset */
 #else
   uint16_t io_len;      /* Length of the data in the entry */
   uint16_t io_offset;   /* Data begins at this offset */
+#  ifdef CONFIG_IOB_ALLOC
+  uint16_t io_bufsize;  /* Total length of the data buffer */
+#  endif
 #endif
   unsigned int io_pktlen; /* Total length of the packet */
 
-  uint8_t  io_data[CONFIG_IOB_BUFSIZE];
+#ifdef CONFIG_IOB_ALLOC
+  iob_free_cb_t io_free;  /* Custom free callback */
+  FAR uint8_t  *io_data;
+#else
+  uint8_t       io_data[CONFIG_IOB_BUFSIZE];
+#endif
 };
 
 #if CONFIG_IOB_NCHAINS > 0
@@ -203,6 +220,80 @@ FAR struct iob_s *iob_alloc(bool throttled);
 
 FAR struct iob_s *iob_tryalloc(bool throttled);
 
+#ifdef CONFIG_IOB_ALLOC
+/****************************************************************************
+ * Name: iob_alloc_dynamic
+ *
+ * Description:
+ *   Allocate an I/O buffer and playload from heap
+ *
+ * Input Parameters:
+ *   size    - The size of the io_data that is allocated.
+ *
+ *             +---------+
+ *             |   IOB   |
+ *             | io_data |--+
+ *             | buffer  |<-+
+ *             +---------+
+ *
+ ****************************************************************************/
+
+FAR struct iob_s *iob_alloc_dynamic(uint16_t size);
+
+/****************************************************************************
+ * Name: iob_alloc_with_data
+ *
+ * Description:
+ *   Allocate an I/O buffer from heap and attach the external payload
+ *
+ * Input Parameters:
+ *   data    - Make io_data point to a specific address, the caller is
+ *             responsible for the memory management. The caller should
+ *             ensure that the memory is not freed before the iob is freed.
+ *
+ *             +---------+  +-->+--------+
+ *             |   IOB   |  |   |  data  |
+ *             | io_data |--+   +--------+
+ *             +---------+
+ *
+ *   size    - The size of the data parameter
+ *   free_cb - Notify the caller when the iob is freed. The caller can
+ *             perform additional operations on the data before it is freed.
+ *             The free_cb is called when the iob is freed.
+ *
+ ****************************************************************************/
+
+FAR struct iob_s *iob_alloc_with_data(FAR void *data, uint16_t size,
+                                      iob_free_cb_t free_cb);
+
+/****************************************************************************
+ * Name: iob_init_with_data
+ *
+ * Description:
+ *   Initialize an I/O buffer and playload
+ *
+ * Input Parameters:
+ *   data    - Make io_data point to a specific address, the caller is
+ *             responsible for the memory management. The caller should
+ *             ensure that the memory is not freed before the iob is freed,
+ *             and caller need to reserve space for alignment.
+ *   size    - The size of the data parameter
+ *   free_cb - Notify the caller when the iob is freed. The caller can
+ *             perform additional operations on the data before it is freed.
+ *
+ *             +---------+
+ *             |   IOB   |
+ *             | io_data |--+
+ *             | buffer  |<-+
+ *             +---------+
+ *
+ ****************************************************************************/
+
+FAR struct iob_s *iob_init_with_data(FAR void *data, uint16_t size,
+                                     iob_free_cb_t free_cb);
+
+#endif
+
 /****************************************************************************
  * Name: iob_navail
  *
@@ -212,16 +303,6 @@ FAR struct iob_s *iob_tryalloc(bool throttled);
  ****************************************************************************/
 
 int iob_navail(bool throttled);
-
-/****************************************************************************
- * Name: iob_qentry_navail
- *
- * Description:
- *   Return the number of available IOB chains.
- *
- ****************************************************************************/
-
-int iob_qentry_navail(void);
 
 /****************************************************************************
  * Name: iob_free
@@ -325,6 +406,19 @@ int iob_tryadd_queue(FAR struct iob_s *iob, FAR struct iob_queue_s *iobq);
 #endif /* CONFIG_IOB_NCHAINS > 0 */
 
 /****************************************************************************
+ * Name: iob_concat_queue
+ *
+ * Description:
+ *   Concatenate iob_s queue src to dest
+ *
+ ****************************************************************************/
+
+#if CONFIG_IOB_NCHAINS > 0
+int iob_concat_queue(FAR struct iob_queue_s *dest,
+                     FAR struct iob_queue_s *src);
+#endif /* CONFIG_IOB_NCHAINS > 0 */
+
+/****************************************************************************
  * Name: iob_remove_queue
  *
  * Description:
@@ -393,6 +487,7 @@ void iob_free_queue_qentry(FAR struct iob_s *iob,
 
 #if CONFIG_IOB_NCHAINS > 0
 unsigned int iob_get_queue_size(FAR struct iob_queue_s *queue);
+unsigned int iob_get_queue_entry_count(FAR struct iob_queue_s *queue);
 #endif /* CONFIG_IOB_NCHAINS > 0 */
 
 /****************************************************************************
@@ -571,14 +666,16 @@ void iob_reserve(FAR struct iob_s *iob, unsigned int reserved);
  *
  * Description:
  *   This function will update packet length of the iob, it will be
- *   trimmed if the length of the iob chain is greater than the current
- *   length.
- *   This function will not grow the iob link, any grow operation should
- *   be implemented through iob_copyin()/iob_trycopyin().
+ *   trimmed if the current length of the iob chain is greater than the
+ *   new length, and will be grown if less than new length.
+ *
+ * Returned Value:
+ *   The new effective iob packet length, or a negated errno value on error.
  *
  ****************************************************************************/
 
-void iob_update_pktlen(FAR struct iob_s *iob, unsigned int pktlen);
+int iob_update_pktlen(FAR struct iob_s *iob, unsigned int pktlen,
+                      bool throttled);
 
 /****************************************************************************
  * Name: iob_count

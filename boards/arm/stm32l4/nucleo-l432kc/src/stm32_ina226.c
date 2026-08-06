@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/nucleo-l432kc/src/stm32_ina226.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/i2c/i2c_master.h>
@@ -34,9 +36,9 @@
 #include <arch/board/board.h>
 
 #include "chip.h"
-#include <stm32l4.h>
+#include <stm32.h>
 
-#if defined(CONFIG_I2C) && defined(CONFIG_STM32L4_I2C1) && \
+#if defined(CONFIG_I2C) && defined(CONFIG_STM32_I2C1) && \
     defined(CONFIG_SENSORS_INA226)
 
 /****************************************************************************
@@ -80,14 +82,14 @@ int stm32_ina226initialize(const char *devpath)
 
   sninfo("Initializing INA226\n");
 
-  /* Configure D4(PA5) and D5(PA6) as input floating */
+  /* Configure A4(PA5) and A5(PA6) as input floating */
 
-  stm32l4_configgpio(GPIO_I2C1_D4);
-  stm32l4_configgpio(GPIO_I2C1_D5);
+  stm32_configgpio(GPIO_I2C1_A4);
+  stm32_configgpio(GPIO_I2C1_A5);
 
   /* Get an instance of the I2C1 interface */
 
-  i2c =  stm32l4_i2cbus_initialize(1);
+  i2c =  stm32_i2cbus_initialize(1);
   if (!i2c)
     {
       return -ENODEV;
@@ -112,7 +114,7 @@ int stm32_ina226initialize(const char *devpath)
   return OK;
 
 error:
-  stm32l4_i2cbus_uninitialize(i2c);
+  stm32_i2cbus_uninitialize(i2c);
   return ret;
 }
 

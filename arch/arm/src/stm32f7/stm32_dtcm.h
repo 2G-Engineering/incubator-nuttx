@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/stm32_dtcm.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -41,11 +43,11 @@
 
 /* The STM32 F7 have DTCM memory */
 
-#if defined(CONFIG_STM32F7_STM32F72XX) || defined(CONFIG_STM32F7_STM32F73XX) \
-   || defined(CONFIG_STM32F7_STM32F74XX) || defined(CONFIG_STM32F7_STM32F75XX)
+#if defined(CONFIG_STM32_STM32F72XX) || defined(CONFIG_STM32_STM32F73XX) \
+   || defined(CONFIG_STM32_STM32F74XX) || defined(CONFIG_STM32_STM32F75XX)
 #  define DTCM_START 0x20000000
 #  define DTCM_END   0x20010000
-#elif defined(CONFIG_STM32F7_STM32F76XX) || defined(CONFIG_STM32F7_STM32F77XX)
+#elif defined(CONFIG_STM32_STM32F76XX) || defined(CONFIG_STM32_STM32F77XX)
 #  define DTCM_START 0x20000000
 #  define DTCM_END   0x20020000
 #else
@@ -56,7 +58,7 @@
  * heap.
  */
 
-#ifndef CONFIG_STM32F7_DTCMEXCLUDE
+#ifndef CONFIG_STM32_DTCMEXCLUDE
 #  undef HAVE_DTCM_HEAP
 #endif
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/nrf53/nrf53_gpiote.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
 #include <arch/irq.h>
@@ -59,8 +61,9 @@
 
 struct nrf53_gpiote_callback_s
 {
-  xcpt_t callback;
-  void  *arg;
+  xcpt_t    callback;
+  void     *arg;
+  uint32_t  pinset;
 };
 
 /****************************************************************************
@@ -151,7 +154,7 @@ static int nrf53_gpiote_isr(int irq, void *context, void *arg)
   int      j      = 0;
 #endif
 
-  /* Get GPIOTE instnace */
+  /* Get GPIOTE instance */
 
 #ifdef CONFIG_NRF53_HAVE_GPIOTE1
   inst = (irq == NRF53_IRQ_GPIOTE0) ? 0 : 1;
@@ -394,7 +397,7 @@ void nrf53_gpiote_set_ch_event(uint32_t pinset, int channel,
 
   DEBUGASSERT(channel < GPIOTE_CHANNELS);
 
-  /* Get GPIOTE instnace */
+  /* Get GPIOTE instance */
 
 #ifdef CONFIG_NRF53_HAVE_GPIOTE1
   inst = (channel < GPIOTE_PER_CHANNEL) ? 0 : 1;
@@ -476,7 +479,7 @@ void nrf53_gpiote_set_ch_event(uint32_t pinset, int channel,
  *
  * Description:
  *   Configures a GPIOTE channel in EVENT mode, assigns it to a given pin
- *   and sets a handler for the first availalbe GPIOTE channel
+ *   and sets a handler for the first available GPIOTE channel.
  *
  * Input Parameters:
  *  - pinset:      GPIO pin configuration
@@ -501,13 +504,14 @@ int nrf53_gpiote_set_event(uint32_t pinset,
 
   flags = enter_critical_section();
 
-  /* Get free channel */
+  /* Get free channel or channel already used by pinset */
 
   for (i = 0; i < GPIOTE_CHANNELS; i++)
     {
-      if (g_gpiote_ch_callbacks[i].callback == NULL)
+      if (g_gpiote_ch_callbacks[i].callback == NULL ||
+          g_gpiote_ch_callbacks[i].pinset == pinset)
         {
-          /* Configure channel */
+          g_gpiote_ch_callbacks[i].pinset = pinset;
 
           nrf53_gpiote_set_ch_event(pinset, i,
                                     risingedge, fallingedge,
@@ -555,7 +559,7 @@ void nrf53_gpiote_set_task(uint32_t pinset, int channel,
   int port;
   int inst;
 
-  /* Get GPIOTE instnace */
+  /* Get GPIOTE instance */
 
 #ifdef CONFIG_NRF53_HAVE_GPIOTE1
   inst = (channel < GPIOTE_PER_CHANNEL) ? 0 : 1;

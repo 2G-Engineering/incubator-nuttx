@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/string/lib_strsignal.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -98,6 +100,7 @@ FAR char *strsignal(int signum)
       CASE_SIG_STR(SIGXFSZ,   "File size limit exceeded");
       CASE_SIG_STR(SIGVTALRM, "Virtual timer expired");
       CASE_SIG_STR(SIGPROF,   "Profiling timer expired");
+      CASE_SIG_STR(SIGWINCH,  "Window resize signal");
       CASE_SIG_STR(SIGPOLL,   "Pollable event occurred");
       CASE_SIG_STR(SIGSYS,    "Bad system call");
 

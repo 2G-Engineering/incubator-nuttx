@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/efm32/olimex-efm32g880f128-stk/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,11 +28,6 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-
-#include <stdbool.h>
-
-#include "hardware/efm32_cmu.h"
-#include "hardware/efm32_usart.h"
 
 /****************************************************************************
  * Pre-processor Definitions

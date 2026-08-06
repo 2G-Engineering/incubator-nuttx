@@ -1,8 +1,9 @@
 /******************************************************************************
  * drivers/wireless/spirit/lib/spirit_pktstack.c
  *
- *   Copyright(c) 2015 STMicroelectronics
- *   Author: VMA division - AMS
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: Copyright(c) 2015 STMicroelectronics
+ * SPDX-FileContributor: Author: VMA division - AMS
  *   Version 3.2.2 08-July-2015
  *
  * Redistribution and use in source and binary forms, with or without
@@ -853,7 +854,7 @@ uint16_t spirit_pktstack_get_rxpktlen(FAR struct spirit_library_s *spirit)
 
   spirit_reg_read(spirit, RX_PCKT_LEN1_BASE, regval, 2);
 
-  /* Rebuild and return the the length field */
+  /* Rebuild and return the length field */
 
   pktlen = ((((uint16_t) regval[0]) << 8) + (uint16_t) regval[1]);
 

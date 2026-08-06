@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/socket/connect.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,9 +32,10 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/cancelpt.h>
+#include <nuttx/fs/fs.h>
 #include <nuttx/net/net.h>
 
 #include "socket/socket.h"
@@ -141,7 +144,7 @@ int psock_connect(FAR struct socket *psock, FAR const struct sockaddr *addr,
     }
 
   ret = psock->s_sockif->si_connect(psock, addr, addrlen);
-  if (ret >= 0)
+  if (ret >= 0 && addr->sa_family != AF_UNSPEC)
     {
       FAR struct socket_conn_s *conn = psock->s_conn;
       conn->s_flags |= _SF_CONNECTED;
@@ -222,6 +225,7 @@ int psock_connect(FAR struct socket *psock, FAR const struct sockaddr *addr,
 int connect(int sockfd, FAR const struct sockaddr *addr, socklen_t addrlen)
 {
   FAR struct socket *psock;
+  FAR struct file *filep;
   int ret;
 
   /* accept() is a cancellation point */
@@ -230,13 +234,14 @@ int connect(int sockfd, FAR const struct sockaddr *addr, socklen_t addrlen)
 
   /* Get the underlying socket structure */
 
-  ret = sockfd_socket(sockfd, &psock);
+  ret = sockfd_socket(sockfd, &filep, &psock);
 
   /* Then let psock_connect() do all of the work */
 
   if (ret == OK)
     {
       ret = psock_connect(psock, addr, addrlen);
+      file_put(filep);
     }
 
   if (ret < 0)

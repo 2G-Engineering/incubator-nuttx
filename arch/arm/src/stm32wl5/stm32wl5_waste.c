@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wl5/stm32wl5_waste.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,7 +38,7 @@ uint32_t idle_wastecounter = 0;
  * Public Functions
  ****************************************************************************/
 
-void stm32wl5_waste(void)
+void stm32_waste(void)
 {
   idle_wastecounter++;
 }

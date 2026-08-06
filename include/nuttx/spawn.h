@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/spawn.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -100,8 +102,13 @@ extern "C"
 void add_file_action(FAR posix_spawn_file_actions_t *file_action,
                      FAR struct spawn_general_file_action_s *entry);
 
+struct tcb_s;
 int spawn_file_actions(FAR struct tcb_s *tcb,
                        FAR const posix_spawn_file_actions_t *actions);
+
+bool
+spawn_file_is_duplicateable(FAR const posix_spawn_file_actions_t *actions,
+                            int fd, bool cloexec);
 
 #ifdef __cplusplus
 }

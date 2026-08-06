@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/common/arm_backtrace_unwind.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,9 +25,9 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#include <nuttx/arch.h>
 
-#include <arch/elf.h>
+#include <nuttx/arch.h>
+#include <nuttx/elf.h>
 
 #include "sched/sched.h"
 #include "arm_internal.h"
@@ -60,6 +62,10 @@ struct unwind_frame_s
   /* Address of the LR value on the stack */
 
   unsigned long *lr_addr;
+
+  /* Lowest value of sp allowed */
+
+  unsigned long stack_base;
 
   /* Highest value of sp allowed */
 
@@ -227,7 +233,7 @@ static unsigned long unwind_get_byte(struct unwind_ctrl_s *ctrl)
  * Name: unwind_pop_register
  *
  * Description:
- *  Before poping a register check whether it is feasible or not
+ *  Before popping a register check whether it is feasible or not
  *
  ****************************************************************************/
 
@@ -338,6 +344,31 @@ static int unwind_exec_pop_subset_r0_to_r3(struct unwind_ctrl_s *ctrl,
   return 0;
 }
 
+static unsigned long unwind_decode_uleb128(struct unwind_ctrl_s *ctrl)
+{
+  unsigned long bytes = 0;
+  unsigned long insn;
+  unsigned long result = 0;
+
+  /* unwind_get_byte() will advance `ctrl` one instruction at a time, so
+   * loop until we get an instruction byte where bit 7 is not set.
+   *
+   * Note: This decodes a maximum of 4 bytes to output 28 bits data where
+   * max is 0xfffffff: that will cover a vsp increment of 1073742336, hence
+   * it is sufficient for unwinding the stack.
+   */
+
+  do
+    {
+      insn = unwind_get_byte(ctrl);
+      result |= (insn & 0x7f) << (bytes * 7);
+      bytes++;
+    }
+  while (!!(insn & 0x80) && (bytes != sizeof(result)));
+
+  return result;
+}
+
 /****************************************************************************
  * Name: unwind_pop_register
  *
@@ -403,9 +434,65 @@ static int unwind_exec_content(struct unwind_ctrl_s *ctrl)
     }
   else if (content == 0xb2)
     {
-      unsigned long uleb128 = unwind_get_byte(ctrl);
+      unsigned long uleb128 = unwind_decode_uleb128(ctrl);
 
       ctrl->vrs[SP] += 0x204 + (uleb128 << 2);
+    }
+  else if (content == 0xb3 || content == 0xc8 || content == 0xc9)
+    {
+      unsigned long reg_from;
+      unsigned long reg_to;
+      unsigned long mask;
+      unsigned long *vsp = (unsigned long *)ctrl->vrs[SP];
+      int i;
+
+      mask = unwind_get_byte(ctrl);
+      if (mask == 0)
+        {
+          return -1;
+        }
+
+      reg_from = (mask & 0xf0) >> 4;
+      reg_to = reg_from + (mask & 0x0f);
+
+      if (content == 0xc8)
+        {
+          reg_from += 16;
+          reg_to += 16;
+        }
+
+      for (i = reg_from; i <= reg_to; i++)
+        {
+          vsp += 2;
+        }
+
+      if (content == 0xb3)
+        {
+          vsp++;
+        }
+
+      ctrl->vrs[SP] = (unsigned long)vsp;
+    }
+  else if ((content & 0xf8) == 0xb8 || (content & 0xf8) == 0xd0)
+    {
+      unsigned long reg_to;
+      unsigned long mask = content & 0x07;
+      unsigned long *vsp = (unsigned long *)ctrl->vrs[SP];
+      int i;
+
+      reg_to = 8 + mask;
+
+      for (i = 8; i <= reg_to; i++)
+        {
+          vsp += 2;
+        }
+
+      if ((content & 0xf8) == 0xb8)
+        {
+          vsp++;
+        }
+
+      ctrl->vrs[SP] = (unsigned long)vsp;
     }
   else
     {
@@ -431,6 +518,7 @@ int unwind_frame(struct unwind_frame_s *frame)
   ctrl.vrs[LR] = frame->lr;
   ctrl.vrs[PC] = 0;
   ctrl.stack_top = frame->stack_top;
+  ctrl.lr_addr = NULL;
 
   if (frame->pc == prel31_to_addr(&entry->fnoffset))
     {
@@ -506,7 +594,7 @@ int unwind_frame(struct unwind_frame_s *frame)
           return urc;
         }
 
-      if (ctrl.vrs[SP] < frame->sp ||
+      if (ctrl.vrs[SP] < frame->stack_base ||
           ctrl.vrs[SP] > ctrl.stack_top)
         {
           return -1;
@@ -616,6 +704,14 @@ again:
  * Returned Value:
  *   up_backtrace() returns the number of addresses returned in buffer
  *
+ * Assumptions:
+ *   Have to make sure tcb keep safe during function executing, it means
+ *   1. Tcb have to be self or not-running.  In SMP case, the running task
+ *      PC & SP cannot be backtrace, as whose get from tcb is not the newest.
+ *   2. Tcb have to keep not be freed.  In task exiting case, have to
+ *      make sure the tcb get from pid and up_backtrace in one critical
+ *      section procedure.
+ *
  ****************************************************************************/
 
 int up_backtrace(struct tcb_s *tcb,
@@ -623,7 +719,6 @@ int up_backtrace(struct tcb_s *tcb,
 {
   struct tcb_s *rtcb = running_task();
   struct unwind_frame_s frame;
-  irqstate_t flags;
   int ret;
 
   if (size <= 0 || !buffer)
@@ -637,27 +732,25 @@ int up_backtrace(struct tcb_s *tcb,
       frame.lr = (unsigned long)__builtin_return_address(0);
       frame.pc = (unsigned long)&up_backtrace;
       frame.sp = frame.fp;
-      frame.stack_top = (unsigned long)rtcb->stack_base_ptr +
-                                       rtcb->adj_stack_size;
+      frame.stack_base = (unsigned long)rtcb->stack_base_ptr;
+      frame.stack_top = frame.stack_base + rtcb->adj_stack_size;
+
       if (up_interrupt_context())
         {
 #if CONFIG_ARCH_INTERRUPTSTACK > 7
-#  ifdef CONFIG_SMP
-          frame.stack_top = arm_intstack_top();
-#  else
-          frame.stack_top = (unsigned long)&g_intstacktop;
-#  endif /* CONFIG_SMP */
+          frame.stack_base = up_get_intstackbase(this_cpu());
+          frame.stack_top = frame.stack_base + INTSTACK_SIZE;
 #endif /* CONFIG_ARCH_INTERRUPTSTACK > 7 */
 
           ret = backtrace_unwind(&frame, buffer, size, &skip);
           if (ret < size)
             {
-              frame.fp = CURRENT_REGS[REG_FP];
-              frame.sp = CURRENT_REGS[REG_SP];
-              frame.pc = CURRENT_REGS[REG_PC];
-              frame.lr = CURRENT_REGS[REG_LR];
-              frame.stack_top = (unsigned long)rtcb->stack_base_ptr +
-                                               rtcb->adj_stack_size;
+              frame.fp = ((uint32_t *)running_regs())[REG_FP];
+              frame.sp = ((uint32_t *)running_regs())[REG_SP];
+              frame.pc = ((uint32_t *)running_regs())[REG_PC];
+              frame.lr = ((uint32_t *)running_regs())[REG_LR];
+              frame.stack_base = (unsigned long)rtcb->stack_base_ptr;
+              frame.stack_top = frame.stack_base + rtcb->adj_stack_size;
               ret += backtrace_unwind(&frame, &buffer[ret],
                                       size - ret, &skip);
             }
@@ -669,18 +762,14 @@ int up_backtrace(struct tcb_s *tcb,
     }
   else
     {
-      flags = enter_critical_section();
-
       frame.fp = tcb->xcp.regs[REG_FP];
       frame.sp = tcb->xcp.regs[REG_SP];
       frame.lr = tcb->xcp.regs[REG_LR];
       frame.pc = tcb->xcp.regs[REG_PC];
-      frame.stack_top = (unsigned long)tcb->stack_base_ptr +
-                                       tcb->adj_stack_size;
+      frame.stack_base = (unsigned long)tcb->stack_base_ptr;
+      frame.stack_top = frame.stack_base + tcb->adj_stack_size;
 
       ret = backtrace_unwind(&frame, buffer, size, &skip);
-
-      leave_critical_section(flags);
     }
 
   return ret;

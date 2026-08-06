@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/procfs/fs_procfscritmon.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,12 +38,15 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/clock.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/procfs.h>
+#include <nuttx/sched.h>
+
+#include "fs_heap.h"
 
 #if !defined(CONFIG_DISABLE_MOUNTPOINT) && defined(CONFIG_FS_PROCFS) && \
      defined(CONFIG_SCHED_CRITMONITOR)
@@ -99,6 +104,7 @@ const struct procfs_operations g_critmon_operations =
   critmon_close,      /* close */
   critmon_read,       /* read */
   NULL,               /* write */
+  NULL,               /* poll */
 
   critmon_dup,        /* dup */
 
@@ -131,7 +137,7 @@ static int critmon_open(FAR struct file *filep, FAR const char *relpath,
    * REVISIT:  Write-able proc files could be quite useful.
    */
 
-  if ((oflags & O_WRONLY) != 0 || (oflags & O_RDONLY) == 0)
+  if ((oflags & O_ACCMODE) != O_RDONLY)
     {
       ferr("ERROR: Only O_RDONLY supported\n");
       return -EACCES;
@@ -139,7 +145,7 @@ static int critmon_open(FAR struct file *filep, FAR const char *relpath,
 
   /* Allocate a container to hold the file attributes */
 
-  attr = kmm_zalloc(sizeof(struct critmon_file_s));
+  attr = fs_heap_zalloc(sizeof(struct critmon_file_s));
   if (!attr)
     {
       ferr("ERROR: Failed to allocate file attributes\n");
@@ -167,7 +173,7 @@ static int critmon_close(FAR struct file *filep)
 
   /* Release the file attributes structure */
 
-  kmm_free(attr);
+  fs_heap_free(attr);
   filep->f_priv = NULL;
   return OK;
 }
@@ -181,19 +187,41 @@ static ssize_t critmon_read_cpu(FAR struct critmon_file_s *attr,
                                 FAR off_t *offset, int cpu)
 {
   struct timespec maxtime;
-  size_t remaining;
   size_t linesize;
   size_t copysize;
   size_t totalsize;
+#if CONFIG_SCHED_CRITMONITOR_MAXTIME_BUSYWAIT >= 0
+  struct timespec all_time;
+  clock_t elapsed;
+  uint32_t rate;
+#endif
 
-  remaining = buflen;
+  UNUSED(maxtime);
+  UNUSED(linesize);
+  UNUSED(copysize);
+
   totalsize = 0;
 
+  /* Generate output for CPU Serial Number */
+
+  linesize = procfs_snprintf(attr->line, CRITMON_LINELEN, "%d", cpu);
+  copysize = procfs_memcpy(attr->line, linesize, buffer, buflen, offset);
+
+  totalsize += copysize;
+  buffer    += copysize;
+  buflen    -= copysize;
+
+  if (buflen <= 0)
+    {
+      return totalsize;
+    }
+
+#if CONFIG_SCHED_CRITMONITOR_MAXTIME_PREEMPTION >= 0
   /* Convert the for maximum time pre-emption disabled */
 
-  if (g_premp_max[cpu] > 0)
+  if (g_preemp_max[cpu] > 0)
     {
-      up_perf_convert(g_premp_max[cpu], &maxtime);
+      perf_convert(g_preemp_max[cpu], &maxtime);
     }
   else
     {
@@ -203,29 +231,31 @@ static ssize_t critmon_read_cpu(FAR struct critmon_file_s *attr,
 
   /* Reset the maximum */
 
-  g_premp_max[cpu] = 0;
+  g_preemp_max[cpu] = 0;
 
   /* Generate output for maximum time pre-emption disabled */
 
-  linesize = procfs_snprintf(attr->line, CRITMON_LINELEN, "%d,%lu.%09lu,",
-                             cpu, (unsigned long)maxtime.tv_sec,
-                             (unsigned long)maxtime.tv_nsec);
+  linesize = procfs_snprintf(attr->line, CRITMON_LINELEN, ",%jd.%09ld",
+                             (intmax_t)maxtime.tv_sec,
+                             maxtime.tv_nsec);
   copysize = procfs_memcpy(attr->line, linesize, buffer, buflen, offset);
 
   totalsize += copysize;
   buffer    += copysize;
-  remaining -= copysize;
+  buflen    -= copysize;
 
-  if (totalsize >= buflen)
+  if (buflen <= 0)
     {
       return totalsize;
     }
+#endif
 
+#if CONFIG_SCHED_CRITMONITOR_MAXTIME_CSECTION >= 0
   /* Convert and generate output for maximum time in a critical section */
 
   if (g_crit_max[cpu] > 0)
     {
-      up_perf_convert(g_crit_max[cpu], &maxtime);
+      perf_convert(g_crit_max[cpu], &maxtime);
     }
   else
     {
@@ -239,12 +269,94 @@ static ssize_t critmon_read_cpu(FAR struct critmon_file_s *attr,
 
   /* Generate output for maximum time in a critical section */
 
-  linesize = procfs_snprintf(attr->line, CRITMON_LINELEN, "%lu.%09lu\n",
-                             (unsigned long)maxtime.tv_sec,
-                             (unsigned long)maxtime.tv_nsec);
+  linesize = procfs_snprintf(attr->line, CRITMON_LINELEN, ",%jd.%09ld",
+                             (intmax_t)maxtime.tv_sec,
+                             maxtime.tv_nsec);
   copysize = procfs_memcpy(attr->line, linesize, buffer, buflen, offset);
 
   totalsize += copysize;
+  buffer    += copysize;
+  buflen    -= copysize;
+
+  if (buflen <= 0)
+    {
+      return totalsize;
+    }
+#endif
+
+#if CONFIG_SCHED_CRITMONITOR_MAXTIME_BUSYWAIT >= 0
+  /* Convert and generate output for max busywait time when trying spinlock */
+
+  if (g_busywait_max[cpu] > 0)
+    {
+      perf_convert(g_busywait_max[cpu], &maxtime);
+    }
+  else
+    {
+      maxtime.tv_sec = 0;
+      maxtime.tv_nsec = 0;
+    }
+
+  /* Reset the maximum */
+
+  g_busywait_max[cpu] = 0;
+
+  /* Generate output for max busywait time to enter csection(get spinlock) */
+
+  linesize = procfs_snprintf(attr->line, CRITMON_LINELEN, ",%jd.%09ld",
+                             (intmax_t)maxtime.tv_sec,
+                             maxtime.tv_nsec);
+  copysize = procfs_memcpy(attr->line, linesize, buffer, buflen, offset);
+
+  totalsize += copysize;
+  buffer    += copysize;
+  buflen    -= copysize;
+
+  if (buflen <= 0)
+    {
+      return totalsize;
+    }
+
+  /* Convert and generate output for all busywait time when trying spinlock */
+
+  if (g_busywait_total[cpu] > 0)
+    {
+      perf_convert(g_busywait_total[cpu], &all_time);
+    }
+  else
+    {
+      all_time.tv_sec = 0;
+      all_time.tv_nsec = 0;
+    }
+
+  elapsed = clock() * CONFIG_USEC_PER_TICK;
+  rate = (all_time.tv_sec * 1000000 + all_time.tv_nsec / 1000) *
+         1000000 / elapsed;
+
+  /* Generate output for all busywait time to enter csection(get spinlock) */
+
+  linesize = procfs_snprintf(attr->line, CRITMON_LINELEN, ",%jd.%09ld %2"
+                             PRId32 ".%04" PRId32 "%%",
+                             (intmax_t)all_time.tv_sec,
+                             all_time.tv_nsec,
+                             rate / 10000, rate % 10000);
+  copysize = procfs_memcpy(attr->line, linesize, buffer, buflen, offset);
+
+  totalsize += copysize;
+  buffer    += copysize;
+  buflen    -= copysize;
+
+  if (buflen <= 0)
+    {
+      return totalsize;
+    }
+#endif
+
+  linesize = procfs_snprintf(attr->line, CRITMON_LINELEN, "\n");
+  copysize = procfs_memcpy(attr->line, linesize, buffer, buflen, offset);
+
+  totalsize += copysize;
+
   return totalsize;
 }
 
@@ -282,8 +394,6 @@ static ssize_t critmon_read(FAR struct file *filep, FAR char *buffer,
         {
           break;
         }
-
-      offset += nbytes;
     }
 
   if (ret > 0)
@@ -316,7 +426,7 @@ static int critmon_dup(FAR const struct file *oldp, FAR struct file *newp)
 
   /* Allocate a new container to hold the task and attribute selection */
 
-  newattr = kmm_malloc(sizeof(struct critmon_file_s));
+  newattr = fs_heap_malloc(sizeof(struct critmon_file_s));
   if (!newattr)
     {
       ferr("ERROR: Failed to allocate file attributes\n");

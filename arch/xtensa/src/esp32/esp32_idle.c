@@ -27,7 +27,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <sys/param.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <nuttx/arch.h>
@@ -35,15 +35,20 @@
 #include <nuttx/power/pm.h>
 #include <arch/board/board.h>
 
-#include "esp32_pm.h"
+#include "espressif/esp_pm.h"
 #include "xtensa.h"
 
-#ifdef CONFIG_ESP32_RT_TIMER
-#include "esp32_rt_timer.h"
+#ifdef CONFIG_ESPRESSIF_HR_TIMER
+#include "esp_hr_timer.h"
 #endif
 
 #ifdef CONFIG_SCHED_TICKLESS
 #include "esp32_tickless.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_AUTO_SLEEP
+#include "esp_private/pm_impl.h"
+#include "platform/os.h"
 #endif
 
 /****************************************************************************
@@ -90,6 +95,13 @@
 #define EARLY_WAKEUP_US       (200)
 
 #endif
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+#ifdef CONFIG_PM
+static spinlock_t g_esp32_idle_lock = SP_UNLOCKED;
+#endif
 
 /****************************************************************************
  * Private Functions
@@ -106,60 +118,25 @@
 #ifdef CONFIG_PM
 static void esp32_idlepm(void)
 {
-  irqstate_t flags;
-
 #ifdef CONFIG_ESP32_AUTO_SLEEP
-  flags = spin_lock_irqsave(NULL);
-  if (esp32_pm_lockstatus() == 0)
-    {
-      uint64_t os_start_us;
-      uint64_t os_end_us;
-      uint64_t os_step_us;
-      uint64_t hw_start_us;
-      uint64_t hw_end_us;
-      uint64_t hw_step_us;
-      uint64_t rtc_diff_us;
-      struct   timespec ts;
-      uint64_t os_idle_us = up_get_idletime();
-      uint64_t hw_idle_us = rt_timer_get_alarm();
-      uint64_t sleep_us   = MIN(os_idle_us, hw_idle_us);
-      if (sleep_us > EXPECTED_IDLE_TIME_US)
-        {
-          sleep_us -= EARLY_WAKEUP_US;
-
-          esp32_sleep_enable_timer_wakeup(sleep_us);
-
-          up_timer_gettime(&ts);
-          os_start_us = (ts.tv_sec * USEC_PER_SEC +
-                         ts.tv_nsec /  NSEC_PER_USEC);
-          hw_start_us = rt_timer_time_us();
-
-          esp32_light_sleep_start(&rtc_diff_us);
-
-          hw_end_us = rt_timer_time_us();
-          up_timer_gettime(&ts);
-          os_end_us = (ts.tv_sec * USEC_PER_SEC +
-                         ts.tv_nsec /  NSEC_PER_USEC);
-          hw_step_us = rtc_diff_us - (hw_end_us - hw_start_us);
-          os_step_us = rtc_diff_us - (os_end_us - os_start_us);
-          DEBUGASSERT(hw_step_us > 0);
-          DEBUGASSERT(os_step_us > 0);
-
-          /* Adjust current RT timer by a certain value. */
-
-          rt_timer_calibration(hw_step_us);
-
-          /* Adjust system time by a certain value. */
-
-          up_step_idletime((uint32_t)os_step_us);
-        }
-    }
-
-  spin_unlock_irqrestore(NULL, flags);
+  esp_os_application_sleep();
 #else /* CONFIG_ESP32_AUTO_SLEEP */
   static enum pm_state_e oldstate = PM_NORMAL;
+  irqstate_t flags;
   enum pm_state_e newstate;
   int ret;
+  int count;
+
+  count = pm_staycount(PM_IDLE_DOMAIN, PM_NORMAL);
+  if (oldstate != PM_NORMAL && count == 0)
+    {
+      pm_stay(PM_IDLE_DOMAIN, PM_NORMAL);
+
+      /* Keep working in normal stage */
+
+      pm_changestate(PM_IDLE_DOMAIN, PM_NORMAL);
+      newstate = PM_NORMAL;
+    }
 
   /* Decide, which power saving level can be obtained */
 
@@ -169,7 +146,7 @@ static void esp32_idlepm(void)
 
   if (newstate != oldstate)
     {
-      flags = spin_lock_irqsave(NULL);
+      flags = spin_lock_irqsave(&g_esp32_idle_lock);
 
       /* Perform board-specific, state-dependent logic here */
 
@@ -191,7 +168,7 @@ static void esp32_idlepm(void)
           oldstate = newstate;
         }
 
-      spin_unlock_irqrestore(NULL, flags);
+      spin_unlock_irqrestore(&g_esp32_idle_lock, flags);
 
       /* MCU-specific power management logic */
 
@@ -207,8 +184,8 @@ static void esp32_idlepm(void)
           {
             /* Enter Force-sleep mode */
 
-            esp32_pmstandby(CONFIG_PM_ALARM_SEC * 1000000 +
-                                  CONFIG_PM_ALARM_NSEC / 1000);
+            esp_pmstandby(CONFIG_PM_ALARM_SEC * 1000000 +
+                          CONFIG_PM_ALARM_NSEC / 1000);
           }
           break;
 
@@ -216,10 +193,9 @@ static void esp32_idlepm(void)
           {
             /* Enter Deep-sleep mode */
 
-            esp32_pmsleep(CONFIG_PM_SLEEP_WAKEUP_SEC * 1000000 +
-                                CONFIG_PM_SLEEP_WAKEUP_NSEC / 1000);
+            esp_pmsleep(CONFIG_PM_SLEEP_WAKEUP_SEC * 1000000 +
+                        CONFIG_PM_SLEEP_WAKEUP_NSEC / 1000);
           }
-          break;
 
         default:
           break;
@@ -227,13 +203,6 @@ static void esp32_idlepm(void)
     }
   else
     {
-      if (oldstate == PM_NORMAL)
-        {
-          /* Relax normal operation */
-
-          pm_relax(PM_IDLE_DOMAIN, PM_NORMAL);
-        }
-
 #ifdef CONFIG_WATCHDOG
       /* Announce the power management state change to feed watchdog */
 
@@ -278,8 +247,13 @@ void up_idle(void)
    */
 
   BEGIN_IDLE();
-#if XCHAL_HAVE_INTERRUPTS
+#ifdef CONFIG_ESPRESSIF_AUTO_SLEEP
+  esp_pm_impl_idle_hook();
+  esp_pm_impl_waiti();
+#else
+#  if XCHAL_HAVE_INTERRUPTS
   __asm__ __volatile__ ("waiti 0");
+#  endif
 #endif
   END_IDLE();
 

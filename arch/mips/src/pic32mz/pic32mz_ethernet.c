@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/mips/src/pic32mz/pic32mz_ethernet.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <assert.h>
 
@@ -41,6 +43,7 @@
 #include <nuttx/wqueue.h>
 #include <nuttx/net/mii.h>
 #include <nuttx/net/netconfig.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 
 #ifdef CONFIG_NET_PKT
@@ -110,7 +113,7 @@
 #  define CONFIG_PIC32MZ_MULTICAST 1
 #endif
 
-/* Use defaults if the number of discriptors is not provided */
+/* Use defaults if the number of descriptors is not provided */
 
 #ifndef CONFIG_PIC32MZ_ETH_NTXDESC
 #  define CONFIG_PIC32MZ_ETH_NTXDESC 2
@@ -775,7 +778,7 @@ static inline void pic32mz_txdescinit(struct pic32mz_driver_s *priv)
   int i;
 
   /* Assign a buffer to each TX descriptor.  For now, just mark each TX
-   * descriptor as owned by softare and not linked.
+   * descriptor as owned by software and not linked.
    */
 
   for (i = 0; i < CONFIG_PIC32MZ_ETH_NTXDESC; i++)
@@ -913,7 +916,7 @@ static inline void pic32mz_rxdescinit(struct pic32mz_driver_s *priv)
  *
  * Returned Value:
  *   A pointer to the next available Tx descriptor on success; NULL if the
- *   next Tx dscriptor is not available.
+ *   next Tx descriptor is not available.
  *
  ****************************************************************************/
 
@@ -2041,11 +2044,9 @@ static int pic32mz_ifup(struct net_driver_s *dev)
   uint32_t regval;
   int ret;
 
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (uint8_t)((dev->d_ipaddr >>  0) & 0xff),
-        (uint8_t)((dev->d_ipaddr >>  8) & 0xff),
-        (uint8_t)((dev->d_ipaddr >> 16) & 0xff),
-        (uint8_t)((dev->d_ipaddr >> 24) & 0xff));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 
   /* Reset the Ethernet controller (again) */
 
@@ -2339,6 +2340,8 @@ static int pic32mz_ifup(struct net_driver_s *dev)
   up_enable_irq(PIC32MZ_IRQ_ETH);
 #endif
 
+  netdev_carrier_on(dev);
+
   return OK;
 }
 
@@ -2381,6 +2384,9 @@ static int pic32mz_ifdown(struct net_driver_s *dev)
   pic32mz_ethreset(priv);
   priv->pd_ifup = false;
   leave_critical_section(flags);
+
+  netdev_carrier_off(dev);
+
   return OK;
 }
 

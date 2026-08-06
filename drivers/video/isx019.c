@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/video/isx019.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,8 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/i2c/i2c_master.h>
 #include <nuttx/signal.h>
 #include <nuttx/clock.h>
@@ -99,13 +102,26 @@
 
 /* For set_value() and get_value() I/F */
 
-#define SET_REGINFO(a, c, o, s) do \
+#define SET_REGINFO(a, c, o, t, s) do \
                                   {                      \
                                     (a)->category = (c); \
                                     (a)->offset   = (o); \
+                                    (a)->type     = (t); \
                                     (a)->size     = (s); \
                                   }                      \
                                 while (0);
+
+/* Register type, which represents the number of bits and
+ * whether it is signed or unsigned.
+ */
+
+#define ISX019_REGTYPE_INT8   (0)
+#define ISX019_REGTYPE_UINT8  (1)
+#define ISX019_REGTYPE_INT16  (2)
+
+#define SET_REGINFO_INT8(a, c, o) SET_REGINFO(a, c, o, ISX019_REGTYPE_INT8, 1)
+#define SET_REGINFO_UINT8(a, c, o) SET_REGINFO(a, c, o, ISX019_REGTYPE_UINT8, 1)
+#define SET_REGINFO_INT16(a, c, o) SET_REGINFO(a, c, o, ISX019_REGTYPE_INT16, 2)
 
 #define VALIDATE_RANGE(v, min, max, step) (((v) >= (min)) && \
                                            ((v) <= (max)) && \
@@ -183,15 +199,12 @@ struct isx019_default_value_s
   int32_t vflip_still;
   int32_t sharpness;
   int32_t ae;
-  int32_t exptime;
   int32_t wbmode;
   int32_t hdr;
-  int32_t iso;
   int32_t iso_auto;
   int32_t meter;
   int32_t spot_pos;
   int32_t threealock;
-  int32_t threeastatus;
   int32_t jpgquality;
 };
 
@@ -213,6 +226,7 @@ struct isx019_dev_s
   mutex_t fpga_lock;
   mutex_t i2c_lock;
   FAR struct i2c_master_s *i2c;
+  struct i2c_config_s i2c_cfg;
   float clock_ratio;
   isx019_default_value_t  default_value;
   imgsensor_stream_type_t stream;
@@ -221,9 +235,9 @@ struct isx019_dev_s
   uint8_t flip_still;
   isx019_rect_t clip_video;
   isx019_rect_t clip_still;
-  int32_t iso;
   double  gamma;
   int32_t jpg_quality;
+  int32_t hue;
   imgsensor_colorfx_t colorfx;
 };
 
@@ -240,6 +254,7 @@ struct isx019_reginfo_s
 {
   uint16_t category;
   uint16_t offset;
+  uint8_t  type;
   uint8_t  size;
 };
 
@@ -797,6 +812,122 @@ static const int32_t g_isx019_wbmode[] =
 
 #define NR_WBMODE (sizeof(g_isx019_wbmode) / sizeof(int32_t))
 
+static const int32_t g_isx019_iso[] =
+{
+  1000,     /* ISO1 */
+  1200,     /* ISO1.2 */
+  1600,     /* ISO1.6 */
+  2000,     /* ISO2 */
+  2500,     /* ISO2.5 */
+  3000,     /* ISO3 */
+  4000,     /* ISO4 */
+  5000,     /* ISO5 */
+  6000,     /* ISO6 */
+  8000,     /* ISO8 */
+  10000,    /* ISO10 */
+  12000,    /* ISO12 */
+  16000,    /* ISO16 */
+  20000,    /* ISO20 */
+  25000,    /* ISO25 */
+  32000,    /* ISO32 */
+  40000,    /* ISO40 */
+  50000,    /* ISO50 */
+  64000,    /* ISO64 */
+  80000,    /* ISO80 */
+  100000,   /* ISO100 */
+  125000,   /* ISO125 */
+  160000,   /* ISO160 */
+  200000,   /* ISO200 */
+  250000,   /* ISO250 */
+  320000,   /* ISO320 */
+  400000,   /* ISO400 */
+  500000,   /* ISO500 */
+  640000,   /* ISO640 */
+  800000,   /* ISO800 */
+  1000000,  /* ISO1000 */
+  1250000,  /* ISO1250 */
+  1600000,  /* ISO1600 */
+  2000000,  /* ISO2000 */
+  2500000,  /* ISO2500 */
+  3200000,  /* ISO3200 */
+  4000000,  /* ISO4000 */
+  5000000,  /* ISO5000 */
+};
+
+#define NR_ISO (sizeof(g_isx019_iso) / sizeof(int32_t))
+
+/* Gain values corresponding to each element of g_isx019_iso table.
+ * This needs to have the same size as g_isx019_iso.
+ */
+
+static const uint8_t g_isx019_gain[] =
+{
+  1,   /* gain for ISO1 */
+  2,   /* gain for ISO1.2 */
+  3,   /* gain for ISO1.6 */
+  4,   /* gain for ISO2 */
+  5,   /* gain for ISO2.5 */
+  6,   /* gain for ISO3 */
+  7,   /* gain for ISO4 */
+  8,   /* gain for ISO5 */
+  9,   /* gain for ISO6 */
+  10,  /* gain for ISO8 */
+  11,  /* gain for ISO10 */
+  12,  /* gain for ISO12 */
+  13,  /* gain for ISO16 */
+  14,  /* gain for ISO20 */
+  15,  /* gain for ISO25 */
+  16,  /* gain for ISO32 */
+  17,  /* gain for ISO40 */
+  18,  /* gain for ISO50 */
+  19,  /* gain for ISO64 */
+  20,  /* gain for ISO80 */
+  21,  /* gain for ISO100 */
+  22,  /* gain for ISO125 */
+  23,  /* gain for ISO160 */
+  24,  /* gain for ISO200 */
+  25,  /* gain for ISO250 */
+  26,  /* gain for ISO320 */
+  27,  /* gain for ISO400 */
+  28,  /* gain for ISO500 */
+  29,  /* gain for ISO640 */
+  30,  /* gain for ISO800 */
+  31,  /* gain for ISO1000 */
+  32,  /* gain for ISO1250 */
+  33,  /* gain for ISO1600 */
+  34,  /* gain for ISO2000 */
+  35,  /* gain for ISO2500 */
+  36,  /* gain for ISO3200 */
+  37,  /* gain for ISO4000 */
+  38,  /* gain for ISO5000 */
+};
+
+static const int32_t g_isx019_iso_auto[] =
+{
+  IMGSENSOR_ISO_SENSITIVITY_MANUAL,
+  IMGSENSOR_ISO_SENSITIVITY_AUTO,
+};
+
+#define NR_ISO_AUTO (sizeof(g_isx019_iso_auto) / sizeof(int32_t))
+
+static const int32_t g_isx019_metering[] =
+{
+  IMGSENSOR_EXPOSURE_METERING_AVERAGE,
+  IMGSENSOR_EXPOSURE_METERING_CENTER_WEIGHTED,
+  IMGSENSOR_EXPOSURE_METERING_SPOT,
+  IMGSENSOR_EXPOSURE_METERING_MATRIX,
+};
+
+#define NR_METERING (sizeof(g_isx019_metering) / sizeof(int32_t))
+
+static const int32_t g_isx019_ae[] =
+{
+  IMGSENSOR_EXPOSURE_AUTO,
+  IMGSENSOR_EXPOSURE_MANUAL,
+};
+
+#define NR_AE (sizeof(g_isx019_ae) / sizeof(int32_t))
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -804,30 +935,18 @@ static const int32_t g_isx019_wbmode[] =
 static int fpga_i2c_write(FAR isx019_dev_t *priv, uint8_t addr,
                           FAR const void *data, uint8_t size)
 {
-  struct i2c_config_s config;
   static uint8_t buf[FPGA_I2C_REGSIZE_MAX + FPGA_I2C_REGADDR_LEN];
   int ret;
 
   DEBUGASSERT(size <= FPGA_I2C_REGSIZE_MAX);
 
-  config.frequency = ISX019_I2C_FREQUENCY;
-  config.address   = ISX019_I2C_SLVADDR;
-  config.addrlen   = ISX019_I2C_SLVADDR_LEN;
+  priv->i2c_cfg.address = FPGA_I2C_SLVADDR;
 
   nxmutex_lock(&priv->i2c_lock);
-
-  /* ISX019 requires that send read command to ISX019 before FPGA access. */
-
-  send_read_cmd(priv, &config, CAT_VERSION, ROM_VERSION, 1);
-
-  config.frequency = FPGA_I2C_FREQUENCY;
-  config.address   = FPGA_I2C_SLVADDR;
-  config.addrlen   = FPGA_I2C_SLVADDR_LEN;
-
   buf[FPGA_I2C_OFFSET_ADDR] = addr;
   memcpy(&buf[FPGA_I2C_OFFSET_WRITEDATA], data, size);
   ret = i2c_write(priv->i2c,
-                  &config,
+                  &priv->i2c_cfg,
                   buf,
                   size + FPGA_I2C_REGADDR_LEN);
   nxmutex_unlock(&priv->i2c_lock);
@@ -839,31 +958,19 @@ static int fpga_i2c_read(FAR isx019_dev_t *priv, uint8_t addr,
                          FAR void *data, uint8_t size)
 {
   int ret;
-  struct i2c_config_s config;
 
   DEBUGASSERT(size <= FPGA_I2C_REGSIZE_MAX);
 
-  config.frequency = ISX019_I2C_FREQUENCY;
-  config.address   = ISX019_I2C_SLVADDR;
-  config.addrlen   = ISX019_I2C_SLVADDR_LEN;
+  priv->i2c_cfg.address   = FPGA_I2C_SLVADDR;
 
   nxmutex_lock(&priv->i2c_lock);
-
-  /* ISX019 requires that send read command to ISX019 before FPGA access. */
-
-  send_read_cmd(priv, &config, CAT_VERSION, ROM_VERSION, 1);
-
-  config.frequency = FPGA_I2C_FREQUENCY;
-  config.address   = FPGA_I2C_SLVADDR;
-  config.addrlen   = FPGA_I2C_SLVADDR_LEN;
-
   ret = i2c_write(priv->i2c,
-                  &config,
+                  &priv->i2c_cfg,
                   &addr,
                   FPGA_I2C_REGADDR_LEN);
   if (ret >= 0)
     {
-      ret = i2c_read(priv->i2c, &config, data, size);
+      ret = i2c_read(priv->i2c, &priv->i2c_cfg, data, size);
     }
 
   nxmutex_unlock(&priv->i2c_lock);
@@ -1008,20 +1115,17 @@ static int isx019_i2c_write(FAR isx019_dev_t *priv,
                             uint8_t size)
 {
   int ret;
-  struct i2c_config_s config;
 
   DEBUGASSERT(size <= ISX019_I2C_REGSIZE_MAX);
 
-  config.frequency = ISX019_I2C_FREQUENCY;
-  config.address   = ISX019_I2C_SLVADDR;
-  config.addrlen   = ISX019_I2C_SLVADDR_LEN;
+  priv->i2c_cfg.address   = ISX019_I2C_SLVADDR;
 
   nxmutex_lock(&priv->i2c_lock);
 
-  ret = send_write_cmd(priv, &config, cat, addr, data, size);
+  ret = send_write_cmd(priv, &priv->i2c_cfg, cat, addr, data, size);
   if (ret == OK)
     {
-      ret = recv_write_response(priv, &config);
+      ret = recv_write_response(priv, &priv->i2c_cfg);
     }
 
   nxmutex_unlock(&priv->i2c_lock);
@@ -1065,20 +1169,17 @@ static int isx019_i2c_read(FAR isx019_dev_t *priv,
                            uint8_t size)
 {
   int ret;
-  struct i2c_config_s config;
 
   DEBUGASSERT(size <= ISX019_I2C_REGSIZE_MAX);
 
-  config.frequency = ISX019_I2C_FREQUENCY;
-  config.address   = ISX019_I2C_SLVADDR;
-  config.addrlen   = ISX019_I2C_SLVADDR_LEN;
+  priv->i2c_cfg.address   = ISX019_I2C_SLVADDR;
 
   nxmutex_lock(&priv->i2c_lock);
 
-  ret = send_read_cmd(priv, &config, cat, addr, size);
+  ret = send_read_cmd(priv, &priv->i2c_cfg, cat, addr, size);
   if (ret == OK)
     {
-      ret = recv_read_response(priv, &config, data, size);
+      ret = recv_read_response(priv, &priv->i2c_cfg, data, size);
     }
 
   nxmutex_unlock(&priv->i2c_lock);
@@ -1110,14 +1211,14 @@ static int set_drive_mode(FAR isx019_dev_t *priv)
 #endif
     };
 
-  nxsig_usleep(TRANSITION_TIME_TO_STARTUP);
+  nxsched_usleep(TRANSITION_TIME_TO_STARTUP);
 
   isx019_i2c_write(priv, CAT_CONFIG, MODE_SENSSEL,      &drv[INDEX_SENS], 1);
   isx019_i2c_write(priv, CAT_CONFIG, MODE_POSTSEL,      &drv[INDEX_POST], 1);
   isx019_i2c_write(priv,
     CAT_CONFIG, MODE_SENSPOST_SEL, &drv[INDEX_SENSPOST], 1);
 
-  nxsig_usleep(TRANSITION_TIME_TO_STREAMING);
+  nxsched_usleep(TRANSITION_TIME_TO_STREAMING);
 
   return OK;
 }
@@ -1130,11 +1231,7 @@ static bool try_repeat(int sec, int usec, FAR isx019_dev_t *priv,
   struct timespec now;
   struct timespec delta;
 
-  ret = clock_systime_timespec(&start);
-  if (ret < 0)
-    {
-      return false;
-    }
+  clock_systime_timespec(&start);
 
   while (1)
     {
@@ -1145,12 +1242,7 @@ static bool try_repeat(int sec, int usec, FAR isx019_dev_t *priv,
         }
       else
         {
-          ret = clock_systime_timespec(&now);
-          if (ret < 0)
-            {
-              return false;
-            }
-
+          clock_systime_timespec(&now);
           clock_timespec_subtract(&now, &start, &delta);
           if ((delta.tv_sec > sec) ||
               ((delta.tv_sec == sec) &&
@@ -1179,6 +1271,8 @@ static int try_fpga_i2c(FAR isx019_dev_t *priv)
 static void power_on(FAR isx019_dev_t *priv)
 {
   priv->i2c = board_isx019_initialize();
+  priv->i2c_cfg.frequency = ISX019_I2C_FREQUENCY;
+  priv->i2c_cfg.addrlen   = ISX019_I2C_SLVADDR_LEN;
   board_isx019_power_on();
   board_isx019_release_reset();
 }
@@ -1243,15 +1337,12 @@ static void store_default_value(FAR isx019_dev_t *priv)
   def->vflip_still  = get_value32(priv, IMGSENSOR_ID_VFLIP_STILL);
   def->sharpness    = get_value32(priv, IMGSENSOR_ID_SHARPNESS);
   def->ae           = get_value32(priv, IMGSENSOR_ID_EXPOSURE_AUTO);
-  def->exptime      = get_value32(priv, IMGSENSOR_ID_EXPOSURE_ABSOLUTE);
   def->wbmode       = get_value32(priv, IMGSENSOR_ID_AUTO_N_PRESET_WB);
   def->hdr          = get_value32(priv, IMGSENSOR_ID_WIDE_DYNAMIC_RANGE);
-  def->iso          = get_value32(priv, IMGSENSOR_ID_ISO_SENSITIVITY);
   def->iso_auto     = get_value32(priv, IMGSENSOR_ID_ISO_SENSITIVITY_AUTO);
   def->meter        = get_value32(priv, IMGSENSOR_ID_EXPOSURE_METERING);
   def->spot_pos     = get_value32(priv, IMGSENSOR_ID_SPOT_POSITION);
   def->threealock   = get_value32(priv, IMGSENSOR_ID_3A_LOCK);
-  def->threeastatus = get_value32(priv, IMGSENSOR_ID_3A_STATUS);
   def->jpgquality   = get_value32(priv, IMGSENSOR_ID_JPEG_QUALITY);
 }
 
@@ -1265,9 +1356,22 @@ static int isx019_init(FAR struct imgsensor_s *sensor)
   fpga_init(priv);
   initialize_wbmode(priv);
   initialize_jpg_quality(priv);
-  store_default_value(priv);
+
+  /* Set initial gamma value for getting current value API. */
+
+  priv->gamma = 1000;
+
+  /* Because store_default_value() needs the clock ratio,
+   * clock_ratio has to be calculated first.
+   */
+
   clk = board_isx019_get_master_clock();
   priv->clock_ratio = (float)clk / ISX019_STANDARD_MASTER_CLOCK;
+  store_default_value(priv);
+
+  /* Store initial HUE value for getting current value API. */
+
+  priv->hue = priv->default_value.hue;
 
   return OK;
 }
@@ -1623,7 +1727,7 @@ static int isx019_start_capture(FAR struct imgsensor_s *sensor,
             regval |= FPGA_THUMBNAIL_SCALE_1_4;
             break;
 
-          default : /* 1/8 */
+          default: /* 1/8 */
             regval |= FPGA_THUMBNAIL_SCALE_1_8;
             break;
         }
@@ -1671,14 +1775,6 @@ static int isx019_start_capture(FAR struct imgsensor_s *sensor,
 static int isx019_stop_capture(FAR struct imgsensor_s *sensor,
                                imgsensor_stream_type_t type)
 {
-  FAR isx019_dev_t *priv = (FAR isx019_dev_t *)sensor;
-  uint8_t regval;
-
-  regval = FPGA_DATA_OUTPUT_STOP;
-  nxmutex_lock(&priv->fpga_lock);
-  fpga_i2c_write(priv, FPGA_DATA_OUTPUT, &regval, 1);
-  fpga_activate_setting(priv);
-  nxmutex_unlock(&priv->fpga_lock);
   return OK;
 }
 
@@ -1801,7 +1897,7 @@ static int isx019_get_supported_value(FAR struct imgsensor_s *sensor,
         break;
 
       case IMGSENSOR_ID_AUTO_WHITE_BALANCE:
-        val->type = IMGSENSOR_CTRL_TYPE_INTEGER;
+        val->type = IMGSENSOR_CTRL_TYPE_BOOLEAN;
         SET_RANGE(val->u.range, MIN_AWB, MAX_AWB,
                                 STEP_AWB, def->awb);
         break;
@@ -1819,25 +1915,25 @@ static int isx019_get_supported_value(FAR struct imgsensor_s *sensor,
         break;
 
       case IMGSENSOR_ID_HFLIP_VIDEO:
-        val->type = IMGSENSOR_CTRL_TYPE_INTEGER;
+        val->type = IMGSENSOR_CTRL_TYPE_BOOLEAN;
         SET_RANGE(val->u.range, MIN_HFLIP, MAX_HFLIP,
                                 STEP_HFLIP, def->hflip_video);
         break;
 
       case IMGSENSOR_ID_VFLIP_VIDEO:
-        val->type = IMGSENSOR_CTRL_TYPE_INTEGER;
+        val->type = IMGSENSOR_CTRL_TYPE_BOOLEAN;
         SET_RANGE(val->u.range, MIN_VFLIP, MAX_VFLIP,
                                 STEP_VFLIP, def->vflip_video);
         break;
 
       case IMGSENSOR_ID_HFLIP_STILL:
-        val->type = IMGSENSOR_CTRL_TYPE_INTEGER;
+        val->type = IMGSENSOR_CTRL_TYPE_BOOLEAN;
         SET_RANGE(val->u.range, MIN_HFLIP, MAX_HFLIP,
                                 STEP_HFLIP, def->hflip_still);
         break;
 
       case IMGSENSOR_ID_VFLIP_STILL:
-        val->type = IMGSENSOR_CTRL_TYPE_INTEGER;
+        val->type = IMGSENSOR_CTRL_TYPE_BOOLEAN;
         SET_RANGE(val->u.range, MIN_VFLIP, MAX_VFLIP,
                                 STEP_VFLIP, def->hflip_still);
         break;
@@ -1857,15 +1953,17 @@ static int isx019_get_supported_value(FAR struct imgsensor_s *sensor,
         break;
 
       case IMGSENSOR_ID_EXPOSURE_AUTO:
-        val->type = IMGSENSOR_CTRL_TYPE_INTEGER;
-        SET_RANGE(val->u.range, MIN_AE, MAX_AE,
-                                STEP_AE, def->ae);
+        val->type = IMGSENSOR_CTRL_TYPE_INTEGER_MENU;
+        SET_DISCRETE(val->u.discrete,
+                     NR_AE,
+                     g_isx019_ae,
+                     IMGSENSOR_EXPOSURE_AUTO);
         break;
 
       case IMGSENSOR_ID_EXPOSURE_ABSOLUTE:
         val->type = IMGSENSOR_CTRL_TYPE_INTEGER;
         SET_RANGE(val->u.range, MIN_EXPOSURETIME, MAX_EXPOSURETIME,
-                                STEP_EXPOSURETIME, def->exptime);
+                                STEP_EXPOSURETIME, 0); /* 0 means undefined */
         break;
 
       case IMGSENSOR_ID_AUTO_N_PRESET_WB:
@@ -1883,21 +1981,27 @@ static int isx019_get_supported_value(FAR struct imgsensor_s *sensor,
         break;
 
       case IMGSENSOR_ID_ISO_SENSITIVITY:
-        val->type = IMGSENSOR_CTRL_TYPE_INTEGER;
-        SET_RANGE(val->u.range, MIN_ISO, MAX_ISO,
-                                STEP_ISO, def->iso);
+        val->type = IMGSENSOR_CTRL_TYPE_INTEGER_MENU;
+        SET_DISCRETE(val->u.discrete,
+                     NR_ISO,
+                     g_isx019_iso,
+                     0); /* 0 means undefined */
         break;
 
       case IMGSENSOR_ID_ISO_SENSITIVITY_AUTO:
-        val->type = IMGSENSOR_CTRL_TYPE_INTEGER;
-        SET_RANGE(val->u.range, MIN_AUTOISO, MAX_AUTOISO,
-                                STEP_AUTOISO, def->iso_auto);
+        val->type = IMGSENSOR_CTRL_TYPE_INTEGER_MENU;
+        SET_DISCRETE(val->u.discrete,
+                     NR_ISO_AUTO,
+                     g_isx019_iso_auto,
+                     IMGSENSOR_ISO_SENSITIVITY_AUTO);
         break;
 
       case IMGSENSOR_ID_EXPOSURE_METERING:
-        val->type = IMGSENSOR_CTRL_TYPE_INTEGER;
-        SET_RANGE(val->u.range, MIN_METER, MAX_METER,
-                                STEP_METER, def->meter);
+        val->type = IMGSENSOR_CTRL_TYPE_INTEGER_MENU;
+        SET_DISCRETE(val->u.discrete,
+                     NR_METERING,
+                     g_isx019_metering,
+                     IMGSENSOR_EXPOSURE_METERING_AVERAGE);
         break;
 
       case IMGSENSOR_ID_SPOT_POSITION:
@@ -1920,8 +2024,10 @@ static int isx019_get_supported_value(FAR struct imgsensor_s *sensor,
 
       case IMGSENSOR_ID_3A_STATUS:
         val->type = IMGSENSOR_CTRL_TYPE_INTEGER;
-        SET_RANGE(val->u.range, MIN_3ASTATUS, MAX_3ASTATUS,
-                                STEP_3ASTATUS, def->threeastatus);
+        SET_RANGE(val->u.range, MIN_3ASTATUS,
+                                MAX_3ASTATUS, STEP_3ASTATUS,
+                                IMGSENSOR_3A_STATUS_AE_OPERATING
+                                | IMGSENSOR_3A_STATUS_AWB_OPERATING);
         break;
 
       case IMGSENSOR_ID_JPEG_QUALITY:
@@ -1952,22 +2058,12 @@ static int32_t not_convert(int32_t val)
 
 static int32_t convert_brightness_is2reg(int32_t val)
 {
-  return (val << 2);
+  return (val * 4);
 }
 
 static int32_t convert_brightness_reg2is(int32_t val)
 {
-  return (val >> 2);
-}
-
-static int32_t convert_hue_is2reg(int32_t val)
-{
-  return (val * 90) / 128;
-}
-
-static int32_t convert_hue_reg2is(int32_t val)
-{
-  return (val * 128) / 90;
+  return (val / 4);
 }
 
 static int32_t convert_hdr_is2reg(int32_t val)
@@ -2031,38 +2127,33 @@ static convert_t get_reginfo(uint32_t id, bool is_set,
   switch (id)
     {
       case IMGSENSOR_ID_BRIGHTNESS:
-        SET_REGINFO(reg, CAT_PICTTUNE, UIBRIGHTNESS, 2);
+        SET_REGINFO_INT16(reg, CAT_PICTTUNE, UIBRIGHTNESS);
         cvrt = is_set ? convert_brightness_is2reg
                       : convert_brightness_reg2is;
         break;
 
       case IMGSENSOR_ID_CONTRAST:
-        SET_REGINFO(reg, CAT_PICTTUNE, UICONTRAST, 1);
+        SET_REGINFO_UINT8(reg, CAT_PICTTUNE, UICONTRAST);
         cvrt = not_convert;
         break;
 
       case IMGSENSOR_ID_SATURATION:
-        SET_REGINFO(reg, CAT_PICTTUNE, UISATURATION, 1);
+        SET_REGINFO_UINT8(reg, CAT_PICTTUNE, UISATURATION);
         cvrt = not_convert;
         break;
 
-      case IMGSENSOR_ID_HUE:
-        SET_REGINFO(reg, CAT_PICTTUNE, UIHUE, 1);
-        cvrt = is_set ? convert_hue_is2reg : convert_hue_reg2is;
-        break;
-
       case IMGSENSOR_ID_EXPOSURE:
-        SET_REGINFO(reg, CAT_AEDGRM, EVSEL, 1);
+        SET_REGINFO_INT8(reg, CAT_AEDGRM, EVSEL);
         cvrt = not_convert;
         break;
 
       case IMGSENSOR_ID_SHARPNESS:
-        SET_REGINFO(reg, CAT_PICTTUNE, UISHARPNESS, 1);
+        SET_REGINFO_UINT8(reg, CAT_PICTTUNE, UISHARPNESS);
         cvrt = not_convert;
         break;
 
       case IMGSENSOR_ID_WIDE_DYNAMIC_RANGE:
-        SET_REGINFO(reg, CAT_AEWD, AEWDMODE, 1);
+        SET_REGINFO_UINT8(reg, CAT_AEWD, AEWDMODE);
         cvrt = is_set ? convert_hdr_is2reg : convert_hdr_reg2is;
         break;
 
@@ -2071,6 +2162,23 @@ static convert_t get_reginfo(uint32_t id, bool is_set,
     }
 
   return cvrt;
+}
+
+static int set_hue(FAR isx019_dev_t *priv,
+                   imgsensor_value_t val)
+{
+  int ret;
+  int val32 = val.value32 * 90 / 128;
+
+  ret = isx019_i2c_write(priv, CAT_PICTTUNE, UIHUE, &val32, 1);
+  if (ret == OK)
+    {
+      /* Store value before conversion for get_hue(). */
+
+      priv->hue = val.value32;
+    }
+
+  return ret;
 }
 
 static void set_flip(FAR uint8_t *flip, uint8_t direction, int32_t val)
@@ -2323,7 +2431,7 @@ static int set_wbmode(FAR isx019_dev_t *priv,
 static int set_awb(FAR isx019_dev_t *priv,
                    imgsensor_value_t val)
 {
-  /* true  -> false : Update regster to HOLD
+  /* true  -> false : Update register to HOLD
    * false -> true  : Update register
    *                  with IMGSENSOR_ID_AUTO_N_PRESET_WB setting
    * otherwise      : Nothing to do
@@ -2486,21 +2594,21 @@ static int calc_spot_position_regval(uint16_t val,
 static int set_spot_position(FAR isx019_dev_t *priv,
                              imgsensor_value_t val)
 {
-  uint8_t regval;
-  uint8_t reg_x;
-  uint8_t reg_y;
-  uint16_t w;
-  uint16_t h;
-  uint16_t clip_w;
-  uint16_t clip_h;
-  uint16_t offset_x;
-  uint16_t offset_y;
+  uint8_t regval = 0;
+  uint8_t reg_x = 0;
+  uint8_t reg_y = 0;
+  uint16_t w = 0;
+  uint16_t h = 0;
+  uint16_t clip_w = 0;
+  uint16_t clip_h = 0;
+  uint16_t offset_x = 0;
+  uint16_t offset_y = 0;
   uint16_t x = (uint16_t)(val.value32 >> 16);
   uint16_t y = (uint16_t)(val.value32 & 0xffff);
-  int split;
+  int split = 0;
 
   /* Spot position of ISX019 is divided into 9x7 sections.
-   * - Horizontal direction is devided into 9 sections.
+   * - Horizontal direction is divided into 9 sections.
    * - Vertical  direction is divided into 7 sections.
    * The register value 0 means left top.
    * The register value 62 means right bottom.
@@ -2586,18 +2694,21 @@ static int set_3aparameter(FAR isx019_dev_t *priv,
   return OK;
 }
 
-static uint16_t calc_gain(double iso)
+static uint16_t get_gain_from_iso(int32_t iso)
 {
-  double gain;
+  int i;
 
-  gain = 1 + 10 * log(iso) / M_LN10;
+  for (i = 0; i < NR_ISO; i++)
+    {
+      if (g_isx019_iso[i] == iso)
+        {
+          break;
+        }
+    }
 
-  /* In the above formula, the unit of gain is dB.
-   * Because the register has the 0.1dB unit,
-   * return 10 times dB value.
-   */
+  /* Return gain corresponding to specified ISO sensitivity. */
 
-  return (uint16_t)(gain * 10);
+  return (uint16_t)g_isx019_gain[i];
 }
 
 static int set_iso(FAR isx019_dev_t *priv,
@@ -2609,10 +2720,9 @@ static int set_iso(FAR isx019_dev_t *priv,
    * So, calculate gain from ISO sensitivity.
    */
 
-  gain = calc_gain(val.value32 / 1000);
+  gain = get_gain_from_iso(val.value32) * 10;
   isx019_i2c_write(priv, CAT_CATAE, GAIN_PRIMODE, &gain, 2);
 
-  priv->iso = val.value32;
   return OK;
 }
 
@@ -2625,7 +2735,6 @@ static int set_iso_auto(FAR isx019_dev_t *priv,
   if (val.value32 == IMGSENSOR_ISO_SENSITIVITY_AUTO)
     {
       gain = 0;
-      priv->iso = 0;
     }
   else /* IMGSENSOR_ISO_SENSITIVITY_MANUAL */
     {
@@ -2643,8 +2752,6 @@ static int set_iso_auto(FAR isx019_dev_t *priv,
           isx019_i2c_read(priv, CAT_AECOM, GAIN_LEVEL, &buf, 1);
           gain = buf * 3;
         }
-
-      priv->iso = val.value32;
     }
 
   return isx019_i2c_write(priv, CAT_CATAE, GAIN_PRIMODE, &gain, 2);
@@ -2819,7 +2926,7 @@ static int set_jpg_quality(FAR isx019_dev_t *priv,
 
   /* Wait for swap of non-active side and active side. */
 
-  nxsig_usleep(DELAY_TIME_JPEGDQT_SWAP);
+  nxsched_usleep(DELAY_TIME_JPEGDQT_SWAP);
 
   /* Update non-active side in preparation for other activation trigger. */
 
@@ -2901,6 +3008,10 @@ static setvalue_t set_value_func(uint32_t id)
 
   switch (id)
     {
+      case IMGSENSOR_ID_HUE:
+        func = set_hue;
+        break;
+
       case IMGSENSOR_ID_GAMMA:
         func = set_gamma;
         break;
@@ -2982,6 +3093,21 @@ static setvalue_t set_value_func(uint32_t id)
     }
 
   return func;
+}
+
+static int get_hue(FAR isx019_dev_t *priv,
+                   FAR imgsensor_value_t *val)
+{
+  if (val == NULL)
+    {
+      return -EINVAL;
+    }
+
+  /* Return stored value without reading register. */
+
+  val->value32 = priv->hue;
+
+  return OK;
 }
 
 static int32_t get_flip(FAR uint8_t *flip, uint8_t direction)
@@ -3194,18 +3320,18 @@ static uint32_t restore_spot_position(uint16_t regval,
 static int get_spot_position(FAR isx019_dev_t *priv,
                              FAR imgsensor_value_t *val)
 {
-  uint8_t regval;
-  uint8_t regx;
-  uint8_t regy;
-  uint16_t w;
-  uint16_t h;
-  uint32_t x;
-  uint32_t y;
-  uint16_t clip_w;
-  uint16_t clip_h;
-  uint16_t offset_x;
-  uint16_t offset_y;
-  int split;
+  uint8_t regval = 0;
+  uint8_t regx = 0;
+  uint8_t regy = 0;
+  uint16_t w = 0;
+  uint16_t h = 0;
+  uint32_t x = 0;
+  uint32_t y = 0;
+  uint16_t clip_w = 0;
+  uint16_t clip_h = 0;
+  uint16_t offset_x = 0;
+  uint16_t offset_y = 0;
+  int split = 0;
 
   isx019_i2c_read(priv, CAT_CATAE, SPOT_FRM_NUM, &regval, 1);
 
@@ -3301,56 +3427,46 @@ static int get_3astatus(FAR isx019_dev_t *priv,
   return OK;
 }
 
-static double calc_iso(double gain)
+static int32_t get_iso_from_gain(uint8_t gain)
 {
-  int k;
-  double z;
-  double r;
+  int i;
 
-  /* ISO sensitivity = 10^((gain - 1) / 10)
-   * So, replace z = (gain - 1) / 10 and
-   * calculate 10^z.
-   */
+  /* g_isx019_gain and g_isx019_iso has the common index. */
 
-  /*  Divide z into integer and other parts.
-   *  z =  log10(E) (k * ln2 + r)
-   *  (k : integer, r < 0.5 * ln2)
-   *
-   * Then, 10^z = (2^k) * e^r (r < 0.5 * ln2)
-   */
+  for (i = 0; i < NR_ISO; i++)
+    {
+      if (g_isx019_gain[i] == gain)
+        {
+          break;
+        }
+    }
 
-  z = (gain - 1) / 10;
+  if (i >= NR_ISO)
+    {
+      i = NR_ISO - 1;
+    }
 
-  k = z * M_LN10 / M_LN2;
-  r = z * M_LN10 - k * M_LN2;
-
-  return (1 << k) * exp(r);
+  return g_isx019_iso[i];
 }
 
 static int get_iso(FAR isx019_dev_t *priv,
                    FAR imgsensor_value_t *val)
 {
-  uint8_t buf = 0;
+  uint8_t gain = 0;
 
   if (val == NULL)
     {
       return -EINVAL;
     }
 
-  if (priv->iso == 0)
-    {
-      /* iso = 0 means auto adjustment mode.
-       * In such a case, get gain from auto adjustment value register,
-       * which has the unit 0.3dB, and convert the gain to ISO.
-       */
+  /* The current gain value register has the 0.3dB unit.
+   * So, round the gain to integer, and convert to ISO.
+   */
 
-      isx019_i2c_read(priv, CAT_AECOM, GAIN_LEVEL, &buf, 1);
-      val->value32 = calc_iso((double)buf * 0.3) * USEC_PER_MSEC;
-    }
-  else
-    {
-      val->value32 = priv->iso;
-    }
+  isx019_i2c_read(priv, CAT_AECOM, GAIN_LEVEL, &gain, 1);
+  gain = ((gain * 3) + 5) / 10;
+
+  val->value32 = get_iso_from_gain(gain);
 
   return OK;
 }
@@ -3403,6 +3519,10 @@ static getvalue_t get_value_func(uint32_t id)
 
   switch (id)
     {
+      case IMGSENSOR_ID_HUE:
+        func = get_hue;
+        break;
+
       case IMGSENSOR_ID_GAMMA:
         func = get_gamma;
         break;
@@ -3491,16 +3611,37 @@ static int isx019_get_value(FAR struct imgsensor_s *sensor,
   isx019_reginfo_t reg;
   convert_t cvrt;
   getvalue_t get;
-  int32_t val32;
+  union
+  {
+    int32_t i32;
+    int16_t i16;
+    int8_t  i8;
+  } regval;
 
   DEBUGASSERT(val);
 
   cvrt = get_reginfo(id, false, &reg);
   if (cvrt)
     {
+      memset(&regval, 0, sizeof(regval));
       ret = isx019_i2c_read(priv,
-              reg.category, reg.offset, &val32, reg.size);
-      val->value32 = cvrt(val32);
+              reg.category, reg.offset, &regval.i32, reg.size);
+
+      switch (reg.type)
+        {
+          case ISX019_REGTYPE_INT8:
+            regval.i32 = (int32_t)regval.i8;
+            break;
+
+          case ISX019_REGTYPE_INT16:
+            regval.i32 = (int32_t)regval.i16;
+            break;
+
+          default:
+            break;
+        }
+
+      val->value32 = cvrt(regval.i32);
     }
   else
     {
@@ -3521,7 +3662,7 @@ static int validate_range(int32_t val,
 
   if (!VALIDATE_RANGE(val, range->minimum, range->maximum, range->step))
     {
-      ret = -EINVAL;
+      ret = -ERANGE;
     }
 
   return ret;

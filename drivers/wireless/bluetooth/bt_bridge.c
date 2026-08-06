@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/wireless/bluetooth/bt_bridge.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -22,11 +24,12 @@
  * Included Files
  ****************************************************************************/
 
-#include <debug.h>
-#include <stdatomic.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
+#include <nuttx/irq.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/atomic.h>
 #include <nuttx/net/snoop.h>
 
 #include <nuttx/wireless/bluetooth/bt_bridge.h>
@@ -43,6 +46,9 @@
 #define BT_FILTER_TYPE_BT      0
 #define BT_FILTER_TYPE_BLE     1
 #define BT_FILTER_TYPE_COUNT   2
+
+#define BT_FILTER_CMD_RESET    0
+#define BT_FILTER_CMD_COUNT    1
 
 /****************************************************************************
  * Private Types
@@ -69,7 +75,8 @@ struct bt_bridge_s
 #ifdef CONFIG_BLUETOOTH_BRIDGE_BTSNOOP
   FAR struct snoop_s       *snoop;
 #endif /* CONFIG_BLUETOOTH_BRIDGE_BTSNOOP */
-  atomic_uint               refs;
+  atomic_t                  refs;
+  bool                      dispatched[BT_FILTER_CMD_COUNT];
 };
 
 /****************************************************************************
@@ -117,7 +124,7 @@ static const uint8_t g_bt_filter_ble_evt_table[] =
  ****************************************************************************/
 
 static bool bt_filter_set(FAR uint16_t *array, int size, uint16_t old,
-                          uint16_t new, uint16_t mask)
+                          uint16_t new)
 {
   int i;
 
@@ -125,7 +132,7 @@ static bool bt_filter_set(FAR uint16_t *array, int size, uint16_t old,
     {
       if (array[i] == old)
         {
-          array[i] = new & mask;
+          array[i] = new;
           return true;
         }
     }
@@ -133,10 +140,25 @@ static bool bt_filter_set(FAR uint16_t *array, int size, uint16_t old,
   return false;
 }
 
+static bool bt_filter_ogf_is_valid(uint8_t ogf)
+{
+  switch (ogf)
+    {
+    case BT_OGF_BASEBAND:
+    case BT_OGF_LINK_CTRL:
+    case BT_OGF_INFO:
+    case BT_OGF_LE:
+    case BT_OGF_VS_RTK:
+      return true;
+    default:
+      return false;
+    }
+}
+
 static bool bt_filter_set_handle(FAR uint16_t *handle, int size,
                                  uint16_t old, uint16_t new)
 {
-  return bt_filter_set(handle, size, old, new, 0xfff);
+  return bt_filter_set(handle, size, old, new);
 }
 
 static bool bt_filter_alloc_handle(FAR struct bt_filter_s *filter,
@@ -163,7 +185,7 @@ static bool bt_filter_has_handle(FAR struct bt_filter_s *filter,
 static bool bt_filter_set_opcode(FAR uint16_t *opcode, int size,
                                  uint16_t old, uint16_t new)
 {
-  return bt_filter_set(opcode, size, old, new, 0xffff);
+  return bt_filter_set(opcode, size, old, new);
 }
 
 static bool bt_filter_alloc_opcode(FAR struct bt_filter_s *filter,
@@ -292,8 +314,7 @@ static bool bt_filter_can_recv(FAR struct bt_filter_s *filter,
             evt = (FAR void *)&buffer[2];
             ogf = evt->opcode >> 10;
 
-            if (BT_OGF_BASEBAND == ogf || BT_OGF_LINK_CTRL == ogf
-                || BT_OGF_INFO == ogf || BT_OGF_LE == ogf)
+            if (bt_filter_ogf_is_valid(ogf))
               {
                 return bt_filter_free_opcode(filter, evt->opcode);
               }
@@ -314,8 +335,7 @@ static bool bt_filter_can_recv(FAR struct bt_filter_s *filter,
             stat = (FAR void *)&buffer[2];
             ogf = stat->opcode >> 10;
 
-            if (BT_OGF_BASEBAND == ogf || BT_OGF_LINK_CTRL == ogf
-                || BT_OGF_INFO == ogf || BT_OGF_LE == ogf)
+            if (bt_filter_ogf_is_valid(ogf))
               {
                 return bt_filter_free_opcode(filter, stat->opcode);
               }
@@ -335,7 +355,11 @@ static bool bt_filter_can_recv(FAR struct bt_filter_s *filter,
     {
       FAR struct bt_hci_acl_hdr_s *acl = (FAR void *)&buffer[0];
 
-      return bt_filter_has_handle(filter, acl->handle);
+      /* When in HCI ACL Data packets,  connection handle is
+       * the first 3 octets of the packet
+       */
+
+      return bt_filter_has_handle(filter, acl->handle & 0x0fff);
     }
 
   return true;
@@ -368,8 +392,7 @@ static bool bt_filter_can_send(FAR struct bt_filter_s *filter,
           break;
         }
 
-      if (BT_OGF_BASEBAND == ogf || BT_OGF_LINK_CTRL == ogf
-          || BT_OGF_INFO == ogf || BT_OGF_LE == ogf)
+      if (bt_filter_ogf_is_valid(ogf))
         {
           if (!bt_filter_alloc_opcode(filter, opcode))
             {
@@ -399,7 +422,7 @@ static int bt_bridge_open(FAR struct bt_driver_s *drv)
 
   if (atomic_fetch_add(&bridge->refs, 1) == 0)
     {
-      int ret  = driver->open(driver);
+      int ret = driver->open(driver);
       if (ret < 0)
         {
           atomic_fetch_sub(&bridge->refs, 1);
@@ -411,17 +434,63 @@ static int bt_bridge_open(FAR struct bt_driver_s *drv)
   return OK;
 }
 
+static int bt_bridge_send_reset_response(FAR struct bt_driver_s *driver)
+{
+  uint8_t reset_response[6];
+
+  reset_response[0] = BT_HCI_EVT_CMD_COMPLETE;
+  reset_response[1] = 0x04;
+  reset_response[2] = 0x01;
+  reset_response[3] = BT_HCI_OP_RESET & 0xff;
+  reset_response[4] = (BT_HCI_OP_RESET >> 8) & 0xff;
+  reset_response[5] = BT_HCI_SUCCESS;
+
+  return bt_netdev_receive(driver, BT_EVT, reset_response,
+                           sizeof(reset_response));
+}
+
+static bool bt_bridge_filter_command(FAR struct bt_bridge_s *bridge,
+                                     FAR struct bt_driver_s *driver,
+                                     FAR uint8_t *data)
+{
+  uint16_t opcode = BT_LE162HOST(((uint16_t *)data)[0]);
+
+  switch (opcode)
+    {
+      case BT_HCI_OP_RESET:
+        if (bridge->dispatched[BT_FILTER_CMD_RESET])
+          {
+            bt_bridge_send_reset_response(driver);
+            return true;
+          }
+
+        bridge->dispatched[BT_FILTER_CMD_RESET] = true;
+        break;
+      default:
+        break;
+    }
+
+  return false;
+}
+
 static int bt_bridge_send(FAR struct bt_driver_s *drv,
                           enum bt_buf_type_e type,
                           FAR void *data, size_t len)
 {
   FAR struct bt_bridge_device_s *device =
-          (FAR struct bt_bridge_device_s *)drv;
+    (FAR struct bt_bridge_device_s *)drv;
   FAR struct bt_bridge_s *bridge = device->bridge;
   FAR struct bt_driver_s *driver = bridge->driver;
   irqstate_t flags;
 
   flags = enter_critical_section();
+
+  if (bt_bridge_filter_command(bridge, drv, data))
+    {
+      leave_critical_section(flags);
+      return len;
+    }
+
   if (bt_filter_can_send(&device->filter, type, data, len))
     {
       leave_critical_section(flags);
@@ -490,8 +559,9 @@ static int bt_bridge_ioctl(FAR struct bt_driver_s *drv, int cmd,
                            unsigned long arg)
 {
   FAR struct bt_bridge_device_s *device =
-          (FAR struct bt_bridge_device_s *)drv;
+    (FAR struct bt_bridge_device_s *)drv;
   FAR struct bt_bridge_s *bridge = device->bridge;
+  FAR struct bt_driver_s *driver = bridge->driver;
   int ret;
 
   switch (cmd)
@@ -534,9 +604,9 @@ static int bt_bridge_ioctl(FAR struct bt_driver_s *drv, int cmd,
 
     default:
       {
-        if (bridge->driver->ioctl)
+        if (driver->ioctl)
           {
-            ret = bridge->driver->ioctl(drv, cmd, arg);
+            ret = driver->ioctl(driver, cmd, arg);
           }
         else
           {
@@ -589,7 +659,7 @@ int bt_bridge_register(FAR struct bt_driver_s *hcidrv,
       return -EINVAL;
     }
 
-  bridge = (FAR struct bt_bridge_s *)kmm_zalloc(sizeof(struct bt_bridge_s));
+  bridge = kmm_zalloc(sizeof(struct bt_bridge_s));
   if (!bridge)
     {
       return -ENOMEM;

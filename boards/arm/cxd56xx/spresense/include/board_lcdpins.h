@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/cxd56xx/spresense/include/board_lcdpins.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -143,4 +145,4 @@
 
 #endif
 
-#endif  /* __BOARDS_ARM_CXD56XX_SPRESENSE_INCLUDE_BOARD_LCDPINS_H */
+#endif /* __BOARDS_ARM_CXD56XX_SPRESENSE_INCLUDE_BOARD_LCDPINS_H */

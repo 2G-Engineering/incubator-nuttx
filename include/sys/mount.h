@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/sys/mount.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,16 +29,27 @@
 
 #include <nuttx/compiler.h>
 #include <nuttx/fs/ioctl.h>
+#include <fcntl.h>
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define BLKSSZGET BIOC_BLKSSZGET
+#define BLKSSZGET  BIOC_BLKSSZGET
+#define BLKGETSIZE BIOC_BLKGETSIZE
 
 /* Mount flags */
 
-#define MS_RDONLY 1 /* Mount file system read-only */
+#define MS_RDONLY       0x0001 /* Mount file system read-only */
+#define MS_NOSUID       0x0002 /* Ignore suid and sgid bits */
+#define MS_NODEV        0x0004 /* Disallow access to device special files */
+#define MS_NOEXEC       0x0008 /* Disallow program execution */
+#define MS_SYNCHRONOUS  0x0010 /* Writes are synced at once */
+#define MS_REMOUNT      0x0020 /* Alter flags of a mounted FS */
+#define MS_MANDLOCK     0x0040 /* Allow mandatory locks on an FS */
+#define MS_DIRSYNC      0x0080 /* Directory modifications are synchronous */
+#define MS_NOSYMFOLLOW  0x0100 /* Do not follow symlinks */
+#define MS_NOATIME      0x0400 /* Do not update access times. */
 
 /* Un-mount flags
  *

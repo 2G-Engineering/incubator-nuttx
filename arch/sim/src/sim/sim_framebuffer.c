@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/sim_framebuffer.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/clock.h>
 #include <nuttx/wqueue.h>
@@ -95,6 +97,16 @@ static int sim_setcursor(struct fb_vtable_s *vtable,
                         struct fb_setcursor_s *settings);
 #endif
 
+/* Open/close window. */
+
+static int sim_openwindow(struct fb_vtable_s *vtable);
+static int sim_closewindow(struct fb_vtable_s *vtable);
+
+/* Get/set the panel power status (0: full off). */
+
+static int sim_getpower(struct fb_vtable_s *vtable);
+static int sim_setpower(struct fb_vtable_s *vtable, int power);
+
 /****************************************************************************
  * Private Data
  ****************************************************************************/
@@ -104,6 +116,8 @@ static int sim_setcursor(struct fb_vtable_s *vtable,
 #ifndef CONFIG_SIM_X11FB
 static uint8_t g_fb[FB_SIZE];
 #endif
+
+static int g_fb_power = 100;
 
 /* This structure describes the simulated video controller */
 
@@ -160,11 +174,48 @@ static struct fb_vtable_s g_fbobject =
   .getcursor     = sim_getcursor,
   .setcursor     = sim_setcursor,
 #endif
+
+  .open          = sim_openwindow,
+  .close         = sim_closewindow,
+  .getpower      = sim_getpower,
+  .setpower      = sim_setpower,
 };
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: sim_openwindow
+ ****************************************************************************/
+
+static int sim_openwindow(struct fb_vtable_s *vtable)
+{
+  int ret = OK;
+  ginfo("vtable=%p\n", vtable);
+
+#ifdef CONFIG_SIM_X11FB
+  ret = sim_x11openwindow();
+#endif
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: sim_closewindow
+ ****************************************************************************/
+
+static int sim_closewindow(struct fb_vtable_s *vtable)
+{
+  int ret = OK;
+  ginfo("vtable=%p\n", vtable);
+
+#ifdef CONFIG_SIM_X11FB
+  ret = sim_x11closewindow();
+#endif
+
+  return ret;
+}
 
 /****************************************************************************
  * Name: sim_getvideoinfo
@@ -194,7 +245,21 @@ static int sim_getplaneinfo(struct fb_vtable_s *vtable, int planeno,
   ginfo("vtable=%p planeno=%d pinfo=%p\n", vtable, planeno, pinfo);
   if (vtable && planeno == 0 && pinfo)
     {
+#if CONFIG_SIM_FB_INTERVAL_LINE > 0
+      int display = pinfo->display;
+#endif
       memcpy(pinfo, &g_planeinfo, sizeof(struct fb_planeinfo_s));
+
+#if CONFIG_SIM_FB_INTERVAL_LINE > 0
+      if (display - g_planeinfo.display > 0)
+        {
+          pinfo->display = display;
+          pinfo->fbmem = g_planeinfo.fbmem + g_planeinfo.stride *
+             (CONFIG_SIM_FB_INTERVAL_LINE + CONFIG_SIM_FBHEIGHT) *
+             (display - g_planeinfo.display);
+        }
+#endif
+
       return OK;
     }
 
@@ -333,6 +398,33 @@ static int sim_setcursor(struct fb_vtable_s *vtable,
 #endif
 
 /****************************************************************************
+ * Name: sim_getpower
+ ****************************************************************************/
+
+static int sim_getpower(struct fb_vtable_s *vtable)
+{
+  ginfo("vtable=%p power=%d\n", vtable, g_fb_power);
+  return g_fb_power;
+}
+
+/****************************************************************************
+ * Name: sim_setpower
+ ****************************************************************************/
+
+static int sim_setpower(struct fb_vtable_s *vtable, int power)
+{
+  ginfo("vtable=%p power=%d\n", vtable, power);
+  if (power < 0)
+    {
+      gerr("ERROR: power=%d < 0\n", power);
+      return -EINVAL;
+    }
+
+  g_fb_power = power;
+  return OK;
+}
+
+/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -340,23 +432,25 @@ static int sim_setcursor(struct fb_vtable_s *vtable,
  * Name: sim_x11loop
  ****************************************************************************/
 
+#ifdef CONFIG_SIM_X11FB
 void sim_x11loop(void)
 {
-#ifdef CONFIG_SIM_X11FB
-  static clock_t last;
-  clock_t now = clock_systime_ticks();
+  union fb_paninfo_u info;
 
-  if (now - last >= MSEC2TICK(16))
+  fb_notify_vsync(&g_fbobject);
+  if (fb_paninfo_count(&g_fbobject, FB_NO_OVERLAY) > 1)
     {
-      if (sim_x11update() >= 0)
-        {
-          fb_pollnotify(&g_fbobject);
-        }
-
-      last = now;
+      fb_remove_paninfo(&g_fbobject, FB_NO_OVERLAY);
     }
-#endif
+
+  if (fb_peek_paninfo(&g_fbobject, &info, FB_NO_OVERLAY) == OK)
+    {
+      sim_x11setoffset(info.planeinfo.yoffset * info.planeinfo.stride);
+    }
+
+  sim_x11update();
 }
+#endif
 
 /****************************************************************************
  * Name: up_fbinitialize
@@ -379,9 +473,14 @@ int up_fbinitialize(int display)
   int ret = OK;
 
 #ifdef CONFIG_SIM_X11FB
+  g_planeinfo.xres_virtual = CONFIG_SIM_FBWIDTH;
+  g_planeinfo.yres_virtual = CONFIG_SIM_FBHEIGHT *
+                             CONFIG_SIM_FRAMEBUFFER_COUNT;
   ret = sim_x11initialize(CONFIG_SIM_FBWIDTH, CONFIG_SIM_FBHEIGHT,
                           &g_planeinfo.fbmem, &g_planeinfo.fblen,
-                          &g_planeinfo.bpp, &g_planeinfo.stride);
+                          &g_planeinfo.bpp, &g_planeinfo.stride,
+                          CONFIG_SIM_FRAMEBUFFER_COUNT,
+                          CONFIG_SIM_FB_INTERVAL_LINE);
 #endif
 
   return ret;

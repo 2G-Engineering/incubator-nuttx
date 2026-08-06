@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/mtd/rpmsgmtd.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,13 +37,15 @@
 
 #define RPMSGMTD_NAME_PREFIX     "rpmsgmtd-"
 #define RPMSGMTD_NAME_PREFIX_LEN 9
+#define RPMSGMTD_NAME_MAX        32
 
 #define RPMSGMTD_ERASE           1
 #define RPMSGMTD_BREAD           2
 #define RPMSGMTD_BWRITE          3
 #define RPMSGMTD_READ            4
 #define RPMSGMTD_WRITE           5
-#define RPMSGMTD_IOCTL           6
+#define RPMSGMTD_GEOMETRY        6
+#define RPMSGMTD_IOCTL           7
 
 /****************************************************************************
  * Public Types
@@ -81,6 +85,15 @@ begin_packed_struct struct rpmsgmtd_read_s
 } end_packed_struct;
 
 #define rpmsgmtd_write_s rpmsgmtd_read_s
+
+begin_packed_struct struct rpmsgmtd_geometry_s
+{
+  struct rpmsgmtd_header_s header;
+  uint32_t                 blocksize;
+  uint32_t                 erasesize;
+  uint32_t                 neraseblocks;
+  char                     model[RPMSGMTD_NAME_MAX + 1];
+} end_packed_struct;
 
 begin_packed_struct struct rpmsgmtd_ioctl_s
 {

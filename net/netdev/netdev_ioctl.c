@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/netdev/netdev_ioctl.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,10 +29,11 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 
-#include <string.h>
 #include <assert.h>
+#include <nuttx/debug.h>
 #include <errno.h>
-#include <debug.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <nuttx/net/net.h>
 #include <nuttx/net/ip.h>
@@ -42,6 +45,7 @@
 
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/radiodev.h>
+#include <nuttx/net/vlan.h>
 
 #ifdef CONFIG_NET_6LOWPAN
 #  include <nuttx/net/sixlowpan.h>
@@ -70,6 +74,10 @@
 #  include <nuttx/wireless/cellular/cellular.h>
 #endif
 
+#ifdef CONFIG_NETDEV_MODEM_LTE_IOCTL
+#  include <nuttx/wireless/lte/lte_ioctl.h>
+#endif
+
 #include "arp/arp.h"
 #include "socket/socket.h"
 #include "netdev/netdev.h"
@@ -78,6 +86,7 @@
 #include "icmpv6/icmpv6.h"
 #include "route/route.h"
 #include "netlink/netlink.h"
+#include "utils/utils.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -385,11 +394,11 @@ static int netdev_bluetooth_ioctl(FAR struct socket *psock, int cmd,
 {
   FAR struct net_driver_s *dev;
   FAR char *ifname;
-  int ret = -EINVAL;
+  int ret = -ENOTTY;
 
-  if (arg != 0ul)
+  if (_BLUETOOTHIOCVALID(cmd))
     {
-      if (_BLUETOOTHIOCVALID(cmd))
+      if (arg != 0ul)
         {
           /* Get the name of the Bluetooth device to receive the IOCTL
            * command
@@ -402,9 +411,9 @@ static int netdev_bluetooth_ioctl(FAR struct socket *psock, int cmd,
         }
       else
         {
-          /* Not a Bluetooth IOCTL command */
+          /* Argument is invalid */
 
-          return -ENOTTY;
+          return -EINVAL;
         }
 
       /* Find the device with this name */
@@ -450,9 +459,9 @@ static int netdev_iee802154_ioctl(FAR struct socket *psock, int cmd,
   FAR char *ifname;
   int ret = -ENOTTY;
 
-  if (arg != 0ul)
+  if (_MAC802154IOCVALID(cmd))
     {
-      if (_MAC802154IOCVALID(cmd))
+      if (arg != 0ul)
         {
           /* Get the IEEE802.15.4 MAC device to receive the radio IOCTL
            * command
@@ -465,9 +474,9 @@ static int netdev_iee802154_ioctl(FAR struct socket *psock, int cmd,
         }
       else
         {
-          /* Not an EEE802.15.4 MAC IOCTL command */
+          /* Argument is invalid */
 
-          return -ENOTTY;
+          return -EINVAL;
         }
 
       /* Find the device with this name */
@@ -511,9 +520,9 @@ static int netdev_pktradio_ioctl(FAR struct socket *psock, int cmd,
   FAR char *ifname;
   int ret = -ENOTTY;
 
-  if (arg != 0ul)
+  if (_PKRADIOIOCVALID(cmd))
     {
-      if (_PKRADIOIOCVALID(cmd))
+      if (arg != 0ul)
         {
           /* Get the packet radio device to receive the radio IOCTL
            * command
@@ -526,10 +535,9 @@ static int netdev_pktradio_ioctl(FAR struct socket *psock, int cmd,
         }
       else
         {
-          /* Not a packet radio IOCTL command */
+          /* Argument is invalid */
 
-          nwarn("WARNING: Not a packet radio IOCTL command: %d\n", cmd);
-          return -ENOTTY;
+          return -EINVAL;
         }
 
       /* Find the device with this name */
@@ -571,19 +579,19 @@ static int netdev_cell_ioctl(FAR struct socket *psock, int cmd,
   FAR struct net_driver_s *dev = NULL;
   int ret = -ENOTTY;
 
-  ninfo("cmd: %d\n", cmd);
-  net_lock();
+  ninfo("cmd: 0x%04x\n", cmd);
 
   if (_CELLIOCVALID(cmd))
     {
       dev = netdev_findbyname(req->ifr_name);
       if (dev && dev->d_ioctl)
         {
+          netdev_lock(dev);
           ret = dev->d_ioctl(dev, cmd, (unsigned long)(uintptr_t)req);
+          netdev_unlock(dev);
         }
     }
 
-  net_unlock();
   return ret;
 }
 #endif
@@ -620,7 +628,20 @@ static int netdev_wifr_ioctl(FAR struct socket *psock, int cmd,
       /* Get the wireless device associated with the IOCTL command */
 
       dev = netdev_findbyname(req->ifr_name);
-      if (dev != NULL)
+      if (cmd == SIOCGIWNAME)
+        {
+          if (dev == NULL || dev->d_lltype != NET_LL_IEEE80211)
+            {
+              ret = -ENODEV;
+            }
+          else
+            {
+              strcpy((FAR char *)&req->u, "IEEE 802.11");
+              ret = OK;
+            }
+        }
+
+      if (dev != NULL && ret == -ENOTTY)
         {
           /* Just forward the IOCTL to the wireless driver */
 
@@ -633,31 +654,79 @@ static int netdev_wifr_ioctl(FAR struct socket *psock, int cmd,
 #endif
 
 /****************************************************************************
- * Name: netdev_ifr_dev
+ * Name: netdev_vlan_ioctl
  *
  * Description:
- *   Verify the struct ifreq and get the Ethernet device.
+ *   Perform VLAN network device specific operations.
+ *
+ * Input Parameters:
+ *   psock    Socket structure
+ *   cmd      The ioctl command
+ *   req      The argument of the ioctl cmd
+ *
+ * Returned Value:
+ *   >=0 on success (positive non-zero values are cmd-specific)
+ *   Negated errno returned on failure.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_NETDEV_IOCTL) && defined(CONFIG_NET_VLAN)
+static int netdev_vlan_ioctl(FAR struct socket *psock, int cmd,
+                             FAR struct vlan_ioctl_args *req)
+{
+  FAR struct net_driver_s *dev;
+  int ret = -ENOTTY;
+
+  /* Verify that this is a valid VLAN IOCTL command */
+
+  if (cmd == SIOCGIFVLAN || cmd == SIOCSIFVLAN)
+    {
+      /* Get the network device associated with the IOCTL command */
+
+      dev = netdev_findbyname(req->device1);
+      if (dev != NULL)
+        {
+          /* Just forward the IOCTL to the network driver */
+
+          ret = dev->d_ioctl(dev, cmd, (unsigned long)(uintptr_t)req);
+        }
+      else
+        {
+          ret = -ENODEV;
+        }
+    }
+
+  return ret;
+}
+#endif
+
+/****************************************************************************
+ * Name: netdev_ifr_split_idx
+ *
+ * Description:
+ *   Split the address index from device name like 'eth0:0'.
  *
  * Input Parameters:
  *   req - The argument of the ioctl cmd
  *
  * Returned Value:
- *  A pointer to the driver structure on success; NULL on failure.
+ *   The address index from device name.
  *
  ****************************************************************************/
 
-static FAR struct net_driver_s *netdev_ifr_dev(FAR struct ifreq *req)
+static unsigned int netdev_ifr_split_idx(FAR struct ifreq *req)
 {
-  if (req != NULL)
-    {
-      /* Find the network device associated with the device name
-       * in the request data.
-       */
+  FAR char *colon = strchr(req->ifr_name, ':');
+  int idx;
 
-      return netdev_findbyname(req->ifr_name);
+  if (colon)
+    {
+      *colon++ = '\0'; /* Remove suffix from device name */
+      idx = atoi(colon);
+      return idx >= 0 ? idx + 1 : 0; /* eth0:0 represents the second addr */
     }
 
-  return NULL;
+  return 0;
 }
 
 /****************************************************************************
@@ -667,7 +736,7 @@ static FAR struct net_driver_s *netdev_ifr_dev(FAR struct ifreq *req)
  *   Calculate the ioctl argument buffer length of ifreq.
  *
  * Input Parameters:
- *
+ *   domain   The socket domain
  *   cmd      The ioctl command
  *
  * Returned Value:
@@ -675,12 +744,11 @@ static FAR struct net_driver_s *netdev_ifr_dev(FAR struct ifreq *req)
  *
  ****************************************************************************/
 
-static ssize_t net_ioctl_ifreq_arglen(int cmd)
+static ssize_t net_ioctl_ifreq_arglen(uint8_t domain, int cmd)
 {
   switch (cmd)
     {
       case SIOCGIFADDR:
-      case SIOCSIFADDR:
       case SIOCGIFDSTADDR:
       case SIOCSIFDSTADDR:
       case SIOCGIFBRDADDR:
@@ -691,7 +759,6 @@ static ssize_t net_ioctl_ifreq_arglen(int cmd)
       case SIOCGIFMTU:
       case SIOCGIFHWADDR:
       case SIOCSIFHWADDR:
-      case SIOCDIFADDR:
       case SIOCGIFCOUNT:
       case SIOCSIFFLAGS:
       case SIOCGIFFLAGS:
@@ -705,10 +772,18 @@ static ssize_t net_ioctl_ifreq_arglen(int cmd)
       case SIOCDCANEXTFILTER:
       case SIOCACANSTDFILTER:
       case SIOCDCANSTDFILTER:
+      case SIOCCANRECOVERY:
+      case SIOCGCANSTATE:
+      case SIOCSCANSTATE:
       case SIOCSIFNAME:
       case SIOCGIFNAME:
       case SIOCGIFINDEX:
         return sizeof(struct ifreq);
+
+      case SIOCSIFADDR:
+      case SIOCDIFADDR:
+        return domain == PF_INET6 ?
+                 sizeof(struct in6_ifreq) : sizeof(struct ifreq);
 
       case SIOCGLIFADDR:
       case SIOCSLIFADDR:
@@ -749,11 +824,10 @@ static int netdev_ifr_ioctl(FAR struct socket *psock, int cmd,
                             FAR struct ifreq *req)
 {
   FAR struct net_driver_s *dev = NULL;
+  unsigned int idx = 0;
   int ret = OK;
 
-  ninfo("cmd: %d\n", cmd);
-
-  net_lock();
+  ninfo("cmd: 0x%04x\n", cmd);
 
   /* Execute commands that do not need ifr_name or lifr_name */
 
@@ -807,15 +881,26 @@ static int netdev_ifr_ioctl(FAR struct socket *psock, int cmd,
         break;
 #endif
       default:
-        if (net_ioctl_ifreq_arglen(cmd) > 0)
+        if (req == NULL)
           {
-            dev = netdev_ifr_dev(req);
-            if (dev == NULL)
-              {
-                ret = -ENODEV;
-              }
+            return -ENOTTY;
           }
-        else
+
+        if (net_ioctl_ifreq_arglen(psock->s_domain, cmd)
+            >= (ssize_t)sizeof(struct ifreq))
+          {
+            idx = netdev_ifr_split_idx(req);
+            UNUSED(idx);
+            dev = netdev_findbyname(req->ifr_name);
+          }
+        else if (net_ioctl_ifreq_arglen(psock->s_domain, cmd)
+                 == (ssize_t)sizeof(struct in6_ifreq))
+          {
+            FAR struct in6_ifreq *ifr6 = (FAR struct in6_ifreq *)req;
+            dev = netdev_findbyindex(ifr6->ifr6_ifindex);
+          }
+
+        if (dev == NULL)
           {
             ret = -ENOTTY;
           }
@@ -824,9 +909,10 @@ static int netdev_ifr_ioctl(FAR struct socket *psock, int cmd,
 
   if (dev == NULL)
     {
-      net_unlock();
       return ret;
     }
+
+  netdev_lock(dev);
 
   /* Execute commands that need ifr_name or lifr_name */
 
@@ -835,11 +921,6 @@ static int netdev_ifr_ioctl(FAR struct socket *psock, int cmd,
 #ifdef CONFIG_NET_IPv4
       case SIOCGIFADDR:  /* Get IP address */
         ioctl_get_ipv4addr(&req->ifr_addr, dev->d_ipaddr);
-        break;
-
-      case SIOCSIFADDR:  /* Set IP address */
-        ioctl_set_ipv4addr(&dev->d_ipaddr, &req->ifr_addr);
-        netlink_device_notify_ipaddr(dev, RTM_NEWADDR, AF_INET);
         break;
 
       case SIOCGIFDSTADDR:  /* Get P-to-P address */
@@ -872,15 +953,22 @@ static int netdev_ifr_ioctl(FAR struct socket *psock, int cmd,
       case SIOCGLIFADDR:  /* Get IP address */
         {
           FAR struct lifreq *lreq = (FAR struct lifreq *)req;
-          ioctl_get_ipv6addr(&lreq->lifr_addr, dev->d_ipv6addr);
+          idx = MIN(idx, CONFIG_NETDEV_MAX_IPv6_ADDR - 1);
+          ioctl_get_ipv6addr(&lreq->lifr_addr, dev->d_ipv6[idx].addr);
         }
         break;
 
       case SIOCSLIFADDR:  /* Set IP address */
         {
           FAR struct lifreq *lreq = (FAR struct lifreq *)req;
-          ioctl_set_ipv6addr(dev->d_ipv6addr, &lreq->lifr_addr);
-          netlink_device_notify_ipaddr(dev, RTM_NEWADDR, AF_INET6);
+          idx = MIN(idx, CONFIG_NETDEV_MAX_IPv6_ADDR - 1);
+
+          netdev_ipv6_removemcastmac(dev, dev->d_ipv6[idx].addr);
+          ioctl_set_ipv6addr(dev->d_ipv6[idx].addr, &lreq->lifr_addr);
+          netdev_ipv6_addmcastmac(dev, dev->d_ipv6[idx].addr);
+
+          netlink_device_notify_ipaddr(dev, RTM_NEWADDR, AF_INET6,
+           dev->d_ipv6[idx].addr, net_ipv6_mask2pref(dev->d_ipv6[idx].mask));
         }
         break;
 
@@ -906,14 +994,16 @@ static int netdev_ifr_ioctl(FAR struct socket *psock, int cmd,
       case SIOCGLIFNETMASK:  /* Get network mask */
         {
           FAR struct lifreq *lreq = (FAR struct lifreq *)req;
-          ioctl_get_ipv6addr(&lreq->lifr_addr, dev->d_ipv6netmask);
+          idx = MIN(idx, CONFIG_NETDEV_MAX_IPv6_ADDR - 1);
+          ioctl_get_ipv6addr(&lreq->lifr_addr, dev->d_ipv6[idx].mask);
         }
         break;
 
       case SIOCSLIFNETMASK:  /* Set network mask */
         {
           FAR struct lifreq *lreq = (FAR struct lifreq *)req;
-          ioctl_set_ipv6addr(dev->d_ipv6netmask, &lreq->lifr_addr);
+          idx = MIN(idx, CONFIG_NETDEV_MAX_IPv6_ADDR - 1);
+          ioctl_set_ipv6addr(dev->d_ipv6[idx].mask, &lreq->lifr_addr);
         }
         break;
 #endif
@@ -923,11 +1013,7 @@ static int netdev_ifr_ioctl(FAR struct socket *psock, int cmd,
         req->ifr_mtu = NETDEV_PKTSIZE(dev) - dev->d_llhdrlen;
         break;
       case SIOCSIFMTU:   /* Set MTU size */
-        dev = netdev_ifr_dev(req);
-        if (dev)
-          {
-            NETDEV_PKTSIZE(dev) = req->ifr_mtu + dev->d_llhdrlen;
-          }
+        NETDEV_PKTSIZE(dev) = req->ifr_mtu + dev->d_llhdrlen;
         break;
 
 #ifdef CONFIG_NET_ICMPv6_AUTOCONF
@@ -937,24 +1023,50 @@ static int netdev_ifr_ioctl(FAR struct socket *psock, int cmd,
 #endif
 
       case SIOCSIFFLAGS:  /* Sets the interface flags */
+#ifdef CONFIG_NET_ARP
 
-        /* Is this a request to bring the interface up? */
+        /* Is this a request to set the IFF_NOARP flag? */
 
-        if ((req->ifr_flags & IFF_UP) != 0)
+        if (IFF_IS_NOARP(req->ifr_flags) != IFF_IS_NOARP(dev->d_flags))
           {
-            /* Yes.. bring the interface up */
+            if (IFF_IS_NOARP(req->ifr_flags))
+              {
+                /* Yes. Set the IFF_NOARP flag */
 
-            ret = netdev_ifup(dev);
+                IFF_SET_NOARP(dev->d_flags);
+              }
+            else
+              {
+                /* No. Clear the IFF_NOARP flag */
+
+                IFF_CLR_NOARP(dev->d_flags);
+              }
+          }
+#endif
+
+        /* Is this a request to bring the interface up/down? */
+
+        if (IFF_IS_UP(req->ifr_flags) != IFF_IS_UP(dev->d_flags))
+          {
+            if (IFF_IS_UP(req->ifr_flags))
+              {
+                /* Yes.. bring the interface up */
+
+                ret = netdev_ifup(dev);
+#ifdef CONFIG_NET_ARP_ACD
+                /* having address then start acd */
+
+                arp_acd_setup(dev);
+#endif /* CONFIG_NET_ARP_ACD */
+              }
+            else
+              {
+                /* Yes.. take the interface down */
+
+                ret = netdev_ifdown(dev);
+              }
           }
 
-        /* Is this a request to take the interface down? */
-
-        else if ((req->ifr_flags & IFF_DOWN) != 0)
-          {
-            /* Yes.. take the interface down */
-
-            ret = netdev_ifdown(dev);
-          }
         break;
 
       case SIOCGIFFLAGS:  /* Gets the interface flags */
@@ -989,7 +1101,7 @@ static int netdev_ifr_ioctl(FAR struct socket *psock, int cmd,
         else
 #endif
           {
-            nerr("Unsupported link layer\n");
+            nwarn("WARNING: Unsupported link layer\n");
             ret = -EAFNOSUPPORT;
           }
         break;
@@ -1039,14 +1151,63 @@ static int netdev_ifr_ioctl(FAR struct socket *psock, int cmd,
         break;
 #endif
 
+      case SIOCSIFADDR:  /* Set IP address */
+#ifdef CONFIG_NET_IPv4
+        if (psock->s_domain != PF_INET6)
+          {
+            if (net_ipv4addr_cmp(dev->d_ipaddr,
+                ((FAR struct sockaddr_in *)&req->ifr_addr)->sin_addr.s_addr))
+              {
+                break;
+              }
+
+            ioctl_set_ipv4addr(&dev->d_ipaddr, &req->ifr_addr);
+            netlink_device_notify_ipaddr(dev, RTM_NEWADDR, AF_INET,
+                         &dev->d_ipaddr, net_ipv4_mask2pref(dev->d_netmask));
+
+#ifdef CONFIG_NET_ARP_ACD
+            arp_acd_set_addr(dev);
+#endif /* CONFIG_NET_ARP_ACD */
+          }
+#endif
+
+#ifdef CONFIG_NET_IPv6
+        if (psock->s_domain == PF_INET6)
+          {
+            FAR struct in6_ifreq *ifr6 = (FAR struct in6_ifreq *)req;
+            ret = netdev_ipv6_add(dev, ifr6->ifr6_addr.in6_u.u6_addr16,
+                                  ifr6->ifr6_prefixlen);
+            if (ret == OK)
+              {
+                netlink_device_notify_ipaddr(dev, RTM_NEWADDR, AF_INET6,
+                      ifr6->ifr6_addr.in6_u.u6_addr16, ifr6->ifr6_prefixlen);
+              }
+          }
+#endif
+        break;
+
       case SIOCDIFADDR:  /* Delete IP address */
 #ifdef CONFIG_NET_IPv4
-        dev->d_ipaddr = 0;
-        netlink_device_notify_ipaddr(dev, RTM_DELADDR, AF_INET);
+        if (psock->s_domain != PF_INET6)
+          {
+            netlink_device_notify_ipaddr(dev, RTM_DELADDR, AF_INET,
+                         &dev->d_ipaddr, net_ipv4_mask2pref(dev->d_netmask));
+            dev->d_ipaddr = 0;
+          }
 #endif
+
 #ifdef CONFIG_NET_IPv6
-        memset(&dev->d_ipv6addr, 0, sizeof(net_ipv6addr_t));
-        netlink_device_notify_ipaddr(dev, RTM_DELADDR, AF_INET6);
+        if (psock->s_domain == PF_INET6)
+          {
+            FAR struct in6_ifreq *ifr6 = (FAR struct in6_ifreq *)req;
+            ret = netdev_ipv6_del(dev, ifr6->ifr6_addr.in6_u.u6_addr16,
+                                  ifr6->ifr6_prefixlen);
+            if (ret == OK)
+              {
+                netlink_device_notify_ipaddr(dev, RTM_DELADDR, AF_INET6,
+                      ifr6->ifr6_addr.in6_u.u6_addr16, ifr6->ifr6_prefixlen);
+              }
+          }
 #endif
         break;
 
@@ -1084,8 +1245,18 @@ static int netdev_ifr_ioctl(FAR struct socket *psock, int cmd,
 #endif
 
 #if defined(CONFIG_NETDEV_IOCTL) && defined(CONFIG_NETDEV_CAN_BITRATE_IOCTL)
-      case SIOCGCANBITRATE:  /* Get bitrate from a CAN controller */
       case SIOCSCANBITRATE:  /* Set bitrate of a CAN controller */
+        if (dev->d_flags & IFF_UP)
+          {
+            /* Cannot set bitrate if the interface is up. */
+
+            ret = -EBUSY;
+            break;
+          }
+
+        /* If down, fall-through to common code in SIOCGCANBITRATE. */
+
+      case SIOCGCANBITRATE:  /* Get bitrate from a CAN controller */
         if (dev->d_ioctl)
           {
             FAR struct can_ioctl_data_s *can_bitrate_data =
@@ -1105,12 +1276,30 @@ static int netdev_ifr_ioctl(FAR struct socket *psock, int cmd,
       case SIOCDCANEXTFILTER:  /* Delete an extended-ID filter */
       case SIOCACANSTDFILTER:  /* Add a standard-ID filter */
       case SIOCDCANSTDFILTER:  /* Delete a standard-ID filter */
+      case SIOCCANRECOVERY:    /* Recovery can controller when bus-off */
         if (dev->d_ioctl)
           {
             FAR struct can_ioctl_filter_s *can_filter =
               &req->ifr_ifru.ifru_can_filter;
             ret = dev->d_ioctl(dev, cmd,
                           (unsigned long)(uintptr_t)can_filter);
+          }
+        else
+          {
+            ret = -ENOSYS;
+          }
+        break;
+#endif
+
+#if defined(CONFIG_NETDEV_IOCTL) && defined(CONFIG_NETDEV_CAN_STATE_IOCTL)
+      case SIOCGCANSTATE:  /* Get state from a CAN/LIN controller */
+      case SIOCSCANSTATE:  /* Set the LIN/CAN controller state */
+        if (dev->d_ioctl)
+          {
+            FAR struct can_ioctl_state_s *can_state =
+              &req->ifr_ifru.ifru_can_state;
+            ret = dev->d_ioctl(dev, cmd,
+                          (unsigned long)(uintptr_t)can_state);
           }
         else
           {
@@ -1130,7 +1319,7 @@ static int netdev_ifr_ioctl(FAR struct socket *psock, int cmd,
         break;
     }
 
-  net_unlock();
+  netdev_unlock(dev);
   return ret;
 }
 
@@ -1189,7 +1378,7 @@ static int netdev_imsf_ioctl(FAR struct socket *psock, int cmd,
   FAR struct net_driver_s *dev;
   int ret = -EINVAL;
 
-  ninfo("cmd: %d\n", cmd);
+  ninfo("cmd: 0x%04x\n", cmd);
 
   /* Execute the command */
 
@@ -1200,6 +1389,7 @@ static int netdev_imsf_ioctl(FAR struct socket *psock, int cmd,
           dev = netdev_imsfdev(imsf);
           if (dev)
             {
+              netdev_lock(dev);
               if (imsf->imsf_fmode == MCAST_INCLUDE)
                 {
                   ret = igmp_joingroup(dev, &imsf->imsf_multiaddr);
@@ -1209,6 +1399,8 @@ static int netdev_imsf_ioctl(FAR struct socket *psock, int cmd,
                   DEBUGASSERT(imsf->imsf_fmode == MCAST_EXCLUDE);
                   ret = igmp_leavegroup(dev, &imsf->imsf_multiaddr);
                 }
+
+              netdev_unlock(dev);
             }
         }
         break;
@@ -1248,7 +1440,7 @@ static bool ioctl_arpreq_parse(FAR struct arpreq *req,
     {
       *addr = (FAR struct sockaddr_in *)&req->arp_pa;
       *dev  = req->arp_dev[0] != '\0' ?
-              netdev_findbyname((FAR const char *)req->arp_dev) :
+              netdev_findbyname(req->arp_dev) :
               netdev_findby_ripv4addr(INADDR_ANY, (*addr)->sin_addr.s_addr);
       return true;
     }
@@ -1298,7 +1490,8 @@ static int netdev_arp_ioctl(FAR struct socket *psock, int cmd,
                */
 
               ret = arp_update(dev, addr->sin_addr.s_addr,
-                               (FAR const uint8_t *)req->arp_ha.sa_data);
+                               (FAR const uint8_t *)req->arp_ha.sa_data,
+                               req->arp_flags);
             }
           else
             {
@@ -1536,7 +1729,18 @@ static int netdev_ioctl(FAR struct socket *psock, int cmd,
 
         break;
 
-      default:
+      case FIOC_FILEPATH:
+        if (ret == -ENOTTY)
+          {
+            snprintf((FAR char *)(uintptr_t)arg, PATH_MAX, "socket:["
+                     "domain %" PRIu8 ", type %" PRIu8 ", proto %" PRIu8 "]",
+                     psock->s_domain, psock->s_type, psock->s_proto);
+            ret = OK;
+          }
+
+        break;
+
+    default:
         break;
     }
 
@@ -1554,7 +1758,7 @@ static int netdev_ioctl(FAR struct socket *psock, int cmd,
  *   Calculate the ioctl argument buffer length.
  *
  * Input Parameters:
- *
+ *   domain   The socket domain
  *   cmd      The ioctl command
  *
  * Returned Value:
@@ -1562,11 +1766,11 @@ static int netdev_ioctl(FAR struct socket *psock, int cmd,
  *
  ****************************************************************************/
 
-ssize_t net_ioctl_arglen(int cmd)
+ssize_t net_ioctl_arglen(uint8_t domain, int cmd)
 {
   ssize_t arglen;
 
-  arglen = net_ioctl_ifreq_arglen(cmd);
+  arglen = net_ioctl_ifreq_arglen(domain, cmd);
   if (arglen > 0)
     {
       return arglen;
@@ -1578,6 +1782,9 @@ ssize_t net_ioctl_arglen(int cmd)
       case FIONSPACE:
       case FIONREAD:
         return sizeof(int);
+
+      case FIOC_FILEPATH:
+        return PATH_MAX;
 
       case SIOCGIFCONF:
         return sizeof(struct ifconf);
@@ -1597,6 +1804,9 @@ ssize_t net_ioctl_arglen(int cmd)
       case SIOCADDRT:
       case SIOCDELRT:
         return sizeof(struct rtentry);
+
+      case SIOCDENYINETSOCK:
+        return sizeof(uint8_t);
 
       default:
 #ifdef CONFIG_NETDEV_IOCTL
@@ -1625,6 +1835,20 @@ ssize_t net_ioctl_arglen(int cmd)
         if (_BLUETOOTHIOCVALID(cmd))
           {
             return sizeof(struct btreq_s);
+          }
+#  endif
+
+#  ifdef CONFIG_NETDEV_MODEM_LTE_IOCTL
+        if (_LTEIOCVALID(cmd))
+          {
+            switch (cmd)
+              {
+                case SIOCLTECMD:
+                  return sizeof(struct lte_ioctl_data_s);
+
+                default:
+                  return sizeof(struct lte_smsreq_s);
+              }
           }
 #  endif
 #endif
@@ -1708,6 +1932,16 @@ int psock_vioctl(FAR struct socket *psock, int cmd, va_list ap)
     {
       ret = netdev_cell_ioctl(psock, cmd,
                               (FAR struct icellreq *)(uintptr_t)arg);
+    }
+#endif
+
+#if defined(CONFIG_NETDEV_IOCTL) && defined(CONFIG_NET_VLAN)
+  /* Check for a VLAN command */
+
+  if (ret == -ENOTTY)
+    {
+      ret = netdev_vlan_ioctl(psock, cmd,
+                              (FAR struct vlan_ioctl_args *)(uintptr_t)arg);
     }
 #endif
 

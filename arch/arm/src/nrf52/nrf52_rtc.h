@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/nrf52/nrf52_rtc.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,6 +28,8 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+
+#include <nuttx/irq.h>
 
 #include <stdint.h>
 
@@ -78,12 +82,12 @@ enum nrf52_rtc_cc_e
 
 enum nrf52_rtc_evt_e
 {
-  NRF52_RTC_EVT_TICK     = 0,
-  NRF52_RTC_EVT_OVRFLW   = 1,
-  NRF52_RTC_EVT_COMPARE0 = 2,
-  NRF52_RTC_EVT_COMPARE1 = 3,
-  NRF52_RTC_EVT_COMPARE2 = 4,
-  NRF52_RTC_EVT_COMPARE3 = 5,
+  NRF52_RTC_EVT_COMPARE0 = 0,
+  NRF52_RTC_EVT_COMPARE1 = 1,
+  NRF52_RTC_EVT_COMPARE2 = 2,
+  NRF52_RTC_EVT_COMPARE3 = 3,
+  NRF52_RTC_EVT_TICK     = 4,
+  NRF52_RTC_EVT_OVRFLW   = 5,
 };
 
 /* NRF52 RTC device */

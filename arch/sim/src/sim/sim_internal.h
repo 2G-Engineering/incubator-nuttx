@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/sim_internal.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -42,12 +44,26 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+/* Determine master-slave relationship when configuring with multiple cores */
+
+#ifdef CONFIG_RPTUN
+#  define SIM_RPTUN_MASTER (1 << 0)  /* As the master */
+#  define SIM_RPTUN_SLAVE  (0 << 0)  /* As the slave */
+
+#  define SIM_RPTUN_BOOT   (1 << 1)  /* As the master and boot the slave  */
+#  define SIM_RPTUN_NOBOOT (0 << 1)  /* As the master but not boot the slave */
+#endif
+
 #ifndef CONFIG_SMP_NCPUS
 #  define CONFIG_SMP_NCPUS 1
 #endif
 
 #ifndef CONFIG_SIM_NETDEV_NUMBER
 #  define CONFIG_SIM_NETDEV_NUMBER 1
+#endif
+
+#ifndef CONFIG_SIM_WIFIDEV_NUMBER
+#  define CONFIG_SIM_WIFIDEV_NUMBER 0
 #endif
 
 /* Determine which (if any) console driver to use */
@@ -62,17 +78,11 @@
 #  endif
 #endif
 
-/* Use a stack alignment of 16 bytes.  If necessary frame_size must be
- * rounded up to the next boundary
- */
+/* Use the consecutive framebuffers */
 
-#define STACK_ALIGNMENT     16
-
-/* Stack alignment macros */
-
-#define STACK_ALIGN_MASK    (STACK_ALIGNMENT - 1)
-#define STACK_ALIGN_DOWN(a) ((a) & ~STACK_ALIGN_MASK)
-#define STACK_ALIGN_UP(a)   (((a) + STACK_ALIGN_MASK) & ~STACK_ALIGN_MASK)
+#ifndef CONFIG_SIM_FB_INTERVAL_LINE
+#  define CONFIG_SIM_FB_INTERVAL_LINE 0
+#endif
 
 /* Simulated Heap Definitions ***********************************************/
 
@@ -82,8 +92,8 @@
 
 /* Macros to handle saving and restoring interrupt state ********************/
 
-#define sim_savestate(regs) sim_copyfullstate(regs, (xcpt_reg_t *)CURRENT_REGS)
-#define sim_restorestate(regs) (CURRENT_REGS = regs)
+#define sim_savestate(regs) sim_copyfullstate(regs, up_current_regs())
+#define sim_restorestate(regs) up_set_current_regs(regs)
 
 #define sim_saveusercontext(saveregs, ret)                      \
     do                                                          \
@@ -95,6 +105,7 @@
         val[0] = flags & UINT32_MAX;                            \
         val[1] = (flags >> 32) & UINT32_MAX;                    \
                                                                 \
+        env[JB_ERRNO] = host_errno_get();                       \
         ret = setjmp(saveregs);                                 \
       }                                                         \
     while (0)
@@ -106,7 +117,26 @@
         uint32_t *flags = (uint32_t *)&env[JB_FLAG];            \
                                                                 \
         up_irq_restore(((uint64_t)flags[1] << 32) | flags[0]);  \
+                                                                \
+        host_errno_set(env[JB_ERRNO]);                          \
         longjmp(env, 1);                                        \
+      }                                                         \
+    while (0)
+
+#define host_uninterruptible(func, ...)                         \
+    ({                                                          \
+        uint64_t flags_ = up_irq_save();                        \
+        typeof(func(__VA_ARGS__)) ret_ = func(__VA_ARGS__);     \
+        up_irq_restore(flags_);                                 \
+        ret_;                                                   \
+    })
+
+#define host_uninterruptible_no_return(func, ...)               \
+    do                                                          \
+      {                                                         \
+        uint64_t flags_ = up_irq_save();                        \
+        func(__VA_ARGS__);                                      \
+        up_irq_restore(flags_);                                 \
       }                                                         \
     while (0)
 
@@ -135,6 +165,13 @@
 #ifndef __ASSEMBLY__
 
 /****************************************************************************
+ * Type Declarations
+ ****************************************************************************/
+
+typedef int pid_t;
+typedef size_t xcpt_reg_t;
+
+/****************************************************************************
  * Public Type Definitions
  ****************************************************************************/
 
@@ -149,43 +186,66 @@ struct i2c_master_s;
 
 extern int g_argc;
 extern char **g_argv;
+extern struct kwork_wqueue_s *g_work_queue;
 
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
 
+uint64_t up_irq_save(void);
+void up_irq_restore(uint64_t flags);
+
 /* Context switching */
 
-void sim_copyfullstate(unsigned long *dest, unsigned long *src);
+void sim_copyfullstate(xcpt_reg_t *dest, xcpt_reg_t *src);
 void *sim_doirq(int irq, void *regs);
+void  sim_unlock(void);
+
+/* sim_errno.c */
+
+int host_errno_convert(int errcode);
+int host_errno_get(void);
+void host_errno_set(int errcode);
+
+/* sim_hostirq.c ************************************************************/
+
+void host_irqinitialize(void);
 
 /* sim_hostmisc.c ***********************************************************/
 
 void host_abort(int status);
 int  host_backtrace(void** array, int size);
+int  host_system(char *buf, size_t len, const char *fmt, ...);
 
 #ifdef CONFIG_SIM_IMAGEPATH_AS_CWD
 void host_init_cwd(void);
 #endif
 
+pid_t host_posix_spawn(const char *path,
+                       char *const argv[], char *const envp[]);
+int   host_waitpid(pid_t pid);
+int   host_kill(pid_t pid, int sig);
+
 /* sim_hostmemory.c *********************************************************/
 
-void *host_allocheap(size_t sz);
+void *host_allocheap(size_t size, bool exec);
 void  host_freeheap(void *mem);
-void *host_allocshmem(const char *name, size_t size, int master);
+void *host_allocshmem(const char *name, size_t size);
 void  host_freeshmem(void *mem);
 
 size_t host_mallocsize(void *mem);
 void *host_memalign(size_t alignment, size_t size);
 void host_free(void *mem);
 void *host_realloc(void *oldmem, size_t size);
-void host_mallinfo(int *aordblks, int *uordblks);
+int host_unlinkshmem(const char *name);
 
 /* sim_hosttime.c ***********************************************************/
 
+int host_inittimer(void);
 uint64_t host_gettime(bool rtc);
 void host_sleep(uint64_t nsec);
 void host_sleepuntil(uint64_t nsec);
+void host_set_timeratio(int ratio);
 int host_timerirq(void);
 int host_settimer(uint64_t nsec);
 
@@ -199,6 +259,7 @@ void sim_sigdeliver(void);
 void host_cpu0_start(void);
 int host_cpu_start(int cpu, void *stack, size_t size);
 void host_send_ipi(int cpu);
+void host_send_func_call_ipi(int cpu);
 #endif
 
 /* sim_smpsignal.c **********************************************************/
@@ -206,6 +267,7 @@ void host_send_ipi(int cpu);
 #ifdef CONFIG_SMP
 void host_cpu_started(void);
 int sim_init_ipi(int irq);
+int sim_init_func_call_ipi(int irq);
 #endif
 
 /* sim_oneshot.c ************************************************************/
@@ -229,6 +291,7 @@ bool host_uart_checkin(int fd);
 bool host_uart_checkout(int fd);
 int  host_uart_setcflag(int fd, unsigned int cflag);
 int  host_uart_getcflag(int fd, unsigned int *cflag);
+void host_printf(const char *fmt, ...);
 
 /* sim_deviceimage.c ********************************************************/
 
@@ -240,8 +303,11 @@ void sim_registerblockdevice(void);
 #ifdef CONFIG_SIM_X11FB
 int sim_x11initialize(unsigned short width, unsigned short height,
                       void **fbmem, size_t *fblen, unsigned char *bpp,
-                      unsigned short *stride);
+                      unsigned short *stride, int fbcount, int interval);
 int sim_x11update(void);
+int sim_x11openwindow(void);
+int sim_x11closewindow(void);
+int sim_x11setoffset(unsigned int offset);
 #ifdef CONFIG_FB_CMAP
 int sim_x11cmap(unsigned short first, unsigned short len,
                 unsigned char *red, unsigned char *green,
@@ -344,27 +410,37 @@ void sim_vpnkit_send(unsigned char *buf, unsigned int buflen);
 int sim_netdriver_init(void);
 void sim_netdriver_setmacaddr(int devidx, unsigned char *macaddr);
 void sim_netdriver_setmtu(int devidx, int mtu);
-void sim_netdriver_loop(void);
 
 /* sim_rptun.c **************************************************************/
 
 #ifdef CONFIG_RPTUN
-int sim_rptun_init(const char *shmemname, const char *cpuname, bool master);
-void sim_rptun_loop(void);
+int sim_rptun_init(const char *shmemname, const char *cpuname, int master);
+#endif
+
+/* sim_rpmsg_virtio.c *******************************************************/
+
+#ifdef CONFIG_RPMSG_VIRTIO_LITE
+int sim_rpmsg_virtio_init(const char *shmemname, const char *cpuname,
+                          bool master);
+#endif
+
+/* sim_rpmsg_port_uart.c ****************************************************/
+
+#ifdef CONFIG_RPMSG_PORT_UART
+int sim_rpmsg_port_uart_init(const char *localcpu, const char *remotecpu,
+                             const char *uartpath);
 #endif
 
 /* sim_hcisocket.c **********************************************************/
 
 #ifdef CONFIG_SIM_HCISOCKET
 int sim_bthcisock_register(int dev_id);
-int sim_bthcisock_loop(void);
 #endif
 
 /* sim_audio.c **************************************************************/
 
 #ifdef CONFIG_SIM_SOUND
 struct audio_lowerhalf_s *sim_audio_initialize(bool playback, bool offload);
-void sim_audio_loop(void);
 #endif
 
 /* sim_*i2c.c ***************************************************************/
@@ -383,23 +459,40 @@ int sim_spi_uninitialize(struct spi_dev_s *dev);
 
 /* up_video.c ***************************************************************/
 
-#ifdef CONFIG_SIM_VIDEO
-int sim_video_initialize(void);
-void sim_video_loop(void);
+#ifdef CONFIG_SIM_CAMERA
+int sim_camera_initialize(void);
+#endif
+
+#ifdef CONFIG_SIM_VIDEO_DECODER
+int sim_decoder_initialize(void);
+#endif
+
+#ifdef CONFIG_SIM_VIDEO_ENCODER
+int sim_encoder_initialize(void);
 #endif
 
 /* sim_usbdev.c *************************************************************/
 
 #ifdef CONFIG_SIM_USB_DEV
 void sim_usbdev_initialize(void);
-int sim_usbdev_loop(void);
 #endif
 
 /* sim_usbhost.c ************************************************************/
 
 #ifdef CONFIG_SIM_USB_HOST
 int sim_usbhost_initialize(void);
-int sim_usbhost_loop(void);
+#endif
+
+/* sim_canchar.c ************************************************************/
+
+#ifdef CONFIG_SIM_CANDEV_CHAR
+int sim_canchar_initialize(int devidx, int devno);
+#endif
+
+/* sim_cansock.c ************************************************************/
+
+#ifdef CONFIG_SIM_CANDEV_SOCK
+int sim_cansock_initialize(int devidx);
 #endif
 
 /* Debug ********************************************************************/
@@ -407,6 +500,11 @@ int sim_usbhost_loop(void);
 #ifdef CONFIG_STACK_COLORATION
 size_t sim_stack_check(void *alloc, size_t size);
 void sim_stack_color(void *stackbase, size_t nbytes);
+#endif
+
+#ifdef CONFIG_SIM_GPIOCHIP
+int sim_gpiochip_initialize(const char *filename);
+struct ioexpander_dev_s *sim_gpiochip_get_ioe(void);
 #endif
 
 #endif /* __ASSEMBLY__ */

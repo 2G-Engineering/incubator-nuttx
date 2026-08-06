@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/mm/map.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -44,7 +46,7 @@ struct task_group_s;
 
 struct mm_map_entry_s
 {
-  FAR struct mm_map_entry *flink;  /* this is used as sq_entry_t */
+  FAR struct mm_map_entry_s *flink;  /* this is used as sq_entry_t */
   FAR void *vaddr;
   size_t length;
   off_t offset;
@@ -55,6 +57,9 @@ struct mm_map_entry_s
     FAR void *p;
     int i;
   } priv;
+
+  int (*msync)(FAR struct mm_map_entry_s *entry, FAR void *start,
+               size_t length, int flags);
 
   /* Drivers which register mappings may also
    * implement the unmap function to undo anything done in mmap.
@@ -69,14 +74,15 @@ struct mm_map_entry_s
                 size_t length);
 };
 
-/* A structure for the task group */
+/* memory mapping structure for the task group */
 
 struct mm_map_s
 {
-  sq_queue_t mm_map_sq;
+  sq_queue_t mm_map_sq;         /* mappings list */
+  size_t map_count;             /* mappings list length */
 
 #ifdef CONFIG_ARCH_VMA_MAPPING
-  GRAN_HANDLE mm_map_vpages;
+  GRAN_HANDLE mm_map_vpages;    /* SHM virtual zone allocator */
 #endif
 
   rmutex_t mm_map_mutex;
@@ -191,6 +197,48 @@ void vm_release_region(FAR struct mm_map_s *mm, FAR void *vaddr,
                        size_t size);
 
 #endif
+
+#ifdef CONFIG_ARCH_VMA_MAPPING
+
+/****************************************************************************
+ * Name: vm_map_region
+ *
+ * Description:
+ *   Allocate virtual memory and maps given physical memory into user space
+ *   of the current process. The mapped region can be larger than requested
+ *   if given paddr isn't page-aligned, use with care so that not to create
+ *   unwanted security holes. The returned virtual address has same in-page
+ *   alignment as given paddr.
+ *
+ * Input Parameters:
+ *   paddr - Starting physical address
+ *   size  - Size of the address range
+ *
+ * Returned Value:
+ *   Virtual address if success, or NULL if error
+ *
+ ****************************************************************************/
+
+FAR void *vm_map_region(uintptr_t paddr, size_t size);
+
+/****************************************************************************
+ * Name: vm_unmap_region
+ *
+ * Description:
+ *   Unmap previously mapped userspace device and release the virtual memory.
+ *
+ * Input Parameters:
+ *   vaddr - Starting virtual address of the mapped device
+ *   size - Size of the address range
+ *
+ * Returned Value:
+ *   OK for success or negative value for error
+ *
+ ****************************************************************************/
+
+int vm_unmap_region(FAR void *vaddr, size_t size);
+
+#endif /* CONFIG_ARCH_VMA_MAPPING */
 
 /****************************************************************************
  * Name: mm_map_add

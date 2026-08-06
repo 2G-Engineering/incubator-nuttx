@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/ttgo_lora_esp32/src/esp32_sx127x.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,14 +30,14 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <nuttx/signal.h>
 #include <nuttx/wireless/lpwan/sx127x.h>
 #include <arch/board/board.h>
 
-#include "esp32_gpio.h"
+#include "espressif/esp_gpio.h"
 #include "esp32_spi.h"
 #include "hardware/esp32_gpio_sigmap.h"
 
@@ -88,13 +90,13 @@ static int sx127x_irq0_attach(xcpt_t isr, void *arg)
 
   /* Make sure the interrupt is disabled */
 
-  esp32_gpioirqdisable(irq);
+  esp_gpioirqdisable(irq);
 
   wlinfo("Attach DIO0 IRQ\n");
 
   /* Attach to IRQ on pin connected to DIO0 */
 
-  ret = irq_attach(irq, isr, arg);
+  ret = esp_gpio_irq(GPIO_SX127X_DIO0, isr, arg);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: gpint_attach() failed: %d\n", ret);
@@ -103,7 +105,7 @@ static int sx127x_irq0_attach(xcpt_t isr, void *arg)
 
   /* IRQ on rising edge */
 
-  esp32_gpioirqenable(irq, RISING);
+  esp_gpioirqenable(irq);
 
   return OK;
 }
@@ -118,24 +120,24 @@ static void sx127x_chip_reset(void)
 
   /* Configure reset as output */
 
-  esp32_gpio_matrix_out(GPIO_SX127X_RESET, SIG_GPIO_OUT_IDX, 0, 0);
-  esp32_configgpio(GPIO_SX127X_RESET, OUTPUT_FUNCTION_3 | INPUT_FUNCTION_3);
+  esp_gpio_matrix_out(GPIO_SX127X_RESET, SIG_GPIO_OUT_IDX, 0, 0);
+  esp_configgpio(GPIO_SX127X_RESET, OUTPUT_FUNCTION_3 | INPUT_FUNCTION_3);
 
   /* Set pin to zero */
 
-  esp32_gpiowrite(GPIO_SX127X_RESET, 0);
+  esp_gpiowrite(GPIO_SX127X_RESET, 0);
 
   /* Wait 1 ms */
 
-  nxsig_usleep(1000);
+  nxsched_usleep(1000);
 
   /* Set pin to high */
 
-  esp32_gpiowrite(GPIO_SX127X_RESET, 1);
+  esp_gpiowrite(GPIO_SX127X_RESET, 1);
 
   /* Wait 10 ms */
 
-  nxsig_usleep(10000);
+  nxsched_usleep(10000);
 }
 
 /****************************************************************************
@@ -201,7 +203,7 @@ int esp32_lpwaninitialize(void)
 
   /* Setup DIO0 */
 
-  esp32_configgpio(GPIO_SX127X_DIO0, INPUT_FUNCTION_3 | PULLDOWN);
+  esp_configgpio(GPIO_SX127X_DIO0, INPUT_FUNCTION_3 | PULLDOWN | RISING);
 
   /* Init SPI bus */
 

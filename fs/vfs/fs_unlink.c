@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_unlink.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,6 +34,7 @@
 #include <nuttx/fs/fs.h>
 
 #include "inode/inode.h"
+#include "vfs.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -118,12 +121,21 @@ int nx_unlink(FAR const char *pathname)
           goto errout_with_inode;
         }
 
+      /* Verify parent-directory write permission before unlink. */
+
+      ret = inode_checkperm(desc.parent, W_OK);
+      if (ret < 0)
+        {
+          goto errout_with_inode;
+        }
+
       /* Notify the driver that it has been unlinked.  If there are no
        * open references to the driver instance, then the driver should
        * release all resources because it is no longer accessible.
        */
 
-      if (INODE_IS_DRIVER(inode) && inode->u.i_ops->unlink)
+      if ((INODE_IS_DRIVER(inode) || INODE_IS_SHM(inode) ||
+          INODE_IS_PIPE(inode)) && inode->u.i_ops->unlink)
         {
           /* Notify the character driver that it has been unlinked */
 
@@ -169,12 +181,7 @@ int nx_unlink(FAR const char *pathname)
        * return -EBUSY to indicate that the inode was not deleted now.
        */
 
-      ret = inode_lock();
-      if (ret < 0)
-        {
-          goto errout_with_inode;
-        }
-
+      inode_lock();
       ret = inode_remove(pathname);
       inode_unlock();
 
@@ -189,6 +196,9 @@ int nx_unlink(FAR const char *pathname)
 
   inode_release(inode);
   RELEASE_SEARCH(&desc);
+#ifdef CONFIG_FS_NOTIFY
+  notify_unlink(pathname);
+#endif
   return OK;
 
 #if !defined(CONFIG_DISABLE_MOUNTPOINT) || !defined(CONFIG_DISABLE_PSEUDOFS_OPERATIONS)

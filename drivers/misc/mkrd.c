@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/misc/mkrd.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,9 +26,10 @@
 
 #include <nuttx/config.h>
 
+#include <errno.h>
 #include <stdint.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/drivers/ramdisk.h>
@@ -65,7 +68,7 @@ int mkrd(int minor, uint32_t nsectors, uint16_t sectsize, uint8_t rdflags)
 
   /* Allocate the memory backing up the ramdisk from the kernel heap */
 
-  buffer = (FAR uint8_t *)kmm_malloc(sectsize * nsectors);
+  buffer = kmm_malloc(sectsize * nsectors);
   if (buffer == NULL)
     {
       ferr("ERROR: kmm_malloc() failed, enable DEBUG_MM for more info!\n");

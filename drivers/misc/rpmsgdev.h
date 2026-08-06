@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/misc/rpmsgdev.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,17 +35,18 @@
  * Pre-processor definitions
  ****************************************************************************/
 
-#define RPMSGDEV_NAME_PREFIX     "rpmsgdev-"
-#define RPMSGDEV_NAME_PREFIX_LEN 9
+#define RPMSGDEV_NAME_PREFIX     "rpdev"
+#define RPMSGDEV_NAME_PREFIX_LEN 5
 
 #define RPMSGDEV_OPEN            1
 #define RPMSGDEV_CLOSE           2
 #define RPMSGDEV_READ            3
-#define RPMSGDEV_WRITE           4
-#define RPMSGDEV_LSEEK           5
-#define RPMSGDEV_IOCTL           6
-#define RPMSGDEV_POLL            7
-#define RPMSGDEV_NOTIFY          8
+#define RPMSGDEV_READ_NOFRAG     4
+#define RPMSGDEV_WRITE           5
+#define RPMSGDEV_LSEEK           6
+#define RPMSGDEV_IOCTL           7
+#define RPMSGDEV_POLL            8
+#define RPMSGDEV_NOTIFY          9
 
 /****************************************************************************
  * Public Types

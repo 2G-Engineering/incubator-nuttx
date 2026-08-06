@@ -1,6 +1,8 @@
 ############################################################################
 # boards/risc-v/mpfs/m100pfsevp/src/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -24,10 +26,6 @@ ifeq ($(CONFIG_ARCH_LEDS),y)
   CSRCS += mpfs_autoleds.c
 endif
 
-ifeq ($(CONFIG_BOARDCTL),y)
-  CSRCS += mpfs_appinit.c
-endif
-
 DEPPATH += --dep-path board
 VPATH += :board
-CFLAGS += $(shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board)
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board

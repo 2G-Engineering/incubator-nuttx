@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32h7/nucleo-h743zi/src/stm32_progmem.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,16 +34,13 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/progmem.h>
 #include <nuttx/drivers/drivers.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/mtd/mtd.h>
-#ifdef CONFIG_BCH
-#include <nuttx/drivers/drivers.h>
-#endif
 
 #include <stm32.h>
 #include "nucleo-h743zi.h"
@@ -97,6 +96,7 @@ static int init_ota_partitions(void);
 static struct mtd_dev_s *g_progmem_mtd;
 
 #if defined(CONFIG_STM32_PROGMEM_OTA_PARTITION)
+
 static const struct ota_partition_s g_ota_partition_table[] =
 {
   {
@@ -109,11 +109,19 @@ static const struct ota_partition_s g_ota_partition_table[] =
     .size    = CONFIG_STM32_OTA_SLOT_SIZE,
     .devpath = CONFIG_STM32_OTA_SECONDARY_SLOT_DEVPATH
   },
+#ifdef CONFIG_STM32_APP_FORMAT_NXBOOT
+  {
+    .offset  = CONFIG_STM32_OTA_TERTIARY_SLOT_OFFSET,
+    .size    = CONFIG_STM32_OTA_SLOT_SIZE,
+    .devpath = CONFIG_STM32_OTA_TERTIARY_SLOT_DEVPATH
+  }
+#else
   {
     .offset  = CONFIG_STM32_OTA_SCRATCH_OFFSET,
     .size    = CONFIG_STM32_OTA_SCRATCH_SIZE,
     .devpath = CONFIG_STM32_OTA_SCRATCH_DEVPATH
   }
+#endif
 };
 #endif
 

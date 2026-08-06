@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wb/stm32wb_pwr.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -52,7 +54,7 @@ extern "C"
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32wb_pwr_enablebkp
+ * Name: stm32_pwr_enablebkp
  *
  * Description:
  *   Enables access to the backup domain (RTC registers, RTC backup data
@@ -66,10 +68,10 @@ extern "C"
  *
  ****************************************************************************/
 
-bool stm32wb_pwr_enablebkp(bool writable);
+bool stm32_pwr_enablebkp(bool writable);
 
 /****************************************************************************
- * Name: stm32wb_pwr_enableusv
+ * Name: stm32_pwr_enableusv
  *
  * Description:
  *   Enables or disables the USB Supply Valid monitoring.  Setting this bit
@@ -84,7 +86,7 @@ bool stm32wb_pwr_enablebkp(bool writable);
  *
  ****************************************************************************/
 
-bool stm32wb_pwr_enableusv(bool set);
+bool stm32_pwr_enableusv(bool set);
 
 /****************************************************************************
  * Name: stm32_pwr_setvos

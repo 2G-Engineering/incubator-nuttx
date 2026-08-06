@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/syslog/syslog_chardev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,9 +31,10 @@
 #include <string.h>
 #include <poll.h>
 #include <errno.h>
+#include <syslog.h>
 
 #include <nuttx/fs/fs.h>
-#include <syslog.h>
+#include <nuttx/syslog/syslog.h>
 
 #include "syslog.h"
 
@@ -43,6 +46,10 @@
 
 static ssize_t syslog_chardev_write(FAR struct file *filep,
                                     FAR const char *buffer, size_t buflen);
+#ifdef CONFIG_SYSLOG_IOCTL
+static int syslog_chardev_ioctl(FAR struct file *filep,
+                                int cmd, unsigned long arg);
+#endif
 
 /****************************************************************************
  * Private Data
@@ -54,6 +61,10 @@ static const struct file_operations g_syslog_fops =
   NULL,                 /* close */
   NULL,                 /* read */
   syslog_chardev_write, /* write */
+  NULL,                 /* seek */
+#ifdef CONFIG_SYSLOG_IOCTL
+  syslog_chardev_ioctl, /* ioctl */
+#endif
 };
 
 /****************************************************************************
@@ -70,6 +81,65 @@ static ssize_t syslog_chardev_write(FAR struct file *filep,
   syslog(LOG_INFO, "%.*s", (int)len, buffer);
   return len;
 }
+
+#ifdef CONFIG_SYSLOG_IOCTL
+static int syslog_chardev_ioctl(FAR struct file *filep,
+                                int cmd, unsigned long arg)
+{
+  FAR struct syslog_channel_info_s *info;
+  FAR syslog_channel_t *channel = NULL;
+  int i;
+
+  if (arg == 0)
+    {
+      return -EINVAL;
+    }
+
+  if (cmd == SYSLOGIOC_GETCHANNELS)
+    {
+      info = (FAR struct syslog_channel_info_s *)arg;
+
+      for (i = 0; i < CONFIG_SYSLOG_MAX_CHANNELS; i++)
+        {
+          channel = g_syslog_channel[i];
+          if (channel == NULL || channel->sc_name[0] == '\0')
+            {
+              break;
+            }
+
+          strlcpy(info[i].sc_name, channel->sc_name,
+                  sizeof(info[i].sc_name));
+          info[i].sc_disable =
+                  channel->sc_state & SYSLOG_CHANNEL_DISABLE;
+        }
+    }
+  else if (cmd == SYSLOGIOC_SETFILTER)
+    {
+      info = (FAR struct syslog_channel_info_s *)arg;
+
+      for (i = 0; i < CONFIG_SYSLOG_MAX_CHANNELS; i++)
+        {
+          if (strncmp(g_syslog_channel[i]->sc_name, info->sc_name,
+                      sizeof(info->sc_name)) == 0)
+            {
+              channel = g_syslog_channel[i];
+              break;
+            }
+        }
+
+      if (channel == NULL)
+        {
+          return -ENOENT;
+        }
+
+      channel->sc_state = info->sc_disable ?
+                          channel->sc_state | SYSLOG_CHANNEL_DISABLE :
+                          channel->sc_state & ~SYSLOG_CHANNEL_DISABLE;
+    }
+
+  return OK;
+}
+#endif
 
 /****************************************************************************
  * Public Functions

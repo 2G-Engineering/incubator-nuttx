@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samd2l2/sam_spi.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -20,7 +22,7 @@
 
 /* References:
  *   1. "Atmel SAM D20J / SAM D20G / SAM D20E ARM-Based Microcontroller
- *      Datasheet", 42129J–SAM–12/2013
+ *      Datasheet", 42129J-SAM-12/2013
  */
 
 /****************************************************************************
@@ -36,8 +38,8 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/wdog.h>
@@ -518,7 +520,7 @@ static struct sam_spidev_s g_spi5dev =
  *
  * Returned Value:
  *   true:  This is the first register access of this type.
- *   flase: This is the same as the preceding register access.
+ *   false: This is the same as the preceding register access.
  *
  ****************************************************************************/
 
@@ -1429,13 +1431,13 @@ static void spi_dma_setup(struct sam_spidev_s *priv)
 {
   /* Allocate a pair of DMA channels */
 
-  priv->dma_rx = sam_dmachannel(DMACH_FLAG_BEATSIZE_BYTE |
-                                DMACH_FLAG_MEM_INCREMENT |
-                                DMACH_FLAG_PERIPH_RXTRIG(priv->dma_rx_trig));
-
   priv->dma_tx = sam_dmachannel(DMACH_FLAG_BEATSIZE_BYTE |
                                 DMACH_FLAG_MEM_INCREMENT |
                                 DMACH_FLAG_PERIPH_TXTRIG(priv->dma_tx_trig));
+
+  priv->dma_rx = sam_dmachannel(DMACH_FLAG_BEATSIZE_BYTE |
+                                DMACH_FLAG_MEM_INCREMENT |
+                                DMACH_FLAG_PERIPH_RXTRIG(priv->dma_rx_trig));
 }
 #endif
 

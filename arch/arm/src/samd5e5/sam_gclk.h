@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samd5e5/sam_gclk.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -150,7 +152,7 @@ void sam_gclk_chan_disable(uint8_t channel);
  *   channel - Index of the GCLK channel to be checked
  *
  * Returned Value:
- *   True if the the wrtlock bit is set in the channel's PCHCTRL register.
+ *   True if the wrtlock bit is set in the channel's PCHCTRL register.
  *
  ****************************************************************************/
 

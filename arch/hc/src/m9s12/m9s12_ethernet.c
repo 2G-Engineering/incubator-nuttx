@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/hc/src/m9s12/m9s12_ethernet.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <time.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <arpa/inet.h>
@@ -38,6 +40,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
 #include <nuttx/wdog.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 
 #ifdef CONFIG_NET_PKT
@@ -435,9 +438,9 @@ static int emac_ifup(struct net_driver_s *dev)
   FAR struct emac_driver_s *priv =
     (FAR struct emac_driver_s *)dev->d_private;
 
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        dev->d_ipaddr & 0xff, (dev->d_ipaddr >> 8) & 0xff,
-        (dev->d_ipaddr >> 16) & 0xff, dev->d_ipaddr >> 24);
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 
   /* Initialize PHYs, Ethernet interface, and setup up Ethernet interrupts */
 
@@ -445,6 +448,9 @@ static int emac_ifup(struct net_driver_s *dev)
 
   priv->d_bifup = true;
   up_enable_irq(CONFIG_HCS12_IRQ);
+
+  netdev_carrier_on(dev);
+
   return OK;
 }
 
@@ -488,6 +494,9 @@ static int emac_ifdown(struct net_driver_s *dev)
 
   priv->d_bifup = false;
   leave_critical_section(flags);
+
+  netdev_carrier_off(dev);
+
   return OK;
 }
 

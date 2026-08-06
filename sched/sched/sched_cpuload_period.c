@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/sched/sched_cpuload_period.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/clock.h>
@@ -40,10 +42,6 @@
  ****************************************************************************/
 
 /* Configuration ************************************************************/
-
-#if !defined(CONFIG_SCHED_CPULOAD) || !defined(CONFIG_SCHED_CPULOAD_EXTCLK)
-#  error CONFIG_SCHED_CPULOAD and CONFIG_SCHED_CPULOAD_EXTCLK must be defined
-#endif
 
 /* CONFIG_SCHED_CPULOAD_TICKSPERSEC is the frequency of the external clock
  * source.

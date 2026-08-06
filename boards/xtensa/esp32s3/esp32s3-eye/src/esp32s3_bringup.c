@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s3/esp32s3-eye/src/esp32s3_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,19 +33,32 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
-#include <syslog.h>
-#include <debug.h>
-#include <stdio.h>
+#include <nuttx/debug.h>
 
 #include <errno.h>
 #include <nuttx/fs/fs.h>
+
+#include "espressif/esp_gpio.h"
+#include "esp32s3_start.h"
 
 #ifdef CONFIG_ESP32S3_TIMER
 #  include "esp32s3_board_tim.h"
 #endif
 
-#ifdef CONFIG_ESP32S3_RT_TIMER
-#  include "esp32s3_rt_timer.h"
+#ifdef CONFIG_ESPRESSIF_WIFI
+#  include "esp32s3_board_wlan.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_BLE
+#  include "esp32s3_ble.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_WIFI_BT_COEXIST
+#  include "esp32s3_wifi_adapter.h"
+#endif
+
+#ifdef CONFIG_ESP32S3_I2C
+#  include "esp32s3_i2c.h"
 #endif
 
 #ifdef CONFIG_WATCHDOG
@@ -52,6 +67,23 @@
 
 #ifdef CONFIG_INPUT_BUTTONS
 #  include <nuttx/input/buttons.h>
+#endif
+
+#ifdef CONFIG_ESP32S3_SPI
+#  include "esp32s3_spi.h"
+#endif
+
+#ifdef CONFIG_LCD_DEV
+#  include <nuttx/board.h>
+#  include <nuttx/lcd/lcd_dev.h>
+#endif
+
+#ifdef CONFIG_ESP32S3_SDMMC
+#include "esp32s3_board_sdmmc.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_HR_TIMER
+#  include "espressif/esp_hr_timer.h"
 #endif
 
 #include "esp32s3-eye.h"
@@ -69,14 +101,19 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int esp32s3_bringup(void)
 {
   int ret;
+
+#ifdef CONFIG_ESPRESSIF_HR_TIMER
+  ret = esp_hr_timer_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: esp_hr_timer_init() failed: %d\n", ret);
+    }
+#endif
 
 #ifdef CONFIG_FS_PROCFS
   /* Mount the procfs file system */
@@ -109,14 +146,6 @@ int esp32s3_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESP32S3_RT_TIMER
-  ret = esp32s3_rt_timer_init();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "Failed to initialize RT timer: %d\n", ret);
-    }
-#endif
-
 #ifdef CONFIG_WATCHDOG
   /* Configure watchdog timer */
 
@@ -124,6 +153,16 @@ int esp32s3_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "Failed to initialize watchdog timer: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_I2C_DRIVER
+  /* Configure I2C peripheral interfaces */
+
+  ret = board_i2c_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize I2C driver: %d\n", ret);
     }
 #endif
 
@@ -142,6 +181,77 @@ int esp32s3_bringup(void)
   if (ret)
     {
       syslog(LOG_ERR, "ERROR: Failed to initialize SPI Flash\n");
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_WIRELESS
+
+#ifdef CONFIG_ESPRESSIF_WIFI_BT_COEXIST
+  ret = esp32s3_wifi_bt_coexist_init();
+  if (ret)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize Wi-Fi and BT coexist\n");
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_BLE
+  ret = esp32s3_ble_initialize();
+  if (ret)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize BLE\n");
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_WIFI
+  ret = board_wlan_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize wlan subsystem=%d\n",
+             ret);
+    }
+#endif
+
+#endif
+
+#if defined(CONFIG_DEV_GPIO) && !defined(CONFIG_GPIO_LOWER_HALF)
+  ret = esp32s3_gpio_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize GPIO Driver: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_ESP32S3_EYE_LCD
+
+#ifdef CONFIG_VIDEO_FB
+  ret = fb_register(0, 0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize Frame Buffer Driver.\n");
+      return ret;
+    }
+#elif defined(CONFIG_LCD)
+  ret = board_lcd_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize LCD.\n");
+      return ret;
+    }
+
+  ret = lcddev_register(0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: lcddev_register() failed: %d\n", ret);
+    }
+#endif
+
+#endif
+
+#ifdef CONFIG_ESP32S3_SDMMC
+  ret = board_sdmmc_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize SDMMC: %d\n", ret);
     }
 #endif
 

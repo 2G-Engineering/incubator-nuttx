@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/avr/src/at32uc3/at32uc3_gpio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -66,13 +68,13 @@ static uint32_t g_portmap[AVR32_NGPIO_PORTS] =
   AVR32_GPIO0_BASE
 #endif
 #if AVR32_NGPIO > 32
-  , AVR32_GPIO1_BASE,
+  , AVR32_GPIO1_BASE
 #endif
 #if AVR32_NGPIO > 64
-  , AVR32_GPIO2_BASE,
+  , AVR32_GPIO2_BASE
 #endif
 #if AVR32_NGPIO > 96
-  , AVR32_GPIO3_BASE,
+  , AVR32_GPIO3_BASE
 #endif
 #if AVR32_NGPIO > 128
   , AVR32_GPIO4_BASE,

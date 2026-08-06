@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/kinetis/freedom-k66f/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,7 +22,7 @@
 
 include $(TOPDIR)/Make.defs
 
-CSRCS = k66_boot.c k66_spi.c
+CSRCS = k66_boot.c k66_spi.c k66_bringup.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += k66_autoleds.c
@@ -32,13 +34,8 @@ ifeq ($(CONFIG_ARCH_BUTTONS),y)
 CSRCS += k66_buttons.c
 endif
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += k66_appinit.c k66_bringup.c
 ifeq ($(CONFIG_BOARDCTL_RESET),y)
 CSRCS += k66_reset.c
-endif
-else ifeq ($(CONFIG_BOARD_LATE_INITIALIZE),y)
-CSRCS += k66_bringup.c
 endif
 
 ifeq ($(CONFIG_KINETIS_SDHC),y)

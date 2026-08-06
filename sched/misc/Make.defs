@@ -1,6 +1,8 @@
 ############################################################################
 # sched/misc/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -19,6 +21,14 @@
 ############################################################################
 
 CSRCS += assert.c panic_notifier.c reboot_notifier.c
+
+ifeq ($(CONFIG_ARCH_DEADLOCKDUMP),y)
+CSRCS += deadlock.c
+endif
+
+ifeq ($(CONFIG_COREDUMP),y)
+CSRCS += coredump.c
+endif
 
 # Include init build support
 

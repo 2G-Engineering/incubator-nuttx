@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/serial/serial_dma.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,8 @@
 #include <assert.h>
 #include <sys/types.h>
 #include <stdint.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/signal.h>
 
 #include <nuttx/serial/serial.h>
@@ -187,14 +190,6 @@ void uart_recvchars_dma(FAR uart_dev_t *dev)
 #endif
   bool is_full;
   int nexthead;
-
-  /* If RX buffer is empty move tail and head to zero position */
-
-  if (rxbuf->head == rxbuf->tail)
-    {
-      rxbuf->head = 0;
-      rxbuf->tail = 0;
-    }
 
   /* Get the next head index and check if there is room to adding another
    * byte to the buffer.
@@ -361,7 +356,6 @@ void uart_recvchars_done(FAR uart_dev_t *dev)
   if (signo != 0)
     {
       nxsig_kill(dev->pid, signo);
-      uart_reset_sem(dev);
     }
 #endif
 }

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/common/src/esp32_bmp180.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <stdio.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/sensors/bmp180.h>
@@ -94,7 +96,7 @@ int board_bmp180_initialize(int devno, int busno)
     {
       /* Then try to register the barometer sensor in I2C0 */
 
-      snprintf(devpath, 12, "/dev/press%d", devno);
+      snprintf(devpath, sizeof(devpath), "/dev/press%d", devno);
       ret = bmp180_register(devpath, i2c);
       if (ret < 0)
         {

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/imxrt/imxrt1060-evk/src/imxrt_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,8 +26,12 @@
 
 #include <nuttx/config.h>
 
+#include <syslog.h>
+#include <sys/types.h>
+
 #include <nuttx/board.h>
 #include <arch/board/board.h>
+#include <nuttx/leds/userled.h>
 
 #include "imxrt_start.h"
 #include "imxrt1060-evk.h"
@@ -62,7 +68,7 @@ void imxrt_ocram_initialize(void)
 
   putreg32(0xaa555555, IMXRT_IOMUXC_GPR_GPR17);
   regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
-  putreg32(regval | GPR_GPR16_FLEXRAM_BANK_CFG_SELF, IMXRT_IOMUXC_GPR_GPR16);
+  putreg32(regval | GPR_GPR16_FLEXRAM_BANK_CFG_SEL, IMXRT_IOMUXC_GPR_GPR16);
 
   for (src = (uint32_t *)(LOCATE_IN_SRC(g_boot_data.start) +
        g_boot_data.size),
@@ -110,6 +116,17 @@ void imxrt_boardinitialize(void)
 #ifdef CONFIG_BOARD_LATE_INITIALIZE
 void board_late_initialize(void)
 {
+#if !defined(CONFIG_ARCH_LEDS) && defined(CONFIG_USERLED_LOWER)
+  /* Register the LED driver */
+
+  int ret;
+  ret = userled_lower_initialize(LED_DRIVER_PATH);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n", ret);
+    }
+#endif
+
   /* Perform board initialization */
 
   imxrt_bringup();

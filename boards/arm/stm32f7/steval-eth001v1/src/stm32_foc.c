@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/steval-eth001v1/src/stm32_foc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -52,33 +54,33 @@
  *   2. PWM complementary channels must have positive polarity
  */
 
-#ifndef CONFIG_STM32F7_FOC_HAS_PWM_COMPLEMENTARY
+#ifndef CONFIG_STM32_FOC_HAS_PWM_COMPLEMENTARY
 #  error
 #endif
 
-#if CONFIG_STM32F7_TIM1_CH1POL != 0
+#if CONFIG_STM32_TIM1_CH1POL != 0
 #  error
 #endif
-#if CONFIG_STM32F7_TIM1_CH2POL != 0
+#if CONFIG_STM32_TIM1_CH2POL != 0
 #  error
 #endif
-#if CONFIG_STM32F7_TIM1_CH3POL != 0
+#if CONFIG_STM32_TIM1_CH3POL != 0
 #  error
 #endif
-#if CONFIG_STM32F7_TIM1_CH1NPOL != 0
+#if CONFIG_STM32_TIM1_CH1NPOL != 0
 #  error
 #endif
-#if CONFIG_STM32F7_TIM1_CH2NPOL != 0
+#if CONFIG_STM32_TIM1_CH2NPOL != 0
 #  error
 #endif
-#if CONFIG_STM32F7_TIM1_CH3NPOL != 0
+#if CONFIG_STM32_TIM1_CH3NPOL != 0
 #  error
 #endif
 
 /* Aux ADC needs DMA enabled  */
 
 #ifdef CONFIG_ADC
-#  ifndef CONFIG_STM32F7_ADC1_DMA
+#  ifndef CONFIG_STM32_ADC1_DMA
 #    error
 #  endif
 #endif
@@ -120,7 +122,7 @@
 
 #define ADC1_INJECTED  (CONFIG_MOTOR_FOC_SHUNTS)
 
-#ifdef CONFIG_BOARD_STM32F7_STEVALETH001V1_FOC_VBUS
+#ifdef CONFIG_BOARD_STM32_STEVALETH001V1_FOC_VBUS
 #  define STEVALETH001V1_FOC_VBUS 1
 #else
 #  define STEVALETH001V1_FOC_VBUS 0
@@ -131,11 +133,11 @@
 
 /* Check ADC1 configuration */
 
-#if ADC1_INJECTED != CONFIG_STM32F7_ADC1_INJECTED_CHAN
+#if ADC1_INJECTED != CONFIG_STM32_ADC1_INJECTED_CHAN
 #  error
 #endif
 
-#if CONFIG_STM32F7_ADC1_RESOLUTION != 0
+#if CONFIG_STM32_ADC1_RESOLUTION != 0
 #  error
 #endif
 
@@ -155,6 +157,8 @@ static int board_foc_pwm_start(struct foc_dev_s *dev, bool state);
 static int board_foc_current_get(struct foc_dev_s *dev,
                                  int16_t *curr_raw,
                                  foc_current_t *curr);
+static int board_foc_info_get(struct foc_dev_s *dev,
+                              struct foc_info_s *info);
 #ifdef CONFIG_MOTOR_FOC_TRACE
 static int board_foc_trace_init(struct foc_dev_s *dev);
 static void board_foc_trace(struct foc_dev_s *dev, int type, bool state);
@@ -182,7 +186,7 @@ static void board_foc_trace(struct foc_dev_s *dev, int type, bool state);
 
 static uint8_t g_adc1_chan[] =
 {
-#ifdef CONFIG_BOARD_STM32F7_STEVALETH001V1_FOC_VBUS
+#ifdef CONFIG_BOARD_STM32_STEVALETH001V1_FOC_VBUS
   14,                           /* ADC1 REG - VBUS */
 #endif
   15,                           /* ADC1 INJ1 - PHASE 1 */
@@ -192,7 +196,7 @@ static uint8_t g_adc1_chan[] =
 
 static uint32_t g_adc1_pins[] =
 {
-#ifdef CONFIG_BOARD_STM32F7_STEVALETH001V1_FOC_VBUS
+#ifdef CONFIG_BOARD_STM32_STEVALETH001V1_FOC_VBUS
   GPIO_ADC1_IN14,
 #endif
   GPIO_ADC1_IN15,
@@ -204,7 +208,7 @@ static uint32_t g_adc1_pins[] =
 
 static adc_channel_t g_adc1_stime[] =
 {
-#ifdef CONFIG_BOARD_STM32F7_STEVALETH001V1_FOC_VBUS
+#ifdef CONFIG_BOARD_STM32_STEVALETH001V1_FOC_VBUS
   {
     .channel     = 14,
     .sample_time = VBUS_SAMPLE_TIME
@@ -246,6 +250,7 @@ static struct stm32_foc_board_ops_s g_stm32_foc_board_ops =
   .fault_clear = board_foc_fault_clear,
   .pwm_start   = board_foc_pwm_start,
   .current_get = board_foc_current_get,
+  .info_get  = board_foc_info_get,
 #ifdef CONFIG_MOTOR_FOC_TRACE
   .trace_init  = board_foc_trace_init,
   .trace       = board_foc_trace
@@ -256,10 +261,8 @@ static struct stm32_foc_board_ops_s g_stm32_foc_board_ops =
 
 static struct stm32_foc_board_data_s g_stm32_foc_board_data =
 {
-  .adc_cfg   = &g_adc_cfg,
-  .duty_max  = (MAX_DUTY_B16),
-  .pwm_dt    = (PWM_DEADTIME),
-  .pwm_dt_ns = (PWM_DEADTIME_NS)
+  .adc_cfg = &g_adc_cfg,
+  .pwm_dt  = PWM_DEADTIME,
 };
 
 /* Board specific configuration */
@@ -364,6 +367,37 @@ static int board_foc_current_get(struct foc_dev_s *dev,
   return OK;
 }
 
+/****************************************************************************
+ * Name: board_foc_info_get
+ ****************************************************************************/
+
+static int board_foc_info_get(struct foc_dev_s *dev,
+                              struct foc_info_s *info)
+{
+  DEBUGASSERT(dev);
+  DEBUGASSERT(info);
+
+  UNUSED(dev);
+
+  /* PWM */
+
+  info->hw_cfg.pwm_dt_ns = PWM_DEADTIME_NS;
+  info->hw_cfg.pwm_max   = MAX_DUTY_B16;
+
+  /* ADC BEMF */
+
+#ifdef CONFIG_MOTOR_FOC_BEMF_SENSE
+  info->hw_cfg.bemf_scale = 0;      /* TODO */
+#endif
+
+  /* ADC Current - dynamic current scale not supported */
+
+  info->hw_cfg.iphase_max   = 40000;
+  info->hw_cfg.iphase_scale = -2287;
+
+  return OK;
+}
+
 #ifdef CONFIG_MOTOR_FOC_TRACE
 /****************************************************************************
  * Name: board_foc_trace_init
@@ -401,8 +435,6 @@ static void board_foc_trace(struct foc_dev_s *dev, int type, bool state)
  *
  * Description:
  *   Initialize FOC driver.
- *
- *   This function should be call by board_app_initialize().
  *
  * Returned Value:
  *   0 on success, a negated errno value on failure

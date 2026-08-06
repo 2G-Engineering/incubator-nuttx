@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samv7/sam_config.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -96,28 +98,6 @@
 #endif
 
 /* USARTs *******************************************************************/
-
-/* If the USART is not being used as a UART or for SPI, then it really isn't
- * enabled for our purposes.
- */
-
-#if !defined(CONFIG_USART0_SERIALDRIVER) && !defined(CONFIG_USART0_ISSPI)
-#  undef CONFIG_SAMV7_USART0
-#  undef CONFIG_USART0_SERIAL_CONSOLE
-#  undef CONFIG_USART0_IFLOWCONTROL
-#endif
-
-#if !defined(CONFIG_USART1_SERIALDRIVER) && !defined(CONFIG_USART1_ISSPI)
-#  undef CONFIG_SAMV7_USART1
-#  undef CONFIG_USART1_SERIAL_CONSOLE
-#  undef CONFIG_USART1_IFLOWCONTROL
-#endif
-
-#if !defined(CONFIG_USART2_SERIALDRIVER) && !defined(CONFIG_USART2_ISSPI)
-#  undef CONFIG_SAMV7_USART2
-#  undef CONFIG_USART2_SERIAL_CONSOLE
-#  undef CONFIG_USART2_IFLOWCONTROL
-#endif
 
 /* Don't enable USARTs not supported by the chip. */
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/lcd/tda19988.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -126,25 +128,26 @@ static int     tda19988_connected(FAR struct tda1988_dev_s *priv);
 /* HDMI Module Helpers */
 
 static int     tda19988_fetch_edid_block(FAR struct tda1988_dev_s *priv,
-                 FAR uint8_t *buf, int block);
+                                         FAR uint8_t *buf, int block);
 static int     tda19988_fetch_edid(struct tda1988_dev_s *priv);
 static ssize_t tda19988_read_internal(FAR struct tda1988_dev_s *priv,
-                 off_t offset, FAR uint8_t *buffer, size_t buflen);
+                                      off_t offset, FAR uint8_t *buffer,
+                                      size_t buflen);
 
 /* Character driver methods */
 
 static int     tda19988_open(FAR struct file *filep);
 static int     tda19988_close(FAR struct file *filep);
 static ssize_t tda19988_read(FAR struct file *filep, FAR char *buffer,
-                 size_t buflen);
+                             size_t buflen);
 static ssize_t tda19988_write(FAR struct file *filep, FAR const char *buffer,
-                 size_t buflen);
+                              size_t buflen);
 static off_t   tda19988_seek(FAR struct file *filep, off_t offset,
-                 int whence);
+                             int whence);
 static int     tda19988_ioctl(FAR struct file *filep, int cmd,
-                 unsigned long arg);
+                              unsigned long arg);
 static int     tda19988_poll(FAR struct file *filep, FAR struct pollfd *fds,
-                 bool setup);
+                             bool setup);
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
 static int     tda19988_unlink(FAR struct inode *inode);
 #endif
@@ -172,7 +175,9 @@ static const struct file_operations g_tda19988_fops =
   tda19988_ioctl,    /* ioctl */
   NULL,              /* mmap */
   NULL,              /* truncate */
-  tda19988_poll      /* poll */
+  tda19988_poll,     /* poll */
+  NULL,              /* readv */
+  NULL               /* writev */
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
   , tda19988_unlink  /* unlink */
 #endif
@@ -721,8 +726,8 @@ static int tda19988_fetch_edid(struct tda1988_dev_s *priv)
       unsigned int edid_len;
       int i;
 
-      edid_len =  EDID_LENGTH * (blocks + 1);
-      edid     = (FAR void *)kmm_realloc(priv->edid, edid_len);
+      edid_len = EDID_LENGTH * (blocks + 1);
+      edid     = kmm_realloc(priv->edid, edid_len);
 
       if (edid == NULL)
         {
@@ -823,10 +828,9 @@ static int tda19988_open(FAR struct file *filep)
 
   /* Get the private driver state instance */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
 
-  priv = (FAR struct tda1988_dev_s *)inode->i_private;
+  priv = inode->i_private;
   DEBUGASSERT(priv != NULL);
 
   /* Get exclusive access to the driver instance */
@@ -866,10 +870,9 @@ static int tda19988_close(FAR struct file *filep)
 
   /* Get the private driver state instance */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
 
-  priv = (FAR struct tda1988_dev_s *)inode->i_private;
+  priv = inode->i_private;
   DEBUGASSERT(priv != NULL);
 
   /* Get exclusive access to the driver */
@@ -923,10 +926,9 @@ static ssize_t tda19988_read(FAR struct file *filep, FAR char *buffer,
 
   /* Get the private driver state instance */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
 
-  priv = (FAR struct tda1988_dev_s *)inode->i_private;
+  priv = inode->i_private;
   DEBUGASSERT(priv != NULL);
 
   /* Get exclusive access to the driver */
@@ -993,10 +995,9 @@ static off_t tda19988_seek(FAR struct file *filep, off_t offset, int whence)
 
   /* Get the private driver state instance */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
 
-  priv = (FAR struct tda1988_dev_s *)inode->i_private;
+  priv = inode->i_private;
   DEBUGASSERT(priv != NULL);
 
   /* Get exclusive access to the driver */
@@ -1087,10 +1088,9 @@ static int tda19988_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   /* Get the private driver state instance */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
 
-  priv = (FAR struct tda1988_dev_s *)inode->i_private;
+  priv = inode->i_private;
   DEBUGASSERT(priv != NULL);
 
   /* Get exclusive access to the driver */
@@ -1166,10 +1166,9 @@ static int tda19988_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
   /* Get the private driver state instance */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
 
-  priv = (FAR struct tda1988_dev_s *)inode->i_private;
+  priv = inode->i_private;
   DEBUGASSERT(priv != NULL);
 
   /* Get exclusive access to the driver */
@@ -1209,8 +1208,8 @@ static int tda19988_unlink(FAR struct inode *inode)
 
   /* Get the private driver state instance */
 
-  DEBUGASSERT(inode != NULL && inode->i_private != NULL);
-  priv = (FAR struct tda1988_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private != NULL);
+  priv = inode->i_private;
 
   /* Get exclusive access to the driver */
 
@@ -1622,12 +1621,12 @@ static void tda19988_shutdown(FAR struct tda1988_dev_s *priv)
  * Name: tda19988_register
  *
  * Description:
- *   Create and register the the TDA19988 driver at 'devpath'
+ *   Create and register the TDA19988 driver at 'devpath'
  *
  * Input Parameters:
  *   devpath - The location to register the TDA19988 driver instance.  The
  *             standard location would be a path like /dev/hdmi0.
- *   lower   - The interface to the the TDA19988 lower half driver.
+ *   lower   - The interface to the TDA19988 lower half driver.
  *
  * Returned Value:
  *   On success, non-NULL handle is returned that may be subsequently used
@@ -1645,8 +1644,7 @@ TDA19988_HANDLE tda19988_register(FAR const char *devpath,
 
   /* Allocate an instance of the TDA19988 driver */
 
-  priv = (FAR struct tda1988_dev_s *)
-    kmm_zalloc(sizeof(struct tda1988_dev_s));
+  priv = kmm_zalloc(sizeof(struct tda1988_dev_s));
   if (priv == NULL)
     {
       lcderr("ERROR: Failed to allocate device structure\n");
@@ -1655,7 +1653,7 @@ TDA19988_HANDLE tda19988_register(FAR const char *devpath,
 
   /* Assume a single block in EDID */
 
-  priv->edid = (FAR uint8_t *)kmm_malloc(EDID_LENGTH);
+  priv->edid = kmm_malloc(EDID_LENGTH);
   if (priv->edid == NULL)
     {
       lcderr("ERROR: Failed to allocate EDID\n");

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/renesas/src/rx65n/rx65n_rspi_sw.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,8 +32,8 @@
 #include <semaphore.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/mutex.h>
@@ -158,13 +160,13 @@ struct rx65n_rspidev_s
   uint32_t frequency; /* Requested clock frequency */
   uint32_t actual;    /* Actual clock frequency */
 
-  int	ntxwords;      /* Number of words left to transfer on the Tx Buffer */
-  int	nrxwords;      /* Number of words received on the Rx Buffer */
-  int	nwords;        /* Number of words to be exchanged */
+  int ntxwords;       /* Number of words left to transfer on the Tx Buffer */
+  int nrxwords;       /* Number of words received on the Rx Buffer */
+  int nwords;         /* Number of words to be exchanged */
 
-  uint8_t	nbits;     /* Width of word in bits (4 through 16) */
-  uint8_t	mode;      /* Mode 0,1,2,3 */
-  uint8_t	bufsize;   /* Buf size: 1,2,3 or 4 word */
+  uint8_t nbits;      /* Width of word in bits (4 through 16) */
+  uint8_t mode;       /* Mode 0,1,2,3 */
+  uint8_t bufsize;    /* Buf size: 1,2,3 or 4 word */
 };
 
 /****************************************************************************
@@ -1869,7 +1871,7 @@ static void rspi_bus_initialize(struct rx65n_rspidev_s *priv)
                 | RSPI_SSLP_SSL3P)); /* RSPCK is low when idle */
   rspi_putreg8(priv, RX65N_RSPI_SSLP_OFFSET, regval8);
 
-  /* Inititalize frequency, frame size and SPI mode */
+  /* Initialize frequency, frame size and SPI mode */
 
   priv->frequency = 0;
   priv->mode      = SPIDEV_MODE0;

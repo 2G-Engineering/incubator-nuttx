@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_fmc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,12 +26,12 @@
 
 #include <nuttx/config.h>
 
-#if defined(CONFIG_STM32H7_FMC)
+#if defined(CONFIG_STM32_FMC)
 
 #include "stm32.h"
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <sys/param.h>
 
@@ -39,7 +41,7 @@
 /****************************************************************************
  * To use FMC, you must first enable it in configuration:
  *
- * CONFIG_STM32H7_FMC=y
+ * CONFIG_STM32_FMC=y
  *
  * FMC is statically configured at startup. Its configuration is adjusted
  * using BOARD_XXX macros described below, which should be declared
@@ -547,4 +549,4 @@ void stm32_fmc_sdram_command(uint32_t cmd)
   putreg32(cmd, STM32_FMC_SDCMR);
 }
 
-#endif /* CONFIG_STM32H7_FMC */
+#endif /* CONFIG_STM32_FMC */

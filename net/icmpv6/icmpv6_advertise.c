@@ -1,6 +1,7 @@
 /****************************************************************************
  * net/icmpv6/icmpv6_advertise.c
- * Send an ICMPv6 Neighbor Advertisement
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -27,7 +28,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/net/netconfig.h>
 #include <nuttx/net/netstats.h>
@@ -65,6 +66,7 @@
  ****************************************************************************/
 
 void icmpv6_advertise(FAR struct net_driver_s *dev,
+                      const net_ipv6addr_t tgtaddr,
                       const net_ipv6addr_t destipaddr)
 {
   FAR struct icmpv6_neighbor_advertise_s *adv;
@@ -77,7 +79,7 @@ void icmpv6_advertise(FAR struct net_driver_s *dev,
   l3size       = SIZEOF_ICMPV6_NEIGHBOR_ADVERTISE_S(lladdrsize);
 
   ipv6_build_header(IPv6BUF, l3size, IP_PROTO_ICMP6,
-                    dev->d_ipv6addr, destipaddr, 255, 0);
+                    tgtaddr, destipaddr, 255, 0);
 
   /* Set up the ICMPv6 Neighbor Advertise response */
 
@@ -92,7 +94,7 @@ void icmpv6_advertise(FAR struct net_driver_s *dev,
 
   /* Copy the target address into the Neighbor Advertisement message */
 
-  net_ipv6addr_copy(adv->tgtaddr, dev->d_ipv6addr);
+  net_ipv6addr_copy(adv->tgtaddr, tgtaddr);
 
   /* Set up the options */
 
@@ -105,13 +107,14 @@ void icmpv6_advertise(FAR struct net_driver_s *dev,
 
   /* Update device buffer length */
 
-  iob_update_pktlen(dev->d_iob, IPv6_HDRLEN + l3size);
+  iob_update_pktlen(dev->d_iob, IPv6_HDRLEN + l3size, false);
 
   /* Calculate the checksum over both the ICMP header and payload */
 
   adv->chksum    = 0;
+#ifdef CONFIG_NET_ICMPv6_CHECKSUMS
   adv->chksum    = ~icmpv6_chksum(dev, IPv6_HDRLEN);
-
+#endif
   /* Set the size to the size of the IPv6 header and the payload size */
 
   dev->d_len     = IPv6_HDRLEN + l3size;

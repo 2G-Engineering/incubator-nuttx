@@ -5,7 +5,7 @@
 
 menu "Timer Driver Support"
 
-config ARCH_HAVE_PWM_PULSECOUNT
+config ARCH_HAVE_PULSECOUNT
 	bool
 	default n
 
@@ -17,10 +17,6 @@ config ARCH_HAVE_PWM_DEADTIME
 	bool
 	default n
 
-config ARCH_HAVE_PWM_MULTICHAN
-	bool
-	default n
-
 config PWM
 	bool "PWM Driver Support"
 	default n
@@ -28,17 +24,17 @@ config PWM
 		This selection enables building of the "upper-half" PWM driver.
 		See include/nuttx/timers/pwm.h for further PWM driver information.
 
-if PWM
-
-config PWM_PULSECOUNT
-	bool "PWM Pulse Count Support"
+config PULSECOUNT
+	bool "Pulse Count Support"
 	default n
-	depends on ARCH_HAVE_PWM_PULSECOUNT
+	depends on ARCH_HAVE_PULSECOUNT
 	---help---
 		Some hardware will support generation of a fixed number of pulses.
 		This might be used, for example to support a stepper motor.  If the
 		hardware will support a fixed pulse count, then this configuration
 		should be set to enable the capability.
+
+if PWM
 
 config PWM_OVERWRITE
 	bool "PWM Overwrite Support"
@@ -57,22 +53,12 @@ config PWM_DEADTIME
 	---help---
 		Some hardware will support deadtime generators that automatically
 		insert output activation delay for complementary PWM outputs. This
-		is usefull for H-bridge motor control for example. The deadtime
+		is useful for H-bridge motor control for example. The deadtime
 		values are set from application level via the same IOCTL that sets
 		up duty cycle and frequency.
 
 		For detailed description about deadtime functionality please refer
 		to architecture manuals and datasheets.
-
-config PWM_MULTICHAN
-	bool "PWM Multiple Output Channel Support"
-	default n
-	depends on ARCH_HAVE_PWM_MULTICHAN
-	depends on !PWM_PULSECOUNT
-	---help---
-		Enables support for multiple output channels per timer.
-
-if PWM_MULTICHAN
 
 config PWM_NCHANNELS
 	int "Number of Output Channels Per Timer"
@@ -82,7 +68,6 @@ config PWM_NCHANNELS
 		Specifies the number of output channels per timer.  Each timer
 		may support fewer output channels than this value.
 
-endif # PWM_MULTICHAN
 endif # PWM
 
 config CAPTURE
@@ -91,6 +76,44 @@ config CAPTURE
 	---help---
 		This selection enables building of the "upper-half" Capture driver.
 		See include/nuttx/timers/capture.h for further Capture driver information.
+
+if CAPTURE
+
+config CAPTURE_NOTIFY
+	bool "Capture Notification Support"
+	default n
+	depends on !DISABLE_ALL_SIGNALS
+	---help---
+		Some hardware will support notification when a capture event
+		occurs.  If the hardware will support notification, then this
+		configuration should be set to enable the capability.
+
+config FAKE_CAPTURE
+	bool "Fake Capture Driver"
+	default n
+	depends on CAPTURE_NSIGNALS > 0
+	---help---
+		Enables a fake capture driver for testing purposes.
+
+endif # CAPTURE
+
+config DSHOT
+	bool "DShot Driver Support"
+	default n
+	---help---
+		This selection enables the DShot driver for ESC control.
+
+if DSHOT
+
+config DSHOT_NCHANNELS
+	int "Maximum DShot channels in API structs"
+	default 8
+	range 1 16
+	---help---
+		Specifies the number of output channels per timer.  Each timer
+		may support fewer output channels than this value.
+
+endif # DSHOT
 
 config TIMER
 	bool "Timer Support"
@@ -107,10 +130,15 @@ config TIMER_ARCH
 	select ARCH_HAVE_TICKLESS
 	select ARCH_HAVE_TIMEKEEPING
 	select SCHED_TICKLESS_LIMIT_MAX_SLEEP if SCHED_TICKLESS
-	select SCHED_TICKLESS_TICK_ARGUMENT if SCHED_TICKLESS
 	---help---
 		Implement timer arch API on top of timer driver interface.
 
+config TIMER_WDOG
+	bool "Timer Implementation by watchdog"
+	default n
+	---help---
+		This option allows the timer implementation to be based on the
+		watchdog (wdog) driver interface.
 endif # TIMER
 
 config ONESHOT
@@ -123,13 +151,30 @@ config ONESHOT
 
 if ONESHOT
 
+config ONESHOT_COUNT
+	bool
+	default n
+	---help---
+		This option enables the oneshot implementation to be based on the
+		new clock device driver interfaces.
+
+config ONESHOT_FAST_DIVISION
+	bool # Convert Clock Count Using Invariant-divisor Division
+	default n
+	depends on ONESHOT_COUNT
+	---help---
+		This option will enable the invariant-divisor division optimization in
+		the clock device driver implementation, which can improve performance
+		for certain architectures. It is recommended to enable it on 32-bit
+		architecture that do not support hardware division and 64-bit
+		architecture that hardware division is slow.
+
 config ALARM_ARCH
 	bool "Alarm Arch Implementation"
 	select ARCH_HAVE_TICKLESS
 	select ARCH_HAVE_TIMEKEEPING
 	select SCHED_TICKLESS_ALARM if SCHED_TICKLESS
 	select SCHED_TICKLESS_LIMIT_MAX_SLEEP if SCHED_TICKLESS
-	select SCHED_TICKLESS_TICK_ARGUMENT if SCHED_TICKLESS
 	---help---
 		Implement alarm arch API on top of oneshot driver interface.
 
@@ -183,11 +228,22 @@ config RTC_FREQUENCY
 		must be provided.  If RTC_HIRES is not defined, RTC_FREQUENCY is
 		assumed to be one Hz.
 
+config RTC_ADJTIME
+	bool "RTC Adjustment Support"
+	default N
+	depends on RTC_HIRES
+	---help---
+		Enable support for adjtime() to adjust RTC run rate. The following
+		interface must be provided by RTC driver:
+
+			int up_rtc_adjtime(long ppb);
+
 endif # !RTC_DATETIME
 
 config RTC_ALARM
 	bool "RTC Alarm Support"
 	default n
+	depends on !DISABLE_ALL_SIGNALS
 	---help---
 		Enable if the RTC hardware supports setting of an alarm.  A callback
 		function will be executed when the alarm goes off.
@@ -218,6 +274,7 @@ config RTC_ARCH
 config RTC_PERIODIC
 	bool "RTC Periodic Interrupts"
 	default n
+	depends on !DISABLE_ALL_SIGNALS
 	---help---
 		Add interrupt controls for RTCs that support periodic interrupts.
 
@@ -314,6 +371,10 @@ config PCF85263_I2C_FREQUENCY
 
 endif # RTC_PCF85263
 
+config RTC_PL031
+	bool "PL031 RTC Support"
+	default n
+
 config RTC_MCP794XX
 	bool "MCP794XX RTC Driver"
 	default n
@@ -324,6 +385,13 @@ config RTC_MCP794XX
 		Enables support for the Microchip MCP794XX I2C RTC timer.
 
 if RTC_MCP794XX
+
+config MCP794XX_DATETIME_UTC
+	bool "Store datetime in UTC"
+	default n
+	---help---
+		If set, the datetime is stored in UTC timezone instead of timezone
+		defined by local time.
 
 config MCP794XX_I2C_FREQUENCY
 	int "MCP794XX I2C frequency"
@@ -351,21 +419,21 @@ config RX8010SJ_I2C_FREQUENCY
 endif # RTC_RX8010SJ
 
 config RTC_RPMSG
-	bool "Rpmsg RTC Driver"
+	bool "RPMSG RTC Driver"
 	default n
-	depends on RPTUN
+	depends on RPMSG
 	select ARCH_HAVE_RTC_SUBSECONDS
 
 config RTC_RPMSG_SERVER
-	bool "The RTC Rpmsg Role"
-	depends on RPTUN
+	bool "The RTC RPMSG Role"
+	depends on RPMSG
 
-config RTC_RPMSG_SERVER_NAME
-	string "The name of RTC Rpmsg Server"
-	depends on RTC_RPMSG
+config RTC_RPMSG_SYNC_BASETIME
+	bool "Update g_basetime from rpmsg."
+	default n
+	depends on !RTC_RPMSG_SERVER && !CLOCK_TIMEKEEPING
 	---help---
-		The proc name of rtc server. Client requests time from
-		specified name of remote proc.
+		Prevent g_basetime differences in multi-core situations.
 
 endif # RTC
 
@@ -392,6 +460,13 @@ config WATCHDOG_MAGIC_V
 	---help---
 		The watchdog can be stopped by writing 'V' to the watchdog's device node
 
+config WATCHDOG_PANIC_NOTIFIER
+	bool "Enable watchdog panic notifier"
+	default n
+	---help---
+		When system PANIC, wdog_notifier() will be called to disable the watchdog,
+		this is an useful option for debug if you want to keep crash scene.
+
 menuconfig WATCHDOG_AUTOMONITOR
 	bool "Auto-monitor"
 	---help---
@@ -403,6 +478,14 @@ menuconfig WATCHDOG_AUTOMONITOR
 		now on.
 
 if WATCHDOG_AUTOMONITOR
+
+config WATCHDOG_TIMEOUT_NOTIFIER
+	bool "Enable watchdog timeout notifier"
+	default n
+	---help---
+		The watchdog timeout notifier chain mechanism supports users registering
+		custom callback functions, which will be called when the watchdog timer
+		managed by Auto-monitor times out.
 
 choice
 	prompt "Auto-monitor keepalive by"
@@ -445,8 +528,8 @@ config WATCHDOG_AUTOMONITOR_BY_IDLE
 endchoice
 
 config WATCHDOG_AUTOMONITOR_TIMEOUT
-	int "Auto-monitor reset timeout(second)"
-	default 60
+	int "Auto-monitor reset timeout(millisecond)"
+	default 60000
 
 if !WATCHDOG_AUTOMONITOR_BY_CAPTURE && !WATCHDOG_AUTOMONITOR_BY_IDLE
 
@@ -480,4 +563,37 @@ config CS2100CP_REGDEBUG
 	depends on DEBUG_FEATURES
 
 endif # TIMERS_CS2100CP
+
+config GOLDFISH_TIMER
+	bool "Enable GOLDFISH_TIMER"
+	default n
+	select ONESHOT_COUNT
+	---help---
+		Goldfish timer is a virtual timer device that is used in the Android
+		emulator. It is used to provide a virtual timer to the guest OS.
+		See: https://android.googlesource.com/platform/external/qemu/+/master/docs/GOLDFISH-VIRTUAL-HARDWARE.TXT
+
+config PTP_CLOCK
+	bool "PTP clock driver"
+	default n
+	---help---
+		The IEEE 1588 standard defines a method to precisely
+		synchronize distributed clocks over Ethernet networks. The
+		standard defines a Precision Time Protocol (PTP), which can
+		be used to achieve synchronization within a few dozen
+		microseconds. In addition, with the help of special hardware
+		time stamping units, it can be possible to achieve
+		synchronization to within a few hundred nanoseconds.
+
+		This driver adds support for PTP clocks as character
+		devices. If you want to use a PTP clock, then you should
+		also enable at least one clock driver as well.
+
+config PTP_CLOCK_DUMMY
+	bool "the dummy test driver for ptp clock"
+	default n
+	select PTP_CLOCK
+	---help---
+		The dummy test driver.
+
 endmenu # Timer Driver Support

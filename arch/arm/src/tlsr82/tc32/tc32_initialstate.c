@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/tlsr82/tc32/tc32_initialstate.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <execinfo.h>
 
 #include <nuttx/arch.h>

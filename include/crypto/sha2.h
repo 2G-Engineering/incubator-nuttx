@@ -1,11 +1,10 @@
 /****************************************************************************
  * include/crypto/sha2.h
- * $OpenBSD: sha2.h,v 1.5 2014/11/16 17:39:09 tedu Exp $
  *
- * FILE: sha2.h
- * AUTHOR: Aaron D. Gifford <me@aarongifford.com>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2000-2001, Aaron D. Gifford
+ * SPDX-FileContributor: Aaron D. Gifford <me@aarongifford.com>
  *
- * Copyright (c) 2000-2001, Aaron D. Gifford
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,7 +31,6 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $From: sha2.h,v 1.1 2001/11/08 00:02:01 adg Exp adg $
  ****************************************************************************/
 
 #ifndef __INCLUDE_CRYPTO_SHA2_H
@@ -46,6 +44,9 @@
 
 /* SHA-256/384/512 Various Length Definitions */
 
+#define SHA224_BLOCK_LENGTH         64
+#define SHA224_DIGEST_LENGTH        28
+#define SHA224_DIGEST_STRING_LENGTH (SHA224_DIGEST_LENGTH * 2 + 1)
 #define SHA256_BLOCK_LENGTH         64
 #define SHA256_DIGEST_LENGTH        32
 #define SHA256_DIGEST_STRING_LENGTH (SHA256_DIGEST_LENGTH * 2 + 1)
@@ -68,6 +69,10 @@ typedef struct _SHA2_CTX
   uint64_t bitcount[2];
   uint8_t buffer[SHA512_BLOCK_LENGTH];
 } SHA2_CTX;
+
+void sha224init(FAR SHA2_CTX *);
+void sha224update(FAR SHA2_CTX *, FAR const void *, size_t);
+void sha224final(FAR uint8_t *, FAR SHA2_CTX *);
 
 void sha256init(FAR SHA2_CTX *);
 void sha256update(FAR SHA2_CTX *, FAR const void *, size_t);

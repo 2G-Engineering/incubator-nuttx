@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/local/local_sendpacket.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,14 +31,12 @@
 #include <unistd.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 #include "devif/devif.h"
 
 #include "local/local.h"
-
-#if defined(CONFIG_NET) && defined(CONFIG_NET_LOCAL)
 
 /****************************************************************************
  * Private Functions
@@ -96,6 +96,68 @@ static int local_fifo_write(FAR struct file *filep, FAR const uint8_t *buf,
  ****************************************************************************/
 
 /****************************************************************************
+ * Name: local_send_preamble
+ *
+ * Description:
+ *   Send a packet on the write-only FIFO.
+ *
+ * Input Parameters:
+ * conn      A reference to local connection structure
+ * filep     File structure of write-only FIFO.
+ * buf       Data to send
+ * len       Length of data to send
+ *
+ * Returned Value:
+ *   Packet length is returned on success; a negated errno value is returned
+ *   on any failure.
+ *
+ ****************************************************************************/
+
+int local_send_preamble(FAR struct local_conn_s *conn,
+                        FAR struct file *filep,
+                        FAR const struct iovec *buf,
+                        size_t len, size_t rcvsize)
+{
+  FAR const struct iovec *end = buf + len;
+  FAR const struct iovec *iov;
+  int ret;
+  lc_size_t pathlen;
+  lc_size_t pktlen;
+
+  /* Send the packet length */
+
+  for (pktlen = 0, iov = buf; iov != end; iov++)
+    {
+      pktlen += iov->iov_len;
+    }
+
+  if (pktlen > rcvsize - sizeof(lc_size_t))
+    {
+      nerr("ERROR: Packet is too big: %d\n", pktlen);
+      return -EMSGSIZE;
+    }
+
+  pathlen = strlen(conn->lc_path);
+  ret = local_fifo_write(&conn->lc_outfile, (FAR const uint8_t *)&pathlen,
+                         sizeof(lc_size_t));
+  if (ret != sizeof(lc_size_t))
+    {
+      nerr("ERROR: local send path length failed ret: %d\n", ret);
+      return ret;
+    }
+
+  ret = local_fifo_write(filep, (FAR const uint8_t *)&pktlen,
+                         sizeof(lc_size_t));
+  if (ret != sizeof(lc_size_t))
+    {
+      return ret;
+    }
+
+  return local_fifo_write(&conn->lc_outfile, (uint8_t *)conn->lc_path,
+                          pathlen);
+}
+
+/****************************************************************************
  * Name: local_send_packet
  *
  * Description:
@@ -105,7 +167,6 @@ static int local_fifo_write(FAR struct file *filep, FAR const uint8_t *buf,
  *   filep    File structure of write-only FIFO.
  *   buf      Data to send
  *   len      Length of data to send
- *   preamble Flag to indicate the preamble sync header assembly
  *
  * Returned Value:
  *   Packet length is returned on success; a negated errno value is returned
@@ -114,41 +175,29 @@ static int local_fifo_write(FAR struct file *filep, FAR const uint8_t *buf,
  ****************************************************************************/
 
 int local_send_packet(FAR struct file *filep, FAR const struct iovec *buf,
-                      size_t len, bool preamble)
+                      size_t len)
 {
   FAR const struct iovec *end = buf + len;
   FAR const struct iovec *iov;
   int ret = -EINVAL;
-  uint16_t len16;
+  lc_size_t sendlen;
 
-  if (preamble)
-    {
-      /* Send the packet length */
-
-      for (len16 = 0, iov = buf; iov != end; iov++)
-        {
-          len16 += iov->iov_len;
-        }
-
-      ret = local_fifo_write(filep, (FAR const uint8_t *)&len16,
-                             sizeof(uint16_t));
-      if (ret != sizeof(uint16_t))
-        {
-          return ret;
-        }
-    }
-
-  for (len16 = 0, iov = buf; iov != end; iov++)
+  for (sendlen = 0, iov = buf; iov != end; iov++)
     {
       ret = local_fifo_write(filep, iov->iov_base, iov->iov_len);
       if (ret < 0)
         {
+          if (ret != -EAGAIN)
+            {
+              nerr("ERROR: local send packet failed ret: %d\n", ret);
+            }
+
           break;
         }
 
       if (ret > 0)
         {
-          len16 += ret;
+          sendlen += ret;
           if (ret != iov->iov_len)
             {
               break;
@@ -156,7 +205,5 @@ int local_send_packet(FAR struct file *filep, FAR const struct iovec *buf,
         }
     }
 
-  return len16 > 0 ? len16 : ret;
+  return sendlen > 0 ? sendlen : ret;
 }
-
-#endif /* CONFIG_NET && CONFIG_NET_LOCAL */

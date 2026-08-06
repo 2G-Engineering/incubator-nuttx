@@ -68,7 +68,7 @@ config ALLOW_MIT_COMPONENTS
 
 config ALLOW_BSDNORDIC_COMPONENTS
 	bool "Use components that have 5-Clause Nordic licenses"
-	depends on ARCH_CHIP_NRF52 || ARCH_CHIP_NRF53
+	depends on ARCH_CHIP_NRF52 || ARCH_CHIP_NRF53 || ARCH_CHIP_NRF91
 	default n
 	---help---
 		When this option is enabled the project will allow the use
@@ -76,6 +76,42 @@ config ALLOW_BSDNORDIC_COMPONENTS
 
 		NOTE: Please check that the license for each enabled
 		component matches your project license.
+
+config ALLOW_ECLIPSE_COMPONENTS
+	bool "Use components that have Eclipse Public Licenses"
+	default n
+	---help---
+		When this option is enabled the project will allow the use
+		of components that have EPL licenses.
+
+		NOTE: Please check that the license for each enabled
+		component matches your project license.
+
+config ALLOW_ICS_COMPONENTS
+	bool "Use components that have ICS license"
+	default n
+	---help---
+		When this option is enabled the project will allow the use
+		of components that have ICS licenses.
+
+		NOTE: Please check that the license for each enabled
+		component matches your project license.
+
+config ALLOW_CUSTOM_PERMISSIVE_COMPONENTS
+	bool "Use components that have custom permissive licenses"
+	default n
+	---help---
+		When this option is enabled the project will allow the use
+		of components that have custom permissive licenses which
+		are not covered by the standard license options above.
+
+		This includes components with custom permissive licenses
+		that allow free use, modification, and distribution but
+		may have specific attribution or notice requirements.
+
+		NOTE: Please carefully review the license terms for each
+		enabled component to ensure compliance with your project
+		requirements.
 
 endmenu # License Setup
 
@@ -118,7 +154,7 @@ config HOST_WINDOWS
 config HOST_OTHER
 	bool "Other"
 
-endchoice
+endchoice # Build Host Platform
 
 config TOOLCHAIN_WINDOWS
 	bool
@@ -175,7 +211,7 @@ config WINDOWS_OTHER
 		Build natively in another POSIX-like environment.  Additional
 		support may be necessary
 
-endchoice
+endchoice # Windows Build Environment
 
 config WINDOWS_MKLINK
 	bool "Use mklink"
@@ -245,22 +281,26 @@ config APPS_DIR
 		or to set up include file paths.
 
 config BASE_DEFCONFIG
-		string "Base Configuration"
-		default ""
-		---help---
-			This will be automatically be updated by the configuration
-			script. This is the base configuration file that was used to create the
-			current configuration. It is useful for getting the current configuration
-			on runtime.
+	string "Base Configuration"
+	default ""
+	---help---
+		This will be automatically be updated by the configuration
+		script. This is the base configuration file that was used to create the
+		current configuration. It is useful for getting the current configuration
+		on runtime.
 
-config BUILD_LOADABLE
+config MODULES
 	bool
 	option modules
 	---help---
 		Automatically selected if KERNEL build is selected.
-		This selection only effects the behavior of the 'make export'
-		target and currently has no effect unless you wish to build
-		loadable applications in a FLAT build.
+		This selection marks the implementation of Kconfig
+		to enable the module build function, and is used to
+		enable 'm' in the triate state. Its semantics are
+		consistent with Kernel. This selection also effects
+		the behavior of the 'make export' target and currently
+		has no effect unless you wish to build loadable applications
+		in a FLAT build.
 
 choice
 	prompt "Memory organization"
@@ -292,8 +332,8 @@ config BUILD_PROTECTED
 config BUILD_KERNEL
 	bool "NuttX kernel build"
 	depends on ARCH_USE_MMU && ARCH_ADDRENV
-	select BUILD_LOADABLE
 	select LIB_SYSCALL
+	select MODULES
 	---help---
 		Builds NuttX as a separately compiled kernel.  No applications are
 		built.  All user applications must reside in a file system where
@@ -304,6 +344,13 @@ config BUILD_KERNEL
 		however, may not be implemented on all platforms.
 
 endchoice # Build configuration
+
+config BUILD_PIC
+	bool "NuttX PIC build"
+	default n
+	---help---
+		Builds NuttX with position-independent code (PIC).  This will allow
+		load NuttX into memory at any address and run it.
 
 config BUILD_2PASS
 	bool "Two pass build"
@@ -390,6 +437,12 @@ config RAW_BINARY
 		different loaders using the GNU objcopy program.  This option
 		should not be selected if you are not using the GNU toolchain.
 
+config RAW_DISASSEMBLY
+	bool "Create a disassembly file"
+	default n
+	---help---
+		Create the nuttx.asm in the disassembly format using the objdump program.
+
 menuconfig UBOOT_UIMAGE
 	bool "U-Boot uImage"
 	select RAW_BINARY
@@ -407,13 +460,13 @@ config UIMAGE_ENTRY_POINT
 	hex "uImage entry point"
 	default 0x0
 
-endif
+endif # UBOOT_UIMAGE
 
 menuconfig DFU_BINARY
 	bool "DFU binary format"
 	select RAW_BINARY
 	---help---
-	Create the dfu binary used with dfu-utils.
+		Create the dfu binary used with dfu-utils.
 
 if DFU_BINARY
 
@@ -426,7 +479,23 @@ config DFU_VID
 config DFU_PID
 	hex "PID to use for DFU image"
 
-endif
+endif # DFU_BINARY
+
+config OUTPUT_STRIP_PATHS
+	bool "Strip absolute paths from binaries"
+	default y
+	depends on ARCH_TOOLCHAIN_GNU
+	---help---
+		Cmake build provide absolute paths to compile files. If __FILE__
+		macros are used in the source code(ASSERT), the binary will contain
+		many invalid paths.
+		This saves some memory, stops exposing build systems locations in binaries,
+		make failure logs more deterministic and most importantly makes builds more
+		failure logs more deterministic and most importantly makes builds more
+		deterministic.
+		Debuggers usually have a path mapping feature to ensure the files are
+		still found.
+
 endmenu # Binary Output Formats
 
 menu "Customize Header Files"
@@ -521,6 +590,14 @@ config ARCH_FLOAT_H
 		there is no assurance that the settings in this float.h are actually
 		correct for your platform!
 
+config DISABLE_FLOAT
+	bool "Disable floating point"
+	default n
+	---help---
+		Disable floating point support in the compiler. This will reduce
+		code size and increase performance. This option is only available
+		on some architectures.
+
 config ARCH_HAVE_STDARG_H
 	bool
 	default n
@@ -547,6 +624,31 @@ config ARCH_STDARG_H
 		toolchain's stdarg.h file, they can use this alternative by defining
 		ARCH_STDARG_H=y and providing. If ARCH_STDARG_H, is not defined, then
 		the stdarg.h header file will stay out-of-the-way in include/nuttx/.
+
+config ARCH_HAVE_STDBIT_H
+	bool
+	default n
+	---help---
+		Selected by architecture specific logic if the architecture
+		provides a stdbit.h header file.
+
+config ARCH_STDBIT_H
+	bool "stdbit.h"
+	depends on ARCH_HAVE_STDBIT_H
+	default n
+	---help---
+		Redirecting stdbit.h lives at include/nuttx/lib/stdbit.h. When
+		this is set, the build copies it to include/stdbit.h and it
+		includes arch/stdbit.h if the architecture provides one.
+
+config LIBC_STDBIT_GENERIC
+	bool "stdbit.h (generic C23)"
+	default n
+	---help---
+		Use generic C23 stdbit implementation. When set, copy
+		include/nuttx/lib/stdbit.h to include/stdbit.h. No arch
+		header is used; builtins (e.g. __builtin_clz) must be
+		available (see CONFIG_HAVE_BUILTIN_* in compiler.h).
 
 config ARCH_HAVE_SETJMP
 	bool
@@ -591,19 +693,67 @@ config ARCH_CHIP_DEBUG_H
 	---help---
 		The debug.h under include/arch/chip contains architecture dependent debugging primitives
 
+config ARCH_BOARD_DEBUG_H
+	bool "board debug.h"
+	---help---
+		The debug.h under include/arch/board contains board dependent debugging primitives
+
 endchoice # debug.h selection
 
 endmenu # Customize Header Files
 
 menu "Debug Options"
 
+config FORTIFY_SOURCE
+	int "Fortify Source"
+	default 0
+	range 0 3
+	---help---
+		Detect overflows of buffers in common string and memory functions
+		where the compiler can determine and validate the buffer sizes.
+		0 does not have any checks.
+		1 will only check for out-of-bounds at compile time.
+		2 will only perform out-of-bounds checks on stack variables.
+		3 On the basis of 2, add an out-of-bounds check for dynamically allocated variables.
+
 config NDEBUG
 	bool "Define NDEBUG globally"
 	default !DEBUG_ASSERTIONS
 
+config ASSERTIONS_FILENAME
+	bool "Enable library call assert(3) show the file name"
+	default DEBUG_ASSERTIONS_FILENAME || !DEFAULT_SMALL
+	depends on !NDEBUG
+	---help---
+		This option can display the file information of the library call assert(3)
+		function when it is enabled. This option maybe will take up a lot
+		of space from applications.
+
 config DEBUG_ALERT
 	bool
 	default n
+
+config SCHED_DUMP_TASKS
+	bool "Include dumping the task info table in assert/crash output"
+	default !DEFAULT_SMALL
+	depends on DEBUG_ALERT
+	---help---
+		Selects whether the per-task table is printed as part of the
+		crash dump.
+
+		Defaults to y unless DEFAULT_SMALL is selected.
+
+config SCHED_DUMP_STACK
+	bool "Include stack content in assert/crash output"
+	default !DEFAULT_SMALL
+	depends on DEBUG_ALERT && ARCH_STACKDUMP
+	---help---
+		When enabled, the crash dump prints the contents of each stack
+		(IRQ / kernel / user) as hex words.
+
+		When disabled, only base and size are printed out for each stack.
+
+		Defaults to y unless DEFAULT_SMALL is selected.
 
 config DEBUG_FEATURES
 	bool "Enable Debug Features"
@@ -622,14 +772,14 @@ comment "Debug SYSLOG Output Controls"
 
 config DEBUG_ERROR
 	bool "Enable Error Output"
-	default n
+	default y
 	---help---
 		Enables output from [a-z]err() statements.  Errors are significant system
 		exceptions that require immediate attention.
 
 config DEBUG_WARN
 	bool "Enable Warnings Output"
-	default n
+	default y
 	depends on DEBUG_ERROR
 	---help---
 		Enables output from [a-z]warn() statements.  Warnings are considered to
@@ -638,7 +788,7 @@ config DEBUG_WARN
 
 config DEBUG_INFO
 	bool "Enable Informational Debug Output"
-	default n
+	default y
 	depends on DEBUG_WARN
 	---help---
 		Enables verbose "informational" debug output.  If you enable
@@ -663,6 +813,15 @@ config DEBUG_ASSERTIONS_EXPRESSION
 	---help---
 		This option can display the content information of the ASSERT()
 		function when it is triggered. This option maybe will take up a lot
+		of space.
+
+config DEBUG_ASSERTIONS_FILENAME
+	bool "Enable Debug Assertions show file name"
+	default !DEFAULT_SMALL
+	depends on DEBUG_ASSERTIONS
+	---help---
+		This option can display the file information of the ASSERT()
+		function when it is enabled. This option maybe will take up a lot
 		of space.
 
 comment "Subsystem Debug Options"
@@ -705,7 +864,7 @@ endif # DEBUG_AUDIO
 config DEBUG_BINFMT
 	bool "Binary Loader Debug Features"
 	default n
-	depends on !BINFMT_DISABLE || LIBC_MODLIB
+	depends on !BINFMT_DISABLE || LIBC_ELF
 	---help---
 		Enable binary loader debug features.
 
@@ -1522,6 +1681,37 @@ config DEBUG_I2S_INFO
 
 endif # DEBUG_I2S
 
+config DEBUG_I3C
+	bool "I3C Debug Features"
+	default n
+	depends on I3C
+	---help---
+		Enable I3C debug features.
+
+		Support for this debug option is architecture-specific and may not
+		be available for some MCUs.
+
+if DEBUG_I3C
+
+config DEBUG_I3C_ERROR
+	bool "I3C Error Output"
+	default n
+	depends on DEBUG_ERROR
+	---help---
+		Enable I3C driver error output to SYSLOG.
+
+		Support for this debug option is architecture-specific and may not
+		be available for some MCUs.
+
+config DEBUG_I3C_INFO
+	bool "I3C Informational Output"
+	default n
+	depends on DEBUG_INFO
+	---help---
+		Enable I3C driver informational output to SYSLOG.
+
+endif # DEBUG_I3C
+
 config DEBUG_PWM
 	bool "PWM Debug Features"
 	default n
@@ -1560,6 +1750,44 @@ config DEBUG_PWM_INFO
 
 endif # DEBUG_PWM
 
+config DEBUG_CAPTURE
+	bool "CAPTURE Debug Features"
+	default n
+	depends on CAPTURE
+	---help---
+		Enable CAPTURE debug features.
+
+		Support for this debug option is architecture-specific and may not
+		be available for some MCUs.
+
+if DEBUG_CAPTURE
+
+config DEBUG_CAPTURE_ERROR
+	bool "CAPTURE Error Output"
+	default n
+	depends on DEBUG_ERROR
+	---help---
+		Enable CAPTURE driver error output to SYSLOG.
+
+		Support for this debug option is architecture-specific and may not
+		be available for some MCUs.
+
+config DEBUG_CAPTURE_WARN
+	bool "CAPTURE Warnings Output"
+	default n
+	depends on DEBUG_WARN
+	---help---
+		Enable CAPTURE driver warning output to SYSLOG.
+
+config DEBUG_CAPTURE_INFO
+	bool "CAPTURE Informational Output"
+	default n
+	depends on DEBUG_INFO
+	---help---
+		Enable CAPTURE driver informational output to SYSLOG.
+
+endif # DEBUG_CAPTURE
+
 config DEBUG_RC
 	bool "RC Debug Features"
 	default n
@@ -1597,6 +1825,79 @@ config DEBUG_RC_INFO
 		Enable RC driver informational output to SYSLOG.
 
 endif # DEBUG_RC
+
+config DEBUG_REGMAP
+	bool "REGMAP Debug Features"
+	default n
+	depends on REGMAP
+	---help---
+		Enable REGMAP debug features.
+
+		Support for this debug option is architecture-specific and may not
+		be available for some MCUs.
+
+if DEBUG_REGMAP
+
+config DEBUG_REGMAP_ERROR
+	bool "Regmap Error Output"
+	default n
+	depends on DEBUG_ERROR
+	---help---
+		Enable regmap subsystems error output to SYSLOG.
+
+config DEBUG_REGMAP_WARN
+	bool "Regmap Warnings Output"
+	default n
+	depends on DEBUG_WARN
+	---help---
+		Enable regmap subsystems warning output to SYSLOG.
+
+config DEBUG_REGMAP_INFO
+	bool "Regmap Informational Output"
+	default n
+	depends on DEBUG_INFO
+	---help---
+		Enable regmap subsystems informational output to SYSLOG.
+
+endif # DEBUG_REGMAP
+
+config DEBUG_RMT
+	bool "RMT Debug Features"
+	default n
+	depends on RMT
+	---help---
+		Enable RMT debug features.
+
+		Support for this debug option is architecture-specific and may not
+		be available for some MCUs.
+
+if DEBUG_RMT
+
+config DEBUG_RMT_ERROR
+	bool "RMT Error Output"
+	default n
+	depends on DEBUG_ERROR
+	---help---
+		Enable RMT driver error output to SYSLOG.
+
+		Support for this debug option is architecture-specific and may not
+		be available for some MCUs.
+
+config DEBUG_RMT_WARN
+	bool "RMT Warnings Output"
+	default n
+	depends on DEBUG_WARN
+	---help---
+		Enable RMT driver warning output to SYSLOG.
+
+config DEBUG_RMT_INFO
+	bool "RMT Informational Output"
+	default n
+	depends on DEBUG_INFO
+	---help---
+		Enable RMT driver informational output to SYSLOG.
+
+endif # DEBUG_RMT
 
 config DEBUG_RTC
 	bool "RTC Debug Features"
@@ -1744,6 +2045,37 @@ config DEBUG_SPI_INFO
 
 endif # DEBUG_SPI
 
+config DEBUG_THERMAL
+	bool "Thermal Debug Features"
+	default n
+	---help---
+		Enable thermal debug features.
+
+if DEBUG_THERMAL
+
+config DEBUG_THERMAL_ERROR
+	bool "Thermal Error Output"
+	default n
+	depends on DEBUG_ERROR
+	---help---
+		Enable thermal error output to SYSLOG.
+
+config DEBUG_THERMAL_WARN
+	bool "Thermal Warnings Output"
+	default n
+	depends on DEBUG_WARN
+	---help---
+		Enable thermal warning output to SYSLOG.
+
+config DEBUG_THERMAL_INFO
+	bool "Thermal Informational Output"
+	default n
+	depends on DEBUG_INFO
+	---help---
+		Enable thermal informational output to SYSLOG.
+
+endif # DEBUG_THERMAL
+
 config DEBUG_TIMER
 	bool "Timer Debug Features"
 	default n
@@ -1877,6 +2209,39 @@ config DEBUG_MOTOR_INFO
 
 endif # DEBUG_MOTOR
 
+config DEBUG_STEPPER
+	bool "Stepper Motor Debug Features"
+	default n
+	depends on STEPPER
+	---help---
+		Enable motor debug features.
+
+if DEBUG_STEPPER
+
+config DEBUG_STEPPER_ERROR
+	bool "Stepper Motor Error Output"
+	default n
+	depends on DEBUG_ERROR
+	---help---
+		Enable motor error output to SYSLOG.
+
+config DEBUG_STEPPER_WARN
+	bool "Stepper Motor Warnings Output"
+	default n
+	depends on DEBUG_WARN
+	---help---
+		Enable motor warning output to SYSLOG.
+
+config DEBUG_STEPPER_INFO
+	bool "Stepper Motor Informational Output"
+	default n
+	depends on DEBUG_INFO
+	---help---
+		Enable motor informational output to SYSLOG.
+
+endif # DEBUG_STEPPER
+
+
 config DEBUG_VIDEO
 	bool "Video Debug Features"
 	default n
@@ -1941,15 +2306,269 @@ config DEBUG_VIRTIO_INFO
 
 endif # DEBUG_VIDEO
 
-endif # DEBUG_FEATURES
+config DEBUG_VHOST
+	bool "Vhost Debug Features"
+	default n
+	depends on DRIVERS_VHOST
+	---help---
+		Enable vhost debug features.
 
-config DEBUG_TCBINFO
-	bool "Enable TCBinfo struct for debug"
+if DEBUG_VHOST
+
+config DEBUG_VHOST_ERROR
+	bool "Vhost Error Output"
+	default n
+	depends on DEBUG_ERROR
+	---help---
+		Enable vhost error output to SYSLOG.
+
+config DEBUG_VHOST_WARN
+	bool "Vhost Warnings Output"
+	default n
+	depends on DEBUG_WARN
+	---help---
+		Enable vhost warning output to SYSLOG.
+
+config DEBUG_VHOST_INFO
+	bool "Vhost Informational Output"
+	default n
+	depends on DEBUG_INFO
+	---help---
+		Enable vhost informational output to SYSLOG.
+
+endif # DEBUG_VHOST
+
+config DEBUG_RESET
+	bool "RESET Debug Features"
+	default n
+	depends on RESET
+	---help---
+		Enable RESET debug features.
+
+if DEBUG_RESET
+
+config DEBUG_RESET_ERROR
+	bool "RESET Error Output"
+	default n
+	depends on DEBUG_ERROR
+	---help---
+		Enable RESET driver error output to SYSLOG.
+
+config DEBUG_RESET_INFO
+	bool "RESET Informational Output"
+	default n
+	depends on DEBUG_INFO
+	---help---
+		Enable RESET driver informational output to SYSLOG.
+
+endif # DEBUG_RESET
+
+config DEBUG_IPC
+	bool "IPC (Inter-Process Communication) Debug Features"
 	default n
 	---help---
-		Enables tcbinfo struct for debugger information.
-		Selecting this option will enable g_tcbinfo in arch and
-		procfs.
+		Enable IPC debug features.
+
+if DEBUG_IPC
+
+config DEBUG_IPC_ERROR
+	bool "IPC Error Output"
+	default n
+	depends on DEBUG_ERROR
+	---help---
+		Enable IPC error output to SYSLOG.
+
+config DEBUG_IPC_WARN
+	bool "IPC Warnings Output"
+	default n
+	depends on DEBUG_WARN
+	---help---
+		Enable IPC warning output to SYSLOG.
+
+config DEBUG_IPC_INFO
+	bool "IPC Informational Output"
+	default n
+	depends on DEBUG_INFO
+	---help---
+		Enable IPC informational output to SYSLOG.
+
+endif # DEBUG_IPC
+
+config DEBUG_PCI
+	bool "PCI Debug Features"
+	default n
+	depends on PCI
+	---help---
+		Enable PCI driver debug features.
+
+		Support for this debug option is architecture-specific and may not
+		be available for some MCUs.
+
+if DEBUG_PCI
+
+config DEBUG_PCI_ERROR
+	bool "PCI Error Output"
+	default n
+	depends on DEBUG_ERROR
+	---help---
+		Enable PCI driver error output to SYSLOG.
+
+config DEBUG_PCI_WARN
+	bool "PCI Warnings Output"
+	default n
+	depends on DEBUG_WARN
+	---help---
+		Enable PCI driver warning output to SYSLOG.
+
+config DEBUG_PCI_INFO
+	bool "PCI Informational Output"
+	default n
+	depends on DEBUG_INFO
+	---help---
+		Enable PCI driver informational output to SYSLOG.
+
+endif # DEBUG_PCI
+
+config DEBUG_PTP
+	bool "PTP Debug Features"
+	default n
+	depends on PTP_CLOCK
+	---help---
+		Enable PTP driver debug features.
+
+		Support for this debug option is architecture-specific and may not
+		be available for some MCUs.
+
+if DEBUG_PTP
+
+config DEBUG_PTP_ERROR
+	bool "PTP Error Output"
+	default n
+	depends on DEBUG_ERROR
+	---help---
+		Enable PTP driver error output to SYSLOG.
+
+config DEBUG_PTP_WARN
+	bool "PTP Warnings Output"
+	default n
+	depends on DEBUG_WARN
+	---help---
+		Enable PTP driver warning output to SYSLOG.
+
+config DEBUG_PTP_INFO
+	bool "PTP Informational Output"
+	default n
+	depends on DEBUG_INFO
+	---help---
+		Enable PTP driver informational output to SYSLOG.
+
+endif # DEBUG_PTP
+
+config DEBUG_RPMSG
+	bool "RPMSG Debug Features"
+	default n
+	depends on RPMSG
+	---help---
+		Enable RPMSG driver debug features.
+
+if DEBUG_RPMSG
+
+config DEBUG_RPMSG_ERROR
+	bool "RPMSG Error Output"
+	default n
+	depends on DEBUG_ERROR
+	---help---
+		Enable RPMSG driver error output to SYSLOG.
+
+config DEBUG_RPMSG_WARN
+	bool "RPMSG Warnings Output"
+	default n
+	depends on DEBUG_WARN
+	---help---
+		Enable RPMSG driver warning output to SYSLOG.
+
+config DEBUG_RPMSG_INFO
+	bool "RPMSG Informational Output"
+	default n
+	depends on DEBUG_INFO
+	---help---
+		Enable RPMSG driver informational output to SYSLOG.
+
+endif # DEBUG_RPMSG
+
+config DEBUG_RPTUN
+	bool "Rptun Debug Features"
+	default n
+	depends on RPTUN
+	---help---
+		Enable rptun debug features.
+
+if DEBUG_RPTUN
+
+config DEBUG_RPTUN_ERROR
+	bool "Rptun Error Output"
+	default n
+	depends on DEBUG_ERROR
+	---help---
+		Enable rptun error output to SYSLOG.
+
+config DEBUG_RPTUN_WARN
+	bool "Rptun Warnings Output"
+	default n
+	depends on DEBUG_WARN
+	---help---
+		Enable rptun warning output to SYSLOG.
+
+config DEBUG_RPTUN_INFO
+	bool "Rptun Informational Output"
+	default n
+	depends on DEBUG_INFO
+	---help---
+		Enable rptun informational output to SYSLOG.
+
+endif # DEBUG_RPTUN
+
+config DEBUG_CORESIGHT
+	bool "Coresight Debug Features"
+	default n
+	depends on CORESIGHT
+	---help---
+		Enable coresight debug features.
+
+if DEBUG_CORESIGHT
+
+config DEBUG_CORESIGHT_ERROR
+	bool "Coresight Error Output"
+	default n
+	depends on DEBUG_ERROR
+	---help---
+		Enable coresight driver error output to SYSLOG.
+
+config DEBUG_CORESIGHT_WARN
+	bool "Coresight Warnings Output"
+	default n
+	depends on DEBUG_WARN
+	---help---
+		Enable coresight warning output to SYSLOG.
+
+config DEBUG_CORESIGHT_INFO
+	bool "Coresight Informational Output"
+	default n
+	depends on DEBUG_INFO
+	---help---
+		Enable coresight driver informational output to SYSLOG.
+
+endif # DEBUG_CORESIGHT
+
+endif # DEBUG_FEATURES
+
+config ARCH_PROTECT_ZERO_ADDRESS
+	bool "Protect address zero"
+	depends on ARCH_HAVE_DEBUG
+	default n
+	---help---
+		When the program accesses address 0, it will assert automatically.
+		Hardware support is required, such as ARM V8M DWT watchpoint
 
 config ARCH_HAVE_STACKCHECK
 	bool
@@ -1966,6 +2585,15 @@ config STACK_COLORATION
 
 		Only supported by a few architectures.
 
+config STACKCHECK_MARGIN
+	int "Stack overflow check size (bytes)"
+	depends on DEBUG_ASSERTIONS
+	default -1
+	---help---
+		Specifies the number of bytes at the end of the stack to check for overflow.
+		A value of -1 disables additional checking. Increase this value for stricter
+		overflow detection, at the cost of additional overhead.
+
 config STACK_CANARIES
 	bool "Compiler stack canaries"
 	depends on ARCH_HAVE_STACKCHECK
@@ -1980,12 +2608,59 @@ config STACK_CANARIES
 		Enabling this option can result in a significant increase
 		in footprint and an associated decrease in performance.
 
+choice STACK_CANARIES_LEVEL
+	prompt "Stack Canaries Level Configuration"
+	default STACK_PROTECTOR_ALL
+	depends on STACK_CANARIES
+	---help---
+		Based on the configuration options, configure the stack Canaries Level.
+
+config STACK_PROTECTOR
+	bool "-fstack-protector"
+	---help---
+		Enable basic stack protection.
+
+config STACK_PROTECTOR_STRONG
+	bool "-fstack-protector-strong"
+	---help---
+		Using stronger stack protection mechanisms may involve more complex
+		security checks.
+
+config STACK_PROTECTOR_ALL
+	bool "-fstack-protector-all"
+	---help---
+		Enable stack protection for all functions, including those that are
+		typically not protected.
+
+config STACK_PROTECTOR_EXPLICIT
+	bool "-fstack-protector-explicit"
+	---help---
+		Enable stack protection only for functions explicitly marked as
+		requiring stack protection.
+
+endchoice # Stack Canaries Level Configuration
+
+config STACK_CANARIES_LEVEL
+	string
+	default "-fstack-protector" if STACK_PROTECTOR
+	default "-fstack-protector-strong" if STACK_PROTECTOR_STRONG
+	default "-fstack-protector-all" if STACK_PROTECTOR_ALL
+	default "-fstack-protector-explicit" if STACK_PROTECTOR_EXPLICIT
+	depends on STACK_CANARIES
+
 config STACK_USAGE
 	bool "Generate stack usage information"
 	---help---
 		Generate an extra file that specifies the maximum amount of stack used,
 		on a per-function basis. Please use https://github.com/HBehrens/puncover
-		or tools/showstack.sh to generate the more useful report.
+		to generate the more useful report.
+
+config STACK_USAGE_WARNING
+	int "Detect use of large stack variables"
+	default 0
+	---help---
+		Set the stack warning threshold, if the stack usage exceeds the
+		threshold, a warning will be generated
 
 config ARCH_HAVE_HEAPCHECK
 	bool
@@ -2004,6 +2679,14 @@ config DEBUG_SYMBOLS
 	default n
 	---help---
 		Build with debug symbols (needed for use with a debugger).
+
+config DEBUG_SYMBOLS_LEVEL
+	string "Custom symbols level"
+	depends on DEBUG_SYMBOLS
+	default "-g"
+	---help---
+		This string represents the custom symbol level that will be
+		used if DEBUG_SYMBOLS.
 
 config FRAME_POINTER
 	bool "Compile the NuttX with frame pointers"
@@ -2024,12 +2707,16 @@ menuconfig TRACE
 		the kernel will be enabled.
 
 if TRACE
-config TRACE_AUDIO
-	bool "Enable tracepoints in audio"
+config TRACE_APP
+	bool "Enable tracepoints in app"
 	default n
 
 config TRACE_ARCH
 	bool "Enable tracepoints in arch"
+	default n
+
+config TRACE_AUDIO
+	bool "Enable tracepoints in audio"
 	default n
 
 config TRACE_BOARDS
@@ -2048,12 +2735,38 @@ config TRACE_FS
 	bool "Enable tracepoints in fs"
 	default n
 
+if TRACE_FS
+menu "Trace Fs Support"
+
+config TRACE_LITTLEFS_FS
+	bool "Enable tracepoints in littlefs"
+	default n
+
+config TRACE_ROMFS_FS
+	bool "Enable tracepoints in romfs"
+	default n
+
+config TRACE_RPMSGFS_FS
+	bool "Enable tracepoints in rpmsgfs"
+	default n
+
+endmenu # Trace Fs Support
+endif
+
 config TRACE_GRAPHICS
 	bool "Enable tracepoints in graphics"
 	default n
 
+config TRACE_INPUT
+	bool "Enable tracepoints in input"
+	default n
+
 config TRACE_LIBS
 	bool "Enable tracepoints in libs"
+	default n
+
+config TRACE_MM
+	bool "Enable tracepoints in mm"
 	default n
 
 config TRACE_NET
@@ -2112,6 +2825,44 @@ config DEBUG_OPTLEVEL
 		This string represents the custom optimization level that will be
 		used if DEBUG_CUSTOMOPT.
 
+choice
+	prompt "Link Time Optimization (LTO)"
+	default LTO_NONE
+	---help---
+		This option enables Link Time Optimization (LTO), which allows the
+		compiler to optimize binaries globally.
+
+		If unsure, select LTO_NONE. Note that LTO is very resource-intensive
+		so it's disabled by default.
+
+config LTO_NONE
+	bool "None"
+	---help---
+		Build the kernel normally, without Link Time Optimization (LTO).
+
+config LTO_FULL
+	bool "GNU Full LTO (EXPERIMENTAL)"
+	depends on ARCH_TOOLCHAIN_GNU
+	---help---
+		Link time optimization is implemented as a GCC front end for a bytecode
+		bytecode representation of GIMPLE that is emitted in special sections
+		of .o files. Currently, LTO support is enabled in most ELF-based systems,
+		as well as darwin, cygwin and mingw systems.
+
+config LTO_THIN
+	bool "Clang ThinLTO (EXPERIMENTAL)"
+	depends on ARCH_TOOLCHAIN_CLANG
+	---help---
+		This option enables Clang's ThinLTO, which allows for parallel
+		optimization and faster incremental compiles compared to the
+		CONFIG_LTO_FULL option. More information can be found
+		from Clang's documentation:
+
+		https://clang.llvm.org/docs/ThinLTO.html
+
+		If unsure, say Y.
+endchoice
+
 config DEBUG_OPT_UNUSED_SECTIONS
 	bool "Optimization to eliminate the unused input sections"
 	default y
@@ -2124,6 +2875,14 @@ config DEBUG_OPT_UNUSED_SECTIONS
 		Enable this option to optimization the unused input sections with the
 		linker by compiling with " -ffunction-sections -fdata-sections ", and
 		linking with " --gc-sections ".
+
+config DEBUG_LINK_WHOLE_ARCHIVE
+	bool "Force every object to be included in the resulting shared library."
+	default n
+	depends on DEBUG_OPT_UNUSED_SECTIONS
+	---help---
+		Selecting this option will pass "--whole-archive" to ld
+		when linking NuttX ELF.
 
 config DEBUG_LINK_MAP
 	bool "Generate link map file"
@@ -2203,6 +2962,7 @@ source "libs/libc/Kconfig"
 source "libs/libm/Kconfig"
 source "libs/libxx/Kconfig"
 source "libs/libdsp/Kconfig"
+source "libs/libbuiltin/Kconfig"
 endmenu
 
 menu "Open Asymmetric Multi Processing"

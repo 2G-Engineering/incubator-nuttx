@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/crypto/blake2s.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -86,10 +88,10 @@ typedef struct blake2s_param__
   uint8_t personal[BLAKE2S_PERSONALBYTES];      /* 32 */
 } blake2s_param;
 
-#ifdef __GNUC__ > 3
+#if defined(__GNUC__) && __GNUC__ > 3
 #define BLAKE2_UNALIGNED 1
-typedef uint32_t uint32_alias_t __attribute__((may_alias)) aligned_data(1);
-typedef uint16_t uint16_alias_t __attribute__((may_alias)) aligned_data(1);
+typedef uint32_t uint32_alias_t __attribute__((may_alias));
+typedef uint16_t uint16_alias_t __attribute__((may_alias));
 #endif
 
 /****************************************************************************

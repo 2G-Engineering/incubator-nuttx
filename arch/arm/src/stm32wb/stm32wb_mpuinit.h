@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wb/stm32wb_mpuinit.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32wb_mpuinitialize
+ * Name: stm32_mpuinitialize
  *
  * Description:
  *   Configure the MPU to permit user-space access to only unrestricted MCU
@@ -41,13 +43,13 @@
  ****************************************************************************/
 
 #ifdef CONFIG_BUILD_PROTECTED
-void stm32wb_mpuinitialize(void);
+void stm32_mpuinitialize(void);
 #else
-#  define stm32wb_mpuinitialize()
+#  define stm32_mpuinitialize()
 #endif
 
 /****************************************************************************
- * Name: stm32wb_mpu_uheap
+ * Name: stm32_mpu_uheap
  *
  * Description:
  *  Map the user heap region.
@@ -55,9 +57,9 @@ void stm32wb_mpuinitialize(void);
  ****************************************************************************/
 
 #ifdef CONFIG_BUILD_PROTECTED
-void stm32wb_mpu_uheap(uintptr_t start, size_t size);
+void stm32_mpu_uheap(uintptr_t start, size_t size);
 #else
-#  define stm32wb_mpu_uheap(start,size)
+#  define stm32_mpu_uheap(start,size)
 #endif
 
 #endif /* __ARCH_ARM_SRC_STM32WB_STM32WB_MPUINIT_H */

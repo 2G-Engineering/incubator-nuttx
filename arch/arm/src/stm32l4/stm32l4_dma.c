@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l4/stm32l4_dma.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,10 +35,10 @@
  * family.
  */
 
-#if defined(CONFIG_STM32L4_STM32L4X3) || defined(CONFIG_STM32L4_STM32L4X5) || \
-    defined(CONFIG_STM32L4_STM32L4X6)
+#if defined(CONFIG_STM32_STM32L4X3) || defined(CONFIG_STM32_STM32L4X5) || \
+    defined(CONFIG_STM32_STM32L4X6)
 #include "stm32l4x6xx_dma.c"
-#elif defined(CONFIG_STM32L4_STM32L4XR)
+#elif defined(CONFIG_STM32_STM32L4XR)
 #include "stm32l4xrxx_dma.c"
 #else
 #  error "Unsupported STM32L4 chip"

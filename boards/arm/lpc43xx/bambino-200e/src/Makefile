@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/lpc43xx/bambino-200e/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -24,10 +26,6 @@ CSRCS = lpc43_boot.c lpc43_ssp.c
 
 ifeq ($(CONFIG_SENSORS_MAX31855),y)
 CSRCS += lpc43_max31855.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += lpc43_appinit.c
 endif
 
 ifeq ($(CONFIG_ARCH_LEDS),y)

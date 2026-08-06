@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/hardware/stm32h7x3xx_memorymap.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -60,10 +62,28 @@
 
 #define STM32_DTCRAM_BASE    0x20000000     /* 0x20000000-0x2001ffff: DTCM-RAM on TCM interface */
 #define STM32_AXISRAM_BASE   0x24000000     /* 0x24000000-0x247fffff: System AXI SRAM */
-#define STM32_SRAM1_BASE     0x30000000     /* 0x30000000-0x3001ffff: System SRAM1 */
-#define STM32_SRAM2_BASE     0x30020000     /* 0x30020000-0x3003ffff: System SRAM2 */
-#define STM32_SRAM3_BASE     0x3004c000     /* 0x30040000-0x30047fff: System SRAM3 */
-#define STM32_SRAM123_BASE   0x30000000     /* 0x30000000-0x30047fff: System SRAM123 */
+
+#ifdef CONFIG_ARCH_CHIP_STM32H7_CORTEXM7
+#  define STM32_SRAM1_BASE   0x30000000     /* 0x30000000-0x30003fff: System SRAM1 */
+#  ifdef CONFIG_STM32_STM32H72XXX_OR_STM32H73XXX
+#  define STM32_SRAM2_BASE   0x30004000     /* 0x30004000-0x30007fff: System SRAM2 */
+#  else /* STM32H74XXX or STM32H75XXX with full SRAM configuration  */
+#  define STM32_SRAM2_BASE   0x30020000     /* 0x30020000-0x3003ffff: System SRAM2 */
+#  define STM32_SRAM3_BASE   0x30040000     /* 0x30040000-0x30047fff: System SRAM3 */
+#  endif /* STM32H72XXX or STM32H73XXX / STM32H74XXX or STM32H75XXX */
+#  define STM32_SRAM123_BASE 0x30000000     /* 0x30000000-0x30047fff: System SRAM123 */
+#else
+
+/* The AHB SRAMs of the D2 domain are also aliased to an address range below
+ * 0x2000 0000 to maintain the Cortex®-M4 Harvard architecture.
+ * For details, see RM0399 section "2.4 Embedded SRAM".
+ */
+
+#  define STM32_SRAM1_BASE   0x10000000     /* 0x10000000-0x1001ffff: System SRAM1 */
+#  define STM32_SRAM2_BASE   0x10020000     /* 0x10020000-0x1003ffff: System SRAM2 */
+#  define STM32_SRAM3_BASE   0x10040000     /* 0x10040000-0x10047fff: System SRAM3 */
+#  define STM32_SRAM123_BASE 0x10000000     /* 0x10000000-0x10047fff: System SRAM123 */
+#endif
 #define STM32_SRAM4_BASE     0x38000000     /* 0x38000000-0x3800ffff: System SRAM4 */
 #define STM32_BBSRAM_BASE    0x38800000     /* 0x38800000-0x38800fff: System Backup SRAM */
 

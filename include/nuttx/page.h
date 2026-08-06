@@ -1,6 +1,7 @@
 /****************************************************************************
  * include/nuttx/page.h
- * This file defines interfaces used to support NuttX On-Demand Paging.
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -33,7 +34,7 @@
 #  include <nuttx/sched.h>
 #endif
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -48,16 +49,17 @@
  */
 
 #if CONFIG_PAGING_PAGESIZE == 1024
-#  define PAGESIZE                 1024
 #  define PAGESHIFT                10
-#  define PAGEMASK                 0x000003ff
 #elif CONFIG_PAGING_PAGESIZE == 4096
-#  define PAGESIZE                 4096
 #  define PAGESHIFT                12
-#  define PAGEMASK                 0x00000fff
 #else
 #  error "Need extended definitions for CONFIG_PAGING_PAGESIZE"
 #endif
+
+/* Common page macros */
+
+#  define PAGESIZE                 (1 << PAGESHIFT)
+#  define PAGEMASK                 (PAGESIZE - 1)
 
 /* Alignment macros */
 
@@ -410,7 +412,7 @@ int up_allocpage(FAR struct tcb_s *tcb, FAR void **vpage);
  *  but non-cacheable.  No special actions will be required of
  *  up_fillpage() in order to write into this allocated page.  If the
  *  virtual address maps to a text region, however, this function should
- *  remap the region so that is is read/execute only.  It should be made
+ *  remap the region so that it is read/execute only.  It should be made
  *  cache-able in any case.
  *
  * Input Parameters:
@@ -454,5 +456,5 @@ int up_fillpage(FAR struct tcb_s *tcb, FAR void *vpage,
 #endif
 
 #endif /* __ASSEMBLY__ */
-#endif /* CONFIG_PAGING */
+#endif /* CONFIG_LEGACY_PAGING */
 #endif /* __INCLUDE_NUTTX_PAGE_H */

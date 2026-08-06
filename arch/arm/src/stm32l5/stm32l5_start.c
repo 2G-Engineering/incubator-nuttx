@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l5/stm32l5_start.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/init.h>
 #include <arch/board/board.h>
@@ -34,7 +36,7 @@
 #include "arm_internal.h"
 #include "nvic.h"
 
-#include "stm32l5.h"
+#include "stm32.h"
 #include "stm32l5_gpio.h"
 #include "stm32l5_userspace.h"
 #include "stm32l5_start.h"
@@ -60,8 +62,8 @@
  * 0x2003:ffff - End of internal SRAM2
  */
 
-#define SRAM2_START  STM32L5_SRAM2_BASE
-#define SRAM2_END    (SRAM2_START + STM32L5_SRAM2_SIZE)
+#define SRAM2_START  STM32_SRAM2_BASE
+#define SRAM2_END    (SRAM2_START + STM32_SRAM2_SIZE)
 
 #define HEAP_BASE  ((uintptr_t)_ebss + CONFIG_IDLETHREAD_STACKSIZE)
 
@@ -129,7 +131,7 @@ void __start(void)
     ("sub r10, sp, %0" : : "r" (CONFIG_IDLETHREAD_STACKSIZE - 64) :);
 #endif
 
-#ifdef CONFIG_STM32L5_SRAM2_INIT
+#ifdef CONFIG_STM32_SRAM2_INIT
   /* The SRAM2 region is parity checked, but upon power up, it will be in
    * a random state and probably invalid with respect to parity, potentially
    * generating faults if accessed.  If elected, we will write zeros to the
@@ -149,10 +151,10 @@ void __start(void)
 
   /* Configure the UART so that we can get debug output as soon as possible */
 
-  stm32l5_clockconfig();
+  stm32_clockconfig();
   arm_fpuconfig();
-  stm32l5_lowsetup();
-  stm32l5_gpioinit();
+  stm32_lowsetup();
+  stm32_gpioinit();
   showprogress('A');
 
   /* Clear .bss.  We'll do this inline (vs. calling memset) just to be
@@ -181,7 +183,11 @@ void __start(void)
 
   showprogress('C');
 
-#ifdef CONFIG_SCHED_IRQMONITOR
+#ifdef CONFIG_ARMV8M_STACKCHECK
+  arm_stack_check_init();
+#endif
+
+#ifdef CONFIG_ARCH_PERF_EVENTS
   up_perf_init((void *)STM32_SYSCLK_FREQUENCY);
 #endif
 
@@ -199,13 +205,13 @@ void __start(void)
    */
 
 #ifdef CONFIG_BUILD_PROTECTED
-  stm32l5_userspace();
+  stm32_userspace();
   showprogress('E');
 #endif
 
   /* Initialize onboard resources */
 
-  stm32l5_board_initialize();
+  stm32_board_initialize();
   showprogress('F');
 
   /* Then start NuttX */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/leds/pca9635pw.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -36,7 +38,7 @@
 #if defined(CONFIG_I2C) && defined(CONFIG_PCA9635PW)
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 struct pca9635pw_dev_s
@@ -201,7 +203,7 @@ static int pca9635pw_open(FAR struct file *filep)
    * was left.
    */
 
-  nxsig_usleep(500);
+  nxsched_usleep(500);
 
   /* Turn all led drivers to mode 2 in which the led brightness is controlled
    * by the individual pwm registers.
@@ -341,7 +343,7 @@ int pca9635pw_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
   /* Initialize the PCA9635PW device structure */
 
   FAR struct pca9635pw_dev_s *priv =
-    (FAR struct pca9635pw_dev_s *)kmm_malloc(sizeof(struct pca9635pw_dev_s));
+    kmm_malloc(sizeof(struct pca9635pw_dev_s));
 
   if (priv == NULL)
     {

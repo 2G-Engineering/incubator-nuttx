@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/procfs/fs_procfscpuload.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -37,15 +39,18 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/clock.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/procfs.h>
 
+#include "fs_heap.h"
+
 #if !defined(CONFIG_DISABLE_MOUNTPOINT) && defined(CONFIG_FS_PROCFS)
-#if defined(CONFIG_SCHED_CPULOAD) && !defined(CONFIG_FS_PROCFS_EXCLUDE_CPULOAD)
+#if !defined(CONFIG_SCHED_CPULOAD_NONE) && \
+    !defined(CONFIG_FS_PROCFS_EXCLUDE_CPULOAD)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -100,6 +105,7 @@ const struct procfs_operations g_cpuload_operations =
   cpuload_close,      /* close */
   cpuload_read,       /* read */
   NULL,               /* write */
+  NULL,               /* poll */
 
   cpuload_dup,        /* dup */
 
@@ -132,7 +138,7 @@ static int cpuload_open(FAR struct file *filep, FAR const char *relpath,
    * REVISIT:  Write-able proc files could be quite useful.
    */
 
-  if ((oflags & O_WRONLY) != 0 || (oflags & O_RDONLY) == 0)
+  if ((oflags & O_ACCMODE) != O_RDONLY)
     {
       ferr("ERROR: Only O_RDONLY supported\n");
       return -EACCES;
@@ -140,7 +146,7 @@ static int cpuload_open(FAR struct file *filep, FAR const char *relpath,
 
   /* Allocate a container to hold the file attributes */
 
-  attr = kmm_zalloc(sizeof(struct cpuload_file_s));
+  attr = fs_heap_zalloc(sizeof(struct cpuload_file_s));
   if (!attr)
     {
       ferr("ERROR: Failed to allocate file attributes\n");
@@ -168,7 +174,7 @@ static int cpuload_close(FAR struct file *filep)
 
   /* Release the file attributes structure */
 
-  kmm_free(attr);
+  fs_heap_free(attr);
   filep->f_priv = NULL;
   return OK;
 }
@@ -201,8 +207,8 @@ static ssize_t cpuload_read(FAR struct file *filep, FAR char *buffer,
 
   if (filep->f_pos == 0)
     {
-      uint32_t total = 0;
-      uint32_t active = 0;
+      clock_t total = 0;
+      clock_t active = 0;
       uint32_t intpart;
       uint32_t fracpart;
 
@@ -298,7 +304,7 @@ static int cpuload_dup(FAR const struct file *oldp, FAR struct file *newp)
 
   /* Allocate a new container to hold the task and attribute selection */
 
-  newattr = kmm_malloc(sizeof(struct cpuload_file_s));
+  newattr = fs_heap_malloc(sizeof(struct cpuload_file_s));
   if (!newattr)
     {
       ferr("ERROR: Failed to allocate file attributes\n");

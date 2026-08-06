@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/sam34/sam4s-xplained-pro/src/sam_nandflash.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  *  Licensed to the Apache Software Foundation (ASF) under one or more
  *  contributor license agreements.  See the NOTICE file distributed with
  *  this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/mtd/mtd.h>
 #include <nuttx/fs/fs.h>
@@ -131,8 +133,7 @@ int board_nandflash_config(int cs)
 
   /* Configure the SMC cycle timing */
 
-  /**
-   * Select 0. Chip Select 0 has been programmed with:
+  /* Select 0. Chip Select 0 has been programmed with:
    * NRD_HOLD = 4; READ_MODE = 1 (NRD controlled)
    * NWE_SETUP = 3; WRITE_MODE = 1 (NWE controlled)
    * TDF_CYCLES = 6; TDF_MODE = 1 (optimization enabled).
@@ -143,9 +144,7 @@ int board_nandflash_config(int cs)
 
   /* Configure the SMC mode */
 
-  /**
-   *
-   * READ_MODE:
+  /* READ_MODE:
    *    0: The read operation is controlled by the NCS signal.
    *    1: The read operation is controlled by the NRD signal.
    *
@@ -203,13 +202,16 @@ int sam_nand_automount(int minor)
         }
 
 #if defined(CONFIG_SAM34_NAND_FTL)
-      /* Use the FTL layer to wrap the MTD driver as a block driver */
+      /* Register the MTD driver */
 
       int ret = OK;
-      ret = ftl_initialize(NAND_MINOR, mtd);
+      char path[32];
+      snprintf(path, sizeof(path), "/dev/mtdblock%d", NAND_MINOR);
+      ret = register_mtddriver(path, mtd, 0755, NULL);
       if (ret < 0)
         {
-          ferr("ERROR: Failed to initialize the FTL layer: %d\n", ret);
+          ferr("ERROR: Failed to register the MTD driver %s, ret %d\n",
+               path, ret);
           return ret;
         }
 

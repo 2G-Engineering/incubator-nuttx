@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/usbhost/usbhost_xboxcontroller.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <fcntl.h>
 #include <poll.h>
 
@@ -176,7 +178,7 @@ struct usbhost_state_s
    * retained in the f_priv field of the 'struct file'.
    */
 
-  struct pollfd *fds[CONFIG_XBOXCONTROLLER_NPOLLWAITERS];
+  FAR struct pollfd *fds[CONFIG_XBOXCONTROLLER_NPOLLWAITERS];
 };
 
 /****************************************************************************
@@ -202,7 +204,7 @@ static void usbhost_destroy(FAR void *arg);
 /* Polling support */
 
 static void usbhost_pollnotify(FAR struct usbhost_state_s *dev);
-static int usbhost_xboxcontroller_poll(int argc, char *argv[]);
+static int usbhost_xboxcontroller_poll(int argc, FAR char *argv[]);
 
 /* Helpers for usbhost_connect() */
 
@@ -213,8 +215,8 @@ static inline int usbhost_devinit(FAR struct usbhost_state_s *priv);
 
 /* (Little Endian) Data helpers */
 
-static inline uint16_t usbhost_getle16(const uint8_t *val);
-static inline void usbhost_putle16(uint8_t *dest, uint16_t val);
+static inline uint16_t usbhost_getle16(FAR const uint8_t *val);
+static inline void usbhost_putle16(FAR uint8_t *dest, uint16_t val);
 
 /* Transfer descriptor memory management */
 
@@ -540,7 +542,7 @@ static void usbhost_pollnotify(FAR struct usbhost_state_s *priv)
  *
  ****************************************************************************/
 
-static int usbhost_xboxcontroller_poll(int argc, char *argv[])
+static int usbhost_xboxcontroller_poll(int argc, FAR char *argv[])
 {
   FAR struct usbhost_state_s *priv;
   FAR struct usbhost_hubport_s *hport;
@@ -568,7 +570,7 @@ static int usbhost_xboxcontroller_poll(int argc, char *argv[])
 
   priv->polling = true;
   nxsem_post(&g_syncsem);
-  nxsig_sleep(1);
+  nxsched_sleep(1);
 
   /* Loop here until the device is disconnected */
 
@@ -791,18 +793,18 @@ static int usbhost_xboxcontroller_poll(int argc, char *argv[])
                                     XBOX_BUTTON_STICK_RIGHT_INDEX,
                                     XBOX_BUTTON_STICK_RIGHT_MASK);
 
-                  priv->rpt.trigger_left =
-                    ((int16_t *)(priv->tbuffer))[XBOX_BUTTON_TRIGGER_LEFT];
-                  priv->rpt.trigger_right =
-                    ((int16_t *)(priv->tbuffer))[XBOX_BUTTON_TRIGGER_RIGHT];
-                  priv->rpt.stick_left_x =
-                    ((int16_t *)(priv->tbuffer))[XBOX_BUTTON_STICK_LEFT_X];
-                  priv->rpt.stick_left_y =
-                    ((int16_t *)(priv->tbuffer))[XBOX_BUTTON_STICK_LEFT_Y];
-                  priv->rpt.stick_right_x =
-                    ((int16_t *)(priv->tbuffer))[XBOX_BUTTON_STICK_RIGHT_X];
-                  priv->rpt.stick_right_y =
-                    ((int16_t *)(priv->tbuffer))[XBOX_BUTTON_STICK_RIGHT_Y];
+                  priv->rpt.trigger_left = ((FAR int16_t *)
+                      (priv->tbuffer))[XBOX_BUTTON_TRIGGER_LEFT];
+                  priv->rpt.trigger_right = ((FAR int16_t *)
+                      (priv->tbuffer))[XBOX_BUTTON_TRIGGER_RIGHT];
+                  priv->rpt.stick_left_x = ((FAR int16_t *)
+                      (priv->tbuffer))[XBOX_BUTTON_STICK_LEFT_X];
+                  priv->rpt.stick_left_y = ((FAR int16_t *)
+                      (priv->tbuffer))[XBOX_BUTTON_STICK_LEFT_Y];
+                  priv->rpt.stick_right_x = ((FAR int16_t *)
+                      (priv->tbuffer))[XBOX_BUTTON_STICK_RIGHT_X];
+                  priv->rpt.stick_right_y = ((FAR int16_t *)
+                      (priv->tbuffer))[XBOX_BUTTON_STICK_RIGHT_Y];
 
                   priv->valid = true;
 
@@ -913,7 +915,7 @@ static int usbhost_sample(FAR struct usbhost_state_s *priv,
   irqstate_t flags;
   int ret = -EAGAIN;
 
-  /* Interrupts me be disabled when this is called to (1) prevent posting
+  /* Interrupts must be disabled when this is called to (1) prevent posting
    * of semaphores from interrupt handlers, and (2) to prevent sampled data
    * from changing until it has been reported.
    */
@@ -957,15 +959,11 @@ static int usbhost_waitsample(FAR struct usbhost_state_s *priv,
   irqstate_t flags;
   int ret;
 
-  /* Interrupts me be disabled when this is called to (1) prevent posting
+  /* Interrupts must be disabled when this is called to (1) prevent posting
    * of semaphores from interrupt handlers, and (2) to prevent sampled data
    * from changing until it has been reported.
-   *
-   * In addition, we will also disable pre-emption to prevent other threads
-   * from getting control while we muck with the semaphores.
    */
 
-  sched_lock();
   flags = enter_critical_section();
 
   /* Now release the semaphore that manages mutually exclusive access to
@@ -1019,14 +1017,6 @@ errout:
    */
 
   leave_critical_section(flags);
-
-  /* Restore pre-emption.  We might get suspended here but that is okay
-   * because we already have our sample.  Note:  this means that if there
-   * were two threads reading from the HIDMOUSE for some reason, the data
-   * might be read out of order.
-   */
-
-  sched_unlock();
   return ret;
 }
 
@@ -1095,7 +1085,7 @@ static inline int usbhost_cfgdesc(FAR struct usbhost_state_s *priv,
   configdesc += cfgdesc->len;
   remaining  -= cfgdesc->len;
 
-  /* Loop where there are more dscriptors to examine */
+  /* Loop where there are more descriptors to examine */
 
   while (remaining >= sizeof(struct usb_desc_s) && !done)
     {
@@ -1393,7 +1383,7 @@ errout:
  *
  ****************************************************************************/
 
-static inline uint16_t usbhost_getle16(const uint8_t *val)
+static inline uint16_t usbhost_getle16(FAR const uint8_t *val)
 {
   return (uint16_t)val[1] << 8 | (uint16_t)val[0];
 }
@@ -1413,7 +1403,7 @@ static inline uint16_t usbhost_getle16(const uint8_t *val)
  *
  ****************************************************************************/
 
-static void usbhost_putle16(uint8_t *dest, uint16_t val)
+static void usbhost_putle16(FAR uint8_t *dest, uint16_t val)
 {
   dest[0] = val & 0xff; /* Little endian means LS byte first in byte stream */
   dest[1] = val >> 8;
@@ -1729,7 +1719,6 @@ static int usbhost_open(FAR struct file *filep)
   int ret;
 
   uinfo("Entry\n");
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -1810,7 +1799,6 @@ static int usbhost_close(FAR struct file *filep)
   int ret;
 
   uinfo("Entry\n");
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -1905,7 +1893,7 @@ static ssize_t usbhost_read(FAR struct file *filep, FAR char *buffer,
   struct xbox_controller_buttonstate_s sample;
   int                                  ret;
 
-  DEBUGASSERT(filep && filep->f_inode && buffer);
+  DEBUGASSERT(buffer);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -2015,7 +2003,7 @@ static int usbhost_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   };
 
   uinfo("Entered\n");
-  DEBUGASSERT(filep && filep->f_inode && buffer);
+  DEBUGASSERT(buffer);
   inode = filep->f_inode;
   priv  = inode->i_private;
   hport = priv->usbclass.hport;
@@ -2092,7 +2080,7 @@ static int usbhost_poll(FAR struct file *filep, FAR struct pollfd *fds,
   int                         ret;
   int                         i;
 
-  DEBUGASSERT(filep && filep->f_inode && fds);
+  DEBUGASSERT(fds);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -2141,8 +2129,8 @@ static int usbhost_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
       if (i >= CONFIG_XBOXCONTROLLER_NPOLLWAITERS)
         {
-          fds->priv    = NULL;
-          ret          = -EBUSY;
+          fds->priv = NULL;
+          ret       = -EBUSY;
           goto errout;
         }
 
@@ -2152,7 +2140,7 @@ static int usbhost_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
       if (priv->valid)
         {
-          usbhost_pollnotify(priv);
+          poll_notify(&fds, 1, POLLIN);
         }
     }
   else

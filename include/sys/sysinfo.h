@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/sys/sysinfo.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -68,6 +70,8 @@ extern "C"
 #endif
 
 int sysinfo(FAR struct sysinfo *info);
+int get_nprocs_conf(void);
+int get_nprocs(void);
 
 #undef EXTERN
 #if defined(__cplusplus)

@@ -1,6 +1,6 @@
-===============
+================
 ESP32-C3 DevKit
-===============
+================
 
 The ESP32-C3 DevKit is an entry-level development board equipped with either
 an ESP32-C3-WROOM-02 or an ESP32-C3-MINI-1.
@@ -56,20 +56,23 @@ Then use a serial console terminal like ``picocom`` configured to 115200 8N1.
 adc
 ---
 
-This configuration demonstrates the use of the internal Analog to Digital Converter (ADC).
-To check it, you can execute the ``adc`` application::
+The ``adc`` configuration enables the ADC driver and the ADC example application.
+ADC Unit 1 is registered to ``/dev/adc0`` with channels 0, 1, 2 and 3 enabled by default.
+Currently, the ADC operates in oneshot mode.
 
-    nsh> adc
-    adc_main: g_adcstate.count: 0
+More ADC channels can be enabled or disabled in ``ADC Configuration`` menu.
+
+This example shows channels 0 and 1 connected to 3.3 V and channels 2 and 3 to GND (all readings
+show in units of mV)::
+
+    nsh> adc -n 1
+    adc_main: g_adcstate.count: 1
     adc_main: Hardware initialized. Opening the ADC device: /dev/adc0
     Sample:
-    1: channel: 0 value: 870
-    Sample:
-    1: channel: 0 value: 870
-    Sample:
-    1: channel: 0 value: 865
-    Sample:
-    1: channel: 0 value: 859
+    1: channel: 0 value: 2900
+    2: channel: 1 value: 2900
+    3: channel: 2 value: 0
+    4: channel: 3 value: 0
 
 autopm
 ------
@@ -80,6 +83,8 @@ when in the idle state, powering off the cpu and other peripherals.
 In minimum power save mode, the station wakes up every DTIM to receive a beacon. The broadcast
 data will not be lost because it is transmitted after DTIM. However, it can not save much more
 power if DTIM is short as the DTIM is determined by the access point.
+
+During ping operation power consumption should drop from 90-100mA to 40-50mA.
 
 ble
 ---
@@ -149,6 +154,9 @@ Get the list of BLE devices found around you::
            advertiser data: 10 09 4d 69 20 XX XX XX XX XX XX XX XX XX XX 20                      e
     nsh>
 
+To decrease power consumption, ``CONFIG_ESPRESSIF_AUTO_SLEEP`` needs to be enabled. This option
+makes the device automatically enter the low power consumption mode when in the idle state
+
 bmp180
 ------
 
@@ -159,6 +167,21 @@ You can check that the sensor is working by using the ``bmp180`` application::
     Pressure value = 91531
     Pressure value = 91526
     Pressure value = 91525
+
+buttons
+-------
+
+This configuration shows the use of the buttons subsystem. It can be used by executing
+the ``buttons`` application and pressing the ``BOOT`` button on the board::
+
+    nsh> buttons
+    buttons_main: Starting the button_daemon
+    buttons_main: button_daemon started
+    button_daemon: Running
+    button_daemon: Opening /dev/buttons
+    button_daemon: Supported BUTTONs 0x01
+    nsh> Sample = 1
+    Sample = 0
 
 coremark
 --------
@@ -174,47 +197,59 @@ crypto
 ------
 
 This configuration enables support for the cryptographic hardware and
-the ``/dev/crypto`` device file.
+the ``/dev/crypto`` device file. Currently, we are supporting SHA-1,
+SHA-224 and SHA-256 algorithms using hardware.
+To test hardware acceleration, you can use `hmac` example and following output
+should look like this::
 
-cxx
----
-
-Development enviroment ready for C++ applications. You can check if the setup
-was successfull by running ``cxxtest``::
-
-    nsh> cxxtest
-    Test ofstream ================================
-    printf: Starting test_ostream
-    printf: Successfully opened /dev/console
-    cout: Successfully opened /dev/console
-    Writing this to /dev/console
-    Test iostream ================================
-    Hello, this is only a test
-    Print an int: 190
-    Print a char: d
-    Test std::vector =============================
-    v1=1 2 3
-    Hello World Good Luck
-    Test std::map ================================
-    Test C++17 features ==========================
-    File /proc/meminfo exists!
-    Invalid file! /invalid
-    File /proc/version exists!
+    nsh> hmac
+    ...
+    hmac sha1 success
+    hmac sha1 success
+    hmac sha1 success
+    hmac sha256 success
+    hmac sha256 success
+    hmac sha256 success
 
 efuse
 -----
 
 This configuration demonstrates the use of the eFuse driver. It can be accessed
 through the ``/dev/efuse`` device file.
+Virtual eFuse mode can be used by enabling `CONFIG_ESPRESSIF_EFUSE_VIRTUAL`
+option to prevent possible damages on chip.
 
-elf
----
+The following snippet demonstrates how to read MAC address:
 
-This configuration uses ``apps/examples/elf`` in order to test the ELF loader.
-It can be tested by executing the ``elf`` application.
+.. code-block:: C
+
+   int fd;
+   int ret;
+   uint8_t mac[6];
+   struct efuse_param_s param;
+   struct efuse_desc_s mac_addr =
+   {
+     .bit_offset = 1,
+     .bit_count = 48
+   };
+
+   const efuse_desc_t* desc[] =
+   {
+       &mac_addr,
+       NULL
+   };
+   param.field = desc;
+   param.size = 48;
+   param.data = mac;
+
+   fd = open("/dev/efuse", O_RDONLY);
+   ret = ioctl(fd, EFUSEIOC_READ_FIELD, &param);
+
+To find offset and count variables for related eFuse,
+please refer to Espressif's Technical Reference Manuals.
 
 gpio
-____
+----
 
 This is a test for the GPIO driver. It uses GPIO1 and GPIO2 as outputs and
 GPIO9 as an interrupt pin.
@@ -234,107 +269,120 @@ We can use the interrupt pin to send a signal when the interrupt fires::
 The pin is configured as a rising edge interrupt, so after issuing the
 above command, connect it to 3.3V.
 
-knsh
-----
+To use dedicated gpio for controlling multiple gpio pin at the same time
+or having better response time, you need to enable
+`CONFIG_ESPRESSIF_DEDICATED_GPIO` option. Dedicated GPIO is suitable
+for faster response times required applications like simulate serial/parallel
+interfaces in a bit-banging way.
+After this option enabled GPIO4 and GPIO5 pins are ready to used as dedicated GPIO pins
+as input/output mode. These pins are for example, you can use any pin up to 8 pins for
+input and 8 pins for output for dedicated gpio.
+To write and read data from dedicated gpio, you need to use
+`write` and `read` calls.
 
-This is identical to the nsh configuration except that (1) NuttX
-is built as PROTECTED mode, monolithic module and the user applications
-are built separately and, as a consequence, (2) some features that are
-only available in the FLAT build are disabled.
+The following snippet demonstrates how to read/write to dedicated GPIO pins:
 
-Protected Mode support for ESP32-C3 relies on the RISC-V Physical Memory
-Protection (PMP) for implementing isolation between Kernel and Userspace.
-The Kernel configures the PMP to restrict the application access to selected
-peripherals and specific regions of on-chip memories (Internal ROM and Internal SRAM)
-and of the External Flash.
+.. code-block:: C
 
-lvgl
-----
+    int fd; = open("/dev/dedic_gpio0", O_RDWR);
+    int rd_val = 0;
+    int wr_mask = 0xffff;
+    int wr_val = 3;
 
-This is a demonstration of the LVGL graphics library running on the NuttX LCD
-driver. You can find LVGL here::
+    while(1)
+      {
+        write(fd, &wr_val, wr_mask);
+        if (wr_val == 0)
+          {
+            wr_val = 3;
+          }
+        else
+          {
+            wr_val = 0;
+          }
+        read(fd, &rd_val, sizeof(uint32_t));
+        printf("rd_val: %d", rd_val);
+      }
 
-    https://www.lvgl.io/
-    https://github.com/lvgl/lvgl
+i2c
+---
 
-This configuration uses the LVGL demonstration at `apps/examples/lvgldemo`.
+This configuration can be used to scan and manipulate I2C devices.
+You can scan for all I2C devices using the following command::
 
-mcuboot_slot_confirm
+    nsh> i2c dev 0x00 0x7f
+
+To use slave mode, you can enable `ESPRESSIF_I2C0_SLAVE_MODE` option.
+To use slave mode driver following snippet demonstrates how write to i2c bus
+using slave driver:
+
+.. code-block:: C
+
+   #define ESP_I2C_SLAVE_PATH  "/dev/i2cslv0"
+   int main(int argc, char *argv[])
+     {
+       int i2c_slave_fd;
+       int ret;
+       uint8_t buffer[5] = {0xAA};
+       i2c_slave_fd = open(ESP_I2C_SLAVE_PATH, O_RDWR);
+       ret = write(i2c_slave_fd, buffer, 5);
+       close(i2c_slave_fd);
+    }
+
+i2schar
+-------
+
+This configuration enables the I2S character device and the i2schar example
+app, which provides an easy-to-use way of testing the I2S peripheral,
+enabling both the TX and the RX for those peripherals.
+
+**I2S pinout**
+
+============ ========== =========================================
+ESP32-C3 Pin Signal Pin Description
+============ ========== =========================================
+0            MCLK       Master Clock
+4            SCLK       Bit Clock (SCLK)
+5            LRCK       Word Select (LRCLK)
+18           DOUT       Data Out
+19           DIN        Data In
+============ ========== =========================================
+
+After successfully built and flashed, run on the boards's terminal::
+
+    nsh> i2schar
+
+mcuboot_nsh
+-----------
+
+This configuration is the same as the ``nsh`` configuration, but it generates the application
+image in a format that can be used by MCUboot. It also makes the ``make bootloader`` command to
+build the MCUboot bootloader image using the Espressif HAL.
+
+mcuboot_update_agent
 --------------------
 
-This configuration is used to represent an MCUboot update image that needs to be confirmed
-after flashing. The image can be confirmed by using the following command::
+This configuration is used to represent an MCUboot image that contains an update agent
+to perform over-the-air (OTA) updates. Wi-Fi settings are already enabled and image confirmation program is included.
 
-    nsh> mcuboot_confirm
-    Application Image successfully confirmed!
+Follow the instructions in the :ref:`MCUBoot and OTA Update <MCUBoot and OTA Update C3>` section to execute OTA update.
 
-For more information, check `this demo <https://www.youtube.com/watch?v=Vzy0rl-ixbc>`_.
-
-module
+nimble
 ------
 
-This config is to run ``apps/examples/module``.
+This configuration can be used to test ble using the nimble library. The
+``nimble`` example starts advertising and can be connected to or disconnected
+from. Before starting the ``nimble`` example make sure the bnep0 interface is
+up by issuing::
+
+    nsh> ifup bnep0
+    ifup bnep0...OK
+    nsh> nimble &
 
 nsh
 ---
 
 Basic configuration to run the NuttShell (nsh).
-
-nvcfgdata
----------
-
-This configuration enables the MTD failsafe mode. You can test it
-by running the ``mtdconfig_fs_test`` application::
-
-    nsh> mtdconfig_fs_test
-    test_nvs_mount: test begin
-    test_nvs_mount: success
-    test_nvs_write: test begin
-    test_nvs_write: success
-    test_nvs_corrupt_expire: test begin
-    test_nvs_corrupt_expire: success
-    test_nvs_corrupted_write: test begin
-    test_nvs_corrupted_write: success
-    test_nvs_gc: test begin
-    test_nvs_gc: success
-    test_nvs_gc_3sectors: test begin
-    test_nvs_gc_3sectors: success
-    test_nvs_corrupted_sector_close: test begin
-    test_nvs_corrupted_sector_close: success
-    test_nvs_full_sector: test begin
-    test_nvs_full_sector: success
-    test_nvs_gc_corrupt_close_ate: test begin
-    test_nvs_gc_corrupt_close_ate: success
-    test_nvs_gc_corrupt_ate: test begin
-    test_nvs_gc_corrupt_ate: success
-    test_nvs_gc_touched_deleted_ate: test begin
-    test_nvs_gc_touched_deleted_ate: success
-    test_nvs_gc_touched_expired_ate: test begin
-    test_nvs_gc_touched_expired_ate: success
-    test_nvs_gc_not_touched_expired_ate: test begin
-    test_nvs_gc_not_touched_expired_ate: success
-
-    Final memory usage:
-    VARIABLE  BEFORE   AFTER    DELTA
-    ======== ======== ======== ========
-    arena       5bf30    5bf30        0
-    ordblks         1        1        0
-    mxordblk    59100    59100        0
-    uordblks     2e30     2e30        0
-    fordblks    59100    59100        0
-
-oneshot
--------
-
-This config demonstrate the use of oneshot timers present on the ESP32.
-To test it, just run the ``oneshot`` example::
-
-    nsh> oneshot
-    Opening /dev/oneshot
-    Maximum delay is 4294967295999999
-    Starting oneshot timer with delay 2000000 microseconds
-    Waiting...
-    Finished
 
 ostest
 ------
@@ -343,9 +391,68 @@ This is the NuttX test at ``apps/testing/ostest`` that is run against all new
 architecture ports to assure a correct implementation of the OS.
 
 pm
---
+-------
 
-This configuration enables the CPU power management through governors.
+This config demonstrate the use of power management.
+You can use the ``pmconfig`` command to check current power state and time spent in other power states.
+Also you can define time will spend in standby and sleep modes::
+
+    $ make menuconfig
+    -> Board Selection
+        -> (15) PM_STANDBY delay (seconds)
+           (0)  PM_STANDBY delay (nanoseconds)
+           (20) PM_SLEEP delay (seconds)
+           (0)  PM_SLEEP delay (nanoseconds)
+
+Timer wakeup is not only way to wake up the chip. Other wakeup modes include:
+
+- GPIO wakeup mode: Uses GPIO pins to wakeup the chip. Only wakes up the chip from ``PM_STANDBY`` mode and requires ``CONFIG_PM_GPIO_WAKEUP``.
+- UART wakeup mode: Uses UART to wakeup the chip. Only wakes up the chip from ``PM_STANDBY`` mode and requires ``CONFIG_PM_GPIO_WAKEUP``.
+
+Before switching PM status, you need to query the current PM status to call correct number of relax command to correct modes::
+
+    nsh> pmconfig
+    Last state 0, Next state 0
+
+    /proc/pm/state0:
+    DOMAIN0           WAKE         SLEEP         TOTAL
+    normal          0s 00%        0s 00%        0s 00%
+    idle            0s 00%        0s 00%        0s 00%
+    standby         0s 00%        0s 00%        0s 00%
+    sleep           0s 00%        0s 00%        0s 00%
+
+    /proc/pm/wakelock0:
+    DOMAIN0      STATE     COUNT      TIME
+    system       normal        2        1s
+    system       idle          1        1s
+    system       standby       1        1s
+    system       sleep         1        1s
+
+In this case, needed commands to switch the system into PM idle mode::
+
+    nsh> pmconfig relax normal
+    nsh> pmconfig relax normal
+
+In this case, needed commands to switch the system into PM standby mode::
+
+    nsh> pmconfig relax idle
+    nsh> pmconfig relax normal
+    nsh> pmconfig relax normal
+
+System switch to the PM sleep mode, you need to enter::
+
+    nsh> pmconfig relax standby
+    nsh> pmconfig relax idle
+    nsh> pmconfig relax normal
+    nsh> pmconfig relax normal
+
+Note: When normal mode COUNT is 0, it will switch to the next PM state where COUNT is not 0.
+
+Note: During light sleep, overall current consumption of board should drop from 18mA (without any system load) to 1 mA on ESP32-C3 DevkitM-1.
+
+To save power without using sleep modes, lowering the clock speed is another approach. For dynamic frequency scaling
+``CONFIG_ESPRESSIF_DFS`` option needs to enabled and minimum CPU frequency needs to set under ``CONFIG_ESPRESSIF_MIN_CPU_FREQ`` option.
+With these options, the device scales the CPU clock according to workload.
 
 pwm
 ---
@@ -360,8 +467,7 @@ To test it, just execute the ``pwm`` application::
 random
 ------
 
-This configuration shows the use of the ESP32-C3's True Random Number Generator with
-entropy sourced from Wi-Fi and Bluetooth noise.
+This configuration shows the use of the ESP32-C3's True Random Number Generator.
 To test it, just run ``rand`` to get 32 randomly generated bytes::
 
     nsh> rand
@@ -370,27 +476,92 @@ To test it, just run ``rand`` to get 32 randomly generated bytes::
     0000  98 b9 66 a2 a2 c0 a2 ae 09 70 93 d1 b5 91 86 c8  ..f......p......
     0010  8f 0e 0b 04 29 64 21 72 01 92 7c a2 27 60 6f 90  ....)d!r..|.'`o.
 
+rmt
+---
+
+This configuration configures the transmitter and the receiver of the
+Remote Control Transceiver (RMT) peripheral on the ESP32-C3 using GPIOs 8
+and 2, respectively. The RMT peripheral is better explained
+`here <https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/api-reference/peripherals/rmt.html>`__,
+in the ESP-IDF documentation. The minimal data unit in the frame is called the
+RMT symbol, which is represented by ``rmt_item32_t`` in the driver:
+
+.. figure:: rmt_symbol.png
+   :align: center
+
+The example ``irtest`` can be used to test the RMT peripheral. Connecting
+these pins externally to each other will make the transmitter send RMT items
+and demonstrates the usage of the RMT peripheral::
+
+    nsh> irtest
+    $open_device(/dev/lirc0)
+    $open_device(/dev/lirc1)
+    $write_data(1) 16777229 16 16777235 23
+    $read_data(0,4)
+    16777229, 16, 16777235, 23
+
+**WS2812 addressable RGB LEDs**
+
+This same configuration enables the usage of the RMT peripheral and the example
+``ws2812`` to drive addressable RGB LEDs::
+
+    nsh> ws2812
+
+Please note that this board contains an on-board WS2812 LED connected to GPIO8
+and, by default, this config configures the RMT transmitter in the same pin.
+
 romfs
 -----
 
-This configuration enables the ROMFS file system. You can test it by
-running the ``romfs`` example::
+This configuration demonstrates the use of ROMFS (Read-Only Memory File System) to provide
+automated system initialization and startup scripts. ROMFS allows embedding a read-only
+filesystem directly into the NuttX binary, which is mounted at ``/etc`` during system startup.
 
-    nsh> romfs
-    Mounting ROMFS filesystem at target=/usr/local/share with source=/dev/ram1
-    Traversing directory: /usr/local/share
-      DIRECTORY: /usr/local/share/adir/
-    Traversing directory: /usr/local/share/adir
-      FILE: /usr/local/share/adir/anotherfile.txt/
-      DIRECTORY: /usr/local/share/adir/subdir/
-    Traversing directory: /usr/local/share/adir/subdir
-      FILE: /usr/local/share/adir/subdir/subdirfile.txt/
-    Continuing directory: /usr/local/share/adir
-      FILE: /usr/local/share/adir/yafile.txt/
-    Continuing directory: /usr/local/share
-      FILE: /usr/local/share/afile.txt/
-      FILE: /usr/local/share/hfile/
-    PASSED
+**What ROMFS provides:**
+
+* **System initialization script** (``/etc/init.d/rc.sysinit``): Executed after board bring-up
+* **Startup script** (``/etc/init.d/rcS``): Executed after system init, typically used to start applications
+
+**Default behavior:**
+
+When this configuration is used, NuttX will:
+
+1. Create a read-only RAM disk containing the ROMFS filesystem
+2. Mount the ROMFS at ``/etc``
+3. Execute ``/etc/init.d/rc.sysinit`` during system initialization
+4. Execute ``/etc/init.d/rcS`` for application startup
+
+**Customizing startup scripts:**
+
+The startup scripts are located in:
+``boards/risc-v/esp32c3/common/src/etc/init.d/``
+
+* ``rc.sysinit`` - System initialization script
+* ``rcS`` - Application startup script
+
+To customize these scripts:
+
+1. **Edit the script files** in ``boards/risc-v/esp32c3/common/src/etc/init.d/``
+2. **Add your initialization commands** using any NSH-compatible commands
+
+**Example customizations:**
+
+* **rc.sysinit** - Set up system services, mount additional filesystems, configure network.
+* **rcS** - Start your application, launch daemons, configure peripherals. This is executed after the rc.sysinit script.
+
+Example output::
+
+    *** Booting NuttX ***
+    [...]
+    rc.sysinit is called!
+    rcS file is called!
+    NuttShell (NSH) NuttX-12.8.0
+    nsh> ls /etc/init.d
+    /etc/init.d:
+    .
+    ..
+    rc.sysinit
+    rcS
 
 rtc
 ---
@@ -408,10 +579,66 @@ You can set an alarm, check its progress and receive a notification after it exp
     Alarm 0 is active with 10 seconds to expiration
     nsh> alarm_daemon: alarm 0 received
 
-sotest
-------
+sdm
+---
 
-This config is to run apps/examples/sotest.
+This configuration enables the support for the Sigma-Delta Modulation (SDM) driver
+which can be used for LED dimming, simple dac with help of an low pass filter either
+active or passive and so on. ESP32-C3 supports 1 group of SDM up to 4 channels with
+any GPIO up to user. This configuration enables 1 channel of SDM on GPIO5. You can test
+DAC feature with following command with connecting simple LED on GPIO5
+
+    nsh> dac -d 100 -s 10 test
+
+After this command you will see LED will light up in different brightness.
+
+sdmmc_spi
+---------
+
+This configuration is used to mount a FAT/FAT32 SD Card into the OS' filesystem.
+It uses SPI to communicate with the SD Card, defaulting to SPI2.
+
+The SD slot number, SPI port number and minor number can be modified in ``Application Configuration → NSH Library``.
+
+To access the card's files, make sure ``/dev/mmcsd0`` exists and then execute the following commands::
+
+    nsh> ls /dev
+    /dev:
+    console
+    mmcsd0
+    null
+    ttyS0
+    zero
+    nsh> mount -t vfat /dev/mmcsd0 /mnt
+
+This will mount the SD Card to ``/mnt``. Now, you can use the SD Card as a normal filesystem.
+For example, you can read a file and write to it::
+
+    nsh> ls /mnt
+    /mnt:
+    hello.txt
+    nsh> cat /mnt/hello.txt
+    Hello World
+    nsh> echo 'NuttX RTOS' >> /mnt/hello.txt
+    nsh> cat /mnt/hello.txt
+    Hello World!
+    NuttX RTOS
+    nsh>
+
+spi
+--------
+
+This configuration enables the support for the SPI driver.
+You can test it by connecting MOSI and MISO pins which are GPIO7 and GPIO2
+by default to each other and running the ``spi`` example::
+
+    nsh> spi exch -b 2 "AB"
+    Sending:	AB
+    Received:	AB
+
+If SPI peripherals are already in use you can also use bitbang driver which is a
+software implemented SPI peripheral by enabling `CONFIG_ESPRESSIF_SPI_BITBANG`
+option.
 
 spiflash
 --------
@@ -424,8 +651,6 @@ Once booted you can use the following commands to mount the file system::
 
     nsh> mksmartfs /dev/smart0
     nsh> mount -t smartfs /dev/smart0 /mnt
-
-Note that mksmartfs is only needed the first time.
 
 sta_softap
 ----------
@@ -441,7 +666,20 @@ to connect your smartphone or laptop to your board::
 In this case, you are creating the access point ``nuttxapp`` in your board and to
 connect to it on your smartphone you will be required to type the password ``mypasswd``
 using WPA2.
+
+.. tip:: Please refer to :ref:`ESP32 Wi-Fi SoftAP Mode <esp32_wi-fi_softap>`
+  for more information.
+
 The ``dhcpd_start`` is necessary to let your board to associate an IP to your smartphone.
+
+temperature_sensor
+------------------
+
+This configuration enables the on-chip temperature sensor driver. The sensor is
+exposed through the uORB interface and can be read with the ``sensortest``
+utility::
+
+    nsh> sensortest temp
 
 tickless
 --------
@@ -465,7 +703,10 @@ twai
 ----
 
 This configuration enables the support for the TWAI (Two-Wire Automotive Interface) driver.
-You can test it by running the ``can`` example::
+You can test it by connecting TWAI RX and TWAI TX pins which are GPIO0 and GPIO2 by default
+to an external transceiver or connecting TWAI RX to TWAI TX pin by enabling
+the `CONFIG_CAN_LOOPBACK` option (``Device Drivers -> CAN Driver Support -> CAN loopback mode``)
+and running the ``can`` example::
 
     nsh> can
     nmsgs: 0
@@ -476,11 +717,6 @@ You can test it by running the ``can`` example::
       TSEG2: 4
         SJW: 3
       ID:    1 DLC: 1
-
-uid
----
-
-Enables support for the `BOARDIOC_UNIQUEID boardctl()` command.
 
 usbconsole
 ----------
@@ -509,17 +745,10 @@ To test it, just run the following command::
 
 Where X is the watchdog instance.
 
-watcher
--------
-
-This configuration tests the watchdog timers in the capture mode.
-It includes the 2 MWDTS, adds driver support, registers the WDTs as devices
-and includes the watcher and watched example applications.
-
-To test it, just run the following command::
-
-    nsh> watcher
-    nsh> watched
+To test the XTWDT(/dev/watchdog3) an interrupt handler needs to be
+implemented because XTWDT does not have system reset feature. To implement
+an interrupt handler `WDIOC_CAPTURE` command can be used. When interrupt
+rises, XTAL32K clock can be restored with `WDIOC_RSTCLK` command.
 
 wifi
 ----
@@ -538,3 +767,6 @@ at runtime::
     nsh> wapi psk wlan0 mypasswd 3
     nsh> wapi essid wlan0 myssid 1
     nsh> renew wlan0
+
+.. tip:: Please refer to :ref:`ESP32 Wi-Fi Station Mode <esp32_wi-fi_sta>`
+  for more information.

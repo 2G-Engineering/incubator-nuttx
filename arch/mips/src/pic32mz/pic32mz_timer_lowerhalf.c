@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/mips/src/pic32mz/pic32mz_timer_lowerhalf.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,8 +32,8 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/timers/timer.h>
 
@@ -197,7 +199,7 @@ static uint32_t pic32mz_usec2ticks(struct pic32mz_lowerhalf_s *priv,
 {
   uint64_t bigticks;
 
-  bigticks = ((uint64_t)usecs * (uint64_t)priv->freq) / 1000000;
+  bigticks = (usecs * priv->freq) / 1000000;
 
   if (bigticks > UINT32_MAX)
     {

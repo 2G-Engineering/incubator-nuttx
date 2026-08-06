@@ -1,6 +1,8 @@
 /****************************************************************************
  * crypto/blake2s.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -37,7 +39,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <assert.h>
 #include <errno.h>
 
@@ -107,7 +109,7 @@ static void blake2_memcpy(FAR void *dst, FAR const void *src, size_t len)
       len--;
     }
 #else
-  memcpy(dst, set, len);
+  memcpy(dst, src, len);
 #endif
 }
 

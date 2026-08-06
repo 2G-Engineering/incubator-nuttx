@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sparc/src/common/sparc_checkstack.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <stdint.h>
 #include <sched.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/tls.h>
@@ -46,6 +48,27 @@
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: sparc_color_intstack
+ *
+ * Description:
+ *   Set the interrupt stack to a value so that later we can determine how
+ *   much stack space was used by interrupt handling logic
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ARCH_INTERRUPTSTACK) && CONFIG_ARCH_INTERRUPTSTACK > 7
+void sparc_color_intstack(void)
+{
+  int cpu;
+
+  for (cpu = 0; cpu < CONFIG_SMP_NCPUS; cpu++)
+    {
+      sparc_stack_color((void *)up_get_intstackbase(cpu), INTSTACK_SIZE);
+    }
+}
+#endif
 
 /****************************************************************************
  * Name: sparc_stack_check
@@ -78,8 +101,8 @@ size_t sparc_stack_check(void *stackbase, size_t nbytes)
 
   /* Take extra care that we do not check outside the stack boundaries */
 
-  start = STACK_ALIGN_UP((uintptr_t)stackbase);
-  end   = STACK_ALIGN_DOWN((uintptr_t)stackbase + nbytes);
+  start = STACKFRAME_ALIGN_UP((uintptr_t)stackbase);
+  end   = STACKFRAME_ALIGN_DOWN((uintptr_t)stackbase + nbytes);
 
   /* Get the adjusted size based on the top and bottom of the stack */
 
@@ -92,7 +115,7 @@ size_t sparc_stack_check(void *stackbase, size_t nbytes)
    */
 
   for (ptr = (uint32_t *)start, mark = (nbytes >> 2);
-       *ptr == STACK_COLOR && mark > 0;
+       mark > 0 && *ptr == STACK_COLOR;
        ptr++, mark--);
 
   /* If the stack is completely used, then this might mean that the stack
@@ -156,7 +179,7 @@ void sparc_stack_color(void *stackbase, size_t nbytes)
 
   /* Take extra care that we do not write outside the stack boundaries */
 
-  stkptr = (uint32_t *)STACK_ALIGN_UP((uintptr_t)stackbase);
+  stkptr = (uint32_t *)STACKFRAME_ALIGN_UP((uintptr_t)stackbase);
 
   if (nbytes == 0) /* 0: colorize the running stack */
     {
@@ -171,7 +194,7 @@ void sparc_stack_color(void *stackbase, size_t nbytes)
       stkend = (uintptr_t)stackbase + nbytes;
     }
 
-  stkend = STACK_ALIGN_DOWN(stkend);
+  stkend = STACKFRAME_ALIGN_DOWN(stkend);
   nwords = (stkend - (uintptr_t)stkptr) >> 2;
 
   /* Set the entire stack to the coloration value */
@@ -198,16 +221,20 @@ void sparc_stack_color(void *stackbase, size_t nbytes)
  *
  ****************************************************************************/
 
-size_t up_check_tcbstack(struct tcb_s *tcb)
+size_t up_check_tcbstack(struct tcb_s *tcb, size_t check_size)
 {
-  return sparc_stack_check(tcb->stack_base_ptr, tcb->adj_stack_size);
+  return sparc_stack_check(tcb->stack_base_ptr, check_size);
 }
 
 #if CONFIG_ARCH_INTERRUPTSTACK > 7
-size_t up_check_intstack(void)
+size_t up_check_intstack(int cpu, size_t check_size)
 {
-  return sparc_stack_check((void *)sparc_intstack_alloc(),
-                           STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK));
+  if (check_size == 0)
+    {
+      check_size = STACKFRAME_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK);
+    }
+
+  return sparc_stack_check((void *)up_get_intstackbase(cpu), check_size);
 }
 #endif
 

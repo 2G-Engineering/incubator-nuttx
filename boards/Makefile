@@ -1,6 +1,8 @@
 ############################################################################
 # boards/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -86,6 +88,7 @@ clean: clean_context
 	$(call CLEAN)
 
 distclean: clean
+	$(call DELFILE, $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds) $(CXXSRCS:.cxx=.ddx))
 	$(call DELFILE, Make.dep)
 	$(call DELFILE, .depend)
 

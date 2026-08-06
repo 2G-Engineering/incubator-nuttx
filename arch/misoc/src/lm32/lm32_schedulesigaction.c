@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/misoc/src/lm32/lm32_schedulesigaction.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,8 +28,8 @@
 
 #include <stdint.h>
 #include <sched.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <arch/lm32/irq.h>
@@ -75,103 +77,68 @@
  *
  ****************************************************************************/
 
-void up_schedule_sigaction(struct tcb_s *tcb, sig_deliver_t sigdeliver)
+void up_schedule_sigaction(struct tcb_s *tcb)
 {
-  sinfo("tcb=%p sigdeliver=%p\n", tcb, sigdeliver);
+  sinfo("tcb=%p, rtcb=%p current_regs=%p\n", tcb,
+        this_task(), up_current_regs());
 
-  /* Refuse to handle nested signal actions */
+  /* First, handle some special cases when the signal is
+   * being delivered to the currently executing task.
+   */
 
-  if (!tcb->xcp.sigdeliver)
+  if (tcb == this_task())
     {
-      tcb->xcp.sigdeliver = sigdeliver;
-
-      /* First, handle some special cases when the signal is
-       * being delivered to the currently executing task.
+      /* Save the return EPC and STATUS registers.  These will be
+       * restored by the signal trampoline after the signals have
+       * been delivered.
        */
 
-      sinfo("rtcb=%p g_current_regs=%p\n",
-            this_task(), g_current_regs);
+      tcb->xcp.saved_epc = up_current_regs()[REG_EPC];
 
-      if (tcb == this_task())
-        {
-          /* CASE 1:  We are not in an interrupt handler and
-           * a task is signalling itself for some reason.
-           */
-
-          if (!g_current_regs)
-            {
-              /* In this case just deliver the signal now. */
-
-              sigdeliver(tcb);
-              tcb->xcp.sigdeliver = NULL;
-            }
-
-          /* CASE 2:  We are in an interrupt handler AND the
-           * interrupted task is the same as the one that
-           * must receive the signal, then we will have to modify
-           * the return state as well as the state in the TCB.
-           *
-           * Hmmm... there looks like a latent bug here: The following
-           * logic would fail in the strange case where we are in an
-           * interrupt handler, the thread is signalling itself, but
-           * a context switch to another task has occurred so that
-           * g_current_regs does not refer to the thread of this_task()!
-           */
-
-          else
-            {
-              /* Save the return EPC and STATUS registers.  These will be
-               * restored by the signal trampoline after the signals have
-               * been delivered.
-               */
-
-             tcb->xcp.saved_epc           = g_current_regs[REG_EPC];
-
-              /* Then set up to vector to the trampoline with interrupts
-               * disabled
-               */
-
-              g_current_regs[REG_EPC]     = (uint32_t)lm32_sigdeliver;
-              g_current_regs[REG_INT_CTX] = 0;
-
-              /* And make sure that the saved context in the TCB
-               * is the same as the interrupt return context.
-               */
-
-              misoc_savestate(tcb->xcp.regs);
-
-              sinfo("PC/STATUS Saved: %08x/%08x New: %08x/%08x\n",
-                    tcb->xcp.saved_epc, tcb->xcp.saved_status,
-                    g_current_regs[REG_EPC], g_current_regs[REG_STATUS]);
-            }
-        }
-
-      /* Otherwise, we are (1) signaling a task is not running
-       * from an interrupt handler or (2) we are not in an
-       * interrupt handler and the running task is signalling
-       * some non-running task.
+      /* Then set up to vector to the trampoline with interrupts
+       * disabled
        */
 
-      else
-        {
-          /* Save the return EPC and STATUS registers.  These will be
-           * restored by the signal trampoline after the signals have
-           * been delivered.
-           */
+      up_current_regs()[REG_EPC]     = (uint32_t)lm32_sigdeliver;
+      up_current_regs()[REG_INT_CTX] = 0;
 
-          tcb->xcp.saved_epc         = tcb->xcp.regs[REG_EPC];
-          tcb->xcp.saved_int_ctx     = tcb->xcp.regs[REG_INT_CTX];
+      /* And make sure that the saved context in the TCB
+       * is the same as the interrupt return context.
+       */
 
-          /* Then set up to vector to the trampoline with interrupts
-           * disabled
-           */
+      misoc_savestate(tcb->xcp.regs);
 
-          tcb->xcp.regs[REG_EPC]     = (uint32_t)lm32_sigdeliver;
-          tcb->xcp.regs[REG_INT_CTX] = 0;
+      sinfo("PC/STATUS Saved: %08x/%08x New: %08x/%08x\n",
+            tcb->xcp.saved_epc, tcb->xcp.saved_status,
+            up_current_regs()[REG_EPC],
+            up_current_regs()[REG_STATUS]);
+    }
 
-          sinfo("PC/STATUS Saved: %08x/%08x New: %08x/%08x\n",
-                tcb->xcp.saved_epc, tcb->xcp.saved_status,
-                tcb->xcp.regs[REG_EPC], tcb->xcp.regs[REG_STATUS]);
-        }
+  /* Otherwise, we are (1) signaling a task is not running
+   * from an interrupt handler or (2) we are not in an
+   * interrupt handler and the running task is signalling
+   * some non-running task.
+   */
+
+  else
+    {
+      /* Save the return EPC and STATUS registers.  These will be
+       * restored by the signal trampoline after the signals have
+       * been delivered.
+       */
+
+      tcb->xcp.saved_epc         = tcb->xcp.regs[REG_EPC];
+      tcb->xcp.saved_int_ctx     = tcb->xcp.regs[REG_INT_CTX];
+
+      /* Then set up to vector to the trampoline with interrupts
+       * disabled
+       */
+
+      tcb->xcp.regs[REG_EPC]     = (uint32_t)lm32_sigdeliver;
+      tcb->xcp.regs[REG_INT_CTX] = 0;
+
+      sinfo("PC/STATUS Saved: %08x/%08x New: %08x/%08x\n",
+            tcb->xcp.saved_epc, tcb->xcp.saved_status,
+            tcb->xcp.regs[REG_EPC], tcb->xcp.regs[REG_STATUS]);
     }
 }

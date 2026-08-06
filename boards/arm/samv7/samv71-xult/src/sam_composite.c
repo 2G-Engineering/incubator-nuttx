@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/samv7/samv71-xult/src/sam_composite.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <nuttx/usb/usbmsc.h>
 #include <nuttx/usb/composite.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "samv71-xult.h"
 
@@ -128,7 +130,7 @@ static int board_mscclassobject(int minor,
  *   composite device logic.
  *
  * Input Parameters:
- *   classdev - The class driver instrance previously give to the composite
+ *   classdev - The class driver instance previously given to the composite
  *     driver by board_mscclassobject().
  *
  * Returned Value:
@@ -263,7 +265,7 @@ void *board_composite_connect(int port, int configid)
       ifnobase += dev[1].devinfo.ninterfaces;
       strbase  += dev[1].devinfo.nstrings;
 
-      return composite_initialize(2, dev);
+      return composite_initialize(composite_getdevdescs(), dev, 2);
 #else
       return NULL;
 #endif
@@ -332,7 +334,7 @@ void *board_composite_connect(int port, int configid)
           strbase  += dev[ia].devinfo.nstrings;
         }
 
-      return composite_initialize(3, dev);
+      return composite_initialize(composite_getdevdescs(), dev, 3);
     }
   else
     {

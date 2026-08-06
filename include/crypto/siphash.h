@@ -1,8 +1,9 @@
 /****************************************************************************
  * include/crypto/siphash.h
- * $OpenBSD: siphash.h,v 1.5 2015/02/20 11:51:03 tedu Exp $
  *
- * Copyright (c) 2013 Andre Oppermann <andre@FreeBSD.org>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2013 Andre Oppermann <andre@FreeBSD.org>
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,8 +30,6 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
- *
  ****************************************************************************/
 
 /* SipHash is a family of pseudorandom functions
@@ -38,7 +37,7 @@
  * optimized for speed on short messages returning a 64bit hash/digest value.
  *
  * The number of rounds is defined during the initialization:
- *  siphash24_init() for the fast and resonable strong version
+ *  siphash24_init() for the fast and reasonable strong version
  *  siphash48_init() for the strong version (half as fast)
  *
  * struct SIPHASH_CTX ctx;
@@ -76,20 +75,20 @@ typedef struct
 
 void siphash_init(FAR SIPHASH_CTX *, FAR const SIPHASH_KEY *);
 void siphash_update(FAR SIPHASH_CTX *, int, int, FAR const void *, size_t);
-uint64_t siphash_end(FAR SIPHASH_CTX *, int, int);
+uint64_t siphash_finish(FAR SIPHASH_CTX *, int, int);
 void siphash_final(FAR void *, FAR SIPHASH_CTX *, int, int);
 uint64_t siphash(FAR const SIPHASH_KEY *,
                  int, int, FAR const void *, size_t);
 
 #define SipHash24_Init(_c, _k)        siphash_init((_c), (_k))
 #define SipHash24_Update(_c, _p, _l)  siphash_update((_c), 2, 4, (_p), (_l))
-#define SipHash24_End(_d)             siphash_end((_d), 2, 4)
+#define SipHash24_Finish(_d)          siphash_finish((_d), 2, 4)
 #define SipHash24_Final(_d, _c)       siphash_final((_d), (_c), 2, 4)
 #define SipHash24(_k, _p, _l)         siphash((_k), 2, 4, (_p), (_l))
 
 #define SipHash48_Init(_c, _k)        siphash_init((_c), (_k))
 #define SipHash48_Update(_c, _p, _l)  siphash_update((_c), 4, 8, (_p), (_l))
-#define SipHash48_End(_d)             siphash_end((_d), 4, 8)
+#define SipHash48_Finish(_d)          siphash_finish((_d), 4, 8)
 #define SipHash48_Final(_d, _c)       siphash_final((_d), (_c), 4, 8)
 #define SipHash48(_k, _p, _l)         siphash((_k), 4, 8, (_p), (_l))
 

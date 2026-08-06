@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/iob/iob_initialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,6 +28,7 @@
 
 #include <stdbool.h>
 
+#include <nuttx/nuttx.h>
 #include <nuttx/mm/iob.h>
 
 #include "iob.h"
@@ -34,13 +37,17 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define ROUNDUP(x, y)     (((x) + (y) - 1) / (y) * (y))
-
 /* Fix the I/O Buffer size with specified alignment size */
 
-#define IOB_ALIGN_SIZE    ROUNDUP(sizeof(struct iob_s), CONFIG_IOB_ALIGNMENT)
+#ifdef CONFIG_IOB_ALLOC
+#  define IOB_ALIGN_SIZE  ALIGN_UP(sizeof(struct iob_s) + CONFIG_IOB_BUFSIZE, \
+                                   IOB_ALIGNMENT)
+#else
+#  define IOB_ALIGN_SIZE  ALIGN_UP(sizeof(struct iob_s), IOB_ALIGNMENT)
+#endif
+
 #define IOB_BUFFER_SIZE   (IOB_ALIGN_SIZE * CONFIG_IOB_NBUFFERS + \
-                           CONFIG_IOB_ALIGNMENT - 1)
+                           IOB_ALIGNMENT - 1)
 
 /****************************************************************************
  * Private Data
@@ -48,7 +55,7 @@
 
 /* Following raw buffer will be divided into iob_s instances, the initial
  * procedure will ensure that the member io_data of each iob_s is aligned
- * to the CONFIG_IOB_ALIGNMENT memory boundary.
+ * to the IOB_ALIGNMENT memory boundary.
  */
 
 #ifdef IOB_SECTION
@@ -85,22 +92,30 @@ FAR struct iob_qentry_s *g_iob_freeqlist;
 FAR struct iob_qentry_s *g_iob_qcommitted;
 #endif
 
-/* Counting semaphores that tracks the number of free IOBs/qentries */
+sem_t g_iob_sem = SEM_INITIALIZER(0);
 
-sem_t g_iob_sem = SEM_INITIALIZER(CONFIG_IOB_NBUFFERS);
+/* Counting that tracks the number of free IOBs/qentries */
+
+int16_t g_iob_count = CONFIG_IOB_NBUFFERS;
 
 #if CONFIG_IOB_THROTTLE > 0
-/* Counts available I/O buffers when throttled */
 
-sem_t g_throttle_sem = SEM_INITIALIZER(CONFIG_IOB_NBUFFERS -
-                                       CONFIG_IOB_THROTTLE);
+sem_t g_throttle_sem = SEM_INITIALIZER(0);
+
+/* Wait Counts for throttle */
+
+int16_t g_throttle_wait = 0;
 #endif
 
 #if CONFIG_IOB_NCHAINS > 0
-/* Counts free I/O buffer queue containers */
+sem_t g_qentry_sem = SEM_INITIALIZER(0);
 
-sem_t g_qentry_sem = SEM_INITIALIZER(CONFIG_IOB_NCHAINS);
+/* Wait Counts for qentry */
+
+int16_t g_qentry_wait = 0;
 #endif
+
+volatile spinlock_t g_iob_lock = SP_UNLOCKED;
 
 /****************************************************************************
  * Public Functions
@@ -120,11 +135,11 @@ void iob_initialize(void)
   uintptr_t buf;
 
   /* Get a start address which plus offsetof(struct iob_s, io_data) is
-   * aligned to the CONFIG_IOB_ALIGNMENT memory boundary
+   * aligned to the IOB_ALIGNMENT memory boundary
    */
 
-  buf = ROUNDUP((uintptr_t)g_iob_buffer + offsetof(struct iob_s, io_data),
-                CONFIG_IOB_ALIGNMENT) - offsetof(struct iob_s, io_data);
+  buf = ALIGN_UP((uintptr_t)g_iob_buffer + offsetof(struct iob_s, io_data),
+                 IOB_ALIGNMENT) - offsetof(struct iob_s, io_data);
 
   /* Get I/O buffer instance from the start address and add each I/O buffer
    * to the free list
@@ -136,8 +151,12 @@ void iob_initialize(void)
 
       /* Add the pre-allocate I/O buffer to the head of the free list */
 
-      iob->io_flink  = g_iob_freelist;
-      g_iob_freelist = iob;
+      iob->io_flink   = g_iob_freelist;
+#ifdef CONFIG_IOB_ALLOC
+      iob->io_bufsize = CONFIG_IOB_BUFSIZE;
+      iob->io_data    = (FAR uint8_t *)(iob + 1);
+#endif
+      g_iob_freelist  = iob;
     }
 
 #if CONFIG_IOB_NCHAINS > 0

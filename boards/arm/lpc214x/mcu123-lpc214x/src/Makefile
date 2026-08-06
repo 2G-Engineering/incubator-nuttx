@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/lpc214x/mcu123-lpc214x/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,11 +22,7 @@
 
 include $(TOPDIR)/Make.defs
 
-CSRCS = lpc2148_spi1.c lpc2148_leds.c
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += lpc2148_appinit.c
-endif
+CSRCS = lpc2148_spi1.c lpc2148_leds.c lpc2148_boardinit.c
 
 ifeq ($(CONFIG_USBMSC),y)
 CSRCS += lpc2148_usbmsc.c

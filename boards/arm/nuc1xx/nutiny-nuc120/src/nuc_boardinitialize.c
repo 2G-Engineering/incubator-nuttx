@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nuc1xx/nutiny-nuc120/src/nuc_boardinitialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -70,7 +72,7 @@ void nuc_boardinitialize(void)
   /* Initialize USB if the 1) USB device controller is in the configuration
    * and 2) disabled, and 3) the weak function nuc_usbinitialize() has been
    * brought into the build.
-   * Presumeably either CONFIG_USBDEV is also selected.
+   * Presumably either CONFIG_USBDEV is also selected.
    */
 
 #ifdef CONFIG_NUC1XX_USB
@@ -86,3 +88,23 @@ void nuc_boardinitialize(void)
   nuc_led_initialize();
 #endif
 }
+
+/****************************************************************************
+ * Name: board_late_initialize
+ *
+ * Description:
+ *   If CONFIG_BOARD_LATE_INITIALIZE is selected, then an additional
+ *   initialization call will be performed in the boot-up sequence to a
+ *   function called board_late_initialize().  board_late_initialize() will
+ *   be called immediately after up_initialize() is called and just before
+ *   the initial application is started.  This additional initialization
+ *   phase may be used, for example, to initialize board-specific device
+ *   drivers.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_BOARD_LATE_INITIALIZE
+void board_late_initialize(void)
+{
+}
+#endif

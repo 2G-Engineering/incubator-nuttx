@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/procfs/fs_procfstcbinfo.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -34,14 +36,18 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
+#include <nuttx/sched.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/procfs.h>
 
-#if !defined(CONFIG_DISABLE_MOUNTPOINT) && defined(CONFIG_FS_PROCFS)
-#ifdef CONFIG_DEBUG_TCBINFO
+#include "fs_heap.h"
+#include "sched/sched.h"
+
+#if !defined(CONFIG_DISABLE_MOUNTPOINT) && defined(CONFIG_FS_PROCFS) && \
+    defined(CONFIG_ARCH_HAVE_TCBINFO) && !defined(CONFIG_FS_PROCFS_EXCLUDE_TCBINFO)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -98,6 +104,7 @@ const struct procfs_operations g_tcbinfo_operations =
   tcbinfo_close,      /* close */
   tcbinfo_read,       /* read */
   NULL,               /* write */
+  NULL,               /* poll */
 
   tcbinfo_dup,        /* dup */
 
@@ -130,7 +137,7 @@ static int tcbinfo_open(FAR struct file *filep, FAR const char *relpath,
    * REVISIT:  Write-able proc files could be quite useful.
    */
 
-  if ((oflags & O_WRONLY) != 0 || (oflags & O_RDONLY) == 0)
+  if ((oflags & O_ACCMODE) != O_RDONLY)
     {
       ferr("ERROR: Only O_RDONLY supported\n");
       return -EACCES;
@@ -139,7 +146,7 @@ static int tcbinfo_open(FAR struct file *filep, FAR const char *relpath,
   /* Allocate a container to hold the file attributes */
 
   attr = (FAR struct tcbinfo_file_s *)
-    kmm_zalloc(sizeof(struct tcbinfo_file_s));
+    fs_heap_zalloc(sizeof(struct tcbinfo_file_s));
 
   if (attr == NULL)
     {
@@ -168,9 +175,23 @@ static int tcbinfo_close(FAR struct file *filep)
 
   /* Release the file attributes structure */
 
-  kmm_free(attr);
+  fs_heap_free(attr);
   filep->f_priv = NULL;
   return OK;
+}
+
+/****************************************************************************
+ * Name: tcbinfo_running_regs
+ *
+ * Description:
+ *   A special version of running_regs() that is non-optimized.
+ *
+ ****************************************************************************/
+
+nooptimiziation_function
+FAR static void *tcbinfo_running_regs(void)
+{
+  return running_regs();
 }
 
 /****************************************************************************
@@ -195,8 +216,9 @@ static ssize_t tcbinfo_read(FAR struct file *filep, FAR char *buffer,
   if (filep->f_pos == 0)
     {
       linesize = procfs_snprintf(attr->line, TCBINFO_LINELEN,
-                                 "pointer %p size %d\n", &g_tcbinfo,
-                                  sizeof(struct tcbinfo_s));
+                                 "pointer %p size %zu current regs %p\n",
+                                 &g_tcbinfo, sizeof(struct tcbinfo_s),
+                                 tcbinfo_running_regs());
 
       /* Save the linesize in case we are re-entered with f_pos > 0 */
 
@@ -239,7 +261,7 @@ static int tcbinfo_dup(FAR const struct file *oldp, FAR struct file *newp)
   /* Allocate a new container to hold the task and attribute selection */
 
   newattr = (FAR struct tcbinfo_file_s *)
-    kmm_malloc(sizeof(struct tcbinfo_file_s));
+    fs_heap_malloc(sizeof(struct tcbinfo_file_s));
 
   if (!newattr)
     {
@@ -277,5 +299,4 @@ static int tcbinfo_stat(FAR const char *relpath, FAR struct stat *buf)
  * Public Functions
  ****************************************************************************/
 
-#endif /* CONFIG_DEBUG_TCBINFO */
 #endif /* !CONFIG_DISABLE_MOUNTPOINT && CONFIG_FS_PROCFS */

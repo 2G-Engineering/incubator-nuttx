@@ -6,7 +6,12 @@
 /features.h
 /uClibc++
 /libcxx
+/libcxxabi
 /machine
+/newlib
 /openamp
+/openlibm
 /metal
 /etl
+/minmea
+/sysinfo.h

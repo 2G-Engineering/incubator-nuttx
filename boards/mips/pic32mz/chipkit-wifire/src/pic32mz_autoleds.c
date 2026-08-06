@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/mips/pic32mz/chipkit-wifire/src/pic32mz_autoleds.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <arch/board/board.h>
@@ -66,7 +68,7 @@
  * LED_SIGNAL        In a signal handler     ON  ON  ON  ON
  * LED_ASSERTION     An assertion failed     ON  ON  ON  ON
  * LED_PANIC         The system has crashed  ON  ON  ON  ON
- * LED_IDLE          MCU is is sleep mode    ---- Not used ----
+ * LED_IDLE          MCU is in sleep mode    ---- Not used ----
  */
 
 /* LED indices */

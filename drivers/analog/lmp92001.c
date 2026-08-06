@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/analog/lmp92001.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/analog/adc.h>
@@ -254,11 +256,11 @@ static int lmp92001_gpio_readpin(FAR struct ioexpander_dev_s *dev,
                                  uint8_t pin, FAR bool *value);
 #ifdef CONFIG_IOEXPANDER_MULTIPIN
 static int lmp92001_gpio_multiwritepin(FAR struct ioexpander_dev_s *dev,
-                                       FAR uint8_t *pins, FAR bool *values,
-                                       int count);
+                                       FAR const uint8_t *pins,
+                                       FAR const bool *values, int count);
 static int lmp92001_gpio_multireadpin(FAR struct ioexpander_dev_s *dev,
-                                      FAR uint8_t *pins, FAR bool *values,
-                                      int count);
+                                      FAR const uint8_t *pins,
+                                      FAR bool *values, int count);
 #endif
 #ifdef CONFIG_IOEXPANDER_INT_ENABLE
 static FAR void *lmp92001_gpio_attach(FAR struct ioexpander_dev_s *dev,
@@ -1375,8 +1377,8 @@ static int lmp92001_gpio_readpin(FAR struct ioexpander_dev_s *dev,
 
 #ifdef CONFIG_IOEXPANDER_MULTIPIN
 static int lmp92001_gpio_multiwritepin(FAR struct ioexpander_dev_s *dev,
-                                       FAR uint8_t *pins, FAR bool *values,
-                                       int count)
+                                       FAR const uint8_t *pins,
+                                       FAR const bool *values, int count)
 {
 }
 
@@ -1398,8 +1400,8 @@ static int lmp92001_gpio_multiwritepin(FAR struct ioexpander_dev_s *dev,
  ****************************************************************************/
 
 static int lmp92001_gpio_multireadpin(FAR struct ioexpander_dev_s *dev,
-                                      FAR uint8_t *pins, FAR bool *values,
-                                      int count)
+                                      FAR const uint8_t *pins,
+                                      FAR bool *values, int count)
 {
 }
 #endif

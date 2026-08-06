@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/netlink/netlink_sockif.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,8 +34,9 @@
 #include <sched.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
+#include <nuttx/sched.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/wqueue.h>
@@ -51,17 +54,20 @@ static int  netlink_setup(FAR struct socket *psock);
 static sockcaps_t netlink_sockcaps(FAR struct socket *psock);
 static void netlink_addref(FAR struct socket *psock);
 static int  netlink_bind(FAR struct socket *psock,
-              FAR const struct sockaddr *addr, socklen_t addrlen);
+                        FAR const struct sockaddr *addr, socklen_t addrlen);
 static int  netlink_getsockname(FAR struct socket *psock,
-              FAR struct sockaddr *addr, FAR socklen_t *addrlen);
+                                FAR struct sockaddr *addr,
+                                FAR socklen_t *addrlen);
 static int  netlink_getpeername(FAR struct socket *psock,
-              FAR struct sockaddr *addr, FAR socklen_t *addrlen);
+                                FAR struct sockaddr *addr,
+                                FAR socklen_t *addrlen);
 static int  netlink_connect(FAR struct socket *psock,
-              FAR const struct sockaddr *addr, socklen_t addrlen);
+                            FAR const struct sockaddr *addr,
+                            socklen_t addrlen);
 static int  netlink_poll(FAR struct socket *psock, FAR struct pollfd *fds,
-              bool setup);
+                         bool setup);
 static ssize_t netlink_sendmsg(FAR struct socket *psock,
-                               FAR struct msghdr *msg, int flags);
+                               FAR const struct msghdr *msg, int flags);
 static ssize_t netlink_recvmsg(FAR struct socket *psock,
                                FAR struct msghdr *msg, int flags);
 static int netlink_close(FAR struct socket *psock);
@@ -126,14 +132,18 @@ static int netlink_setup(FAR struct socket *psock)
         break;
 #endif
 
+#ifdef CONFIG_NETLINK_NETFILTER
+      case NETLINK_NETFILTER:
+        break;
+#endif
+
       default:
         return -EPROTONOSUPPORT;
     }
 
   /* Verify the socket type (domain should always be PF_NETLINK here) */
 
-  if (domain == PF_NETLINK &&
-      (type == SOCK_RAW || type == SOCK_DGRAM || type == SOCK_CTRL))
+  if (domain == PF_NETLINK && (type == SOCK_RAW || type == SOCK_DGRAM))
     {
       /* Allocate the NetLink socket connection structure and save it in the
        * new socket instance.
@@ -204,8 +214,6 @@ static void netlink_addref(FAR struct socket *psock)
 {
   FAR struct netlink_conn_s *conn;
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
-
   conn = psock->s_conn;
   DEBUGASSERT(conn->crefs > 0 && conn->crefs < 255);
   conn->crefs++;
@@ -247,8 +255,7 @@ static int netlink_bind(FAR struct socket *psock,
   FAR struct sockaddr_nl *nladdr;
   FAR struct netlink_conn_s *conn;
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL && addr != NULL &&
-              addrlen >= sizeof(struct sockaddr_nl));
+  DEBUGASSERT(addrlen >= sizeof(struct sockaddr_nl));
 
   /* Save the address information in the connection structure */
 
@@ -290,8 +297,7 @@ static int netlink_getsockname(FAR struct socket *psock,
   FAR struct sockaddr_nl *nladdr;
   FAR struct netlink_conn_s *conn;
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL && addr != NULL &&
-              addrlen != NULL && *addrlen >= sizeof(struct sockaddr_nl));
+  DEBUGASSERT(*addrlen >= sizeof(struct sockaddr_nl));
 
   conn = psock->s_conn;
 
@@ -343,8 +349,7 @@ static int netlink_getpeername(FAR struct socket *psock,
   FAR struct sockaddr_nl *nladdr;
   FAR struct netlink_conn_s *conn;
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL && addr != NULL &&
-              addrlen != NULL && *addrlen >= sizeof(struct sockaddr_nl));
+  DEBUGASSERT(*addrlen >= sizeof(struct sockaddr_nl));
 
   conn = psock->s_conn;
 
@@ -386,8 +391,7 @@ static int netlink_connect(FAR struct socket *psock,
   FAR struct sockaddr_nl *nladdr;
   FAR struct netlink_conn_s *conn;
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL && addr != NULL &&
-              addrlen >= sizeof(struct sockaddr_nl));
+  DEBUGASSERT(addrlen >= sizeof(struct sockaddr_nl));
 
   /* Save the address information in the connection structure */
 
@@ -424,8 +428,7 @@ static void netlink_response_available(FAR void *arg)
    * condition?
    */
 
-  sched_lock();
-  net_lock();
+  netlink_lock();
 
   if (conn->fds != NULL)
     {
@@ -442,8 +445,7 @@ static void netlink_response_available(FAR void *arg)
 
   conn->fds = NULL;
 
-  net_unlock();
-  sched_unlock();
+  netlink_unlock();
 }
 
 /****************************************************************************
@@ -475,7 +477,6 @@ static int netlink_poll(FAR struct socket *psock, FAR struct pollfd *fds,
   FAR struct netlink_conn_s *conn;
   int ret = OK;
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
   conn = psock->s_conn;
 
   /* Check if we are setting up or tearing down the poll */
@@ -490,7 +491,7 @@ static int netlink_poll(FAR struct socket *psock, FAR struct pollfd *fds,
        * immediately (maybe).
        */
 
-      net_lock();
+      netlink_lock();
       if (netlink_check_response(conn))
         {
           revents |= POLLIN;
@@ -503,7 +504,7 @@ static int netlink_poll(FAR struct socket *psock, FAR struct pollfd *fds,
       poll_notify(&fds, 1, revents);
       if (fds->revents != 0)
         {
-          net_unlock();
+          netlink_unlock();
           return OK;
         }
 
@@ -520,7 +521,7 @@ static int netlink_poll(FAR struct socket *psock, FAR struct pollfd *fds,
           if (conn->fds != NULL)
             {
               nerr("ERROR: Multiple polls() on socket not supported.\n");
-              net_unlock();
+              netlink_unlock();
               return -EBUSY;
             }
 
@@ -537,7 +538,7 @@ static int netlink_poll(FAR struct socket *psock, FAR struct pollfd *fds,
             }
         }
 
-      net_unlock();
+      netlink_unlock();
     }
   else
     {
@@ -574,7 +575,7 @@ static int netlink_poll(FAR struct socket *psock, FAR struct pollfd *fds,
  ****************************************************************************/
 
 static ssize_t netlink_sendmsg(FAR struct socket *psock,
-                               FAR struct msghdr *msg, int flags)
+                               FAR const struct msghdr *msg, int flags)
 {
   FAR const void *buf = msg->msg_iov->iov_base;
   FAR const struct sockaddr *to = msg->msg_name;
@@ -583,8 +584,6 @@ static ssize_t netlink_sendmsg(FAR struct socket *psock,
   FAR struct nlmsghdr *nlmsg;
   struct sockaddr_nl nladdr;
   int ret;
-
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL && buf != NULL);
 
   /* Validity check, only single iov supported */
 
@@ -629,6 +628,15 @@ static ssize_t netlink_sendmsg(FAR struct socket *psock,
         break;
 #endif
 
+#ifdef CONFIG_NETLINK_NETFILTER
+      case NETLINK_NETFILTER:
+        ret = netlink_netfilter_sendto(conn, nlmsg,
+                                       msg->msg_iov->iov_len, flags,
+                                       (FAR const struct sockaddr_nl *)to,
+                                       tolen);
+        break;
+#endif
+
       default:
        ret = -EOPNOTSUPP;
        break;
@@ -666,10 +674,15 @@ static ssize_t netlink_recvmsg(FAR struct socket *psock,
   FAR socklen_t *fromlen = &msg->msg_namelen;
   FAR struct netlink_response_s *entry;
   FAR struct socket_conn_s *conn;
+  int ret = OK;
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL && buf != NULL);
   DEBUGASSERT(from == NULL ||
               (fromlen != NULL && *fromlen >= sizeof(struct sockaddr_nl)));
+
+  if (msg->msg_iovlen != 1)
+    {
+      return -ENOTSUP;
+    }
 
   /* Find the response to this message.  The return value */
 
@@ -678,7 +691,7 @@ static ssize_t netlink_recvmsg(FAR struct socket *psock,
     {
       conn = psock->s_conn;
 
-      /* No response is variable, but presumably, one is expected.  Check
+      /* No response is available, but presumably, one is expected.  Check
        * if the socket has been configured for non-blocking operation.
        */
 
@@ -687,13 +700,15 @@ static ssize_t netlink_recvmsg(FAR struct socket *psock,
           return -EAGAIN;
         }
 
-      /* Wait for the response.  This should always succeed. */
+      /* Wait for the response. */
 
-      entry = netlink_get_response(psock->s_conn);
-      DEBUGASSERT(entry != NULL);
+      ret = netlink_get_response(psock->s_conn, &entry);
+
+      /* If interrupted by signals, return errno */
+
       if (entry == NULL)
         {
-          return -EPIPE;
+          return ret;
         }
     }
 
@@ -734,7 +749,6 @@ static ssize_t netlink_recvmsg(FAR struct socket *psock,
 static int netlink_close(FAR struct socket *psock)
 {
   FAR struct netlink_conn_s *conn = psock->s_conn;
-  int ret = OK;
 
   /* Perform some pre-close operations for the NETLINK socket type. */
 
@@ -748,14 +762,6 @@ static int netlink_close(FAR struct socket *psock)
 
       conn->crefs = 0;
       netlink_free(psock->s_conn);
-
-      if (ret < 0)
-        {
-          /* Return with error code, but free resources. */
-
-          nerr("ERROR: netlink_close failed: %d\n", ret);
-          return ret;
-        }
     }
   else
     {
@@ -764,7 +770,7 @@ static int netlink_close(FAR struct socket *psock)
       conn->crefs--;
     }
 
-  return ret;
+  return OK;
 }
 
 #endif /* CONFIG_NET_NETLINK */

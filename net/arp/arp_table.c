@@ -1,6 +1,7 @@
 /****************************************************************************
  * net/arp/arp_table.c
- * Implementation of the ARP Address Resolution Protocol.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
  *
  *   Copyright (C) 2007-2009, 2011, 2014, 2018 Gregory Nutt. All rights
  *     reserved.
@@ -49,7 +50,7 @@
 #include <sys/ioctl.h>
 #include <stdint.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <netinet/in.h>
 #include <net/ethernet.h>
@@ -61,6 +62,7 @@
 #include <nuttx/net/ip.h>
 
 #include "netdev/netdev.h"
+#include "netlink/netlink.h"
 #include "arp/arp.h"
 
 #ifdef CONFIG_NET_ARP
@@ -70,6 +72,8 @@
  ****************************************************************************/
 
 #define ARP_MAXAGE_TICK SEC2TICK(10 * CONFIG_NET_ARP_MAXAGE)
+#define ARP_MAXAGE_UNREACHABLE_TICK SEC2TICK(10 * CONFIG_NET_ARP_MAXAGE_UNREACHABLE)
+#define ARP_INPROGRESS_TICK MSEC2TICK(CONFIG_ARP_SEND_MAXTRIES * CONFIG_ARP_SEND_DELAYMSEC)
 
 /****************************************************************************
  * Private Types
@@ -88,6 +92,13 @@ struct arp_table_info_s
 /* The table of known address mappings */
 
 static struct arp_entry_s g_arptable[CONFIG_NET_ARPTAB_SIZE];
+
+static const struct ether_addr g_zero_ethaddr =
+{
+  {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+  }
+};
 
 /****************************************************************************
  * Private Functions
@@ -158,6 +169,10 @@ arp_return_old_entry(FAR struct arp_entry_s *e1, FAR struct arp_entry_s *e2)
     {
       return e2;
     }
+  else if ((e1->at_flags & ATF_PERM) != (e2->at_flags & ATF_PERM))
+    {
+      return (e1->at_flags & ATF_PERM) == 0 ? e1 : e2;
+    }
   else if ((int)(e1->at_time - e2->at_time) <= 0)
     {
       return e1;
@@ -196,10 +211,15 @@ static FAR struct arp_entry_s *arp_lookup(in_addr_t ipaddr,
     {
       tabptr = &g_arptable[i];
       if (tabptr->at_dev == dev &&
-          net_ipv4addr_cmp(ipaddr, tabptr->at_ipaddr) &&
-          clock_systime_ticks() - tabptr->at_time <= ARP_MAXAGE_TICK)
+          net_ipv4addr_cmp(ipaddr, tabptr->at_ipaddr))
         {
-          return tabptr;
+          if ((tabptr->at_flags & ATF_PERM) != 0 ||
+              clock_systime_ticks() - tabptr->at_time <= ARP_MAXAGE_TICK)
+            {
+              return tabptr;
+            }
+
+          return NULL;  /* Expired */
         }
     }
 
@@ -207,6 +227,44 @@ static FAR struct arp_entry_s *arp_lookup(in_addr_t ipaddr,
 
   return NULL;
 }
+
+/****************************************************************************
+ * Name: arp_get_arpreq
+ *
+ * Description:
+ *   Translate (struct arp_entry_s) to (struct arpreq) for netlink notify.
+ *
+ * Input Parameters:
+ *   output - Location to return the ARP table copy
+ *   input  - The arp entry in table
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NETLINK_ROUTE
+static void arp_get_arpreq(FAR struct arpreq *output,
+                           FAR struct arp_entry_s *input)
+{
+  FAR struct sockaddr_in *outaddr;
+
+  DEBUGASSERT(output != NULL && input != NULL);
+
+  outaddr = (FAR struct sockaddr_in *)&output->arp_pa;
+  outaddr->sin_family      = AF_INET;
+  outaddr->sin_port        = 0;
+  outaddr->sin_addr.s_addr = input->at_ipaddr;
+  memcpy(output->arp_ha.sa_data, input->at_ethaddr.ether_addr_octet,
+         sizeof(struct ether_addr));
+  strlcpy(output->arp_dev, input->at_dev->d_ifname, sizeof(output->arp_dev));
+}
+#endif
+
+#ifdef CONFIG_NET_ARP_SEND_QUEUE
+static void arp_unreach_work(FAR void *param)
+{
+  FAR struct arp_entry_s *tabptr = (FAR struct arp_entry_s *)param;
+  iob_free_queue(&tabptr->at_queue);
+}
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -223,6 +281,7 @@ static FAR struct arp_entry_s *arp_lookup(in_addr_t ipaddr,
  *   dev     - The device driver structure
  *   ipaddr  - The IP address as an inaddr_t
  *   ethaddr - Refers to a HW address uint8_t[IFHWADDRLEN]
+ *   flags   - Flags, examples: ATF_PERM(Permanent entry)
  *
  * Returned Value:
  *   Zero (OK) if the ARP table entry was successfully modified.  A negated
@@ -234,9 +293,16 @@ static FAR struct arp_entry_s *arp_lookup(in_addr_t ipaddr,
  ****************************************************************************/
 
 int arp_update(FAR struct net_driver_s *dev, in_addr_t ipaddr,
-               FAR const uint8_t *ethaddr)
+               FAR const uint8_t *ethaddr, uint8_t flags)
 {
   FAR struct arp_entry_s *tabptr = &g_arptable[0];
+#ifdef CONFIG_NETLINK_ROUTE
+  struct arpreq arp_notify;
+  bool new_entry;
+#endif
+#if defined(CONFIG_NETLINK_ROUTE) || defined(CONFIG_NET_ARP_SEND_QUEUE)
+  bool found = false;
+#endif
   int i;
 
   /* Walk through the ARP mapping table and try to find an entry to
@@ -257,6 +323,9 @@ int arp_update(FAR struct net_driver_s *dev, in_addr_t ipaddr,
           /* An old entry found, break. */
 
           tabptr = &g_arptable[i];
+#if defined(CONFIG_NETLINK_ROUTE) || defined(CONFIG_NET_ARP_SEND_QUEUE)
+          found = true;
+#endif
           break;
         }
       else
@@ -267,14 +336,88 @@ int arp_update(FAR struct net_driver_s *dev, in_addr_t ipaddr,
         }
     }
 
+  if ((tabptr->at_flags & ATF_PERM) != 0 && (flags & ATF_PERM) == 0)
+    {
+      return -ENOSPC;
+    }
+
+#ifdef CONFIG_NET_ARP_SEND_QUEUE
+  if (!found && tabptr->at_ipaddr != 0)
+    {
+      /* arp entry will be replaced, clean delayed iobs if exist */
+
+      work_cancel_sync(LPWORK, &tabptr->at_work);
+      iob_free_queue(&tabptr->at_queue);
+    }
+  else if (found && ethaddr != NULL)
+    {
+      work_cancel_sync(LPWORK, &tabptr->at_work);
+      iob_concat_queue(&dev->d_arpout, &tabptr->at_queue);
+    }
+#endif
+
+  if (ethaddr == NULL)
+    {
+      ethaddr = g_zero_ethaddr.ether_addr_octet;
+    }
+
+  /* When overwrite old entry, notify old entry RTM_DELNEIGH */
+
+#ifdef CONFIG_NETLINK_ROUTE
+  if (!found && tabptr->at_ipaddr != 0)
+    {
+      arp_get_arpreq(&arp_notify, tabptr);
+      netlink_neigh_notify(&arp_notify, RTM_DELNEIGH, AF_INET);
+    }
+
+  /* Need to notify when entry is not found or changes in table */
+
+  new_entry = !found || memcmp(tabptr->at_ethaddr.ether_addr_octet,
+                               ethaddr, ETHER_ADDR_LEN) != 0;
+#endif
+
   /* Now, tabptr is the ARP table entry which we will fill with the new
    * information.
    */
 
-  tabptr->at_ipaddr = ipaddr;
   memcpy(tabptr->at_ethaddr.ether_addr_octet, ethaddr, ETHER_ADDR_LEN);
-  tabptr->at_dev = dev;
-  tabptr->at_time = clock_systime_ticks();
+  tabptr->at_ipaddr = ipaddr;
+  tabptr->at_time   = clock_systime_ticks();
+  tabptr->at_flags  = flags;
+  tabptr->at_dev    = dev;
+
+  /* Notify the new entry */
+
+#ifdef CONFIG_NETLINK_ROUTE
+  if (new_entry)
+    {
+      arp_get_arpreq(&arp_notify, tabptr);
+      netlink_neigh_notify(&arp_notify, RTM_NEWNEIGH, AF_INET);
+    }
+#endif
+
+#ifdef CONFIG_NET_ARP_SEND_QUEUE
+  if (!IOB_QEMPTY(&dev->d_arpout))
+    {
+      /* in Rx context, we need to backup the dev iob and related members,
+       * as some dirvers netdev_txnotify_dev() execute transmit in sync mode
+       * which will modify iob and other members.
+       * we need to restore the dev iob and related members after
+       * netdev_txnotify_dev() return because iob will be used in left
+       * bottom Rx process.
+       */
+
+      uint16_t len = dev->d_len;
+      FAR struct iob_s *iob = dev->d_iob;
+
+      dev->d_iob = NULL;
+      dev->d_buf = NULL;
+      netdev_txnotify_dev(dev, ARP_POLL);
+      netdev_iob_replace(dev, iob);
+      dev->d_len = len;
+    }
+#endif
+
   return OK;
 }
 
@@ -306,7 +449,7 @@ void arp_hdr_update(FAR struct net_driver_s *dev, FAR uint16_t *pipaddr,
 
   /* Update the ARP table */
 
-  arp_update(dev, ipaddr, ethaddr);
+  arp_update(dev, ipaddr, ethaddr, 0);
 }
 
 /****************************************************************************
@@ -340,6 +483,29 @@ int arp_find(in_addr_t ipaddr, FAR uint8_t *ethaddr,
   tabptr = arp_lookup(ipaddr, dev);
   if (tabptr != NULL)
     {
+      /* Addresses that have failed to be searched will return a special
+       * error code so that the upper layer can return faster.
+       */
+
+      if (memcmp(&tabptr->at_ethaddr, &g_zero_ethaddr,
+                 sizeof(tabptr->at_ethaddr)) == 0)
+        {
+          clock_t elapsed;
+          elapsed = clock_systime_ticks() - tabptr->at_time;
+          if (elapsed <= ARP_INPROGRESS_TICK)
+            {
+              return -EINPROGRESS;
+            }
+          else if (elapsed <= ARP_MAXAGE_UNREACHABLE_TICK)
+            {
+              return -ENETUNREACH;
+            }
+          else
+            {
+              return -ENOENT;
+            }
+        }
+
       /* Yes.. return the Ethernet MAC address if the caller has provided a
        * non-NULL address in 'ethaddr'.
        */
@@ -349,8 +515,8 @@ int arp_find(in_addr_t ipaddr, FAR uint8_t *ethaddr,
           memcpy(ethaddr, &tabptr->at_ethaddr, ETHER_ADDR_LEN);
         }
 
-      /* Return success in any case meaning that a valid Ethernet MAC
-       * address mapping is available for the IP address.
+      /* Return success meaning that a valid Ethernet MAC address mapping
+       * is available for the IP address.
        */
 
       return OK;
@@ -392,12 +558,21 @@ int arp_find(in_addr_t ipaddr, FAR uint8_t *ethaddr,
 int arp_delete(in_addr_t ipaddr, FAR struct net_driver_s *dev)
 {
   FAR struct arp_entry_s *tabptr;
-
+#ifdef CONFIG_NETLINK_ROUTE
+  struct arpreq arp_notify;
+#endif
   /* Check if the IPv4 address is in the ARP table. */
 
   tabptr = arp_lookup(ipaddr, dev);
   if (tabptr != NULL)
     {
+      /* Notify to netlink */
+
+#ifdef CONFIG_NETLINK_ROUTE
+      arp_get_arpreq(&arp_notify, tabptr);
+      netlink_neigh_notify(&arp_notify, RTM_DELNEIGH, AF_INET);
+#endif
+
       /* Yes.. Set the IP address to zero to "delete" it */
 
       tabptr->at_ipaddr = 0;
@@ -429,6 +604,11 @@ void arp_cleanup(FAR struct net_driver_s *dev)
     {
       if (dev == g_arptable[i].at_dev)
         {
+#ifdef CONFIG_NET_ARP_SEND_QUEUE
+          work_cancel_sync(LPWORK, &g_arptable[i].at_work);
+          iob_free_queue(&g_arptable[i].at_queue);
+#endif
+
           memset(&g_arptable[i], 0, sizeof(g_arptable[i]));
         }
     }
@@ -459,7 +639,6 @@ unsigned int arp_snapshot(FAR struct arpreq *snapshot,
                           unsigned int nentries)
 {
   FAR struct arp_entry_s *tabptr;
-  FAR struct sockaddr_in *outaddr;
   clock_t now;
   unsigned int ncopied;
   int i;
@@ -471,19 +650,10 @@ unsigned int arp_snapshot(FAR struct arpreq *snapshot,
        i++)
     {
       tabptr = &g_arptable[i];
-      if (tabptr->at_ipaddr != 0 &&
-          now - tabptr->at_time <= ARP_MAXAGE_TICK)
+      if (tabptr->at_ipaddr != 0 && ((tabptr->at_flags & ATF_PERM) != 0 ||
+          now - tabptr->at_time <= ARP_MAXAGE_TICK))
         {
-          outaddr = (FAR struct sockaddr_in *)&snapshot[ncopied].arp_pa;
-          outaddr->sin_family      = AF_INET;
-          outaddr->sin_port        = 0;
-          outaddr->sin_addr.s_addr = tabptr->at_ipaddr;
-          memcpy(snapshot[ncopied].arp_ha.sa_data,
-                 tabptr->at_ethaddr.ether_addr_octet,
-                 sizeof(struct ether_addr));
-          strlcpy((FAR char *)snapshot[ncopied].arp_dev,
-                  tabptr->at_dev->d_ifname,
-                  sizeof(snapshot[ncopied].arp_dev));
+          arp_get_arpreq(&snapshot[ncopied], tabptr);
           ncopied++;
         }
     }
@@ -494,5 +664,55 @@ unsigned int arp_snapshot(FAR struct arpreq *snapshot,
 }
 #endif
 
+/****************************************************************************
+ * Name: arp_queue_iob
+ *
+ * Description:
+ *   Queue an IOB which L2 layer is unfinished to the target arp entry's
+ *   delay queue while the entry is in progress waiting for an ARP response
+ *
+ * Input Parameters:
+ *   dev     - The device driver structure
+ *   ipaddr  - The IP address as an inaddr_t
+ *   iob     - The IOB to be queued
+ *
+ * Returned Value:
+ *   Zero (OK) if the ARP table entry was successfully modified.  A negated
+ *   errno value is returned on any error.
+ *
+ * Assumptions
+ *   The network is locked to assure exclusive access to the ARP table
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_ARP_SEND_QUEUE
+int arp_queue_iob(FAR struct net_driver_s *dev, in_addr_t ipaddr,
+                  FAR struct iob_s *iob)
+{
+  FAR struct arp_entry_s *tabptr;
+
+  /* the IPv4 address should in the ARP table and arp in progress. */
+
+  tabptr = arp_lookup(ipaddr, dev);
+  if (tabptr && memcmp(&tabptr->at_ethaddr, &g_zero_ethaddr,
+                       sizeof(tabptr->at_ethaddr)) == 0)
+    {
+      if (iob_tryadd_queue(iob, &tabptr->at_queue) == 0)
+        {
+          if (work_available(&tabptr->at_work))
+            {
+              work_queue(LPWORK, &tabptr->at_work, arp_unreach_work,
+                         tabptr, ARP_INPROGRESS_TICK);
+            }
+
+          return OK;
+        }
+
+      return -ENOMEM;
+    }
+
+  return -ENOENT;
+}
+#endif
 #endif /* CONFIG_NET_ARP */
 #endif /* CONFIG_NET */

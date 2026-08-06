@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/elf.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,7 +35,7 @@
 
 /* NOTE: elf64.h and elf32.h refer EI_NIDENT defined above */
 
-#ifdef CONFIG_LIBC_ARCH_ELF_64BIT
+#ifdef CONFIG_ARCH_64BIT
 #  include <elf64.h>
 #else
 #  include <elf32.h>
@@ -82,6 +84,7 @@
 #define EM_V850            87     /* NEC v850 */
 #define EM_M32R            88     /* Renesas M32R */
 #define EM_XTENSA          94     /* Tensilica Xtensa */
+#define EM_AARCH64         183    /* ARM-64 Architecture */
 #define EM_RISCV           243    /* RISC-V */
 #define EM_ALPHA           0x9026
 #define EM_CYGNUS_V850     0x9080
@@ -175,6 +178,9 @@
 #define SHT_REL            9
 #define SHT_SHLIB          10
 #define SHT_DYNSYM         11
+#define SHT_INIT_ARRAY     14
+#define SHT_FINI_ARRAY     15
+#define SHT_PREINIT_ARRAY  16
 #define SHT_LOPROC         0x70000000
 #define SHT_HIPROC         0x7fffffff
 #define SHT_LOUSER         0x80000000
@@ -185,6 +191,7 @@
 #define SHF_WRITE          1
 #define SHF_ALLOC          2
 #define SHF_EXECINSTR      4
+#define SHF_INFO_LINK      0x40
 #define SHF_MASKPROC       0xf0000000
 
 /* Figure 4-16: Symbol Binding, ELF_ST_BIND */
@@ -205,6 +212,13 @@
 #define STT_LOPROC         13
 #define STT_HIPROC         15
 
+/* Table 7-21 ELF Symbol Visibility */
+
+#define STV_DEFAULT        0
+#define STV_INTERNAL       1
+#define STV_HIDDEN         2
+#define STV_PROTECTED      3
+
 /* Figure 5-2: Segment Types, p_type */
 
 #define PT_NULL            0
@@ -214,6 +228,13 @@
 #define PT_NOTE            4
 #define PT_SHLIB           5
 #define PT_PHDR            6
+
+/* GCC specific */
+
+#define PT_GNU_EH_FRAME    0x6474e550 /* GCC exception handler frame */
+#define PT_GNU_STACK       0x6474e551 /* Stack executability */
+#define PT_GNU_RELRO       0x6474e552 /* Read-only after relocation */
+
 #define PT_LOPROC          0x70000000
 #define PT_HIPROC          0x7fffffff
 
@@ -222,6 +243,12 @@
 #define PF_X               1          /* Execute */
 #define PF_W               2          /* Write */
 #define PF_R               4          /* Read */
+#define PF_MASKOS          0x0ff00000 /* All bits included in the PF_MASKOS
+                                       * mask are reserved for operating system-specific
+                                       * semantics.
+                                       */
+#define PF_REGISTER        0x00100000 /* Register, need pointer aligned access */
+
 #define PF_MASKPROC        0xf0000000 /* Unspecified */
 
 /* Figure 5-10: Dynamic Array Tags, d_tag */
@@ -354,5 +381,11 @@
 /* Legal values for the note segment descriptor types for object files.  */
 
 #define NT_VERSION         1      /* Contains a version string.  */
+
+#ifdef CONFIG_ENDIAN_BIG
+#  define ELF_DATA         ELFDATA2MSB
+#else
+#  define ELF_DATA         ELFDATA2LSB
+#endif
 
 #endif /* __INCLUDE_ELF_H */

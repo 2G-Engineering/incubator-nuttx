@@ -1,9 +1,8 @@
 /****************************************************************************
  * crypto/siphash.c
- * $OpenBSD: siphash.c,v 1.5 2018/01/05 19:05:09 mikeb Exp $
  *
- * Copyright (c) 2013 Andre Oppermann <andre@FreeBSD.org>
- * All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2013 Andre Oppermann <andre@FreeBSD.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -54,8 +53,8 @@
 
 #include <crypto/siphash.h>
 
-static void	siphash_crounds(FAR SIPHASH_CTX *, int);
-static void	siphash_rounds(FAR SIPHASH_CTX *, int);
+static void siphash_crounds(FAR SIPHASH_CTX *, int);
+static void siphash_rounds(FAR SIPHASH_CTX *, int);
 
 /****************************************************************************
  * Public Functions
@@ -127,11 +126,11 @@ void siphash_final(FAR void *dst, FAR SIPHASH_CTX *ctx, int rc, int rf)
 {
   uint64_t r;
 
-  htolem64(&r, siphash_end(ctx, rc, rf));
+  htolem64(&r, siphash_finish(ctx, rc, rf));
   memcpy(dst, &r, sizeof r);
 }
 
-uint64_t siphash_end(FAR SIPHASH_CTX *ctx, int rc, int rf)
+uint64_t siphash_finish(FAR SIPHASH_CTX *ctx, int rc, int rf)
 {
   uint64_t r;
   size_t left;
@@ -159,7 +158,7 @@ uint64_t siphash(FAR const SIPHASH_KEY *key,
 
   siphash_init(&ctx, key);
   siphash_update(&ctx, rc, rf, src, len);
-  return (siphash_end(&ctx, rc, rf));
+  return (siphash_finish(&ctx, rc, rf));
 }
 
 #define SIP_ROTL(x, b) ((x) << (b)) | ( (x) >> (64 - (b)))

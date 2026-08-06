@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/utils/utils.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,9 +28,88 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/compiler.h>
+
+#include <stdlib.h>
+
+#include <nuttx/mutex.h>
 #include <nuttx/net/net.h>
 #include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+/* Some utils for port selection */
+
+#define NET_PORT_RANDOM_INIT(port) \
+  do \
+    { \
+      arc4random_buf(&(port), sizeof(port)); \
+      (port) = (port) % (CONFIG_NET_DEFAULT_MAX_PORT - \
+                         CONFIG_NET_DEFAULT_MIN_PORT + 1); \
+      (port) += CONFIG_NET_DEFAULT_MIN_PORT; \
+    } while (0)
+
+/* Get next net port number, and make sure that the port number is within
+ * range.  In host byte order.
+ */
+
+#define NET_PORT_NEXT_H(hport) \
+  do \
+    { \
+      ++(hport); \
+      if ((hport) > CONFIG_NET_DEFAULT_MAX_PORT || \
+          (hport) < CONFIG_NET_DEFAULT_MIN_PORT) \
+        { \
+          (hport) = CONFIG_NET_DEFAULT_MIN_PORT; \
+        } \
+    } while (0)
+
+/* Get next net port number, and make sure that the port number is within
+ * range.  In both network & host byte order.
+ */
+
+#define NET_PORT_NEXT_NH(nport, hport) \
+  do \
+    { \
+      NET_PORT_NEXT_H(hport); \
+      (nport) = HTONS(hport); \
+    } while (0)
+
+/* Network buffer pool related macros, in which:
+ *   pool:     The name of the buffer pool
+ *   nodesize: The size of each node in the pool
+ *   prealloc: The number of pre-allocated buffers
+ *   dynalloc: The number per dynamic allocations
+ *   maxalloc: The number of max allocations, 0 means no limit
+ */
+
+#define NET_BUFPOOL_MAX(prealloc, dynalloc, maxalloc) \
+  (dynalloc) <= 0 ? (prealloc) : ((maxalloc) > 0 ? (maxalloc) : INT16_MAX)
+
+#define NET_BUFPOOL_DECLARE(pool, nodesize, prealloc, dynalloc, maxalloc) \
+  static char pool##_buffer[prealloc][nodesize] aligned_data(sizeof(uintptr_t)); \
+  static struct net_bufpool_s pool = \
+    { \
+      pool##_buffer[0], \
+      prealloc, \
+      dynalloc, \
+      -(int)(nodesize), \
+      SEM_INITIALIZER(NET_BUFPOOL_MAX(prealloc, dynalloc, maxalloc)), \
+      NXRMUTEX_INITIALIZER, \
+      { NULL, NULL } \
+    };
+
+#define NET_BUFPOOL_TIMEDALLOC(p,t) net_bufpool_timedalloc(&p, t)
+#define NET_BUFPOOL_TRYALLOC(p)     net_bufpool_timedalloc(&p, 0)
+#define NET_BUFPOOL_ALLOC(p)        net_bufpool_timedalloc(&p, UINT_MAX)
+#define NET_BUFPOOL_FREE(p,n)       net_bufpool_free(&p, n)
+#define NET_BUFPOOL_TEST(p)         net_bufpool_test(&p)
+#define NET_BUFPOOL_NAVAIL(p)       net_bufpool_navail(&p)
+#define NET_BUFPOOL_LOCK(p)         net_bufpool_lock(&p)
+#define NET_BUFPOOL_UNLOCK(p)       net_bufpool_unlock(&p)
 
 /****************************************************************************
  * Public Types
@@ -43,6 +124,23 @@ enum tv2ds_remainder_e
   TV2DS_CEIL       /* Force to next larger full decisecond */
 };
 
+/* This structure is used to manage a pool of network buffers */
+
+struct net_bufpool_s
+{
+  /* Allocation configuration */
+
+  FAR char  *pool;     /* The beginning of the pre-allocated buffer pool */
+  int        prealloc; /* The number of pre-allocated buffers */
+  int        dynalloc; /* The number per dynamic allocations */
+  int        nodesize; /* The size of each node in the pool */
+
+  sem_t      sem;      /* The semaphore for waiting for free buffers */
+
+  rmutex_t   lock;     /* The lock for the pool */
+  sq_queue_t freebuffers;
+};
+
 /****************************************************************************
  * Public Data
  ****************************************************************************/
@@ -54,6 +152,69 @@ extern "C"
 #else
 #define EXTERN extern
 #endif
+
+/****************************************************************************
+ * Inline Functions
+ ****************************************************************************/
+
+/****************************************************************************
+ * Name: conn_lock, conn_unlock, conn_dev_lock, conn_dev_unlock
+ *
+ * Description:
+ *   Lock and unlock the connection and device.
+ *
+ ****************************************************************************/
+
+static inline_function void conn_lock(FAR struct socket_conn_s *sconn)
+{
+  nxrmutex_lock(&sconn->s_lock);
+}
+
+static inline_function void conn_unlock(FAR struct socket_conn_s *sconn)
+{
+  nxrmutex_unlock(&sconn->s_lock);
+}
+
+static inline_function void conn_dev_lock(FAR struct socket_conn_s *sconn,
+                                          FAR struct net_driver_s *dev)
+{
+  if (dev != NULL)
+    {
+      netdev_lock(dev);
+    }
+
+  nxrmutex_lock(&sconn->s_lock);
+}
+
+static inline_function void conn_dev_unlock(FAR struct socket_conn_s *sconn,
+                                            FAR struct net_driver_s *dev)
+{
+  nxrmutex_unlock(&sconn->s_lock);
+
+  if (dev != NULL)
+    {
+      netdev_unlock(dev);
+    }
+}
+
+/****************************************************************************
+ * Name: conn_dev_sem_timedwait
+ *
+ * Description:
+ *   Wait on the connection semaphore, unlocking the device and connection
+ *   locks while waiting.
+ *
+ ****************************************************************************/
+
+static inline_function int
+conn_dev_sem_timedwait(FAR sem_t *sem, bool interruptible,
+                       unsigned int timeout, FAR struct socket_conn_s *sconn,
+                       FAR struct net_driver_s *dev)
+{
+  return net_sem_timedwait2(sem, interruptible, timeout,
+                            sconn ? &sconn->s_lock : NULL,
+                            dev ? &dev->d_lock : NULL);
+}
 
 /****************************************************************************
  * Public Function Prototypes
@@ -81,7 +242,7 @@ int net_breaklock(FAR unsigned int *count);
  *
  * Returned Value:
  *   Zero (OK) is returned on success; a negated errno value is returned on
- *   failured (probably -ECANCELED).
+ *   failure (probably -ECANCELED).
  *
  ****************************************************************************/
 
@@ -145,6 +306,53 @@ unsigned int net_timeval2dsec(FAR struct timeval *tv,
                               enum tv2ds_remainder_e remainder);
 
 /****************************************************************************
+ * Name: net_ipv4_mask2pref
+ *
+ * Description:
+ *   Convert a 32-bit netmask to a prefix length.  The NuttX IPv4
+ *   networking uses 32-bit network masks internally.  This function
+ *   converts the IPv4 netmask to a prefix length.
+ *
+ *   The prefix length is the number of MS '1' bits on in the netmask.
+ *   This, of course, assumes that all MS bits are '1' and all LS bits are
+ *   '0' with no intermixed 1's and 0's.  This function searches from the MS
+ *   bit until the first '0' is found (this does not necessary mean that
+ *   there might not be additional '1' bits following the first '0', but that
+ *   will be a malformed netmask.
+ *
+ * Input Parameters:
+ *   mask   An IPv4 netmask in the form of in_addr_t
+ *
+ * Returned Value:
+ *   The prefix length, range 0-32 on success;  This function will not
+ *   fail.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_IPv4
+uint8_t net_ipv4_mask2pref(in_addr_t mask);
+#endif
+
+/****************************************************************************
+ * Name: net_ipv6_common_pref
+ *
+ * Description:
+ *   Calculate the common prefix length of two IPv6 addresses.
+ *
+ * Input Parameters:
+ *   a1,a2   Points to IPv6 addresses in the form of uint16_t[8]
+ *
+ * Returned Value:
+ *   The common prefix length, range 0-128 on success;  This function will
+ *   not fail.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_IPv6
+uint8_t net_ipv6_common_pref(FAR const uint16_t *a1, FAR const uint16_t *a2);
+#endif
+
+/****************************************************************************
  * Name: net_ipv6_mask2pref
  *
  * Description:
@@ -156,7 +364,7 @@ unsigned int net_timeval2dsec(FAR struct timeval *tv,
  *   This, of course, assumes that all MS bits are '1' and all LS bits are
  *   '0' with no intermixed 1's and 0's.  This function searches from the MS
  *   bit until the first '0' is found (this does not necessary mean that
- *   there might not be additional '1' bits following the firs '0', but that
+ *   there might not be additional '1' bits following the first '0', but that
  *   will be a malformed netmask.
  *
  * Input Parameters:
@@ -180,8 +388,8 @@ uint8_t net_ipv6_mask2pref(FAR const uint16_t *mask);
  *   specifies the number of MS bits under mask (0-128)
  *
  * Input Parameters:
+ *   mask     - The location to return the netmask.
  *   preflen  - Determines the width of the netmask (in bits).  Range 0-128
- *   mask  - The location to return the netmask.
  *
  * Returned Value:
  *   None
@@ -189,8 +397,131 @@ uint8_t net_ipv6_mask2pref(FAR const uint16_t *mask);
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IPv6
-void net_ipv6_pref2mask(uint8_t preflen, net_ipv6addr_t mask);
+void net_ipv6_pref2mask(net_ipv6addr_t mask, uint8_t preflen);
 #endif
+
+/****************************************************************************
+ * Name: net_ipv6_payload
+ *
+ * Description:
+ *   Given a pointer to the IPv6 header, this function will return a pointer
+ *   to the beginning of the L4 payload.
+ *
+ * Input Parameters:
+ *   ipv6  - A pointer to the IPv6 header.
+ *   proto - The location to return the protocol number in the IPv6 header.
+ *
+ * Returned Value:
+ *   A pointer to the beginning of the payload.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_IPv6
+FAR void *net_ipv6_payload(FAR struct ipv6_hdr_s *ipv6, FAR uint8_t *proto);
+#endif
+
+/****************************************************************************
+ * Name: net_iob_concat
+ *
+ * Description:
+ *   Concatenate iob_s chain iob2 to iob1, if CONFIG_NET_RECV_PACK is
+ *   endabled, pack all data in the I/O buffer chain.
+ *
+ * Returned Value:
+ *   The number of bytes actually buffered is returned.  This will be either
+ *   zero or equal to iob1->io_pktlen.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_MM_IOB
+uint16_t net_iob_concat(FAR struct iob_s **iob1, FAR struct iob_s **iob2);
+#endif
+
+/****************************************************************************
+ * Name: net_bufpool_timedalloc
+ *
+ * Description:
+ *   Allocate a buffer from the pool.  If no buffer is available, then wait
+ *   for the specified timeout.
+ *
+ * Input Parameters:
+ *   pool    - The pool from which to allocate the buffer
+ *   timeout - The maximum time to wait for a buffer to become available.
+ *
+ * Returned Value:
+ *   A reference to the allocated buffer, which is guaranteed to be zeroed.
+ *   NULL is returned on a timeout.
+ *
+ ****************************************************************************/
+
+FAR void *net_bufpool_timedalloc(FAR struct net_bufpool_s *pool,
+                                 unsigned int timeout);
+
+/****************************************************************************
+ * Name: net_bufpool_free
+ *
+ * Description:
+ *   Free a buffer from the pool.
+ *
+ * Input Parameters:
+ *   pool - The pool from which to allocate the buffer
+ *   node - The buffer to be freed
+ *
+ ****************************************************************************/
+
+void net_bufpool_free(FAR struct net_bufpool_s *pool, FAR void *node);
+
+/****************************************************************************
+ * Name: net_bufpool_test
+ *
+ * Description:
+ *   Check if there is room in the buffer pool.  Does not reserve any space.
+ *
+ * Assumptions:
+ *   None.
+ *
+ ****************************************************************************/
+
+int net_bufpool_test(FAR struct net_bufpool_s *pool);
+
+/****************************************************************************
+ * Name: net_bufpool_navail
+ *
+ * Description:
+ *   Return the number of available buffers in the buffer pool.
+ *
+ * Assumptions:
+ *   None.
+ *
+ ****************************************************************************/
+
+int net_bufpool_navail(FAR struct net_bufpool_s *pool);
+
+/****************************************************************************
+ * Name: net_bufpool_lock
+ *
+ * Description:
+ *   Use the bufpool lock to protect the node of the buffer pool.
+ *
+ * Input Parameters:
+ *   pool - The lock of pool to be locked.
+ *
+ ****************************************************************************/
+
+void net_bufpool_lock(FAR struct net_bufpool_s *pool);
+
+/****************************************************************************
+ * Name: net_bufpool_unlock
+ *
+ * Description:
+ *   Finish using the bufpool lock to protect the node of the buffer pool.
+ *
+ * Input Parameters:
+ *   pool - The lock of pool to be unlocked.
+ *
+ ****************************************************************************/
+
+void net_bufpool_unlock(FAR struct net_bufpool_s *pool);
 
 /****************************************************************************
  * Name: net_chksum_adjust

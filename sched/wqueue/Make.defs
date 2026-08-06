@@ -1,6 +1,8 @@
 ############################################################################
 # sched/wqueue/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -32,6 +34,14 @@ endif # CONFIG_PRIORITY_INHERITANCE
 
 ifeq ($(CONFIG_WQUEUE_NOTIFIER),y)
 CSRCS += kwork_notifier.c
+endif
+
+ifneq ($(CONFIG_SCHED_HPWORKSTACKSECTION),"")
+  CFLAGS += ${DEFINE_PREFIX}SCHED_HPWORKSTACKSECTION=CONFIG_SCHED_HPWORKSTACKSECTION
+endif
+
+ifneq ($(CONFIG_SCHED_LPWORKSTACKSECTION),"")
+  CFLAGS += ${DEFINE_PREFIX}SCHED_LPWORKSTACKSECTION=CONFIG_SCHED_LPWORKSTACKSECTION
 endif
 
 # Include wqueue build support

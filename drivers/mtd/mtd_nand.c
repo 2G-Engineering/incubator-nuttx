@@ -1,7 +1,8 @@
 /****************************************************************************
  * drivers/mtd/mtd_nand.c
  *
- *   Copyright (c) 2011, 2012, Atmel Corporation
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: Copyright (c) 2011, 2012, Atmel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -43,7 +44,8 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
+#include <stdio.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/ioctl.h>
@@ -77,7 +79,8 @@
 
 static int     nand_markblock(FAR struct nand_dev_s *nand, off_t block);
 static int     nand_checkblock(FAR struct nand_dev_s *nand, off_t block);
-#ifdef CONFIG_MTD_NAND_BLOCKCHECK
+#if defined(CONFIG_MTD_NAND_BLOCKCHECK) && defined(CONFIG_DEBUG_INFO) && \
+    defined(CONFIG_DEBUG_FS)
 static int     nand_devscan(FAR struct nand_dev_s *nand);
 #endif
 
@@ -834,6 +837,15 @@ static int nand_ioctl(FAR struct mtd_dev_s *dev, int cmd, unsigned long arg)
         }
         break;
 
+      case MTDIOC_ISBAD:
+        {
+          FAR struct mtd_bad_block_s *bad_block =
+                                     (FAR struct mtd_bad_block_s *)arg;
+          bad_block->bad_flag = nand_isbad(dev, bad_block->block_num);
+          ret = OK;
+        }
+        break;
+
       default:
         ret = -ENOTTY; /* Bad command */
         break;
@@ -908,7 +920,7 @@ FAR struct mtd_dev_s *nand_raw_initialize(FAR struct nand_raw_s *raw)
 
   /* Allocate an NAND MTD device structure */
 
-  nand = (FAR struct nand_dev_s *)kmm_zalloc(sizeof(struct nand_dev_s));
+  nand = kmm_zalloc(sizeof(struct nand_dev_s));
   if (!nand)
     {
       ferr("ERROR: Failed to allocate the NAND MTD device structure\n");

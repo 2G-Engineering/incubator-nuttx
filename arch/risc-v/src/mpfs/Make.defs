@@ -1,6 +1,8 @@
 ############################################################################
 # arch/risc-v/src/mpfs/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -27,12 +29,17 @@ CMN_ASRCS += mpfs_head.S
 endif
 
 # Specify our C code within this directory to be included
-CHIP_CSRCS  = mpfs_allocateheap.c mpfs_clockconfig.c
+CHIP_CSRCS  = mpfs_allocateheap.c
 CHIP_CSRCS += mpfs_irq.c mpfs_irq_dispatch.c
 CHIP_CSRCS += mpfs_lowputc.c mpfs_serial.c
 CHIP_CSRCS += mpfs_start.c mpfs_timerisr.c
 CHIP_CSRCS += mpfs_gpio.c mpfs_systemreset.c
-CHIP_CSRCS += mpfs_plic.c
+CHIP_CSRCS += mpfs_plic.c mpfs_dsn.c
+CHIP_CSRCS += mpfs_perf.c
+
+ifeq ($(CONFIG_MPFS_CLKINIT),y)
+CHIP_CSRCS += mpfs_clockconfig.c
+endif
 
 ifeq ($(CONFIG_MPFS_DMA),y)
 CHIP_CSRCS += mpfs_dma.c
@@ -58,8 +65,20 @@ ifeq ($(CONFIG_I2C),y)
 CHIP_CSRCS += mpfs_i2c.c
 endif
 
+ifneq ($(filter y,$(CONFIG_MPFS_EMMCSD) $(CONFIG_MPFS_COREMMC)),)
+CHIP_CSRCS += mpfs_sdio.c
+endif
+
 ifeq ($(CONFIG_MPFS_EMMCSD),y)
 CHIP_CSRCS += mpfs_emmcsd.c
+endif
+
+ifeq ($(CONFIG_FAT_DMAMEMORY),y)
+CHIP_CSRCS += mpfs_dma_alloc.c
+endif
+
+ifeq ($(CONFIG_MPFS_COREMMC),y)
+CHIP_CSRCS += mpfs_coremmc.c
 endif
 
 ifeq ($(CONFIG_MPFS_ETHMAC),y)
@@ -68,6 +87,10 @@ endif
 
 ifeq (${CONFIG_MPFS_HAVE_COREPWM},y)
 CHIP_CSRCS += mpfs_corepwm.c
+endif
+
+ifeq (${CONFIG_MPFS_MSS_CAN}, y)
+CHIP_CSRCS += mpfs_can.c
 endif
 
 ifeq (${CONFIG_MPFS_DDR_INIT},y)
@@ -80,6 +103,7 @@ endif
 
 ifeq (${CONFIG_MPFS_OPENSBI},y)
 CHIP_ASRCS += mpfs_opensbi_utils.S
+CHIP_ASRCS += mpfs_opensbi_trap.S
 CHIP_CSRCS += mpfs_opensbi.c
 endif
 
@@ -99,3 +123,10 @@ ifeq ($(CONFIG_MPFS_CORESPI),y)
 CHIP_CSRCS += mpfs_corespi.c
 endif
 
+ifeq ($(CONFIG_MPFS_MPUCFG),y)
+CHIP_CSRCS += mpfs_mpu.c
+endif
+
+ifeq ($(CONFIG_MPFS_RCC),y)
+CHIP_CSRCS += mpfs_rcc.c
+endif

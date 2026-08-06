@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/neighbor/neighbor_lookup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
 #include <nuttx/net/ip.h>
@@ -66,7 +68,7 @@ static int neighbor_match(FAR struct net_driver_s *dev, FAR void *arg)
    * lookup.
    */
 
-  if (!net_ipv6addr_cmp(dev->d_ipv6addr, info->ni_ipaddr))
+  if (!NETDEV_IS_MY_V6ADDR(dev, info->ni_ipaddr))
     {
       return 0;
     }

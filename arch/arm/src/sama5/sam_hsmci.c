@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/sama5/sam_hsmci.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <string.h>
 #include <sys/param.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/arch.h>
@@ -103,7 +105,7 @@
 
 #elif defined(ATSAMA5D4)
   /* The SAMA5D3 has two HSMCI blocks: HSMCI0-1.  They can be driven
-   * either by XDMAC0 (secure) or XDMAC1 (unsecure).
+   * either by XDMAC0 (secure) or XDMAC1 (insecure).
    */
 
 #  if !defined(CONFIG_SAMA5_XDMAC0) && !defined(CONFIG_SAMA5_XDMAC1)
@@ -749,7 +751,7 @@ static struct sam_dev_s g_hsmci2 =
  *
  * Returned Value:
  *   true:  This is the first register access of this type.
- *   flase: This is the same as the preceding register access.
+ *   false: This is the same as the preceding register access.
  *
  ****************************************************************************/
 
@@ -2303,7 +2305,6 @@ static int sam_sendsetup(struct sdio_dev_s *dev,
    * in order to avoid a TX data underrun.
    */
 
-  sched_lock();
   flags = enter_critical_section();
 
   nwords = (buflen + 3) >> 2;
@@ -2320,7 +2321,6 @@ static int sam_sendsetup(struct sdio_dev_s *dev,
 
           lcderr("ERROR: sr %08" PRIx32 "\n", sr);
           leave_critical_section(flags);
-          sched_unlock();
           return -EIO;
         }
       else if ((sr & HSMCI_INT_TXRDY) != 0)
@@ -2333,7 +2333,6 @@ static int sam_sendsetup(struct sdio_dev_s *dev,
     }
 
   leave_critical_section(flags);
-  sched_unlock();
   return OK;
 }
 
@@ -3216,8 +3215,6 @@ static void sam_callback(void *arg)
       ret = work_cancel(LPWORK, &priv->cbwork);
       if (ret < 0)
         {
-          /* NOTE: Currently, work_cancel only returns success */
-
           lcderr("ERROR: Failed to cancel work: %d\n", ret);
         }
 
@@ -3226,8 +3223,6 @@ static void sam_callback(void *arg)
                        priv->cbarg, 0);
       if (ret < 0)
         {
-          /* NOTE: Currently, work_queue only returns success */
-
           lcderr("ERROR: Failed to schedule work: %d\n", ret);
         }
     }

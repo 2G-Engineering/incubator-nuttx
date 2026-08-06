@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/analog/dac7554.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/arch.h>
@@ -245,12 +247,24 @@ FAR struct dac_dev_s *dac7554_initialize(FAR struct spi_dev_s *spi,
 
   /* Initialize the DAC7554 device structure */
 
-  priv =
-    (FAR struct dac7554_dev_s *)kmm_malloc(sizeof(struct dac7554_dev_s));
+  priv = kmm_malloc(sizeof(struct dac7554_dev_s));
+  if (priv == NULL)
+    {
+      aerr("ERROR: Failed to allocate dac7554_dev_s instance\n");
+      return NULL;
+    }
+
   priv->spi = spi;
   priv->spidev = spidev;
 
-  g_dacdev = (FAR struct dac_dev_s *)kmm_malloc(sizeof(struct dac_dev_s));
+  g_dacdev = kmm_malloc(sizeof(struct dac_dev_s));
+  if (g_dacdev == NULL)
+    {
+      aerr("ERROR: Failed to allocate dac_dev_s instance\n");
+      kmm_free(priv);
+      return NULL;
+    }
+
   g_dacdev->ad_ops = &g_dacops;
   g_dacdev->ad_priv = priv;
 

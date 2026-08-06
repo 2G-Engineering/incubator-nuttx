@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/s32k1xx/s32k1xx_lpspi.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -60,7 +62,7 @@
 #include <stddef.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <endian.h>
 
 #include <nuttx/irq.h>
@@ -1763,7 +1765,7 @@ static void s32k1xx_lpspi_exchange(struct spi_dev_s *dev,
                        (uintptr_t)rxbuffer + nbytes);
 }
 
-#endif  /* CONFIG_S32K1XX_SPI_DMA */
+#endif /* CONFIG_S32K1XX_SPI_DMA */
 
 /****************************************************************************
  * Name: s32k1xx_lpspi_sndblock

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/risc-v/esp32c3/esp32c3-devkit/src/esp32c3_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include "riscv_internal.h"
+#include "esp32c3-devkit.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -39,27 +41,24 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: esp32c3_board_initialize
+ * Name: esp_board_initialize
  *
  * Description:
- *   All ESP32-C3 architectures must provide the following entry point.
+ *   All Espressif boards must provide the following entry point.
  *   This entry point is called early in the initialization -- after all
  *   memory has been configured and mapped but before any devices have been
  *   initialized.
  *
+ * Input Parameters:
+ *   None.
+ *
+ * Returned Value:
+ *   None.
+ *
  ****************************************************************************/
 
-void esp32c3_board_initialize(void)
+void esp_board_initialize(void)
 {
-#ifdef CONFIG_SCHED_CRITMONITOR
-  up_perf_init(NULL);
-#endif
-
-  /* Configure on-board LEDs if LED support has been selected. */
-
-#ifdef CONFIG_ARCH_LEDS
-  board_autoled_initialize();
-#endif
 }
 
 /****************************************************************************
@@ -74,6 +73,12 @@ void esp32c3_board_initialize(void)
  *   phase may be used, for example, to initialize board-specific device
  *   drivers.
  *
+ * Input Parameters:
+ *   None.
+ *
+ * Returned Value:
+ *   None.
+ *
  ****************************************************************************/
 
 #ifdef CONFIG_BOARD_LATE_INITIALIZE
@@ -81,6 +86,6 @@ void board_late_initialize(void)
 {
   /* Perform board-specific initialization */
 
-  esp32c3_bringup();
+  esp_bringup();
 }
 #endif

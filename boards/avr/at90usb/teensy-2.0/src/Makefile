@@ -1,6 +1,8 @@
 ############################################################################
 # boards/avr/at90usb/teensy-2.0/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -24,10 +26,6 @@ CSRCS = at90usb_boot.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += at90usb_leds.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += at90usb_appinit.c
 endif
 
 ifeq ($(CONFIG_USBMSC),y)

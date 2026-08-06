@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/nxffs/nxffs_truncate.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "nxffs.h"
 
@@ -57,7 +59,7 @@ int nxffs_truncate(FAR struct file *filep, off_t length)
 
   /* Sanity checks */
 
-  DEBUGASSERT(filep->f_priv != NULL && filep->f_inode != NULL);
+  DEBUGASSERT(filep->f_priv != NULL);
 
   /* Recover the open file state from the struct file instance */
 
@@ -65,7 +67,7 @@ int nxffs_truncate(FAR struct file *filep, off_t length)
 
   /* Recover the volume state from the open file */
 
-  volume = (FAR struct nxffs_volume_s *)filep->f_inode->i_private;
+  volume = filep->f_inode->i_private;
   DEBUGASSERT(volume != NULL);
 
   /* Get exclusive access to the volume.  Note that the volume lock
@@ -81,7 +83,7 @@ int nxffs_truncate(FAR struct file *filep, off_t length)
 
   /* Check if the file was opened with write access */
 
-  if ((wrfile->ofile.oflags & O_WROK) == 0)
+  if ((wrfile->ofile.oflags & O_ACCMODE) == O_RDONLY)
     {
       ferr("ERROR: File not open for write access\n");
       ret = -EACCES;

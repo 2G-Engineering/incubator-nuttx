@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/locale/lib_iconv.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -337,7 +339,7 @@ iconv_t iconv_open(FAR const char *to, FAR const char *from)
   if ((t = find_charmap(to)) == -1 || (f = find_charmap(from)) == -1 ||
       (g_charmaps[t] >= 0330))
     {
-      errno = EINVAL;
+      set_errno(EINVAL);
       return (iconv_t)-1;
     }
 
@@ -354,7 +356,7 @@ iconv_t iconv_open(FAR const char *to, FAR const char *from)
           scd = lib_malloc(sizeof(*scd));
           if (scd == NULL)
             {
-              errno = ENOMEM;
+              set_errno(ENOMEM);
               return (iconv_t)-1;
             }
 
@@ -420,6 +422,20 @@ size_t iconv(iconv_t cd, FAR char **in, FAR size_t *inb,
 
   to = extract_to(cd);
   from = extract_from(cd);
+  if (to > sizeof(g_charmaps) - 1)
+    {
+      /* Avoid going outside the range of the array */
+
+      to = sizeof(g_charmaps) - 1;
+    }
+
+  if (from > sizeof(g_charmaps) - 1)
+    {
+      /* Avoid going outside the range of the array */
+
+      from = sizeof(g_charmaps) - 1;
+    }
+
   map = g_charmaps + from + 1;
   tomap = g_charmaps + to + 1;
   type = map[0 - 1];
@@ -529,6 +545,11 @@ size_t iconv(iconv_t cd, FAR char **in, FAR size_t *inb,
           case UCS2:
           case UTF_16:
             {
+              if (scd == NULL)
+                {
+                  goto starved;
+                }
+
               l = 0;
               if (!scd->state)
                 {
@@ -551,6 +572,11 @@ size_t iconv(iconv_t cd, FAR char **in, FAR size_t *inb,
 
           case UTF_32:
             {
+              if (scd == NULL)
+                {
+                  goto starved;
+                }
+
               l = 0;
               if (!scd->state)
                 {
@@ -699,6 +725,11 @@ size_t iconv(iconv_t cd, FAR char **in, FAR size_t *inb,
 
                   switch (128 * (c == '$') + d)
                     {
+                    if (scd == NULL)
+                      {
+                        goto starved;
+                      }
+
                       case 'B':
                         {
                           scd->state = 0;
@@ -731,6 +762,11 @@ size_t iconv(iconv_t cd, FAR char **in, FAR size_t *inb,
                     }
 
                   goto ilseq;
+                }
+
+              if (scd == NULL)
+                {
+                  goto starved;
                 }
 
               switch (scd->state)
@@ -826,7 +862,7 @@ size_t iconv(iconv_t cd, FAR char **in, FAR size_t *inb,
                   goto starved;
                 }
 
-              d = *((unsigned char *)*in + 1);
+              d = *((FAR unsigned char *)*in + 1);
               if (d < 0xa1 && type == GB2312)
                 {
                   goto ilseq;
@@ -1401,7 +1437,7 @@ starved:
   err = EINVAL;
   x = -1;
 end:
-  errno = err;
+  set_errno(err);
   return x;
 }
 

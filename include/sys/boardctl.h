@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/sys/boardctl.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -42,6 +44,15 @@
 #  include <nuttx/nx/nxterm.h>
 #endif
 
+#ifdef CONFIG_BOARDCTL_SPINLOCK
+#  include <nuttx/spinlock.h>
+#endif
+
+#ifdef CONFIG_BOARDCTL_MACADDR
+#  include <net/if.h>
+#  include <nuttx/net/netdev.h>
+#endif
+
 #ifdef CONFIG_BOARDCTL
 
 /****************************************************************************
@@ -49,23 +60,6 @@
  ****************************************************************************/
 
 /* Common commands
- *
- * CMD:           BOARDIOC_INIT
- * DESCRIPTION:   Perform one-time application initialization.
- * ARG:           The boardctl() argument is passed to the
- *                board_app_initialize() implementation without modification.
- *                The argument has no meaning to NuttX; the meaning of the
- *                argument is a contract between the board-specific
- *                initialization logic and the matching application logic.
- *                The value could be such things as a mode enumeration value,
- *                a set of DIP switch switch settings, a pointer to
- *                configuration data read from a file or serial FLASH, or
- *                whatever you would like to do with it.  Every
- *                implementation should accept zero/NULL as a default
- *                configuration.
- * CONFIGURATION: CONFIG_BOARDCTL
- * DEPENDENCIES:  Board logic must provide board_app_initialize()
- *
  * CMD:           BOARDIOC_POWEROFF
  * DESCRIPTION:   Power off the board
  * ARG:           Integer value providing power off status information
@@ -173,13 +167,12 @@
  * CONFIGURATION: CONFIG_NXTERM
  * DEPENDENCIES:  Base NX terminal logic provides nxterm_ioctl_tap()
  *
- * CMD:           BOARDIOC_TESTSET
- * DESCRIPTION:   Access architecture-specific up_testset() operation
- * ARG:           A pointer to a write-able spinlock object.  On success
- *                the  preceding spinlock state is returned:  0=unlocked,
- *                1=locked.
- * CONFIGURATION: CONFIG_BOARDCTL_TESTSET
- * DEPENDENCIES:  Architecture-specific logic provides up_testset()
+ * CMD:           BOARDIOC_SPINLOCK
+ * DESCRIPTION:   spinlock specific operation
+ * ARG:           A pointer to a write-able boardioc_spinlock_s
+ *
+ * CONFIGURATION: CONFIG_BOARDCTL_SPINLOCK
+ * DEPENDENCIES:  spinlock specific logic
  *
  * CMD:           BOARDIOC_RESET_CAUSE
  * DESCRIPTION:   Get the cause of last-time board reset
@@ -188,27 +181,29 @@
  * DEPENDENCIES:  Board logic must provide the board_reset_cause() interface.
  */
 
-#define BOARDIOC_INIT              _BOARDIOC(0x0001)
-#define BOARDIOC_FINALINIT         _BOARDIOC(0x0002)
-#define BOARDIOC_POWEROFF          _BOARDIOC(0x0003)
-#define BOARDIOC_RESET             _BOARDIOC(0x0004)
-#define BOARDIOC_PM_CONTROL        _BOARDIOC(0x0005)
-#define BOARDIOC_UNIQUEID          _BOARDIOC(0x0006)
-#define BOARDIOC_MKRD              _BOARDIOC(0x0007)
-#define BOARDIOC_ROMDISK           _BOARDIOC(0x0008)
-#define BOARDIOC_APP_SYMTAB        _BOARDIOC(0x0009)
-#define BOARDIOC_OS_SYMTAB         _BOARDIOC(0x000a)
-#define BOARDIOC_BUILTINS          _BOARDIOC(0x000b)
-#define BOARDIOC_USBDEV_CONTROL    _BOARDIOC(0x000c)
-#define BOARDIOC_NX_START          _BOARDIOC(0x000d)
-#define BOARDIOC_VNC_START         _BOARDIOC(0x000e)
-#define BOARDIOC_NXTERM            _BOARDIOC(0x000f)
-#define BOARDIOC_NXTERM_IOCTL      _BOARDIOC(0x0010)
-#define BOARDIOC_TESTSET           _BOARDIOC(0x0011)
-#define BOARDIOC_UNIQUEKEY         _BOARDIOC(0x0012)
-#define BOARDIOC_SWITCH_BOOT       _BOARDIOC(0x0013)
-#define BOARDIOC_BOOT_IMAGE        _BOARDIOC(0x0014)
-#define BOARDIOC_RESET_CAUSE       _BOARDIOC(0x0015)
+#define BOARDIOC_FINALINIT         _BOARDIOC(0x0001)
+#define BOARDIOC_POWEROFF          _BOARDIOC(0x0002)
+#define BOARDIOC_RESET             _BOARDIOC(0x0003)
+#define BOARDIOC_PM_CONTROL        _BOARDIOC(0x0004)
+#define BOARDIOC_UNIQUEID          _BOARDIOC(0x0005)
+#define BOARDIOC_MKRD              _BOARDIOC(0x0006)
+#define BOARDIOC_ROMDISK           _BOARDIOC(0x0007)
+#define BOARDIOC_APP_SYMTAB        _BOARDIOC(0x0008)
+#define BOARDIOC_OS_SYMTAB         _BOARDIOC(0x0009)
+#define BOARDIOC_BUILTINS          _BOARDIOC(0x000a)
+#define BOARDIOC_USBDEV_CONTROL    _BOARDIOC(0x000b)
+#define BOARDIOC_NX_START          _BOARDIOC(0x000c)
+#define BOARDIOC_VNC_START         _BOARDIOC(0x000d)
+#define BOARDIOC_NXTERM            _BOARDIOC(0x000e)
+#define BOARDIOC_NXTERM_IOCTL      _BOARDIOC(0x000f)
+#define BOARDIOC_SPINLOCK          _BOARDIOC(0x0010)
+#define BOARDIOC_UNIQUEKEY         _BOARDIOC(0x0011)
+#define BOARDIOC_SWITCH_BOOT       _BOARDIOC(0x0012)
+#define BOARDIOC_BOOT_IMAGE        _BOARDIOC(0x0013)
+#define BOARDIOC_RESET_CAUSE       _BOARDIOC(0x0014)
+#define BOARDIOC_IRQ_AFFINITY      _BOARDIOC(0x0015)
+#define BOARDIOC_START_CPU         _BOARDIOC(0x0016)
+#define BOARDIOC_MACADDR           _BOARDIOC(0x0017)
 
 /* If CONFIG_BOARDCTL_IOCTL=y, then board-specific commands will be support.
  * In this case, all commands not recognized by boardctl() will be forwarded
@@ -217,7 +212,7 @@
  * User defined board commands may begin with this value:
  */
 
-#define BOARDIOC_USER              _BOARDIOC(0x0016)
+#define BOARDIOC_USER              _BOARDIOC(0x0019)
 
 /****************************************************************************
  * Public Type Definitions
@@ -279,6 +274,22 @@ struct boardioc_romdisk_s
 };
 #endif
 
+#ifdef CONFIG_BOARDCTL_SPINLOCK
+enum boardioc_spinlock_e
+{
+  BOARDIOC_SPINLOCK_LOCK    = 0, /* call up_irq_save or/and spin_lock */
+  BOARDIOC_SPINLOCK_TRYLOCK = 1, /* call up_irq_save or/and spin_trylock */
+  BOARDIOC_SPINLOCK_UNLOCK  = 2, /* call up_irq_restore or/and spin_unlock */
+};
+
+struct boardioc_spinlock_s
+{
+  enum boardioc_spinlock_e action; /* see enum boardioc_spinlock_e */
+  FAR irqstate_t *flags;           /* whether we need to disable int */
+  FAR volatile spinlock_t *lock;   /* whether we need to call spinlock */
+};
+#endif
+
 /* In order to full describe a symbol table, a vector containing the address
  * of the symbol table and the number of elements in the symbol table is
  * required.
@@ -287,7 +298,7 @@ struct boardioc_romdisk_s
 struct symtab_s;  /* Forward reference */
 struct boardioc_symtab_s
 {
-  FAR struct symtab_s *symtab;
+  FAR const struct symtab_s *symtab;
   int nsymbols;
 };
 
@@ -331,6 +342,10 @@ struct boardioc_builtin_s
 enum boardioc_usbdev_identifier_e
 {
   BOARDIOC_USBDEV_NONE = 0        /* Not valid */
+#ifdef CONFIG_USBADB
+  , BOARDIOC_USBDEV_ADB           /* ADB */
+  , BOARDIOC_USBDEV_FASTBOOT = BOARDIOC_USBDEV_ADB
+#endif
 #ifdef CONFIG_CDCACM
   , BOARDIOC_USBDEV_CDCACM        /* CDC/ACM */
 #endif
@@ -339,6 +354,9 @@ enum boardioc_usbdev_identifier_e
 #endif
 #ifdef CONFIG_USBMSC
   , BOARDIOC_USBDEV_MSC           /* Mass storage class */
+#endif
+#ifdef CONFIG_USBUVC
+  , BOARDIOC_USBDEV_UVC           /* USB Video Class */
 #endif
 #ifdef CONFIG_USBDEV_COMPOSITE
   , BOARDIOC_USBDEV_COMPOSITE     /* Composite device */
@@ -439,7 +457,8 @@ enum boardioc_softreset_subreason_e
   BOARDIOC_SOFTRESETCAUSE_ENTER_BOOTLOADER,
   BOARDIOC_SOFTRESETCAUSE_ENTER_RECOVERY,
   BOARDIOC_SOFTRESETCAUSE_RESTORE_FACTORY,
-  BOARDIOC_SOFTRESETCAUSE_RESTORE_FACTORY_INQUIRY
+  BOARDIOC_SOFTRESETCAUSE_RESTORE_FACTORY_INQUIRY,
+  BOARDIOC_SOFTRESETCAUSE_THERMAL
 };
 
 struct boardioc_reset_cause_s
@@ -447,6 +466,14 @@ struct boardioc_reset_cause_s
   enum boardioc_reset_cause_e cause;  /* The reason of last reset */
   uint32_t flag;                      /* watchdog number when watchdog reset,
                                        * or soft-reset subreason */
+};
+#endif
+
+#ifdef CONFIG_BOARDCTL_MACADDR
+struct boardioc_macaddr_s
+{
+  char ifname[IFNAMSIZ];
+  uint8_t macaddr[RADIO_MAX_ADDRLEN];
 };
 #endif
 

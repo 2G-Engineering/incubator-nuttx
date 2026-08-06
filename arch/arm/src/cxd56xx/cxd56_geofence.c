@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/cxd56xx/cxd56_geofence.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <fixedmath.h>
 #include <poll.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
@@ -555,7 +557,7 @@ static int cxd56_geofence_poll(struct file *filep,
   int                          i;
 
   inode = filep->f_inode;
-  priv  = (struct cxd56_geofence_dev_s *)inode->i_private;
+  priv  = inode->i_private;
 
   ret = nxmutex_lock(&priv->devlock);
   if (ret < 0)
@@ -631,8 +633,7 @@ static int cxd56_geofence_register(const char *devpath)
   struct cxd56_geofence_dev_s *priv;
   int                          ret;
 
-  priv = (struct cxd56_geofence_dev_s *)kmm_zalloc(
-    sizeof(struct cxd56_geofence_dev_s));
+  priv = kmm_zalloc(sizeof(struct cxd56_geofence_dev_s));
   if (!priv)
     {
       gnsserr("Failed to allocate instance\n");

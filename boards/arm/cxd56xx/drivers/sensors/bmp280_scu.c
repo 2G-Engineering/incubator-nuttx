@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/cxd56xx/drivers/sensors/bmp280_scu.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <fixedmath.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
@@ -123,7 +125,7 @@
 #endif
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 struct bmp280_dev_s
@@ -912,7 +914,7 @@ int bmp280press_register(const char *devpath, int minor,
   char path[12];
   int ret;
 
-  priv = (struct bmp280_dev_s *)kmm_malloc(sizeof(struct bmp280_dev_s));
+  priv = kmm_malloc(sizeof(struct bmp280_dev_s));
   if (!priv)
     {
       snerr("Failed to allocate instance\n");
@@ -963,7 +965,7 @@ int bmp280temp_register(const char *devpath, int minor,
   char path[12];
   int ret;
 
-  priv = (struct bmp280_dev_s *)kmm_malloc(sizeof(struct bmp280_dev_s));
+  priv = kmm_malloc(sizeof(struct bmp280_dev_s));
   if (!priv)
     {
       snerr("Failed to allocate instance\n");

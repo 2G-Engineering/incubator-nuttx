@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/k210/k210_timerisr.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <time.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/spinlock.h>
@@ -44,11 +46,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#ifdef CONFIG_K210_WITH_QEMU
-#define MTIMER_FREQ 1000000
-#else
 #define MTIMER_FREQ (k210_get_cpuclk() / 50)
-#endif
 
 /****************************************************************************
  * Public Functions

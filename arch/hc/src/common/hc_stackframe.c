@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/hc/src/common/hc_stackframe.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <sched.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <arch/irq.h>
@@ -75,7 +77,7 @@ FAR void *up_stack_frame(FAR struct tcb_s *tcb, size_t frame_size)
 
   /* Align the frame_size */
 
-  frame_size = STACK_ALIGN_UP(frame_size);
+  frame_size = STACKFRAME_ALIGN_UP(frame_size);
 
   /* Is there already a stack allocated? Is it big enough? */
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rtl8720c/amebaz_driver.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,6 +27,7 @@
 #include <nuttx/config.h>
 #include <stdio.h>
 #include <netinet/arp.h>
+#include <nuttx/signal.h>
 #include <nuttx/kmalloc.h>
 
 #include "amebaz_netdev.h"
@@ -958,7 +961,7 @@ int amebaz_wl_set_mode(struct amebaz_dev_s *priv, struct iwreq *iwr)
 
           while (!rltk_wlan_running(priv->devnum))
             {
-              usleep(1000);
+              nxsched_usleep(1000);
             }
 
           ret = amebaz_wl_disable_powersave(0);
@@ -1080,7 +1083,7 @@ static struct amebaz_dev_s *amebaz_allocate_device(int devnum)
 {
   struct amebaz_dev_s *priv;
 
-  priv = (struct amebaz_dev_s *)kmm_zalloc(sizeof(*priv));
+  priv = kmm_zalloc(sizeof(*priv));
   if (!priv)
     {
       return NULL;
@@ -1125,7 +1128,7 @@ static int amebaz_wl_on(int mode)
 
       while (!rltk_wlan_running(gp_wlan_dev[i]->devnum))
         {
-          usleep(1000);
+          nxsched_usleep(1000);
         }
     }
 

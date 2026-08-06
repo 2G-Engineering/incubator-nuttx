@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/timers/pwm.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -22,10 +24,9 @@
 #define __INCLUDE_NUTTX_TIMERS_PWM_H
 
 /* For the purposes of this driver, a PWM device is any device that generates
- * periodic output pulses s of controlled frequency and pulse width.  Such a
- * device might be used, for example, to perform pulse-width modulated output
- * or frequency/pulse-count modulated output (such as might be needed to
- * control a stepper motor).
+ * periodic output pulses of controlled frequency and pulse width. Such a
+ * device might be used, for example, to perform pulse-width modulated
+ * output.
  *
  * The PWM driver is split into two parts:
  *
@@ -50,16 +51,13 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+#ifndef CONFIG_PWM_NCHANNELS
+#  define CONFIG_PWM_NCHANNELS 1
+#endif
+
 /* Configuration ************************************************************/
 
 /* CONFIG_PWM - Enables because PWM driver support
- * CONFIG_PWM_PULSECOUNT - Some hardware will support generation of a fixed
- *   number of pulses.  This might be used, for example to support a stepper
- *   motor.  If the hardware will support a fixed pulse count, then this
- *   configuration should be set to enable the capability.
- * CONFIG_PWM_MULTICHAN - Enables support for multiple output channels per
- *   timer.  If selected, then CONFIG_PWM_NCHANNELS must be provided to
- *   indicated the maximum number of supported PWM output channels.
  * CONFIG_DEBUG_PWM_INFO - This will generate output that can be use to
  *   debug the PWM driver.
  */
@@ -79,12 +77,10 @@
  * interface, the majority of the functionality is implemented in driver
  * ioctl calls.  The PWM ioctl commands are listed below:
  *
- * PWMIOC_SETCHARACTERISTICS - Set the characteristics of the next pulsed
- *  output.  This command will neither start nor stop the pulsed output.
- *  It will either setup the configuration that will be used when the
- *  output is started; or it will change the characteristics of the pulsed
- *  output on the fly if the timer is already started.  This command will
- *  set the PWM characteristics and return immediately.
+ * PWMIOC_SETCHARACTERISTICS - Set the characteristics of the next
+ *  pulsed output and start the pulsed output. It will change the
+ *  characteristics of the pulsed output on the fly if the timer is
+ *  already started.
  *
  *  ioctl argument: A read-only reference to struct pwm_info_s that provides
  *  the characteristics of the pulsed output.
@@ -97,11 +93,7 @@
  *  characteristics of the pulsed output.
  *
  * PWMIOC_START - Start the pulsed output.  The PWMIOC_SETCHARACTERISTICS
- *  command must have previously been sent. If CONFIG_PWM_PULSECOUNT is
- *  defined and the pulse count was configured to a non-zero value, then
- *  this ioctl call will, by default, block until the programmed pulse count
- *  completes.  That default blocking behavior can be overridden by using
- *  the O_NONBLOCK flag when the PWM driver is opened.
+ *  command must have previously been sent.
  *
  *  ioctl argument:  None
  *
@@ -109,12 +101,47 @@
  *  and return immediately.
  *
  *  ioctl argument:  None
+ *
+ * PWMIOC_FAULTS_FETCH_AND_CLEAR - Fetch current faults and clear them.
+ *  This command will clear fault inputs and re-enable PWM output. It also
+ *  fetches the faults active before the clear operation.
+ *
+ *  ioctl argument:  A pointer to an unsigned long bitmask of fault inputs to
+ *  be cleared. The previously active faults are also saved into this
+ *  bitmask, therefore it ioctl is both input and output. Passing NULL
+ *  clears all active faults and does not read them back. Passing a pointer
+ *  to a bitmask full of zeros will read the current faults and clear none.
  */
 
-#define PWMIOC_SETCHARACTERISTICS _PWMIOC(1)
-#define PWMIOC_GETCHARACTERISTICS _PWMIOC(2)
-#define PWMIOC_START              _PWMIOC(3)
-#define PWMIOC_STOP               _PWMIOC(4)
+#define PWMIOC_SETCHARACTERISTICS      _PWMIOC(1)
+#define PWMIOC_GETCHARACTERISTICS      _PWMIOC(2)
+#define PWMIOC_START                   _PWMIOC(3)
+#define PWMIOC_STOP                    _PWMIOC(4)
+#define PWMIOC_FAULTS_FETCH_AND_CLEAR  _PWMIOC(5)
+
+/* PWM channel polarity *****************************************************/
+
+/* These are helper definitions for setting PWM channel output polarity to
+ * logical low or high level. The pulsed output should start with this
+ * logical value.
+ * The output polarity of the PWM's disabled channel does not depend on this
+ * value, refer to DCPOL instead.
+ */
+
+#define PWM_CPOL_NDEF             0   /* Not defined, default value by arch driver should be used */
+#define PWM_CPOL_LOW              1   /* Logical zero */
+#define PWM_CPOL_HIGH             2   /* Logical one */
+
+/* PWM disabled channel polarity ********************************************/
+
+/* The output of the PWM disabled channel may depend on the platform
+ * dependent peripheral. These helper definitions can be used for setting
+ * the disabled channel's output state.
+ */
+
+#define PWM_DCPOL_NDEF           0   /* Not defined, the default output state is arch dependent */
+#define PWM_DCPOL_LOW            1   /* Logical zero */
+#define PWM_DCPOL_HIGH           2   /* Logical one  */
 
 /****************************************************************************
  * Public Types
@@ -124,7 +151,6 @@
  * structure describes the output state on one channel.
  */
 
-#ifdef CONFIG_PWM_MULTICHAN
 struct pwm_chan_s
 {
   ub16_t duty;
@@ -136,9 +162,10 @@ struct pwm_chan_s
   ub16_t dead_time_a;
   ub16_t dead_time_b;
 #endif
+  uint8_t cpol;
+  uint8_t dcpol;
   int8_t channel;
 };
-#endif
 
 /* This structure describes the characteristics of the pulsed output */
 
@@ -146,24 +173,9 @@ struct pwm_info_s
 {
   uint32_t           frequency; /* Frequency of the pulse train */
 
-#ifdef CONFIG_PWM_MULTICHAN
-                                /* Per-channel output state */
+  /* Per-channel output state */
 
   struct pwm_chan_s  channels[CONFIG_PWM_NCHANNELS];
-
-#else
-  ub16_t             duty;      /* Duty of the pulse train, "1"-to-"0" duration.
-                                 * Maximum: 65535/65536 (0x0000ffff)
-                                 * Minimum:     1/65536 (0x00000001) */
-#ifdef CONFIG_PWM_DEADTIME
-  ub16_t dead_time_a;           /* Dead time value for main output */
-  ub16_t dead_time_b;           /* Dead time value for complementary output */
-#endif
-#  ifdef CONFIG_PWM_PULSECOUNT
-  uint32_t           count;     /* The number of pulse to generate.  0 means to
-                                 * generate an indefinite number of pulses */
-#  endif
-#endif /* CONFIG_PWM_MULTICHAN */
 
   FAR void           *arg;      /* User provided argument to be used in the
                                  * lower half */
@@ -193,17 +205,11 @@ struct pwm_ops_s
 
   /* (Re-)initialize the timer resources and start the pulsed output. The
    * start method should return an error if it cannot start the timer with
-   * the given parameter (frequency, duty, or optionally pulse count)
+   * the given parameter (frequency or duty)
    */
 
-#ifdef CONFIG_PWM_PULSECOUNT
-  CODE int (*start)(FAR struct pwm_lowerhalf_s *dev,
-                    FAR const struct pwm_info_s *info,
-                    FAR void *handle);
-#else
   CODE int (*start)(FAR struct pwm_lowerhalf_s *dev,
                     FAR const struct pwm_info_s *info);
-#endif
 
   /* Stop the pulsed output and reset the timer resources */
 
@@ -286,47 +292,6 @@ extern "C"
  ****************************************************************************/
 
 int pwm_register(FAR const char *path, FAR struct pwm_lowerhalf_s *dev);
-
-/****************************************************************************
- * Name: pwm_expired
- *
- * Description:
- *   If CONFIG_PWM_PULSECOUNT is defined and the pulse count was configured
- *   to a non-zero value, then the "upper half" driver will wait for the
- *   pulse count to expire.  The sequence of expected events is as follows:
- *
- *   1. The upper half driver calls the start method, providing the lower
- *      half driver with the pulse train characteristics.  If a fixed
- *      number of pulses is required, the 'count' value will be nonzero.
- *   2. The lower half driver's start() method must verify that it can
- *      support the request pulse train (frequency, duty, AND pulse count).
- *      If it cannot, it should return an error.  If the pulse count is
- *      non-zero, it should set up the hardware for that number of pulses
- *      and return success.  NOTE:  That is CONFIG_PWM_PULSECOUNT is
- *      defined, the start() method receives an additional parameter
- *      that must be used in this callback.
- *   3. When the start() method returns success, the upper half driver
- *      will "sleep" until the pwm_expired method is called.
- *   4. When the lower half detects that the pulse count has expired
- *      (probably through an interrupt), it must call the pwm_expired
- *      interface using the handle that was previously passed to the
- *      start() method
- *
- * Input Parameters:
- *   handle - This is the handle that was provided to the lower-half
- *     start() method.
- *
- * Returned Value:
- *   None
- *
- * Assumptions:
- *   This function may be called from an interrupt handler.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_PWM_PULSECOUNT
-void pwm_expired(FAR void *handle);
-#endif
 
 /****************************************************************************
  * Platform-Independent "Lower-Half" PWM Driver Interfaces

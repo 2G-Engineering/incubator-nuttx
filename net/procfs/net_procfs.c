@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/procfs/net_procfs.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,11 +37,11 @@
 #include <libgen.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <sys/param.h>
 
-#include <nuttx/kmalloc.h>
+#include <nuttx/lib/lib.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/procfs.h>
 #include <nuttx/net/netdev.h>
@@ -51,7 +53,7 @@
     !defined(CONFIG_FS_PROCFS_EXCLUDE_NET)
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 /* Read statistics function type */
@@ -120,7 +122,7 @@ static const struct netprocfs_entry_s g_net_entries[] =
     }
   },
 #  endif
-#  if defined(CONFIG_NET_TCP) && !defined(CONFIG_NET_TCP_NO_STACK)
+#  ifdef NET_TCP_HAVE_STACK
   {
     DTYPE_FILE, "tcp",
     {
@@ -128,7 +130,7 @@ static const struct netprocfs_entry_s g_net_entries[] =
     }
   },
 #  endif
-#  if defined(CONFIG_NET_UDP) && !defined(CONFIG_NET_UDP_NO_STACK)
+#  ifdef NET_UDP_HAVE_STACK
   {
     DTYPE_FILE, "udp",
     {
@@ -168,6 +170,7 @@ const struct procfs_operations g_net_operations =
   netprocfs_close,      /* close */
   netprocfs_read,       /* read */
   NULL,                 /* write */
+  NULL,                 /* poll */
   netprocfs_dup,        /* dup */
 
   netprocfs_opendir,    /* opendir */
@@ -201,8 +204,8 @@ static int netprocfs_open(FAR struct file *filep, FAR const char *relpath,
    * REVISIT:  Write-able proc files could be quite useful.
    */
 
-  if (((oflags & O_WRONLY) != 0 || (oflags & O_RDONLY) == 0) &&
-      (g_net_operations.write == NULL))
+  if ((oflags & O_ACCMODE) != O_RDONLY &&
+      g_net_operations.write == NULL)
     {
       ferr("ERROR: Only O_RDONLY supported\n");
       return -EACCES;
@@ -244,7 +247,7 @@ static int netprocfs_open(FAR struct file *filep, FAR const char *relpath,
 
       devname = basename(copy);
       dev     = netdev_findbyname(devname);
-      kmm_free(copy);
+      lib_free(copy);
 
       if (dev == NULL)
         {
@@ -670,7 +673,7 @@ static int netprocfs_stat(FAR const char *relpath, FAR struct stat *buf)
 
       devname = basename(copy);
       dev     = netdev_findbyname(devname);
-      kmm_free(copy);
+      lib_free(copy);
 
       if (dev == NULL)
         {

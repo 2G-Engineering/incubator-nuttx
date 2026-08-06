@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l4/stm32l4_flash.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,11 +34,11 @@
  * Public Functions Prototypes
  ****************************************************************************/
 
-int stm32l4_flash_lock(void);
-int stm32l4_flash_unlock(void);
+int stm32_flash_lock(void);
+int stm32_flash_unlock(void);
 
 /****************************************************************************
- * Name: stm32l4_flash_user_optbytes
+ * Name: stm32_flash_user_optbytes
  *
  * Description:
  *   Modify the contents of the user option bytes (USR OPT) on the flash.
@@ -52,6 +54,6 @@ int stm32l4_flash_unlock(void);
  *
  ****************************************************************************/
 
-uint32_t stm32l4_flash_user_optbytes(uint32_t clrbits, uint32_t setbits);
+uint32_t stm32_flash_user_optbytes(uint32_t clrbits, uint32_t setbits);
 
 #endif /* __ARCH_ARM_SRC_STM32L4_STM32L4_FLASH_H */

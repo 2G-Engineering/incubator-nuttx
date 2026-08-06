@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/lc823450/lc823450-xgevk/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,15 +22,10 @@
 
 include $(TOPDIR)/Make.defs
 
-CSRCS = lc823450_boot.c lc823450_mux.c
+CSRCS = lc823450_boot.c lc823450_mux.c lc823450_bringup.c
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += lc823450_appinit.c lc823450_bringup.c
 ifeq ($(CONFIG_BOARDCTL_RESET),y)
 CSRCS += lc823450_reset.c
-endif
-else ifeq ($(CONFIG_BOARD_LATE_INITIALIZE),y)
-CSRCS += lc823450_bringup.c
 endif
 
 ifeq ($(CONFIG_LC823450_SDIF),y)

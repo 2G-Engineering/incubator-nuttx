@@ -1,13 +1,11 @@
 /****************************************************************************
  * libs/libc/stdlib/lib_lldiv.c
  *
- *   Copyright (C) 2015 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
- *
- * A direct leverage of the div() inplement by:
- *
- *   Copyright (C) 2015 Stavros Polymenis. All rights reserved.
- *   Author: Stavros Polymenis <sp@orbitalfox.com>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2015 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2015 Stavros Polymenis. All rights reserved.
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.org>
+ * SPDX-FileContributor: Stavros Polymenis <sp@orbitalfox.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -47,8 +45,6 @@
 
 #include <stdlib.h>
 
-#if defined(CONFIG_HAVE_LONG_LONG)
-
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -82,4 +78,3 @@ lldiv_t lldiv(long long numer, long long denom)
   return f;
 }
 
-#endif /* CONFIG_HAVE_LONG_LONG */

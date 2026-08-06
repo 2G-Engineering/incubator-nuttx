@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/procfs/fs_procfsproc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,13 +38,16 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <malloc.h>
+#include <execinfo.h>
 
 #ifdef CONFIG_SCHED_CRITMONITOR
 #  include <time.h>
 #endif
 
+#include <nuttx/arch.h>
+#include <nuttx/nuttx.h>
 #include <nuttx/irq.h>
 #include <nuttx/tls.h>
 #include <nuttx/sched.h>
@@ -53,8 +58,12 @@
 #include <nuttx/fs/procfs.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/mm/mm.h>
+#include <nuttx/queue.h>
+#include <nuttx/lib/lib.h>
 
-#if defined(CONFIG_SCHED_CPULOAD) || defined(CONFIG_SCHED_CRITMONITOR)
+#include "fs_heap.h"
+
+#if !defined(CONFIG_SCHED_CPULOAD_NONE) || defined(CONFIG_SCHED_CRITMONITOR)
 #  include <nuttx/clock.h>
 #endif
 
@@ -72,7 +81,7 @@
 #define STATUS_LINELEN PATH_MAX
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 /* This enumeration identifies all of the task/thread nodes that can be
@@ -84,7 +93,7 @@ enum proc_node_e
   PROC_LEVEL0 = 0,                    /* The top-level directory */
   PROC_STATUS,                        /* Task/thread status */
   PROC_CMDLINE,                       /* Task command line */
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
   PROC_LOADAVG,                       /* Average CPU utilization */
 #endif
 #ifdef CONFIG_SCHED_CRITMONITOR
@@ -152,7 +161,7 @@ struct proc_envinfo_s
  * Private Data
  ****************************************************************************/
 
-static FAR const char *g_policy[4] =
+static FAR const char * const g_policy[4] =
 {
   "SCHED_FIFO", "SCHED_RR", "SCHED_SPORADIC"
 };
@@ -171,7 +180,7 @@ static ssize_t proc_status(FAR struct proc_file_s *procfile,
 static ssize_t proc_cmdline(FAR struct proc_file_s *procfile,
                  FAR struct tcb_s *tcb, FAR char *buffer, size_t buflen,
                  off_t offset);
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
 static ssize_t proc_loadavg(FAR struct proc_file_s *procfile,
                  FAR struct tcb_s *tcb, FAR char *buffer, size_t buflen,
                  off_t offset);
@@ -250,6 +259,7 @@ const struct procfs_operations g_proc_operations =
   proc_close,         /* close */
   proc_read,          /* read */
   proc_write,         /* write */
+  NULL,               /* poll */
 
   proc_dup,           /* dup */
 
@@ -278,7 +288,7 @@ static const struct proc_node_s g_cmdline =
   "cmdline",      "cmdline", (uint8_t)PROC_CMDLINE,      DTYPE_FILE        /* Task command line */
 };
 
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
 static const struct proc_node_s g_loadavg =
 {
   "loadavg",       "loadavg", (uint8_t)PROC_LOADAVG,     DTYPE_FILE        /* Average CPU utilization */
@@ -340,7 +350,7 @@ static FAR const struct proc_node_s * const g_nodeinfo[] =
 {
   &g_status,       /* Task/thread status */
   &g_cmdline,      /* Task command line */
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
   &g_loadavg,      /* Average CPU utilization */
 #endif
 #ifdef CONFIG_SCHED_CRITMONITOR
@@ -369,7 +379,7 @@ static const struct proc_node_s * const g_level0info[] =
 {
   &g_status,       /* Task/thread status */
   &g_cmdline,      /* Task command line */
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
   &g_loadavg,      /* Average CPU utilization */
 #endif
 #ifdef CONFIG_SCHED_CRITMONITOR
@@ -480,11 +490,7 @@ static ssize_t proc_status(FAR struct proc_file_s *procfile,
 
   /* Show the task name */
 
-#if CONFIG_TASK_NAME_SIZE > 0
-  name       = tcb->name;
-#else
-  name       = "<noname>";
-#endif
+  name       = get_task_name(tcb);
   linesize   = procfs_snprintf(procfile->line, STATUS_LINELEN,
                                "%-12s%.18s\n", "Name:", name);
   copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
@@ -578,9 +584,7 @@ static ssize_t proc_status(FAR struct proc_file_s *procfile,
   /* Show task flags */
 
   linesize = procfs_snprintf(procfile->line, STATUS_LINELEN,
-                          "%-12s%c%c%c\n", "Flags:",
-                          tcb->flags & TCB_FLAG_NONCANCELABLE ? 'N' : '-',
-                          tcb->flags & TCB_FLAG_CANCEL_PENDING ? 'P' : '-',
+                          "%-12s%c\n", "Flags:",
                           tcb->flags & TCB_FLAG_EXIT_PROCESSING ? 'P' : '-');
 
   copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
@@ -636,10 +640,11 @@ static ssize_t proc_status(FAR struct proc_file_s *procfile,
     }
 
   /* Show the signal mask. Note: sigset_t is uint32_t on NuttX. */
-
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   linesize = procfs_snprintf(procfile->line, STATUS_LINELEN,
                              "%-12s" SIGSET_FMT "\n",
                              "SigMask:", SIGSET_ELEM(&tcb->sigprocmask));
+#endif
   copysize = procfs_memcpy(procfile->line, linesize, buffer, remaining,
                            &offset);
 
@@ -666,11 +671,7 @@ static ssize_t proc_cmdline(FAR struct proc_file_s *procfile,
 
   /* Show the task name */
 
-#if CONFIG_TASK_NAME_SIZE > 0
-  name       = tcb->name;
-#else
-  name       = "<noname>";
-#endif
+  name       = get_task_name(tcb);
   linesize   = strlen(name);
   memcpy(procfile->line, name, linesize);
   copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
@@ -687,9 +688,9 @@ static ssize_t proc_cmdline(FAR struct proc_file_s *procfile,
 
   /* Show the task / thread argument list (skipping over the name) */
 
-  linesize   = group_argvstr(tcb, procfile->line, remaining);
+  linesize   = nxtask_argvstr(tcb, procfile->line, sizeof(procfile->line));
   copysize   = procfs_memcpy(procfile->line, linesize, buffer,
-                             remaining, &offset);
+                             sizeof(procfile->line), &offset);
   totalsize += copysize;
   buffer    += copysize;
   remaining -= copysize;
@@ -706,7 +707,7 @@ static ssize_t proc_cmdline(FAR struct proc_file_s *procfile,
  * Name: proc_loadavg
  ****************************************************************************/
 
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
 static ssize_t proc_loadavg(FAR struct proc_file_s *procfile,
                             FAR struct tcb_s *tcb, FAR char *buffer,
                             size_t buflen, off_t offset)
@@ -773,9 +774,10 @@ static ssize_t proc_critmon(FAR struct proc_file_s *procfile,
 
   /* Convert the for maximum time pre-emption disabled */
 
-  if (tcb->premp_max > 0)
+#if CONFIG_SCHED_CRITMONITOR_MAXTIME_PREEMPTION >= 0
+  if (tcb->preemp_max > 0)
     {
-      up_perf_convert(tcb->premp_max, &maxtime);
+      perf_convert(tcb->preemp_max, &maxtime);
     }
   else
     {
@@ -785,13 +787,14 @@ static ssize_t proc_critmon(FAR struct proc_file_s *procfile,
 
   /* Reset the maximum */
 
-  tcb->premp_max = 0;
+  tcb->preemp_max = 0;
 
   /* Generate output for maximum time pre-emption disabled */
 
-  linesize = procfs_snprintf(procfile->line, STATUS_LINELEN, "%lu.%09lu,",
-                             (unsigned long)maxtime.tv_sec,
-                             (unsigned long)maxtime.tv_nsec);
+  linesize = procfs_snprintf(procfile->line, STATUS_LINELEN, "%jd.%09ld %p,",
+                             (intmax_t)maxtime.tv_sec,
+                             maxtime.tv_nsec,
+                             tcb->preemp_max_caller);
   copysize = procfs_memcpy(procfile->line, linesize, buffer, remaining,
                            &offset);
 
@@ -803,12 +806,14 @@ static ssize_t proc_critmon(FAR struct proc_file_s *procfile,
     {
       return totalsize;
     }
+#endif /* CONFIG_SCHED_CRITMONITOR_MAXTIME_PREEMPT >= 0 */
 
   /* Convert and generate output for maximum time in a critical section */
 
+#if CONFIG_SCHED_CRITMONITOR_MAXTIME_CSECTION >= 0
   if (tcb->crit_max > 0)
     {
-      up_perf_convert(tcb->crit_max, &maxtime);
+      perf_convert(tcb->crit_max, &maxtime);
     }
   else
     {
@@ -822,9 +827,46 @@ static ssize_t proc_critmon(FAR struct proc_file_s *procfile,
 
   /* Generate output for maximum time in a critical section */
 
-  linesize = procfs_snprintf(procfile->line, STATUS_LINELEN, "%lu.%09lu,",
-                             (unsigned long)maxtime.tv_sec,
-                             (unsigned long)maxtime.tv_nsec);
+  linesize = procfs_snprintf(procfile->line, STATUS_LINELEN, "%jd.%09ld %p,",
+                             (intmax_t)maxtime.tv_sec,
+                             maxtime.tv_nsec,
+                             tcb->crit_max_caller);
+  copysize = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                           &offset);
+
+  totalsize += copysize;
+  buffer    += copysize;
+  remaining -= copysize;
+
+  if (totalsize >= buflen)
+    {
+      return totalsize;
+    }
+#endif /* CONFIG_SCHED_CRITMONITOR_MAXTIME_CSECTION >= 0 */
+
+  /* Convert and generate output for max busywait time && all busywait time */
+
+#if CONFIG_SCHED_CRITMONITOR_MAXTIME_BUSYWAIT >= 0
+  if (tcb->busywait_max > 0)
+    {
+      perf_convert(tcb->busywait_max, &maxtime);
+    }
+  else
+    {
+      maxtime.tv_sec = 0;
+      maxtime.tv_nsec = 0;
+    }
+
+  /* Reset the maximum */
+
+  tcb->busywait_max = 0;
+
+  /* Generate output for max busywait time */
+
+  linesize = procfs_snprintf(procfile->line, STATUS_LINELEN, "%jd.%09ld %p,",
+                             (intmax_t)maxtime.tv_sec,
+                             maxtime.tv_nsec,
+                             tcb->busywait_max_caller);
   copysize = procfs_memcpy(procfile->line, linesize, buffer, remaining,
                            &offset);
 
@@ -837,11 +879,39 @@ static ssize_t proc_critmon(FAR struct proc_file_s *procfile,
       return totalsize;
     }
 
-  /* Convert and generate output for maximum time thread running */
+  if (tcb->busywait_total > 0)
+    {
+      perf_convert(tcb->busywait_total, &maxtime);
+    }
+  else
+    {
+      maxtime.tv_sec = 0;
+      maxtime.tv_nsec = 0;
+    }
 
+  /* Generate output for all busywait time */
+
+  linesize = procfs_snprintf(procfile->line, STATUS_LINELEN, "%jd.%09ld,",
+                             (intmax_t)maxtime.tv_sec,
+                             maxtime.tv_nsec);
+  copysize = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                           &offset);
+
+  totalsize += copysize;
+  buffer    += copysize;
+  remaining -= copysize;
+
+  if (totalsize >= buflen)
+    {
+      return totalsize;
+    }
+#endif /* CONFIG_SCHED_CRITMONITOR_MAXTIME_BUSYWAIT >= 0 */
+
+  /* Convert and generate output for maximum time thread running */
+#if CONFIG_SCHED_CRITMONITOR_MAXTIME_THREAD >= 0
   if (tcb->run_max > 0)
     {
-      up_perf_convert(tcb->run_max, &maxtime);
+      perf_convert(tcb->run_max, &maxtime);
     }
   else
     {
@@ -852,22 +922,24 @@ static ssize_t proc_critmon(FAR struct proc_file_s *procfile,
   /* Reset the maximum */
 
   tcb->run_max = 0;
-  up_perf_convert(tcb->run_time, &runtime);
+  perf_convert(tcb->run_time, &runtime);
 
   /* Output the maximum time the thread has run and
    * the total time the thread has run
    */
 
   linesize = procfs_snprintf(procfile->line, STATUS_LINELEN,
-                             "%lu.%09lu,%lu.%09lu\n",
-                             (unsigned long)maxtime.tv_sec,
-                             (unsigned long)maxtime.tv_nsec,
-                             (unsigned long)runtime.tv_sec,
-                             (unsigned long)(runtime.tv_nsec));
+                             "%jd.%09ld,%jd.%09ld\n",
+                             (intmax_t)maxtime.tv_sec,
+                             maxtime.tv_nsec,
+                             (intmax_t)runtime.tv_sec,
+                             runtime.tv_nsec);
   copysize = procfs_memcpy(procfile->line, linesize, buffer, remaining,
                            &offset);
 
   totalsize += copysize;
+#endif /* CONFIG_SCHED_CRITMONITOR_MAXTIME_THREAD >= 0 */
+
   return totalsize;
 }
 #endif
@@ -886,20 +958,20 @@ static ssize_t proc_heap(FAR struct proc_file_s *procfile,
   size_t copysize;
   size_t totalsize = 0;
   struct mallinfo_task info;
-  struct mm_memdump_s dump;
+  struct malltask task;
 
-  dump.pid = tcb->pid;
-  dump.seqmin = 0;
-  dump.seqmax = ULONG_MAX;
+  task.pid = tcb->pid;
+  task.seqmin = 0;
+  task.seqmax = ULONG_MAX;
 #ifdef CONFIG_MM_KERNEL_HEAP
   if ((tcb->flags & TCB_FLAG_TTYPE_MASK) == TCB_FLAG_TTYPE_KERNEL)
     {
-      info = kmm_mallinfo_task(&dump);
+      info = kmm_mallinfo_task(&task);
     }
   else
 #endif
     {
-      info = mallinfo_task(&dump);
+      info = mallinfo_task(&task);
     }
 
   /* Show the heap alloc size */
@@ -958,12 +1030,12 @@ static ssize_t proc_heapcheck_write(FAR struct proc_file_s *procfile,
                                     FAR const char *buffer,
                                     size_t buflen, off_t offset)
 {
-  switch (atoi(buffer))
+  switch (buffer[0])
     {
-      case 0:
+      case '0':
         tcb->flags &= ~TCB_FLAG_HEAP_CHECK;
         break;
-      case 1:
+      case '1':
         tcb->flags |= TCB_FLAG_HEAP_CHECK;
         break;
       default:
@@ -988,6 +1060,9 @@ static ssize_t proc_stack(FAR struct proc_file_s *procfile,
   size_t linesize;
   size_t copysize;
   size_t totalsize;
+#if CONFIG_SCHED_STACK_RECORD > 0
+  int i;
+#endif
 
   remaining = buflen;
   totalsize = 0;
@@ -1043,14 +1118,67 @@ static ssize_t proc_stack(FAR struct proc_file_s *procfile,
 
   /* Show the stack size */
 
-  linesize   = procfs_snprintf(procfile->line, STATUS_LINELEN, "%-12s%ld\n",
-                               "StackUsed:", (long)up_check_tcbstack(tcb));
+  linesize = procfs_snprintf(
+      procfile->line, STATUS_LINELEN, "%-12s%zu\n",
+      "StackUsed:", up_check_tcbstack(tcb, tcb->adj_stack_size));
+
   copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
                              &offset);
 
   totalsize += copysize;
   buffer    += copysize;
   remaining -= copysize;
+#endif
+
+#if CONFIG_SCHED_STACK_RECORD > 0
+  linesize   = procfs_snprintf(procfile->line, STATUS_LINELEN, "%-12s%zu\n",
+                              "StackMax: ",
+                              tcb->stack_base_ptr +
+                              tcb->adj_stack_size - tcb->sp_deepest);
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
+
+  totalsize += copysize;
+  buffer    += copysize;
+  remaining -= copysize;
+
+  linesize   = procfs_snprintf(procfile->line, STATUS_LINELEN, "%-12s%-s\n",
+                               "Size", "Backtrace");
+  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                             &offset);
+
+  totalsize += copysize;
+  buffer    += copysize;
+  remaining -= copysize;
+
+  for (i = tcb->level_deepest - 1; i >= 0; i--)
+    {
+      linesize = procfs_snprintf(procfile->line, STATUS_LINELEN,
+                                 "%-12zu%-pS\n",
+                                 (i ? tcb->stackrecord_sp_deepest[i - 1] :
+                                  tcb->stack_base_ptr + tcb->adj_stack_size)
+                                 - tcb->stackrecord_sp_deepest[i],
+                                 tcb->stackrecord_pc_deepest[i]);
+      copysize = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                               &offset);
+      totalsize += copysize;
+      buffer    += copysize;
+      remaining -= copysize;
+    }
+
+  if (tcb->caller_deepest)
+    {
+      linesize = procfs_snprintf(procfile->line, STATUS_LINELEN,
+                                 "Warning stack record buffer too small\n"
+                                 "Max: %u Overflow: %zu\n",
+                                 CONFIG_SCHED_STACK_RECORD,
+                                 tcb->caller_deepest);
+      copysize = procfs_memcpy(procfile->line, linesize, buffer, remaining,
+                               &offset);
+      totalsize += copysize;
+      buffer    += copysize;
+      remaining -= copysize;
+    }
 #endif
 
   return totalsize;
@@ -1070,7 +1198,8 @@ static ssize_t proc_groupstatus(FAR struct proc_file_s *procfile,
   size_t copysize;
   size_t totalsize;
 #ifdef HAVE_GROUP_MEMBERS
-  int i;
+  FAR sq_entry_t *curr;
+  FAR sq_entry_t *next;
 #endif
 
   DEBUGASSERT(group != NULL);
@@ -1116,13 +1245,14 @@ static ssize_t proc_groupstatus(FAR struct proc_file_s *procfile,
   buffer    += copysize;
   remaining -= copysize;
 
+#ifdef HAVE_GROUP_MEMBERS
   if (totalsize >= buflen)
     {
       return totalsize;
     }
 
-  linesize   = procfs_snprintf(procfile->line, STATUS_LINELEN, "%-12s%d\n",
-                               "Members:", group->tg_nmembers);
+  linesize   = procfs_snprintf(procfile->line, STATUS_LINELEN, "%-12s%zu\n",
+                               "Members:", sq_count(&group->tg_members));
   copysize   = procfs_memcpy(procfile->line, linesize, buffer,
                              remaining, &offset);
 
@@ -1130,7 +1260,6 @@ static ssize_t proc_groupstatus(FAR struct proc_file_s *procfile,
   buffer    += copysize;
   remaining -= copysize;
 
-#ifdef HAVE_GROUP_MEMBERS
   if (totalsize >= buflen)
     {
       return totalsize;
@@ -1150,10 +1279,11 @@ static ssize_t proc_groupstatus(FAR struct proc_file_s *procfile,
       return totalsize;
     }
 
-  for (i = 0; i < group->tg_nmembers; i++)
+  sq_for_every_safe(&group->tg_members, curr, next)
     {
+      tcb = container_of(curr, struct tcb_s, member);
       linesize   = procfs_snprintf(procfile->line, STATUS_LINELEN, " %d",
-                                   group->tg_members[i]);
+                                   tcb->pid);
       copysize   = procfs_memcpy(procfile->line, linesize, buffer,
                                  remaining, &offset);
 
@@ -1188,23 +1318,34 @@ static ssize_t proc_groupfd(FAR struct proc_file_s *procfile,
                             size_t buflen, off_t offset)
 {
   FAR struct task_group_s *group = tcb->group;
-  FAR struct file *file;
-  char path[PATH_MAX];
+  FAR char *path;
   size_t remaining;
   size_t linesize;
   size_t copysize;
   size_t totalsize;
+  int count;
   int i;
-  int j;
 
   DEBUGASSERT(group != NULL);
+
+  count = fdlist_count(&group->tg_fdlist);
+  if (count == 0)
+    {
+      return 0;
+    }
 
   remaining = buflen;
   totalsize = 0;
 
   linesize   = procfs_snprintf(procfile->line, STATUS_LINELEN,
-                               "\n%-3s %-8s %-8s %s\n",
-                               "FD", "POS", "OFLAGS", "PATH");
+                               "\n%-3s %-7s %-4s %-9s %-14s %s\n",
+                               "FD", "OFLAGS", "TYPE", "POS", "PATH",
+#if CONFIG_FS_BACKTRACE > 0
+                               "BACKTRACE"
+#else
+                               ""
+#endif
+                               );
   copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
                              &offset);
 
@@ -1213,106 +1354,67 @@ static ssize_t proc_groupfd(FAR struct proc_file_s *procfile,
   remaining -= copysize;
 
   if (totalsize >= buflen)
+    {
+      return totalsize;
+    }
+
+  path = lib_get_pathbuffer();
+  if (path == NULL)
     {
       return totalsize;
     }
 
   /* Examine each open file descriptor */
 
-  for (i = 0; i < group->tg_filelist.fl_rows; i++)
+  for (i = 0; i < count; i++)
     {
-      for (j = 0, file = group->tg_filelist.fl_files[i];
-           j < CONFIG_NFILE_DESCRIPTORS_PER_BLOCK;
-           j++, file++)
+      FAR struct file *filep;
+      FAR struct fd *fdp;
+
+      /* Is there an inode associated with the file descriptor? */
+
+      if (fdlist_get2(&group->tg_fdlist, i, &filep, &fdp) < 0)
         {
-          /* Is there an inode associated with the file descriptor? */
-
-          if (file->f_inode && !INODE_IS_SOCKET(file->f_inode))
-            {
-              if (file_ioctl(file, FIOC_FILEPATH, path) < 0)
-                {
-                  path[0] = '\0';
-                }
-
-              linesize   = procfs_snprintf(procfile->line, STATUS_LINELEN,
-                                    "%3d %8ld %8x",
-                                    i * CONFIG_NFILE_DESCRIPTORS_PER_BLOCK +
-                                    j, (long)file->f_pos,
-                                    file->f_oflags);
-              copysize   = procfs_memcpy(procfile->line, linesize, buffer,
-                                         remaining, &offset);
-
-              totalsize += copysize;
-              buffer    += copysize;
-              remaining -= copysize;
-
-              linesize   = procfs_snprintf(procfile->line, STATUS_LINELEN,
-                                           " %s\n", path);
-              copysize   = procfs_memcpy(procfile->line, linesize, buffer,
-                                         remaining, &offset);
-
-              totalsize += copysize;
-              buffer    += copysize;
-              remaining -= copysize;
-
-              if (totalsize >= buflen)
-                {
-                  return totalsize;
-                }
-            }
+          continue;
         }
-    }
 
-#ifdef CONFIG_NET
-  linesize   = procfs_snprintf(procfile->line, STATUS_LINELEN,
-                               "\n%-3s %-2s %-3s %s\n",
-                               "SD", "RF", "TYP", "FLAGS");
-  copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
-                             &offset);
-
-  totalsize += copysize;
-  buffer    += copysize;
-  remaining -= copysize;
-
-  if (totalsize >= buflen)
-    {
-      return totalsize;
-    }
-
-  /* Examine each open socket descriptor */
-
-  for (i = 0; i < group->tg_filelist.fl_rows; i++)
-    {
-      for (j = 0, file = group->tg_filelist.fl_files[i];
-           j < CONFIG_NFILE_DESCRIPTORS_PER_BLOCK;
-           j++, file++)
+      if (file_ioctl(filep, FIOC_FILEPATH, path) < 0)
         {
-          /* Is there an connection associated with the socket descriptor? */
-
-          if (file->f_inode && INODE_IS_SOCKET(file->f_inode))
-            {
-              FAR struct socket *socket = file->f_priv;
-              FAR struct socket_conn_s *conn = socket->s_conn;
-              linesize   = procfs_snprintf(procfile->line, STATUS_LINELEN,
-                                    "%3d %3d %02x",
-                                    i * CONFIG_NFILE_DESCRIPTORS_PER_BLOCK +
-                                    j, socket->s_type, conn->s_flags);
-              copysize   = procfs_memcpy(procfile->line, linesize, buffer,
-                                         remaining, &offset);
-
-              totalsize += copysize;
-              buffer    += copysize;
-              remaining -= copysize;
-
-              if (totalsize >= buflen)
-                {
-                  return totalsize;
-                }
-            }
+          path[0] = '\0';
         }
-    }
+
+      linesize   = procfs_snprintf(procfile->line, STATUS_LINELEN,
+                                   "%-3d %-7d %-4x %-9ld %-14s ",
+                                   i, filep->f_oflags,
+                                   INODE_GET_TYPE(filep->f_inode),
+                                   (long)filep->f_pos, path);
+      if (linesize < STATUS_LINELEN)
+        {
+#if CONFIG_FS_BACKTRACE > 0
+          linesize += backtrace_format(procfile->line + linesize,
+                                       STATUS_LINELEN - linesize,
+                                       fdp->f_backtrace,
+                                       CONFIG_FS_BACKTRACE);
 #endif
+          procfile->line[linesize - 1] = '\n';
+        }
 
+      file_put(filep);
+      copysize   = procfs_memcpy(procfile->line, linesize,
+                                 buffer, remaining, &offset);
+
+      totalsize += copysize;
+      buffer    += copysize;
+      remaining -= copysize;
+
+      if (totalsize >= buflen)
+        {
+          lib_put_pathbuffer(path);
+          return totalsize;
+        }
+    }
+
+  lib_put_pathbuffer(path);
   return totalsize;
 }
 
@@ -1474,7 +1576,7 @@ static int proc_open(FAR struct file *filep, FAR const char *relpath,
   tcb = nxsched_get_tcb(pid);
   if (tcb == NULL)
     {
-      ferr("ERROR: PID %d is no longer valid\n", (int)pid);
+      ferr("ERROR: PID %d is no longer valid\n", pid);
       return -ENOENT;
     }
 
@@ -1500,7 +1602,7 @@ static int proc_open(FAR struct file *filep, FAR const char *relpath,
   /* Allocate a container to hold the task and node selection */
 
   procfile = (FAR struct proc_file_s *)
-    kmm_zalloc(sizeof(struct proc_file_s));
+    fs_heap_zalloc(sizeof(struct proc_file_s));
   if (procfile == NULL)
     {
       ferr("ERROR: Failed to allocate file container\n");
@@ -1533,7 +1635,7 @@ static int proc_close(FAR struct file *filep)
 
   /* Release the file container structure */
 
-  kmm_free(procfile);
+  fs_heap_free(procfile);
   filep->f_priv = NULL;
   return OK;
 }
@@ -1547,6 +1649,7 @@ static ssize_t proc_read(FAR struct file *filep, FAR char *buffer,
 {
   FAR struct proc_file_s *procfile;
   FAR struct tcb_s *tcb;
+  irqstate_t flags;
   ssize_t ret;
 
   finfo("buffer=%p buflen=%d\n", buffer, (int)buflen);
@@ -1558,10 +1661,12 @@ static ssize_t proc_read(FAR struct file *filep, FAR char *buffer,
 
   /* Verify that the thread is still valid */
 
+  flags = enter_critical_section();
   tcb = nxsched_get_tcb(procfile->pid);
   if (tcb == NULL)
     {
-      ferr("ERROR: PID %d is not valid\n", (int)procfile->pid);
+      leave_critical_section(flags);
+      ferr("ERROR: PID %d is not valid\n", procfile->pid);
       return -ENODEV;
     }
 
@@ -1577,7 +1682,7 @@ static ssize_t proc_read(FAR struct file *filep, FAR char *buffer,
       ret = proc_cmdline(procfile, tcb, buffer, buflen, filep->f_pos);
       break;
 
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
     case PROC_LOADAVG: /* Average CPU utilization */
       ret = proc_loadavg(procfile, tcb, buffer, buflen, filep->f_pos);
       break;
@@ -1620,6 +1725,8 @@ static ssize_t proc_read(FAR struct file *filep, FAR char *buffer,
       break;
     }
 
+  leave_critical_section(flags);
+
   /* Update the file offset */
 
   if (ret > 0)
@@ -1641,7 +1748,7 @@ static ssize_t proc_write(FAR struct file *filep, FAR const char *buffer,
   FAR struct tcb_s *tcb;
   ssize_t ret;
 
-  DEBUGASSERT(filep != NULL && buffer != NULL && buflen > 0);
+  DEBUGASSERT(buffer != NULL && buflen > 0);
 
   procfile = (FAR struct proc_file_s *)filep->f_priv;
   DEBUGASSERT(procfile != NULL);
@@ -1651,7 +1758,7 @@ static ssize_t proc_write(FAR struct file *filep, FAR const char *buffer,
   tcb = nxsched_get_tcb(procfile->pid);
   if (tcb == NULL)
     {
-      ferr("ERROR: PID %d is not valid\n", (int)procfile->pid);
+      ferr("ERROR: PID %d is not valid\n", procfile->pid);
       return -ENODEV;
     }
 
@@ -1696,7 +1803,7 @@ static int proc_dup(FAR const struct file *oldp, FAR struct file *newp)
 
   /* Allocate a new container to hold the task and node selection */
 
-  newfile = (FAR struct proc_file_s *)kmm_malloc(sizeof(struct proc_file_s));
+  newfile = fs_heap_malloc(sizeof(struct proc_file_s));
   if (newfile == NULL)
     {
       ferr("ERROR: Failed to allocate file container\n");
@@ -1780,16 +1887,16 @@ static int proc_opendir(FAR const char *relpath,
   tcb = nxsched_get_tcb(pid);
   if (tcb == NULL)
     {
-      ferr("ERROR: PID %d is not valid\n", (int)pid);
+      ferr("ERROR: PID %d is not valid\n", pid);
       return -ENOENT;
     }
 
   /* Allocate the directory structure.  Note that the index and procentry
-   * pointer are implicitly nullified by kmm_zalloc().  Only the remaining,
-   * non-zero entries will need be initialized.
+   * pointer are implicitly nullified by fs_heap_zalloc().
+   * Only the remaining, non-zero entries will need be initialized.
    */
 
-  procdir = (FAR struct proc_dir_s *)kmm_zalloc(sizeof(struct proc_dir_s));
+  procdir = fs_heap_zalloc(sizeof(struct proc_dir_s));
   if (procdir == NULL)
     {
       ferr("ERROR: Failed to allocate the directory structure\n");
@@ -1809,7 +1916,7 @@ static int proc_opendir(FAR const char *relpath,
       if (node == NULL)
         {
           ferr("ERROR: Invalid path \"%s\"\n", relpath);
-          kmm_free(procdir);
+          fs_heap_free(procdir);
           return -ENOENT;
         }
 
@@ -1818,7 +1925,7 @@ static int proc_opendir(FAR const char *relpath,
       if (!DIRENT_ISDIRECTORY(node->dtype))
         {
           ferr("ERROR: Path \"%s\" is not a directory\n", relpath);
-          kmm_free(procdir);
+          fs_heap_free(procdir);
           return -ENOTDIR;
         }
 
@@ -1852,7 +1959,7 @@ static int proc_opendir(FAR const char *relpath,
 static int proc_closedir(FAR struct fs_dirent_s *dir)
 {
   DEBUGASSERT(dir != NULL);
-  kmm_free(dir);
+  fs_heap_free(dir);
   return OK;
 }
 
@@ -1900,7 +2007,7 @@ static int proc_readdir(FAR struct fs_dirent_s *dir,
       tcb = nxsched_get_tcb(pid);
       if (tcb == NULL)
         {
-          ferr("ERROR: PID %d is no longer valid\n", (int)pid);
+          ferr("ERROR: PID %d is no longer valid\n", pid);
           return -ENOENT;
         }
 
@@ -2018,7 +2125,7 @@ static int proc_stat(const char *relpath, struct stat *buf)
   tcb = nxsched_get_tcb(pid);
   if (tcb == NULL)
     {
-      ferr("ERROR: PID %d is no longer valid\n", (int)pid);
+      ferr("ERROR: PID %d is no longer valid\n", pid);
       return -ENOENT;
     }
 

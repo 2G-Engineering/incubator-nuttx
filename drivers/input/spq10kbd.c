@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/input/spq10kbd.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <poll.h>
 #include <fcntl.h>
@@ -192,7 +194,7 @@ struct spq10kbd_dev_s
    * retained in the f_priv field of the 'struct file'.
    */
 
-  struct pollfd *fds[CONFIG_SPQ10KBD_NPOLLWAITERS];
+  FAR struct pollfd *fds[CONFIG_SPQ10KBD_NPOLLWAITERS];
 
   /* Buffer used to collect and buffer incoming keyboard characters */
 
@@ -423,7 +425,7 @@ static int spq10kbd_interrupt(int irq, FAR void *context, FAR void *arg)
   int                        ret;
 
   /* Let the event worker know that it has an interrupt event to handle
-   * It is possbile that we will already have work scheduled from a
+   * It is possible that we will already have work scheduled from a
    * previous interrupt event.  That is OK we will service all the events
    * in the same work job.
    */
@@ -453,7 +455,6 @@ static int spq10kbd_open(FAR struct file *filep)
   FAR struct inode          *inode;
   FAR struct spq10kbd_dev_s *priv;
 
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -477,7 +478,6 @@ static int spq10kbd_close(FAR struct file *filep)
   FAR struct inode          *inode;
   FAR struct spq10kbd_dev_s *priv;
 
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -507,7 +507,7 @@ static ssize_t spq10kbd_read(FAR struct file *filep, FAR char *buffer,
   uint16_t                   tail;
   int                        ret;
 
-  DEBUGASSERT(filep && filep->f_inode && buffer);
+  DEBUGASSERT(buffer);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -607,7 +607,7 @@ static int spq10kbd_poll(FAR struct file *filep, FAR struct pollfd *fds,
   int                        ret;
   int                        i;
 
-  DEBUGASSERT(filep && filep->f_inode && fds);
+  DEBUGASSERT(fds);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -642,8 +642,8 @@ static int spq10kbd_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
       if (i >= CONFIG_SPQ10KBD_NPOLLWAITERS)
         {
-          fds->priv    = NULL;
-          ret          = -EBUSY;
+          fds->priv = NULL;
+          ret       = -EBUSY;
           goto errout;
         }
 
@@ -653,20 +653,20 @@ static int spq10kbd_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
       if (priv->headndx != priv->tailndx)
         {
-          poll_notify(priv->fds, CONFIG_SPQ10KBD_NPOLLWAITERS, POLLIN);
+          poll_notify(&fds, 1, POLLIN);
         }
     }
   else
     {
       /* This is a request to tear down the poll. */
 
-      struct pollfd **slot = (struct pollfd **)fds->priv;
+      FAR struct pollfd **slot = (FAR struct pollfd **)fds->priv;
       DEBUGASSERT(slot);
 
       /* Remove all memory of the poll setup */
 
-      *slot                = NULL;
-      fds->priv            = NULL;
+      *slot     = NULL;
+      fds->priv = NULL;
     }
 
 errout:
@@ -975,8 +975,7 @@ int spq10kbd_register(FAR struct i2c_master_s *i2c,
   DEBUGASSERT(config->attach != NULL && config->enable != NULL &&
               config->clear  != NULL);
 
-  priv = (FAR struct spq10kbd_dev_s *)kmm_zalloc(
-    sizeof(struct spq10kbd_dev_s));
+  priv = kmm_zalloc(sizeof(struct spq10kbd_dev_s));
   if (!priv)
     {
       ierr("ERROR: kmm_zalloc(%d) failed\n", sizeof(struct spq10kbd_dev_s));

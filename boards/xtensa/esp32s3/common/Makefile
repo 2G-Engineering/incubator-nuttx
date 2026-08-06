@@ -1,6 +1,8 @@
 #############################################################################
 # boards/xtensa/esp32s3/common/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -30,4 +32,5 @@ include $(TOPDIR)/boards/Board.mk
 
 ARCHSRCDIR = $(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src
 BOARDDIR = $(ARCHSRCDIR)$(DELIM)board
-CFLAGS += $(shell $(INCDIR) "$(CC)" $(BOARDDIR)$(DELIM)include)
+CFLAGS += ${INCDIR_PREFIX}$(BOARDDIR)$(DELIM)include
+CFLAGS += ${INCDIR_PREFIX}"$(ARCHSRCDIR)$(DELIM)common$(DELIM)espressif"

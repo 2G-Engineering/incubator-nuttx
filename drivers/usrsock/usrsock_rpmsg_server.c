@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/usrsock/usrsock_rpmsg_server.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <poll.h>
@@ -32,10 +34,12 @@
 
 #include <sys/ioctl.h>
 
+#include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
 #include <nuttx/net/dns.h>
 #include <nuttx/net/net.h>
-#include <nuttx/rptun/openamp.h>
+#include <nuttx/queue.h>
+#include <nuttx/rpmsg/rpmsg.h>
 #include <nuttx/usrsock/usrsock_rpmsg.h>
 #ifdef CONFIG_NETDEV_WIRELESS_IOCTL
 #include <nuttx/wireless/wireless.h>
@@ -48,11 +52,36 @@
 struct usrsock_rpmsg_s
 {
   rmutex_t                  mutex;
-  ssize_t                   remain;
-  struct iovec              iov[CONFIG_NET_USRSOCK_RPMSG_SERVER_NIOVEC];
   struct socket             socks[CONFIG_NET_USRSOCK_RPMSG_SERVER_NSOCKS];
   FAR struct rpmsg_endpoint *epts[CONFIG_NET_USRSOCK_RPMSG_SERVER_NSOCKS];
   struct pollfd             pfds[CONFIG_NET_USRSOCK_RPMSG_SERVER_NSOCKS];
+};
+
+/* Saving rpmsg requests to keep message order. */
+
+struct usrsock_rpmsg_req_s
+{
+  sq_entry_t flink;
+  FAR void  *data;
+  size_t     len;
+  uint32_t   src;
+};
+
+struct usrsock_rpmsg_ept_s
+{
+  struct rpmsg_endpoint ept;
+
+  /* For sendto/recvfrom */
+
+  struct iovec          iov[CONFIG_NET_USRSOCK_RPMSG_SERVER_NIOVEC];
+  ssize_t               remain;
+
+  /* For keeping msg order, normally nIOVec is the max request we can get */
+
+  bool                       inuse;
+  sq_queue_t                 req_free;
+  sq_queue_t                 req_pending;
+  struct usrsock_rpmsg_req_s reqs[CONFIG_NET_USRSOCK_RPMSG_SERVER_NIOVEC];
 };
 
 /****************************************************************************
@@ -126,7 +155,6 @@ static bool usrsock_rpmsg_ns_match(FAR struct rpmsg_device *rdev,
 static void usrsock_rpmsg_ns_bind(FAR struct rpmsg_device *rdev,
                                   FAR void *priv_, FAR const char *name,
                                   uint32_t dest);
-static void usrsock_rpmsg_ns_unbind(FAR struct rpmsg_endpoint *ept);
 static int usrsock_rpmsg_ept_cb(FAR struct rpmsg_endpoint *ept,
                                 FAR void *data, size_t len, uint32_t src,
                                 FAR void *priv);
@@ -201,6 +229,8 @@ static int usrsock_rpmsg_send_data_ack(FAR struct rpmsg_endpoint *ept,
                               uint16_t valuelen_nontrunc,
                               int32_t datalen)
 {
+  int ret;
+
   ack->reqack.head.msgid  = USRSOCK_MESSAGE_RESPONSE_DATA_ACK;
   ack->reqack.head.flags  = 0;
   ack->reqack.head.events = events;
@@ -222,7 +252,13 @@ static int usrsock_rpmsg_send_data_ack(FAR struct rpmsg_endpoint *ept,
   ack->valuelen          = valuelen;
   ack->valuelen_nontrunc = valuelen_nontrunc;
 
-  return rpmsg_send_nocopy(ept, ack, sizeof(*ack) + valuelen + datalen);
+  ret = rpmsg_send_nocopy(ept, ack, sizeof(*ack) + valuelen + datalen);
+  if (ret < 0)
+    {
+      rpmsg_release_tx_buffer(ept, ack);
+    }
+
+  return ret;
 }
 
 static int usrsock_rpmsg_send_frag_ack(FAR struct rpmsg_endpoint *ept,
@@ -380,37 +416,39 @@ static int usrsock_rpmsg_sendto_handler(FAR struct rpmsg_endpoint *ept,
                                         uint32_t src, FAR void *priv_)
 {
   FAR struct usrsock_request_sendto_s *req;
+  FAR struct usrsock_rpmsg_ept_s *uept =
+    (FAR struct usrsock_rpmsg_ept_s *)ept;
   FAR struct usrsock_rpmsg_s *priv = priv_;
   uint16_t events = 0;
   ssize_t ret = -EBADF;
   int retr;
   int i;
 
-  if (priv->remain > 0)
+  if (uept->remain > 0)
     {
       size_t hlen;
       struct msghdr msg =
       {
       };
 
-      priv->remain -= len;
+      uept->remain -= len;
 
-      if (!priv->iov[0].iov_base)
+      if (!uept->iov[0].iov_base)
         {
           /* Maybe error occurred previously, skip processing. */
 
           return 0;
         }
 
-      req = priv->iov[0].iov_base;
+      req = uept->iov[0].iov_base;
       hlen = sizeof(*req) + req->addrlen;
 
       for (i = 0; i < CONFIG_NET_USRSOCK_RPMSG_SERVER_NIOVEC; i++)
         {
-          if (!priv->iov[i].iov_base)
+          if (!uept->iov[i].iov_base)
             {
-              priv->iov[i].iov_base = data;
-              priv->iov[i].iov_len = len;
+              uept->iov[i].iov_base = data;
+              uept->iov[i].iov_len = len;
               rpmsg_hold_rx_buffer(ept, data);
               break;
             }
@@ -418,7 +456,7 @@ static int usrsock_rpmsg_sendto_handler(FAR struct rpmsg_endpoint *ept,
 
       /* Partial packet ? continue to fetch */
 
-      if (priv->remain > 0)
+      if (uept->remain > 0)
         {
           /* We've used the last I/O vector, cannot continue. */
 
@@ -431,7 +469,7 @@ static int usrsock_rpmsg_sendto_handler(FAR struct rpmsg_endpoint *ept,
 
           return 0;
         }
-      else if (priv->remain < 0)
+      else if (uept->remain < 0)
         {
           ret = -EINVAL;
           goto out;
@@ -439,20 +477,20 @@ static int usrsock_rpmsg_sendto_handler(FAR struct rpmsg_endpoint *ept,
 
       /* Skip the sendto header from I/O vector */
 
-      priv->iov[0].iov_base = (FAR char *)priv->iov[0].iov_base + hlen;
-      priv->iov[0].iov_len -= hlen;
+      uept->iov[0].iov_base = (FAR char *)uept->iov[0].iov_base + hlen;
+      uept->iov[0].iov_len -= hlen;
 
       msg.msg_name = req->addrlen ? (FAR void *)(req + 1) : NULL;
       msg.msg_namelen = req->addrlen;
-      msg.msg_iov = priv->iov;
+      msg.msg_iov = uept->iov;
       msg.msg_iovlen = i + 1;
 
       ret = psock_sendmsg(&priv->socks[req->usockid], &msg, req->flags);
 
       /* Recover the I/O vector */
 
-      priv->iov[0].iov_base = (FAR char *)priv->iov[0].iov_base - hlen;
-      priv->iov[0].iov_len += hlen;
+      uept->iov[0].iov_base = (FAR char *)uept->iov[0].iov_base - hlen;
+      uept->iov[0].iov_len += hlen;
     }
   else
     {
@@ -461,12 +499,12 @@ static int usrsock_rpmsg_sendto_handler(FAR struct rpmsg_endpoint *ept,
       if (req->usockid >= 0 &&
           req->usockid < CONFIG_NET_USRSOCK_RPMSG_SERVER_NSOCKS)
         {
-          priv->remain = sizeof(*req) + req->addrlen + req->buflen - len;
-          if (priv->remain > 0)
+          uept->remain = sizeof(*req) + req->addrlen + req->buflen - len;
+          if (uept->remain > 0)
             {
 #if CONFIG_NET_USRSOCK_RPMSG_SERVER_NIOVEC >= 2
-              priv->iov[0].iov_base = data;
-              priv->iov[0].iov_len = len;
+              uept->iov[0].iov_base = data;
+              uept->iov[0].iov_len = len;
 
               rpmsg_hold_rx_buffer(ept, data);
               return 0;
@@ -494,24 +532,24 @@ out:
     }
 
   retr = usrsock_rpmsg_send_ack(ept, events, req->head.xid, ret);
-  if (retr >= 0 && events == 0)
+  if (retr >= 0 && (ret > 0 || ret == -EAGAIN) && events == 0)
     {
       usrsock_rpmsg_poll_setup(&priv->pfds[req->usockid],
                                priv->pfds[req->usockid].events | POLLOUT);
     }
 
-  if (priv->iov[0].iov_base)
+  if (uept->iov[0].iov_base)
     {
       for (i = 0; i < CONFIG_NET_USRSOCK_RPMSG_SERVER_NIOVEC; i++)
         {
-          if (priv->iov[i].iov_base == NULL)
+          if (uept->iov[i].iov_base == NULL)
             {
               break;
             }
 
-          rpmsg_release_rx_buffer(ept, priv->iov[i].iov_base);
-          priv->iov[i].iov_base = NULL;
-          priv->iov[i].iov_len = 0;
+          rpmsg_release_rx_buffer(ept, uept->iov[i].iov_base);
+          uept->iov[i].iov_base = NULL;
+          uept->iov[i].iov_len = 0;
         }
     }
 
@@ -556,12 +594,20 @@ static int usrsock_rpmsg_recvfrom_handler(FAR struct rpmsg_endpoint *ept,
       if (ret > 0 && (priv->socks[req->usockid].s_type & SOCK_TYPE_MASK) ==
                       SOCK_STREAM)
         {
+          FAR struct socket_conn_s *conn = priv->socks[req->usockid].s_conn;
           if (outaddrlen < inaddrlen)
             {
               memcpy((FAR void *)(ack + 1) + outaddrlen,
                      (FAR void *)(ack + 1) + inaddrlen, ret);
             }
 
+          /* Hold conn_lock to combine get_tx_payload and recvfrom together.
+           * Otherwise we may keep holding tx buffer when waiting conn_lock
+           * in recvfrom, which may block rpmsg and may cause dead lock if
+           * another thread tries to get tx buffer with conn_lock held.
+           */
+
+          nxrmutex_lock(&conn->s_lock);
           while (totlen < buflen &&
                  i < CONFIG_NET_USRSOCK_RPMSG_SERVER_NIOVEC)
             {
@@ -578,7 +624,6 @@ static int usrsock_rpmsg_recvfrom_handler(FAR struct rpmsg_endpoint *ept,
                                                             false);
               if (!iov[i].iov_base)
                 {
-                  events |= USRSOCK_EVENT_RECVFROM_AVAIL;
                   break;
                 }
 
@@ -607,12 +652,18 @@ static int usrsock_rpmsg_recvfrom_handler(FAR struct rpmsg_endpoint *ept,
               else
                 {
                   iov[i].iov_len = 0;
-                  events |= USRSOCK_EVENT_RECVFROM_AVAIL;
                   break;
                 }
 
               i++;
             }
+
+          if (usrsock_rpmsg_available(&priv->socks[req->usockid], FIONREAD))
+            {
+              events |= USRSOCK_EVENT_RECVFROM_AVAIL;
+            }
+
+          nxrmutex_unlock(&conn->s_lock);
         }
     }
 
@@ -639,7 +690,7 @@ static int usrsock_rpmsg_recvfrom_handler(FAR struct rpmsg_endpoint *ept,
             events, req->head.xid, totlen, iov[i].iov_len);
     }
 
-  if (retr >= 0 && events == 0)
+  if (retr >= 0 && (ret > 0 || ret == -EAGAIN) && events == 0)
     {
       usrsock_rpmsg_poll_setup(&priv->pfds[req->usockid],
                                priv->pfds[req->usockid].events | POLLIN);
@@ -939,6 +990,7 @@ static int usrsock_rpmsg_send_dns_event(FAR void *arg,
   FAR struct rpmsg_endpoint *ept = arg;
   FAR struct usrsock_rpmsg_dns_event_s *dns;
   uint32_t len;
+  int ret;
 
   dns = rpmsg_get_tx_payload_buffer(ept, &len, true);
   if (dns == NULL)
@@ -952,7 +1004,13 @@ static int usrsock_rpmsg_send_dns_event(FAR void *arg,
   dns->addrlen = addrlen;
   memcpy(dns + 1, addr, addrlen);
 
-  return rpmsg_send_nocopy(ept, dns, sizeof(*dns) + addrlen);
+  ret = rpmsg_send_nocopy(ept, dns, sizeof(*dns) + addrlen);
+  if (ret < 0)
+    {
+      rpmsg_release_tx_buffer(ept, dns);
+    }
+
+  return ret;
 }
 #endif
 
@@ -963,37 +1021,7 @@ static bool usrsock_rpmsg_ns_match(FAR struct rpmsg_device *rdev,
   return !strcmp(name, USRSOCK_RPMSG_EPT_NAME);
 }
 
-static void usrsock_rpmsg_ns_bind(FAR struct rpmsg_device *rdev,
-                                  FAR void *priv_, FAR const char *name,
-                                  uint32_t dest)
-{
-  FAR struct usrsock_rpmsg_s *priv = priv_;
-  FAR struct rpmsg_endpoint *ept;
-  int ret;
-
-  ept = kmm_zalloc(sizeof(struct rpmsg_endpoint));
-  if (!ept)
-    {
-      return;
-    }
-
-  ept->priv = priv;
-
-  ret = rpmsg_create_ept(ept, rdev, USRSOCK_RPMSG_EPT_NAME,
-                         RPMSG_ADDR_ANY, dest,
-                         usrsock_rpmsg_ept_cb, usrsock_rpmsg_ns_unbind);
-  if (ret < 0)
-    {
-      kmm_free(ept);
-      return;
-    }
-
-#ifdef CONFIG_NETDB_DNSCLIENT
-  dns_register_notify(usrsock_rpmsg_send_dns_event, ept);
-#endif
-}
-
-static void usrsock_rpmsg_ns_unbind(FAR struct rpmsg_endpoint *ept)
+static void usrsock_rpmsg_ept_release(FAR struct rpmsg_endpoint *ept)
 {
   FAR struct usrsock_rpmsg_s *priv = ept->priv;
   int i;
@@ -1019,27 +1047,121 @@ static void usrsock_rpmsg_ns_unbind(FAR struct rpmsg_endpoint *ept)
         }
     }
 
-  rpmsg_destroy_ept(ept);
+  kmm_free(ept);
+}
+
+static void usrsock_rpmsg_ns_bind(FAR struct rpmsg_device *rdev,
+                                  FAR void *priv_, FAR const char *name,
+                                  uint32_t dest)
+{
+  FAR struct usrsock_rpmsg_s *priv = priv_;
+  FAR struct usrsock_rpmsg_ept_s *uept;
+  int ret;
+  int i;
+
+  uept = kmm_zalloc(sizeof(*uept));
+  if (!uept)
+    {
+      return;
+    }
+
+  uept->ept.priv = priv;
+  uept->ept.release_cb = usrsock_rpmsg_ept_release;
+  for (i = 0; i < CONFIG_NET_USRSOCK_RPMSG_SERVER_NIOVEC; i++)
+    {
+      sq_addlast(&uept->reqs[i].flink, &uept->req_free);
+    }
+
+  ret = rpmsg_create_ept(&uept->ept, rdev, USRSOCK_RPMSG_EPT_NAME,
+                         RPMSG_ADDR_ANY, dest,
+                         usrsock_rpmsg_ept_cb, rpmsg_destroy_ept);
+  if (ret < 0)
+    {
+      kmm_free(uept);
+      return;
+    }
+
+#ifdef CONFIG_NETDB_DNSCLIENT
+  dns_register_notify(usrsock_rpmsg_send_dns_event, &uept->ept);
+#endif
+}
+
+static int usrsock_rpmsg_ept_do_cb(FAR struct usrsock_rpmsg_ept_s *uept,
+                                   FAR void *data, size_t len, uint32_t src,
+                                   FAR struct usrsock_rpmsg_s *priv)
+{
+  FAR struct usrsock_request_common_s *common = data;
+
+  if (uept->remain > 0)
+    {
+      return usrsock_rpmsg_sendto_handler(&uept->ept, data, len, src, priv);
+    }
+  else if (common->reqid >= 0 && common->reqid <= USRSOCK_REQUEST__MAX)
+    {
+      return g_usrsock_rpmsg_handler[common->reqid](&uept->ept, data, len,
+                                                    src, priv);
+    }
+
+  return -EINVAL;
 }
 
 static int usrsock_rpmsg_ept_cb(FAR struct rpmsg_endpoint *ept,
                                 FAR void *data, size_t len, uint32_t src,
                                 FAR void *priv_)
 {
-  FAR struct usrsock_request_common_s *common = data;
   FAR struct usrsock_rpmsg_s *priv = priv_;
+  FAR struct usrsock_rpmsg_ept_s *uept =
+    (FAR struct usrsock_rpmsg_ept_s *)ept;
+  FAR struct usrsock_rpmsg_req_s *req;
+  int ret;
 
-  if (priv->remain > 0)
+  /* This callback is called from only one thread per ept, so don't need any
+   * lock for `inuse` state.
+   */
+
+  if (uept->inuse)
     {
-      return usrsock_rpmsg_sendto_handler(ept, data, len, src, priv);
-    }
-  else if (common->reqid >= 0 && common->reqid <= USRSOCK_REQUEST__MAX)
-    {
-      return g_usrsock_rpmsg_handler[common->reqid](ept, data, len,
-                                                    src, priv);
+      /* Avoid recursive call. */
+
+      req = (FAR struct usrsock_rpmsg_req_s *)sq_remfirst(&uept->req_free);
+      if (req == NULL)
+        {
+          return -ENOMEM;
+        }
+
+      req->data = data;
+      req->len  = len;
+      req->src  = src;
+      sq_addlast(&req->flink, &uept->req_pending);
+
+      rpmsg_hold_rx_buffer(ept, data);
+      return OK;
     }
 
-  return -EINVAL;
+  uept->inuse = true;
+  ret = usrsock_rpmsg_ept_do_cb(uept, data, len, src, priv);
+
+  /* Pop pending requests to proceed. */
+
+  while ((req = (FAR struct usrsock_rpmsg_req_s *)
+                 sq_remfirst(&uept->req_pending)) != NULL)
+    {
+      data = req->data;
+      len  = req->len;
+      src  = req->src;
+      sq_addlast(&req->flink, &uept->req_free);
+
+      ret = usrsock_rpmsg_ept_do_cb(uept, data, len, src, priv);
+      if (ret < 0)
+        {
+          nerr("ERROR: usrsock got error %d!", ret);
+        }
+
+      rpmsg_release_rx_buffer(ept, data);
+    }
+
+  uept->inuse = false;
+  return ret;
 }
 
 static void usrsock_rpmsg_poll_setup(FAR struct pollfd *pfds,
@@ -1047,6 +1169,7 @@ static void usrsock_rpmsg_poll_setup(FAR struct pollfd *pfds,
 {
   FAR struct usrsock_rpmsg_s *priv = (FAR struct usrsock_rpmsg_s *)pfds->arg;
   FAR struct socket *psock = &priv->socks[pfds->fd];
+  FAR struct socket_conn_s *conn = psock->s_conn;
   int ret = 0;
 
   /* No poll for SOCK_CTRL. */
@@ -1056,7 +1179,7 @@ static void usrsock_rpmsg_poll_setup(FAR struct pollfd *pfds,
       return;
     }
 
-  net_lock();
+  nxrmutex_lock(&conn->s_lock);
 
   if (events)
     {
@@ -1078,6 +1201,7 @@ static void usrsock_rpmsg_poll_setup(FAR struct pollfd *pfds,
     }
   else
     {
+      pfds->revents = 0;
       pfds->events = 0;
       ret = psock_poll(psock, pfds, false);
     }
@@ -1090,12 +1214,13 @@ static void usrsock_rpmsg_poll_setup(FAR struct pollfd *pfds,
            pfds->events, pfds->revents);
     }
 
-  net_unlock();
+  nxrmutex_unlock(&conn->s_lock);
 }
 
 static void usrsock_rpmsg_poll_cb(FAR struct pollfd *pfds)
 {
   FAR struct usrsock_rpmsg_s *priv = (FAR struct usrsock_rpmsg_s *)pfds->arg;
+  int oldevents;
   int events = 0;
 
   nxrmutex_lock(&priv->mutex);
@@ -1106,6 +1231,7 @@ static void usrsock_rpmsg_poll_cb(FAR struct pollfd *pfds)
       return;
     }
 
+  oldevents = pfds->events;
   if (pfds->revents & POLLIN)
     {
       events |= USRSOCK_EVENT_RECVFROM_AVAIL;
@@ -1136,11 +1262,19 @@ static void usrsock_rpmsg_poll_cb(FAR struct pollfd *pfds)
         {
           events |= USRSOCK_EVENT_RECVFROM_AVAIL;
         }
+
+      /* Clear revents */
+
+      pfds->revents &= ~(POLLHUP | POLLERR);
+    }
+
+  if (oldevents != pfds->events)
+    {
+      usrsock_rpmsg_poll_setup(pfds, pfds->events);
     }
 
   if (events != 0)
     {
-      usrsock_rpmsg_poll_setup(pfds, pfds->events);
       usrsock_rpmsg_send_event(priv->epts[pfds->fd], pfds->fd, events);
     }
 

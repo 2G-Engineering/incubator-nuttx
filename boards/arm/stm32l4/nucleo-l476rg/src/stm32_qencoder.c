@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/nucleo-l476rg/src/stm32_qencoder.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/sensors/qencoder.h>
 #include <arch/board/board.h>
@@ -48,17 +50,17 @@
  *
  ****************************************************************************/
 
-int stm32l4_qencoder_initialize(const char *devpath, int timer)
+int stm32_qencoder_initialize(const char *devpath, int timer)
 {
   int ret;
 
   /* Initialize a quadrature encoder interface. */
 
   sninfo("Initializing the quadrature encoder using TIM%d\n", timer);
-  ret = stm32l4_qeinitialize(devpath, timer);
+  ret = stm32_qeinitialize(devpath, timer);
   if (ret < 0)
     {
-      snerr("ERROR: stm32l4_qeinitialize failed: %d\n", ret);
+      snerr("ERROR: stm32_qeinitialize failed: %d\n", ret);
     }
 
   return ret;

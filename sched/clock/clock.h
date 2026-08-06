@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/clock/clock.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,66 +33,104 @@
 
 #include <nuttx/clock.h>
 #include <nuttx/compiler.h>
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/* Configuration ************************************************************/
-
-/* If CONFIG_SYSTEM_TIME64 is selected and the CPU supports long long types,
- * then a 64-bit system time will be used.
- */
-
-#ifndef CONFIG_HAVE_LONG_LONG
-#  undef CONFIG_SYSTEM_TIME64
-#endif
-
-/****************************************************************************
- * Public Type Definitions
- ****************************************************************************/
+#include <nuttx/spinlock_type.h>
 
 /****************************************************************************
  * Public Data
  ****************************************************************************/
 
-#if !defined(CONFIG_SCHED_TICKLESS) && !defined(__HAVE_KERNEL_GLOBALS)
-  /* The system clock exists (CONFIG_SCHED_TICKLESS), but it not prototyped
-   * globally in include/nuttx/clock.h.
-   */
-
-extern volatile clock_t g_system_ticks;
-#endif
-
 #ifndef CONFIG_CLOCK_TIMEKEEPING
 extern struct timespec  g_basetime;
-#endif
-
-#ifdef CONFIG_CLOCK_ADJTIME
-extern long long g_clk_adj_usec;
-extern long long g_clk_adj_count;
+extern spinlock_t g_basetime_lock;
 #endif
 
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
 
+/****************************************************************************
+ * Name: clock_basetime
+ *
+ * Description:
+ *   Get the initial time value from the best source available.
+ *
+ ****************************************************************************/
+
 int  clock_basetime(FAR struct timespec *tp);
 
+/****************************************************************************
+ * Name: clock_initialize
+ *
+ * Description:
+ *   Perform one-time initialization of the timing facilities.
+ *
+ ****************************************************************************/
+
 void clock_initialize(void);
-#ifndef CONFIG_SCHED_TICKLESS
-void clock_timer(void);
-#else
-#  define clock_timer()
-#endif
 
-#ifdef CONFIG_CLOCK_ADJTIME
-void clock_set_adjust(long long adj_usec, long long adj_count,
-                      long long *adj_usec_old, long long *adj_count_old);
-#endif
+/****************************************************************************
+ * Name: clock_update_sched_ticks
+ *
+ * Description:
+ *   Update the scheduler tick counter to a specific value. This function
+ *   directly sets the system tick counter to the given value (rather than
+ *   incrementing it), typically used for synchronizing or resetting the
+ *   scheduler tick count to a known state.
+ *
+ * Input Parameters:
+ *   ticks - The new value to set for the scheduler tick counter
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
 
-int  clock_abstime2ticks(clockid_t clockid,
-                         FAR const struct timespec *abstime,
-                         FAR sclock_t *ticks);
+void clock_update_sched_ticks(clock_t ticks);
+
+/****************************************************************************
+ * Name: clock_increase_sched_ticks
+ *
+ * Description:
+ *   Increment the scheduler tick counter. This function should be called
+ *   each time the real-time clock interrupt occurs, indicating the passage
+ *   of one or more scheduling ticks.
+ *
+ * Input Parameters:
+ *   ticks - The number of ticks to increment (typically 1)
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+void clock_increase_sched_ticks(clock_t ticks);
+
+/****************************************************************************
+ * Name: clock_get_sched_ticks
+ *
+ * Description:
+ *   Return the current value of the scheduler tick counter. This counter
+ *   only increases while the scheduler is running, and is independent of
+ *   the real-time clock.
+ *
+ * Returned Value:
+ *   The current number of scheduler ticks.
+ *
+ ****************************************************************************/
+
+clock_t clock_get_sched_ticks(void);
+
+#ifdef CONFIG_SCHED_CPULOAD_SYSCLK
+
+/****************************************************************************
+ * Name: cpuload_init
+ *
+ * Description:
+ *   Initialize the CPU load measurement logic.
+ *
+ ****************************************************************************/
+
+void cpuload_init(void);
+#endif
 
 #endif /* __SCHED_CLOCK_CLOCK_H */

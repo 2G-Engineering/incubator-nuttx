@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/kinetis/kinetis_enet.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 #include <time.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <arpa/inet.h>
@@ -43,6 +45,7 @@
 #include <nuttx/wqueue.h>
 #include <nuttx/signal.h>
 #include <nuttx/net/mii.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 
 #ifdef CONFIG_NET_PKT
@@ -575,10 +578,6 @@ static void kinetis_receive(struct kinetis_driver_s *priv)
 
   while ((priv->rxdesc[priv->rxtail].status1 & RXDESC_E) == 0)
     {
-      /* Update statistics */
-
-      NETDEV_RXPACKETS(&priv->dev);
-
       /* Copy the buffer pointer to priv->dev.d_buf.  Set amount of data in
        * priv->dev.d_len
        */
@@ -586,6 +585,10 @@ static void kinetis_receive(struct kinetis_driver_s *priv)
       priv->dev.d_len = kinesis_swap16(priv->rxdesc[priv->rxtail].length);
       priv->dev.d_buf =
         (uint8_t *)kinesis_swap32((uint32_t)priv->rxdesc[priv->rxtail].data);
+
+      /* Update statistics */
+
+      NETDEV_RXPACKETS(&priv->dev);
 
 #ifdef CONFIG_NET_PKT
       /* When packet sockets are enabled, feed the frame into the tap */
@@ -995,11 +998,9 @@ static int kinetis_ifup(struct net_driver_s *dev)
   uint32_t regval;
   int ret;
 
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff),
-        (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff),
-        (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 
 #if defined(PIN_ENET_PHY_EN)
   kinetis_gpiowrite(PIN_ENET_PHY_EN, true);
@@ -1105,6 +1106,8 @@ static int kinetis_ifup(struct net_driver_s *dev)
   priv->ints = RX_INTERRUPTS | ERROR_INTERRUPTS;
   modifyreg32(KINETIS_ENET_EIMR, TX_INTERRUPTS,  priv->ints);
 
+  netdev_carrier_on(dev);
+
   return OK;
 }
 
@@ -1161,6 +1164,9 @@ static int kinetis_ifdown(struct net_driver_s *dev)
 
   priv->bifup = false;
   leave_critical_section(flags);
+
+  netdev_carrier_off(dev);
+
   return OK;
 }
 
@@ -1563,7 +1569,7 @@ static inline int kinetis_initphy(struct kinetis_driver_s *priv)
       retries = 0;
       do
         {
-          nxsig_usleep(LINK_WAITUS);
+          nxsched_usleep(LINK_WAITUS);
           ninfo("%s: Read PHYID1, retries=%d\n",
                 BOARD_PHY_NAME, retries + 1);
           phydata = 0xffff;
@@ -1645,7 +1651,7 @@ static inline int kinetis_initphy(struct kinetis_driver_s *priv)
           break;
         }
 
-      nxsig_usleep(LINK_WAITUS);
+      nxsched_usleep(LINK_WAITUS);
     }
 
   if (phydata & MII_MSR_ANEGCOMPLETE)

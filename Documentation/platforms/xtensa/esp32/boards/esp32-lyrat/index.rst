@@ -5,6 +5,8 @@
 ESP32-LyraT V4.3
 ================
 
+.. tags:: chip:esp32, chip:esp32wrover32
+
 The ESP32-LyraT development board is a hardware platform designed for the
 dual-core ESP32 audio applications, e.g., Wi-Fi or BT audio speakers,
 speech-based remote controllers, smart-home appliances with audio
@@ -461,11 +463,14 @@ the ``buttons`` application and pressing on any of the available board buttons::
     To avoid any conflicts, it's not registered in the buttons subsystem and, thus,
     is unable to be used.
 
-mmcsdspi
---------
+sdmmc_spi
+---------
 
 This configuration is used to mount a FAT/FAT32 SD Card into the OS' filesystem.
 For the ESP32-LyraT, make sure the DIP switches 1 and 2 are turned to the ON position.
+
+The SD slot number, SPI port number and minor number can be modified in ``Application Configuration → NSH Library``.
+
 To access the card's files, execute the following commands::
 
     nsh> mount -t vfat /dev/mmcsd0 /mnt
@@ -485,7 +490,7 @@ USB connection by means of the CP2102N bridge, at 115200 bps).
 nxrecorder
 ----------
 
-This configuration is used to record raw audio from the the ES8388 audio codec
+This configuration is used to record raw audio from the ES8388 audio codec
 through the I2S0 peripheral to a FAT32 SD Card. By default the audio is recorded from
 the on-board microphones.
 For the ESP32-LyraT, make sure the DIP switches 1 and 2 are turned to the ON position.

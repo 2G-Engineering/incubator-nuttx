@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/common/riscv_signal_dispatch.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 
 #include "riscv_internal.h"
 
-#if !defined(CONFIG_BUILD_FLAT) && defined(__KERNEL__)
+#ifdef __KERNEL__
 
 /****************************************************************************
  * Public Functions
@@ -73,4 +75,4 @@ void up_signal_dispatch(_sa_sigaction_t sighand, int signo,
             (uintptr_t)info, (uintptr_t)ucontext);
 }
 
-#endif /* !CONFIG_BUILD_FLAT && __KERNEL__ */
+#endif /* __KERNEL__ */

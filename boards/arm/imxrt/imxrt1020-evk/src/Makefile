@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/imxrt/imxrt1020-evk/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -21,14 +23,10 @@
 include $(TOPDIR)/Make.defs
 
 CSRCS = imxrt_flexspi_nor_flash.c imxrt_boot.c imxrt_flexspi_nor_boot.c
+CSRCS += imxrt_bringup.c
+
 ifeq ($(CONFIG_IMXRT_SDRAMC),y)
 CSRCS += imxrt_sdram.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += imxrt_appinit.c imxrt_bringup.c
-else ifeq ($(CONFIG_BOARD_LATE_INITIALIZE),y)
-CSRCS += imxrt_bringup.c
 endif
 
 ifeq ($(CONFIG_ARCH_LEDS),y)

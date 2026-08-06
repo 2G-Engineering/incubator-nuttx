@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/video/fb.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,13 @@
 
 #include <sys/types.h>
 #include <stdint.h>
+#include <errno.h>
+#include <nuttx/debug.h>
+#ifdef CONFIG_VIDEO_FB_SPLASHSCREEN
+#  include <nuttx/video/rgbcolors.h>
+#endif
 
+#include <nuttx/compiler.h>
 #include <nuttx/fs/ioctl.h>
 
 /****************************************************************************
@@ -181,8 +189,10 @@
 
 /* Hardware overlay acceleration ********************************************/
 
+#define FB_NO_OVERLAY         -1
+
 #ifdef CONFIG_FB_OVERLAY
-#  define FB_ACCL_TRANSP      0x01        /* Hardware tranparency support */
+#  define FB_ACCL_TRANSP      0x01        /* Hardware transparency support */
 #  define FB_ACCL_CHROMA      0x02        /* Hardware chromakey support */
 #  define FB_ACCL_COLOR       0x04        /* Hardware color support */
 #  define FB_ACCL_AREA        0x08        /* Hardware support area selection */
@@ -261,44 +271,65 @@
 #  define FBIOSET_AREA        _FBIOC(0x000f)  /* Set active overlay area
                                                * Argument: read-only struct
                                                *           fb_overlayinfo_s */
+#  define FBIOSET_DESTAREA    _FBIOC(0x0010)  /* Set destination area on
+                                               * primary FB.
+                                               * Argument: read-only struct
+                                               *           fb_overlayinfo_s */
+
 #ifdef CONFIG_FB_OVERLAY_BLIT
-#  define FBIOSET_BLIT        _FBIOC(0x0010)  /* Blit area between overlays
+#  define FBIOSET_BLIT        _FBIOC(0x0011)  /* Blit area between overlays
                                                * Argument: read-only struct
                                                *           fb_overlayblit_s */
-#  define FBIOSET_BLEND       _FBIOC(0x0011)  /* Blend area between overlays
+#  define FBIOSET_BLEND       _FBIOC(0x0012)  /* Blend area between overlays
                                                * Argument: read-only struct
                                                *           fb_overlayblend_s */
 #endif
+
+#define FBIOPAN_OVERLAY       _FBIOC(0x0013)  /* Pan display for overlay
+                                               * Argument: read-only struct
+                                               *           fb_overlayinfo_s */
+
 #endif /* CONFIG_FB_OVERLAY */
 
 /* Specific Controls ********************************************************/
 
-#define FBIOSET_POWER         _FBIOC(0x0012)  /* Set panel power
+#define FBIOSET_POWER         _FBIOC(0x0014)  /* Set panel power
                                                * Argument:             int */
-#define FBIOGET_POWER         _FBIOC(0x0013)  /* Get panel current power
+#define FBIOGET_POWER         _FBIOC(0x0015)  /* Get panel current power
                                                * Argument:            int* */
-#define FBIOSET_FRAMERATE     _FBIOC(0x0014)  /* Set frame rate
+#define FBIOSET_FRAMERATE     _FBIOC(0x0016)  /* Set frame rate
                                                * Argument:             int */
-#define FBIOGET_FRAMERATE     _FBIOC(0x0015)  /* Get frame rate
+#define FBIOGET_FRAMERATE     _FBIOC(0x0017)  /* Get frame rate
                                                * Argument:            int* */
 
-#define FBIOPAN_DISPLAY       _FBIOC(0x0016)  /* Pan display
+#define FBIOPAN_DISPLAY       _FBIOC(0x0018)  /* Pan display
                                                * Argument: read-only struct
                                                *           fb_planeinfo_s* */
 
-#define FBIO_CLEARNOTIFY      _FBIOC(0x0017)  /* Clear notify signal */
+#define FBIOPAN_CLEAR         _FBIOC(0x0019)  /* Pan clear */
+                                              /* Argument: read-only
+                                               *           unsigned long */
 
-#define FBIOSET_VSYNCOFFSET   _FBIOC(0x0018)  /* Set VSync offset in usec
+#define FBIOSET_VSYNCOFFSET   _FBIOC(0x001a)  /* Set VSync offset in usec
                                                * Argument:             int */
+
+#define FBIOSET_ROTATION      _FBIOC(0x001e)  /* Set display rotation
+                                               * Argument:             int */
+
+#define FBIOGET_ROTATION      _FBIOC(0x001f)  /* Get display rotation
+                                               * Argument:            int* */
 
 /* Linux Support ************************************************************/
 
-#define FBIOGET_VSCREENINFO   _FBIOC(0x0019)  /* Get video variable info */
+#define FBIOGET_VSCREENINFO   _FBIOC(0x001b)  /* Get video variable info */
                                               /* Argument: writable struct
                                                *           fb_var_screeninfo */
-#define FBIOGET_FSCREENINFO   _FBIOC(0x001a)  /* Get video fix info */
+#define FBIOGET_FSCREENINFO   _FBIOC(0x001c)  /* Get video fix info */
                                               /* Argument: writable struct
                                                *           fb_fix_screeninfo */
+#define FBIOGET_PANINFOCNT    _FBIOC(0x001d)  /* Get pan info count */
+                                              /* Argument: read-only
+                                               *           unsigned long */
 
 #define FB_TYPE_PACKED_PIXELS        0      /* Packed Pixels */
 #define FB_TYPE_PLANES               1      /* Non interleaved planes */
@@ -310,7 +341,7 @@
 #define FB_AUX_TEXT_MDA              0      /* Monochrome text */
 #define FB_AUX_TEXT_CGA              1      /* CGA/EGA/VGA Color text */
 #define FB_AUX_TEXT_S3_MMIO          2      /* S3 MMIO fasttext */
-#define FB_AUX_TEXT_MGA_STEP16       3      /* MGA Millenium I: text, attr, */
+#define FB_AUX_TEXT_MGA_STEP16       3      /* MGA Millennium I: text, attr, */
                                             /* 14 reserved bytes */
 #define FB_AUX_TEXT_MGA_STEP8        4      /* other MGAs: text, attr, */
                                             /* 6 reserved bytes */
@@ -355,10 +386,10 @@
 #define FB_ACCEL_SUN_LEO             13     /* Sun leo/zx */
 #define FB_ACCEL_IMS_TWINTURBO       14     /* IMS Twin Turbo */
 #define FB_ACCEL_3DLABS_PERMEDIA2    15     /* 3Dlabs Permedia 2 */
-#define FB_ACCEL_MATROX_MGA2064W     16     /* Matrox MGA2064W (Millenium) */
+#define FB_ACCEL_MATROX_MGA2064W     16     /* Matrox MGA2064W (Millennium) */
 #define FB_ACCEL_MATROX_MGA1064SG    17     /* Matrox MGA1064SG (Mystique) */
-#define FB_ACCEL_MATROX_MGA2164W     18     /* Matrox MGA2164W (Millenium II) */
-#define FB_ACCEL_MATROX_MGA2164W_AGP 19     /* Matrox MGA2164W (Millenium II) */
+#define FB_ACCEL_MATROX_MGA2164W     18     /* Matrox MGA2164W (Millennium II) */
+#define FB_ACCEL_MATROX_MGA2164W_AGP 19     /* Matrox MGA2164W (Millennium II) */
 #define FB_ACCEL_MATROX_MGAG100      20     /* Matrox G100 (Productiva G100) */
 #define FB_ACCEL_MATROX_MGAG200      21     /* Matrox G200 (Myst, Mill, ...) */
 #define FB_ACCEL_SUN_CG14            22     /* Sun cgfourteen */
@@ -465,6 +496,18 @@
 #define FB_ROTATE_UD                 2
 #define FB_ROTATE_CCW                3
 
+#ifdef CONFIG_VIDEO_FB_SPLASHSCREEN
+#  if defined(CONFIG_VIDEO_FB_SPLASHSCREEN_BPP32)
+#    define MKRGB ARGBTO32
+#  elif defined(CONFIG_VIDEO_FB_SPLASHSCREEN_BPP24)
+#    define MKRGB RGBTO24
+#  elif defined(CONFIG_VIDEO_FB_SPLASHSCREEN_BPP16)
+#    define MKRGB RGBTO16
+#  elif defined(CONFIG_VIDEO_FB_SPLASHSCREEN_BPP8)
+#    define MKRGB RGBTO8
+#  endif /* CONFIG_VIDEO_FB_SPLASHSCREEN_BPP32 */
+#endif /* CONFIG_VIDEO_FB_SPLASHSCREEN */
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/
@@ -536,11 +579,18 @@ struct fb_overlayinfo_s
   fb_coord_t stride;          /* Length of a line in bytes */
   uint8_t    overlay;         /* Overlay number */
   uint8_t    bpp;             /* Bits per pixel */
+  uint32_t   xres;            /* Horizontal resolution in pixel columns */
+  uint32_t   yres;            /* Vertical resolution in pixel rows */
+  uint32_t   xres_virtual;    /* Virtual Horizontal resolution in pixel columns */
+  uint32_t   yres_virtual;    /* Virtual Vertical resolution in pixel rows */
+  uint32_t   xoffset;         /* Offset from virtual to visible resolution */
+  uint32_t   yoffset;         /* Offset from virtual to visible resolution */
   uint8_t    blank;           /* Blank or unblank */
   uint32_t   chromakey;       /* Chroma key argb8888 formatted */
   uint32_t   color;           /* Color argb8888 formatted */
   struct fb_transp_s transp;  /* Transparency */
   struct fb_area_s sarea;     /* Selected area within the overlay */
+  struct fb_area_s darea;     /* Destination area on the primary FB */
   uint32_t   accl;            /* Supported hardware acceleration */
 };
 
@@ -604,7 +654,7 @@ struct fb_cmap_s
 struct fb_cursorimage_s
 {
   fb_coord_t     width;    /* Width of the cursor image in pixels */
-  fb_coord_t     height    /* Height of the cursor image in pixels */
+  fb_coord_t     height;   /* Height of the cursor image in pixels */
   const uint8_t *image;    /* Pointer to image data */
 };
 #endif
@@ -657,6 +707,14 @@ struct fb_setcursor_s
 #endif
 };
 #endif
+
+union fb_paninfo_u
+{
+  struct fb_planeinfo_s planeinfo;
+#ifdef CONFIG_FB_OVERLAY
+  struct fb_overlayinfo_s overlayinfo;
+#endif
+};
 
 /* The framebuffer "object" is accessed through within the OS via
  * the following vtable:
@@ -758,6 +816,13 @@ struct fb_vtable_s
   int (*setarea)(FAR struct fb_vtable_s *vtable,
                  FAR const struct fb_overlayinfo_s *oinfo);
 
+  /* The following allows to set the display area for subsequently overlay
+   * operations.
+   */
+
+  int (*setdestarea)(FAR struct fb_vtable_s *vtable,
+                        FAR const struct fb_overlayinfo_s *oinfo);
+
 #  ifdef CONFIG_FB_OVERLAY_BLIT
   /* The following are provided only if the video hardware supports
    * blit operation between overlays.
@@ -773,6 +838,13 @@ struct fb_vtable_s
   int (*blend)(FAR struct fb_vtable_s *vtable,
                FAR const struct fb_overlayblend_s *blend);
 #  endif
+
+  /* The following allows to pan display for multiple buffers.
+   */
+
+  int (*panoverlay)(FAR struct fb_vtable_s *vtable,
+                           FAR const struct fb_overlayinfo_s *oinfo);
+
 #endif
 
   /* Pan display for multiple buffers. */
@@ -838,7 +910,7 @@ struct fb_fix_screeninfo
  *
  * For pseudocolor: offset and length should be the same for all color
  * components. Offset specifies the position of the least significant bit
- * of the pallette index in a pixel value. Length indicates the number
+ * of the palette index in a pixel value. Length indicates the number
  * of available palette entries (i.e. # of entries = 1 << length).
  */
 
@@ -884,6 +956,53 @@ struct fb_var_screeninfo
   uint32_t colorspace;       /* Colorspace for FOURCC-based modes */
   uint32_t reserved[4];      /* Reserved for future compatibility */
 };
+
+#ifdef CONFIG_VIDEO_FB_SPLASHSCREEN
+#  if defined(CONFIG_VIDEO_FB_SPLASHSCREEN_BPP8) || \
+      defined(CONFIG_VIDEO_FB_SPLASHSCREEN_MONO) || \
+      defined(CONFIG_VIDEO_FB_SPLASHSCREEN_GREY)
+  typedef uint8_t fb_pixel_t;
+#  elif defined(CONFIG_VIDEO_FB_SPLASHSCREEN_BPP16)
+  typedef uint16_t fb_pixel_t;
+  #elif defined(CONFIG_VIDEO_FB_SPLASHSCREEN_BPP24)
+  typedef uint32_t fb_pixel_t;
+#  elif defined(CONFIG_VIDEO_FB_SPLASHSCREEN_BPP32)
+  typedef uint32_t fb_pixel_t;
+#  else
+#    error "Pixel depth is unknown"
+#endif
+
+/* Describes a point on the display */
+
+struct fb_point_s
+{
+  fb_coord_t x;         /* X position, range: 0 to screen width - 1 */
+  fb_coord_t y;         /* Y position, range: 0 to screen height - 1 */
+};
+
+struct fb_rect_s
+{
+  struct fb_point_s pt1; /* Upper, left-hand corner */
+  struct fb_point_s pt2; /* Lower, right-hand corner */
+};
+
+/* This structure describes the splashscreen */
+
+struct splscr_bitmap_s
+{
+  uint8_t          npixels;     /* Number of pixels                          */
+  uint8_t          lookup;      /* Pixel RGB lookup index                    */
+};
+
+struct palette_bitmap_s
+{
+  fb_coord_t            width;  /* Width in pixels                           */
+  fb_coord_t            height; /* Height in rows                            */
+  FAR const fb_pixel_t *lut;    /* Pointer to the palette (LUT)              */
+  FAR const struct
+       splscr_bitmap_s *data;   /* The RLE data                              */
+};
+#endif
 
 /****************************************************************************
  * Public Data
@@ -967,17 +1086,94 @@ FAR struct fb_vtable_s *up_fbgetvplane(int display, int vplane);
 void up_fbuninitialize(int display);
 
 /****************************************************************************
- * Name: fb_pollnotify
- *
+ * Name: fb_notify_vsync
  * Description:
- *   Notify the waiting thread that the framebuffer can be written.
+ *   notify that the vsync comes.
  *
  * Input Parameters:
- *   vtable - Pointer to framebuffer's virtual table.
+ *   vtable  - Pointer to framebuffer's virtual table.
  *
  ****************************************************************************/
 
-void fb_pollnotify(FAR struct fb_vtable_s *vtable);
+void fb_notify_vsync(FAR struct fb_vtable_s *vtable);
+
+/****************************************************************************
+ * Name: fb_peek_paninfo
+ * Description:
+ *   Peek a frame from pan info queue of the specified overlay.
+ *
+ * Input Parameters:
+ *   vtable  - Pointer to framebuffer's virtual table.
+ *   info    - Pointer to pan info.
+ *   overlay - Overlay index.
+ *
+ * Returned Value:
+ *   Zero is returned on success; a negated errno value is returned on any
+ *   failure.
+ ****************************************************************************/
+
+int fb_peek_paninfo(FAR struct fb_vtable_s *vtable,
+                    FAR union fb_paninfo_u *info,
+                    int overlay);
+
+/****************************************************************************
+ * Name: fb_remove_paninfo
+ * Description:
+ *   Remove a frame from pan info queue of the specified overlay.
+ *
+ * Input Parameters:
+ *   vtable  - Pointer to framebuffer's virtual table.
+ *   overlay - Overlay index.
+ *
+ * Returned Value:
+ *   Zero is returned on success; a negated errno value is returned on any
+ *   failure.
+ ****************************************************************************/
+
+int fb_remove_paninfo(FAR struct fb_vtable_s *vtable, int overlay);
+
+/****************************************************************************
+ * Name: fb_paninfo_count
+ * Description:
+ *   Get pan info count of specified overlay pan info queue.
+ *
+ * Input Parameters:
+ *   vtable  - Pointer to framebuffer's virtual table.
+ *   overlay - Overlay index.
+ *
+ * Returned Value:
+ *   a non-negative value is returned on success; a negated errno value is
+ *   returned on any failure.
+ ****************************************************************************/
+
+int fb_paninfo_count(FAR struct fb_vtable_s *vtable, int overlay);
+
+/****************************************************************************
+ * Name: fb_register_device
+ *
+ * Description:
+ *   Register the framebuffer character device at /dev/fbN where N is the
+ *   display number if the devices supports only a single plane.  If the
+ *   hardware supports multiple color planes, then the device will be
+ *   registered at /dev/fbN.M where N is the again display number but M
+ *   is the display plane.
+ *
+ * Input Parameters:
+ *   display - The display number for the case of boards supporting multiple
+ *             displays or for hardware that supports multiple
+ *             layers (each layer is consider a display).  Typically zero.
+ *   plane   - Identifies the color plane on hardware that supports separate
+ *             framebuffer "planes" for each color component.
+ *   vtable  - Pointer to framebuffer's virtual table.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned success; a negated errno value is returned on any
+ *   failure.
+ *
+ ****************************************************************************/
+
+int fb_register_device(int display, int plane,
+                       FAR struct fb_vtable_s *vtable);
 
 /****************************************************************************
  * Name: fb_register
@@ -1002,7 +1198,30 @@ void fb_pollnotify(FAR struct fb_vtable_s *vtable);
  *
  ****************************************************************************/
 
-int fb_register(int display, int plane);
+static inline_function unused_code int fb_register(int display, int plane)
+{
+  FAR struct fb_vtable_s *vtable;
+  int ret;
+
+  /* Initialize the frame buffer device. */
+
+  ret = up_fbinitialize(display);
+  if (ret < 0)
+    {
+      gerr("ERROR: up_fbinitialize() failed for display %d: %d\n",
+           display, ret);
+      return ret;
+    }
+
+  vtable = up_fbgetvplane(display, plane);
+  if (vtable == NULL)
+    {
+      gerr("ERROR: up_fbgetvplane() failed, vplane=%d\n", plane);
+      return -EINVAL;
+    }
+
+  return fb_register_device(display, plane, vtable);
+}
 
 #undef EXTERN
 #ifdef __cplusplus

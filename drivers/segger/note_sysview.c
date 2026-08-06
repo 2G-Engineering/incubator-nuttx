@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/segger/note_sysview.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,6 +25,7 @@
  ****************************************************************************/
 
 #include <stddef.h>
+#include <stdio.h>
 #include <syslog.h>
 
 #include <nuttx/clock.h>
@@ -44,9 +47,6 @@ struct note_sysview_driver_s
 {
   struct note_driver_s driver;
   unsigned int irq[CONFIG_SMP_NCPUS];
-#ifdef CONFIG_SCHED_INSTRUMENTATION_SYSCALL
-  struct note_filter_syscall_s syscall_marker;
-#endif
 };
 
 /****************************************************************************
@@ -73,6 +73,20 @@ static void note_sysview_syscall_enter(FAR struct note_driver_s *drv,
 static void note_sysview_syscall_leave(FAR struct note_driver_s *drv,
                                        int nr, uintptr_t result);
 #endif
+#ifdef CONFIG_SCHED_INSTRUMENTATION_HEAP
+static void note_sysview_heap(FAR struct note_driver_s *drv,
+                              uint8_t event, FAR void *heap, FAR void *mem,
+                              size_t size, size_t curused);
+#endif
+#ifdef CONFIG_SCHED_INSTRUMENTATION_WDOG
+static void note_sysview_wdog(FAR struct note_driver_s *drv, uint8_t event,
+                              FAR void *handler, FAR const void *arg);
+#endif
+
+#ifdef CONFIG_SCHED_INSTRUMENTATION_DUMP
+static void note_sysview_vprintf(FAR struct note_driver_s *drv, uintptr_t ip,
+                                 FAR const char *fmt, va_list va);
+#endif
 
 /****************************************************************************
  * Private Data
@@ -98,7 +112,7 @@ static const struct note_driver_ops_s g_note_sysview_ops =
 #  endif
 #endif
 #ifdef CONFIG_SCHED_INSTRUMENTATION_PREEMPTION
-  NULL,                       /* premption */
+  NULL,                       /* preemption */
 #endif
 #ifdef CONFIG_SCHED_INSTRUMENTATION_CSECTION
   NULL,                       /* csection */
@@ -113,11 +127,33 @@ static const struct note_driver_ops_s g_note_sysview_ops =
 #ifdef CONFIG_SCHED_INSTRUMENTATION_IRQHANDLER
   note_sysview_irqhandler,    /* irqhandler */
 #endif
+#ifdef CONFIG_SCHED_INSTRUMENTATION_WDOG
+  note_sysview_wdog,          /* wdog */
+#endif
+#ifdef CONFIG_SCHED_INSTRUMENTATION_HEAP
+  note_sysview_heap,          /* heap */
+#endif
+
+#ifdef CONFIG_SCHED_INSTRUMENTATION_DUMP
+  NULL,                       /* event */
+  note_sysview_vprintf,       /* vprintf */
+#endif
 };
 
 static struct note_sysview_driver_s g_note_sysview_driver =
 {
   {
+#ifdef CONFIG_SCHED_INSTRUMENTATION_FILTER
+    "sysview",
+    {
+      {
+        CONFIG_SCHED_INSTRUMENTATION_FILTER_DEFAULT_MODE,
+#  ifdef CONFIG_SMP
+        CONFIG_SCHED_INSTRUMENTATION_CPUSET
+#  endif
+      },
+    },
+#endif
     &g_note_sysview_ops
   }
 };
@@ -134,15 +170,11 @@ static void note_sysview_send_taskinfo(FAR struct tcb_s *tcb)
 {
   SEGGER_SYSVIEW_TASKINFO info;
 
-  info.TaskID     = tcb->pid;
-#if CONFIG_TASK_NAME_SIZE > 0
-  info.sName      = tcb->name;
-#else
-  info.sName      = "<noname>";
-#endif
-  info.Prio       = tcb->sched_priority;
-  info.StackBase  = (uintptr_t)tcb->stack_base_ptr;
-  info.StackSize  = tcb->adj_stack_size;
+  info.TaskID    = tcb->pid;
+  info.sName     = get_task_name(tcb);
+  info.Prio      = tcb->sched_priority;
+  info.StackBase = (uintptr_t)tcb->stack_base_ptr;
+  info.StackSize = tcb->adj_stack_size;
 
   SEGGER_SYSVIEW_SendTaskInfo(&info);
 }
@@ -247,7 +279,7 @@ static void note_sysview_irqhandler(FAR struct note_driver_s *drv, int irq,
 
   if (enter)
     {
-      driver->irq[up_cpu_index()] = irq;
+      driver->irq[this_cpu()] = irq;
 
       SEGGER_SYSVIEW_OnTaskStopExec();
       SEGGER_SYSVIEW_RecordEnterISR();
@@ -270,7 +302,7 @@ static void note_sysview_irqhandler(FAR struct note_driver_s *drv, int irq,
             }
         }
 
-      driver->irq[up_cpu_index()] = 0;
+      driver->irq[this_cpu()] = 0;
     }
 }
 #endif
@@ -285,7 +317,8 @@ static void note_sysview_syscall_enter(FAR struct note_driver_s *drv, int nr,
 
   /* Set the name marker if the current syscall nr is not active */
 
-  if (NOTE_FILTER_SYSCALLMASK_ISSET(nr, &driver->syscall_marker) == 0)
+  if (NOTE_FILTER_SYSCALLMASK_ISSET(nr,
+                          &driver->driver.filter.syscall_mask) == 0)
     {
       /* Set the name marker */
 
@@ -293,16 +326,18 @@ static void note_sysview_syscall_enter(FAR struct note_driver_s *drv, int nr,
 
       /* Mark the syscall active */
 
-      NOTE_FILTER_SYSCALLMASK_SET(nr, &driver->syscall_marker);
+      NOTE_FILTER_SYSCALLMASK_SET(nr, &driver->driver.filter.syscall_mask);
 
       /* Use the Syscall "0" to identify whether the syscall is enabled,
        * if the host tool is closed abnormally, use this bit to clear
        * the active set.
        */
 
-      if (NOTE_FILTER_SYSCALLMASK_ISSET(0, &driver->syscall_marker) == 0)
+      if (NOTE_FILTER_SYSCALLMASK_ISSET(0,
+                              &driver->driver.filter.syscall_mask) == 0)
         {
-          NOTE_FILTER_SYSCALLMASK_SET(0, &driver->syscall_marker);
+          NOTE_FILTER_SYSCALLMASK_SET(0,
+                              &driver->driver.filter.syscall_mask);
         }
     }
 
@@ -316,10 +351,91 @@ static void note_sysview_syscall_leave(FAR struct note_driver_s *drv,
       (FAR struct note_sysview_driver_s *)drv;
   nr -= CONFIG_SYS_RESERVED;
 
-  if (NOTE_FILTER_SYSCALLMASK_ISSET(nr, &driver->syscall_marker) != 0)
+  if (NOTE_FILTER_SYSCALLMASK_ISSET(nr, &driver->driver.filter.syscall_mask))
     {
       SEGGER_SYSVIEW_MarkStop(nr);
     }
+}
+#endif
+
+#ifdef CONFIG_SCHED_INSTRUMENTATION_HEAP
+static void note_sysview_heap(FAR struct note_driver_s *drv,
+                              uint8_t event, FAR void *heap, FAR void *mem,
+                              size_t size, size_t curused)
+{
+  switch (event)
+    {
+      case NOTE_HEAP_ALLOC:
+      case NOTE_HEAP_FREE:
+        {
+          U32 value = (U32)curused;
+          const SEGGER_SYSVIEW_DATA_SAMPLE data =
+            {
+              .ID = (U32)(uintptr_t)heap,
+              .pU32_Value = &value,
+            };
+
+          SEGGER_SYSVIEW_SampleData(&data);
+          if (event == NOTE_HEAP_ALLOC)
+            {
+              SEGGER_SYSVIEW_HeapAlloc(heap, mem, size);
+            }
+          else
+            {
+              SEGGER_SYSVIEW_HeapFree(heap, mem);
+            }
+
+          break;
+        }
+
+      case NOTE_HEAP_ADD:
+        {
+          char name[32];
+          SEGGER_SYSVIEW_DATA_REGISTER data =
+            {
+              .ID = (U32)(uintptr_t)heap,
+              .DataType = SEGGER_SYSVIEW_TYPE_U32,
+              .Offset = 0,
+              .RangeMin = 0,
+              .RangeMax = 0,
+              .ScalingFactor = 1.f,
+              .sUnit = "B",
+              .sName = name,
+            };
+
+          snprintf(name, sizeof(name), "Heap%p", heap);
+
+          SEGGER_SYSVIEW_RegisterData(&data);
+          SEGGER_SYSVIEW_HeapDefine(heap, mem, size, 0);
+          break;
+        }
+
+      default:
+        break;
+    }
+}
+#endif
+
+#ifdef CONFIG_SCHED_INSTRUMENTATION_WDOG
+static void note_sysview_wdog(FAR struct note_driver_s *drv, uint8_t event,
+                              FAR void *handler, FAR const void *arg)
+{
+  if (event == NOTE_WDOG_ENTER)
+    {
+      SEGGER_SYSVIEW_RecordEnterTimer((uintptr_t)handler);
+    }
+  else if (event == NOTE_WDOG_LEAVE)
+    {
+      SEGGER_SYSVIEW_RecordExitTimer();
+    }
+}
+#endif
+
+#ifdef CONFIG_SCHED_INSTRUMENTATION_DUMP
+static void note_sysview_vprintf(FAR struct note_driver_s *drv, uintptr_t ip,
+                                 FAR const char *fmt, va_list va)
+{
+  SEGGER_SYSVIEW_VPrintfHost(fmt, &va);
 }
 #endif
 
@@ -337,20 +453,7 @@ static void note_sysview_syscall_leave(FAR struct note_driver_s *drv,
 
 unsigned int note_sysview_get_interrupt_id(void)
 {
-  return g_note_sysview_driver.irq[up_cpu_index()];
-}
-
-/****************************************************************************
- * Name: note_sysview_get_timestamp
- *
- * Description:
- *   Retrieve a system timestamp for SYSVIEW events.
- *
- ****************************************************************************/
-
-unsigned long note_sysview_get_timestamp(void)
-{
-  return up_perf_gettime();
+  return g_note_sysview_driver.irq[this_cpu()];
 }
 
 /****************************************************************************
@@ -369,7 +472,8 @@ unsigned long note_sysview_get_timestamp(void)
 
 int note_sysview_initialize(void)
 {
-  unsigned long freq = up_perf_getfreq();
+  unsigned long freq = perf_getfreq();
+  int ret;
 
   static const SEGGER_SYSVIEW_OS_API g_sysview_trace_api =
     {
@@ -391,9 +495,9 @@ int note_sysview_initialize(void)
 #endif
 
   SEGGER_SYSVIEW_Start();
-  note_driver_register(&g_note_sysview_driver.driver);
+  ret = note_driver_register(&g_note_sysview_driver.driver);
   syslog(LOG_NOTICE, "SEGGER RTT Control Block Address: %#" PRIxPTR "\n",
                       (uintptr_t)&_SEGGER_RTT +
                       CONFIG_SEGGER_RTT_UNCACHED_OFF);
-  return 0;
+  return ret;
 }

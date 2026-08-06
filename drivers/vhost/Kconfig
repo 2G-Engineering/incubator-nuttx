@@ -1,0 +1,22 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config DRIVERS_VHOST
+	bool
+	select OPENAMP
+	select SCHED_WORKQUEUE
+	default n
+
+config DRIVERS_VHOST_RNG
+	bool "Virtual Host Rng Device Support"
+	default n
+	select DRIVERS_VHOST
+
+config DRIVERS_VHOST_RPMSG
+	bool "Virtual Host Rpmsg Device Support"
+	default n
+	select RPMSG_VIRTIO
+	select DRIVERS_VHOST
+

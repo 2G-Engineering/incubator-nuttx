@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdlib/lib_srand.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,195 +27,63 @@
 #include <nuttx/config.h>
 
 #include <stdlib.h>
+#include <stdint.h>
 
 #include <nuttx/lib/lib.h>
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/* First, second, and thired order congruential generators are supported */
-
-#ifndef CONFIG_LIBC_RAND_ORDER
-#  define CONFIG_LIBC_RAND_ORDER 1
-#endif
-
-#if CONFIG_LIBC_RAND_ORDER > 3
-#  undef CONFIG_LIBC_RAND_ORDER
-#  define CONFIG_LIBC_RAND_ORDER 3
-#endif
-
-#ifndef CONFIG_HAVE_DOUBLE
-typedef float        float_t;
-#else
-typedef double       float_t;
-#endif
-
-/* Values needed by the random number generator */
-
-#define RND1_CONSTK  470001
-#define RND1_CONSTP  999563
-#define RND2_CONSTK1 366528
-#define RND2_CONSTK2 508531
-#define RND2_CONSTP  998917
-#define RND3_CONSTK1 360137
-#define RND3_CONSTK2 519815
-#define RND3_CONSTK3 616087
-#define RND3_CONSTP  997783
-
-/****************************************************************************
- * Private Function Prototypes
- ****************************************************************************/
-
-/* First order congruential generators */
-
-static inline unsigned long fgenerate1(void);
-#if (CONFIG_LIBC_RAND_ORDER == 1)
-static float_t frand1(void);
-#endif
-
-/* Second order congruential generators */
-
-#if (CONFIG_LIBC_RAND_ORDER > 1)
-static inline unsigned long fgenerate2(void);
-#if (CONFIG_LIBC_RAND_ORDER == 2)
-static float_t frand2(void);
-#endif
-
-/* Third order congruential generators */
-
-#if (CONFIG_LIBC_RAND_ORDER > 2)
-static inline unsigned long fgenerate3(void);
-static float_t frand3(void);
-#endif
-#endif
 
 /****************************************************************************
  * Private Data
  ****************************************************************************/
 
-static unsigned long g_randint1;
-#if (CONFIG_LIBC_RAND_ORDER > 1)
-static unsigned long g_randint2;
-#if (CONFIG_LIBC_RAND_ORDER > 2)
-static unsigned long g_randint3;
-#endif
-#endif
+static uint32_t g_randstate = 1;
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
 
-/* First order congruential generators */
+/****************************************************************************
+ * Name: xorshift32
+ *
+ * Description:
+ *   Marsaglia's xorshift32 PRNG.  Period 2^32 - 1 (about 4.29 billion).
+ *   Much better statistical properties than a simple LCG with a small
+ *   modulus, while remaining fast (three XOR/shift operations).
+ *
+ ****************************************************************************/
 
-static inline unsigned long fgenerate1(void)
+static inline uint32_t xorshift32(FAR uint32_t *state)
 {
-  unsigned long randint;
+  uint32_t x = *state;
 
-  /* First order congruential generator.  One may be added to the result of
-   * the generated value to avoid the value zero.  This would be fatal for
-   * the first order random number generator.
+  /* State must never be zero, otherwise the generator is stuck.
+   * The seed path (srand / rand_r) already guards against this, but we
+   * check here as well for safety.
    */
 
-  randint    = (RND1_CONSTK * g_randint1) % RND1_CONSTP;
-  g_randint1 = (randint == 0 ? 1 : randint);
-  return randint;
-}
-
-#if (CONFIG_LIBC_RAND_ORDER == 1)
-static float_t frand1(void)
-{
-  /* First order congruential generator. */
-
-  unsigned long randint = fgenerate1();
-
-  /* Construct an floating point value in the range from 0.0 up to 1.0 */
-
-  return ((float_t)randint) / ((float_t)RND1_CONSTP);
-}
-#endif
-
-/* Second order congruential generators */
-
-#if (CONFIG_LIBC_RAND_ORDER > 1)
-static inline unsigned long fgenerate2(void)
-{
-  unsigned long randint;
-
-  /* Second order congruential generator. */
-
-  randint    = (RND2_CONSTK1 * g_randint1 +
-                RND2_CONSTK2 * g_randint2) % RND2_CONSTP;
-
-  g_randint2 = g_randint1;
-  g_randint1 = randint;
-
-  /* We cannot permit both values to become zero.  That would be fatal for
-   * the second order random number generator.
-   */
-
-  if (g_randint2 == 0 && g_randint1 == 0)
+  if (x == 0)
     {
-      g_randint2 = 1;
+      x = 1;
     }
 
-  return randint;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+
+  *state = x;
+  return x;
 }
 
-#if (CONFIG_LIBC_RAND_ORDER == 2)
-static float_t frand2(void)
+static unsigned long nrand_r(unsigned long limit,
+                             FAR uint32_t *state)
 {
-  /* Second order congruential generator */
+  uint32_t randval = xorshift32(state);
 
-  unsigned long randint = fgenerate2();
-
-  /* Construct an floating point value in the range from 0.0 up to 1.0 */
-
-  return ((float_t)randint) / ((float_t)RND2_CONSTP);
-}
-#endif
-
-/* Third order congruential generators */
-
-#if (CONFIG_LIBC_RAND_ORDER > 2)
-static inline unsigned long fgenerate3(void)
-{
-  unsigned long randint;
-
-  /* Third order congruential generator. */
-
-  randint    = (RND3_CONSTK1 * g_randint1 +
-                RND3_CONSTK2 * g_randint2 +
-                RND3_CONSTK2 * g_randint3) % RND3_CONSTP;
-
-  g_randint3 = g_randint2;
-  g_randint2 = g_randint1;
-  g_randint1 = randint;
-
-  /* We cannot permit all three values to become zero.  That would be fatal
-   * for the third order random number generator.
+  /* Map the 32-bit random value into the range [0, limit).
+   * The modulo bias is negligible for small limits relative to 2^32.
    */
 
-  if (g_randint3 == 0 && g_randint2 == 0 && g_randint1 == 0)
-    {
-      g_randint3 = 1;
-    }
-
-  return randint;
+  return (unsigned long)(randval % (uint32_t)limit);
 }
-
-static float_t frand3(void)
-{
-  /* Third order congruential generator */
-
-  unsigned long randint = fgenerate3();
-
-  /* Construct an floating point value in the range from 0.0 up to 1.0 */
-
-  return ((float_t)randint) / ((float_t)RND3_CONSTP);
-}
-#endif
-#endif
 
 /****************************************************************************
  * Public Functions
@@ -223,21 +93,15 @@ static float_t frand3(void)
  * Name: srand
  *
  * Description:
- *   Seed the congruential random number generator.
+ *   Seed the random number generator.
  *
  ****************************************************************************/
 
 void srand(unsigned int seed)
 {
-  g_randint1 = seed;
-#if (CONFIG_LIBC_RAND_ORDER > 1)
-  g_randint2 = seed;
-  fgenerate1();
-#if (CONFIG_LIBC_RAND_ORDER > 2)
-  g_randint3 = seed;
-  fgenerate2();
-#endif
-#endif
+  /* Avoid a zero state which would make xorshift32 degenerate. */
+
+  g_randstate = (seed == 0) ? 1 : (uint32_t)seed;
 }
 
 /****************************************************************************
@@ -250,32 +114,34 @@ void srand(unsigned int seed)
 
 unsigned long nrand(unsigned long limit)
 {
-  unsigned long result;
-  float_t ratio;
+  return nrand_r(limit, &g_randstate);
+}
 
-  /* Loop to be sure a legal random number is generated */
+/****************************************************************************
+ * Name: rand_r
+ *
+ * Description:
+ *   The function rand() is not reentrant, since it uses hidden state that
+ *   is modified on each call. This might just be the seed value to be used
+ *   by the next call, or it might be something more elaborate. In order to
+ *   get reproducible behavior in a threaded application, this state must be
+ *   made explicit; this can be done using the reentrant function rand_r().
+ *
+ *   Return a random, int value in the range of 0 to INT_MAX.
+ *
+ ****************************************************************************/
 
-  do
+int rand_r(FAR unsigned int *seedp)
+{
+  uint32_t state = (uint32_t)*seedp;
+  unsigned long rand;
+
+  if (state == 0)
     {
-      /* Get a random integer in the range 0.0 - 1.0 */
-
-#if (CONFIG_LIBC_RAND_ORDER == 1)
-      ratio = frand1();
-#elif (CONFIG_LIBC_RAND_ORDER == 2)
-      ratio = frand2();
-#else /* if (CONFIG_LIBC_RAND_ORDER > 2) */
-      ratio = frand3();
-#endif
-
-      /* Then, produce the return-able value in the requested range */
-
-      result = (unsigned long)(((float_t)limit) * ratio);
-
-      /* Loop because there is an (unlikely) possibility that rounding
-       * could increase the result at the limit value about the limit.
-       */
+      state = 1;
     }
-  while (result >= limit);
 
-  return result;
+  rand = nrand_r(INT_MAX, &state);
+  *seedp = (unsigned int)state;
+  return (int)rand;
 }

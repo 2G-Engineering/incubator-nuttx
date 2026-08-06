@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f777zit6-meadow/src/stm32_spi.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/spi/spi.h>
 #include <arch/board/board.h>
@@ -38,9 +40,9 @@
 
 #include "stm32f777zit6-meadow.h"
 
-#if defined(CONFIG_STM32F7_SPI1) || defined(CONFIG_STM32F7_SPI2) || \
-    defined(CONFIG_STM32F7_SPI3) || defined(CONFIG_STM32F7_SPI4) || \
-    defined(CONFIG_STM32F7_SPI5)
+#if defined(CONFIG_STM32_SPI1) || defined(CONFIG_STM32_SPI2) || \
+    defined(CONFIG_STM32_SPI3) || defined(CONFIG_STM32_SPI4) || \
+    defined(CONFIG_STM32_SPI5)
 
 /****************************************************************************
  * Public Functions
@@ -85,7 +87,7 @@ void weak_function stm32_spidev_initialize(void)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32F7_SPI1
+#ifdef CONFIG_STM32_SPI1
 void stm32_spi1select(struct spi_dev_s *dev,
                       uint32_t devid, bool selected)
 {
@@ -99,7 +101,7 @@ uint8_t stm32_spi1status(struct spi_dev_s *dev, uint32_t devid)
 }
 #endif
 
-#ifdef CONFIG_STM32F7_SPI2
+#ifdef CONFIG_STM32_SPI2
 void stm32_spi2select(struct spi_dev_s *dev,
                       uint32_t devid, bool selected)
 {
@@ -109,13 +111,13 @@ void stm32_spi2select(struct spi_dev_s *dev,
           );
 }
 
-uint8_t stm32_spi2status(FAR struct spi_dev_s *dev, uint32_t devid)
+uint8_t stm32_spi2status(struct spi_dev_s *dev, uint32_t devid)
 {
   return 0;
 }
 #endif
 
-#ifdef CONFIG_STM32F7_SPI3
+#ifdef CONFIG_STM32_SPI3
 void stm32_spi3select(struct spi_dev_s *dev,
                       uint32_t devid, bool selected)
 {
@@ -129,7 +131,7 @@ uint8_t stm32_spi3status(struct spi_dev_s *dev, uint32_t devid)
 }
 #endif
 
-#ifdef CONFIG_STM32F7_SPI4
+#ifdef CONFIG_STM32_SPI4
 void stm32_spi4select(struct spi_dev_s *dev,
                       uint32_t devid, bool selected)
 {
@@ -143,7 +145,7 @@ uint8_t stm32_spi4status(struct spi_dev_s *dev, uint32_t devid)
 }
 #endif
 
-#ifdef CONFIG_STM32F7_SPI5
+#ifdef CONFIG_STM32_SPI5
 void stm32_spi5select(struct spi_dev_s *dev,
                       uint32_t devid, bool selected)
 {
@@ -181,35 +183,35 @@ uint8_t stm32_spi5status(struct spi_dev_s *dev, uint32_t devid)
  ****************************************************************************/
 
 #ifdef CONFIG_SPI_CMDDATA
-#ifdef CONFIG_STM32F7_SPI1
+#ifdef CONFIG_STM32_SPI1
 int stm32_spi1cmddata(struct spi_dev_s *dev, uint32_t devid, bool cmd)
 {
   return -ENODEV;
 }
 #endif
 
-#ifdef CONFIG_STM32F7_SPI2
+#ifdef CONFIG_STM32_SPI2
 int stm32_spi2cmddata(struct spi_dev_s *dev, uint32_t devid, bool cmd)
 {
   return -ENODEV;
 }
 #endif
 
-#ifdef CONFIG_STM32F7_SPI3
+#ifdef CONFIG_STM32_SPI3
 int stm32_spi3cmddata(struct spi_dev_s *dev, uint32_t devid, bool cmd)
 {
   return -ENODEV;
 }
 #endif
 
-#ifdef CONFIG_STM32F7_SPI4
+#ifdef CONFIG_STM32_SPI4
 int stm32_spi4cmddata(struct spi_dev_s *dev, uint32_t devid, bool cmd)
 {
   return -ENODEV;
 }
 #endif
 
-#ifdef CONFIG_STM32F7_SPI5
+#ifdef CONFIG_STM32_SPI5
 int stm32_spi5cmddata(struct spi_dev_s *dev, uint32_t devid, bool cmd)
 {
   return -ENODEV;
@@ -217,4 +219,4 @@ int stm32_spi5cmddata(struct spi_dev_s *dev, uint32_t devid, bool cmd)
 #endif
 
 #endif /* CONFIG_SPI_CMDDATA */
-#endif /* CONFIG_STM32F7_SPI1 || ... CONFIG_STM32F7_SPI5 */
+#endif /* CONFIG_STM32_SPI1 || ... CONFIG_STM32_SPI5 */

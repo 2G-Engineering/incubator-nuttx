@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/tcp/tcp_sendfile.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -37,7 +39,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/irq.h>
 #include <nuttx/sched.h>
@@ -53,6 +55,7 @@
 #include "icmpv6/icmpv6.h"
 #include "neighbor/neighbor.h"
 #include "socket/socket.h"
+#include "utils/utils.h"
 #include "tcp/tcp.h"
 
 #if defined(CONFIG_NET_SENDFILE) && defined(CONFIG_NET_TCP) && \
@@ -114,8 +117,8 @@ struct sendfile_s
  *
  ****************************************************************************/
 
-static uint16_t sendfile_eventhandler(FAR struct net_driver_s *dev,
-                                      FAR void *pvpriv, uint16_t flags)
+static uint32_t sendfile_eventhandler(FAR struct net_driver_s *dev,
+                                      FAR void *pvpriv, uint32_t flags)
 {
   FAR struct sendfile_s *pstate = pvpriv;
   FAR struct tcp_conn_s *conn;
@@ -140,7 +143,7 @@ static uint16_t sendfile_eventhandler(FAR struct net_driver_s *dev,
       return flags;
     }
 
-  ninfo("flags: %04x acked: %" PRId32 " sent: %zd\n",
+  ninfo("flags: %" PRIx32 " acked: %" PRId32 " sent: %zd\n",
         flags, pstate->snd_acked, pstate->snd_sent);
 
   /* The TCP_ACKDATA, TCP_REXMIT and TCP_DISCONN_EVENTS flags are expected to
@@ -417,7 +420,7 @@ ssize_t tcp_sendfile(FAR struct socket *psock, FAR struct file *infile,
   FAR struct tcp_conn_s *conn;
   struct sendfile_s state;
   off_t startpos;
-  int ret;
+  int ret = OK;
 
   conn = psock->s_conn;
   DEBUGASSERT(conn != NULL);
@@ -434,23 +437,20 @@ ssize_t tcp_sendfile(FAR struct socket *psock, FAR struct file *infile,
 
 #if defined(CONFIG_NET_ARP_SEND) || defined(CONFIG_NET_ICMPv6_NEIGHBOR)
 #ifdef CONFIG_NET_ARP_SEND
-#ifdef CONFIG_NET_ICMPv6_NEIGHBOR
   if (psock->s_domain == PF_INET)
-#endif
     {
       /* Make sure that the IP address mapping is in the ARP table */
 
       ret = arp_send(conn->u.ipv4.raddr);
     }
 #endif /* CONFIG_NET_ARP_SEND */
+
 #ifdef CONFIG_NET_ICMPv6_NEIGHBOR
-#ifdef CONFIG_NET_ARP_SEND
-  else
-#endif
+  if (psock->s_domain == PF_INET6)
     {
       /* Make sure that the IP address mapping is in the Neighbor Table */
 
-      ret = icmpv6_neighbor(conn->u.ipv6.raddr);
+      ret = icmpv6_neighbor(NULL, conn->u.ipv6.raddr);
     }
 #endif /* CONFIG_NET_ICMPv6_NEIGHBOR */
 
@@ -476,7 +476,7 @@ ssize_t tcp_sendfile(FAR struct socket *psock, FAR struct file *infile,
    * ready.
    */
 
-  net_lock();
+  conn_dev_lock(&conn->sconn, conn->dev);
 #ifdef CONFIG_NET_TCP_WRITE_BUFFERS
   conn->sendfile = true;
 #endif
@@ -511,21 +511,23 @@ ssize_t tcp_sendfile(FAR struct socket *psock, FAR struct file *infile,
 
   /* Set up the callback in the connection */
 
-  state.snd_cb->flags    = (TCP_ACKDATA | TCP_REXMIT | TCP_POLL |
-                            TCP_DISCONN_EVENTS);
-  state.snd_cb->priv     = (FAR void *)&state;
-  state.snd_cb->event    = sendfile_eventhandler;
+  state.snd_cb->flags = (TCP_ACKDATA | TCP_REXMIT | TCP_POLL |
+                         TCP_DISCONN_EVENTS);
+  state.snd_cb->priv  = (FAR void *)&state;
+  state.snd_cb->event = sendfile_eventhandler;
 
   /* Notify the device driver of the availability of TX data */
 
   tcp_send_txnotify(psock, conn);
 
+  conn_dev_unlock(&conn->sconn, conn->dev);
   for (; ; )
     {
       uint32_t acked = state.snd_acked;
 
-      ret = net_sem_timedwait_uninterruptible(
-              &state.snd_sem, _SO_TIMEOUT(conn->sconn.s_sndtimeo));
+      ret = conn_dev_sem_timedwait(&state.snd_sem, false,
+                                   _SO_TIMEOUT(conn->sconn.s_sndtimeo),
+                                   &conn->sconn, conn->dev);
       if (ret != -ETIMEDOUT || acked == state.snd_acked)
         {
           if (ret == -ETIMEDOUT)
@@ -537,6 +539,7 @@ ssize_t tcp_sendfile(FAR struct socket *psock, FAR struct file *infile,
         }
     }
 
+  conn_dev_lock(&conn->sconn, conn->dev);
   tcp_callback_free(conn, state.snd_cb);
 
 errout_locked:
@@ -544,7 +547,7 @@ errout_locked:
 #ifdef CONFIG_NET_TCP_WRITE_BUFFERS
   conn->sendfile = false;
 #endif
-  net_unlock();
+  conn_dev_unlock(&conn->sconn, conn->dev);
 
   /* Return the current file position */
 

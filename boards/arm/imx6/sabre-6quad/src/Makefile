@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/imx6/sabre-6quad/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -21,10 +23,6 @@
 include $(TOPDIR)/Make.defs
 
 CSRCS = imx_boardinit.c imx_bringup.c
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += imx_appinit.c
-endif
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += imx_autoleds.c

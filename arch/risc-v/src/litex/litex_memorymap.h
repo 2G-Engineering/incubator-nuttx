@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/litex/litex_memorymap.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,6 +27,7 @@
  * Included Files
  ****************************************************************************/
 
+#include "riscv_common_memorymap.h"
 #include "hardware/litex_memorymap.h"
 #include "hardware/litex_uart.h"
 #include "hardware/litex_clint.h"
@@ -42,6 +45,6 @@
 #define LITEX_IDLESTACK_BASE  _ebss
 #endif
 
-#define LITEX_IDLESTACK_TOP  (LITEX_IDLESTACK_BASE + CONFIG_IDLETHREAD_STACKSIZE)
+#define LITEX_IDLESTACK_TOP  (LITEX_IDLESTACK_BASE + SMP_STACK_SIZE)
 
 #endif /* __ARCH_RISCV_SRC_LITEX_LITEX_MEMORYMAP_H */

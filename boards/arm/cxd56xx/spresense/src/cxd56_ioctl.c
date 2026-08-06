@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/cxd56xx/spresense/src/cxd56_ioctl.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/arch.h>
@@ -83,7 +85,6 @@ int board_ioctl(unsigned int cmd, uintptr_t arg)
        *                and supply current value.
        * ARG:           None
        * CONFIGURATION: CONFIG_BOARDCTL
-       * DEPENDENCIES:  Board logic must provide board_app_initialization
        */
 
       case BOARDIOC_USBDEV_SETNOTIFYSIG:

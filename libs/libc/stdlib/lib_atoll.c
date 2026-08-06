@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdlib/lib_atoll.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,9 +30,7 @@
  * Public Functions
  ****************************************************************************/
 
-#ifdef CONFIG_HAVE_LONG_LONG
 long long atoll(FAR const char *nptr)
 {
   return strtoll(nptr, NULL, 10);
 }
-#endif

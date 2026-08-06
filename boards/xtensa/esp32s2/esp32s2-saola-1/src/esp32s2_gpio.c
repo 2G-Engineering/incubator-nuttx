@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s2/esp32s2-saola-1/src/esp32s2_gpio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,8 +29,8 @@
 #include <sys/types.h>
 #include <syslog.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <arch/irq.h>
 
@@ -37,8 +39,15 @@
 #include <arch/board/board.h>
 
 #include "esp32s2-saola-1.h"
-#include "esp32s2_gpio.h"
+#include "espressif/esp_gpio.h"
 #include "hardware/esp32s2_gpio_sigmap.h"
+#ifdef CONFIG_ESPRESSIF_DEDICATED_GPIO
+#include "espressif/esp_dedic_gpio.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_USE_ULP_RISCV_CORE
+#include "esp32s2_rtc_gpio.h"
+#endif
 
 #if defined(CONFIG_DEV_GPIO) && !defined(CONFIG_GPIO_LOWER_HALF)
 
@@ -52,15 +61,26 @@
 #define GPIO_OUT2  2
 #define GPIO_IN1   4
 
-#if !defined(CONFIG_ESP32S2_GPIO_IRQ) && BOARD_NGPIOINT > 0
+#if !defined(CONFIG_ESPRESSIF_GPIO_IRQ) && BOARD_NGPIOINT > 0
 #  error "NGPIOINT is > 0 and GPIO interrupts aren't enabled"
 #endif
 
-/* Interrupt pins.  GPIO9 is used as an example, any other inputs could be
- * used.
+/* Interrupt pins.  GPIO0 is used as an example, any other inputs could be
+ * used. This is the BOOT button.
  */
 
-#define GPIO_IRQPIN  9
+#define GPIO_IRQPIN  0
+
+/* Dedicated GPIO pins. GPIO4 and GPIO5 is used as an example, any other
+ * GPIOs could be used.
+ */
+
+#define GPIO_DEDIC1       6
+#define GPIO_DEDIC2       5
+#define GPIO_DEDIC_COUNT  2
+
+#define GPIO_RTC1         0
+#define GPIO_RTC_COUNT    1
 
 /****************************************************************************
  * Private Types
@@ -96,6 +116,10 @@ static int gpint_read(struct gpio_dev_s *dev, bool *value);
 static int gpint_attach(struct gpio_dev_s *dev,
                         pin_interrupt_t callback);
 static int gpint_enable(struct gpio_dev_s *dev, bool enable);
+#endif
+#ifdef CONFIG_ESPRESSIF_USE_ULP_RISCV_CORE
+static int gprtc_read(struct gpio_dev_s *dev, bool *value);
+static int gprtc_write(struct gpio_dev_s *dev, bool value);
 #endif
 
 /****************************************************************************
@@ -159,9 +183,110 @@ static const uint32_t g_gpiointinputs[BOARD_NGPIOINT] =
 static struct esp32s2gpint_dev_s g_gpint[BOARD_NGPIOINT];
 #endif
 
+/* This array maps the GPIO pins used as Dedicated GPIO */
+
+#ifdef CONFIG_ESPRESSIF_DEDICATED_GPIO
+static const int g_gpioidedic[GPIO_DEDIC_COUNT] =
+{
+  GPIO_DEDIC1, GPIO_DEDIC2
+};
+
+static struct esp_dedic_gpio_flags_s dedic_gpio_flags =
+{
+  .input_enable = 1,
+  .invert_input_enable = 0,
+  .output_enable = 1,
+  .invert_output_enable = 0
+};
+
+struct esp_dedic_gpio_config_s dedic_gpio_conf =
+{
+  .gpio_array = g_gpioidedic,
+  .array_size = GPIO_DEDIC_COUNT,
+  .flags = &dedic_gpio_flags,
+  .path = "/dev/dedic_gpio0"
+};
+
+struct file *dedicated_gpio = NULL;
+#endif
+
+#ifdef CONFIG_ESPRESSIF_USE_ULP_RISCV_CORE
+static const struct gpio_operations_s gprtc_ops =
+{
+  .go_read   = gprtc_read,
+  .go_write  = gprtc_write,
+  .go_attach = NULL,
+  .go_enable = NULL,
+  .go_setpintype = NULL,
+};
+
+/* This array maps the GPIO pins used as OUTPUT */
+
+static const uint32_t g_gpiortc[GPIO_RTC_COUNT] =
+{
+  GPIO_RTC1
+};
+
+static struct esp32s2gpio_dev_s g_gprtc[GPIO_RTC_COUNT];
+#endif
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+#ifdef CONFIG_ESPRESSIF_USE_ULP_RISCV_CORE
+/****************************************************************************
+ * Name: gprtc_read
+ *
+ * Description:
+ *   Read a RTC digital output pin.
+ *
+ * Parameters:
+ *   dev   - A pointer to the gpio driver struct.
+ *   value - A pointer to store the state of the pin.
+ *
+ * Returned Value:
+ *   Zero (OK).
+ *
+ ****************************************************************************/
+
+static int gprtc_read(struct gpio_dev_s *dev, bool *value)
+{
+  struct esp32s2gpio_dev_s *espgpio = (struct esp32s2gpio_dev_s *)dev;
+
+  DEBUGASSERT(espgpio != NULL && value != NULL);
+  gpioinfo("Reading...\n");
+
+  *value = esp32s2_rtcioread(g_gpiortc[espgpio->id]);
+  return OK;
+}
+
+/****************************************************************************
+ * Name: gprtc_write
+ *
+ * Description:
+ *   Write to a RTC digital output pin.
+ *
+ * Parameters:
+ *   dev   - A pointer to the gpio driver struct.
+ *   value - The value to be written.
+ *
+ * Returned Value:
+ *   Zero (OK).
+ *
+ ****************************************************************************/
+
+static int gprtc_write(struct gpio_dev_s *dev, bool value)
+{
+  struct esp32s2gpio_dev_s *espgpio = (struct esp32s2gpio_dev_s *)dev;
+
+  DEBUGASSERT(espgpio != NULL);
+  gpioinfo("Writing %d\n", (int)value);
+
+  esp32s2_rtciowrite(g_gpiortc[espgpio->id], value);
+  return OK;
+}
+#endif
 
 /****************************************************************************
  * Name: gpout_read
@@ -188,7 +313,7 @@ static int gpout_read(struct gpio_dev_s *dev, bool *value)
   DEBUGASSERT(esp32s2gpio->id < BOARD_NGPIOOUT);
   gpioinfo("Reading...\n");
 
-  *value = esp32s2_gpioread(g_gpiooutputs[esp32s2gpio->id]);
+  *value = esp_gpioread(g_gpiooutputs[esp32s2gpio->id]);
   return OK;
 }
 
@@ -216,7 +341,7 @@ static int gpout_write(struct gpio_dev_s *dev, bool value)
   DEBUGASSERT(esp32s2gpio->id < BOARD_NGPIOOUT);
   gpioinfo("Writing %d\n", (int)value);
 
-  esp32s2_gpiowrite(g_gpiooutputs[esp32s2gpio->id], value);
+  esp_gpiowrite(g_gpiooutputs[esp32s2gpio->id], value);
   return OK;
 }
 #endif
@@ -246,13 +371,13 @@ static int gpin_read(struct gpio_dev_s *dev, bool *value)
   DEBUGASSERT(esp32s2gpio->id < BOARD_NGPIOIN);
   gpioinfo("Reading...\n");
 
-  *value = esp32s2_gpioread(g_gpioinputs[esp32s2gpio->id]);
+  *value = esp_gpioread(g_gpioinputs[esp32s2gpio->id]);
   return OK;
 }
 #endif
 
 /****************************************************************************
- * Name: esp32s2gpio_interrupt
+ * Name: espgpio_interrupt
  *
  * Description:
  *   Digital Input ISR.
@@ -297,7 +422,7 @@ static int gpint_read(struct gpio_dev_s *dev, bool *value)
   DEBUGASSERT(esp32s2gpint->esp32s2gpio.id < BOARD_NGPIOINT);
   gpioinfo("Reading int pin...\n");
 
-  *value = esp32s2_gpioread(g_gpiointinputs[esp32s2gpint->esp32s2gpio.id]);
+  *value = esp_gpioread(g_gpiointinputs[esp32s2gpint->esp32s2gpio.id]);
   return OK;
 }
 
@@ -323,22 +448,26 @@ static int gpint_attach(struct gpio_dev_s *dev,
 {
   struct esp32s2gpint_dev_s *esp32s2gpint =
     (struct esp32s2gpint_dev_s *)dev;
-  int irq = ESP32S2_PIN2IRQ(g_gpiointinputs[esp32s2gpint->esp32s2gpio.id]);
   int ret;
 
   gpioinfo("Attaching the callback\n");
 
   /* Make sure the interrupt is disabled */
 
-  esp32s2_gpioirqdisable(irq);
-  ret = irq_attach(irq,
-                   esp32s2gpio_interrupt,
-                   &g_gpint[esp32s2gpint->esp32s2gpio.id]);
+  esp_gpioirqdisable(g_gpiointinputs[esp32s2gpint->esp32s2gpio.id]);
+
+  ret = esp_gpio_irq(g_gpiointinputs[esp32s2gpint->esp32s2gpio.id],
+                     esp32s2gpio_interrupt,
+                     &g_gpint[esp32s2gpint->esp32s2gpio.id]);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: gpint_attach() failed: %d\n", ret);
       return ret;
     }
+
+  /* Make sure the interrupt is disabled */
+
+  esp_gpioirqdisable(g_gpiointinputs[esp32s2gpint->esp32s2gpio.id]);
 
   gpioinfo("Attach %p\n", callback);
   esp32s2gpint->callback = callback;
@@ -364,7 +493,6 @@ static int gpint_enable(struct gpio_dev_s *dev, bool enable)
 {
   struct esp32s2gpint_dev_s *esp32s2gpint =
     (struct esp32s2gpint_dev_s *)dev;
-  int irq = ESP32S2_PIN2IRQ(g_gpiointinputs[esp32s2gpint->esp32s2gpio.id]);
 
   if (enable)
     {
@@ -374,13 +502,13 @@ static int gpint_enable(struct gpio_dev_s *dev, bool enable)
 
           /* Configure the interrupt for rising edge */
 
-          esp32s2_gpioirqenable(irq, GPIO_INTR_POSEDGE);
+          esp_gpioirqenable(g_gpiointinputs[esp32s2gpint->esp32s2gpio.id]);
         }
     }
   else
     {
       gpioinfo("Disable the interrupt\n");
-      esp32s2_gpioirqdisable(irq);
+      esp_gpioirqdisable(g_gpiointinputs[esp32s2gpint->esp32s2gpio.id]);
     }
 
   return OK;
@@ -405,9 +533,10 @@ static int gpint_enable(struct gpio_dev_s *dev, bool enable)
 int esp32s2_gpio_init(void)
 {
   int pincount = 0;
+  int i;
 
 #if BOARD_NGPIOOUT > 0
-  for (int i = 0; i < BOARD_NGPIOOUT; i++)
+  for (i = 0; i < BOARD_NGPIOOUT; i++)
     {
       /* Setup and register the GPIO pin */
 
@@ -418,17 +547,16 @@ int esp32s2_gpio_init(void)
 
       /* Configure the pins that will be used as output */
 
-      esp32s2_gpio_matrix_out(g_gpiooutputs[i], SIG_GPIO_OUT_IDX, 0, 0);
-      esp32s2_configgpio(g_gpiooutputs[i], OUTPUT_FUNCTION_1 |
-                         INPUT_FUNCTION_1);
-      esp32s2_gpiowrite(g_gpiooutputs[i], 0);
+      esp_gpio_matrix_out(g_gpiooutputs[i], SIG_GPIO_OUT_IDX, 0, 0);
+      esp_configgpio(g_gpiooutputs[i], OUTPUT_FUNCTION_1 | INPUT_FUNCTION_1);
+      esp_gpiowrite(g_gpiooutputs[i], 0);
 
       pincount++;
     }
 #endif
 
 #if BOARD_NGPIOIN > 0
-  for (int i = 0; i < BOARD_NGPIOIN; i++)
+  for (i = 0; i < BOARD_NGPIOIN; i++)
     {
       /* Setup and register the GPIO pin */
 
@@ -439,14 +567,14 @@ int esp32s2_gpio_init(void)
 
       /* Configure the pins that will be used as interrupt input */
 
-      esp32s2_configgpio(g_gpioinputs[i], INPUT_FUNCTION_1 | PULLDOWN);
+      esp_configgpio(g_gpioinputs[i], INPUT_FUNCTION_1 | PULLDOWN);
 
       pincount++;
     }
 #endif
 
 #if BOARD_NGPIOINT > 0
-  for (int i = 0; i < BOARD_NGPIOINT; i++)
+  for (i = 0; i < BOARD_NGPIOINT; i++)
     {
       /* Setup and register the GPIO pin */
 
@@ -455,10 +583,36 @@ int esp32s2_gpio_init(void)
       g_gpint[i].esp32s2gpio.id              = i;
       gpio_pin_register(&g_gpint[i].esp32s2gpio.gpio, pincount);
 
-      /* Configure the pins that will be used as interrupt input */
+      /* Configure the pins that will be used as interrupt input with
+       * falling edge.
+       */
 
-      esp32s2_configgpio(g_gpiointinputs[i], INPUT_FUNCTION_1 | PULLDOWN);
+      esp_configgpio(g_gpiointinputs[i],
+                     INPUT_FUNCTION_1 | PULLUP | FALLING);
 
+      pincount++;
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_DEDICATED_GPIO
+  dedicated_gpio = esp_dedic_gpio_new_bundle(&dedic_gpio_conf);
+
+  pincount++;
+#endif
+
+#ifdef CONFIG_ESPRESSIF_USE_ULP_RISCV_CORE
+  for (i = 0; i < GPIO_RTC_COUNT; i++)
+    {
+      /* Setup and register the GPIO pin */
+
+      g_gprtc[i].gpio.gp_pintype = GPIO_OUTPUT_PIN;
+      g_gprtc[i].gpio.gp_ops     = &gprtc_ops;
+      g_gprtc[i].id              = i;
+      gpio_pin_register(&g_gprtc[i].gpio, pincount);
+
+      /* Configure the pins that will be used as input/output */
+
+      esp32s2_configrtcio(g_gpiortc[i], RTC_INPUT | RTC_OUTPUT);
       pincount++;
     }
 #endif

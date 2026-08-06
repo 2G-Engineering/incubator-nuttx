@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/iob/iob_contig.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <sys/param.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/mm/iob.h>
 
@@ -57,7 +59,7 @@ int iob_contig(FAR struct iob_s *iob, unsigned int len)
    * then you will need to increase CONFIG_IOB_BUFSIZE.
    */
 
-  DEBUGASSERT(len <= CONFIG_IOB_BUFSIZE);
+  DEBUGASSERT(len <= IOB_BUFSIZE(iob));
 
   /* Check if there is already sufficient, contiguous space at the beginning
    * of the packet

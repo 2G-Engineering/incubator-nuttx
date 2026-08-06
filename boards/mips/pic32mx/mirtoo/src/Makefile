@@ -1,6 +1,8 @@
 ############################################################################
 # boards/mips/pic32mx/mirtoo/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -28,10 +30,6 @@ endif
 
 ifeq ($(CONFIG_PIC32MX_ADC),y)
 CSRCS += pic32_adc.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += pic32_appinit.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

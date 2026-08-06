@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/sim_hostvideo.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -38,6 +40,7 @@ struct host_video_dev_s;
  * Public Function Prototypes
  ****************************************************************************/
 
+int host_video_get_device_count(void);
 bool host_video_is_available(const char *host_video_dev_path);
 struct host_video_dev_s *host_video_init(const char *host_video_dev_path);
 int host_video_uninit(struct host_video_dev_s *vdev);

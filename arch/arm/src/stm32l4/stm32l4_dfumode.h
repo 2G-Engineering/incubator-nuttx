@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l4/stm32l4_dfumode.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,15 +34,15 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name:  stm32l4_dfumode
+ * Name:  stm32_dfumode
  *
  * Description:
  *   Reboot the part in DFU mode.
  *
  ****************************************************************************/
 
-#if defined(CONFIG_STM32L4_STM32L4X6) || defined(CONFIG_STM32L4_STM32L4XR)
-void stm32l4_dfumode(void) noreturn_function;
+#if defined(CONFIG_STM32_STM32L4X6) || defined(CONFIG_STM32_STM32L4XR)
+void stm32_dfumode(void) noreturn_function;
 #endif
 
 #endif /* __ARCH_ARM_SRC_STM32L4_STM32L4_DFUMODE_H */

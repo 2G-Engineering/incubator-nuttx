@@ -1,11 +1,9 @@
 /****************************************************************************
  * include/nuttx/net/tun.h
  *
- *   Copyright (C) 2015 Max Nekludov. All rights reserved.
- *   Author : Max Nekludov <macscomp@gmail.com>
- *
- * Includes some definitions that a compatible with the LGPL GNU C Library
- * header file of the same name.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2015 Max Nekludov. All rights reserved.
+ * SPDX-FileContributor: Max Nekludov <macscomp@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -46,8 +44,6 @@
 #include <nuttx/config.h>
 #include <nuttx/net/ioctl.h>
 
-#ifdef CONFIG_NET_TUN
-
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -58,6 +54,8 @@
 #define IFF_TAP          0x02
 #define IFF_MASK         0x7f
 #define IFF_NO_PI        0x80
+
+#ifdef CONFIG_NET_TUN
 
 /****************************************************************************
  * Public Type Definitions

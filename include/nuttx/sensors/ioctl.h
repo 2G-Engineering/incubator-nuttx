@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/sensors/ioctl.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -240,6 +242,28 @@
 #define SNIOC_FEAT_MANAGE          _SNIOC(0x006b)  /* Feature manage command */
 #define SNIOC_SET_SCALE_XL         _SNIOC(0x006c)  /* Set accelerator scale command */
 
+/* IOCTL commands unique to AMG88xx */
+
+/* Command:      SNIOC_SET_OPERATIONAL_MODE
+ * Description:  Control power mode: Normal / Sleep
+ *               Reuse from ISL29023
+ * Arg:          amg88xx_operation_mode_e pointer
+ */
+
+/* Command:      SNIOC_SET_FRAMERATE
+ * Description:  Set the framerate of the sensor
+ * Arg:          amg88xx_fps_e
+ */
+
+#define SNIOC_SET_FRAMERATE        _SNIOC(0x006d)
+
+/* Command:      SNIOC_SET_MOVING_AVG
+ * Description:  Toggle moving average mode
+ * Arg:          bool
+ */
+
+#define SNIOC_SET_MOVING_AVG       _SNIOC(0x006e)
+
 /* Command:      SNIOC_GET_STATE
  * Description:  Get state for all subscribers, include min_interval,
  *               min_latency and the number of subscribers.
@@ -364,6 +388,145 @@
 
 /* Set proximity sensor cancellation level */
 
-#define SNIOC_PS_CANC_LVL          _SNIOC(0x0095) /* uint16_t level        */                                                  
+#define SNIOC_PS_CANC_LVL          _SNIOC(0x0095) /* uint16_t level        */
+
+/* IOCTL commands for MPU60x0 IMU */
+
+/* Command:      SNIOC_SET_AFS_SEL
+ * Description:  Sets the accelerometer full scale range.
+ * Argument:     Accepts 0, 1, 2 or 3 (uint8_t).
+ */
+
+#define SNIOC_SET_AFS_SEL             _SNIOC(0x0096)
+
+/* Command:      SNIOC_SMPLRT_DIV
+ * Description:  Set the divider from the gyroscope output rate
+ *               used to generate the sample rate.
+ * Argument:     Sets the 8bit sample rate divider (uint8_t).
+ */
+
+#define SNIOC_SMPLRT_DIV              _SNIOC(0x0097)
+
+/* Command:      SNIOC_READ_SAMPLE_RATE
+ * Description:  Reads the current sample rate for the IMU.
+ * Argument:     Requires pointer *uint32_t as argument to
+ *               store integer approximation of current sample rate.
+ */
+
+#define SNIOC_READ_SAMPLE_RATE        _SNIOC(0x0098)
+
+/* Command:      SNIOC_READ_FIFO_COUNT
+ * Description:  Reads the current number of bytes in FIFO buffer.
+ * Argument:     Requires pointer *uint16_t as argument to
+ *               store current number of bytes available.
+ */
+
+#define SNIOC_READ_FIFO_COUNT         _SNIOC(0x0099)
+
+/* Command:      SNIOC_ENABLE_FIFO
+ * Description:  Enables or disabled FIFO buffer.
+ * Argument:     Bool value: true enables and false disables.
+ */
+
+#define SNIOC_ENABLE_FIFO             _SNIOC(0x009A)
+
+/* Command:      SNIOC_HEAT
+ * Description:  Turn on the heater.
+ * Argument:     Heater configuration.
+ */
+
+#define SNIOC_HEAT                    _SNIOC(0x009B)
+
+/* Command:      SNIOC_GET_INFO
+ * Description:  Get device information.
+ * Argument:     This is the device info pointer.
+ */
+
+#define SNIOC_GET_INFO                _SNIOC(0x009C)
+
+/* Command:      SNIOC_FLUSH
+ * Description:  Flush sensor hardware fifo buffer.
+ */
+
+#define SNIOC_FLUSH                   _SNIOC(0x009D)
+
+/* Command:      SNIOC_GET_EVENTS
+ * Description:  Get events of the sensor device.
+ * Argument:     The events pointer, (unsigned int *)
+ */
+
+#define SNIOC_GET_EVENTS              _SNIOC(0x009E)
+
+/* Command:      SNIOC_SET_THERMO
+ * Description:  Set the thermocouple type.
+ * Argument:     An option from `enum sensor_thermo_type_e`
+ */
+
+#define SNIOC_SET_THERMO              _SNIOC(0x009F)
+
+/* Command:      SNIOC_LPF
+ * Description:  Enable the low pass filter
+ * Argument:     Boolean true for enable, false to disable.
+ */
+
+#define SNIOC_LPF                     _SNIOC(0x00A0)
+
+/* Command:      SNIOC_SET_GAIN
+ * Description:  Sets the gain of the sensor.
+ */
+
+#define SNIOC_SET_GAIN                _SNIOC(0x00A1)
+
+/* Command:      SNIOC_SET_LDO
+ * Description:  Sets the LDO voltage of the sensor.
+ */
+
+#define SNIOC_SET_LDO                 _SNIOC(0x00A2)
+
+/* Command:      SNIOC_GET_CALIBVALUE
+ * Description:  Get the gain calibration value of the sensor.
+ */
+
+#define SNIOC_GET_CALIBVALUE          _SNIOC(0x00A3)
+
+/* Command:      SNIOC_SET_BAUD
+ * Description:  Sets the baud rate of the sensor.
+ */
+
+#define SNIOC_SET_BAUD                _SNIOC(0x00A4)      
+
+/* IOCTL commands unique to the L86XXX and other GNSS modules */
+
+#define SNIOC_HOT_START               _SNIOC(0X00A5)
+#define SNIOC_WARM_START              _SNIOC(0X00A6)
+#define SNIOC_COLD_START              _SNIOC(0X00A7)
+#define SNIOC_FULL_COLD_START         _SNIOC(0X00A8)
+
+/* Command:      SNIOC_SET_NONWAKEUP
+ * Description:  Set non-wakeup flag for user.
+ * Argument:     True is non-wakeup, false is wakeup.
+ */
+
+#define SNIOC_SET_NONWAKEUP           _SNIOC(0x00A9)
+
+/****************************************************************************
+ * Public types
+ ****************************************************************************/
+
+/* Possible thermocouple types. Implementations should not rely on the enum's
+ * underlying value.
+ */
+
+enum sensor_thermo_type_e
+{
+  SENSOR_THERMO_TYPE_K,
+  SENSOR_THERMO_TYPE_J,
+  SENSOR_THERMO_TYPE_T,
+  SENSOR_THERMO_TYPE_N,
+  SENSOR_THERMO_TYPE_S,
+  SENSOR_THERMO_TYPE_E,
+  SENSOR_THERMO_TYPE_B,
+  SENSOR_THERMO_TYPE_R,
+};
 
 #endif /* __INCLUDE_NUTTX_SENSORS_IOCTL_H */

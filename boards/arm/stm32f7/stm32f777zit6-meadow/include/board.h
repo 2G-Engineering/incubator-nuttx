@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f777zit6-meadow/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,7 +41,7 @@
 
 /* Clocking *****************************************************************/
 
-/* The STM32F7 Discovery board provides the following clock sources:
+/* The Meadow board provides the following clock sources:
  *
  *   X2:  25 MHz oscillator for STM32F777ZIT6 microcontroller
  *   and Ethernet PHY.
@@ -86,7 +88,7 @@
  * 2 <= PLLQ <= 15
  */
 
-#if defined(CONFIG_STM32F7_OTGFS)
+#if defined(CONFIG_STM32_OTGFS)
 /* USB OTG FS clock (= SDMMCCLK = RNGCLK) must be 48 MHz
  *
  * PLL_VCO = (25,000,000 / 25) * 384 = 384 MHz
@@ -105,7 +107,7 @@
 #define STM32_SYSCLK_FREQUENCY  (STM32_VCO_FREQUENCY / 2)
 #define STM32_OTGFS_FREQUENCY   (STM32_VCO_FREQUENCY / 8)
 
-#elif defined(CONFIG_STM32F7_SDMMC1) || defined(CONFIG_STM32F7_SDMMC2) || defined(CONFIG_STM32F7_RNG)
+#elif defined(CONFIG_STM32_SDMMC1) || defined(CONFIG_STM32_SDMMC2) || defined(CONFIG_STM32_RNG)
 /* SDMMCCLK (= USB OTG FS clock = RNGCLK) should be <= 48MHz
  *
  * PLL_VCO = (25,000,000 / 25) * 432 = 432 MHz
@@ -146,10 +148,18 @@
 
 /* Configure factors for  PLLSAI clock */
 
-#define STM32_RCC_PLLSAICFGR_PLLSAIN    RCC_PLLSAICFGR_PLLSAIN(192)
-#define STM32_RCC_PLLSAICFGR_PLLSAIP    RCC_PLLSAICFGR_PLLSAIP(2)
+#define CONFIG_STM32F7_PLLSAI 1
+#define STM32_RCC_PLLSAICFGR_PLLSAIN    RCC_PLLSAICFGR_PLLSAIN(384)
+#define STM32_RCC_PLLSAICFGR_PLLSAIP    RCC_PLLSAICFGR_PLLSAIP(8)
 #define STM32_RCC_PLLSAICFGR_PLLSAIQ    RCC_PLLSAICFGR_PLLSAIQ(2)
 #define STM32_RCC_PLLSAICFGR_PLLSAIR    RCC_PLLSAICFGR_PLLSAIR(2)
+
+/* SAIx input frequency = 25 / M * N / Q / P
+ *   25000000 / 25 * 384 / 2 / 8
+ */
+
+#define STM32_SAI1_FREQUENCY           (49142857)
+#define STM32_SAI2_FREQUENCY           (49142857)
 
 /* Configure Dedicated Clock Configuration Register */
 
@@ -162,12 +172,13 @@
 #define STM32_RCC_DCKCFGR1_DFSDM1SRC   0
 #define STM32_RCC_DCKCFGR1_ADFSDM1SRC  0
 
-/* Configure factors for  PLLI2S clock */
+/* Configure factors for PLLI2S clock */
 
+#define CONFIG_STM32F7_PLLI2S          1
 #define STM32_RCC_PLLI2SCFGR_PLLI2SN   RCC_PLLI2SCFGR_PLLI2SN(192)
-#define STM32_RCC_PLLI2SCFGR_PLLI2SP   RCC_PLLI2SCFGR_PLLI2SP(2)
-#define STM32_RCC_PLLI2SCFGR_PLLI2SQ   RCC_PLLI2SCFGR_PLLI2SQ(2)
-#define STM32_RCC_PLLI2SCFGR_PLLI2SR   RCC_PLLI2SCFGR_PLLI2SR(2)
+#define STM32_RCC_PLLI2SCFGR_PLLI2SP   RCC_PLLI2SCFGR_PLLI2SP(4)
+#define STM32_RCC_PLLI2SCFGR_PLLI2SQ   RCC_PLLI2SCFGR_PLLI2SQ(4)
+#define STM32_RCC_PLLI2SCFGR_PLLI2SR   RCC_PLLI2SCFGR_PLLI2SR(4)
 
 /* Configure Dedicated Clock Configuration Register 2 */
 
@@ -313,7 +324,7 @@
 #define BOARD_LED3_BIT    (1 << BOARD_LED3)
 
 /* If CONFIG_ARCH_LEDS is defined, the usage by the board port is defined in
- * include/board.h and src/stm32_leds.c. The LEDs are used
+ * include/board.h and src/stm32_leds.c.  The LEDs are used
  * to encode OS-related events as follows:
  *
  *   SYMBOL              Meaning                 LD1
@@ -340,7 +351,7 @@
 #define LED_SIGNAL         5 /* In a signal handler      N/C    GLOW  N/C  */
 #define LED_ASSERTION      6 /* An assertion failed      GLOW   N/C   GLOW */
 #define LED_PANIC          7 /* The system has crashed   Blink  OFF   N/C  */
-#define LED_IDLE           8 /* MCU is is sleep mode     ON     OFF   OFF  */
+#define LED_IDLE           8 /* MCU is in sleep mode     ON     OFF   OFF  */
 
 /* Button definitions *******************************************************/
 
@@ -359,22 +370,26 @@
  * (work in progress as of 2017 07 19)
  */
 
-#define	BOARD_LTDC_WIDTH        800
-#define	BOARD_LTDC_HEIGHT       472
+#define BOARD_LTDC_WIDTH        800
+#define BOARD_LTDC_HEIGHT       472
 
-#define	BOARD_LTDC_HSYNC        10
-#define	BOARD_LTDC_HFP          10
-#define	BOARD_LTDC_HBP          20
-#define	BOARD_LTDC_VSYNC        2
-#define	BOARD_LTDC_VFP          4
-#define	BOARD_LTDC_VBP          2
+#define BOARD_LTDC_HSYNC        10
+#define BOARD_LTDC_HFP          10
+#define BOARD_LTDC_HBP          20
+#define BOARD_LTDC_VSYNC        2
+#define BOARD_LTDC_VFP          4
+#define BOARD_LTDC_VBP          2
 
-#define	BOARD_LTDC_GCR_PCPOL    0
-#define	BOARD_LTDC_GCR_DEPOL    0
-#define	BOARD_LTDC_GCR_VSPOL    0
-#define	BOARD_LTDC_GCR_HSPOL    0
+#define BOARD_LTDC_GCR_PCPOL    0
+#define BOARD_LTDC_GCR_DEPOL    0
+#define BOARD_LTDC_GCR_VSPOL    0
+#define BOARD_LTDC_GCR_HSPOL    0
 
 /* DMA Channel/Stream Selections ********************************************/
+
+#define DMACHAN_SAI2_A          DMAMAP_SAI2_A
+#define DMACHAN_SAI2_B          DMAMAP_SAI2_B
+#define DMACHAN_SAI1_B          DMAMAP_SAI1_B
 
 /* SDMMC */
 
@@ -461,14 +476,32 @@
 #define GPIO_ETH_RMII_TXD1    (GPIO_ETH_RMII_TXD1_2|GPIO_SPEED_100MHz)
 
 /* I2C Mapping
- * I2C #4 is connected to the LCD daughter board
- * and the WM8994 audio codec.
  *
- * I2C4_SCL - PD12
- * I2C4_SDA - PB7
+ * I2C1_SCL - PB6
+ * I2C1_SDA - PB7
  */
-#define GPIO_I2C4_SCL        (GPIO_I2C4_SCL_1|GPIO_SPEED_50MHz)
-#define GPIO_I2C4_SDA        (GPIO_I2C4_SDA_5|GPIO_SPEED_50MHz)
+
+#define GPIO_I2C1_SCL        (GPIO_I2C1_SCL_1|GPIO_SPEED_50MHz)
+#define GPIO_I2C1_SDA        (GPIO_I2C1_SDA_1|GPIO_SPEED_50MHz)
+
+/* Dumb definition to SPI2, just because it is needed by i2s driver */
+
+#define GPIO_SPI2_SCK     GPIO_SPI2_SCK_5
+#define GPIO_SPI2_MISO    GPIO_SPI2_MISO_3
+#define GPIO_SPI2_MOSI    GPIO_SPI2_MOSI_3
+
+#define DMAMAP_SPI2_TX    DMAMAP_SPI2_TX_2
+#define DMAMAP_SPI2_RX    DMAMAP_SPI2_RX_2
+
+/* I2S2 - CS4344 configuration uses I2S2 */
+
+#define GPIO_I2S2_SD      (GPIO_I2S2_SD_1)  /* PB15 */
+#define GPIO_I2S2_CK      (GPIO_I2S2_CK_3)  /* PB13 */
+#define GPIO_I2S2_WS      (GPIO_I2S2_WS_1)  /* PB12 */
+#define GPIO_I2S2_MCK     (GPIO_I2S2_MCK_0) /* PC6 */
+
+#define DMACHAN_I2S2_RX   DMAMAP_SPI2_RX_2
+#define DMACHAN_I2S2_TX   DMAMAP_SPI2_TX_2
 
 /* QSPI Mapping  */
 
@@ -483,21 +516,65 @@
  *
  * D0 - PG9
  * D1 - PG10
- * D2 - PB3
- * D3 - PB4
+ * D2 - PG11
+ * D3 - PG12
  */
 
 #define GPIO_SDMMC2_CK  (GPIO_SDMMC2_CK_0|GPIO_SPEED_50MHz)
 #define GPIO_SDMMC2_CMD (GPIO_SDMMC2_CMD_0|GPIO_SPEED_50MHz)
 #define GPIO_SDMMC2_D0  (GPIO_SDMMC2_D0_2|GPIO_SPEED_50MHz)
 #define GPIO_SDMMC2_D1  (GPIO_SDMMC2_D1_2|GPIO_SPEED_50MHz)
-#define GPIO_SDMMC2_D2  (GPIO_SDMMC2_D2_1|GPIO_SPEED_50MHz)
-#define GPIO_SDMMC2_D3  (GPIO_SDMMC2_D3_1|GPIO_SPEED_50MHz)
+#define GPIO_SDMMC2_D2  (GPIO_SDMMC2_D2_2|GPIO_SPEED_50MHz)
+#define GPIO_SDMMC2_D3  (GPIO_SDMMC2_D3_2|GPIO_SPEED_50MHz)
+
+/* OTGFS */
+
+#define GPIO_OTGFS_DM  (GPIO_OTGFS_DM_0|GPIO_SPEED_100MHz)
+#define GPIO_OTGFS_DP  (GPIO_OTGFS_DP_0|GPIO_SPEED_100MHz)
+#define GPIO_OTGFS_ID  (GPIO_OTGFS_ID_0|GPIO_SPEED_100MHz)
 
 /* FMC - SDRAM */
 
+#define GPIO_FMC_A0     (GPIO_FMC_A0_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_A1     (GPIO_FMC_A1_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_A2     (GPIO_FMC_A2_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_A3     (GPIO_FMC_A3_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_A4     (GPIO_FMC_A4_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_A5     (GPIO_FMC_A5_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_A6     (GPIO_FMC_A6_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_A7     (GPIO_FMC_A7_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_A8     (GPIO_FMC_A8_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_A9     (GPIO_FMC_A9_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_A10    (GPIO_FMC_A10_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_A11    (GPIO_FMC_A11_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_A12    (GPIO_FMC_A12_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_BA0    (GPIO_FMC_BA0_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_BA1    (GPIO_FMC_BA1_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D0     (GPIO_FMC_D0_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D1     (GPIO_FMC_D1_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D2     (GPIO_FMC_D2_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D3     (GPIO_FMC_D3_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D4     (GPIO_FMC_D4_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D5     (GPIO_FMC_D5_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D6     (GPIO_FMC_D6_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D7     (GPIO_FMC_D7_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D8     (GPIO_FMC_D8_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D9     (GPIO_FMC_D9_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D10    (GPIO_FMC_D10_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D11    (GPIO_FMC_D11_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D12    (GPIO_FMC_D12_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D13    (GPIO_FMC_D13_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D14    (GPIO_FMC_D14_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_D15    (GPIO_FMC_D15_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_NBL0   (GPIO_FMC_NBL0_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_NBL1   (GPIO_FMC_NBL1_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_SDCLK  (GPIO_FMC_SDCLK_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_SDCKE0 (GPIO_FMC_SDCKE0_3|GPIO_SPEED_100MHz)
 #define GPIO_FMC_SDCKE1 (GPIO_FMC_SDCKE1_1|GPIO_SPEED_100MHz)
+#define GPIO_FMC_SDNE0  (GPIO_FMC_SDNE0_3|GPIO_SPEED_100MHz)
 #define GPIO_FMC_SDNE1  (GPIO_FMC_SDNE1_1|GPIO_SPEED_100MHz)
-#define GPIO_FMC_SDNWE  (GPIO_FMC_SDNWE_1|GPIO_SPEED_100MHz)
+#define GPIO_FMC_SDNCAS (GPIO_FMC_SDNCAS_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_SDNRAS (GPIO_FMC_SDNRAS_0|GPIO_SPEED_100MHz)
+#define GPIO_FMC_SDNWE  (GPIO_FMC_SDNWE_3|GPIO_SPEED_100MHz)
 
 #endif  /* __BOARDS_ARM_STM32F777ZIT6_MEADOW_INCLUDE_BOARD_H */

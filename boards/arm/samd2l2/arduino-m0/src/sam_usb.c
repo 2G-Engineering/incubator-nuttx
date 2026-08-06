@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/samd2l2/arduino-m0/src/sam_usb.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,13 +32,13 @@
 #include <sched.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/usb/usbdev.h>
 #include <nuttx/usb/usbhost.h>
 #include <nuttx/usb/usbdev_trace.h>
 
-#include "debug.h"
+#include <nuttx/debug.h>
 #include "chip.h"
 #include "sam_port.h"
 #include "saml_periphclks.h"

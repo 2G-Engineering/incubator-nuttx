@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/mqueue/mq_initialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,65 +28,122 @@
 
 #include <stdint.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/nuttx.h>
+#include <nuttx/trace.h>
 
 #include "mqueue/mqueue.h"
+#include "mqueue/msg.h"
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#ifndef CONFIG_DISABLE_MQUEUE
+#  define MQ_BLOCK_SIZE \
+    ALIGN_UP(MQ_MSG_SIZE(MQ_MAX_BYTES), sizeof(void *))
+#endif
+
+/****************************************************************************
+ * Private Types
+ ****************************************************************************/
+
+struct msgpool_s
+{
+#ifndef CONFIG_DISABLE_MQUEUE
+  uint8_t mqueue[MQ_BLOCK_SIZE *
+                 (CONFIG_PREALLOC_MQ_MSGS +
+                  CONFIG_PREALLOC_MQ_IRQ_MSGS)];
+#endif
+#ifndef CONFIG_DISABLE_MQUEUE_SYSV
+  struct msgbuf_s msgbuf[CONFIG_PREALLOC_MQ_MSGS];
+#endif
+};
 
 /****************************************************************************
  * Public Data
  ****************************************************************************/
+
+#ifndef CONFIG_DISABLE_MQUEUE
 
 /* The g_msgfree is a list of messages that are available for general
  * use.  The number of messages in this list is a system configuration
  * item.
  */
 
-struct list_node g_msgfree = LIST_INITIAL_VALUE(g_msgfree);
+struct list_node g_msgfree;
 
 /* The g_msgfreeInt is a list of messages that are reserved for use by
  * interrupt handlers.
  */
 
-struct list_node g_msgfreeirq = LIST_INITIAL_VALUE(g_msgfreeirq);
+struct list_node g_msgfreeirq;
+
+spinlock_t g_msgfreelock = SP_UNLOCKED;
+
+#endif
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+/* This is a pool of pre-allocated message queue buffers */
+
+static struct msgpool_s g_msgpool;
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Name: mq_msgblockalloc
+ * Name: mq_msgblockinit
  *
  * Description:
- *   Allocate a block of messages and place them on the free list.
+ *   Initialize a block of messages and place them on the free list.
  *
  * Input Parameters:
  *  queue
  *
  ****************************************************************************/
 
-static void
-mq_msgblockalloc(FAR struct list_node *list, uint16_t nmsgs,
-                 uint8_t alloc_type)
+#ifndef CONFIG_DISABLE_MQUEUE
+static FAR void * mq_msgblockinit(FAR struct list_node *list,
+                                  FAR uint8_t *block,
+                                  uint16_t nmsgs, uint8_t alloc_type)
 {
   FAR struct mqueue_msg_s *mqmsgblock;
+  int i;
 
-  /* The list must be loaded at initialization time to hold the
-   * configured number of messages.
-   */
-
-  mqmsgblock = (FAR struct mqueue_msg_s *)
-    kmm_malloc(sizeof(struct mqueue_msg_s) * nmsgs);
-
-  if (mqmsgblock)
+  for (i = 0; i < nmsgs; i++)
     {
-      int i;
-      for (i = 0; i < nmsgs; i++)
-        {
-          mqmsgblock->type = alloc_type;
-          list_add_tail(list, &mqmsgblock->node);
-          mqmsgblock++;
-        }
+      mqmsgblock = (FAR struct mqueue_msg_s *)block;
+
+      mqmsgblock->type = alloc_type;
+      list_add_tail(list, &mqmsgblock->node);
+      block += MQ_BLOCK_SIZE;
     }
+
+  return block;
 }
+#endif
+
+/****************************************************************************
+ * Name: sysv_msgblockinit
+ ****************************************************************************/
+
+#ifndef CONFIG_DISABLE_MQUEUE_SYSV
+static FAR void *sysv_msgblockinit(FAR struct list_node *list,
+                                   FAR struct msgbuf_s *msg, uint16_t nmsgs)
+{
+  int i;
+  for (i = 0; i < nmsgs; i++)
+    {
+      list_add_tail(list, &msg->node);
+      msg++;
+    }
+
+  return msg;
+}
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -108,15 +167,33 @@ mq_msgblockalloc(FAR struct list_node *list, uint16_t nmsgs,
 
 void nxmq_initialize(void)
 {
-  /* Allocate a block of messages for general use */
+  FAR void *msg = &g_msgpool;
 
-  mq_msgblockalloc(&g_msgfree, CONFIG_PREALLOC_MQ_MSGS,
-                   MQ_ALLOC_FIXED);
+  sched_trace_begin();
 
-  /* Allocate a block of messages for use exclusively by
+  /* Initialize a block of messages for general use */
+
+#ifndef CONFIG_DISABLE_MQUEUE
+  list_initialize(&g_msgfree);
+
+  msg = mq_msgblockinit(&g_msgfree, msg, CONFIG_PREALLOC_MQ_MSGS,
+                         MQ_ALLOC_FIXED);
+
+  /* Initialize a block of messages for use exclusively by
    * interrupt handlers
    */
 
-  mq_msgblockalloc(&g_msgfreeirq, CONFIG_PREALLOC_MQ_IRQ_MSGS,
-                   MQ_ALLOC_IRQ);
+  list_initialize(&g_msgfreeirq);
+
+  msg = mq_msgblockinit(&g_msgfreeirq, msg, CONFIG_PREALLOC_MQ_IRQ_MSGS,
+                         MQ_ALLOC_IRQ);
+#endif
+
+#ifndef CONFIG_DISABLE_MQUEUE_SYSV
+  list_initialize(&g_msgfreelist);
+
+  msg = sysv_msgblockinit(&g_msgfreelist, msg, CONFIG_PREALLOC_MQ_MSGS);
+#endif
+
+  sched_trace_end();
 }

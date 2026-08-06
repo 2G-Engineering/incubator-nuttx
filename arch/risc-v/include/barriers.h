@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/include/barriers.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -21,12 +23,26 @@
 #ifndef __ARCH_RISCV_INCLUDE_BARRIERS_H
 #define __ARCH_RISCV_INCLUDE_BARRIERS_H
 
-/* Common memory barriers:
- * __DMB() is used to synchronize external devices (I/O domain mainly)
- * __ISB() is used to synchronize the instruction and data streams
- */
+/* Common memory barriers (p=predecessor, s=successor) */
 
-#define __DMB()             __asm__ __volatile__ ("fence"   ::: "memory")
-#define __ISB()             __asm__ __volatile__ ("fence.i" ::: "memory")
+#define __FENCE(p, s) __asm__ __volatile__ ("fence "#p", "#s  ::: "memory")
+
+/* UP_DMB() is used to flush local data caches (memory) */
+
+#define UP_DMB()  __FENCE(rw, rw)
+#define UP_RMB()  __FENCE(r, r)
+#define UP_WMB()  __FENCE(w, w)
+
+/* UP_DSB() is a full memory barrier */
+
+#define UP_DSB()       __FENCE(iorw, iorw)
+
+/* UP_ISB() is used to synchronize the instruction and data streams */
+
+#ifdef CONFIG_ARCH_RV_ISA_ZICSR_ZIFENCEI
+#  define UP_ISB()       __asm__ __volatile__ ("fence.i" ::: "memory")
+#else
+#  define UP_ISB()       
+#endif
 
 #endif /* __ARCH_RISCV_INCLUDE_BARRIERS_H */

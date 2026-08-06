@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/sys/timerfd.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,10 +35,10 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define TFD_NONBLOCK O_NONBLOCK
-#define TFD_CLOEXEC  O_CLOEXEC
-
-#define TFD_TIMER_ABSTIME TIMER_ABSTIME
+#define TFD_NONBLOCK            O_NONBLOCK
+#define TFD_CLOEXEC             O_CLOEXEC
+#define TFD_TIMER_ABSTIME       TIMER_ABSTIME
+#define TFD_TIMER_CANCEL_ON_SET 2
 
 /****************************************************************************
  * Public Type Declarations

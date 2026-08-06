@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sparc/src/s698pm/s698pm_tim.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 #include <semaphore.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -638,7 +640,7 @@ static int s698pm_tim_checkint(struct s698pm_tim_dev_s *dev, int source)
 }
 
 /****************************************************************************
- * Pubic Functions
+ * Public Functions
  ****************************************************************************/
 
 /****************************************************************************

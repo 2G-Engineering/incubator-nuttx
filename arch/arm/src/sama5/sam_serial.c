@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/sama5/sam_serial.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #ifdef CONFIG_SERIAL_TERMIOS
 #  include <termios.h>
@@ -1019,6 +1021,7 @@ static int up_setup(struct uart_dev_s *dev)
   up_shutdown(dev);
 
 #if defined(CONFIG_SERIAL_IFLOWCONTROL) || defined(CONFIG_SERIAL_OFLOWCONTROL)
+#if defined(ATSAMA5D3) || defined(ATSAMA5D4)
   /* Setting the USART to operate with hardware handshaking is performed by
    * writing the USART_MODE field in the Mode Register (US_MR) to the value
    * 0x2. ... Using this mode requires using the PDC or DMAC channel for
@@ -1032,6 +1035,7 @@ static int up_setup(struct uart_dev_s *dev)
       regval = (UART_MR_MODE_HWHS | SAM_MR_USCLKS | UART_MR_CHMODE_NORMAL);
     }
   else
+#endif
 #endif
     {
 #if defined(ATSAMA5D2)
@@ -1577,7 +1581,7 @@ static bool up_txempty(struct uart_dev_s *dev)
  *
  * Description:
  *   Performs the low level USART initialization early in debug so that the
- *   serial console will be available during bootup.  This must be called
+ *   serial console will be available during boot up.  This must be called
  *   before arm_serialinit.
  *
  ****************************************************************************/

@@ -1,8 +1,11 @@
 /****************************************************************************
  * arch/arm/src/s32k1xx/s32k1xx_clockconfig.h
  *
- *   Copyright (C) 2019 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2019 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2016-2018 NXP
+ * SPDX-FileCopyrightText: 2013 - 2015, Freescale Semiconductor, Inc.
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -85,8 +88,6 @@
 /****************************************************************************
  * Public Types
  ****************************************************************************/
-
-extern const unsigned int num_of_peripheral_clocks_0;
 
 /* Clock Configuration ******************************************************/
 
@@ -456,10 +457,6 @@ enum scg_system_clock_mode_e
 
 #ifndef __ASSEMBLY__
 
-/****************************************************************************
- * Public Data
- ****************************************************************************/
-
 #undef EXTERN
 #if defined(__cplusplus)
 #define EXTERN extern "C"
@@ -468,6 +465,12 @@ extern "C"
 #else
 #define EXTERN extern
 #endif
+
+/****************************************************************************
+ * Public Data
+ ****************************************************************************/
+
+EXTERN const unsigned int num_of_peripheral_clocks_0;
 
 /****************************************************************************
  * Public Function Prototypes

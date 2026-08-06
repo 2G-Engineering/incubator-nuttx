@@ -1,6 +1,8 @@
 /****************************************************************************
  * tools/incdir.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -67,7 +69,9 @@ enum compiler_e
   COMPILER_CLANG,
   COMPILER_MINGW,
   COMPILER_SDCC,
-  COMPILER_ZDSII
+  COMPILER_ZDSII,
+  COMPILER_TASKING,
+  COMPILER_GHS
 };
 
 /****************************************************************************
@@ -190,6 +194,11 @@ static enum compiler_e get_compiler(char *ccname)
     {
       return COMPILER_SDCC;
     }
+  else if (strstr(ccname, "ccarm") != NULL ||
+           strstr(ccname, "cxarm") != NULL)
+    {
+      return COMPILER_GHS;
+    }
   else if (strstr(ccname, "mingw") != NULL)
     {
       return COMPILER_MINGW;
@@ -199,6 +208,10 @@ static enum compiler_e get_compiler(char *ccname)
            strstr(ccname, "ez80cc") != NULL)
     {
       return COMPILER_ZDSII;
+    }
+  else if (strstr(ccname, "ctc") != NULL)
+    {
+      return COMPILER_TASKING;
     }
   else
     {
@@ -347,7 +360,8 @@ int main(int argc, char **argv, char **envp)
       wintool = true;
 #endif
     }
-  else if (compiler == COMPILER_SDCC)
+  else if (compiler == COMPILER_SDCC || compiler == COMPILER_TASKING ||
+           compiler == COMPILER_GHS)
     {
       cmdarg = "-I";
     }
@@ -381,7 +395,7 @@ int main(int argc, char **argv, char **envp)
           ssize_t bufsize;
 
           bufsize = cygwin_conv_path(CCP_POSIX_TO_WIN_A, dirname, NULL, 0);
-          convpath = (char *)malloc(bufsize);
+          convpath = malloc(bufsize);
           if (convpath == NULL)
             {
               fprintf(stderr, "ERROR:  Failed to allocate buffer.\n");
@@ -461,7 +475,7 @@ int main(int argc, char **argv, char **envp)
       segsize   = ret;
       respsize += (response == NULL) ? segsize + 1 : segsize;
 
-      response = (char *)malloc(respsize);
+      response = malloc(respsize);
       if (response == NULL)
         {
           fprintf(stderr, "ERROR: Failed to allocate response.\n");

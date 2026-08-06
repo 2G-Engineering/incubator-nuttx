@@ -1,6 +1,8 @@
 ############################################################################
 # arch/risc-v/src/bl602/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -88,7 +90,7 @@ distclean::
 	$(call DELDIR, chip/$(WIRELESS_DRV_UNPACK))
 endif
 
-INCLUDES += $(shell $(INCDIR) "$(CC)" $(ARCH_SRCDIR)$(DELIM)chip$(DELIM)$(WIRELESS_DRV_UNPACK)$(DELIM)includes$(DELIM)BL602$(DELIM)nuttx)
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)$(WIRELESS_DRV_UNPACK)$(DELIM)includes$(DELIM)BL602$(DELIM)nuttx
 CHIP_CSRCS += bl602_netdev.c
 
 EXTRA_LIBPATHS += -L $(ARCH_SRCDIR)$(DELIM)chip$(DELIM)$(WIRELESS_DRV_UNPACK)$(DELIM)libs$(DELIM)BL602$(DELIM)nuttx

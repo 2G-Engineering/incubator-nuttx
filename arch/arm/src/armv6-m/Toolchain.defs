@@ -1,6 +1,8 @@
 ############################################################################
 # arch/arm/src/armv6-m/Toolchain.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -29,9 +31,7 @@ LLVM_CPUTYPE  := cortex-m0
 
 # Clang Configuration files
 
-ifeq ($(CONFIG_ARM_TOOLCHAIN_CLANG),y)
-  TOOLCHAIN_MARCH := --config armv6m_soft_nofp_nosys
-else ifeq ($(CONFIG_ARM_TOOLCHAIN_ARMCLANG),y)
+ifeq ($(CONFIG_ARM_TOOLCHAIN_ARMCLANG),y)
   LDFLAGS += --cpu=Cortex-M0
 endif
 

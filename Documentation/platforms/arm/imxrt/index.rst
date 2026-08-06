@@ -1,6 +1,6 @@
-=======
-i.MX RT
-=======
+===========
+NXP i.MX RT
+===========
 
 The i.MX RT series of chips from NXP Semiconductors is based around an ARM Cortex-M7 core running
 at 500 MHz, 600 MHz or 1 GHz based on particular MCUs
@@ -10,28 +10,38 @@ Supported MCUs
 
 The following list includes MCUs from i.MX RT series and indicates whether they are supported in NuttX
 
-======  =======  ==============  =================
-MCU     Support  Core            Frequency
-======  =======  ==============  =================
-RT500   No       Cortex-M33      200 MHz
-RT600   No       Cortex-M33      300 MHz
-RT1010  No       Cortex-M7       500 MHz
-RT1015  No       Cortex-M7       500 MHz
-RT1020  Yes      Cortex-M7       500 MHz
-RT1024  No       Cortex-M7       500 MHz
-RT1050  Yes      Cortex-M7       600 MHz
-RT1060  Yes      Cortex-M7       600 MHz
-RT1064  Yes      Cortex-M7       600 MHz
-RT1170  No       Cortex-M7 + M4  1 GHz + 400 MHz
-======  =======  ==============  =================
+======  ==============  ===============  =================
+MCU     Support         Core             Frequency
+======  ==============  ===============  =================
+RT500   No              Cortex-M33       200 MHz
+RT600   No              Cortex-M33       300 MHz
+RT700   No              Cortex-M33       325 MHz
+RT1010  No              Cortex-M7        500 MHz
+RT1015  No              Cortex-M7        500 MHz
+RT1020  Yes             Cortex-M7        500 MHz
+RT1024  No              Cortex-M7        500 MHz
+RT1050  Yes             Cortex-M7        600 MHz
+RT1060  Yes             Cortex-M7        600 MHz
+RT1064  Yes             Cortex-M7        600 MHz
+RT1160  No              Cortex-M7 + M4   600 Mhz + 240 MHz
+RT1170  Yes (Only M7)   Cortex-M7 + M4   1 GHz + 400 MHz
+RT1180  No              Cortex-M7 + M33  800 Mhz + 300 MHz
+======  ==============  ===============  =================
 
 Data and Instruction Cache
 ==========================
 
-MCUs i.MX RT1010 and higher have separated caches for instructions and data. Data cache is initially
-set as write-through but can be changed to write-back via Kconfig. While write-back gives better
-performance than write-through, it is not supported for all peripherals in NuttX yet. Write-back data
-cache can not be selected while running Ethernet or serial port over USB.
+Supported i.MX RT MCUs provide separate instruction and data caches. The data cache is configured
+as write-back by default where supported, but it can be changed to write-through via Kconfig.
+
+Write-back data cache generally provides better performance than write-through, but care must
+be taken because not all peripheral drivers and DMA users may be safe with write-through caching
+unless proper cache maintenance is implemented.
+
+Some devices in the i.MX RT10xx series do not support write-through data cache reliably due to an
+Arm erratum. On those parts, write-back should be used instead.
+
+Newer devices, such as the i.MX RT1170, support write-through data cache operation correctly.
 
 Tickless OS
 ===========
@@ -64,7 +74,7 @@ DAC         No
 eLCDIF      Yes
 ENC         Yes
 ENET        Yes
-FlexIO      No
+FlexIO      Yes
 GPIO        Yes
 I2S         Yes
 PWM         Yes
@@ -87,9 +97,9 @@ ADC
 ADC driver with the successive approximation analog/digital converter. The lower-half of
 this driver is initialize by calling :c:func:`imxrt_adcinitialize`.
 
-ADC module can use either continous trigger (next conversion is started as soon as the
+ADC module can use either continuous trigger (next conversion is started as soon as the
 previous is finished) or hardware trigger. This option is selected by IMXRT_ADCx_ETC
-(x = 1, 2) config option. If IMXRT_ADCx_ETC = -1 then continous trigger is used. If
+(x = 1, 2) config option. If IMXRT_ADCx_ETC = -1 then continuous trigger is used. If
 corresponding XBAR number is put in IMXRT_ADCx_ETC then that signal is used to trigger
 the ADC conversion (for example PWM signal can be used as a source). For PWM XBAR options
 please refer to PWM chapter of this documentation.
@@ -176,7 +186,7 @@ as a slave. The lower-half of this driver is initialize by calling :c:func:`imxr
 PWM
 ---
 
-Pulse width modulator supported in i.MX RT1010 and higher. Multiple channels option is evailable.
+Pulse width modulator supported in i.MX RT1010 and higher. Multiple channels option is available.
 Output on pin B is currently supported only as a complementary option to pin A.
 The lower-half of this driver is initialize by calling :c:func:`imxrt_pwminitialize`.
 

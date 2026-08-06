@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/sama5/jupiter-nano/src/sam_usb.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  *  Licensed to the Apache Software Foundation (ASF) under one or more
  *  contributor license agreements.  See the NOTICE file distributed with
  *  this work for additional information regarding copyright ownership.  The
@@ -30,8 +32,8 @@
 #include <sched.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/kthread.h>
 #include <nuttx/usb/usbdev.h>
@@ -172,7 +174,7 @@ static int ehci_waiter(int argc, char *argv[])
  * Name: sam_usbinitialize
  *
  * Description:
- *   Called from sam_usbinitialize very early in inialization to setup
+ *   Called from sam_usbinitialize very early in initialization to setup
  *   USB-related GPIO pins for the SAMA5D3-Xplained board.
  *
  * USB Ports
@@ -340,7 +342,7 @@ int sam_usbhost_initialize(void)
 
   pid = kthread_create("OHCI Monitor", CONFIG_JUPITERNANO_USBHOST_PRIO,
                        CONFIG_JUPITERNANO_USBHOST_STACKSIZE,
-                       (main_t)ohci_waiter, (char * const *)NULL);
+                       ohci_waiter, NULL);
   if (pid < 0)
     {
       uerr("ERROR: Failed to create ohci_waiter task: %d\n", ret);
@@ -362,7 +364,7 @@ int sam_usbhost_initialize(void)
 
   pid = kthread_create("EHCI Monitor", CONFIG_JUPITERNANO_USBHOST_PRIO,
                        CONFIG_JUPITERNANO_USBHOST_STACKSIZE,
-                       (main_t)ehci_waiter, (char * const *)NULL);
+                       ehci_waiter, NULL);
   if (pid < 0)
     {
       uerr("ERROR: Failed to create ehci_waiter task: %d\n", ret);

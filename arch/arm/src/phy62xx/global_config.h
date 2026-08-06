@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/phy62xx/global_config.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -19,12 +21,10 @@
  ****************************************************************************/
 
 /****************************************************************************
- *    @file global_config.h
+ * global_config.h
  *
- *    @brief This file contains the definitions of index of
-
- *           global configuration which
- *           will be configured in APP project.
+ *   This file contains the definitions of index of
+ *   global configuration which will be configured in APP project.
  *
  *    $Rev:  $
  *

@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/nrf52/nrf52840-dk/src/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -22,10 +24,6 @@ include $(TOPDIR)/Make.defs
 
 CSRCS = nrf52_boot.c nrf52_bringup.c
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += nrf52_appinit.c
-endif
-
 ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += nrf52_autoleds.c
 else
@@ -34,6 +32,10 @@ endif
 
 ifeq ($(CONFIG_ARCH_BUTTONS),y)
 CSRCS += nrf52_buttons.c
+endif
+
+ifeq ($(CONFIG_NRF52840DK_BTNLEDS_GPIO),y)
+CSRCS += nrf52_gpio.c
 endif
 
 ifeq ($(CONFIG_NRF52_SPI_MASTER),y)
@@ -80,6 +82,10 @@ ifeq ($(CONFIG_NRF52_QSPI),y)
 CSRCS += nrf52_mx25.c
 endif
 
+ifeq ($(CONFIG_NRF52_QDEC),y)
+CSRCS += nrf52_qencoder.c
+endif
+
 DEPPATH += --dep-path board
 VPATH += :board
-CFLAGS += $(shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board)
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board

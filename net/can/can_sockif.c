@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/can/can_sockif.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 #include <sched.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/semaphore.h>
@@ -41,6 +43,7 @@
 
 #include "can/can.h"
 #include "netdev/netdev.h"
+#include "utils/utils.h"
 
 #ifdef CONFIG_NET_CAN
 
@@ -52,9 +55,9 @@ static int  can_setup(FAR struct socket *psock);
 static sockcaps_t can_sockcaps(FAR struct socket *psock);
 static void can_addref(FAR struct socket *psock);
 static int  can_bind(FAR struct socket *psock,
-              FAR const struct sockaddr *addr, socklen_t addrlen);
+                     FAR const struct sockaddr *addr, socklen_t addrlen);
 static int  can_poll_local(FAR struct socket *psock, FAR struct pollfd *fds,
-              bool setup);
+                           bool setup);
 static int can_close(FAR struct socket *psock);
 
 /****************************************************************************
@@ -109,8 +112,8 @@ const struct sock_intf_s g_can_sockif =
  *
  ****************************************************************************/
 
-static uint16_t can_poll_eventhandler(FAR struct net_driver_s *dev,
-                                      FAR void *pvpriv, uint16_t flags)
+static uint32_t can_poll_eventhandler(FAR struct net_driver_s *dev,
+                                      FAR void *pvpriv, uint32_t flags)
 {
   FAR struct can_poll_s *info = pvpriv;
 
@@ -198,8 +201,7 @@ static int can_setup(FAR struct socket *psock)
 
   /* Verify the socket type (domain should always be PF_CAN here) */
 
-  if (domain == PF_CAN &&
-      (type == SOCK_RAW || type == SOCK_DGRAM || type == SOCK_CTRL))
+  if (domain == PF_CAN && (type == SOCK_RAW || type == SOCK_DGRAM))
     {
       /* Allocate the CAN socket connection structure and save it in the
        * new socket instance.
@@ -219,6 +221,21 @@ static int can_setup(FAR struct socket *psock)
        */
 
       conn->crefs = 1;
+
+      /* If Can Socket Stack receive can frame and pending on the readahead,
+       * but the application layer did not read the frame. This will cause
+       * a memory leak, and it is necessary to limit the readahead.
+       */
+
+#if CONFIG_NET_RECV_BUFSIZE > 0
+      conn->rcvbufs = CONFIG_NET_RECV_BUFSIZE;
+#endif
+
+#if CONFIG_NET_SEND_BUFSIZE > 0
+      conn->sndbufs = CONFIG_NET_SEND_BUFSIZE;
+      nxsem_init(&conn->sndsem, 0, 0);
+#endif
+      nxrmutex_init(&conn->sconn.s_lock);
 
       /* Attach the connection instance to the socket */
 
@@ -270,8 +287,6 @@ static void can_addref(FAR struct socket *psock)
 {
   FAR struct can_conn_s *conn;
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
-
   conn = psock->s_conn;
   DEBUGASSERT(conn->crefs > 0 && conn->crefs < 255);
   conn->crefs++;
@@ -312,7 +327,7 @@ static int can_bind(FAR struct socket *psock,
 {
   FAR struct sockaddr_can *canaddr;
   FAR struct can_conn_s *conn;
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL && addr != NULL &&
+  DEBUGASSERT(addr != NULL &&
               addrlen >= sizeof(struct sockaddr_can));
 
   /* Save the address information in the connection structure */
@@ -330,7 +345,7 @@ static int can_bind(FAR struct socket *psock,
   conn->dev = netdev_findbyname((const char *)&netdev_name);
 #endif
 
-  return OK;
+  return conn->dev == NULL && canaddr->can_ifindex != 0 ? -ENODEV : OK;
 }
 
 /****************************************************************************
@@ -360,14 +375,12 @@ static int can_poll_local(FAR struct socket *psock, FAR struct pollfd *fds,
                           bool setup)
 {
   FAR struct can_conn_s *conn;
-  FAR struct can_poll_s *info;
+  FAR struct can_poll_s *info = NULL;
   FAR struct devif_callback_s *cb;
   pollevent_t eventset = 0;
   int ret = OK;
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
   conn = psock->s_conn;
-  info = conn->pollinfo;
 
   /* FIXME add NETDEV_DOWN support */
 
@@ -375,7 +388,24 @@ static int can_poll_local(FAR struct socket *psock, FAR struct pollfd *fds,
 
   if (setup)
     {
-      net_lock();
+      int i;
+
+      conn_dev_lock(&conn->sconn, conn->dev);
+
+      for (i = 0; i < CONFIG_NET_CAN_NPOLLWAITERS; i++)
+        {
+          if (conn->pollinfo[i].fds == NULL)
+            {
+              info = &conn->pollinfo[i];
+              break;
+            }
+        }
+
+      if (info == NULL)
+        {
+          ret = -EBUSY;
+          goto errout_with_lock;
+        }
 
       info->dev = conn->dev;
 
@@ -397,9 +427,9 @@ static int can_poll_local(FAR struct socket *psock, FAR struct pollfd *fds,
        * during callback processing.
        */
 
-      cb->flags   = NETDEV_DOWN;
-      cb->priv    = (FAR void *)info;
-      cb->event   = can_poll_eventhandler;
+      cb->flags = NETDEV_DOWN;
+      cb->priv  = info;
+      cb->event = can_poll_eventhandler;
 
       if ((fds->events & POLLOUT) != 0)
         {
@@ -415,7 +445,7 @@ static int can_poll_local(FAR struct socket *psock, FAR struct pollfd *fds,
        * for use during poll teardown as well.
        */
 
-      fds->priv = (FAR void *)info;
+      fds->priv = info;
 
       /* Check for read data availability now */
 
@@ -438,7 +468,7 @@ static int can_poll_local(FAR struct socket *psock, FAR struct pollfd *fds,
       poll_notify(&fds, 1, eventset);
 
 errout_with_lock:
-      net_unlock();
+      conn_dev_unlock(&conn->sconn, conn->dev);
     }
   else
     {
@@ -448,15 +478,18 @@ errout_with_lock:
         {
           /* Cancel any response notifications */
 
+          conn_dev_lock(&conn->sconn, info->dev);
           can_callback_free(info->dev, conn, info->cb);
 
           /* Release the poll/select data slot */
 
           info->fds->priv = NULL;
+          info->fds = NULL;
 
           /* Then free the poll info container */
 
           info->psock = NULL;
+          conn_dev_unlock(&conn->sconn, info->dev);
         }
     }
 
@@ -494,7 +527,15 @@ static int can_close(FAR struct socket *psock)
     {
       /* Yes... inform user-space daemon of socket close. */
 
-      /* #warning Missing logic */
+#ifdef CONFIG_NET_CAN_WRITE_BUFFERS
+      /* Free write buffer callback. */
+
+      if (conn->sndcb != NULL)
+        {
+          can_callback_free(conn->dev, conn, conn->sndcb);
+          conn->sndcb = NULL;
+        }
+#endif
 
       /* Free the connection structure */
 

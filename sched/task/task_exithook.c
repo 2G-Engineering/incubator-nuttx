@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/task/task_exithook.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/sched.h>
@@ -66,7 +68,7 @@ static inline void nxtask_exitstatus(FAR struct task_group_s *group,
     {
       /* No.. Find the exit status entry for this task in the parent TCB */
 
-      child = group_find_child(group, nxsched_gettid());
+      child = group_find_child(group, nxsched_getpid());
       if (child)
         {
           /* Save the exit status..  For the case of HAVE_GROUP_MEMBERS,
@@ -107,7 +109,7 @@ static inline void nxtask_groupexit(FAR struct task_group_s *group)
     {
       /* No.. Find the exit status entry for this task in the parent TCB */
 
-      child = group_find_child(group, nxsched_gettid());
+      child = group_find_child(group, nxsched_getpid());
       if (child)
         {
           /* Mark that all members of the child task group has exited */
@@ -147,7 +149,7 @@ static inline void nxtask_sigchild(pid_t ppid, FAR struct tcb_s *ctcb,
    * this case, the child task group has been orphaned.
    */
 
-  pgrp = group_findbypid(ppid);
+  pgrp = task_getgroup(ppid);
   if (!pgrp)
     {
       /* Set the task group ID to an invalid group ID.  The dead parent
@@ -174,7 +176,7 @@ static inline void nxtask_sigchild(pid_t ppid, FAR struct tcb_s *ctcb,
    * should generate SIGCHLD.
    */
 
-  if (chgrp->tg_nmembers == 1)
+  if (sq_is_singular(&chgrp->tg_members))
     {
       /* Mark that all of the threads in the task group have exited */
 
@@ -270,20 +272,11 @@ static inline void nxtask_signalparent(FAR struct tcb_s *ctcb, int status)
 #ifdef HAVE_GROUP_MEMBERS
   DEBUGASSERT(ctcb && ctcb->group);
 
-  /* Keep things stationary throughout the following */
-
-  sched_lock();
-
   /* Send SIGCHLD to all members of the parent's task group */
 
   nxtask_sigchild(ctcb->group->tg_ppid, ctcb, status);
-  sched_unlock();
 #else
   FAR struct tcb_s *ptcb;
-
-  /* Keep things stationary throughout the following */
-
-  sched_lock();
 
   /* Get the TCB of the receiving, parent task.  We do this early to
    * handle multiple calls to nxtask_signalparent.
@@ -294,7 +287,6 @@ static inline void nxtask_signalparent(FAR struct tcb_s *ctcb, int status)
     {
       /* The parent no longer exists... bail */
 
-      sched_unlock();
       return;
     }
 
@@ -305,7 +297,6 @@ static inline void nxtask_signalparent(FAR struct tcb_s *ctcb, int status)
    */
 
   nxtask_sigchild(ptcb, ctcb, status);
-  sched_unlock();
 #endif
 }
 #else
@@ -324,6 +315,7 @@ static inline void nxtask_signalparent(FAR struct tcb_s *ctcb, int status)
 static inline void nxtask_exitwakeup(FAR struct tcb_s *tcb, int status)
 {
   FAR struct task_group_s *group = tcb->group;
+  int semvalue;
 
   /* Have we already left the group? */
 
@@ -360,18 +352,22 @@ static inline void nxtask_exitwakeup(FAR struct tcb_s *tcb, int status)
 
       /* Is this the last thread in the group? */
 
-      if (group->tg_nmembers == 1)
+#ifndef CONFIG_DISABLE_PTHREAD
+      if (sq_is_singular(&group->tg_members))
+#endif
         {
           /* Yes.. Wakeup any tasks waiting for this task to exit */
 
           group->tg_statloc   = NULL;
           group->tg_waitflags = 0;
 
-          while (group->tg_exitsem.semcount < 0)
+          nxsem_get_value(&group->tg_exitsem, &semvalue);
+          while (semvalue < 0)
             {
               /* Wake up the thread */
 
               nxsem_post(&group->tg_exitsem);
+              nxsem_get_value(&group->tg_exitsem, &semvalue);
             }
         }
     }
@@ -409,26 +405,25 @@ static inline void nxtask_exitwakeup(FAR struct tcb_s *tcb, int status)
 
 void nxtask_exithook(FAR struct tcb_s *tcb, int status)
 {
+#ifdef CONFIG_SCHED_DUMP_LEAK
+  struct mm_memdump_s dump =
+  {
+    tcb->pid,
+#  if CONFIG_MM_BACKTRACE >= 0
+    0,
+    ULONG_MAX
+#  endif
+  };
+#endif
+
   /* Under certain conditions, nxtask_exithook() can be called multiple
    * times.  A bit in the TCB was set the first time this function was
    * called.  If that bit is set, then just exit doing nothing more..
    */
 
-  if ((tcb->flags & TCB_FLAG_EXIT_PROCESSING) != 0)
-    {
-      return;
-    }
+  DEBUGASSERT((tcb->flags & TCB_FLAG_EXIT_PROCESSING) != 0);
 
-#ifdef CONFIG_CANCELLATION_POINTS
-  /* Mark the task as non-cancelable to avoid additional calls to exit()
-   * due to any cancellation point logic that might get kicked off by
-   * actions taken during exit processing.
-   */
-
-  tcb->flags  |= TCB_FLAG_NONCANCELABLE;
-  tcb->flags  &= ~TCB_FLAG_CANCEL_PENDING;
-  tcb->cpcount = 0;
-#endif
+  nxsched_dumponexit();
 
   /* If the task was terminated by another task, it may be in an unknown
    * state.  Make some feeble effort to recover the state.
@@ -436,11 +431,11 @@ void nxtask_exithook(FAR struct tcb_s *tcb, int status)
 
   nxtask_recover(tcb);
 
-  /* NOTE: signal handling needs to be done in a criticl section */
+  /* Disable the scheduling function to prevent other tasks from
+   * being deleted after they are awakened
+   */
 
-#ifdef CONFIG_SMP
-  irqstate_t flags = enter_critical_section();
-#endif
+  sched_lock();
 
   /* Send the SIGCHLD signal to the parent task group */
 
@@ -450,6 +445,8 @@ void nxtask_exithook(FAR struct tcb_s *tcb, int status)
 
   nxtask_exitwakeup(tcb, status);
 
+  sched_unlock();
+
   /* Leave the task group.  Perhaps discarding any un-reaped child
    * status (no zombies here!)
    */
@@ -458,27 +455,18 @@ void nxtask_exithook(FAR struct tcb_s *tcb, int status)
 
   /* Deallocate anything left in the TCB's queues */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   nxsig_cleanup(tcb); /* Deallocate Signal lists */
+#endif
 
 #ifdef CONFIG_SCHED_DUMP_LEAK
   if ((tcb->flags & TCB_FLAG_TTYPE_MASK) == TCB_FLAG_TTYPE_KERNEL)
     {
-      kmm_memdump(tcb->pid);
+      kmm_memdump(&dump);
     }
   else
     {
-      umm_memdump(tcb->pid);
+      umm_memdump(&dump);
     }
-#endif
-
-  /* This function can be re-entered in certain cases.  Set a flag
-   * bit in the TCB to not that we have already completed this exit
-   * processing.
-   */
-
-  tcb->flags |= TCB_FLAG_EXIT_PROCESSING;
-
-#ifdef CONFIG_SMP
-  leave_critical_section(flags);
 #endif
 }

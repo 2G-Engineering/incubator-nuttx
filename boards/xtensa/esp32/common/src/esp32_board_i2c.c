@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/common/src/esp32_board_i2c.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <sys/types.h>
 #include <nuttx/i2c/i2c_master.h>
 
@@ -50,27 +52,25 @@
 int esp32_i2c_register(int bus)
 {
   struct i2c_master_s *i2c;
-  int ret;
+  int ret = OK;
 
   i2c = esp32_i2cbus_initialize(bus);
 
   if (i2c == NULL)
     {
      syslog(LOG_ERR, "ERROR: Failed to get I2C%d interface\n", bus);
+     ret = ERROR;
     }
-  else
+
+#ifdef CONFIG_I2C_DRIVER
+  ret = i2c_register(i2c, bus);
+  if (ret < 0)
     {
-      ret = i2c_register(i2c, bus);
-      if (ret < 0)
-        {
-          syslog(LOG_ERR, "ERROR: Failed to register I2C%d driver: %d\n",
-                 bus, ret);
-          esp32_i2cbus_uninitialize(i2c);
-        }
-
-      return ret;
+      syslog(LOG_ERR, "ERROR: Failed to register I2C%d driver: %d\n",
+             bus, ret);
+      esp32_i2cbus_uninitialize(i2c);
     }
+#endif
 
-  return -1;
+  return ret;
 }
-

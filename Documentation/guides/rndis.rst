@@ -1,6 +1,7 @@
 .. include:: /substitutions.rst
 .. _rndis:
 
+================
 How to use RNDIS
 ================
 
@@ -12,12 +13,12 @@ over USB port without using any external device to it. Just a USB cable
 between your board (that has USB Device) and your computer.
 
 WARNING: RNDIS is going to be removed from Linux kernel because they
-understand it as an unsecure protocol. That said use it aware of this
+understand it as an insecure protocol. That said use it aware of this
 risk and also be aware that it was tested up to Ubuntu 22.04 LTS and
 couldn't work in future versions.
 
 Compiling
----------
+=========
 
 #. Configure the RNDIS
 
@@ -39,7 +40,7 @@ Compiling
        $ make -j
 
 Flashing
---------
+========
 
 #. Flash the generated nuttx.bin to your board:
 
@@ -65,7 +66,7 @@ Flashing
 
 
 Setup RNDIS in your computer
-----------------------------
+============================
 
    These steps show how to connect your board to your Linux machine.
 
@@ -105,7 +106,7 @@ Setup RNDIS in your computer
 
    Click on "Apply"
 
-   Disconect and connect the USB cable to force it to get IP.
+   Disconnect and connect the USB cable to force it to get IP.
 
 #. Identify what IP address your board got:
 

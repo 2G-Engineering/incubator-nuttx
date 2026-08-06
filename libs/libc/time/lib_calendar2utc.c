@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/time/lib_calendar2utc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,9 +28,9 @@
 
 #include <stdbool.h>
 #include <time.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
-#include <nuttx/time.h>
+#include <nuttx/clock.h>
 
 /****************************************************************************
  * Private Functions
@@ -166,7 +168,7 @@ time_t clock_calendar2utc(int year, int month, int day)
 
   /* Add in the days up to the beginning of this month. */
 
-  days += (time_t)clock_daysbeforemonth(month, clock_isleapyear(year));
+  days += clock_daysbeforemonth(month, clock_isleapyear(year));
 
   /* Add in the days since the beginning of this month (days are 1-based). */
 

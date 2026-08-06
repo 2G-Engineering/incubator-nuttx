@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imxrt/hardware/rt102x/imxrt102x_iomuxc.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -1475,7 +1477,7 @@
 
 #define GPR_GPR16_INIT_ITCM_EN                                  (1 << 0)
 #define GPR_GPR16_INIT_DTCM_EN                                  (1 << 1)
-#define GPR_GPR16_FLEXRAM_BANK_CFG_SELF                         (1 << 2)
+#define GPR_GPR16_FLEXRAM_BANK_CFG_SEL                          (1 << 2)
 
 /* General Purpose Register 17 (GPR17) */
 

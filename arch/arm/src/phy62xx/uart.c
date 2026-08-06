@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/phy62xx/uart.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -46,7 +48,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/serial/serial.h>
-#include <nuttx/mm/circbuf.h>
+#include <nuttx/circbuf.h>
 
 #define UART_TX_BUFFER_SIZE   64
 #define UART_RX_BUFFER_SIZE   64
@@ -671,7 +673,7 @@ static void pplus_uart_shutdown(struct uart_dev_s *dev)
  * Description:
  *   Configure the UART to operation in interrupt driven mode.  This method
  *   is called when the serial port is opened.  Normally, this is just after
- *   the the setup() method is called, however, the serial console may
+ *   the setup() method is called, however, the serial console may
  *   operate in a non-interrupt driven mode during the boot phase.
  *
  *   RX and TX interrupts are not enabled when by the attach method (unless
@@ -1127,10 +1129,9 @@ void arm_serialinit(void)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
   hal_uart_send_byte(UART0, (char)ch);
-  return ch;
 }
 
 struct h4uart_param_s

@@ -1,6 +1,8 @@
 ############################################################################
 # drivers/timers/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -32,6 +34,12 @@ ifeq ($(CONFIG_TIMER),y)
   TMRVPATH = :timers
 endif
 
+ifeq ($(CONFIG_TIMER_WDOG),y)
+  CSRCS += timer_wdog.c
+  TMRDEPPATH = --dep-path timers
+  TMRVPATH = :timers
+endif
+
 ifeq ($(CONFIG_TIMER_ARCH),y)
   CSRCS += arch_timer.c
   TMRDEPPATH = --dep-path timers
@@ -58,6 +66,12 @@ endif
 
 ifeq ($(CONFIG_RTC_PCF85263),y)
   CSRCS += pcf85263.c
+  TMRDEPPATH = --dep-path timers
+  TMRVPATH = :timers
+endif
+
+ifeq ($(CONFIG_RTC_PL031),y)
+  CSRCS += pl031.c
   TMRDEPPATH = --dep-path timers
   TMRVPATH = :timers
 endif
@@ -104,10 +118,41 @@ ifeq ($(CONFIG_PWM),y)
   TMRVPATH = :timers
 endif
 
-ifeq ($(CONFIG_CAPTURE),y)
-  CSRCS += capture.c
+ifeq ($(CONFIG_PULSECOUNT),y)
+  CSRCS += pulsecount.c
   TMRDEPPATH = --dep-path timers
   TMRVPATH = :timers
+endif
+
+ifeq ($(CONFIG_DSHOT),y)
+  CSRCS += dshot.c
+  TMRDEPPATH = --dep-path timers
+  TMRVPATH = :timers
+endif
+
+ifeq ($(CONFIG_CAPTURE),y)
+  CSRCS += capture.c
+
+  ifeq ($(CONFIG_FAKE_CAPTURE),y)
+    CSRCS += fake_capture.c
+  endif
+
+  TMRDEPPATH = --dep-path timers
+  TMRVPATH = :timers
+endif
+
+ifeq ($(CONFIG_GOLDFISH_TIMER),y)
+  CSRCS += goldfish_timer.c
+  TMRDEPPATH = --dep-path timers
+  TMRVPATH = :timers
+endif
+
+ifeq ($(CONFIG_PTP_CLOCK),y)
+  CSRCS += ptp_clock.c
+endif
+
+ifeq ($(CONFIG_PTP_CLOCK_DUMMY),y)
+  CSRCS += ptp_clock_dummy.c
 endif
 
 # Include timer build support (if any were selected)

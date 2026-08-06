@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/net/dm90x0.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -42,7 +44,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <arpa/inet.h>
@@ -52,6 +54,7 @@
 #include <nuttx/irq.h>
 #include <nuttx/wdog.h>
 #include <nuttx/wqueue.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 
 #ifdef CONFIG_NET_PKT
@@ -1355,11 +1358,9 @@ static int dm9x_ifup(FAR struct net_driver_s *dev)
   uint8_t netstatus;
   int i;
 
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff),
-        (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff),
-        (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 
   /* Initialize DM90x0 chip */
 
@@ -1395,6 +1396,9 @@ static int dm9x_ifup(FAR struct net_driver_s *dev)
 
   priv->dm_bifup = true;
   up_enable_irq(CONFIG_DM9X_IRQ);
+
+  netdev_carrier_on(dev);
+
   return OK;
 }
 
@@ -1441,6 +1445,9 @@ static int dm9x_ifdown(FAR struct net_driver_s *dev)
 
   priv->dm_bifup = false;
   leave_critical_section(flags);
+
+  netdev_carrier_off(dev);
+
   return OK;
 }
 

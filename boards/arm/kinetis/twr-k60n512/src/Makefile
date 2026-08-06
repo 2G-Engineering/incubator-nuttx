@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/kinetis/twr-k60n512/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -28,10 +30,6 @@ endif
 
 ifeq ($(CONFIG_ARCH_BUTTONS),y)
 CSRCS += k60_buttons.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += k60_appinit.c
 endif
 
 ifeq ($(CONFIG_USBDEV),y)

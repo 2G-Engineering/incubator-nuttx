@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/sim_initialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,17 +26,44 @@
 
 #include <nuttx/arch.h>
 #include <nuttx/audio/audio.h>
+#include <nuttx/audio/audio_fake.h>
 #include <nuttx/kthread.h>
-#include <nuttx/motor/foc/foc_dummy.h>
 #include <nuttx/mtd/mtd.h>
 #include <nuttx/power/pm.h>
 #include <nuttx/spi/spi_flash.h>
 #include <nuttx/spi/qspi_flash.h>
+#include <nuttx/wqueue.h>
 
 #include <stdlib.h>
 
 #include "sim_internal.h"
 #include "sim_hostusrsock.h"
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#define SIM_X11EVENT_PERIOD    MSEC2TICK(CONFIG_SIM_X11EVENT_INTERVAL)
+#define SIM_X11UPDATE_PERIOD   MSEC2TICK(CONFIG_SIM_X11UPDATE_INTERVAL)
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+#if defined(CONFIG_SIM_TOUCHSCREEN) || defined(CONFIG_SIM_AJOYSTICK) || \
+    defined(CONFIG_SIM_BUTTONS)
+static struct work_s g_x11event_work;   /* Watchdog for event loop */
+#endif
+
+#ifdef CONFIG_SIM_X11FB
+static struct work_s g_x11update_work;  /* Watchdog for update loop */
+#endif
+
+/****************************************************************************
+ * Public Data
+ ****************************************************************************/
+
+struct kwork_wqueue_s *g_work_queue;
 
 /****************************************************************************
  * Private Functions
@@ -53,6 +82,41 @@ static void sim_init_cmdline(void)
     }
 
   setenv("CMDLINE", cmdline, true);
+}
+#endif
+
+/****************************************************************************
+ * Name: sim_x11event_interrupt
+ *
+ * Description:
+ *   interrupts event process function
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_SIM_TOUCHSCREEN) || defined(CONFIG_SIM_AJOYSTICK) || \
+    defined(CONFIG_SIM_BUTTONS)
+static void sim_x11event_work(void *arg)
+{
+  sim_x11events();
+  work_queue_next_wq(g_work_queue, &g_x11event_work, sim_x11event_work,
+                     NULL, SIM_X11EVENT_PERIOD);
+}
+#endif
+
+/****************************************************************************
+ * Name: sim_x11update_interrupt
+ *
+ * Description:
+ *   interrupts event process function
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_SIM_X11FB
+static void sim_x11update_work(void *arg)
+{
+  sim_x11loop();
+  work_queue_next_wq(g_work_queue, &g_x11update_work, sim_x11update_work,
+                     NULL, SIM_X11UPDATE_PERIOD);
 }
 #endif
 
@@ -158,76 +222,6 @@ static void sim_init_smartfs(void)
 }
 #endif
 
-static int sim_loop_task(int argc, char **argv)
-{
-  while (1)
-    {
-      irqstate_t flags = up_irq_save();
-
-      sched_lock();
-
-#if defined(CONFIG_SIM_TOUCHSCREEN) || defined(CONFIG_SIM_AJOYSTICK) || \
-    defined(CONFIG_SIM_BUTTONS)
-      /* Drive the X11 event loop */
-
-      sim_x11events();
-#endif
-
-#if defined(CONFIG_SIM_LCDDRIVER) || defined(CONFIG_SIM_FRAMEBUFFER)
-      sim_x11loop();
-#endif
-
-#ifdef CONFIG_SIM_NETDEV
-      /* Run the network if enabled */
-
-      sim_netdriver_loop();
-#endif
-
-#ifdef CONFIG_SIM_NETUSRSOCK
-      host_usrsock_loop();
-#endif
-
-#ifdef CONFIG_RPTUN
-      sim_rptun_loop();
-#endif
-
-#ifdef CONFIG_SIM_HCISOCKET
-      sim_bthcisock_loop();
-#endif
-
-#ifdef CONFIG_SIM_SOUND
-      sim_audio_loop();
-#endif
-
-#ifdef CONFIG_SIM_VIDEO
-      sim_video_loop();
-#endif
-
-#ifdef CONFIG_SIM_USB_DEV
-      sim_usbdev_loop();
-#endif
-
-#ifdef CONFIG_MOTOR_FOC_DUMMY
-      /* Update simulated FOC device */
-
-      foc_dummy_update();
-#endif
-
-      sched_unlock();
-      up_irq_restore(flags);
-
-#ifdef CONFIG_SIM_USB_HOST
-      sim_usbhost_loop();
-#endif
-
-      /* Sleep minimal time, let the idle run */
-
-      usleep(CONFIG_SIM_LOOPTASK_INTERVAL);
-    }
-
-  return 0;
-}
-
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -299,6 +293,17 @@ void up_initialize(void)
 
   audio_register("pcm1p", sim_audio_initialize(true, true));
   audio_register("pcm1c", sim_audio_initialize(false, true));
+
+  /* register independent mixer device, simulate amixer ioctl */
+
+  audio_register("mixer", sim_audio_initialize(false, false));
+
+#ifdef CONFIG_AUDIO_FAKE
+  /* Register fake audio driver */
+
+  audio_fake_initialize();
+#endif
+
 #endif
 
 #ifdef CONFIG_SIM_USB_DEV
@@ -309,7 +314,41 @@ void up_initialize(void)
   sim_usbhost_initialize();
 #endif
 
-  kthread_create("loop_task", SCHED_PRIORITY_MAX,
-                 CONFIG_DEFAULT_TASK_STACKSIZE,
-                 sim_loop_task, NULL);
+#ifdef CONFIG_SIM_VIDEO_DECODER
+  sim_decoder_initialize();
+#endif
+
+#ifdef CONFIG_SIM_VIDEO_ENCODER
+  sim_encoder_initialize();
+#endif
+
+#if defined(CONFIG_SIM_TOUCHSCREEN) || defined(CONFIG_SIM_AJOYSTICK) || \
+    defined(CONFIG_SIM_BUTTONS)
+  work_queue_wq(g_work_queue, &g_x11event_work, sim_x11event_work,
+                NULL, SIM_X11EVENT_PERIOD);
+#endif
+
+#ifdef CONFIG_SIM_X11FB
+  work_queue_wq(g_work_queue, &g_x11update_work, sim_x11update_work,
+                NULL, SIM_X11UPDATE_PERIOD);
+#endif
+}
+
+/****************************************************************************
+ * Name: up_irqinitialize
+ *
+ * Description:
+ *   initialize the high-priority work queue used for handling
+ *   periodic or async tasks within the simulator, then invokes the
+ *   platform-specific IRQ initialize.
+ *
+ ****************************************************************************/
+
+void up_irqinitialize(void)
+{
+  g_work_queue = work_queue_create("sim_loop_wq",
+                                   CONFIG_SCHED_HPWORKPRIORITY, NULL,
+                                   CONFIG_SCHED_HPWORKSTACKSIZE, 1u);
+
+  host_irqinitialize();
 }

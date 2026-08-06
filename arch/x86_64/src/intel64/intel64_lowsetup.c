@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/x86_64/src/intel64/intel64_lowsetup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,6 @@
 #include <nuttx/config.h>
 
 #include <nuttx/arch.h>
-#include <arch/board/board.h>
 
 #include "x86_64_internal.h"
 
@@ -45,12 +46,12 @@
  * in high address.
  */
 
-volatile uint64_t *pdpt;
-volatile uint64_t *pd;
-volatile uint64_t *pt;
+volatile uint64_t *g_pdpt;
+volatile uint64_t *g_pd;
+volatile uint64_t *g_pt;
 
-volatile struct ist_s *ist64;
-volatile struct gdt_entry_s *gdt64;
+volatile struct ist_s       *g_ist64;
+volatile struct gdt_entry_s *g_gdt64;
 
 /****************************************************************************
  * Private Functions
@@ -61,15 +62,15 @@ volatile struct gdt_entry_s *gdt64;
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_lowsetup
+ * Name: intel64_lowsetup
  *
  * Description:
- *   Called from intel64_head BEFORE starting the operating system in order
+ *   Called from __nxstart BEFORE starting the operating system in order
  *   perform any necessary, early initialization.
  *
  ****************************************************************************/
 
-void up_lowsetup(void)
+void intel64_lowsetup(void)
 {
   /* we should be in long mode at this point */
 
@@ -79,37 +80,16 @@ void up_lowsetup(void)
 
   /* Setup pointers for accessing Page table and GDT in high address */
 
-  pdpt = (uint64_t *)((uintptr_t)&pdpt_low + X86_64_LOAD_OFFSET);
-  pd   = (uint64_t *)((uintptr_t)&pd_low   + X86_64_LOAD_OFFSET);
-  pt   = (uint64_t *)((uintptr_t)&pt_low   + X86_64_LOAD_OFFSET);
+  g_pdpt = (uint64_t *)((uintptr_t)&g_pdpt_low + X86_64_LOAD_OFFSET);
+  g_pd   = (uint64_t *)((uintptr_t)&g_pd_low   + X86_64_LOAD_OFFSET);
+  g_pt   = (uint64_t *)((uintptr_t)&g_pt_low   + X86_64_LOAD_OFFSET);
 
-  ist64 = (struct ist_s *)((uintptr_t)&ist64_low       + X86_64_LOAD_OFFSET);
-  gdt64 = (struct gdt_entry_s *)((uintptr_t)&gdt64_low + X86_64_LOAD_OFFSET);
+  g_ist64 = (struct ist_s *)((uintptr_t)&g_ist64_low +
+                             X86_64_LOAD_OFFSET);
+  g_gdt64 = (struct gdt_entry_s *)((uintptr_t)&g_gdt64_low +
+                                   X86_64_LOAD_OFFSET);
 
   /* reload the GDTR with mapped high memory address */
 
-  setgdt((void *)gdt64, (uintptr_t)(&gdt64_low_end - &gdt64_low) - 1);
-
-  /* Do some checking on CPU compatibilities */
-
-  x86_64_check_and_enable_capability();
-
-  /* Revoke the lower memory */
-
-  __revoke_low_memory();
-
-  /* perform board-specific initializations */
-
-  x86_64_boardinitialize();
-
-  /* Early serial driver initialization */
-
-  x86_64_earlyserialinit();
-
-  x86_64_timer_calibrate_freq();
-
-#ifdef CONFIG_LIB_SYSCALL
-  enable_syscall();
-#endif
+  setgdt((void *)g_gdt64, (uintptr_t)(&g_gdt64_low_end - &g_gdt64_low) - 1);
 }
-

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/lcd/lcd_framebuffer.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <nuttx/kmalloc.h>
@@ -105,7 +107,7 @@ static int lcdfb_setcursor(FAR struct fb_vtable_s *vtable,
              FAR struct fb_setcursor_s *settings);
 #endif
 
-static int lcdfb_setpower(FAR struct fb_vtable_s *vtable, FAR int power);
+static int lcdfb_setpower(FAR struct fb_vtable_s *vtable, int power);
 
 /****************************************************************************
  * Private Data
@@ -400,7 +402,7 @@ static int lcdfb_putcmap(FAR struct fb_vtable_s *vtable,
 
 #ifdef CONFIG_FB_HWCURSOR
 static int lcdfb_getcursor(FAR struct fb_vtable_s *vtable,
-                        FAR struct fb_cursorattrib_s *attrib)
+                           FAR struct fb_cursorattrib_s *attrib)
 {
   lcdinfo("vtable=%p attrib=%p\n", vtable, attrib);
   FAR struct lcdfb_dev_s *priv;
@@ -435,7 +437,7 @@ static int lcdfb_getcursor(FAR struct fb_vtable_s *vtable,
 
 #ifdef CONFIG_FB_HWCURSOR
 static int lcdfb_setcursor(FAR struct fb_vtable_s *vtable,
-                       FAR struct fb_setcursor_s *settings)
+                           FAR struct fb_setcursor_s *settings)
 {
   FAR struct lcdfb_dev_s *priv;
   FAR struct lcd_dev_s *lcd;
@@ -467,7 +469,7 @@ static int lcdfb_setcursor(FAR struct fb_vtable_s *vtable,
  * Name: lcdfb_setpower
  ****************************************************************************/
 
-static int lcdfb_setpower(FAR struct fb_vtable_s *vtable, FAR int power)
+static int lcdfb_setpower(FAR struct fb_vtable_s *vtable, int power)
 {
   int ret = -EINVAL;
   FAR struct lcdfb_dev_s *priv;
@@ -486,6 +488,92 @@ static int lcdfb_setpower(FAR struct fb_vtable_s *vtable, FAR int power)
       if (ret < 0)
         {
           lcderr("ERROR: LCD setpower() failed: %d\n", ret);
+        }
+    }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: lcdfb_ioctl
+ ****************************************************************************/
+
+static int lcdfb_ioctl(FAR struct fb_vtable_s *vtable,
+                       int cmd, unsigned long arg)
+{
+  int ret = -EINVAL;
+  FAR struct lcdfb_dev_s *priv;
+  FAR struct lcd_dev_s *lcd;
+
+  DEBUGASSERT(vtable != NULL);
+
+  priv = (FAR struct lcdfb_dev_s *)vtable;
+
+  if (priv != NULL)
+    {
+      lcd = priv->lcd;
+
+      if (lcd->ioctl)
+        {
+          ret = lcd->ioctl(lcd, cmd, arg);
+        }
+      else
+        {
+          ret = -ENOTTY;
+        }
+    }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: lcdfb_open
+ ****************************************************************************/
+
+static int lcdfb_open(FAR struct fb_vtable_s *vtable)
+{
+  int ret = OK;
+  FAR struct lcdfb_dev_s *priv;
+  FAR struct lcd_dev_s *lcd;
+
+  DEBUGASSERT(vtable != NULL);
+
+  priv = (FAR struct lcdfb_dev_s *)vtable;
+
+  if (priv != NULL)
+    {
+      lcd = priv->lcd;
+
+      if (lcd->open)
+        {
+          ret = lcd->open(lcd);
+        }
+    }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: lcdfb_close
+ ****************************************************************************/
+
+static int lcdfb_close(FAR struct fb_vtable_s *vtable)
+{
+  int ret = OK;
+  FAR struct lcdfb_dev_s *priv;
+  FAR struct lcd_dev_s *lcd;
+
+  DEBUGASSERT(vtable != NULL);
+
+  priv = (FAR struct lcdfb_dev_s *)vtable;
+
+  if (priv != NULL)
+    {
+      lcd = priv->lcd;
+
+      if (lcd->close)
+        {
+          ret = lcd->close(lcd);
         }
     }
 
@@ -525,7 +613,7 @@ int up_fbinitialize(int display)
 
   /* Allocate the framebuffer state structure */
 
-  priv = (FAR struct lcdfb_dev_s *)kmm_zalloc(sizeof(struct lcdfb_dev_s));
+  priv = kmm_zalloc(sizeof(struct lcdfb_dev_s));
   if (priv == NULL)
     {
       lcderr("ERROR: Failed to allocate state structure\n");
@@ -548,6 +636,9 @@ int up_fbinitialize(int display)
 #endif
   priv->vtable.updatearea   = lcdfb_updateearea,
   priv->vtable.setpower     = lcdfb_setpower,
+  priv->vtable.ioctl        = lcdfb_ioctl,
+  priv->vtable.open         = lcdfb_open,
+  priv->vtable.close        = lcdfb_close,
 
 #ifdef CONFIG_LCD_EXTERNINIT
   /* Use external graphics driver initialization */
@@ -608,7 +699,7 @@ int up_fbinitialize(int display)
   priv->stride = ((size_t)priv->xres * priv->pinfo.bpp + 7) >> 3;
   priv->fblen  = priv->stride * priv->yres;
 
-  priv->fbmem  = (FAR uint8_t *)kmm_zalloc(priv->fblen);
+  priv->fbmem  = kmm_zalloc(priv->fblen);
   if (priv->fbmem == NULL)
     {
       lcderr("ERROR: Failed to allocate frame buffer memory\n");

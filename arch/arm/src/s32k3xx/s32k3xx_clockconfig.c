@@ -28,7 +28,7 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 
@@ -245,7 +245,7 @@ static uint32_t s32k3xx_get_phi0freq(void)
  * Name: s32k3xx_get_scsfreq
  *
  * Description:
- *   Gets SCS current system clock frequence
+ *   Gets SCS current system clock frequency
  *
  * Input Parameters:
  *   None

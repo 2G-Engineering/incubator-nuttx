@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/kinetis/freedom-k28f/src/freedom-k28f.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -224,9 +226,6 @@ extern struct i2c_master_s *g_i2c1_dev;
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=y && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int k28_bringup(void);
@@ -266,7 +265,7 @@ extern void weak_function k28_usbdev_initialize(void);
  * Name: k28_usbhost_initialize
  *
  * Description:
- *   Inititialize USB High Speed Host
+ *   Initialize USB High Speed Host
  *
  ****************************************************************************/
 
@@ -280,7 +279,7 @@ int k28_usbhost_initialize(void);
  * Name: k28_sdhc_initialize
  *
  * Description:
- *   Inititialize the SDHC SD card slot
+ *   Initialize the SDHC SD card slot
  *
  ****************************************************************************/
 

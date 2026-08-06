@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/usb/adb.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -61,11 +63,21 @@ extern "C"
  *   Initialize the Android Debug Bridge USB device driver.
  *
  * Returned Value:
- *   0 on success, -errno on failure
+ *   A non-NULL "handle" is returned on success.
  *
  ****************************************************************************/
 
-int usbdev_adb_initialize(void);
+FAR void *usbdev_adb_initialize(void);
+
+/****************************************************************************
+ * Name: usbdev_adb_uninitialize
+ *
+ * Description:
+ *   Uninitialize the Android Debug Bridge USB device driver.
+ *
+ ****************************************************************************/
+
+void usbdev_adb_uninitialize(FAR void *handle);
 
 /****************************************************************************
  * Name: usbdev_adb_get_composite_devdesc

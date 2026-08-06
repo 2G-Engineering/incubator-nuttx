@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/audio/audio.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -112,6 +114,12 @@
 #define AUDIOIOC_HWRESET            _AUDIOIOC(16)
 #define AUDIOIOC_SETBUFFERINFO      _AUDIOIOC(17)
 #define AUDIOIOC_SETPARAMTER        _AUDIOIOC(18)
+#define AUDIOIOC_GETLATENCY         _AUDIOIOC(19)
+#define AUDIOIOC_FLUSH              _AUDIOIOC(20)
+#define AUDIOIOC_GETPOSITION        _AUDIOIOC(21)
+#define AUDIOIOC_GETAUDIOINFO       _AUDIOIOC(22)
+#define AUDIOIOC_GETSTATUS          _AUDIOIOC(23)
+#define AUDIOIOC_RESETSTATUS        _AUDIOIOC(24)
 
 /* Audio Device Types *******************************************************/
 
@@ -152,24 +160,188 @@
 #define AUDIO_FMT_MIDI              0x09
 #define AUDIO_FMT_OGG_VORBIS        0x0a
 #define AUDIO_FMT_FLAC              0x0b
-
-/* Audio Sub-Format Types ***************************************************/
+#define AUDIO_FMT_SBC               0x0c
+#define AUDIO_FMT_AAC               0x0d
+#define AUDIO_FMT_MSBC              0x0e
+#define AUDIO_FMT_CVSD              0x0f
+#define AUDIO_FMT_AMR               0x10
+#define AUDIO_FMT_AMRWB             0x11
+#define AUDIO_FMT_AMRWBPLUS         0x12
+#define AUDIO_FMT_OPUS              0x13
+#define AUDIO_FMT_REAL              0x14
+#define AUDIO_FMT_IEC61937          0x15
+#define AUDIO_FMT_G723_1            0x16
+#define AUDIO_FMT_G729              0x17
+#define AUDIO_FMT_ALAC              0x18
+#define AUDIO_FMT_APE               0x19
 
 #define AUDIO_SUBFMT_END            0x00
-#define AUDIO_SUBFMT_PCM_MP1        0x01
-#define AUDIO_SUBFMT_PCM_MP2        0x02
-#define AUDIO_SUBFMT_PCM_MP3        0x03
-#define AUDIO_SUBFMT_PCM_MU_LAW     0x04
-#define AUDIO_SUBFMT_PCM_A_LAW      0x05
-#define AUDIO_SUBFMT_PCM_U8         0x06
-#define AUDIO_SUBFMT_PCM_S8         0x07
-#define AUDIO_SUBFMT_PCM_U16_LE     0x08
-#define AUDIO_SUBFMT_PCM_S16_BE     0x09
-#define AUDIO_SUBFMT_PCM_S16_LE     0x0a
-#define AUDIO_SUBFMT_PCM_U16_BE     0x0b
-#define AUDIO_SUBFMT_MIDI_0         0x0c
-#define AUDIO_SUBFMT_MIDI_1         0x0d
-#define AUDIO_SUBFMT_MIDI_2         0x0e
+
+#define AUDIO_PROFILE_PCM                  0x01
+
+#define AUDIO_SUBFMT_PCM_MP1               0x01
+#define AUDIO_SUBFMT_PCM_MP2               0x02
+#define AUDIO_SUBFMT_PCM_MP3               0x03
+#define AUDIO_SUBFMT_PCM_MU_LAW            0x04
+#define AUDIO_SUBFMT_PCM_A_LAW             0x05
+#define AUDIO_SUBFMT_PCM_U8                0x06
+#define AUDIO_SUBFMT_PCM_S8                0x07
+#define AUDIO_SUBFMT_PCM_U16_LE            0x08
+#define AUDIO_SUBFMT_PCM_S16_BE            0x09
+#define AUDIO_SUBFMT_PCM_S16_LE            0x0a
+#define AUDIO_SUBFMT_PCM_U16_BE            0x0b
+#define AUDIO_SUBFMT_PCM_U24_LE            0x0c
+#define AUDIO_SUBFMT_PCM_S24_BE            0x0d
+#define AUDIO_SUBFMT_PCM_S24_LE            0x0e
+#define AUDIO_SUBFMT_PCM_U24_BE            0x0f
+#define AUDIO_SUBFMT_PCM_U32_LE            0x10
+#define AUDIO_SUBFMT_PCM_U32_BE            0x11
+#define AUDIO_SUBFMT_PCM_S32_LE            0x12
+#define AUDIO_SUBFMT_PCM_S32_BE            0x13
+#define AUDIO_SUBFMT_PCM_FLOAT_LE          0x14
+#define AUDIO_SUBFMT_PCM_FLOAT_BE          0x15
+
+#define AUDIO_SUBFMT_MIDI_0                0x01
+#define AUDIO_SUBFMT_MIDI_1                0x02
+#define AUDIO_SUBFMT_MIDI_2                0x03
+
+#define AUDIO_CHANMODE_MP3_MONO            0x01
+#define AUDIO_CHANMODE_MP3_STEREO          0x02
+#define AUDIO_CHANMODE_MP3_JOINTSTEREO     0x03
+#define AUDIO_CHANMODE_MP3_DUAL            0x04
+
+#define AUDIO_PROFILE_AMR                  0x01
+
+#define AUDIO_SUBFMT_AMR_DTX_OFF           0x01
+#define AUDIO_SUBFMT_AMR_VAD1              0x02
+#define AUDIO_SUBFMT_AMR_VAD2              0x03
+
+#define AUDIO_STREAMFORMAT_UNDEF           0x01
+#define AUDIO_STREAMFORMAT_CONFORMANCE     0x02
+#define AUDIO_STREAMFORMAT_IF1             0x03
+#define AUDIO_STREAMFORMAT_IF2             0x04
+#define AUDIO_STREAMFORMAT_FSF             0x05
+#define AUDIO_STREAMFORMAT_RTPPAYLOAD      0x06
+#define AUDIO_STREAMFORMAT_ITU             0x07
+
+#define AUDIO_PROFILE_AMRWB                0x01
+
+#define AUDIO_SUBFMT_AMRWB_DTX_OFF         0x01
+#define AUDIO_SUBFMT_AMRWB_VAD1            0x02
+#define AUDIO_SUBFMT_AMRWB_VAD2            0x03
+
+#define AUDIO_PROFILE_AMRWBPLUS            0x01
+
+#define AUDIO_PROFILE_AAC                  0x01
+
+#define AUDIO_SUBFMT_AAC_MAIN              0x01
+#define AUDIO_SUBFMT_AAC_LC                0x02
+#define AUDIO_SUBFMT_AAC_SSR               0x03
+#define AUDIO_SUBFMT_AAC_LTP               0x04
+#define AUDIO_SUBFMT_AAC_HE                0x05
+#define AUDIO_SUBFMT_AAC_SCALABLE          0x06
+#define AUDIO_SUBFMT_AAC_ERLC              0x07
+#define AUDIO_SUBFMT_AAC_LD                0x08
+#define AUDIO_SUBFMT_AAC_HE_PS             0x09
+#define AUDIO_SUBFMT_AAC_HE_MPS            0x0a
+
+#define AUDIO_STREAMFORMAT_MP2ADTS         0x01
+#define AUDIO_STREAMFORMAT_MP4ADTS         0x02
+#define AUDIO_STREAMFORMAT_MP4LOAS         0x03
+#define AUDIO_STREAMFORMAT_MP4LATM         0x04
+#define AUDIO_STREAMFORMAT_ADIF            0x05
+#define AUDIO_STREAMFORMAT_MP4FF           0x06
+#define AUDIO_STREAMFORMAT_RAW             0x07
+#define AUDIO_STREAMFORMAT_LATM            0x08
+
+#define AUDIO_PROFILE_WMA7                 0x01
+#define AUDIO_PROFILE_WMA8                 0x02
+#define AUDIO_PROFILE_WMA9                 0x03
+#define AUDIO_PROFILE_WMA10                0x04
+#define AUDIO_PROFILE_WMA9_PRO             0x05
+#define AUDIO_PROFILE_WMA9_LOSSLESS        0x06
+#define AUDIO_PROFILE_WMA10_LOSSLESS       0x07
+
+#define AUDIO_SUBFMT_WMA_LEVEL1            0x01
+#define AUDIO_SUBFMT_WMA_LEVEL2            0x02
+#define AUDIO_SUBFMT_WMA_LEVEL3            0x03
+#define AUDIO_SUBFMT_WMA_LEVEL4            0x04
+#define AUDIO_SUBFMT_WMAPRO_LEVELM0        0x05
+#define AUDIO_SUBFMT_WMAPRO_LEVELM1        0x06
+#define AUDIO_SUBFMT_WMAPRO_LEVELM2        0x07
+#define AUDIO_SUBFMT_WMAPRO_LEVELM3        0x08
+
+#define AUDIO_STREAMFORMAT_WMA_ASF         0x01
+#define AUDIO_STREAMFORMAT_WMA_NOASF_HDR   0x02
+
+#define AUDIO_PROFILE_SBC                  0x01
+
+#define AUDIO_SUBFMT_SBC                   0x01
+
+#define AUDIO_STREAMFORMAT_SBC_PACKED      0x01 /* SBC data with MTU packed */
+
+#define AUDIO_PROFILE_REALAUDIO            0x01
+
+#define AUDIO_SUBFMT_REALAUDIO_G2          0x01
+#define AUDIO_SUBFMT_REALAUDIO_8           0x02
+#define AUDIO_SUBFMT_REALAUDIO_10          0x03
+#define AUDIO_SUBFMT_REALAUDIO_SURROUND    0x04
+
+#define AUDIO_PROFILE_VORBIS               0x01
+
+#define AUDIO_SUBFMT_VORBIS                0x01
+
+#define AUDIO_PROFILE_FLAC                 0x01
+
+#define AUDIO_SUBFMT_FLAC_LEVEL0           0x01
+#define AUDIO_SUBFMT_FLAC_LEVEL1           0x02
+#define AUDIO_SUBFMT_FLAC_LEVEL2           0x03
+#define AUDIO_SUBFMT_FLAC_LEVEL3           0x04
+#define AUDIO_SUBFMT_FLAC_LEVEL4           0x05
+#define AUDIO_SUBFMT_FLAC_LEVEL5           0x06
+#define AUDIO_SUBFMT_FLAC_LEVEL6           0x07
+#define AUDIO_SUBFMT_FLAC_LEVEL7           0x08
+#define AUDIO_SUBFMT_FLAC_LEVEL8           0x09
+
+#define AUDIO_STREAMFORMAT_FLAC            0x01
+#define AUDIO_STREAMFORMAT_FLAC_OGG        0x02
+
+#define AUDIO_PROFILE_IEC61937             0x01
+#define AUDIO_PROFILE_IEC61937_SPDIF       0x02
+
+#define AUDIO_SUBFMT_IEC_REF_STREAM_HEADER 0x01
+#define AUDIO_SUBFMT_IEC_LPCM              0x02
+#define AUDIO_SUBFMT_IEC_AC3               0x03
+#define AUDIO_SUBFMT_IEC_MPEG1             0x04
+#define AUDIO_SUBFMT_IEC_MP3               0x05
+#define AUDIO_SUBFMT_IEC_MPEG2             0x06
+#define AUDIO_SUBFMT_IEC_AACLC             0x07
+#define AUDIO_SUBFMT_IEC_DTS               0x08
+#define AUDIO_SUBFMT_IEC_ATRAC             0x09
+#define AUDIO_SUBFMT_IEC_SACD              0x0a
+#define AUDIO_SUBFMT_IEC_EAC3              0x0b
+#define AUDIO_SUBFMT_IEC_DTS_HD            0x0c
+#define AUDIO_SUBFMT_IEC_MLP               0x0d
+#define AUDIO_SUBFMT_IEC_DST               0x0e
+#define AUDIO_SUBFMT_IEC_WMAPRO            0x0f
+#define AUDIO_SUBFMT_IEC_REF_CXT           0x10
+#define AUDIO_SUBFMT_IEC_HE_AAC            0x11
+#define AUDIO_SUBFMT_IEC_HE_AAC2           0x12
+#define AUDIO_SUBFMT_IEC_MPEG_SURROUND     0x13
+
+#define AUDIO_PROFILE_G723_1               0x01
+
+#define AUDIO_SUBFMT_G723_1_ANNEX_A        0x01
+#define AUDIO_SUBFMT_G723_1_ANNEX_B        0x02
+#define AUDIO_SUBFMT_G723_1_ANNEX_C        0x03
+
+#define AUDIO_PROFILE_G729                 0x01
+
+#define AUDIO_SUBFMT_G729_ANNEX_A          0x01
+#define AUDIO_SUBFMT_G729_ANNEX_B          0x02
+
+#define AUDIO_RATECONTROL_CONSTANT         0x01
+#define AUDIO_RATECONTROL_VARIABLE         0x02
 
 /* Audio Hardware-Format Types **********************************************/
 
@@ -200,18 +372,27 @@
 
 #define AUDIO_SAMP_RATE_8K          0x0001
 #define AUDIO_SAMP_RATE_11K         0x0002
-#define AUDIO_SAMP_RATE_16K         0x0004
-#define AUDIO_SAMP_RATE_22K         0x0008
-#define AUDIO_SAMP_RATE_32K         0x0010
-#define AUDIO_SAMP_RATE_44K         0x0020
-#define AUDIO_SAMP_RATE_48K         0x0040
-#define AUDIO_SAMP_RATE_88K         0x0080
-#define AUDIO_SAMP_RATE_96K         0x0100
-#define AUDIO_SAMP_RATE_128K        0x0200
-#define AUDIO_SAMP_RATE_160K        0x0400
-#define AUDIO_SAMP_RATE_172K        0x0800
-#define AUDIO_SAMP_RATE_192K        0x1000
-
+#define AUDIO_SAMP_RATE_12K         0x0004
+#define AUDIO_SAMP_RATE_16K         0x0008
+#define AUDIO_SAMP_RATE_22K         0x0010
+#define AUDIO_SAMP_RATE_24K         0x0020
+#define AUDIO_SAMP_RATE_32K         0x0040
+#define AUDIO_SAMP_RATE_44K         0x0080
+#define AUDIO_SAMP_RATE_48K         0x0100
+#define AUDIO_SAMP_RATE_88K         0x0200
+#define AUDIO_SAMP_RATE_96K         0x0400
+#define AUDIO_SAMP_RATE_128K        0x0800
+#define AUDIO_SAMP_RATE_160K        0x1000
+#define AUDIO_SAMP_RATE_172K        0x2000
+#define AUDIO_SAMP_RATE_192K        0x4000
+#define AUDIO_SAMP_RATE_DEF_ALL    (AUDIO_SAMP_RATE_8K   | AUDIO_SAMP_RATE_11K | \
+                                    AUDIO_SAMP_RATE_12K  | AUDIO_SAMP_RATE_16K | \
+                                    AUDIO_SAMP_RATE_22K  | AUDIO_SAMP_RATE_24K | \
+                                    AUDIO_SAMP_RATE_32K  | AUDIO_SAMP_RATE_44K | \
+                                    AUDIO_SAMP_RATE_48K  | AUDIO_SAMP_RATE_88K | \
+                                    AUDIO_SAMP_RATE_96K  | AUDIO_SAMP_RATE_128K | \
+                                    AUDIO_SAMP_RATE_160K | AUDIO_SAMP_RATE_172K | \
+                                    AUDIO_SAMP_RATE_192K)
 /* Audio Sub-sampling Ratios  ***********************************************/
 
 #define AUDIO_SUBSAMPLE_NONE        0
@@ -304,6 +485,7 @@
 #define AUDIO_CALLBACK_IOERR        0x02
 #define AUDIO_CALLBACK_COMPLETE     0x03
 #define AUDIO_CALLBACK_MESSAGE      0x04
+#define AUDIO_CALLBACK_UNDERRUN     0x05
 
 /* Audio Pipeline Buffer (AP Buffer) flags **********************************/
 
@@ -334,6 +516,7 @@
 #define AUDIO_MSG_COMMAND          10
 #define AUDIO_MSG_SLIENCE          11
 #define AUDIO_MSG_UNDERRUN         12
+#define AUDIO_MSG_IOERR            13
 #define AUDIO_MSG_USER             64
 
 /* Audio Pipeline Buffer flags */
@@ -342,6 +525,19 @@
 #define AUDIO_APB_OUTPUT_PROCESS    (1 << 1)
 #define AUDIO_APB_DEQUEUED          (1 << 2)
 #define AUDIO_APB_FINAL             (1 << 3) /* Last buffer in the stream */
+
+/* Audio channels range wrapper macro */
+
+#define AUDIO_CHANNELS_RANGE(min, max) ((uint8_t)(((min) << 4) | ((max) & 0xf)))
+
+/* State of appl and lower driver, higher value = higher priority */
+
+#define AUDIO_STATE_OPEN           0
+#define AUDIO_STATE_PREPARED       1
+#define AUDIO_STATE_PAUSED         2
+#define AUDIO_STATE_XRUN           3
+#define AUDIO_STATE_DRAINING       4
+#define AUDIO_STATE_RUNNING        5
 
 /****************************************************************************
  * Public Types
@@ -355,7 +551,135 @@ typedef uint32_t apb_samp_t;
 typedef uint16_t apb_samp_t;
 #endif
 
+/* This structure describes the lower driver status */
+
+struct audio_status_s
+{
+  volatile int state;
+  volatile unsigned long head;
+  volatile unsigned long tail;
+};
+
 /* This structure is used to describe the audio device capabilities */
+
+struct audio_enc_wma_s
+{
+  uint32_t super_block_align;
+};
+
+struct audio_enc_vorbis_s
+{
+  int32_t  quality;
+  uint32_t managed;
+  uint32_t max_bit_rate;
+  uint32_t min_bit_rate;
+  uint32_t downmix;
+};
+
+struct audio_enc_real_s
+{
+  uint32_t quant_bits;
+  uint32_t start_region;
+  uint32_t num_regions;
+};
+
+struct audio_enc_flac_s
+{
+  uint32_t num;
+  uint32_t gain;
+};
+
+struct audio_enc_sbc_s
+{
+  uint8_t blocks;
+  uint8_t subbands;
+  uint8_t alloc_method;
+  uint8_t bitpool;
+};
+
+struct audio_enc_lc3_s
+{
+  float frame_duration;
+};
+
+struct audio_enc_generic_s
+{
+  uint32_t bw;
+  int32_t  reserved[15];
+};
+
+struct audio_dec_flac_s
+{
+  uint16_t sample_size;
+  uint16_t min_blk_size;
+  uint16_t max_blk_size;
+  uint16_t min_frame_size;
+  uint16_t max_frame_size;
+  uint16_t reserved;
+};
+
+struct audio_dec_wma_s
+{
+  uint32_t encoder_option;
+  uint32_t adv_encoder_option;
+  uint32_t adv_encoder_option2;
+  uint32_t reserved;
+};
+
+struct audio_dec_alac_s
+{
+  uint32_t frame_length;
+  uint8_t  compatible_version;
+  uint8_t  pb;
+  uint8_t  mb;
+  uint8_t  kb;
+  uint32_t max_run;
+  uint32_t max_frame_bytes;
+};
+
+struct audio_dec_ape_s
+{
+  uint16_t compatible_version;
+  uint16_t compression_level;
+  uint32_t format_flags;
+  uint32_t blocks_per_frame;
+  uint32_t final_frame_blocks;
+  uint32_t total_frames;
+  uint32_t seek_table_present;
+};
+
+struct audio_dec_lc3_s
+{
+  float frame_duration;
+};
+
+union audio_codec_options_u
+{
+  struct audio_enc_wma_s wma;
+  struct audio_enc_vorbis_s vorbis;
+  struct audio_enc_real_s real;
+  struct audio_enc_flac_s flac;
+  struct audio_enc_sbc_s sbc;
+  struct audio_enc_lc3_s lc3;
+  struct audio_enc_generic_s generic;
+  struct audio_dec_flac_s flac_d;
+  struct audio_dec_wma_s wma_d;
+  struct audio_dec_alac_s alac_d;
+  struct audio_dec_ape_s ape_d;
+  struct audio_dec_lc3_s lc3_d;
+};
+
+struct audio_codec_s
+{
+  uint32_t bit_rate;
+  uint32_t rate_control;
+  uint32_t profile;
+  uint32_t level;
+  uint32_t ch_mode;
+  uint32_t format;
+  uint32_t align;
+  union audio_codec_options_u options;
+};
 
 struct audio_caps_s
 {
@@ -386,10 +710,12 @@ struct audio_caps_s
     uint8_t  b[4];
     uint16_t hw[2];
     uint32_t w;
-#ifdef CONFIG_HAVE_LONG_LONG
     uint64_t qw;
-#endif
   } ac_controls;
+
+  /* Codec info */
+
+  struct audio_codec_s ac_codec;
 };
 
 struct audio_caps_desc_s
@@ -404,12 +730,12 @@ struct audio_caps_desc_s
 
 struct audio_info_s
 {
-  uint8_t samplerate;   /* Sample Rate of the audio data */
-  uint8_t channels;     /* Number of channels (1, 2, 5, 7) */
-  uint8_t format;       /* Audio data format */
-  uint8_t subformat;    /* Audio subformat
-                         * (maybe should be combined with format?
-                         */
+  uint32_t              samplerate; /* Sample Rate of the audio data */
+  uint8_t               channels;   /* Number of channels (1, 2, 5, 7) */
+  uint8_t               format;     /* Audio data format */
+  uint8_t               subformat;  /* Audio subformat */
+  uint8_t               type;       /* device type */
+  struct audio_codec_s  codec;      /* Codec extra params */
 };
 
 /* This structure describes the preferred number and size of
@@ -436,6 +762,7 @@ struct ap_buffer_s
   apb_samp_t            nmaxbytes;  /* The maximum number of bytes */
   apb_samp_t            nbytes;     /* The number of bytes used */
   apb_samp_t            curbyte;    /* Next byte to be processed */
+  apb_samp_t            nsamples;   /* The number of samples in the buffer */
   mutex_t               lock;       /* Reference locking mutex */
   uint16_t              flags;      /* Buffer flags */
   uint16_t              crefs;      /* Number of reference counts */
@@ -466,11 +793,11 @@ struct audio_msg_s
 #ifdef CONFIG_AUDIO_BUILTIN_SOUNDS
 struct audio_sound_s
 {
-  const char         *name;         /* Name of the sound */
+  FAR const char     *name;         /* Name of the sound */
   uint32_t            id;           /* ID of the sound */
   uint32_t            type;         /* Type of sound */
   uint32_t            size;         /* Number of bytes in the sound */
-  const uint8_t      *data;         /* Pointer to the data */
+  FAR const uint8_t  *data;         /* Pointer to the data */
 };
 
 #endif
@@ -497,10 +824,12 @@ struct audio_buf_desc_s
 
 #ifdef CONFIG_AUDIO_MULTI_SESSION
 typedef CODE void (*audio_callback_t)(FAR void *priv, uint16_t reason,
-        FAR struct ap_buffer_s *apb, uint16_t status, FAR void *session);
+                                      FAR struct ap_buffer_s *apb,
+                                      uint16_t status, FAR void *session);
 #else
 typedef CODE void (*audio_callback_t)(FAR void *priv, uint16_t reason,
-        FAR struct ap_buffer_s *apb, uint16_t status);
+                                      FAR struct ap_buffer_s *apb,
+                                      uint16_t status);
 #endif
 
 /* This structure is a set a callback functions used to call from the upper-
@@ -521,7 +850,7 @@ struct audio_ops_s
    */
 
   CODE int (*getcaps)(FAR struct audio_lowerhalf_s *dev, int type,
-      FAR struct audio_caps_s *caps);
+                      FAR struct audio_caps_s *caps);
 
   /* This method is called to bind the lower-level driver to the upper-level
    * driver and to configure the driver for a specific mode of
@@ -533,10 +862,11 @@ struct audio_ops_s
 
 #ifdef CONFIG_AUDIO_MULTI_SESSION
   CODE int (*configure)(FAR struct audio_lowerhalf_s *dev,
-      FAR void *session, FAR const struct audio_caps_s *caps);
+                        FAR void *session,
+                        FAR const struct audio_caps_s *caps);
 #else
   CODE int (*configure)(FAR struct audio_lowerhalf_s *dev,
-      FAR const struct audio_caps_s *caps);
+                        FAR const struct audio_caps_s *caps);
 #endif
 
   /* This method is called when the driver is closed.  The lower half driver
@@ -604,7 +934,7 @@ struct audio_ops_s
    */
 
   CODE int (*allocbuffer)(FAR struct audio_lowerhalf_s *dev,
-          FAR struct audio_buf_desc_s *apb);
+                          FAR struct audio_buf_desc_s *apb);
 
   /* Free an audio pipeline buffer.  If the lower-level driver
    * provides an allocbuffer routine, it should also provide the
@@ -612,7 +942,7 @@ struct audio_ops_s
    */
 
   CODE int (*freebuffer)(FAR struct audio_lowerhalf_s *dev,
-         FAR struct audio_buf_desc_s *apb);
+                         FAR struct audio_buf_desc_s *apb);
 
   /* Enqueue a buffer for processing.
    * This is a non-blocking enqueue operation.
@@ -629,12 +959,12 @@ struct audio_ops_s
    */
 
   CODE int (*enqueuebuffer)(FAR struct audio_lowerhalf_s *dev,
-          FAR struct ap_buffer_s *apb);
+                            FAR struct ap_buffer_s *apb);
 
   /* Cancel a previously enqueued buffer. */
 
   CODE int (*cancelbuffer)(FAR struct audio_lowerhalf_s *dev,
-          FAR struct ap_buffer_s *apb);
+                           FAR struct ap_buffer_s *apb);
 
   /* Lower-half logic may support platform-specific ioctl commands */
 
@@ -699,7 +1029,7 @@ struct audio_lowerhalf_s
    * buffer, reporting asynchronous event, reporting errors, etc.
    */
 
-  FAR audio_callback_t  upper;
+  audio_callback_t upper;
 
   /* The private opaque pointer to be passed to upper-layer during
    * callbacks

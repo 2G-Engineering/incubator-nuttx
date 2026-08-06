@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/moxart/moxa/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -22,11 +24,8 @@ include $(TOPDIR)/Make.defs
 
 CSRCS = moxart_boot.c
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += moxart_appinit.c
 ifeq ($(CONFIG_BOARDCTL_RESET),y)
 CSRCS += moxart_reset.c
-endif
 endif
 
 include $(TOPDIR)/boards/Board.mk

@@ -31,7 +31,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/nuttx.h>
 #include <nuttx/kmalloc.h>
@@ -40,27 +40,15 @@
 #include <nuttx/wireless/bluetooth/bt_driver.h>
 #include <nuttx/wireless/bluetooth/bt_uart.h>
 
-#if defined(CONFIG_UART_BTH4)
-  #include <nuttx/serial/uart_bth4.h>
-#endif
-
 #include "esp32_ble_adapter.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* BLE packet buffer max number */
-
-#define BLE_BUF_NUM       CONFIG_ESP32_BLE_PKTBUF_NUM
-
 /* BLE packet buffer max size */
 
 #define BLE_BUF_SIZE      1024
-
-/* Low-priority work queue process RX/TX */
-
-#define BLE_WORK          LPWORK
 
 /****************************************************************************
  * Private Types
@@ -330,14 +318,10 @@ int esp32_ble_initialize(void)
       return ERROR;
     }
 
-#if defined(CONFIG_UART_BTH4)
-  ret = uart_bth4_register(CONFIG_BT_UART_ON_DEV_NAME, &g_ble_priv.drv);
-#else
-  ret = bt_netdev_register(&g_ble_priv.drv);
-#endif
+  ret = bt_driver_register(&g_ble_priv.drv);
   if (ret < 0)
     {
-      wlerr("bt_netdev_register or uart_bth4_register error: %d\n", ret);
+      wlerr("bt_driver_register error: %d\n", ret);
       return ret;
     }
 

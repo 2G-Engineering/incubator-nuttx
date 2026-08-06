@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/usbmisc/fusb302.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <poll.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/compiler.h>
 #include <nuttx/fs/fs.h>
@@ -35,6 +37,7 @@
 #include <nuttx/mutex.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/i2c/i2c_master.h>
+#include <nuttx/signal.h>
 
 #include <nuttx/usb/fusb302.h>
 #include <sys/ioctl.h>
@@ -455,6 +458,7 @@ void           enableccmeas(FAR struct fusb302_dev_s *priv,
 void           set_switches(FAR struct fusb302_dev_s *priv,
                             uint8_t toggsval);
 static int     set_int_mask(struct fusb302_dev_s *priv);
+
 /****************************************************************************
  * Private Data
  ****************************************************************************/
@@ -628,7 +632,7 @@ void enableccmeas(struct fusb302_dev_s *priv, enum cc_meas_e measure,
  *
  * Input Parameters:
  *  priv      - pointer to device structure
- *  threhold  - MDAC threshold value
+ *  threshold - MDAC threshold value
  *
  * Returned Value:
  *   none
@@ -644,7 +648,7 @@ void setmdac(struct fusb302_dev_s *priv, enum src_current_e thresh)
   regval |= MEASURE_MDAC(src_mdac_val[thresh]);
 
   fusb302_putreg(priv, FUSB302_MEASURE_REG, regval);
-  usleep(150);
+  nxsched_usleep(150);
 }
 
 /****************************************************************************
@@ -801,7 +805,9 @@ static void fusb302_worker(FAR void *arg)
 
   nxmutex_lock(&priv->devlock);
 
-  if (!priv->int_pending) /* just to double check we really should be here */
+  /* just to double check we really should be here */
+
+  if (!priv->int_pending)
     {
       fusb302_err("ERROR: worker task run with no interrupt\n");
       goto error_exit;
@@ -1701,7 +1707,7 @@ static int fusb302_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   {
   case USBCIOC_READ_DEVID:
     {
-      ret = fusb302_read_device_id(priv, (uint8_t *)arg);
+      ret = fusb302_read_device_id(priv, (FAR uint8_t *)arg);
     }
     break;
 
@@ -1718,7 +1724,7 @@ static int fusb302_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
     break;
   case USBCIOC_READ_STATUS:
     {
-      ret = fusb302_read_status(priv, (uint8_t *)arg);
+      ret = fusb302_read_status(priv, (FAR uint8_t *)arg);
     }
     break;
 
@@ -1758,11 +1764,11 @@ static int fusb302_poll(FAR struct file *filep,
   int ret = OK;
   int i;
 
-  DEBUGASSERT(filep && fds);
+  DEBUGASSERT(fds);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct fusb302_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   ret = nxmutex_lock(&priv->devlock);
   if (ret < 0)
@@ -1809,7 +1815,7 @@ static int fusb302_poll(FAR struct file *filep,
     {
       /* This is a request to tear down the poll. */
 
-      struct pollfd **slot = (struct pollfd **)fds->priv;
+      FAR struct pollfd **slot = (FAR struct pollfd **)fds->priv;
       DEBUGASSERT(slot != NULL);
 
       /* Remove all memory of the poll setup */

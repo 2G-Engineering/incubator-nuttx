@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/net/phy_notify.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -38,7 +40,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <net/if.h>
 
 #include <nuttx/arch.h>
@@ -224,12 +226,14 @@ static int phy_handler(int irq, FAR void *context, FAR void *arg)
 
   /* Signal the client that the PHY has something interesting to say to us */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   ret = nxsig_notification(client->pid, &client->event,
                            SI_QUEUE, &client->work);
   if (ret < 0)
     {
       phyerr("ERROR: nxsig_notification failed: %d\n", ret);
     }
+#endif
 
   return OK;
 }

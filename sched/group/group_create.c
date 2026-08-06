@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/group/group_create.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,8 +29,8 @@
 #include <sched.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
@@ -40,22 +42,10 @@
 #include "tls/tls.h"
 
 /****************************************************************************
- * Pre-processor Definitions
+ * Private Data
  ****************************************************************************/
 
-/* Is this worth making a configuration option? */
-
-#define GROUP_INITIAL_MEMBERS 4
-
-/****************************************************************************
- * Public Data
- ****************************************************************************/
-
-#if defined(HAVE_GROUP_MEMBERS)
-/* This is the head of a list of all group members */
-
-FAR struct task_group_s *g_grouphead;
-#endif
+static struct task_group_s  g_kthread_group;   /* Shared among kthreads     */
 
 /****************************************************************************
  * Private Functions
@@ -88,8 +78,12 @@ static inline void group_inherit_identity(FAR struct task_group_s *group)
   /* Inherit the user identity from the parent task group. */
 
   DEBUGASSERT(group != NULL);
-  group->tg_uid = rgroup->tg_uid;
-  group->tg_gid = rgroup->tg_gid;
+  group->tg_uid  = rgroup->tg_uid;
+  group->tg_gid  = rgroup->tg_gid;
+  group->tg_euid = rgroup->tg_euid;
+  group->tg_egid = rgroup->tg_egid;
+  group->tg_suid = rgroup->tg_suid;
+  group->tg_sgid = rgroup->tg_sgid;
 }
 #else
 #  define group_inherit_identity(group)
@@ -124,16 +118,31 @@ static inline void group_inherit_identity(FAR struct task_group_s *group)
  *
  ****************************************************************************/
 
-int group_allocate(FAR struct task_tcb_s *tcb, uint8_t ttype)
+int group_allocate(FAR struct tcb_s *tcb, uint8_t ttype)
 {
   FAR struct task_group_s *group;
-  int ret = -ENOMEM;
+  int ret;
 
-  DEBUGASSERT(tcb && !tcb->cmn.group);
+  DEBUGASSERT(tcb && !tcb->group);
 
-  /* Allocate the group structure and assign it to the TCB */
+  ttype &= TCB_FLAG_TTYPE_MASK;
 
-  group = (FAR struct task_group_s *)kmm_zalloc(sizeof(struct task_group_s));
+  /* Initialize group pointer and assign to TCB */
+
+  if (ttype == TCB_FLAG_TTYPE_KERNEL)
+    {
+      group = &g_kthread_group;
+      tcb->group = group;
+      if (group->tg_info)
+        {
+          return OK;
+        }
+    }
+  else
+    {
+      group = kmm_zalloc(sizeof(struct task_group_s));
+    }
+
   if (!group)
     {
       return -ENOMEM;
@@ -151,22 +160,20 @@ int group_allocate(FAR struct task_tcb_s *tcb, uint8_t ttype)
 #endif /* defined(CONFIG_MM_KERNEL_HEAP) */
 
 #ifdef HAVE_GROUP_MEMBERS
-  /* Allocate space to hold GROUP_INITIAL_MEMBERS members of the group */
+  /* Initialize member list of the group */
 
-  group->tg_members = kmm_malloc(GROUP_INITIAL_MEMBERS * sizeof(pid_t));
-  if (!group->tg_members)
-    {
-      goto errout_with_group;
-    }
+  sq_init(&group->tg_members);
+#endif
 
-  /* Number of members in allocation */
+#ifdef CONFIG_FS_BACKTRACE_DEFAULT
+  /* Enable FD backtrace for the group by default */
 
-  group->tg_mxmembers = GROUP_INITIAL_MEMBERS;
+  group->tg_flags |= GROUP_FLAG_FD_BACKTRACE;
 #endif
 
   /* Attach the group to the TCB */
 
-  tcb->cmn.group = group;
+  tcb->group = group;
 
   /* Inherit the user identity from the parent task group */
 
@@ -174,20 +181,22 @@ int group_allocate(FAR struct task_tcb_s *tcb, uint8_t ttype)
 
   /* Initialize file descriptors for the TCB */
 
-  files_initlist(&group->tg_filelist);
+  fdlist_init(&group->tg_fdlist);
 
   /* Alloc task info for group  */
 
   ret = task_init_info(group);
   if (ret < 0)
     {
-      goto errout_with_member;
+      goto errout_with_group;
     }
 
-#ifndef CONFIG_DISABLE_PTHREAD
-  /* Initialize the pthread join mutex */
+  nxrmutex_init(&group->tg_mutex);
 
-  nxmutex_init(&group->tg_joinlock);
+#ifndef CONFIG_DISABLE_PTHREAD
+  /* Initialize the task group join */
+
+  sq_init(&group->tg_joinqueue);
 #endif
 
 #if defined(CONFIG_SCHED_WAITPID) && !defined(CONFIG_SCHED_HAVE_PARENT)
@@ -198,11 +207,7 @@ int group_allocate(FAR struct task_tcb_s *tcb, uint8_t ttype)
 
   return OK;
 
-errout_with_member:
-#ifdef HAVE_GROUP_MEMBERS
-  kmm_free(group->tg_members);
 errout_with_group:
-#endif
   kmm_free(group);
   return ret;
 }
@@ -228,25 +233,23 @@ errout_with_group:
  *
  ****************************************************************************/
 
-void group_initialize(FAR struct task_tcb_s *tcb)
+void group_initialize(FAR struct tcb_s *tcb)
 {
   FAR struct task_group_s *group;
-#if defined(HAVE_GROUP_MEMBERS)
-  irqstate_t flags;
-#endif
 
-  DEBUGASSERT(tcb && tcb->cmn.group);
-  group = tcb->cmn.group;
+  DEBUGASSERT(tcb && tcb->group);
+  group = tcb->group;
+  spin_lock_init(&group->tg_lock);
 
   /* Allocate mm_map list if required */
 
   mm_map_initialize(&group->tg_mm_map,
-                    (tcb->cmn.flags & TCB_FLAG_TTYPE_KERNEL) != 0);
+                    (tcb->flags & TCB_FLAG_TTYPE_KERNEL) != 0);
 
 #ifdef HAVE_GROUP_MEMBERS
   /* Assign the PID of this new task as a member of the group. */
 
-  group->tg_members[0] = tcb->cmn.pid;
+  sq_addlast(&tcb->member, &group->tg_members);
 #endif
 
   /* Save the ID of the main task within the group of threads.  This needed
@@ -255,18 +258,10 @@ void group_initialize(FAR struct task_tcb_s *tcb)
    * task has exited.
    */
 
-  group->tg_pid = tcb->cmn.pid;
+  if (group != &g_kthread_group)
+    {
+      group->tg_pid = tcb->pid;
+    }
 
-  /* Mark that there is one member in the group, the main task */
-
-  group->tg_nmembers = 1;
-
-#if defined(HAVE_GROUP_MEMBERS)
-  /* Add the initialized entry to the list of groups */
-
-  flags = enter_critical_section();
-  group->flink = g_grouphead;
-  g_grouphead = group;
-  leave_critical_section(flags);
-#endif
+  group->tg_info->ta_pid = group->tg_pid;
 }

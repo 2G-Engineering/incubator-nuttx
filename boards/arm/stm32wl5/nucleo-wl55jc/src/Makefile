@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/stm32wl5/nucleo-wl55jc/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -22,7 +24,6 @@ include $(TOPDIR)/Make.defs
 
 CSRCS = stm32_boot.c stm32_leds.c
 
-CSRCS-$(CONFIG_BOARDCTL) += stm32_appinit.c
 CSRCS-$(CONFIG_ARCH_BUTTONS) += stm32_buttons.c
 CSRCS-$(CONFIG_ARCH_BOARD_FLASH_MOUNT) += stm32_flash.c
 CSRCS-$(CONFIG_SPI_DRIVER) += stm32_spi.c

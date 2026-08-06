@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/adxl345_base.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 
 #include <nuttx/kmalloc.h>
@@ -40,11 +42,7 @@
 #if defined(CONFIG_SENSORS_ADXL345)
 
 /****************************************************************************
- * Private Types
- ****************************************************************************/
-
-/****************************************************************************
- * Private Functions
+ * Private Functions Prototypes
  ****************************************************************************/
 
 /* Character driver methods */
@@ -82,11 +80,10 @@ static ssize_t adxl345_read(FAR struct file *filep,
   int                       ret;
 
   sninfo("len=%d\n", len);
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv  = (FAR struct adxl345_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv  = inode->i_private;
 
   /* Verify that the caller has provided a buffer large enough to receive
    * the accelerometer data.
@@ -317,7 +314,7 @@ static void adxl345_reset(FAR struct adxl345_dev_s *priv)
 
   /* Wait a bit to make the GOD of TIME happy */
 
-  nxsig_usleep(20 * 1000);
+  nxsched_usleep(20 * 1000);
 }
 
 /****************************************************************************

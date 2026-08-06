@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_dma.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -192,7 +194,7 @@ size_t stm32_dmaresidual(DMA_HANDLE handle);
  * Name: stm32_dmacapable
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H7_DMACAPABLE
+#ifdef CONFIG_STM32_DMACAPABLE
 bool stm32_dmacapable(DMA_HANDLE handle, stm32_dmacfg_t *cfg);
 #else
 #  define stm32_dmacapable(handle, cfg) (true)

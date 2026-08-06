@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/video/vnc/vnc_receiver.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -42,7 +44,7 @@
 #  define CONFIG_DEBUG_GRAPHICS_WARN  1
 #  define CONFIG_DEBUG_GRAPHICS_INFO  1
 #endif
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #ifdef CONFIG_NET_SOCKOPTS
 #  include <sys/time.h>
@@ -330,7 +332,7 @@ int vnc_receiver(FAR struct vnc_session_s *session)
                   * CONFIG_VNCSERVER_KBD.
                   */
 
-                  session->kbdout(&session->kbd, keyevent->down,
+                  session->kbdout(session->arg, keyevent->down,
                                   (FAR const uint8_t *)keyevent->key);
 
 #else

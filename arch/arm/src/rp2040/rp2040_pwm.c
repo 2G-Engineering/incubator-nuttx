@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rp2040/rp2040_pwm.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,8 +33,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/timers/pwm.h>
 #include <arch/board/board.h>
@@ -288,8 +290,8 @@ int pwm_shutdown (struct pwm_lowerhalf_s  * dev)
 
   if (priv->pin >= 0)
     {
-      rp2040_gpio_setdir(priv->pin[0], true);
-      rp2040_gpio_put(priv->pin[0],
+      rp2040_gpio_setdir(priv->pin, true);
+      rp2040_gpio_put(priv->pin,
                       ((priv->flags & RP2040_PWM_CSR_A_INV) != 0));
       rp2040_gpio_set_function(priv->pin, RP2040_GPIO_FUNC_SIO);
     }

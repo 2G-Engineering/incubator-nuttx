@@ -1,6 +1,8 @@
 /****************************************************************************
  * wireless/bluetooth/bt_keys.c
  *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  *   Copyright (c) 2016, Intel Corporation
  *   All rights reserved.
  *
@@ -40,7 +42,7 @@
 #include <nuttx/config.h>
 
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/wireless/bluetooth/bt_core.h>
 #include <nuttx/wireless/bluetooth/bt_hci.h>

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s2/esp32s2-kaluga-1/src/esp32s2_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,15 +33,14 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
-#include <syslog.h>
-#include <debug.h>
-#include <stdio.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/fs/fs.h>
 #include <arch/board/board.h>
 
-#include "esp32s2_gpio.h"
+#include "espressif/esp_gpio.h"
+#include "esp32s2_start.h"
 
 #ifdef CONFIG_USERLED
 #  include <nuttx/leds/userled.h>
@@ -57,12 +58,8 @@
 #  include "esp32s2_i2c.h"
 #endif
 
-#ifdef CONFIG_ESP32_I2S
-#  include "esp32s2_i2s.h"
-#endif
-
-#ifdef CONFIG_ESP32S2_RT_TIMER
-#  include "esp32s2_rt_timer.h"
+#ifdef CONFIG_ESPRESSIF_I2S
+#  include "espressif/esp_i2s.h"
 #endif
 
 #ifdef CONFIG_WATCHDOG
@@ -72,6 +69,24 @@
 #ifdef CONFIG_LCD_DEV
 #  include <nuttx/board.h>
 #  include <nuttx/lcd/lcd_dev.h>
+#endif
+
+#ifdef CONFIG_SPI_DRIVER
+#  include "esp32s2_spi.h"
+#  include "esp32s2_board_spidev.h"
+#endif
+
+#ifdef CONFIG_SPI_SLAVE_DRIVER
+#  include "esp32s2_spi.h"
+#  include "esp32s2_board_spislavedev.h"
+#endif
+
+#ifdef CONFIG_RTC_DRIVER
+#  include "espressif/esp_rtc.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_HR_TIMER
+#  include "espressif/esp_hr_timer.h"
 #endif
 
 #include "esp32s2-kaluga-1.h"
@@ -88,9 +103,6 @@
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
  *
  ****************************************************************************/
 
@@ -135,6 +147,41 @@ int esp32s2_bringup(void)
     {
       syslog(LOG_ERR, "Failed to initialize GPIO Driver: %d\n", ret);
       return ret;
+    }
+#endif
+
+#ifdef CONFIG_ESP32S2_SPI2
+# ifdef CONFIG_SPI_DRIVER
+  ret = board_spidev_initialize(ESP32S2_SPI2);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize SPI%d driver: %d\n",
+             ESP32S2_SPI2, ret);
+    }
+# elif defined(CONFIG_SPI_SLAVE_DRIVER) && defined(CONFIG_ESP32S2_SPI2_SLAVE)
+  ret = board_spislavedev_initialize(ESP32S2_SPI2);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize SPI%d Slave driver: %d\n",
+             ESP32S2_SPI2, ret);
+    }
+# endif
+#endif
+
+#if defined(CONFIG_SPI_SLAVE_DRIVER) && defined(CONFIG_ESP32S2_SPI3_SLAVE)
+  ret = board_spislavedev_initialize(ESP32S2_SPI3);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize SPI%d Slave driver: %d\n",
+              ESP32S2_SPI3, ret);
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_HR_TIMER
+  ret = esp_hr_timer_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: esp_hr_timer_init() failed: %d\n", ret);
     }
 #endif
 
@@ -188,14 +235,6 @@ int esp32s2_bringup(void)
 
 #endif /* CONFIG_TIMER */
 
-#ifdef CONFIG_ESP32S2_RT_TIMER
-  ret = esp32s2_rt_timer_init();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "Failed to initialize RT timer: %d\n", ret);
-    }
-
-#endif
   /* Now register one oneshot driver */
 
 #if defined(CONFIG_ONESHOT) && defined(CONFIG_ESP32S2_TIMER0)
@@ -215,6 +254,17 @@ int esp32s2_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "Failed to initialize I2C driver: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_ESP32S2_TWAI
+
+  /* Initialize TWAI and register the TWAI driver. */
+
+  ret = board_twai_setup();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_twai_setup failed: %d\n", ret);
     }
 #endif
 
@@ -242,7 +292,7 @@ int esp32s2_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESP32S2_I2S
+#ifdef CONFIG_ESPRESSIF_I2S
 
   /* Configure I2S0 */
 
@@ -250,8 +300,8 @@ int esp32s2_bringup(void)
 
   /* Configure ES8311 audio on I2C0 and I2S0 */
 
-  esp32s2_configgpio(SPEAKER_ENABLE_GPIO, OUTPUT);
-  esp32s2_gpiowrite(SPEAKER_ENABLE_GPIO, true);
+  esp_configgpio(SPEAKER_ENABLE_GPIO, OUTPUT);
+  esp_gpiowrite(SPEAKER_ENABLE_GPIO, true);
 
   ret = esp32s2_es8311_initialize(ESP32S2_I2C0, ES8311_I2C_ADDR,
                                   ES8311_I2C_FREQ);
@@ -262,7 +312,18 @@ int esp32s2_bringup(void)
 
 #endif /* CONFIG_AUDIO_ES8311 */
 
-#endif /* CONFIG_ESP32S2_I2S */
+#endif /* CONFIG_ESPRESSIF_I2S */
+
+#ifdef CONFIG_RTC_DRIVER
+  /* Instantiate the ESP32 RTC driver */
+
+  ret = esp_rtc_driverinit();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to Instantiate the RTC driver: %d\n", ret);
+    }
+#endif
 
   /* If we got here then perhaps not all initialization was successful, but
    * at least enough succeeded to bring-up NSH with perhaps reduced

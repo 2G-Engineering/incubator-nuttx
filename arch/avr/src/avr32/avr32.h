@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/avr/src/avr32/avr32.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,25 +38,13 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* The AVR32 stack must be aligned at word (4 byte) boundaries. If necessary
- * frame_size must be rounded up to the next boundary
- */
-
-#define STACK_ALIGNMENT     4
-
-/* Stack alignment macros */
-
-#define STACK_ALIGN_MASK    (STACK_ALIGNMENT - 1)
-#define STACK_ALIGN_DOWN(a) ((a) & ~STACK_ALIGN_MASK)
-#define STACK_ALIGN_UP(a)   (((a) + STACK_ALIGN_MASK) & ~STACK_ALIGN_MASK)
-
 /* Macros to handle saving and restore interrupt state.  The state is copied
  * from the stack to the TCB, but only a referenced is passed to get the
  * state from the TCB.
  */
 
-#define avr_savestate(regs)     avr_copystate(regs, (uint32_t*)g_current_regs)
-#define avr_restorestate(regs)  (g_current_regs = regs)
+#define avr_savestate(regs)     avr_copystate(regs, up_current_regs())
+#define avr_restorestate(regs)  up_set_current_regs(regs)
 
 /****************************************************************************
  * Public Types

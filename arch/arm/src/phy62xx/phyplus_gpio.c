@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/phy62xx/phyplus_gpio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,8 @@
 #include <nuttx/config.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/clock.h>
 #include <nuttx/wdog.h>
 #include <nuttx/ioexpander/gpio.h>
@@ -270,7 +273,7 @@ static int phyplus_gpint_attach(struct gpio_dev_s *dev,
                                 pin_interrupt_t callback)
 {
 #if 0
-  /* do the regist callback things... */
+  /* do the register callback things... */
 
   struct stm32gpint_dev_s *stm32gpint =
                              (struct stm32gpint_dev_s *)dev;

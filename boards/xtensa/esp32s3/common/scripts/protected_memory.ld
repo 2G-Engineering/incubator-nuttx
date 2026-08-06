@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s3/common/scripts/protected_memory.ld
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -42,7 +44,7 @@
  * Application Image properly.
  *
  * For more information, refer to the bootloader linker scripts:
- * https://github.com/espressif/esp-idf/blob/v4.4.2/components/bootloader/subproject/main/ld/esp32s3/bootloader.ld#L41-L47
+ * https://github.com/espressif/esp-idf/blob/dbb64db552068d440c2659294dcf2a5544fe3b6b/components/bootloader/subproject/main/ld/esp32s3/bootloader.ld#L52
  */
 
 #define SRAM_IRAM_END       0x403cc700
@@ -69,16 +71,18 @@
 #  define FLASH_SIZE        0x1000000
 #endif
 
+#define RESERVE_RTC_MEM     24
+
 MEMORY
 {
   metadata (RX) :   org = 0x0, len = 0x30
   ROM (RX) :        org = ORIGIN(metadata) + LENGTH(metadata),
-                    len = 0x100000 - ORIGIN(ROM)
+                    len = FLASH_SIZE - ORIGIN(ROM)
 
   /* Instruction RAM */
 
   UIRAM (RWX) :     org = SRAM_IRAM_ORG, len = 16K
-  KIRAM (RWX) :     org = ORIGIN(UIRAM) + LENGTH(UIRAM), len = 32K
+  KIRAM (RWX) :     org = ORIGIN(UIRAM) + LENGTH(UIRAM), len = 64K
 
   /* Flash mapped instruction data. */
 
@@ -90,13 +94,13 @@ MEMORY
    * constraint that (paddr % 64KB == vaddr % 64KB).
    */
 
-  KIROM (RX) :      org = 0x42000020, len = 0x80000 - 0x20
-  UIROM (RX) :      org = 0x42080000, len = 0x180000
+  KIROM (RX) :      org = 0x42000020, len = CONFIG_ESP32S3_KERNEL_IMAGE_SIZE - 0x20
+  UIROM (RX) :      org = ORIGIN(KIROM) + LENGTH(KIROM), len = FLASH_SIZE - LENGTH(KIROM)
 
   /* Shared data RAM, excluding memory reserved for ROM bss/data/stack. */
 
-  KDRAM (RW) :      org = ORIGIN(KIRAM) + LENGTH(KIRAM) - I_D_SRAM_OFFSET, len = 64K
-  UDRAM (RW) :      org = ORIGIN(KDRAM) + LENGTH(KDRAM), len = 256K
+  KDRAM (RW) :      org = ORIGIN(KIRAM) + LENGTH(KIRAM) - I_D_SRAM_OFFSET, len = CONFIG_ESP32S3_KERNEL_RAM_SIZE
+  UDRAM (RW) :      org = ORIGIN(KDRAM) + LENGTH(KDRAM), len = I_D_SRAM_SIZE - LENGTH(KDRAM)
 
   /* Flash mapped constant data */
 
@@ -109,7 +113,32 @@ MEMORY
    * SRAM contents when loading the User application image.
    */
 
-  KDROM (R)  :      org = 0x3c000020, len = 0x80000 - 0x20
-  UDROM (R)  :      org = 0x3c080030, len = 0x180000 - ORIGIN(ROM)
-}
+  KDROM (R)  :      org = 0x3c000020, len = CONFIG_ESP32S3_KERNEL_IMAGE_SIZE - 0x20
+  UDROM (R)  :      org = ORIGIN(KDROM) + LENGTH(KDROM) + ORIGIN(ROM), len = FLASH_SIZE - LENGTH(KDROM) - ORIGIN(ROM)
 
+  /* RTC fast memory (executable). Persists over deep sleep. */
+
+  rtc_iram_seg(RWX) :                org = 0x600fe000, len = 0x2000 - RESERVE_RTC_MEM
+
+  /* RTC fast memory (same block as above), viewed from data bus */
+
+  rtc_data_seg(RW)  :                org = 0x600fe000, len = 0x2000 - RESERVE_RTC_MEM
+
+  /* We reduced the size of rtc_iram_seg by RESERVE_RTC_MEM value.
+   * It reserves the amount of RTC fast memory that we use for this memory segment.
+   * This segment is intended for keeping:
+   *   - (lower addr) rtc timer data (s_rtc_timer_retain_mem, see esp_clk.c files).
+   *   - (higher addr) bootloader rtc data (s_bootloader_retain_mem, when a Kconfig option is on).
+   * The aim of this is to keep data that will not be moved around and have a fixed address.
+   */
+
+  rtc_reserved_seg(RW) :             org = 0x600fe000 + 0x2000 - RESERVE_RTC_MEM, len = RESERVE_RTC_MEM
+
+  /* RTC slow memory (data accessible). Persists over deep sleep.
+   * Start of RTC slow memory is reserved for ULP co-processor code + data,
+   * if enabled.
+   */
+
+  rtc_slow_seg(RW)  :    org = 0x50000000 + CONFIG_ESP32S3_ULP_COPROC_RESERVE_MEM,
+                         len = 0x2000 - CONFIG_ESP32S3_ULP_COPROC_RESERVE_MEM
+}

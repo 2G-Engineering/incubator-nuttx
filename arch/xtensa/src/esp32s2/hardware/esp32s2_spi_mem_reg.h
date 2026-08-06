@@ -34,6 +34,8 @@ extern "C"
 
 #define REG_SPI_MEM_BASE(i)     (DR_REG_SPI0_BASE - (i) * 0x1000)
 
+#define SPI_MEM_CMD_REG(i)      (REG_SPI_MEM_BASE(i) + 0x0)
+
 /* SPI_MEM_FLASH_READ : R/W/SC ;bitpos:[31] ;default: 1'b0 ; */
 
 /* Description: Read flash enable. Read flash operation will be triggered
@@ -932,7 +934,7 @@ extern "C"
 
 /* SPI_MEM_TRANS_END_INT_ENA : R/W ;bitpos:[4] ;default: 1'b0 ; */
 
-/* Description: The bit is used to enable the intterrupt of SPI
+/* Description: The bit is used to enable the interrupt of SPI
  * transmitting done.
  */
 

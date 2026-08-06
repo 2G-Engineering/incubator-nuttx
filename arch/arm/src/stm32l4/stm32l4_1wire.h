@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l4/stm32l4_1wire.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -34,7 +36,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_1wireinitialize
+ * Name: stm32_1wireinitialize
  *
  * Description:
  *   Initialize the selected 1-Wire port. And return a unique instance of
@@ -50,16 +52,16 @@
  *
  ****************************************************************************/
 
-struct onewire_dev_s *stm32l4_1wireinitialize(int port);
+struct onewire_dev_s *stm32_1wireinitialize(int port);
 
 /****************************************************************************
- * Name: stm32l4_1wireuninitialize
+ * Name: stm32_1wireuninitialize
  *
  * Description:
  *   De-initialize the selected 1-Wire port, and power down the device.
  *
  * Input Parameters:
- *   Device structure as returned by the stm32l4_1wireinitialize()
+ *   Device structure as returned by the stm32_1wireinitialize()
  *
  * Returned Value:
  *   OK on success, ERROR when internal reference count mismatch or dev
@@ -67,6 +69,6 @@ struct onewire_dev_s *stm32l4_1wireinitialize(int port);
  *
  ****************************************************************************/
 
-int stm32l4_1wireuninitialize(struct onewire_dev_s *dev);
+int stm32_1wireuninitialize(struct onewire_dev_s *dev);
 
 #endif /* __ARCH_ARM_SRC_STM32L4_STM32L4_1WIRE_H */

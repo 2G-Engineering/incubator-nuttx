@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/usbhost/usbhost_enumerate.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/signal.h>
@@ -40,6 +42,10 @@
 #include <nuttx/usb/usbhost_devaddr.h>
 
 #include "usbhost_composite.h"
+
+#ifdef CONFIG_USBHOST_CONFIGURATION_SELECTION
+#  include <nuttx/board.h>
+#endif
 
 /****************************************************************************
  * Private Function Prototypes
@@ -290,9 +296,10 @@ int usbhost_enumerate(FAR struct usbhost_hubport_s *hport,
   struct usbhost_id_s id;
   size_t maxlen;
   unsigned int cfglen;
-  uint8_t maxpacketsize;
+  uint16_t maxpacketsize;
   uint8_t descsize;
   uint8_t funcaddr = 0;
+  uint8_t cfgidx = 0;
   FAR uint8_t *buffer = NULL;
   int ret;
 
@@ -329,7 +336,14 @@ int usbhost_enumerate(FAR struct usbhost_hubport_s *hport,
    *   Data packets following a Setup..."
    */
 
-  if (hport->speed == USB_SPEED_HIGH)
+  if (hport->speed >= USB_SPEED_SUPER)
+    {
+      /* For super-speed, we must use 512 bytes */
+
+      maxpacketsize = 512;
+      descsize      = USB_SIZEOF_DEVDESC;
+    }
+  else if (hport->speed == USB_SPEED_HIGH)
     {
       /* For high-speed, we must use 64 bytes */
 
@@ -368,7 +382,14 @@ int usbhost_enumerate(FAR struct usbhost_hubport_s *hport,
   /* Extract the correct max packetsize from the device descriptor */
 
   maxpacketsize = ((struct usb_devdesc_s *)buffer)->mxpacketsize;
-  uinfo("maxpacksetsize: %d\n", maxpacketsize);
+  if (hport->speed >= USB_SPEED_SUPER && maxpacketsize == 9)
+    {
+      /* For super-speed, we must use 512 bytes */
+
+      maxpacketsize = 512;
+    }
+
+  uinfo("maxpacksetsize: %d speed: %d\n", maxpacketsize, hport->speed);
 
   /* And reconfigure EP0 with the correct maximum packet size */
 
@@ -426,7 +447,7 @@ int usbhost_enumerate(FAR struct usbhost_hubport_s *hport,
       goto errout;
     }
 
-  nxsig_usleep(2 * 1000);
+  nxsched_usleep(2 * 1000);
 
   /* Assign the function address to the port */
 
@@ -438,14 +459,20 @@ int usbhost_enumerate(FAR struct usbhost_hubport_s *hport,
   DRVR_EP0CONFIGURE(hport->drvr, hport->ep0, hport->funcaddr,
                     hport->speed, maxpacketsize);
 
-  /* Get the configuration descriptor (only), index == 0.  Should not be
-   * hard-coded! More logic is needed in order to handle devices with
-   * multiple configurations.
+#ifdef CONFIG_USBHOST_CONFIGURATION_SELECTION
+  /* Board specific callback to choose which configuration to use for
+   * this device. Supplied by board file
    */
+
+  cfgidx = board_usbhost_select_configuration(hport,
+             (struct usb_devdesc_s *)buffer, &id);
+#endif
+
+  /* Get the configuration descriptor */
 
   ctrlreq->type = USB_REQ_DIR_IN | USB_REQ_RECIPIENT_DEVICE;
   ctrlreq->req  = USB_REQ_GETDESCRIPTOR;
-  usbhost_putle16(ctrlreq->value, (USB_DESC_TYPE_CONFIG << 8));
+  usbhost_putle16(ctrlreq->value, (USB_DESC_TYPE_CONFIG << 8) | cfgidx);
   usbhost_putle16(ctrlreq->index, 0);
   usbhost_putle16(ctrlreq->len, USB_SIZEOF_CFGDESC);
 
@@ -472,13 +499,11 @@ int usbhost_enumerate(FAR struct usbhost_hubport_s *hport,
       goto errout;
     }
 
-  /* Get all of the configuration descriptor data, index == 0 (Should not be
-   * hard-coded!)
-   */
+  /* Get all of the configuration descriptor data */
 
   ctrlreq->type = USB_REQ_DIR_IN | USB_REQ_RECIPIENT_DEVICE;
   ctrlreq->req  = USB_REQ_GETDESCRIPTOR;
-  usbhost_putle16(ctrlreq->value, (USB_DESC_TYPE_CONFIG << 8));
+  usbhost_putle16(ctrlreq->value, (USB_DESC_TYPE_CONFIG << 8) | cfgidx);
   usbhost_putle16(ctrlreq->index, 0);
   usbhost_putle16(ctrlreq->len, cfglen);
 
@@ -490,11 +515,12 @@ int usbhost_enumerate(FAR struct usbhost_hubport_s *hport,
       goto errout;
     }
 
-  /* Select device configuration 1 (Should not be hard-coded!) */
+  /* Select this configuration using its bConfigurationValue */
 
   ctrlreq->type = USB_REQ_DIR_OUT | USB_REQ_RECIPIENT_DEVICE;
   ctrlreq->req  = USB_REQ_SETCONFIGURATION;
-  usbhost_putle16(ctrlreq->value, 1);
+  usbhost_putle16(ctrlreq->value,
+                 ((struct usb_cfgdesc_s *)buffer)->cfgvalue);
   usbhost_putle16(ctrlreq->index, 0);
   usbhost_putle16(ctrlreq->len, 0);
 
@@ -507,7 +533,7 @@ int usbhost_enumerate(FAR struct usbhost_hubport_s *hport,
 
   /* Some devices may require some delay before initialization */
 
-  nxsig_usleep(100 * 1000);
+  nxsched_usleep(100 * 1000);
 
   /* Was the class identification information provided in the device
    * descriptor? Or do we need to find it in the interface descriptor(s)?

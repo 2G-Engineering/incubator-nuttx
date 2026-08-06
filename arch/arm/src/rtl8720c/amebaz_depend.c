@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rtl8720c/amebaz_depend.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,6 +27,8 @@
 #include "amebaz_depend.h"
 #include <nuttx/mqueue.h>
 #include <nuttx/semaphore.h>
+#include <nuttx/signal.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/syslog/syslog.h>
 
 /****************************************************************************
@@ -49,24 +53,23 @@ int __wrap_printf(const char *fmt, ...)
 
 /* stdio.h Wrapper End */
 
-static int uxcriticalnesting = 0;
+static rspinlock_t g_lock = RSPINLOCK_INITIALIZER;
+static irqstate_t g_flags = 0;
 
 /* Critical Operation Start */
 
 void save_and_cli(void)
 {
-  enter_critical_section();
-  uxcriticalnesting++;
+  irqstate_t flags = rspin_lock_irqsave(&g_lock);
+  if (!rspin_lock_is_recursive(&g_lock))
+    {
+      g_flags = flags;
+    }
 }
 
 void restore_flags(void)
 {
-  ASSERT(uxcriticalnesting);
-  uxcriticalnesting--;
-  if (uxcriticalnesting == 0)
-    {
-      leave_critical_section(0);
-    }
+  rspin_unlock_irqrestore(&g_lock, g_flags);
 }
 
 void rtw_enter_critical(void **plock, unsigned long *pirql)
@@ -397,7 +400,7 @@ void rtw_yield_os(void)
 
 void rtw_usleep_os(int us)
 {
-  usleep(us);
+  nxsched_usleep(us);
 }
 
 void rtw_msleep_os(int ms)
@@ -515,7 +518,7 @@ static unsigned int __div64_32(uint64_t *n, unsigned int base)
   if (high >= base)
     {
       high /= base;
-      res = (uint64_t) high << 32;
+      res = (uint64_t)high << 32;
       rem -= (uint64_t)(high * base) << 32;
     }
 
@@ -601,7 +604,7 @@ static int nuttx_task_hook(int argc, char *argv[])
   struct task_struct *task;
   struct nthread_wrapper *wrap;
   task = (struct task_struct *)
-         ((uintptr_t)strtoul(argv[1], NULL, 0));
+         ((uintptr_t)strtoul(argv[1], NULL, 16));
   if (!task || !task->priv)
     {
       return 0;
@@ -624,7 +627,7 @@ int rtw_create_task(struct task_struct *task, const char *name,
   char *argv[2];
   char arg1[16];
   int pid;
-  snprintf(arg1, 16, "0x%" PRIxPTR, (uintptr_t)task);
+  snprintf(arg1, 16, "%p", task);
   argv[0] = arg1;
   argv[1] = NULL;
   wrap = malloc(sizeof(*wrap));
@@ -868,21 +871,14 @@ uint32_t rtw_end_of_queue_search(struct list_head *head,
 
 /* Device lock Wrapper Start */
 
-static uint32_t mutex_init;
+static atomic_t mutex_init;
 static void *device_mutex[5];
 static void device_mutex_init(uint32_t device)
 {
   irqstate_t status;
-  if (!(mutex_init & (1 << device)))
+  if (atomic_fetch_or(&mutex_init, (1 << device)) & (1 << device) == 0)
     {
-      status = enter_critical_section();
-      if (!(mutex_init & (1 << device)))
-        {
-          rtw_mutex_init(&device_mutex[device]);
-          mutex_init |= (1 << device);
-        }
-
-      leave_critical_section(status);
+      rtw_mutex_init(&device_mutex[device]);
     }
 }
 

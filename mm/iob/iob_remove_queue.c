@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/iob/iob_remove_queue.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
@@ -56,7 +58,6 @@ FAR struct iob_s *iob_remove_queue(FAR struct iob_queue_s *iobq)
 
   /* Remove the I/O buffer chain from the head of the queue */
 
-  irqstate_t flags = enter_critical_section();
   qentry = iobq->qh_head;
   if (qentry)
     {
@@ -74,7 +75,6 @@ FAR struct iob_s *iob_remove_queue(FAR struct iob_queue_s *iobq)
       iob_free_qentry(qentry);
     }
 
-  leave_critical_section(flags);
   return iob;
 }
 

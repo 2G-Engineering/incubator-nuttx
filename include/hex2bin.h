@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/hex2bin.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -100,8 +102,8 @@ extern "C"
 struct lib_instream_s;
 struct lib_sostream_s;
 int hex2bin(FAR struct lib_instream_s *instream,
-            FAR struct lib_sostream_s *outstream, uint32_t baseaddr,
-            uint32_t endpaddr, enum hex2bin_swap_e swap);
+            FAR struct lib_sostream_s *outstream, unsigned long baseaddr,
+            unsigned long endpaddr, enum hex2bin_swap_e swap);
 
 /****************************************************************************
  * Name: hex2mem
@@ -127,7 +129,7 @@ int hex2bin(FAR struct lib_instream_s *instream,
  *
  ****************************************************************************/
 
-int hex2mem(int fd, uint32_t baseaddr, uint32_t endpaddr,
+int hex2mem(int fd, unsigned long baseaddr, unsigned long endpaddr,
             enum hex2bin_swap_e swap);
 
 /****************************************************************************
@@ -154,8 +156,8 @@ int hex2mem(int fd, uint32_t baseaddr, uint32_t endpaddr,
  *
  ****************************************************************************/
 
-int fhex2mem(FAR FILE *instream, uint32_t baseaddr, uint32_t endpaddr,
-             enum hex2bin_swap_e swap);
+int fhex2mem(FAR FILE *instream, unsigned long baseaddr,
+             unsigned long endpaddr, enum hex2bin_swap_e swap);
 
 #undef EXTERN
 #ifdef __cplusplus

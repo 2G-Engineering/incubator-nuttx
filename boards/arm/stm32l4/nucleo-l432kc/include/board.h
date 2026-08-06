@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/nucleo-l432kc/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -63,8 +65,14 @@
 
 /* Analog pin selections ****************************************************/
 
+/* ADC
+ * Build time configurable pins are defined in ../src/stm32_adc.c.
+ * ADC1 with DMA: GPIO_ADC1_IN11 (PA6/A5), GPIO_ADC1_IN12 (PA7/A6).
+ * ADC1 no DMA  : GPIO_ADC1_IN11 (PA6/A5).
+ */
+
 /* DAC
- * Default is PA4 (same as ADC, do not use both at the same time)
+ * DAC1: GPIO_DAC1_OUT_1 (PA4/A3).
  */
 
 #define GPIO_DAC1_OUT            GPIO_DAC1_OUT_1
@@ -79,26 +87,26 @@
  */
 
 #if defined(CONFIG_ARCH_BOARD_USART1_RX_PA10)
-#  define GPIO_USART1_RX GPIO_USART1_RX_1    /* PA10 */
+#  define GPIO_USART1_RX GPIO_USART1_RX_1   /* PA10 */
 #elif defined(CONFIG_ARCH_BOARD_USART1_RX_PB7)
-#  define GPIO_USART1_RX GPIO_USART1_RX_2    /* PB7 */
+#  define GPIO_USART1_RX GPIO_USART1_RX_2   /* PB7 */
 #endif
 
 #if defined(CONFIG_ARCH_BOARD_USART1_TX_PA9)
-#  define GPIO_USART1_TX GPIO_USART1_TX_1    /* PA9  */
+#  define GPIO_USART1_TX GPIO_USART1_TX_1   /* PA9  */
 #elif defined(CONFIG_ARCH_BOARD_USART1_TX_PB6)
-#  define GPIO_USART1_TX GPIO_USART1_TX_2    /* PB6  */
+#  define GPIO_USART1_TX GPIO_USART1_TX_2   /* PB6  */
 #endif
 
 /* USART2: Connected to STLInk Debug via PA2(TX), PA15(RX) */
 
 #if defined(CONFIG_ARCH_BOARD_USART2_RX_PA3)
-#  define GPIO_USART2_RX   GPIO_USART2_RX_1  /* PA3 */
+#  define GPIO_USART2_RX GPIO_USART2_RX_1   /* PA3 */
 #elif defined(CONFIG_ARCH_BOARD_USART2_RX_PA15)
-#  define GPIO_USART2_RX   GPIO_USART2_RX_2  /* PA15 */
+#  define GPIO_USART2_RX GPIO_USART2_RX_2   /* PA15 */
 #endif
-#define GPIO_USART2_TX   GPIO_USART2_TX_1    /* PA2 */
-#define GPIO_USART2_RTS  GPIO_USART2_RTS_2
+#define GPIO_USART2_TX   GPIO_USART2_TX_1   /* PA2 */
+#define GPIO_USART2_RTS  GPIO_USART2_RTS_DE_2
 #define GPIO_USART2_CTS  GPIO_USART2_CTS_2
 
 /* LPUART1 */
@@ -126,10 +134,10 @@
  * but are normally-high GPIOs.
  */
 
-#define GPIO_I2C1_D4 \
-   (GPIO_INPUT | GPIO_FLOAT | GPIO_PORTB | GPIO_PIN7)
-#define GPIO_I2C1_D5 \
-   (GPIO_INPUT | GPIO_FLOAT | GPIO_PORTB | GPIO_PIN6)
+#define GPIO_I2C1_A4 \
+   (GPIO_INPUT | GPIO_FLOAT | GPIO_PORTA | GPIO_PIN5)
+#define GPIO_I2C1_A5 \
+   (GPIO_INPUT | GPIO_FLOAT | GPIO_PORTA | GPIO_PIN6)
 #define GPIO_I2C1_SCL \
    (GPIO_I2C1_SCL_1 | GPIO_OPENDRAIN | GPIO_SPEED_50MHz | GPIO_OUTPUT_SET)
 #define GPIO_I2C1_SDA \
@@ -203,7 +211,7 @@
  *   LED_SIGNAL           In a signal handler        No change
  *   LED_ASSERTION        An assertion failed        No change
  *   LED_PANIC            The system has crashed     Blinking
- *   LED_IDLE             MCU is is sleep mode       Not used
+ *   LED_IDLE             MCU is in sleep mode       Not used
  *
  * Thus if LD3 NuttX has successfully booted and is, apparently, running
  * normally.  If LD3 is flashing at approximately 2Hz, then a fatal error
@@ -223,14 +231,14 @@
  * Default is to use timer 5 (32-bit) and encoder on PA0/PA1
  */
 
-#define GPIO_TIM2_CH1IN GPIO_TIM2_CH1IN_1
-#define GPIO_TIM2_CH2IN GPIO_TIM2_CH2IN_1
+#define GPIO_TIM2_CH1IN  (GPIO_TIM2_CH1IN_1|GPIO_SPEED_50MHz)
+#define GPIO_TIM2_CH2IN  (GPIO_TIM2_CH2IN_1|GPIO_SPEED_50MHz)
 
-#define GPIO_TIM3_CH1IN GPIO_TIM3_CH1IN_3
-#define GPIO_TIM3_CH2IN GPIO_TIM3_CH2IN_3
+#define GPIO_TIM3_CH1IN  (GPIO_TIM3_CH1IN_3|GPIO_SPEED_50MHz)
+#define GPIO_TIM3_CH2IN  (GPIO_TIM3_CH2IN_3|GPIO_SPEED_50MHz)
 
-#define GPIO_TIM5_CH1IN GPIO_TIM5_CH1IN_1
-#define GPIO_TIM5_CH2IN GPIO_TIM5_CH2IN_1
+#define GPIO_TIM5_CH1IN  (GPIO_TIM5_CH1IN_1|GPIO_SPEED_50MHz)
+#define GPIO_TIM5_CH2IN  (GPIO_TIM5_CH2IN_1|GPIO_SPEED_50MHz)
 
 /* PWM output for full bridge, uses config 1, because port E is N/A on QFP64
  * CH1     | 1(A8) 2(E9)
@@ -242,13 +250,13 @@
  * CHN3    | 1(B1) 2(B15) 3(E12)
  */
 
-#define GPIO_TIM1_CH1OUT  GPIO_TIM1_CH1OUT_1
-#define GPIO_TIM1_CH1NOUT GPIO_TIM1_CH1N_1
-#define GPIO_TIM1_CH2OUT  GPIO_TIM1_CH2OUT_1
-#define GPIO_TIM1_CH2NOUT GPIO_TIM1_CH2N_1
-#define GPIO_TIM1_CH3OUT GPIO_TIM1_CH3OUT_1
-#define GPIO_TIM1_CH3NOUT GPIO_TIM1_CH3OUT_1
-#define GPIO_TIM1_CH4OUT GPIO_TIM1_CH4OUT_1
+#define GPIO_TIM1_CH1OUT   (GPIO_TIM1_CH1OUT_1|GPIO_SPEED_50MHz)
+#define GPIO_TIM1_CH1NOUT  (GPIO_TIM1_CH1N_1|GPIO_SPEED_50MHz)
+#define GPIO_TIM1_CH2OUT   (GPIO_TIM1_CH2OUT_1|GPIO_SPEED_50MHz)
+#define GPIO_TIM1_CH2NOUT  (GPIO_TIM1_CH2N_1|GPIO_SPEED_50MHz)
+#define GPIO_TIM1_CH3OUT   (GPIO_TIM1_CH3OUT_1|GPIO_SPEED_50MHz)
+#define GPIO_TIM1_CH3NOUT  (GPIO_TIM1_CH3OUT_1|GPIO_SPEED_50MHz)
+#define GPIO_TIM1_CH4OUT   (GPIO_TIM1_CH4OUT_1|GPIO_SPEED_50MHz)
 
 /* LPTIM2 PWM output
  * REVISIT : Add support for the other clock sources, LSE, LSI and HSI
@@ -256,14 +264,14 @@
  * CH1     | 1(A4) 2(A8)
  */
 
-#if defined(CONFIG_STM32L4_LPTIM2_CLK_APB1)
-#  define STM32L4_LPTIM2_FREQUENCY STM32L4_APB1_LPTIM2_CLKIN
+#if defined(CONFIG_STM32_LPTIM2_CLK_APB1)
+#  define STM32_LPTIM2_FREQUENCY STM32_APB1_LPTIM2_CLKIN
 #endif
 
 #if 1
-#  define GPIO_LPTIM2_CH1OUT GPIO_LPTIM2_OUT_1
+#  define GPIO_LPTIM2_CH1OUT (GPIO_LPTIM2_OUT_1|GPIO_SPEED_50MHz)
 #else
-#  define GPIO_LPTIM2_CH1OUT GPIO_LPTIM2_OUT_2
+#  define GPIO_LPTIM2_CH1OUT (GPIO_LPTIM2_OUT_2|GPIO_SPEED_50MHz)
 #endif
 
 /****************************************************************************
@@ -286,7 +294,7 @@ extern "C"
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_board_initialize
+ * Name: stm32_board_initialize
  *
  * Description:
  *   All STM32L4 architectures must provide the following entry point.
@@ -296,7 +304,7 @@ extern "C"
  *
  ****************************************************************************/
 
-void stm32l4_board_initialize(void);
+void stm32_board_initialize(void);
 
 #undef EXTERN
 #if defined(__cplusplus)

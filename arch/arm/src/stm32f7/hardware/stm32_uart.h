@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/hardware/stm32_uart.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,10 +30,10 @@
 #include <nuttx/config.h>
 #include "chip.h"
 
-#if defined(CONFIG_STM32F7_STM32F72XX) || defined(CONFIG_STM32F7_STM32F73XX)
+#if defined(CONFIG_STM32_STM32F72XX) || defined(CONFIG_STM32_STM32F73XX)
 #  include "hardware/stm32f72xx73xx_uart.h"
-#elif defined(CONFIG_STM32F7_STM32F74XX) || defined(CONFIG_STM32F7_STM32F75XX) || \
-    defined(CONFIG_STM32F7_STM32F76XX) || defined(CONFIG_STM32F7_STM32F77XX)
+#elif defined(CONFIG_STM32_STM32F74XX) || defined(CONFIG_STM32_STM32F75XX) || \
+    defined(CONFIG_STM32_STM32F76XX) || defined(CONFIG_STM32_STM32F77XX)
 #  include "hardware/stm32f74xx77xx_uart.h"
 #else
 #  error "Unsupported STM32 F7 part"

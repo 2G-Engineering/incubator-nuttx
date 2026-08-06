@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wb/stm32wb_userspace.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,7 +41,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32wb_userspace
+ * Name: stm32_userspace
  *
  * Description:
  *   For the case of the separate user-/kernel-space build, perform whatever
@@ -49,7 +51,7 @@
  *
  ****************************************************************************/
 
-void stm32wb_userspace(void)
+void stm32_userspace(void)
 {
   uint8_t *src;
   uint8_t *dest;
@@ -85,7 +87,7 @@ void stm32wb_userspace(void)
 
   /* Configure the MPU to permit user-space access to its FLASH and RAM */
 
-  stm32wb_mpuinitialize();
+  stm32_mpuinitialize();
 }
 
 #endif /* CONFIG_BUILD_PROTECTED */

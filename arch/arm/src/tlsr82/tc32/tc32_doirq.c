@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/tlsr82/tc32/tc32_doirq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,12 +33,12 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
 #include "arm_internal.h"
-
+#include "sched/sched.h"
 #include "hardware/tlsr82_irq.h"
 
 /****************************************************************************
@@ -54,6 +56,41 @@
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+uint32_t *arm_doirq(int irq, uint32_t *regs)
+{
+  struct tcb_s *tcb = this_task();
+
+  board_autoled_on(LED_INIRQ);
+#ifdef CONFIG_SUPPRESS_INTERRUPTS
+  PANIC();
+#else
+
+  /* Nested interrupts are not supported */
+
+  DEBUGASSERT(!up_interrupt_context());
+
+  tcb->xcp.regs = regs;
+
+  /* Acknowledge the interrupt */
+
+  arm_ack_irq(irq);
+
+  /* Deliver the IRQ */
+
+  irq_dispatch(irq, regs);
+  tcb = this_task();
+
+  if (regs != tcb->xcp.regs)
+    {
+      regs = tcb->xcp.regs;
+    }
+
+#endif
+
+  board_autoled_off(LED_INIRQ);
+  return regs;
+}
 
 /****************************************************************************
  * Name: tc32_getirq

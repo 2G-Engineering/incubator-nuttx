@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/hardware/stm32h7x3xx_spi.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,11 @@
 
 #include <nuttx/config.h>
 
-#if defined(CONFIG_STM32H7_STM32H7X3XX) || defined(CONFIG_STM32H7_STM32H7B3XX)
+#if defined(CONFIG_STM32_STM32H7X0XX) || \
+    defined(CONFIG_STM32_STM32H7X3XX) || \
+    defined(CONFIG_STM32_STM32H7B3XX) || \
+    defined(CONFIG_STM32_STM32H7X5XX) || \
+    defined(CONFIG_STM32_STM32H7X7XX)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -56,7 +62,7 @@
 
 /* Register Addresses *******************************************************/
 
-#if STM32H7_NSPI > 0
+#if STM32_NSPI > 0
 #  define STM32_SPI1_CR1          (STM32_SPI1_BASE+STM32_SPI_CR1_OFFSET)
 #  define STM32_SPI1_CR2          (STM32_SPI1_BASE+STM32_SPI_CR2_OFFSET)
 #  define STM32_SPI1_CFG1         (STM32_SPI1_BASE+STM32_SPI_CFG1_OFFSET)
@@ -73,7 +79,7 @@
 #  define STM32_SPI1_I2SCFGR      (STM32_SPI1_BASE+STM32_SPI_I2SCFGR_OFFSET)
 #endif
 
-#if STM32H7_NSPI > 1
+#if STM32_NSPI > 1
 #  define STM32_SPI2_CR1          (STM32_SPI2_BASE+STM32_SPI_CR1_OFFSET)
 #  define STM32_SPI2_CR2          (STM32_SPI2_BASE+STM32_SPI_CR2_OFFSET)
 #  define STM32_SPI2_CFG1         (STM32_SPI2_BASE+STM32_SPI_CFG1_OFFSET)
@@ -90,7 +96,7 @@
 #  define STM32_SPI2_I2SCFGR      (STM32_SPI2_BASE+STM32_SPI_I2SCFGR_OFFSET)
 #endif
 
-#if STM32H7_NSPI > 2
+#if STM32_NSPI > 2
 #  define STM32_SPI3_CR1          (STM32_SPI3_BASE+STM32_SPI_CR1_OFFSET)
 #  define STM32_SPI3_CR2          (STM32_SPI3_BASE+STM32_SPI_CR2_OFFSET)
 #  define STM32_SPI3_CFG1         (STM32_SPI3_BASE+STM32_SPI_CFG1_OFFSET)
@@ -107,7 +113,7 @@
 #  define STM32_SPI3_I2SCFGR      (STM32_SPI3_BASE+STM32_SPI_I2SCFGR_OFFSET)
 #endif
 
-#if STM32H7_NSPI > 3
+#if STM32_NSPI > 3
 #  define STM32_SPI4_CR1          (STM32_SPI4_BASE+STM32_SPI_CR1_OFFSET)
 #  define STM32_SPI4_CR2          (STM32_SPI4_BASE+STM32_SPI_CR2_OFFSET)
 #  define STM32_SPI4_CFG1         (STM32_SPI4_BASE+STM32_SPI_CFG1_OFFSET)
@@ -124,7 +130,7 @@
 #  define STM32_SPI4_I2SCFGR      (STM32_SPI4_BASE+STM32_SPI_I2SCFGR_OFFSET)
 #endif
 
-#if STM32H7_NSPI > 4
+#if STM32_NSPI > 4
 #  define STM32_SPI5_CR1          (STM32_SPI5_BASE+STM32_SPI_CR1_OFFSET)
 #  define STM32_SPI5_CR2          (STM32_SPI5_BASE+STM32_SPI_CR2_OFFSET)
 #  define STM32_SPI5_CFG1         (STM32_SPI5_BASE+STM32_SPI_CFG1_OFFSET)
@@ -141,7 +147,7 @@
 #  define STM32_SPI5_I2SCFGR      (STM32_SPI5_BASE+STM32_SPI_I2SCFGR_OFFSET)
 #endif
 
-#if STM32H7_NSPI > 5
+#if STM32_NSPI > 5
 #  define STM32_SPI6_CR1          (STM32_SPI6_BASE+STM32_SPI_CR1_OFFSET)
 #  define STM32_SPI6_CR2          (STM32_SPI6_BASE+STM32_SPI_CR2_OFFSET)
 #  define STM32_SPI6_CFG1         (STM32_SPI6_BASE+STM32_SPI_CFG1_OFFSET)
@@ -460,5 +466,5 @@
 
 /* TODO: SPI/I2S configuration register */
 
-#endif /* CONFIG_STM32H7_STM32H7X3XX || CONFIG_STM32H7_STM32H7B3XX */
+#endif /* CONFIG_STM32_STM32H7X3XX || CONFIG_STM32_STM32H7B3XX */
 #endif /* __ARCH_ARM_SRC_STM32H7_HARDWARE_STM32H7X3XX_SPI_H */

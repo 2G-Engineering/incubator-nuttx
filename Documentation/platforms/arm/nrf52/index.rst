@@ -51,9 +51,9 @@ Peripheral Support
 
 The following list indicates peripherals supported in NuttX:
 
-==========  ======= =====
+==========  ======= ===============
 Peripheral  Support Notes
-==========  ======= =====
+==========  ======= ===============
 GPIO        Yes
 GPIOTE      Yes
 I2S         No
@@ -62,9 +62,9 @@ NFCT        No
 PDM         No
 PPI         Yes
 PWM         Yes
-QDEC        No
+QDEC        Yes     Quadrature encoder
 QSPI        Yes
-RADIO       Yes     Basic
+RADIO       Yes     BLE, IEEE 802.15.4
 RNG         Yes
 RTC         Yes
 SAADC       Yes
@@ -78,7 +78,7 @@ UART        Yes
 UARTE       No
 USBD        Yes
 WDT         Yes
-==========  ======= =====
+==========  ======= ===============
 
 Peripherals such as AAR, ACL, CCM, ECB are not directly used by NuttX since they
 are part of BLE controller implementation (link).
@@ -150,13 +150,19 @@ and TASKs to trigger, both for individual and grouped channels.
 When using channels, you should consider that some peripherals may use PPI internally
 and some may be unavailable for further use. As a helper, if debug assertions are
 enabled, calls to PPI API will check for a channel to actually be disabled when being
-enabled and viceversa. This may help catch collisions in PPI use.
+enabled and vice-versa. This may help catch collisions in PPI use.
 
 PWM
 ---
 
 PWM is supported via standard driver. This means that more advanced features such as
 complex sequences or waveform modes are not yet supported.
+
+QDEC
+----
+
+The QDEC (Quadrature Decoder) peripheral is supported via the standard qencoder driver
+interface. The LED output is not supported now.
 
 QSPI
 ----
@@ -206,6 +212,11 @@ is provided with settings already set.
 Note that in this case, some peripherals (mostly those related to BLE) will be unavailable. Some PPI
 channels will also be ocuppied (``NRF52_PPI_NUM_CONFIGURABLE_CHANNELS`` will be set accordingly in this case).
 
+IEEE 802.15.4 Support
+=====================
+
+Details about IEEE 802.15.4 support for nRF52 can be found in :doc:`ieee802154`.
+
 Supported Boards
 ================
 
@@ -214,3 +225,4 @@ Supported Boards
    :maxdepth: 1
 
    boards/*/*
+   ieee802154.rst

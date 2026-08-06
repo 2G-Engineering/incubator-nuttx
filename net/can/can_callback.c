@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/can/can_callback.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,13 +28,16 @@
 #if defined(CONFIG_NET) && defined(CONFIG_NET_CAN)
 
 #include <stdint.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/net/netconfig.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/mm/iob.h>
+#include <nuttx/net/netstats.h>
+#include <nuttx/net/can.h>
 
 #include "devif/devif.h"
+#include "utils/utils.h"
 #include "can/can.h"
 
 #ifdef CONFIG_NET_TIMESTAMP
@@ -57,13 +62,17 @@
  *
  ****************************************************************************/
 
-static inline uint16_t
+static inline uint32_t
 can_data_event(FAR struct net_driver_s *dev, FAR struct can_conn_s *conn,
-               uint16_t flags)
+               uint32_t flags)
 {
   int buflen = dev->d_len;
-  uint16_t recvlen;
-  uint16_t ret;
+  int recvlen;
+  uint32_t ret;
+
+#ifdef CONFIG_NET_TIMESTAMP
+  buflen -= sizeof(struct timeval);
+#endif
 
   ret = (flags & ~CAN_NEWDATA);
 
@@ -81,10 +90,7 @@ can_data_event(FAR struct net_driver_s *dev, FAR struct can_conn_s *conn,
       ninfo("Dropped %d bytes\n", dev->d_len);
 
 #ifdef CONFIG_NET_STATISTICS
-      /* No support CAN net statistics yet */
-
-      /* g_netstats.tcp.drop++; */
-
+      g_netstats.can.drop++;
 #endif
     }
 
@@ -112,33 +118,20 @@ can_data_event(FAR struct net_driver_s *dev, FAR struct can_conn_s *conn,
  *
  ****************************************************************************/
 
-uint16_t can_callback(FAR struct net_driver_s *dev,
-                      FAR struct can_conn_s *conn, uint16_t flags)
+uint32_t can_callback(FAR struct net_driver_s *dev,
+                      FAR struct can_conn_s *conn, uint32_t flags)
 {
   /* Some sanity checking */
 
   if (conn)
     {
-      /* Try to lock the network when successful send data to the listener */
-
-      if (net_trylock() == OK)
-        {
-          flags = devif_conn_event(dev, flags, conn->sconn.list);
-          net_unlock();
-        }
-
-      /* Either we did not get the lock or there is no application listening
-       * If we did not get a lock we store the frame in the read-ahead buffer
-       */
-
-      if ((flags & CAN_NEWDATA) != 0)
-        {
 #ifdef CONFIG_NET_TIMESTAMP
           /* TIMESTAMP sockopt is activated,
            * create timestamp and copy to iob
            */
 
-          if (conn->timestamp)
+          if (_SO_GETOPT(conn->sconn.s_options, SO_TIMESTAMP) &&
+            (dev->d_iob != NULL))
             {
               struct timeval tv;
               FAR struct timespec *ts = (FAR struct timespec *)&tv;
@@ -150,22 +143,28 @@ uint16_t can_callback(FAR struct net_driver_s *dev,
               len = iob_trycopyin(dev->d_iob, (FAR uint8_t *)&tv,
                                   sizeof(struct timeval),
                                   -CONFIG_NET_LL_GUARDSIZE, false);
-              if (len != sizeof(struct timeval))
-                {
-                  dev->d_len = 0;
-                  return flags & ~CAN_NEWDATA;
-                }
-              else
+              if (len == sizeof(struct timeval))
                 {
                   dev->d_len += len;
                 }
             }
-
 #endif
+
+      conn_lock(&conn->sconn);
+      flags = devif_conn_event(dev, flags, conn->sconn.list);
+
+      /* Either we did not get the lock or there is no application listening
+       * If we did not get a lock we store the frame in the read-ahead buffer
+       */
+
+      if ((flags & CAN_NEWDATA) != 0)
+        {
           /* Data was not handled.. dispose of it appropriately */
 
           flags = can_data_event(dev, conn, flags);
         }
+
+      conn_unlock(&conn->sconn);
     }
 
   return flags;
@@ -195,11 +194,29 @@ uint16_t can_callback(FAR struct net_driver_s *dev,
  *
  ****************************************************************************/
 
-uint16_t can_datahandler(FAR struct net_driver_s *dev,
-                         FAR struct can_conn_s *conn)
+int can_datahandler(FAR struct net_driver_s *dev,
+                    FAR struct can_conn_s *conn)
 {
   FAR struct iob_s *iob = dev->d_iob;
-  int ret;
+  int ret = 0;
+
+  conn_lock(&conn->sconn);
+#if CONFIG_NET_RECV_BUFSIZE > 0
+#  if CONFIG_NET_CAN_NBUFFERS > 0
+  int bufnum = div_const_roundup(conn->rcvbufs, NET_CAN_PKTSIZE);
+#  else
+  int bufnum = div_const_roundup(conn->rcvbufs, CONFIG_IOB_BUFSIZE);
+#  endif
+  /* Check the frame count pending on conn->readahead */
+
+  if (iob_get_queue_entry_count(&conn->readahead) >= bufnum)
+    {
+      nwarn("WARNING: There are no free receive buffer to retain the data. "
+            "Receive buffer number:%"PRId32", received frames:%"PRIuPTR" \n",
+            bufnum, iob_get_queue_entry_count(&conn->readahead));
+      goto errout;
+    }
+#endif
 
   /* Concat the iob to readahead */
 
@@ -214,12 +231,24 @@ uint16_t can_datahandler(FAR struct net_driver_s *dev,
       can_readahead_signal(conn);
 #endif
       ret = iob->io_pktlen;
+
+      /* Device buffer has been enqueued, clear the handle */
+
+      netdev_iob_clear(dev);
+    }
+  else
+    {
+      nerr("ERROR: Failed to queue the I/O buffer chain: %d\n", ret);
+      ret = 0;
+      goto errout;
     }
 
-  /* Device buffer must be enqueue or freed, clear the handle */
+  conn_unlock(&conn->sconn);
+  return ret;
 
-  netdev_iob_clear(dev);
-
+errout:
+  netdev_iob_release(dev);
+  conn_unlock(&conn->sconn);
   return ret;
 }
 

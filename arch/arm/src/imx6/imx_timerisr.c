@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imx6/imx_timerisr.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -179,7 +181,7 @@ void up_timer_initialize(void)
 
   putreg32(0, IMX_GPT_IR);
 
-  /* Configure Output Mode to unconnected/ disconnected—Write zeros in OM3,
+  /* Configure Output Mode to unconnected/ disconnected-Write zeros in OM3,
    * OM2, and OM1 in GPT_CR.
    */
 
@@ -187,7 +189,7 @@ void up_timer_initialize(void)
   cr |=  (GPT_CR_OM1_DISCON | GPT_CR_OM2_DISCON | GPT_CR_OM3_DISCON);
   putreg32(cr, IMX_GPT_CR);
 
-  /* Disable Input Capture Modes—Write zeros in IM1 and IM2 in GPT_CR */
+  /* Disable Input Capture Modes-Write zeros in IM1 and IM2 in GPT_CR */
 
   cr &= ~(GPT_CR_IM1_MASK     | GPT_CR_IM2_MASK);
   cr |=  (GPT_CR_IM1_DISABLED | GPT_CR_IM2_DISABLED);
@@ -244,7 +246,7 @@ void up_timer_initialize(void)
 
   /* Configure as a (rising) edge-triggered interrupt */
 
-  arm_gic_irq_trigger(IMX_IRQ_GPT, true);
+  up_set_irq_type(IMX_IRQ_GPT, IRQ_RISING_EDGE);
 
   /* Attach the timer interrupt vector */
 

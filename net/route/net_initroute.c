@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/route/net_initroute.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -50,10 +52,6 @@
 
 void net_init_route(void)
 {
-#if defined(CONFIG_ROUTE_IPv4_RAMROUTE) || defined(CONFIG_ROUTE_IPv6_RAMROUTE)
-  net_init_ramroute();
-#endif
-
 #if defined(CONFIG_ROUTE_IPv4_CACHEROUTE) || defined(CONFIG_ROUTE_IPv6_CACHEROUTE)
   net_init_cacheroute();
 #endif

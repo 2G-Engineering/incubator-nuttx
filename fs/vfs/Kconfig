@@ -51,6 +51,7 @@ endif # TIMER_FD
 
 config SIGNAL_FD
 	bool "SignalFD"
+	depends on !DISABLE_ALL_SIGNALS
 	default n
 	---help---
 		Create a file descriptor for accepting signals
@@ -64,3 +65,47 @@ config SIGNAL_FD_NPOLLWAITERS
 		Maximum number of threads that can be waiting on poll()
 
 endif # SIGNAL_FD
+
+config FS_NOTIFY
+	bool "FS Notify System"
+	default n
+	---help---
+		The Fsnotify System
+
+if FS_NOTIFY
+config FS_NOTIFY_BUCKET_SIZE
+	int "Dir hash bucket size"
+	default 64
+
+config FS_NOTIFY_MAX_EVENTS
+	int "Max events in one notify device"
+	default 1024
+
+config FS_NOTIFY_FD_POLLWAITERS
+	int "Max pollwaiters in one notify device"
+	default 2
+
+endif # FS_NOTIFY
+
+config FS_BACKTRACE
+	int "VFS backtrace"
+	default 0
+	---help---
+		Add backtrace to vfs file open.
+
+config FS_BACKTRACE_SKIP
+	int "Backtrace to skip"
+	default 2
+	depends on FS_BACKTRACE > 0
+	---help---
+		Skip depth of backtrace.
+
+config FS_BACKTRACE_DEFAULT
+	bool "Enable the backtrace record by default"
+	default y
+	depends on FS_BACKTRACE > 0
+	---help---
+		Enable automatic backtrace capture for all file descriptor operations
+		globally. When disabled, backtrace capture is zero-cost by default
+		and must be explicitly enabled per task group by setting the
+		GROUP_FLAG_FD_BACKTRACE flag.

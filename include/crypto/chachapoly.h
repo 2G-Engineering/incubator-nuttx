@@ -1,7 +1,8 @@
 /****************************************************************************
  * include/crypto/chachapoly.h
- * $OpenBSD: chachapoly.h,v 1.4 2020/07/22 13:54:30 tobhe Exp $
- * Copyright (c) 2015 Mike Belopuhov
+ *
+ * SPDX-License-Identifier: ISC
+ * SPDX-FileCopyrightText:2015 Mike Belopuhov
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -64,7 +65,7 @@ CHACHA20_POLY1305_CTX;
 void chacha20_poly1305_init(FAR void *);
 void chacha20_poly1305_setkey(FAR void *, FAR const uint8_t *, uint16_t);
 void chacha20_poly1305_reinit(FAR void *, FAR const uint8_t *, uint16_t);
-int chacha20_poly1305_update(FAR void *, FAR const uint8_t *, uint16_t);
+int chacha20_poly1305_update(FAR void *, FAR const uint8_t *, size_t);
 void chacha20_poly1305_final(FAR uint8_t *, FAR void *);
 
 /* WireGuard crypto */

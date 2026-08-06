@@ -1,6 +1,8 @@
 ############################################################################
 # drivers/power/battery/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -82,6 +84,14 @@ ifeq ($(CONFIG_I2C_BQ769X0),y)
 CSRCS += bq769x0.c
 endif
 
+endif
+
+ifeq ($(CONFIG_GOLDFISH_BATTERY),y)
+CSRCS += goldfish_battery.c
+endif
+
+ifeq ($(CONFIG_BATTERY_FAKE_GAUGE),y)
+CSRCS += battery_fakegauge.c
 endif
 
 DEPPATH += --dep-path power/battery

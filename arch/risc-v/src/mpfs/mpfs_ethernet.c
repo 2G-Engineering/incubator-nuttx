@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/mpfs/mpfs_ethernet.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <time.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <arpa/inet.h>
@@ -41,28 +43,48 @@
 #include <nuttx/wqueue.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/net/mii.h>
 #include <nuttx/net/gmii.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 
 #ifdef CONFIG_NET_PKT
 #  include <nuttx/net/pkt.h>
 #endif
 
+#include <nuttx/net/ksz9477.h>
+
 #include "riscv_internal.h"
 #include "mpfs_memorymap.h"
 #include "mpfs_ethernet.h"
+#include "mpfs_dsn.h"
+#include "mpfs_i2c.h"
+
+#include "hardware/mpfs_ethernet.h"
+#include "hardware/mpfs_mpucfg.h"
+
+#define SIZE_ALIGNED_64(m) (((m) + (0x3f)) & ~0x3f)
+
+#if defined(CONFIG_MPFS_ETH0_PHY_KSZ9477) ||\
+    defined(CONFIG_MPFS_ETH1_PHY_KSZ9477)
+#  if !defined(CONFIG_MPFS_MAC_SGMII)
+#    error Using KSZ9477 as a PHY requires CONFIG_MPFS_MAC_SGMII to be set
+#  endif
+
+#  define ETH_HAS_KSZ_SWITCH
+
+#  ifdef CONFIG_MPFS_ETH0_PHY_KSZ9477
+#    define ETH_PHY_KSZ9477_I2C_BUS CONFIG_MPFS_ETH0_PHY_KSZ9477_I2C_BUS
+#  else
+#    define ETH_PHY_KSZ9477_I2C_BUS CONFIG_MPFS_ETH1_PHY_KSZ9477_I2C_BUS
+#  endif
+
+#else
+#  define ETH_HAS_MDIO_PHY
+#endif
 
 #if defined(CONFIG_NET) && defined(CONFIG_MPFS_ETHMAC)
-
-#define MPFS_PMPCFG_ETH0_0   (MPFS_MPUCFG_BASE + 0x400)
-#define MPFS_PMPCFG_ETH0_1   (MPFS_MPUCFG_BASE + 0x408)
-#define MPFS_PMPCFG_ETH0_2   (MPFS_MPUCFG_BASE + 0x410)
-#define MPFS_PMPCFG_ETH0_3   (MPFS_MPUCFG_BASE + 0x418)
-#define MPFS_PMPCFG_ETH1_0   (MPFS_MPUCFG_BASE + 0x500)
-#define MPFS_PMPCFG_ETH1_1   (MPFS_MPUCFG_BASE + 0x508)
-#define MPFS_PMPCFG_ETH1_2   (MPFS_MPUCFG_BASE + 0x510)
-#define MPFS_PMPCFG_ETH1_3   (MPFS_MPUCFG_BASE + 0x518)
 
 #if defined(CONFIG_MPFS_ETHMAC_0) && defined(CONFIG_MPFS_ETHMAC_1)
 #  warning "Using 2 MACs is not yet supported."
@@ -81,14 +103,12 @@
 
 #  if defined(CONFIG_MPFS_ETHMAC_HPWORK)
 #    define ETHWORK HPWORK
-#  elif defined(CONFIG_MPFS_ETHMAC_LPWORK)
-#    define ETHWORK LPWORK
 #  else
 #    define ETHWORK LPWORK
 #  endif
 #endif
 
-#ifndef CONFIG_MPFS_PHYADDR
+#if defined(ETH_HAS_MDIO_PHY) && !defined(CONFIG_MPFS_PHYADDR)
 #  error "CONFIG_MPFS_PHYADDR must be defined in the NuttX configuration"
 #endif
 
@@ -112,20 +132,17 @@
 #  define CONFIG_MPFS_ETHMAC_NTXBUFFERS  (8)
 #endif
 
-/* GMAC buffer sizes
- * REVISIT: do we want to make GMAC_RX_UNITSIZE configurable?
- * issue when using the MTU size receive block
- */
-
-#define GMAC_RX_UNITSIZE  (512)                  /* Fixed size for RX buffer */
-#define GMAC_TX_UNITSIZE  CONFIG_NET_ETH_PKTSIZE /* MAX size for Ethernet packet */
-
 /* The MAC can support frame lengths up to 1536 bytes */
 
 #define GMAC_MAX_FRAMELEN (1536)
 #if CONFIG_NET_ETH_PKTSIZE > GMAC_MAX_FRAMELEN
 #  error CONFIG_NET_ETH_PKTSIZE is too large
 #endif
+
+/* Max size of RX and TX buffers */
+
+#define GMAC_RX_UNITSIZE SIZE_ALIGNED_64(GMAC_MAX_FRAMELEN)
+#define GMAC_TX_UNITSIZE SIZE_ALIGNED_64(CONFIG_NET_ETH_PKTSIZE)
 
 /* for DMA dma_rxbuf_size */
 
@@ -153,6 +170,15 @@
 /* TX timeout = 1 minute */
 
 #define MPFS_TXTIMEOUT   (60 * CLK_TCK)
+
+/* RX timeout: Workaround for LAN8742A rev A and B silicon errata
+ * "Cable diagnostics incorrectly returns Open cable connection for
+ *  terminated cable"
+ */
+
+#if CONFIG_MPFS_PHY_RX_TIMEOUT_WA != 0
+#define MPFS_RXTIMEOUT   (CONFIG_MPFS_PHY_RX_TIMEOUT_WA * CLK_TCK)
+#endif
 
 /* PHY reset tim in loop counts */
 
@@ -244,13 +270,20 @@ struct mpfs_mac_queue_s
 struct mpfs_ethmac_s
 {
   uintptr_t     regbase;                         /* mac base address */
+  spinlock_t    lock;                            /* lock for device access */
   irq_t         mac_q_int[MPFS_MAC_QUEUE_COUNT]; /* irq numbers */
   uint8_t       ifup : 1;                        /* true:ifup false:ifdown */
   uint8_t       intf;                            /* Ethernet interface number */
+#ifdef ETH_HAS_MDIO_PHY
   uint8_t       phyaddr;                         /* PHY address */
+#endif
   struct wdog_s txtimeout;                       /* TX timeout timer */
+#ifdef MPFS_RXTIMEOUT
+  struct wdog_s rxtimeout;                       /* RX timeout timer */
+#endif
   struct work_s irqwork;                         /* For deferring interrupt work to the work queue */
   struct work_s pollwork;                        /* For deferring poll work to the work queue */
+  struct work_s timeoutwork;                     /* For managing timeouts */
 
   /* This holds the information visible to the NuttX network */
 
@@ -331,10 +364,13 @@ static int mpfs_ioctl(struct net_driver_s *dev, int cmd, unsigned long arg);
 
 /* PHY Initialization */
 
+static int  mpfs_phyinit(struct mpfs_ethmac_s *priv);
+
+#ifdef ETH_HAS_MDIO_PHY
+
 static void mpfs_enablemdio(struct mpfs_ethmac_s *priv);
 static void mpfs_disablemdio(struct mpfs_ethmac_s *priv);
 static int  mpfs_phyreset(struct mpfs_ethmac_s *priv);
-static int  mpfs_phyinit(struct mpfs_ethmac_s *priv);
 static int  mpfs_phyread(struct mpfs_ethmac_s *priv, uint8_t phyaddr,
                          uint8_t regaddr, uint16_t *phyval);
 static int  mpfs_phywrite(struct mpfs_ethmac_s *priv, uint8_t phyaddr,
@@ -343,14 +379,19 @@ static int  mpfs_phywait(struct mpfs_ethmac_s *priv);
 static int  mpfs_phyfind(struct mpfs_ethmac_s *priv, uint8_t *phyaddr);
 #ifdef CONFIG_MPFS_MAC_AUTONEG
 static int  mpfs_autonegotiate(struct mpfs_ethmac_s *priv);
-#else
-static void mpfs_linkspeed(struct mpfs_ethmac_s *priv);
 #endif
 
-#if defined(CONFIG_DEBUG_NET) && defined(CONFIG_DEBUG_INFO)
+#endif /* ETH_HAS_MDIO_PHY */
+
+#if defined(CONFIG_DEBUG_NET) && defined(CONFIG_DEBUG_INFO) &&  \
+    defined(ETH_HAS_MDIO_PHY)
 static void mpfs_phydump(struct mpfs_ethmac_s *priv);
 #else
 #  define mpfs_phydump(priv)
+#endif
+
+#ifndef CONFIG_MPFS_MAC_AUTONEG
+static void mpfs_linkspeed(struct mpfs_ethmac_s *priv);
 #endif
 
 /* MAC/DMA Initialization */
@@ -360,11 +401,9 @@ static void mpfs_rxreset(struct mpfs_ethmac_s *priv);
 static int  mpfs_macenable(struct mpfs_ethmac_s *priv);
 static int  mpfs_ethconfig(struct mpfs_ethmac_s *priv);
 static void mpfs_ethreset(struct mpfs_ethmac_s *priv);
-#ifdef CONFIG_NET_ICMPv6
-static void mpfs_ipv6multicast(struct sam_gmac_s *priv);
-#endif
 
 static void mpfs_interrupt_work(void *arg);
+static void mpfs_txtimeout_expiry(wdparm_t arg);
 
 /****************************************************************************
  * Private Functions
@@ -388,7 +427,7 @@ static void mpfs_interrupt_work(void *arg);
 static inline void mac_putreg(struct mpfs_ethmac_s *priv,
                               uint32_t offset, uint32_t val)
 {
-  uint32_t *addr = (uint32_t *)(priv->regbase + offset);
+  uintptr_t addr = (uintptr_t)(priv->regbase + offset);
 #if defined(CONFIG_DEBUG_NET) && defined(CONFIG_MPFS_ETHMAC_REGDEBUG)
   ninfo("0x%08x <- 0x%08x\n", addr, val);
 #endif
@@ -413,7 +452,7 @@ static inline void mac_putreg(struct mpfs_ethmac_s *priv,
 static inline uint32_t mac_getreg(struct mpfs_ethmac_s *priv,
                                   uint32_t offset)
 {
-  uint32_t *addr = (uint32_t *)(priv->regbase + offset);
+  uintptr_t addr = (uintptr_t)(priv->regbase + offset);
   uint32_t value = getreg32(addr);
 #if defined(CONFIG_DEBUG_NET) && defined(CONFIG_MPFS_ETHMAC_REGDEBUG)
   ninfo("0x%08x -> 0x%08x\n", addr, value);
@@ -445,6 +484,16 @@ static int mpfs_interrupt_0(int irq, void *context, void *arg)
       nwarn("TX complete: cancel timeout\n");
       wd_cancel(&priv->txtimeout);
     }
+
+#ifdef MPFS_RXTIMEOUT
+  if ((isr & INT_RX) != 0)
+    {
+      /* If a RX transfer just completed, restart the timeout */
+
+      wd_start(&priv->rxtimeout, MPFS_RXTIMEOUT,
+               mpfs_txtimeout_expiry, (wdparm_t)priv);
+    }
+#endif
 
   /* Schedule to perform the interrupt processing on the worker thread. */
 
@@ -1045,13 +1094,6 @@ static void mpfs_interrupt_work(void *arg)
       uint32_t rx_error = 0;
       ninfo("RX: rsr=0x%X\n", rsr);
 
-      if ((rsr & RECEIVE_STATUS_FRAME_RECEIVED) != 0)
-        {
-          /* Handle the received packet */
-
-          mpfs_receive(priv, queue);
-        }
-
       /* Check for Receive Overrun */
 
       if ((rsr & RECEIVE_STATUS_RECEIVE_OVERRUN) != 0)
@@ -1087,11 +1129,17 @@ static void mpfs_interrupt_work(void *arg)
           *priv->queue[queue].int_status = 0xffffffff;
           mac_putreg(priv, RECEIVE_STATUS, 0xffffffff);
 
-          /* rxreset disables reveiver so re-enable it */
+          /* rxreset disables receiver so re-enable it */
 
           regval = mac_getreg(priv, NETWORK_CONTROL);
           regval |= NETWORK_CONTROL_ENABLE_RECEIVE;
           mac_putreg(priv, NETWORK_CONTROL, regval);
+        }
+      else if ((rsr & RECEIVE_STATUS_FRAME_RECEIVED) != 0)
+        {
+          /* Handle the received packet only in case there are no RX errors */
+
+          mpfs_receive(priv, queue);
         }
     }
 
@@ -1147,6 +1195,13 @@ static void mpfs_txreset(struct mpfs_ethmac_s *priv)
       txdesc   = priv->queue[qi].tx_desc_tab;
       priv->queue[qi].txhead = 0;
       priv->queue[qi].txtail = 0;
+
+      if (!txdesc || !txbuffer)
+        {
+          /* The queue index is not set up */
+
+          continue;
+        }
 
       for (ndx = 0; ndx < CONFIG_MPFS_ETHMAC_NTXBUFFERS; ndx++)
         {
@@ -1222,6 +1277,13 @@ static void mpfs_rxreset(struct mpfs_ethmac_s *priv)
       rxbuffer = priv->queue[qi].rxbuffer;
       rxdesc   = priv->queue[qi].rx_desc_tab;
       priv->queue[qi].rxndx = 0;
+
+      if (!rxdesc || !rxbuffer)
+        {
+          /* The queue index is not set up */
+
+          continue;
+        }
 
       for (ndx = 0; ndx < CONFIG_MPFS_ETHMAC_NRXBUFFERS; ndx++)
         {
@@ -1463,9 +1525,9 @@ static int mpfs_ifup(struct net_driver_s *dev)
   int ret;
 
 #ifdef CONFIG_NET_IPv4
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 #endif
 #ifdef CONFIG_NET_IPv6
   ninfo("Bringing up: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -1482,15 +1544,9 @@ static int mpfs_ifup(struct net_driver_s *dev)
       return ret;
     }
 
-  /* Set the MAC address (should have been configured while we were down) */
+  /* Set the MAC address */
 
   mpfs_macaddress(priv);
-
-#ifdef CONFIG_NET_ICMPv6
-  /* Set up IPv6 multicast address filtering */
-
-  mpfs_ipv6multicast(priv);
-#endif
 
   /* Initialize for PHY access */
 
@@ -1527,6 +1583,17 @@ static int mpfs_ifup(struct net_driver_s *dev)
   up_enable_irq(priv->mac_q_int[2]);
   up_enable_irq(priv->mac_q_int[3]);
 
+#ifdef MPFS_RXTIMEOUT
+  /* Set up the RX timeout. If we don't receive anything in time, try
+   * to re-initialize
+   */
+
+  wd_start(&priv->rxtimeout, MPFS_RXTIMEOUT,
+           mpfs_txtimeout_expiry, (wdparm_t)priv);
+#endif
+
+  netdev_carrier_on(dev);
+
   return OK;
 }
 
@@ -1555,7 +1622,7 @@ static int mpfs_ifdown(struct net_driver_s *dev)
 
   /* Disable the Ethernet interrupt */
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&priv->lock);
   up_disable_irq(priv->mac_q_int[0]);
   up_disable_irq(priv->mac_q_int[1]);
   up_disable_irq(priv->mac_q_int[2]);
@@ -1570,6 +1637,12 @@ static int mpfs_ifdown(struct net_driver_s *dev)
 
   wd_cancel(&priv->txtimeout);
 
+#ifdef MPFS_RXTIMEOUT
+  /* Cancel the RX timeout timers */
+
+  wd_cancel(&priv->rxtimeout);
+#endif
+
   /* Put the MAC in its reset, non-operational state.  This should be
    * a known configuration that will guarantee the mpfs_ifup() always
    * successfully brings the interface back up.
@@ -1580,7 +1653,10 @@ static int mpfs_ifdown(struct net_driver_s *dev)
   /* Mark the device "down" */
 
   priv->ifup = false;
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
+
+  netdev_carrier_off(dev);
+
   return OK;
 }
 
@@ -1846,6 +1922,8 @@ static int mpfs_rmmac(struct net_driver_s *dev, const uint8_t *mac)
   return OK;
 }
 #endif
+
+#ifdef ETH_HAS_MDIO_PHY
 
 /****************************************************************************
  * Function: mpfs_enablemdio
@@ -2174,7 +2252,8 @@ static int mpfs_phyfind(struct mpfs_ethmac_s *priv, uint8_t *phyaddr)
  *
  ****************************************************************************/
 
-#if defined(CONFIG_DEBUG_NET) && defined(CONFIG_DEBUG_INFO)
+#if defined(CONFIG_DEBUG_NET) && defined(CONFIG_DEBUG_INFO) && \
+  defined(ETH_HAS_MDIO_PHY)
 static void mpfs_phydump(struct mpfs_ethmac_s *priv)
 {
   uint16_t phyval;
@@ -2477,6 +2556,8 @@ errout:
 }
 #endif
 
+#endif /*  ETH_HAS_MDIO_PHY */
+
 /****************************************************************************
  * Function: mpfs_linkspeed
  *
@@ -2492,7 +2573,7 @@ errout:
  *
  ****************************************************************************/
 
-#ifndef CONFIG_MPFS_MAC_AUTONEG
+#if !defined(CONFIG_MPFS_MAC_AUTONEG) || !defined(ETH_HAS_MDIO_PHY)
 static void mpfs_linkspeed(struct mpfs_ethmac_s *priv)
 {
   uint32_t regval;
@@ -2527,6 +2608,8 @@ static void mpfs_linkspeed(struct mpfs_ethmac_s *priv)
 
   mac_putreg(priv, NETWORK_CONFIG, regval);
   mac_putreg(priv, NETWORK_CONTROL, ncr);
+
+  mpfs_phydump(priv);
 }
 #endif
 
@@ -2568,7 +2651,7 @@ static void mpfs_linkspeed(struct mpfs_ethmac_s *priv)
 #ifdef CONFIG_NETDEV_IOCTL
 static int mpfs_ioctl(struct net_driver_s *dev, int cmd, unsigned long arg)
 {
-#ifdef CONFIG_NETDEV_PHY_IOCTL
+#if defined(CONFIG_NETDEV_PHY_IOCTL) && defined(ETH_HAS_MDIO_PHY)
   struct mpfs_ethmac_s *priv = (struct mpfs_ethmac_s *)dev->d_private;
 #endif
   int ret;
@@ -2576,6 +2659,7 @@ static int mpfs_ioctl(struct net_driver_s *dev, int cmd, unsigned long arg)
   switch (cmd)
     {
 #ifdef CONFIG_NETDEV_PHY_IOCTL
+#ifdef ETH_HAS_MDIO_PHY
 #ifdef CONFIG_ARCH_PHY_INTERRUPT
       case SIOCMIINOTIFY: /* Set up for PHY event notifications */
         {
@@ -2639,6 +2723,7 @@ static int mpfs_ioctl(struct net_driver_s *dev, int cmd, unsigned long arg)
           mpfs_disablemdio(priv);
         }
         break;
+#endif /* ETH_HAS_MDIO_PHY */
 #endif /* CONFIG_NETDEV_PHY_IOCTL */
 
       default:
@@ -2707,7 +2792,7 @@ static int mpfs_buffer_initialize(struct mpfs_ethmac_s *priv,
   memset(priv->queue[queue].rx_desc_tab, 0, allocsize);
 
   allocsize = CONFIG_MPFS_ETHMAC_NTXBUFFERS * GMAC_TX_UNITSIZE;
-  priv->queue[queue].txbuffer = (uint8_t *)kmm_memalign(8, allocsize);
+  priv->queue[queue].txbuffer = kmm_memalign(8, allocsize);
   if (priv->queue[queue].txbuffer == NULL)
     {
       nerr("ERROR: Failed to allocate TX buffer\n");
@@ -2716,7 +2801,7 @@ static int mpfs_buffer_initialize(struct mpfs_ethmac_s *priv,
     }
 
   allocsize = CONFIG_MPFS_ETHMAC_NRXBUFFERS * GMAC_RX_UNITSIZE;
-  priv->queue[queue].rxbuffer = (uint8_t *)kmm_memalign(8, allocsize);
+  priv->queue[queue].rxbuffer = kmm_memalign(8, allocsize);
   if (priv->queue[queue].rxbuffer == NULL)
     {
       nerr("ERROR: Failed to allocate RX buffer\n");
@@ -2753,10 +2838,10 @@ static void mpfs_buffer_free(struct mpfs_ethmac_s *priv, unsigned int queue)
 #ifndef CONFIG_MPFS_GMAC_PREALLOCATE
   /* Free allocated buffers */
 
-  if (priv->queue[queue].rx_desc_tab != NULL)
+  if (priv->queue[queue].tx_desc_tab != NULL)
     {
-      kmm_free(priv->queue[queue].rx_desc_tab);
-      priv->queue[queue].rx_desc_tab = NULL;
+      kmm_free(priv->queue[queue].tx_desc_tab);
+      priv->queue[queue].tx_desc_tab = NULL;
     }
 
   if (priv->queue[queue].rx_desc_tab != NULL)
@@ -2771,10 +2856,10 @@ static void mpfs_buffer_free(struct mpfs_ethmac_s *priv, unsigned int queue)
       priv->queue[queue].txbuffer = NULL;
     }
 
-  if (priv->queue[queue].txbuffer != NULL)
+  if (priv->queue[queue].rxbuffer != NULL)
     {
-      kmm_free(priv->queue[queue].txbuffer);
-      priv->queue[queue].txbuffer = NULL;
+      kmm_free(priv->queue[queue].rxbuffer);
+      priv->queue[queue].rxbuffer = NULL;
     }
 #endif
 }
@@ -2849,7 +2934,7 @@ static void mpfs_txtimeout_expiry(wdparm_t arg)
 
   /* Schedule to perform the TX timeout processing on the worker thread. */
 
-  work_queue(ETHWORK, &priv->irqwork, mpfs_txtimeout_work, priv, 0);
+  work_queue(LPWORK, &priv->timeoutwork, mpfs_txtimeout_work, priv, 0);
 }
 
 /****************************************************************************
@@ -3213,6 +3298,8 @@ static int mpfs_macenable(struct mpfs_ethmac_s *priv)
  *
  ****************************************************************************/
 
+#ifdef ETH_HAS_MDIO_PHY
+
 static void mpfs_mdcclock(struct mpfs_ethmac_s *priv)
 {
   uint32_t ncfgr;
@@ -3267,6 +3354,8 @@ static void mpfs_mdcclock(struct mpfs_ethmac_s *priv)
   mac_putreg(priv, NETWORK_CONTROL, ncr);
 }
 
+#endif
+
 /****************************************************************************
  * Function: mpfs_phyinit
  *
@@ -3283,7 +3372,20 @@ static void mpfs_mdcclock(struct mpfs_ethmac_s *priv)
 
 static int mpfs_phyinit(struct mpfs_ethmac_s *priv)
 {
-  int ret;
+  int ret = -EINVAL;
+
+#ifdef CONFIG_MPFS_PHYINIT
+  /* Perform any necessary, board-specific PHY initialization */
+
+  ret = mpfs_phy_boardinitialize(priv->intf);
+  if (ret < 0)
+    {
+      nerr("ERROR: Failed to initialize the PHY: %d\n", ret);
+      return ret;
+    }
+#endif
+
+#ifdef ETH_HAS_MDIO_PHY
 
   /* Configure PHY clocking */
 
@@ -3302,7 +3404,24 @@ static int mpfs_phyinit(struct mpfs_ethmac_s *priv)
   /* We have a PHY address.  Reset the PHY */
 
   mpfs_phyreset(priv);
-  return OK;
+
+#elif defined(ETH_HAS_KSZ_SWITCH)
+  struct i2c_master_s *bus;
+
+  bus = mpfs_i2cbus_initialize(ETH_PHY_KSZ9477_I2C_BUS);
+
+  if (bus)
+    {
+      ret = ksz9477_i2c_init(bus, KSZ9477_PORT_SGMII);
+    }
+  else
+    {
+      ret = -EINVAL;
+    }
+
+#endif
+
+  return ret;
 }
 
 /****************************************************************************
@@ -3320,6 +3439,8 @@ static int mpfs_phyinit(struct mpfs_ethmac_s *priv)
  * Assumptions:
  *
  ****************************************************************************/
+
+#ifdef ETH_HAS_MDIO_PHY
 
 static int mpfs_phyreset(struct mpfs_ethmac_s *priv)
 {
@@ -3390,6 +3511,8 @@ static int mpfs_phyreset(struct mpfs_ethmac_s *priv)
   return ret;
 }
 
+#endif
+
 /****************************************************************************
  * Function: mpfs_ethconfig
  *
@@ -3412,30 +3535,10 @@ static int mpfs_ethconfig(struct mpfs_ethmac_s *priv)
 
   ninfo("Entry\n");
 
-#ifdef CONFIG_MPFS_PHYINIT
-  /* Perform any necessary, board-specific PHY initialization */
-
-  ret = mpfs_phy_boardinitialize(priv->intf);
-  if (ret < 0)
-    {
-      nerr("ERROR: Failed to initialize the PHY: %d\n", ret);
-      return ret;
-    }
-#endif
-
   /* Reset the Ethernet block */
 
   ninfo("Reset the Ethernet block\n");
   mpfs_ethreset(priv);
-
-  /* Initialize the PHY */
-
-  ninfo("Initialize the PHY\n");
-  ret = mpfs_phyinit(priv);
-  if (ret < 0)
-    {
-      return ret;
-    }
 
   /* Initialize the MAC and DMA */
 
@@ -3506,6 +3609,7 @@ int mpfs_ethinitialize(int intf)
   priv->dev.d_private = priv;           /* Used to recover private state */
   priv->intf          = intf;           /* Remember the interface number */
   priv->regbase       = g_regbases[intf];
+  priv->lock          = SP_UNLOCKED;
   priv->mac_q_int[0]  = g_irq_numbers[intf][0];
   priv->mac_q_int[1]  = g_irq_numbers[intf][1];
   priv->mac_q_int[2]  = g_irq_numbers[intf][2];
@@ -3542,16 +3646,15 @@ int mpfs_ethinitialize(int intf)
   priv->queue[2].dma_rxbuf_size = (uint32_t *)(base + DMA_RXBUF_SIZE_Q2);
   priv->queue[3].dma_rxbuf_size = (uint32_t *)(base + DMA_RXBUF_SIZE_Q3);
 
-  /* MPU hack for ETH DMA if not enabled by bootloader */
+  /* Generate a locally administrated MAC address for this ethernet if */
 
-#ifdef CONFIG_MPFS_MPU_DMA_ENABLE
-#  ifdef CONFIG_MPFS_ETHMAC_0
-  putreg64(0x1f00000fffffffff, MPFS_PMPCFG_ETH0_0);
-#  endif
-#  ifdef CONFIG_MPFS_ETHMAC_1
-  putreg64(0x1f00000fffffffff, MPFS_PMPCFG_ETH1_0);
-#  endif
-#endif
+  /* Set first byte to 0x02 or 0x06 acc. to the intf */
+
+  priv->dev.d_mac.ether.ether_addr_octet[0] = 0x02 | ((intf & 1) << 2);
+
+  /* Read the next 5 bytes from the S/N */
+
+  mpfs_read_dsn(&priv->dev.d_mac.ether.ether_addr_octet[1], 5);
 
   /* Allocate buffers */
 

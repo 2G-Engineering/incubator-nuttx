@@ -1,6 +1,8 @@
 /****************************************************************************
  * binfmt/libnxflat/libnxflat.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,11 +27,6 @@
  * Included Files
  ****************************************************************************/
 
-#include <nuttx/config.h>
-
-#include <sys/types.h>
-
-#include <nuttx/arch.h>
 #include <nuttx/binfmt/nxflat.h>
 
 /****************************************************************************
@@ -37,8 +34,23 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Public Types
+ * Public Function Definitions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: nxflat_verifyheader
+ *
+ * Description:
+ *   Given the header from a possible NXFLAT executable, verify that it is
+ *   an NXFLAT executable.
+ *
+ * Returned Value:
+ *   0 (OK) is returned on success and a negated errno is returned on
+ *   failure.
+ *
+ ****************************************************************************/
+
+int nxflat_verifyheader(FAR const struct nxflat_hdr_s *header);
 
 /****************************************************************************
  * Name: nxflat_addrenv_alloc

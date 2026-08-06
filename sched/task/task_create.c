@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/task/task_create.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,12 +29,13 @@
 #include <sys/types.h>
 #include <sched.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/sched.h>
 #include <nuttx/kthread.h>
+#include <nuttx/fs/fs.h>
 
 #include "sched/sched.h"
 #include "group/group.h"
@@ -75,13 +78,13 @@ int nxthread_create(FAR const char *name, uint8_t ttype, int priority,
                     FAR void *stack_addr, int stack_size, main_t entry,
                     FAR char * const argv[], FAR char * const envp[])
 {
-  FAR struct task_tcb_s *tcb;
+  FAR struct tcb_s *tcb;
   pid_t pid;
   int ret;
 
   /* Allocate a TCB for the new task. */
 
-  tcb = (FAR struct task_tcb_s *)kmm_zalloc(sizeof(struct task_tcb_s));
+  tcb = kmm_zalloc(sizeof(struct tcb_s));
   if (!tcb)
     {
       serr("ERROR: Failed to allocate TCB\n");
@@ -90,12 +93,12 @@ int nxthread_create(FAR const char *name, uint8_t ttype, int priority,
 
   /* Setup the task type */
 
-  tcb->cmn.flags = ttype;
+  tcb->flags = ttype | TCB_FLAG_FREE_TCB;
 
   /* Initialize the task */
 
-  ret = nxtask_init(tcb, name, priority, stack_addr, stack_size,
-                    entry, argv, envp);
+  ret = nxtask_init(tcb, name, priority,
+                    stack_addr, stack_size, entry, argv, envp, NULL);
   if (ret < OK)
     {
       kmm_free(tcb);
@@ -104,13 +107,13 @@ int nxthread_create(FAR const char *name, uint8_t ttype, int priority,
 
   /* Get the assigned pid before we start the task */
 
-  pid = tcb->cmn.pid;
+  pid = tcb->pid;
 
   /* Activate the task */
 
-  nxtask_activate(&tcb->cmn);
+  nxtask_activate(tcb);
 
-  return (int)pid;
+  return pid;
 }
 
 /****************************************************************************

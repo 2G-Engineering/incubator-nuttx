@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wb/stm32wb_blehci.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -48,7 +50,7 @@ extern "C"
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32wb_blehci_initialize
+ * Name: stm32_blehci_initialize
  *
  * Description:
  *   Initialize and register BLE HCI driver which interfaces a BLE host
@@ -57,7 +59,7 @@ extern "C"
  *
  ****************************************************************************/
 
-void stm32wb_blehci_initialize(void);
+void stm32_blehci_initialize(void);
 
 #undef EXTERN
 #if defined(__cplusplus)

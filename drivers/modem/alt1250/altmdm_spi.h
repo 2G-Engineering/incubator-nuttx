@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/modem/alt1250/altmdm_spi.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -201,6 +203,22 @@ void altmdm_overwrite_body_size(FAR altmdm_spipkt_t *pkt, uint16_t sz);
  ****************************************************************************/
 
 void altmdm_set_sleeppkt(FAR altmdm_spipkt_t *pkt);
+
+/****************************************************************************
+ * Name: altmdm_set_retrypkt
+ *
+ * Description:
+ *   Set retry packet parameters to SPI packet structure.
+ *
+ * Input Parameters:
+ *   pkt         - Pointer to SPI packet structure.
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+void altmdm_set_retrypkt(FAR altmdm_spipkt_t *pkt);
 
 /****************************************************************************
  * Name: altmdm_is_valid_spipkt_header

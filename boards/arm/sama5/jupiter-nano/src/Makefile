@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/sama5/jupiter-nano/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,7 +22,7 @@
 
 include $(TOPDIR)/Make.defs
 
-CSRCS = sam_boot.c
+CSRCS = sam_boot.c sam_bringup.c
 
 ifeq ($(CONFIG_SAMA5_SPI0),y)
 CSRCS += sam_spi.c
@@ -76,11 +78,6 @@ CSRCS += sam_ethernet.c
 endif
 endif
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += sam_appinit.c
-CSRCS += sam_bringup.c
-endif
-
 ifeq ($(CONFIG_ADC),y)
 CSRCS += sam_adc.c
 ifeq ($(CONFIG_INPUT_AJOYSTICK),y)
@@ -122,6 +119,10 @@ endif
 
 ifeq ($(CONFIG_BOARDCTL_RESET),y)
 CSRCS += sam_reset.c
+endif
+
+ifeq ($(CONFIG_ETC_ROMFS),y)
+CSRCS += etc_romfs.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

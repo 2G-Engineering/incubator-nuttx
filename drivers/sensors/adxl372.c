@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/adxl372.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -29,9 +44,10 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/mutex.h>
@@ -44,7 +60,7 @@
 #define ADXL372_INITIAL_CR_SIZE 7
 
 /****************************************************************************
- * Private structure definitions
+ * Private Types
  ****************************************************************************/
 
 struct sensor_data_s
@@ -225,7 +241,7 @@ static uint8_t adxl372_read_register(FAR struct adxl372_dev_s *dev,
 
   /* Transmit the register address from where we want to read. */
 
-  SPI_SEND(dev->spi, reg_addr | ADXL372_READ);
+  SPI_SEND(dev->spi, (reg_addr << 1) | ADXL372_READ);
 
   /* Write an idle byte while receiving the requested data */
 
@@ -266,7 +282,7 @@ static void adxl372_read_registerblk(FAR struct adxl372_dev_s *dev,
 
   /* Transmit the register address from where we want to start reading */
 
-  SPI_SEND(dev->spi, reg_addr | ADXL372_READ);
+  SPI_SEND(dev->spi, (reg_addr << 1) | ADXL372_READ);
 
   /* Write idle bytes while receiving the requested data */
 
@@ -306,7 +322,7 @@ static void adxl372_write_register(FAR struct adxl372_dev_s *dev,
 
   /* Transmit the register address to where we want to write */
 
-  SPI_SEND(dev->spi, reg_addr | ADXL372_WRITE);
+  SPI_SEND(dev->spi, (reg_addr << 1) | ADXL372_WRITE);
 
   /* Transmit the content which should be written into the register */
 
@@ -345,7 +361,7 @@ static void adxl372_write_registerblk(FAR struct adxl372_dev_s *dev,
 
   /* Transmit the register address to where we want to start writing */
 
-  SPI_SEND(dev->spi, reg_addr | ADXL372_WRITE);
+  SPI_SEND(dev->spi, (reg_addr << 1) | ADXL372_WRITE);
 
   /* Transmit the content which should be written in the register block */
 
@@ -565,7 +581,7 @@ static ssize_t adxl372_dvr_read(FAR void *instance, FAR char *buffer,
 
   DEBUGASSERT(priv != NULL);
 
-  adxl372_read_registerblk(priv, priv->seek_address, (uint8_t *)buffer,
+  adxl372_read_registerblk(priv, priv->seek_address, (FAR uint8_t *)buffer,
                           buflen);
 
   /* Permute accelerometer data out fields */
@@ -602,7 +618,7 @@ static ssize_t adxl372_dvr_write(FAR void *instance,
       return -EROFS;
     }
 
-  adxl372_write_registerblk(priv, priv->seek_address, (uint8_t *)buffer,
+  adxl372_write_registerblk(priv, priv->seek_address, (FAR uint8_t *)buffer,
                             buflen);
 
   return buflen;
@@ -877,7 +893,7 @@ int adxl372_register(FAR const char *devpath,
 
   priv->flink         = g_adxl372_list;
   g_adxl372_list      = priv;
-  config->leaf_handle = (void *) priv;
+  config->leaf_handle = (FAR void *)priv;
   config->sc_ops      = &g_adxl372_dops;
 
   return OK;

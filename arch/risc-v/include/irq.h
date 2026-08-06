@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/include/irq.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -50,9 +52,35 @@
 #endif
 #define __XSTR(s)   __STR(s)
 
-/* Map RISC-V exception code to NuttX IRQ */
+/* RISC-V requires a 16-byte stack alignment. */
 
-/* IRQ 0-15 : (exception:interrupt=0) */
+#define STACKFRAME_ALIGN 16
+
+/****************************************************************************
+ * Map RISC-V exception code to NuttX IRQ,
+ * the exception that code > 19 is reserved or custom exception.
+ *
+ * The content of vector table:
+ *
+ * |            IRQ            |              Comments              |
+ * |:-------------------------:|:----------------------------------:|
+ * |             0             |   Instruction Address Misaligned   |
+ * |             1             |      Instruction Access Fault      |
+ * |             2             |         Illegal Instruction        |
+ * |            ...            |          Other exceptions          |
+ * |    RISCV_MAX_EXCEPTION    |  The IRQ number of last exception  |
+ * |  RISCV_MAX_EXCEPTION + 1  |  The IRQ number of first interrupt |
+ * |  RISCV_MAX_EXCEPTION + 2  | The IRQ number of second interrupt |
+ * | RISCV_MAX_EXCEPTION + xxx |   The IRQ number of xxx interrupt  |
+ *
+ * And please provide the definition of custom exception if exists:
+ * #define RISCV_CUSTOM_EXCEPTION_REASONS  \
+ *    "Custom exception1", \
+ *    "Custom exception2",
+ *
+ ****************************************************************************/
+
+/* IRQ 0-RISCV_MAX_EXCEPTION : (exception:interrupt=0) */
 
 #define RISCV_IRQ_IAMISALIGNED  (0)   /* Instruction Address Misaligned */
 #define RISCV_IRQ_IAFAULT       (1)   /* Instruction Access Fault */
@@ -68,14 +96,22 @@
 #define RISCV_IRQ_ECALLM        (11)  /* Environment Call from M-mode */
 #define RISCV_IRQ_INSTRUCTIONPF (12)  /* Instruction page fault */
 #define RISCV_IRQ_LOADPF        (13)  /* Load page fault */
-#define RISCV_IRQ_RESERVED      (14)  /* Reserved */
+#define RISCV_IRQ_RESERVED14    (14)  /* Reserved */
 #define RISCV_IRQ_STOREPF       (15)  /* Store/AMO page fault */
+#define RISCV_IRQ_RESERVED16    (16)  /* Reserved */
+#define RISCV_IRQ_RESERVED17    (17)  /* Reserved */
+#define RISCV_IRQ_SOFTWARE      (18)  /* Software check */
+#define RISCV_IRQ_HARDWARE      (19)  /* Hardware error */
 
-#define RISCV_MAX_EXCEPTION     (15)
+/* Keep origin definition here for compatibility */
 
-/* IRQ 16- : (async event:interrupt=1) */
+#ifndef RISCV_MAX_EXCEPTION
+#  define RISCV_MAX_EXCEPTION   (15)
+#endif
 
-#define RISCV_IRQ_ASYNC         (16)
+/* IRQ (RISCV_MAX_EXCEPTION + 1)- : (async event:interrupt=1) */
+
+#define RISCV_IRQ_ASYNC         (RISCV_MAX_EXCEPTION + 1)
 #define RISCV_IRQ_SSOFT         (RISCV_IRQ_ASYNC + 1)  /* Supervisor Software Int */
 #define RISCV_IRQ_MSOFT         (RISCV_IRQ_ASYNC + 3)  /* Machine Software Int */
 #define RISCV_IRQ_STIMER        (RISCV_IRQ_ASYNC + 5)  /* Supervisor Timer Int */
@@ -96,19 +132,11 @@
 
 /* Configuration ************************************************************/
 
-/* If this is a kernel build, how many nested system calls should we
- * support?
- */
-
-#ifndef CONFIG_SYS_NNEST
-#  define CONFIG_SYS_NNEST  2
-#endif
-
 /* Processor PC */
 
 #define REG_EPC_NDX         0
 
-/* General pupose registers
+/* General purpose registers
  * $0: Zero register does not need to be saved
  * $1: ra (return address)
  */
@@ -124,7 +152,7 @@
 #define REG_X3_NDX          3
 #define REG_X4_NDX          4
 
-/* $5-$7 = t0-t3: Temporary registers */
+/* $5-$7 = t0-t2: Temporary registers */
 
 #define REG_X5_NDX          5
 #define REG_X6_NDX          6
@@ -134,7 +162,7 @@
 
 #define REG_X8_NDX          8
 
-/* $89 s1 Saved register */
+/* $9 s1 Saved register */
 
 #define REG_X9_NDX          9
 
@@ -204,50 +232,81 @@
 #endif
 
 #ifdef CONFIG_ARCH_FPU
-#  define REG_F0_NDX        (INT_XCPT_REGS + FPU_REG_SIZE * 0)
-#  define REG_F1_NDX        (INT_XCPT_REGS + FPU_REG_SIZE * 1)
-#  define REG_F2_NDX        (INT_XCPT_REGS + FPU_REG_SIZE * 2)
-#  define REG_F3_NDX        (INT_XCPT_REGS + FPU_REG_SIZE * 3)
-#  define REG_F4_NDX        (INT_XCPT_REGS + FPU_REG_SIZE * 4)
-#  define REG_F5_NDX        (INT_XCPT_REGS + FPU_REG_SIZE * 5)
-#  define REG_F6_NDX        (INT_XCPT_REGS + FPU_REG_SIZE * 6)
-#  define REG_F7_NDX        (INT_XCPT_REGS + FPU_REG_SIZE * 7)
-#  define REG_F8_NDX        (INT_XCPT_REGS + FPU_REG_SIZE * 8)
-#  define REG_F9_NDX        (INT_XCPT_REGS + FPU_REG_SIZE * 9)
-#  define REG_F10_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 10)
-#  define REG_F11_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 11)
-#  define REG_F12_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 12)
-#  define REG_F13_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 13)
-#  define REG_F14_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 14)
-#  define REG_F15_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 15)
-#  define REG_F16_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 16)
-#  define REG_F17_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 17)
-#  define REG_F18_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 18)
-#  define REG_F19_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 19)
-#  define REG_F20_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 20)
-#  define REG_F21_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 21)
-#  define REG_F22_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 22)
-#  define REG_F23_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 23)
-#  define REG_F24_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 24)
-#  define REG_F25_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 25)
-#  define REG_F26_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 26)
-#  define REG_F27_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 27)
-#  define REG_F28_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 28)
-#  define REG_F29_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 29)
-#  define REG_F30_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 30)
-#  define REG_F31_NDX       (INT_XCPT_REGS + FPU_REG_SIZE * 31)
-#  define REG_FCSR_NDX      (INT_XCPT_REGS + FPU_REG_SIZE * 32)
+#  define REG_F0_NDX        (FPU_REG_SIZE * 0)
+#  define REG_F1_NDX        (FPU_REG_SIZE * 1)
+#  define REG_F2_NDX        (FPU_REG_SIZE * 2)
+#  define REG_F3_NDX        (FPU_REG_SIZE * 3)
+#  define REG_F4_NDX        (FPU_REG_SIZE * 4)
+#  define REG_F5_NDX        (FPU_REG_SIZE * 5)
+#  define REG_F6_NDX        (FPU_REG_SIZE * 6)
+#  define REG_F7_NDX        (FPU_REG_SIZE * 7)
+#  define REG_F8_NDX        (FPU_REG_SIZE * 8)
+#  define REG_F9_NDX        (FPU_REG_SIZE * 9)
+#  define REG_F10_NDX       (FPU_REG_SIZE * 10)
+#  define REG_F11_NDX       (FPU_REG_SIZE * 11)
+#  define REG_F12_NDX       (FPU_REG_SIZE * 12)
+#  define REG_F13_NDX       (FPU_REG_SIZE * 13)
+#  define REG_F14_NDX       (FPU_REG_SIZE * 14)
+#  define REG_F15_NDX       (FPU_REG_SIZE * 15)
+#  define REG_F16_NDX       (FPU_REG_SIZE * 16)
+#  define REG_F17_NDX       (FPU_REG_SIZE * 17)
+#  define REG_F18_NDX       (FPU_REG_SIZE * 18)
+#  define REG_F19_NDX       (FPU_REG_SIZE * 19)
+#  define REG_F20_NDX       (FPU_REG_SIZE * 20)
+#  define REG_F21_NDX       (FPU_REG_SIZE * 21)
+#  define REG_F22_NDX       (FPU_REG_SIZE * 22)
+#  define REG_F23_NDX       (FPU_REG_SIZE * 23)
+#  define REG_F24_NDX       (FPU_REG_SIZE * 24)
+#  define REG_F25_NDX       (FPU_REG_SIZE * 25)
+#  define REG_F26_NDX       (FPU_REG_SIZE * 26)
+#  define REG_F27_NDX       (FPU_REG_SIZE * 27)
+#  define REG_F28_NDX       (FPU_REG_SIZE * 28)
+#  define REG_F29_NDX       (FPU_REG_SIZE * 29)
+#  define REG_F30_NDX       (FPU_REG_SIZE * 30)
+#  define REG_F31_NDX       (FPU_REG_SIZE * 31)
+#  define REG_FCSR_NDX      (FPU_REG_SIZE * 32)
 
 #  define FPU_XCPT_REGS     (FPU_REG_SIZE * 33)
-#  define FPU_REG_FULL_SIZE (INT_REG_SIZE * FPU_REG_SIZE)
+#  define FPU_XCPT_SIZE     (INT_REG_SIZE * FPU_XCPT_REGS)
 #else /* !CONFIG_ARCH_FPU */
 #  define FPU_XCPT_REGS     (0)
-#  define FPU_REG_FULL_SIZE (0)
+#  define FPU_XCPT_SIZE     (0)
 #endif /* CONFIG_ARCH_FPU */
 
 #define XCPTCONTEXT_REGS    (INT_XCPT_REGS + FPU_XCPT_REGS)
 
-#define XCPTCONTEXT_SIZE    (INT_REG_SIZE * XCPTCONTEXT_REGS)
+#ifdef CONFIG_ARCH_LAZYFPU
+/* Save only integer regs. FPU is handled separately */
+
+#define XCPTCONTEXT_SIZE    (INT_XCPT_SIZE)
+#else
+/* Save FPU registers with the integer registers */
+
+#define XCPTCONTEXT_SIZE    (INT_XCPT_SIZE + FPU_XCPT_SIZE)
+#endif
+
+#ifdef CONFIG_ARCH_RV_ISA_V
+#  define REG_VSTART_NDX    (0)
+#  define REG_VTYPE_NDX     (1)
+#  define REG_VL_NDX        (2)
+#  define REG_VCSR_NDX      (3)
+#  define REG_VLENB_NDX     (4)
+
+#  define VPU_XCPT_REGS     (5)
+#  define VPU_XCPT_SIZE     (INT_REG_SIZE * VPU_XCPT_REGS)
+
+#  if CONFIG_ARCH_RV_VECTOR_BYTE_LENGTH > 0
+
+/* There are 32 vector registers(v0 - v31) with vlenb length. */
+
+#    define VPU_XCPTC_SIZE  (CONFIG_ARCH_RV_VECTOR_BYTE_LENGTH * 32 + VPU_XCPT_SIZE)
+
+#  endif
+#else /* !CONFIG_ARCH_RV_ISA_V */
+#  define VPU_XCPT_REGS     (0)
+#  define VPU_XCPT_SIZE     (0)
+#  define VPU_XCPTC_SIZE    (0)
+#endif /* CONFIG_ARCH_RV_ISA_V */
 
 /* In assembly language, values have to be referenced as byte address
  * offsets.  But in C, it is more convenient to reference registers as
@@ -325,6 +384,14 @@
 #  define REG_FCSR          (INT_REG_SIZE*REG_FCSR_NDX)
 #endif
 
+#ifdef CONFIG_ARCH_RV_ISA_V
+#  define REG_VSTART        (INT_REG_SIZE*REG_VSTART_NDX)
+#  define REG_VTYPE         (INT_REG_SIZE*REG_VTYPE_NDX)
+#  define REG_VL            (INT_REG_SIZE*REG_VL_NDX)
+#  define REG_VCSR          (INT_REG_SIZE*REG_VCSR_NDX)
+#  define REG_VLENB         (INT_REG_SIZE*REG_VLENB_NDX)
+#endif
+
 #else
 #  define REG_EPC           REG_EPC_NDX
 #  define REG_X1            REG_X1_NDX
@@ -394,6 +461,14 @@
 #  define REG_F30           REG_F30_NDX
 #  define REG_F31           REG_F31_NDX
 #  define REG_FCSR          REG_FCSR_NDX
+#endif
+
+#ifdef CONFIG_ARCH_RV_ISA_V
+#  define REG_VSTART        REG_VSTART_NDX
+#  define REG_VTYPE         REG_VTYPE_NDX
+#  define REG_VL            REG_VL_NDX
+#  define REG_VCSR          REG_VCSR_NDX
+#  define REG_VLENB         REG_VLENB_NDX
 #endif
 
 #endif
@@ -492,30 +567,13 @@
 
 #ifndef __ASSEMBLY__
 
-/* This structure represents the return state from a system call */
-
-#ifdef CONFIG_LIB_SYSCALL
-struct xcpt_syscall_s
-{
-  uintptr_t sysreturn;   /* The return PC */
-#ifndef CONFIG_BUILD_FLAT
-  uintptr_t int_ctx;     /* Interrupt context (i.e. m-/sstatus) */
-#endif
-};
-#endif
-
 /* The following structure is included in the TCB and defines the complete
  * state of the thread.
  */
 
 struct xcptcontext
 {
-  /* The following function pointer is non-NULL if there are pending signals
-   * to be processed.
-   */
-
-  void *sigdeliver; /* Actual type is sig_deliver_t */
-
+#ifdef CONFIG_ENABLE_ALL_SIGNALS
   /* These additional register save locations are used to implement the
    * signal delivery trampoline.
    *
@@ -525,7 +583,7 @@ struct xcptcontext
    * another signal handler is executing will be ignored!
    */
 
-  uintptr_t *saved_regs;
+  uintreg_t *saved_regs;
 
 #ifndef CONFIG_BUILD_FLAT
   /* This is the saved address to use when returning from a user-space
@@ -534,16 +592,7 @@ struct xcptcontext
 
   uintptr_t sigreturn;
 #endif
-
-#ifdef CONFIG_LIB_SYSCALL
-  /* The following array holds information needed to return from each nested
-   * system call.
-   */
-
-  uint8_t nsyscalls;
-  struct xcpt_syscall_s syscall[CONFIG_SYS_NNEST];
-
-#endif
+#endif /* CONFIG_ENABLE_ALL_SIGNALS */
 
 #ifdef CONFIG_ARCH_ADDRENV
 #ifdef CONFIG_ARCH_KERNEL_STACK
@@ -557,13 +606,39 @@ struct xcptcontext
 
   uintptr_t *ustkptr;  /* Saved user stack pointer */
   uintptr_t *kstack;   /* Allocate base of the (aligned) kernel stack */
+  uintptr_t *ktopstk;  /* Top of kernel stack */
   uintptr_t *kstkptr;  /* Saved kernel stack pointer */
 #endif
 #endif
 
-  /* Register save area */
+  /* Integer register save area */
 
-  uintptr_t *regs;
+  uintreg_t *regs;
+#ifndef CONFIG_BUILD_FLAT
+  uintreg_t *initregs;
+#endif
+
+#ifdef CONFIG_LIB_SYSCALL
+  /* User integer registers upon system call entry */
+
+  uintreg_t *sregs;
+#endif
+
+  /* FPU register save area */
+
+#if defined(CONFIG_ARCH_FPU) && defined(CONFIG_ARCH_LAZYFPU)
+  uintreg_t fregs[FPU_XCPT_REGS];
+#endif
+
+#ifdef CONFIG_ARCH_RV_ISA_V
+#  if CONFIG_ARCH_RV_VECTOR_BYTE_LENGTH > 0
+  /* There are 32 vector registers(v0 - v31) with vlenb length. */
+
+  uintreg_t vregs[VPU_XCPTC_SIZE];
+#  else
+  uintreg_t *vregs;
+#  endif
+#endif
 };
 
 #endif /* __ASSEMBLY__ */
@@ -580,7 +655,7 @@ struct xcptcontext
 
 /* Return the current value of the stack pointer */
 
-static inline uintptr_t up_getsp(void)
+static inline_function uintptr_t up_getsp(void)
 {
   register uintptr_t sp;
   __asm__
@@ -604,18 +679,9 @@ extern "C"
 #define EXTERN extern
 #endif
 
-/* g_current_regs[] holds a references to the current interrupt level
- * register storage structure.  If is non-NULL only during interrupt
- * processing.  Access to g_current_regs[] must be through the macro
- * CURRENT_REGS for portability.
- */
+/* g_interrupt_context store irq status */
 
-/* For the case of architectures with multiple CPUs, then there must be one
- * such value for each processor that can receive an interrupt.
- */
-
-EXTERN volatile uintptr_t *g_current_regs[CONFIG_SMP_NCPUS];
-#define CURRENT_REGS (g_current_regs[up_cpu_index()])
+EXTERN volatile bool g_interrupt_context[CONFIG_SMP_NCPUS];
 
 /****************************************************************************
  * Public Function Prototypes
@@ -635,23 +701,55 @@ irqstate_t up_irq_enable(void);
  * Name: up_cpu_index
  *
  * Description:
- *   Return an index in the range of 0 through (CONFIG_SMP_NCPUS-1) that
- *   corresponds to the currently executing CPU.
+ *   Return the real core number regardless CONFIG_SMP setting,
+ *   context aware way to query hart id (physical core ID)
  *
- * Input Parameters:
- *   None
+ *   The function up_cpu_index is designed to retrieve the hardware thread
+ *   ID (hartid) in different execution modes of RISC-V. Its behavior depends
+ *   on the configuration and execution mode:
+ *
+ *   - In machine mode, up_cpu_index reads directly from the CSR mhartid.
+ *   - In supervisor mode, the hartid is stored in the percpu structure
+ *     during boot because supervisor mode does not have access to CSR
+ *     `shartid`. The SBI (Supervisor Binary Interface) provides the hartid
+ *     in the a0 register (as per SBI ABI requirements), and it is the
+ *     responsibility of the payload OS to store this value internally.
+ *     We use the percpu scratch register for this purpose, as it is the only
+ *     location that is unique for each CPU and non-volatile.
+ *
+ *   Note: In flat (machine) mode, you could still read the hartid from CSR
+ *   mhartid even if CONFIG_RISCV_PERCPU_SCRATCH is enabled.
  *
  * Returned Value:
- *   An integer index in the range of 0 through (CONFIG_SMP_NCPUS-1) that
- *   corresponds to the currently executing CPU.
+ *   Hart id
  *
  ****************************************************************************/
 
-#ifdef CONFIG_SMP
-int up_cpu_index(void);
+#ifdef CONFIG_ARCH_HAVE_MULTICPU
+#ifdef CONFIG_ARCH_USE_S_MODE
+int up_cpu_index(void) noinstrument_function;
 #else
-#  define up_cpu_index() (0)
-#endif
+noinstrument_function static inline int up_cpu_index(void)
+{
+  return READ_CSR(CSR_MHARTID);
+}
+#endif /* CONFIG_ARCH_USE_S_MODE */
+#endif /* CONFIG_ARCH_HAVE_MULTICPU */
+
+/****************************************************************************
+ * Name: up_this_cpu
+ *
+ * Description:
+ *   Return the logical core number. Default implementation is 1:1 mapping,
+ *   i.e. physical=logical.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ARCH_RV_CPUID_MAP
+int up_this_cpu(void);
+#else
+#define up_this_cpu() up_cpu_index()
+#endif /* CONFIG_ARCH_RV_CPUID_MAP */
 
 /****************************************************************************
  * Inline Functions
@@ -665,7 +763,7 @@ int up_cpu_index(void);
  *
  ****************************************************************************/
 
-static inline irqstate_t up_irq_save(void)
+noinstrument_function static inline_function irqstate_t up_irq_save(void)
 {
   irqstate_t flags;
 
@@ -694,7 +792,8 @@ static inline irqstate_t up_irq_save(void)
  *
  ****************************************************************************/
 
-static inline void up_irq_restore(irqstate_t flags)
+noinstrument_function static inline_function
+void up_irq_restore(irqstate_t flags)
 {
   __asm__ __volatile__
     (
@@ -706,6 +805,24 @@ static inline void up_irq_restore(irqstate_t flags)
 }
 
 /****************************************************************************
+ * Name: up_set_interrupt_context
+ *
+ * Description:
+ *   Set the interrupt handler context.
+ *
+ ****************************************************************************/
+
+noinstrument_function
+static inline_function void up_set_interrupt_context(bool flag)
+{
+#ifdef CONFIG_SMP
+  g_interrupt_context[up_this_cpu()] = flag;
+#else
+  g_interrupt_context[0] = flag;
+#endif
+}
+
+/****************************************************************************
  * Name: up_interrupt_context
  *
  * Description:
@@ -714,20 +831,31 @@ static inline void up_irq_restore(irqstate_t flags)
  *
  ****************************************************************************/
 
-static inline bool up_interrupt_context(void)
+noinstrument_function static inline_function bool up_interrupt_context(void)
 {
 #ifdef CONFIG_SMP
   irqstate_t flags = up_irq_save();
-#endif
-
-  bool ret = CURRENT_REGS != NULL;
-
-#ifdef CONFIG_SMP
+  bool ret = g_interrupt_context[up_this_cpu()];
   up_irq_restore(flags);
-#endif
-
   return ret;
+#else
+  return g_interrupt_context[0];
+#endif
 }
+
+/****************************************************************************
+ * Name: up_getusrpc
+ ****************************************************************************/
+
+#define up_getusrpc(regs) \
+    (((uintptr_t *)((regs) ? (regs) : running_regs()))[REG_EPC])
+
+/****************************************************************************
+ * Name: up_getusrsp
+ ****************************************************************************/
+
+#define up_getusrsp(regs) \
+    (((uintptr_t*)(regs))[REG_SP])
 
 #undef EXTERN
 #if defined(__cplusplus)

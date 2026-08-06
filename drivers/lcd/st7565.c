@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/lcd/st7565.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -34,7 +36,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/spi/spi.h>
@@ -145,7 +147,7 @@
 #define MS_BIT          (1 << 7)
 
 /****************************************************************************
- * Private Type Definition
+ * Private Types
  ****************************************************************************/
 
 /* This structure describes the state of this driver */
@@ -262,10 +264,10 @@ static const struct fb_videoinfo_s g_videoinfo =
 
 static const struct lcd_planeinfo_s g_planeinfo =
 {
-  .putrun  = st7565_putrun,           /* Put a run into LCD memory */
-  .getrun  = st7565_getrun,           /* Get a run from LCD memory */
-  .buffer  = (uint8_t *) g_runbuffer, /* Run scratch buffer */
-  .bpp     = ST7565_BPP,              /* Bits-per-pixel */
+  .putrun  = st7565_putrun,              /* Put a run into LCD memory */
+  .getrun  = st7565_getrun,              /* Get a run from LCD memory */
+  .buffer  = (FAR uint8_t *)g_runbuffer, /* Run scratch buffer */
+  .bpp     = ST7565_BPP,                 /* Bits-per-pixel */
 };
 
 /* This is the standard, NuttX LCD driver object */
@@ -958,7 +960,7 @@ FAR struct lcd_dev_s *st7565_initialize(FAR struct st7565_lcd_s *lcd,
 
   st7565_reset(priv, true);
 
-  /* it seems too long but written in NHD‐C12864KGZ DISPLAY
+  /* it seems too long but written in NHD-C12864KGZ DISPLAY
    * INITIALIZATION...
    */
 
@@ -966,7 +968,7 @@ FAR struct lcd_dev_s *st7565_initialize(FAR struct st7565_lcd_s *lcd,
 
   st7565_reset(priv, false);
 
-  /* it seems too long but written in NHD‐C12864KGZ DISPLAY
+  /* it seems too long but written in NHD-C12864KGZ DISPLAY
    * INITIALIZATION...
    */
 

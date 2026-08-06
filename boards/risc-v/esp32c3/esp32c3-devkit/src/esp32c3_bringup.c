@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/risc-v/esp32c3/esp32c3-devkit/src/esp32c3_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,74 +26,117 @@
 
 #include <nuttx/config.h>
 
-#include <stdio.h>
+#include <nuttx/debug.h>
 #include <fcntl.h>
-#include <unistd.h>
 #include <syslog.h>
-#include <sys/stat.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <sys/types.h>
-#include <syslog.h>
-#include <debug.h>
-#include <stdio.h>
+#include <unistd.h>
 
 #include <nuttx/fs/fs.h>
 
-#include "esp32c3_wlan.h"
-#include "esp32c3_spiflash.h"
-#include "esp32c3_partition.h"
+#include "esp_board_ledc.h"
+#include "esp_board_spiflash.h"
+#include "esp_board_i2c.h"
+#include "esp_board_bmp180.h"
 
-#include "esp32c3-devkit.h"
-#include "esp32c3_board_adc.h"
-#include "esp32c3_board_bmp180.h"
-#include "esp32c3_board_i2c.h"
-#include "esp32c3_board_ledc.h"
-#include "esp32c3_board_oneshot.h"
-#include "esp32c3_board_spiflash.h"
-#include "esp32c3_board_spidev.h"
-#include "esp32c3_board_spislavedev.h"
-#include "esp32c3_board_twai.h"
-#include "esp32c3_board_wdt.h"
-#include "esp32c3_board_wlan.h"
-#include "esp32c3_board_mpu60x0_i2c.h"
+#include "espressif/esp_start.h"
 
-#ifdef CONFIG_SPI
-#  include "esp32c3_spi.h"
+#ifdef CONFIG_ESPRESSIF_ADC
+#  include "esp_board_adc.h"
 #endif
 
-#ifdef CONFIG_LCD_DEV
-#  include <nuttx/board.h>
-#  include <nuttx/lcd/lcd_dev.h>
-#endif
-
-#ifdef CONFIG_VIDEO_FB
-#  include <nuttx/video/fb.h>
-#endif
-
-#ifdef CONFIG_ESP32C3_RT_TIMER
-#  include "esp32c3_rt_timer.h"
+#ifdef CONFIG_WATCHDOG
+#  include "espressif/esp_wdt.h"
 #endif
 
 #ifdef CONFIG_TIMER
-#  include "esp32c3_tim_lowerhalf.h"
+#  include "espressif/esp_gptimer.h"
 #endif
 
-#include "esp32c3_rtc.h"
-#ifdef CONFIG_ESP32C3_EFUSE
-#  include "esp32c3_efuse.h"
-#endif
-
-#ifdef CONFIG_ESP32C3_SHA_ACCELERATOR
-#  include "esp32c3_sha.h"
+#ifdef CONFIG_ONESHOT
+#  include "espressif/esp_oneshot.h"
 #endif
 
 #ifdef CONFIG_RTC_DRIVER
-#  include "esp32c3_rtc_lowerhalf.h"
+#  include "espressif/esp_rtc.h"
 #endif
 
-#ifdef CONFIG_ESP32C3_BLE
-#  include "esp32c3_ble.h"
+#ifdef CONFIG_DEV_GPIO
+#  include "espressif/esp_gpio.h"
 #endif
+
+#ifdef CONFIG_INPUT_BUTTONS
+#  include <nuttx/input/buttons.h>
+#endif
+
+#ifdef CONFIG_ESPRESSIF_EFUSE
+#  include "espressif/esp_efuse.h"
+#endif
+
+#ifdef CONFIG_ESP_RMT
+#  include "esp_board_rmt.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_I2S
+#  include "esp_board_i2s.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_SPI
+#  include "espressif/esp_spi.h"
+#  include "esp_board_spidev.h"
+#  ifdef CONFIG_ESPRESSIF_SPI_BITBANG
+#    include "espressif/esp_spi_bitbang.h"
+#  endif
+#endif
+
+#ifdef CONFIG_ESPRESSIF_TEMP
+#  include "espressif/esp_temperature_sensor.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_WIFI_BT_COEXIST
+#  include "private/esp_coexist_internal.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_WIFI
+#  include "esp_board_wlan.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_BLE
+#  include "esp_ble.h"
+#endif
+
+#ifdef CONFIG_SPI_SLAVE
+#  include "espressif/esp_spi.h"
+#  include "esp_board_spislavedev.h"
+#endif
+
+#ifdef CONFIG_SYSTEM_NXDIAG_ESPRESSIF_CHIP_WO_TOOL
+#  include "espressif/esp_nxdiag.h"
+#endif
+
+#ifdef CONFIG_ESP_SDM
+#  include "espressif/esp_sdm.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_SHA_ACCELERATOR
+#  include "espressif/esp_sha.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_AES_ACCELERATOR
+#  include "espressif/esp_aes.h"
+#endif
+
+#ifdef CONFIG_PM
+#  include "espressif/esp_pm.h"
+#endif
+
+#ifdef CONFIG_MMCSD_SPI
+#  include "esp_board_mmcsd.h"
+#endif
+
+#include "esp32c3-devkit.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -102,40 +147,26 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: esp32c3_bringup
+ * Name: esp_bringup
  *
  * Description:
- *   Perform architecture-specific initialization
+ *   Perform architecture-specific initialization.
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=y
+ *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y
- *     Called from the NSH library
+ * Input Parameters:
+ *   None.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; A negated errno value is returned on
+ *   any failure.
  *
  ****************************************************************************/
 
-int esp32c3_bringup(void)
+int esp_bringup(void)
 {
-  int ret;
-
-#if defined(CONFIG_ESP32C3_EFUSE)
-  ret = esp32c3_efuse_initialize("/dev/efuse");
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: Failed to init EFUSE: %d\n", ret);
-    }
-#endif
-
-#if defined(CONFIG_ESP32C3_SHA_ACCELERATOR) && \
-    !defined(CONFIG_CRYPTO_CRYPTODEV_HARDWARE)
-  ret = esp32c3_sha_init();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR,
-             "ERROR: Failed to initialize SHA: %d\n", ret);
-    }
-#endif
+  int ret = OK;
 
 #ifdef CONFIG_FS_PROCFS
   /* Mount the procfs file system */
@@ -143,7 +174,7 @@ int esp32c3_bringup(void)
   ret = nx_mount(NULL, "/proc", "procfs", 0, NULL);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: Failed to mount procfs at /proc: %d\n", ret);
+      _err("Failed to mount procfs at /proc: %d\n", ret);
     }
 #endif
 
@@ -153,12 +184,112 @@ int esp32c3_bringup(void)
   ret = nx_mount(NULL, CONFIG_LIBC_TMPDIR, "tmpfs", 0, NULL);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: Failed to mount tmpfs at %s: %d\n",
-             CONFIG_LIBC_TMPDIR, ret);
+      _err("Failed to mount tmpfs at %s: %d\n", CONFIG_LIBC_TMPDIR, ret);
     }
 #endif
 
-#ifdef CONFIG_ESP32C3_SPIFLASH
+#if defined(CONFIG_ESPRESSIF_EFUSE)
+  ret = esp_efuse_initialize("/dev/efuse");
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to init EFUSE: %d\n", ret);
+    }
+#endif
+
+#if !defined(CONFIG_CRYPTO_CRYPTODEV_HARDWARE)
+#  if defined(CONFIG_ESPRESSIF_SHA_ACCELERATOR)
+  ret = esp_sha_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to initialize SHA: %d\n", ret);
+    }
+#  endif
+
+#  if defined(CONFIG_ESPRESSIF_AES_ACCELERATOR)
+  ret = esp_aes_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize AES: %d\n", ret);
+    }
+#  endif
+#endif
+
+#ifdef CONFIG_ESPRESSIF_MWDT0
+  ret = esp_wdt_initialize("/dev/watchdog0", ESP_WDT_MWDT0);
+  if (ret < 0)
+    {
+      _err("Failed to initialize WDT: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_MWDT1
+  ret = esp_wdt_initialize("/dev/watchdog1", ESP_WDT_MWDT1);
+  if (ret < 0)
+    {
+      _err("Failed to initialize WDT: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_RWDT
+  ret = esp_wdt_initialize("/dev/watchdog2", ESP_WDT_RWDT);
+  if (ret < 0)
+    {
+      _err("Failed to initialize WDT: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_XTWDT
+  ret = esp_wdt_initialize("/dev/watchdog3", ESP_WDT_XTAL32K);
+  if (ret < 0)
+    {
+      _err("Failed to initialize WDT: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_TIMER
+  ret = esp_timer_initialize(0);
+  if (ret < 0)
+    {
+      _err("Failed to initialize Timer 0: %d\n", ret);
+    }
+
+#ifndef CONFIG_ONESHOT
+  ret = esp_timer_initialize(1);
+  if (ret < 0)
+    {
+      _err("Failed to initialize Timer 1: %d\n", ret);
+    }
+#endif
+#endif
+
+#ifdef CONFIG_ESPRESSIF_SPI
+#  ifdef CONFIG_ESPRESSIF_SPI2
+  ret = board_spidev_initialize(ESPRESSIF_SPI2);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to init spidev 2: %d\n", ret);
+    }
+#  endif /* CONFIG_ESPRESSIF_SPI2 */
+
+#  ifdef CONFIG_ESPRESSIF_SPI_BITBANG
+  ret = board_spidev_initialize(ESPRESSIF_SPI_BITBANG);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to init spidev 3: %d\n", ret);
+    }
+#  endif /* CONFIG_ESPRESSIF_SPI_BITBANG */
+#endif /* CONFIG_ESPRESSIF_SPI */
+
+#if defined(CONFIG_ESPRESSIF_SPI) && defined(CONFIG_MMCSD_SPI)
+  ret = esp_mmcsd_spi_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: failed to init MMCSD SPI\n");
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_SPIFLASH
   ret = board_spiflash_init();
   if (ret)
     {
@@ -166,64 +297,91 @@ int esp32c3_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESP32C3_PARTITION_TABLE
-  ret = esp32c3_partition_init();
+#ifdef CONFIG_ESPRESSIF_TEMP
+  struct esp_temp_sensor_config_t cfg = TEMPERATURE_SENSOR_CONFIG(10, 50);
+  ret = esp_temperature_sensor_initialize(cfg);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: Failed to initialize partition error=%d\n",
+      syslog(LOG_ERR, "Failed to initialize temperature sensor driver: %d\n",
              ret);
     }
 #endif
 
-#ifdef CONFIG_DEV_GPIO
-  ret = esp32c3_gpio_init();
+#ifdef CONFIG_ESPRESSIF_WIFI_BT_COEXIST
+  esp_coex_adapter_register(&g_coex_adapter_funcs);
+  coex_pre_init();
+#endif
+
+#ifdef CONFIG_ESPRESSIF_WIFI
+  ret = board_wlan_init();
   if (ret < 0)
     {
-      syslog(LOG_ERR, "Failed to initialize GPIO Driver: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: Failed to initialize wireless subsystem=%d\n",
+             ret);
     }
 #endif
 
-#if defined(CONFIG_SPI_DRIVER) && defined(CONFIG_ESP32C3_SPI2)
-  ret = board_spidev_initialize(ESP32C3_SPI2);
+#ifdef CONFIG_RTC_DRIVER
+  /* Initialize the RTC driver */
+
+  ret = esp_rtc_driverinit();
   if (ret < 0)
     {
-      syslog(LOG_ERR, "Failed to initialize SPI%d driver: %d\n",
-             ESP32C3_SPI2, ret);
+      _err("Failed to initialize the RTC driver: %d\n", ret);
     }
 #endif
 
-#if defined(CONFIG_SPI_SLAVE_DRIVER) && defined(CONFIG_ESP32C3_SPI2)
-  ret = board_spislavedev_initialize(ESP32C3_SPI2);
+#ifdef CONFIG_ESPRESSIF_BLE
+  ret = esp_ble_initialize();
+  if (ret)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize BLE\n");
+      return ret;
+    }
+#endif
+
+#if defined(CONFIG_SPI_SLAVE) && defined(CONFIG_ESPRESSIF_SPI2)
+  ret = board_spislavedev_initialize(ESPRESSIF_SPI2);
   if (ret < 0)
     {
       syslog(LOG_ERR, "Failed to initialize SPI%d Slave driver: %d\n",
-             ESP32C3_SPI2, ret);
+             ESPRESSIF_SPI2, ret);
     }
 #endif
 
-#ifdef CONFIG_VIDEO_FB
-  ret = fb_register(0, 0);
+#ifdef CONFIG_ONESHOT
+  ret = esp_oneshot_initialize();
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: Failed to initialize Frame Buffer Driver.\n");
-    }
-#elif defined(CONFIG_LCD)
-  ret = board_lcd_initialize();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: Failed to initialize LCD.\n");
+      _err("Failed to initialize Oneshot Timer: %d\n", ret);
     }
 #endif
 
-#ifdef CONFIG_LCD_DEV
-  ret = lcddev_register(0);
+#ifdef CONFIG_ESP_RMT
+  ret = board_rmt_txinitialize(RMT_OUTPUT_PIN);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: lcddev_register() failed: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: board_rmt_txinitialize() failed: %d\n", ret);
+    }
+
+  ret = board_rmt_rxinitialize(RMT_INPUT_PIN);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_rmt_txinitialize() failed: %d\n", ret);
     }
 #endif
 
-#if defined(CONFIG_I2C_DRIVER)
+#if defined(CONFIG_ESPRESSIF_I2S)
+  /* Configure I2S peripheral interfaces */
+
+  ret = board_i2s_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize I2S driver: %d\n", ret);
+    }
+#endif
+
+#if defined(CONFIG_I2C)
   /* Configure I2C peripheral interfaces */
 
   ret = board_i2c_init();
@@ -234,7 +392,36 @@ int esp32c3_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_CAN
+#ifdef CONFIG_SENSORS_BMP180
+  /* Try to register BMP180 device in I2C0 */
+
+  ret = board_bmp180_initialize(0);
+
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize BMP180 "
+             "Driver for I2C0: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_ESP_SDM
+  struct esp_sdm_chan_config_s config =
+  {
+    .gpio_num = 5,
+    .sample_rate_hz = 1000 * 1000,
+    .flags = 0,
+  };
+
+  struct dac_dev_s *dev = esp_sdminitialize(config);
+  ret = dac_register("/dev/dac0", dev);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize DAC driver: %d\n",
+             ret);
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_TWAI
 
   /* Initialize TWAI and register the TWAI driver. */
 
@@ -245,144 +432,55 @@ int esp32c3_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_SENSORS_BMP180
-  /* Try to register BMP180 device in I2C0 */
-
-  ret = board_bmp180_initialize(0, 0);
-
+#ifdef CONFIG_DEV_GPIO
+  ret = esp_gpio_init();
   if (ret < 0)
     {
-      syslog(LOG_ERR, "Failed to initialize BMP180 "
-                       "Driver for I2C0: %d\n", ret);
+      ierr("Failed to initialize GPIO Driver: %d\n", ret);
     }
 #endif
 
-#ifdef CONFIG_WATCHDOG
-  /* Configure watchdog timer */
+#if defined(CONFIG_INPUT_BUTTONS) && defined(CONFIG_INPUT_BUTTONS_LOWER)
+  /* Register the BUTTON driver */
 
-  ret = board_wdt_init();
+  ret = btn_lower_initialize("/dev/buttons");
   if (ret < 0)
     {
-      syslog(LOG_ERR,
-             "ERROR: Failed to initialize watchdog drivers: %d\n",
-             ret);
+      ierr("ERROR: btn_lower_initialize() failed: %d\n", ret);
     }
 #endif
 
-/* First, register the timer drivers and let timer 1 for oneshot
- * if it is enabled.
- */
-
-#ifdef CONFIG_TIMER
-
-#if defined(CONFIG_ESP32C3_TIMER0) && !defined(CONFIG_ESP32C3_RT_TIMER)
-  ret = esp32c3_timer_initialize("/dev/timer0", TIMER0);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR,
-             "ERROR: Failed to initialize timer driver: %d\n",
-             ret);
-    }
-#endif
-
-#if defined(CONFIG_ESP32C3_TIMER1) && !defined(CONFIG_ONESHOT)
-  ret = esp32c3_timer_initialize("/dev/timer1", TIMER1);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR,
-             "ERROR: Failed to initialize timer driver: %d\n",
-             ret);
-    }
-#endif
-
-#endif /* CONFIG_TIMER */
-
-  /* Now register one oneshot driver */
-
-#if defined(CONFIG_ONESHOT) && defined(CONFIG_ESP32C3_TIMER1)
-
-  ret = board_oneshot_init(ONESHOT_TIMER, ONESHOT_RESOLUTION_US);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: board_oneshot_init() failed: %d\n", ret);
-    }
-
-#endif /* CONFIG_ONESHOT */
-
-#ifdef CONFIG_ESP32C3_RT_TIMER
-  ret = esp32c3_rt_timer_init();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "Failed to initialize RT timer: %d\n", ret);
-    }
-#endif
-
-#ifdef CONFIG_ESP32C3_WIRELESS
-
-#ifdef CONFIG_ESP32C3_WIFI_BT_COEXIST
-  ret = esp32c3_wifi_bt_coexist_init();
-  if (ret)
-    {
-      syslog(LOG_ERR, "ERROR: Failed to initialize Wi-Fi and BT coexist\n");
-    }
-#endif
-
-#ifdef CONFIG_ESP32C3_BLE
-  ret = esp32c3_ble_initialize();
-  if (ret)
-    {
-      syslog(LOG_ERR, "ERROR: Failed to initialize BLE\n");
-    }
-#endif
-
-#ifdef CONFIG_ESP32C3_WIFI
-
-  ret = board_wlan_init();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: board_wlan_init() failed: %d\n", ret);
-    }
-
-#endif
-
-#endif /* CONFIG_ESP32C3_WIRELESS */
-
-#ifdef CONFIG_ESP32C3_LEDC
+#ifdef CONFIG_ESPRESSIF_LEDC
   ret = board_ledc_setup();
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: board_ledc_setup() failed: %d\n", ret);
     }
-#endif /* CONFIG_ESP32C3_LEDC */
+#endif /* CONFIG_ESPRESSIF_LEDC */
 
-#ifdef CONFIG_ESP32C3_ADC
-  ret = board_adc_init();
-  if (ret)
-    {
-      syslog(LOG_ERR, "ERROR: board_adc_init() failed: %d\n", ret);
-    }
-#endif /* CONFIG_ESP32C3_ADC */
+#ifdef CONFIG_PM
+  /* Configure PM */
 
-#ifdef CONFIG_RTC_DRIVER
-  /* Instantiate the ESP32-C3 RTC driver */
-
-  ret = esp32c3_rtc_driverinit();
+  ret = esp_pmconfigure();
   if (ret < 0)
     {
-      syslog(LOG_ERR,
-             "ERROR: Failed to Instantiate the RTC driver: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: esp_pmconfigure failed: %d\n", ret);
     }
 #endif
 
-#ifdef CONFIG_MPU60X0_I2C
-  /* Try to register MPU60x0 device in I2C0 */
-
-  ret = board_mpu60x0_initialize(0, 0);
-
+#ifdef CONFIG_SYSTEM_NXDIAG_ESPRESSIF_CHIP_WO_TOOL
+  ret = esp_nxdiag_initialize();
   if (ret < 0)
     {
-      syslog(LOG_ERR, "Failed to initialize MPU60x0 "
-                       "Driver for I2C0: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: esp_nxdiag_initialize failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_ADC
+  ret = board_adc_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize ADC driver: %d\n", ret);
     }
 #endif
 
@@ -391,6 +489,5 @@ int esp32c3_bringup(void)
    * capabilities.
    */
 
-  UNUSED(ret);
-  return OK;
+  return ret;
 }

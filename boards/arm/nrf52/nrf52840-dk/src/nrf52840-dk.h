@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nrf52/nrf52840-dk/src/nrf52840-dk.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -97,9 +99,6 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int nrf52_bringup(void);
@@ -193,12 +192,36 @@ int nrf52_adc_setup(void);
  * Name: nrf52_mx25_initialize
  *
  * Description:
- *   Initialize the MX25RXX QSPI memeory
+ *   Initialize the MX25RXX QSPI memory
  *
  ****************************************************************************/
 
 #ifdef CONFIG_NRF52_QSPI
 int nrf52_mx25_initialize(void);
+#endif
+
+/****************************************************************************
+ * Name: nrf52_gpioleds_initialize
+ *
+ * Description:
+ *   Initialize GPIO devices with board LEDS and buttons.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NRF52840DK_BTNLEDS_GPIO
+int nrf52_gpioleds_initialize(void);
+#endif
+
+/****************************************************************************
+ * Name: nrf52_qencoder_initialize
+ *
+ * Description:
+ *   Initialize quadrature encoder driver.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_SENSORS_QENCODER
+int nrf52_qencoder_initialize(int devno);
 #endif
 
 #endif /* __ASSEMBLY__ */

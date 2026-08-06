@@ -4,6 +4,15 @@ Vexriscv Core
 
 The vexriscv core only supports standard "Flat builds", consisting of a single binary.
 
+Configuration
+-------------
+
+For vexriscv, the linux CPU variant is required.  Please consult the appropriate board
+documentation for flashing gateware.
+
+If you use the secure CPU variant, you may encounter a kernel panic on startup - please see
+https://github.com/apache/nuttx/pull/17494 for an example.
+
 Building
 --------
 
@@ -22,7 +31,8 @@ Booting
 Create a file, 'boot.json' in the Nuttx root directory, with the following content::
 
   {
-    "nuttx.bin": "0x40000000"
+    "nuttx.bin": "0x40000000",
+    "board.dtb": "0x41ec0000"
   }
 
 Load the application over serial with::

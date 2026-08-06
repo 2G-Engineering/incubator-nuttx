@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/usbdev/dfu.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,7 +41,7 @@
 #include <nuttx/usb/dfu.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/wqueue.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
@@ -176,66 +178,19 @@ static const struct dfu_cfgdesc_s g_dfu_cfgdesc =
  * Private Functions
  ****************************************************************************/
 
-/****************************************************************************
- * Name: usbclass_freereq
- *
- * Description:
- *   Free a request instance along with its buffer
- *
- ****************************************************************************/
-
-static void usbclass_freereq(FAR struct usbdev_ep_s *ep,
-                             FAR struct usbdev_req_s *req)
-{
-  if (ep != NULL && req != NULL)
-    {
-      if (req->buf != NULL)
-        {
-          EP_FREEBUFFER(ep, req->buf);
-        }
-
-      EP_FREEREQ(ep, req);
-    }
-}
-
-/****************************************************************************
- * Name: usbclass_allocreq
- *
- * Description:
- *   Allocate a request instance along with its buffer
- *
- ****************************************************************************/
-
-static FAR struct usbdev_req_s *usbclass_allocreq(FAR struct usbdev_ep_s *ep,
-                                                  uint16_t len)
-{
-  FAR struct usbdev_req_s *req;
-
-  req = EP_ALLOCREQ(ep);
-  if (req != NULL)
-    {
-      req->len = len;
-      req->buf = EP_ALLOCBUFFER(ep, len);
-
-      if (req->buf == NULL)
-        {
-          EP_FREEREQ(ep, req);
-          req = NULL;
-        }
-    }
-
-  return req;
-}
-
 static void usbclass_ep0incomplete(FAR struct usbdev_ep_s *ep,
                                  FAR struct usbdev_req_s *req)
 {
 }
 
 static int16_t usbclass_mkcfgdesc(FAR uint8_t *buf,
-                                  FAR struct usbdev_devinfo_s *devinfo)
+                                  FAR struct usbdev_devinfo_s *devinfo,
+                                  uint8_t speed, uint8_t type)
 {
   FAR struct dfu_cfgdesc_s *dest = (FAR struct dfu_cfgdesc_s *)buf;
+
+  UNUSED(speed);
+  UNUSED(type);
 
   *dest = g_dfu_cfgdesc;
   dest->ifdesc.ifno += devinfo->ifnobase;
@@ -359,7 +314,8 @@ static int  usbclass_setup(FAR struct usbdevclass_driver_s *driver,
         {
           if (ctrl->value[1] == USB_DESC_TYPE_CONFIG)
             {
-              ret = usbclass_mkcfgdesc(ctrlreq->buf, &priv->devinfo);
+              ret = usbclass_mkcfgdesc(ctrlreq->buf, &priv->devinfo,
+                                       dev->speed, ctrl->value[1]);
             }
           else if (ctrl->value[1] == USB_DESC_TYPE_STRING)
             {
@@ -440,7 +396,7 @@ static int  usbclass_bind(FAR struct usbdevclass_driver_s *driver,
 {
   FAR struct dfu_driver_s *priv = (FAR struct dfu_driver_s *)driver;
 
-  priv->ctrlreq = usbclass_allocreq(dev->ep0, DFU_MAX_DESCRIPTOR_LEN);
+  priv->ctrlreq = usbdev_allocreq(dev->ep0, DFU_MAX_DESCRIPTOR_LEN);
   if (priv->ctrlreq == NULL)
     {
       usbtrace(TRACE_CLSERROR(USBSER_TRACEERR_ALLOCCTRLREQ), 0);
@@ -459,7 +415,7 @@ static void usbclass_unbind(FAR struct usbdevclass_driver_s *driver,
 
   if (priv->ctrlreq != NULL)
     {
-      usbclass_freereq(dev->ep0, priv->ctrlreq);
+      usbdev_freereq(dev->ep0, priv->ctrlreq);
       priv->ctrlreq = NULL;
     }
 }

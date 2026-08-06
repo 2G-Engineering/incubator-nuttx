@@ -1,12 +1,10 @@
 /****************************************************************************
  * libs/libc/net/lib_inetaddr.c
  *
- *   Copyright (C) 2011 Yu Qiang. All rights reserved.
- *   Author: Yu Qiang <yuq825@gmail.com>
- *
- * This file is a part of NuttX:
- *
- *   Copyright (C) 2011 Gregory Nutt. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2011 Yu Qiang. All rights reserved.
+ * SPDX-FileCopyrightText: 2012 Gregory Nutt. All rights reserved.
+ * SPDX-FileContributor: Yu Qiang <yuq825@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -88,7 +86,7 @@ in_addr_t inet_addr(FAR const char *cp)
   unsigned int b;
   unsigned int c;
   unsigned int d;
-  uint32_t result = 0;
+  uint32_t result = INADDR_NONE;
 
   switch (sscanf(cp, "%u.%u.%u.%u", &a, &b, &c, &d))
     {
@@ -102,7 +100,7 @@ in_addr_t inet_addr(FAR const char *cp)
         {
           if ((a < 0x100) && (b < 0x1000000))
             {
-              result = (((uint32_t) a) << 24) | b;
+              result = (((uint32_t)a) << 24) | b;
             }
           break;
         }
@@ -111,7 +109,7 @@ in_addr_t inet_addr(FAR const char *cp)
         {
           if ((a < 0x100) && (b < 0x100) && (c < 0x10000))
             {
-              result = (((uint32_t) a) << 24) | (((uint32_t) b) << 16) | c;
+              result = (((uint32_t)a) << 24) | (((uint32_t)b) << 16) | c;
             }
           break;
         }
@@ -120,8 +118,8 @@ in_addr_t inet_addr(FAR const char *cp)
         {
           if ((a < 0x100) && (b < 0x100) && (c < 0x100) && (d < 0x100))
             {
-              result = (((uint32_t) a) << 24) | (((uint32_t) b) << 16) |
-                       (((uint32_t) c) << 8) | d;
+              result = (((uint32_t)a) << 24) | (((uint32_t)b) << 16) |
+                       (((uint32_t)c) << 8) | d;
             }
           break;
         }

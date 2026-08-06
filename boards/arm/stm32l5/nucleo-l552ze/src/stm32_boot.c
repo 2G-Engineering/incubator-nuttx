@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l5/nucleo-l552ze/src/stm32_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,12 +26,14 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 
 #include "arm_internal.h"
 #include "nucleo-l552ze.h"
+#include "stm32l5_pwr.h"
+#include "stm32l5_gpio.h"
 
 #include <arch/board/board.h>
 
@@ -38,7 +42,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l5_board_initialize
+ * Name: stm32_board_initialize
  *
  * Description:
  *   All STM32 architectures must provide the following entry point.  This
@@ -48,8 +52,20 @@
  *
  ****************************************************************************/
 
-void stm32l5_board_initialize(void)
+void stm32_board_initialize(void)
 {
+  stm32_pwr_vddio2_valid(true);
+
+#if defined(CONFIG_STM32_LPUART1)
+  /* LPUART1 uses PG7/PG8 which are powered by VDDIO2. The GPIO config in
+   * stm32_lowsetup() runs before VDDIO2 is enabled, so GPIOG writes
+   * silently fail. Reconfigure here after VDDIO2 is valid.
+   */
+
+  stm32_configgpio(GPIO_LPUART1_TX);
+  stm32_configgpio(GPIO_LPUART1_RX);
+#endif
+
 #ifdef CONFIG_ARCH_LEDS
   /* Configure on-board LEDs if LED support has been selected. */
 

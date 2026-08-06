@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/sys/socket.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,6 +29,7 @@
 
 #include <sys/types.h>
 #include <sys/uio.h>
+#include <stdint.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -49,6 +52,7 @@
 #define PF_CAN        29         /* Controller Area Network (SocketCAN) */
 #define PF_BLUETOOTH  31         /* Bluetooth sockets */
 #define PF_IEEE802154 36         /* Low level IEEE 802.15.4 radio frame interface */
+#define PF_VSOCK      40         /* vSockets */
 #define PF_PKTRADIO   64         /* Low level packet radio interface */
 #define PF_RPMSG      65         /* Remote core communication */
 
@@ -67,6 +71,7 @@
 #define AF_CAN         PF_CAN
 #define AF_BLUETOOTH   PF_BLUETOOTH
 #define AF_IEEE802154  PF_IEEE802154
+#define AF_VSOCK       PF_VSOCK
 #define AF_PKTRADIO    PF_PKTRADIO
 #define AF_RPMSG       PF_RPMSG
 
@@ -95,6 +100,9 @@
 #define SOCK_CTRL      6        /* SOCK_CTRL is the preferred socket type to use
                                  * when we just want a socket for performing driver
                                  * ioctls. This definition is not POSIX compliant.
+                                 */
+#define SOCK_SMS       7        /* Support SMS(Short Message Service) socket.
+                                 * This definition is not POSIX compliant.
                                  */
 #define SOCK_PACKET   10        /* Obsolete and should not be used in new programs */
 
@@ -204,13 +212,16 @@
 #define SO_TYPE         15 /* Reports the socket type (get only).
                             * return: int
                             */
-#define SO_TIMESTAMP    16 /* Generates a timestamp for each incoming packet
+#define SO_TIMESTAMP    16 /* Generates a timestamp in us for each incoming packet
                             * arg: integer value
                             */
 #define SO_BINDTODEVICE 17 /* Bind this socket to a specific network device.
                             */
 #define SO_PEERCRED     18 /* Return the credentials of the peer process
                             * connected to this socket.
+                            */
+#define SO_TIMESTAMPNS  20 /* Generates a timestamp in ns for each incoming packet
+                            * arg: integer value
                             */
 
 /* The options are unsupported but included for compatibility
@@ -222,10 +233,12 @@
 
 /* Protocol-level socket operations. */
 
-#define SOL_IP          IPPROTO_IP   /* See options in include/netinet/ip.h */
-#define SOL_IPV6        IPPROTO_IPV6 /* See options in include/netinet/ip6.h */
-#define SOL_TCP         IPPROTO_TCP  /* See options in include/netinet/tcp.h */
-#define SOL_UDP         IPPROTO_UDP  /* See options in include/netinit/udp.h */
+#define SOL_IP          IPPROTO_IP     /* See options in include/netinet/in.h */
+#define SOL_IPV6        IPPROTO_IPV6   /* See options in include/netinet/in.h */
+#define SOL_TCP         IPPROTO_TCP    /* See options in include/netinet/in.h */
+#define SOL_UDP         IPPROTO_UDP    /* See options in include/netinet/in.h */
+#define SOL_RAW         IPPROTO_RAW    /* See options in include/netinet/in.h */
+#define SOL_ICMPV6      IPPROTO_ICMPV6 /* See options in include/netinet/in.h */
 
 /* Bluetooth-level operations. */
 
@@ -233,6 +246,8 @@
 #define SOL_L2CAP       6  /* See options in include/netpacket/bluetooth.h */
 #define SOL_SCO         17 /* See options in include/netpacket/bluetooth.h */
 #define SOL_RFCOMM      18 /* See options in include/netpacket/bluetooth.h */
+
+#define SOL_PACKET      19
 
 /* Protocol-level socket options may begin with this value */
 
@@ -259,7 +274,7 @@
 #define CMSG_NXTHDR(mhdr, cmsg) cmsg_nxthdr((mhdr), (cmsg))
 
 #define CMSG_ALIGN(len) \
-  (((len)+sizeof(long)-1) & ~(sizeof(long)-1))
+  (((len) + sizeof(long) - 1) & ~(sizeof(long) - 1))
 #define CMSG_DATA(cmsg) \
   ((FAR void *)((FAR char *)(cmsg) + CMSG_ALIGN(sizeof(struct cmsghdr))))
 #define CMSG_SPACE(len) \
@@ -274,7 +289,7 @@
 #define CMSG_OK(mhdr, cmsg) ((cmsg)->cmsg_len >= sizeof(struct cmsghdr) && \
                             (cmsg)->cmsg_len <= (unsigned long) \
                             ((mhdr)->msg_controllen - \
-                             ((char *)(cmsg) - (char *)(mhdr)->msg_control)))
+                             ((FAR char *)(cmsg) - (FAR char *)(mhdr)->msg_control)))
 #define for_each_cmsghdr(cmsg, msg) \
        for (cmsg = CMSG_FIRSTHDR(msg); \
             cmsg; \
@@ -285,12 +300,22 @@
 #define SCM_RIGHTS      0x01    /* rw: access rights (array of int) */
 #define SCM_CREDENTIALS 0x02    /* rw: struct ucred */
 #define SCM_SECURITY    0x03    /* rw: security label */
+#define SCM_TIMESTAMP   SO_TIMESTAMP
 
 /* Desired design of maximum size and alignment (see RFC2553) */
 
-#define SS_MAXSIZE      128  /* Implementation specific max size */
-#define SS_ALIGNSIZE    (sizeof(FAR struct sockaddr *))
-                             /* Implementation specific desired alignment */
+#define SS_MAXSIZE   128               /* Implementation-defined maximum size. */
+#define SS_ALIGNSIZE (sizeof(int64_t)) /* Implementation-defined desired alignment. */
+
+/* Definitions used for sockaddr_storage structure paddings design */
+#define SS_PAD1SIZE (SS_ALIGNSIZE - sizeof(sa_family_t))
+#define SS_PAD2SIZE (SS_MAXSIZE - (sizeof(sa_family_t) + \
+                     SS_PAD1SIZE + SS_ALIGNSIZE))
+
+/* Network socket control */
+
+#define DENY_INET_SOCK_ENABLE  0x01   /* Deny to create INET socket */
+#define DENY_INET_SOCK_DISABLE 0x02   /* Not deny to create INET socket */
 
 /****************************************************************************
  * Type Definitions
@@ -303,12 +328,24 @@
  * the fields of those structures without alignment problems.
  */
 
-struct sockaddr_storage
+struct aligned_data(SS_ALIGNSIZE) sockaddr_storage
 {
-  sa_family_t ss_family;     /* Address family */
-  char        ss_data[SS_MAXSIZE - sizeof(sa_family_t)];
-}
-aligned_data(SS_ALIGNSIZE);  /* Force desired alignment */
+  sa_family_t ss_family;       /* Address family */
+
+  /* Following fields are implementation-defined */
+
+  begin_packed_struct struct
+  {
+    char ss_pad1[SS_PAD1SIZE]; /* 6-byte pad; this is to make implementation-defined
+                                * pad up to alignment field that follows explicit in
+                                * the data structure */
+    int64_t ss_align;          /* Field to force desired structure storage alignment */
+    char ss_pad2[SS_PAD2SIZE]; /* 112-byte pad to achieve desired size, SS_MAXSIZE
+                                * value minus size of ss_family ss_pad1, ss_align
+                                * fields is 112. */
+  }
+  end_packed_struct ss_data[1];
+};
 
 /* The sockaddr structure is used to define a socket address which is used
  * in the bind(), connect(), getpeername(), getsockname(), recvfrom(), and
@@ -325,8 +362,8 @@ struct sockaddr
 
 struct linger
 {
-  int  l_onoff;   /* Indicates whether linger option is enabled. */
-  int  l_linger;  /* Linger time, in seconds. */
+  int l_onoff;                  /* Indicates whether linger option is enabled. */
+  int l_linger;                 /* Linger time, in seconds. */
 };
 
 struct msghdr
@@ -359,7 +396,7 @@ struct ucred
  ****************************************************************************/
 
 static inline FAR struct cmsghdr *__cmsg_nxthdr(FAR void *__ctl,
-                                                unsigned int __size,
+                                                unsigned long __size,
                                                 FAR struct cmsghdr *__cmsg)
 {
   size_t len = CMSG_ALIGN(__cmsg->cmsg_len);
@@ -375,7 +412,7 @@ static inline FAR struct cmsghdr *__cmsg_nxthdr(FAR void *__ctl,
   return __ptr;
 }
 
-static inline FAR struct cmsghdr *cmsg_nxthdr(FAR struct msghdr *__msg,
+static inline FAR struct cmsghdr *cmsg_nxthdr(FAR const struct msghdr *__msg,
                                               FAR struct cmsghdr *__cmsg)
 {
   return __cmsg_nxthdr(__msg->msg_control, __msg->msg_controllen, __cmsg);
@@ -425,7 +462,41 @@ int getpeername(int sockfd, FAR struct sockaddr *addr,
                 FAR socklen_t *addrlen);
 
 ssize_t recvmsg(int sockfd, FAR struct msghdr *msg, int flags);
-ssize_t sendmsg(int sockfd, FAR struct msghdr *msg, int flags);
+ssize_t sendmsg(int sockfd, FAR const struct msghdr *msg, int flags);
+
+#if CONFIG_FORTIFY_SOURCE > 0
+fortify_function(send) ssize_t send(int sockfd, FAR const void *buf,
+                                    size_t len, int flags)
+{
+  fortify_assert(len <= fortify_size(buf, 0));
+  return __real_send(sockfd, buf, len, flags);
+}
+
+fortify_function(sendto) ssize_t sendto(int sockfd, FAR const void *buf,
+                                        size_t len, int flags,
+                                        FAR const struct sockaddr *to,
+                                        socklen_t tolen)
+{
+  fortify_assert(len <= fortify_size(buf, 0));
+  return __real_sendto(sockfd, buf, len, flags, to, tolen);
+}
+
+fortify_function(recv) ssize_t recv(int sockfd, FAR void *buf,
+                                    size_t len, int flags)
+{
+  fortify_assert(len <= fortify_size(buf, 0));
+  return __real_recv(sockfd, buf, len, flags);
+}
+
+fortify_function(recvfrom) ssize_t recvfrom(int sockfd, FAR void *buf,
+                                            size_t len, int flags,
+                                            FAR struct sockaddr *from,
+                                            FAR socklen_t *fromlen)
+{
+  fortify_assert(len <= fortify_size(buf, 0));
+  return __real_recvfrom(sockfd, buf, len, flags, from, fromlen);
+}
+#endif
 
 #undef EXTERN
 #if defined(__cplusplus)

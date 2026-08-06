@@ -1,0 +1,512 @@
+# ##############################################################################
+# cmake/nuttx_add_romfs.cmake
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more contributor
+# license agreements.  See the NOTICE file distributed with this work for
+# additional information regarding copyright ownership.  The ASF licenses this
+# file to you under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License.  You may obtain a copy of
+# the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+# License for the specific language governing permissions and limitations under
+# the License.
+#
+# ##############################################################################
+
+# Custom target to hold global ROMFS data
+add_custom_target(romfs_holder)
+
+function(add_board_rcsrcs)
+  set_property(
+    TARGET board
+    APPEND
+    PROPERTY BOARD_RCSRCS ${ARGN})
+endfunction()
+
+function(add_board_rcraws)
+  set_property(
+    TARGET board
+    APPEND
+    PROPERTY BOARD_RCRAWS ${ARGN})
+endfunction()
+
+# ~~~
+# add_dynamic_rcsrcs & add_dynamic_rcraws
+# provide a way to add dynamic ROMFS data
+# which generate during the build process
+# to the final romfs_holder target
+# ~~~
+function(add_dynamic_rcsrcs)
+  cmake_parse_arguments(R "" "" "SRCS;DEPENDS" ${ARGN})
+  set_property(
+    TARGET romfs_holder
+    APPEND
+    PROPERTY DYN_RCSRCS ${R_SRCS})
+  set_property(
+    TARGET romfs_holder
+    APPEND
+    PROPERTY DYN_DEPS ${R_DEPENDS})
+endfunction()
+
+function(add_dynamic_rcraws)
+  cmake_parse_arguments(R "" "" "RAWS;DEPENDS" ${ARGN})
+  set_property(
+    TARGET romfs_holder
+    APPEND
+    PROPERTY DYN_RCRAWS ${R_RAWS})
+  set_property(
+    TARGET romfs_holder
+    APPEND
+    PROPERTY DYN_DEPS ${R_DEPENDS})
+endfunction()
+
+# ~~~
+# nuttx_add_romfs
+#
+# Description:
+#   Generates a ROMFS image in a C array, which is built to an OBJECT library.
+#
+# Parameters:
+#   NAME    : determines the romfs label and name of target (romfs_${NAME})
+#   HEADER  : option to indicate that a .h file is to be generated instead of a .c
+#   PREFIX  : optional prefix to add to image name (as romfs_${PREFIX}.img)
+#   NONCONST: option to indicate the array should be non-const
+#   DEPENDS : list of targets that should be depended on
+# ~~~
+
+function(nuttx_add_romfs)
+  nuttx_parse_function_args(
+    FUNC
+    nuttx_add_romfs
+    ONE_VALUE
+    NAME
+    MOUNTPOINT
+    PATH
+    PREFIX
+    OPTIONS
+    HEADER
+    NONCONST
+    MULTI_VALUE
+    DEPENDS
+    RCSRCS
+    RCRAWS
+    REQUIRED
+    NAME
+    ARGN
+    ${ARGN})
+
+  if(NOT PATH AND NOT FILES)
+    message(FATAL_ERROR "Either PATH or FILES must be specified")
+  endif()
+
+  if(TARGET board)
+    get_property(
+      board_rcsrcs
+      TARGET board
+      PROPERTY BOARD_RCSRCS)
+    get_property(
+      board_rcraws
+      TARGET board
+      PROPERTY BOARD_RCRAWS)
+    list(PREPEND RCSRCS ${board_rcsrcs})
+    list(PREPEND RCRAWS ${board_rcraws})
+  endif()
+
+  foreach(rcsrc ${RCSRCS})
+    if(IS_ABSOLUTE ${rcsrc})
+      string(REGEX REPLACE "^(.*)/etc(/.*)?$" "\\1" SOURCE_ETC_PREFIX
+                           "${rcsrc}")
+      string(REGEX REPLACE "^.*/(etc(/.*)?)$" "\\1" REMAINING_PATH "${rcsrc}")
+      string(REGEX REPLACE "^/" "" SOURCE_ETC_SUFFIX "${REMAINING_PATH}")
+    else()
+      set(SOURCE_ETC_PREFIX ${CMAKE_CURRENT_SOURCE_DIR})
+      set(SOURCE_ETC_SUFFIX ${rcsrc})
+    endif()
+
+    get_filename_component(rcpath ${SOURCE_ETC_SUFFIX} DIRECTORY)
+    if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${rcpath})
+      file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${rcpath})
+    endif()
+    nuttx_generate_preprocess_target(
+      SOURCE_FILE ${SOURCE_ETC_PREFIX}/${SOURCE_ETC_SUFFIX} TARGET_FILE
+      ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX} DEPENDS nuttx_context)
+    list(APPEND DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX})
+  endforeach()
+
+  foreach(rcraw ${RCRAWS})
+
+    if(IS_ABSOLUTE ${rcraw})
+      string(REGEX REPLACE "^(.*)/etc(/.*)?$" "\\1" SOURCE_ETC_PREFIX
+                           "${rcraw}")
+      string(REGEX REPLACE "^.*/(etc(/.*)?)$" "\\1" REMAINING_PATH "${rcraw}")
+      string(REGEX REPLACE "^/" "" SOURCE_ETC_SUFFIX "${REMAINING_PATH}")
+    else()
+      set(SOURCE_ETC_PREFIX ${CMAKE_CURRENT_SOURCE_DIR})
+      set(SOURCE_ETC_SUFFIX ${rcraw})
+    endif()
+
+    if(IS_DIRECTORY ${SOURCE_ETC_PREFIX}/${SOURCE_ETC_SUFFIX})
+      add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX}
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX}
+        COMMAND
+          ${CMAKE_COMMAND} -E copy_directory
+          ${SOURCE_ETC_PREFIX}/${SOURCE_ETC_SUFFIX}
+          ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX})
+      list(APPEND DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX})
+    else()
+      list(APPEND DEPENDS ${SOURCE_ETC_PREFIX}/${SOURCE_ETC_SUFFIX})
+      configure_file(${SOURCE_ETC_PREFIX}/${SOURCE_ETC_SUFFIX}
+                     ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX} COPYONLY)
+    endif()
+  endforeach()
+
+  if(HEADER)
+    set(EXTENSION h)
+  else()
+    set(EXTENSION c)
+  endif()
+
+  if(PREFIX)
+    set(IMGNAME ${PREFIX}.img)
+  else()
+    set(IMGNAME romfs.img)
+  endif()
+
+  add_custom_command(
+    OUTPUT romfs_${NAME}.${EXTENSION}
+    COMMAND ${CMAKE_COMMAND} -E make_directory romfs_${NAME}
+    COMMAND if \[ \"${PATH}\" != \"\" \]; then ${CMAKE_COMMAND} -E
+            copy_directory ${PATH} romfs_${NAME} \; fi
+    COMMAND genromfs -f ${IMGNAME} -d romfs_${NAME} -V ${NAME}
+    COMMAND xxd -i ${IMGNAME} romfs_${NAME}.${EXTENSION}
+    COMMAND if ! [ -z "${NONCONST}" ]\; then sed -E -i'' -e
+            "s/^unsigned/const unsigned/g" romfs_${NAME}.${EXTENSION} \; fi
+    DEPENDS ${DEPENDS})
+
+  if(NOT HEADER)
+    add_custom_target(target-romfs DEPENDS ${DEPENDS})
+    nuttx_add_aux_library(romfs_${NAME})
+    target_sources(romfs_${NAME} PRIVATE romfs_${NAME}.${EXTENSION})
+    add_dependencies(romfs_${NAME} target-romfs)
+  endif()
+endfunction()
+
+# nuttx_add_cromfs Generates a CROMFS image in a C array, which is built to an
+# OBJECT library.
+#
+# Parameters: - NAME: determines the name of target (cromfs_${NAME}) - PATH: the
+# directory that will be used to create the CROMFS - FILES: paths to files to
+# copy into CROMFS - DEPENDS: list of targets that should be depended on
+
+function(nuttx_add_cromfs)
+  nuttx_parse_function_args(
+    FUNC
+    nuttx_add_cromfs
+    ONE_VALUE
+    NAME
+    MOUNTPOINT
+    PATH
+    MULTI_VALUE
+    DEPENDS
+    FILES
+    OPTIONS
+    REQUIRED
+    NAME
+    ARGN
+    ${ARGN})
+
+  if(NOT PATH AND NOT FILES)
+    message(FATAL_ERROR "Either PATH or FILES must be specified")
+  endif()
+
+  add_custom_command(
+    OUTPUT cromfs_${NAME}.c
+    COMMAND ${CMAKE_COMMAND} -E make_directory cromfs_${NAME}
+    COMMAND if \[ \"${PATH}\" != \"\" \]; then ${CMAKE_COMMAND} -E
+            copy_directory ${PATH} cromfs_${NAME} \; fi
+    COMMAND if \[ \"${FILES}\" != \"\" \]; then ${CMAKE_COMMAND} -E copy
+            ${FILES} cromfs_${NAME} \; fi
+    COMMAND ${CMAKE_BINARY_DIR}/bin_host/gencromfs cromfs_${NAME}
+            cromfs_${NAME}.c
+    DEPENDS ${DEPENDS})
+
+  add_library(cromfs_${NAME} OBJECT cromfs_${NAME}.c)
+  nuttx_add_library_internal(cromfs_${NAME})
+endfunction()
+
+# ~~~
+# The files of romfs may be added in
+# ANY PROCESS IN ANY DIRECTORY,
+# so we process all the targets at the end.
+# ~~~
+function(process_all_directory_romfs)
+
+  # have we enabled etc romfs?
+  if(NOT CONFIG_ETC_ROMFS)
+    return()
+  endif()
+
+  # have we generated romfs yet?
+  if(TARGET target-romfs)
+    return()
+  endif()
+
+  # collect all ROMFS files
+  get_property(
+    board_rcsrcs
+    TARGET board
+    PROPERTY BOARD_RCSRCS)
+  get_property(
+    board_rcraws
+    TARGET board
+    PROPERTY BOARD_RCRAWS)
+
+  get_property(
+    dyn_rcsrcs
+    TARGET romfs_holder
+    PROPERTY DYN_RCSRCS)
+  get_property(
+    dyn_rcraws
+    TARGET romfs_holder
+    PROPERTY DYN_RCRAWS)
+
+  list(PREPEND RCSRCS ${board_rcsrcs} ${dyn_rcsrcs})
+  list(PREPEND RCRAWS ${board_rcraws} ${dyn_rcraws})
+
+  # Auto-generate /etc/passwd at build time if configured
+  if(CONFIG_BOARD_ETC_ROMFS_PASSWD_ENABLE)
+    if("${CONFIG_BOARD_ETC_ROMFS_PASSWD_PASSWORD}" STREQUAL "")
+      message(
+        FATAL_ERROR
+          "\n"
+          "  BUILD ERROR: Admin password not set.\n"
+          "\n"
+          "  Run make menuconfig and set:\n"
+          "    Board Selection -> Auto-generate /etc/passwd -> Admin password\n"
+          "\n"
+          "  For TEA keys, either enable random generation in the same menu,\n"
+          "  or set CONFIG_FSUTILS_PASSWD_KEY1..4 under Application Configuration\n"
+          "  -> File System Utilities -> Password file support.\n"
+          "\n"
+          "  Password and keys are not saved in defconfig.\n")
+    endif()
+
+    # Determine host executable suffix (.exe on Windows, empty elsewhere)
+    if(CMAKE_HOST_WIN32)
+      set(HOST_EXE_SUFFIX .exe)
+    else()
+      set(HOST_EXE_SUFFIX "")
+    endif()
+
+    # Locate a host C compiler to build the mkpasswd tool
+    find_program(HOST_CC NAMES cc gcc clang REQUIRED)
+
+    # Build mkpasswd.c as a host binary in the CMake build directory and keep
+    # the source tree clean.
+    set(MKPASSWD_SRC ${NUTTX_DIR}/tools/mkpasswd.c)
+    set(MKPASSWD_BIN ${CMAKE_BINARY_DIR}/tools/mkpasswd${HOST_EXE_SUFFIX})
+
+    if(NOT TARGET build_host_mkpasswd)
+      add_custom_command(
+        OUTPUT ${MKPASSWD_BIN}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/tools
+        COMMAND ${HOST_CC} -o ${MKPASSWD_BIN} ${MKPASSWD_SRC}
+        DEPENDS ${MKPASSWD_SRC}
+        COMMENT "Building host tool: mkpasswd")
+      add_custom_target(build_host_mkpasswd DEPENDS ${MKPASSWD_BIN})
+    endif()
+
+    set(GENPASSWD_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/etc/passwd)
+
+    # Delegate detection and generation to the shell helpers so the logic is
+    # testable outside of cmake.  check_passwd_keys.sh prints "yes" when keys
+    # are absent or at insecure defaults; gen_passwd_keys.sh writes fresh
+    # /dev/urandom values in-place.
+    #
+    # RANDOMIZE_KEYS — single-invocation path: 1. gen_passwd_keys.sh writes new
+    # keys to .config at configure time. 2. We re-read .config below so
+    # CONFIG_FSUTILS_PASSWD_KEY1..4 carry the new values for the rest of this
+    # cmake configure run. 3. add_custom_command is registered with the updated
+    # key values, so both mkpasswd (passwd hash) and the firmware use the same
+    # keys — login works without a second cmake invocation.
+    #
+    # Note: config.h is regenerated at build time from .config (its dependency),
+    # so the firmware uses the correct keys automatically.
+
+    execute_process(
+      COMMAND "${NUTTX_DIR}/tools/check_passwd_keys.sh" "${NUTTX_DIR}/.config"
+      OUTPUT_VARIABLE _passwd_keys_need_setup
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      RESULT_VARIABLE _check_rc)
+    if(NOT _check_rc EQUAL 0)
+      message(
+        FATAL_ERROR
+          "check_passwd_keys.sh failed — check ${NUTTX_DIR}/tools/check_passwd_keys.sh"
+      )
+    endif()
+
+    if(_passwd_keys_need_setup STREQUAL "yes")
+      if(CONFIG_BOARD_ETC_ROMFS_PASSWD_RANDOMIZE_KEYS)
+        # Generate keys and write to .config (no key values printed here)
+        execute_process(
+          COMMAND "${NUTTX_DIR}/tools/gen_passwd_keys.sh" "${NUTTX_DIR}/.config"
+          RESULT_VARIABLE _gen_rc
+          OUTPUT_QUIET)
+        if(NOT _gen_rc EQUAL 0)
+          message(
+            FATAL_ERROR
+              "gen_passwd_keys.sh failed — check ${NUTTX_DIR}/.config permissions"
+          )
+        endif()
+        message(
+          STATUS
+            "[passwd] TEA keys written to .config (search for CONFIG_FSUTILS_PASSWD_KEY to view)"
+        )
+
+        # Re-read .config so the new key values are live for this configure run
+        # (mirrors Board.mk's second -include).
+        file(STRINGS "${NUTTX_DIR}/.config" _fresh_config
+             REGEX "^CONFIG_FSUTILS_PASSWD_KEY[1-4]=")
+        foreach(_line ${_fresh_config})
+          if(_line MATCHES "^CONFIG_FSUTILS_PASSWD_KEY([1-4])=(.+)$")
+            set(CONFIG_FSUTILS_PASSWD_KEY${CMAKE_MATCH_1} "${CMAKE_MATCH_2}")
+          endif()
+        endforeach()
+      else()
+        message(
+          FATAL_ERROR
+            "\n"
+            "  BUILD ERROR: TEA encryption keys not configured.\n"
+            "\n"
+            "  Run make menuconfig and either:\n"
+            "    - enable Generate random TEA keys automatically, or\n"
+            "    - set CONFIG_FSUTILS_PASSWD_KEY1..4 under Application Configuration\n"
+            "      -> File System Utilities -> Password file support\n")
+      endif()
+    endif()
+
+    # At this point KEY1..4 are guaranteed to be correct (either freshly
+    # generated above, or manually set by the user).
+    add_custom_command(
+      OUTPUT ${GENPASSWD_OUTPUT}
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/etc
+      COMMAND
+        ${MKPASSWD_BIN} --user "${CONFIG_BOARD_ETC_ROMFS_PASSWD_USER}"
+        --password "${CONFIG_BOARD_ETC_ROMFS_PASSWD_PASSWORD}" --uid
+        ${CONFIG_BOARD_ETC_ROMFS_PASSWD_UID} --gid
+        ${CONFIG_BOARD_ETC_ROMFS_PASSWD_GID} --home
+        "${CONFIG_BOARD_ETC_ROMFS_PASSWD_HOME}" --key1
+        ${CONFIG_FSUTILS_PASSWD_KEY1} --key2 ${CONFIG_FSUTILS_PASSWD_KEY2}
+        --key3 ${CONFIG_FSUTILS_PASSWD_KEY3} --key4
+        ${CONFIG_FSUTILS_PASSWD_KEY4} -o ${GENPASSWD_OUTPUT}
+      DEPENDS ${MKPASSWD_BIN} ${NUTTX_DIR}/.config
+      COMMENT "Generating /etc/passwd from .config TEA keys")
+
+    add_custom_target(generate_passwd DEPENDS ${GENPASSWD_OUTPUT})
+    add_dependencies(generate_passwd build_host_mkpasswd)
+    list(APPEND RCRAWS ${GENPASSWD_OUTPUT})
+    list(APPEND dyn_deps generate_passwd)
+  endif()
+
+  # init dynamic dependencies
+
+  get_property(
+    dyn_deps
+    TARGET romfs_holder
+    PROPERTY DYN_DEPS)
+
+  # precompile all rcsrcs
+  foreach(rcsrc ${RCSRCS})
+    if(IS_ABSOLUTE ${rcsrc})
+      string(REGEX REPLACE "^(.*)/etc(/.*)?$" "\\1" SOURCE_ETC_PREFIX
+                           "${rcsrc}")
+      string(REGEX REPLACE "^.*/(etc(/.*)?)$" "\\1" REMAINING_PATH "${rcsrc}")
+      string(REGEX REPLACE "^/" "" SOURCE_ETC_SUFFIX "${REMAINING_PATH}")
+    else()
+      set(SOURCE_ETC_PREFIX ${CMAKE_CURRENT_SOURCE_DIR})
+      set(SOURCE_ETC_SUFFIX ${rcsrc})
+    endif()
+
+    get_filename_component(rcpath ${SOURCE_ETC_SUFFIX} DIRECTORY)
+    if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${rcpath})
+      file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${rcpath})
+    endif()
+    nuttx_generate_preprocess_target(
+      SOURCE_FILE
+      ${SOURCE_ETC_PREFIX}/${SOURCE_ETC_SUFFIX}
+      TARGET_FILE
+      ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX}
+      DEPENDS
+      nuttx_context
+      ${dyn_deps})
+    list(APPEND DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX})
+  endforeach()
+
+  # process all rcraws
+  foreach(rcraw ${RCRAWS})
+    if(IS_ABSOLUTE ${rcraw})
+      string(REGEX REPLACE "^(.*)/etc(/.*)?$" "\\1" SOURCE_ETC_PREFIX
+                           "${rcraw}")
+      string(REGEX REPLACE "^.*/(etc(/.*)?)$" "\\1" REMAINING_PATH "${rcraw}")
+      string(REGEX REPLACE "^/" "" SOURCE_ETC_SUFFIX "${REMAINING_PATH}")
+    else()
+      set(SOURCE_ETC_PREFIX ${CMAKE_CURRENT_SOURCE_DIR})
+      set(SOURCE_ETC_SUFFIX ${rcraw})
+    endif()
+
+    if(IS_DIRECTORY ${SOURCE_ETC_PREFIX}/${SOURCE_ETC_SUFFIX})
+      # if it is a directory, copy it to the build directory
+      add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX}
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX}
+        COMMAND
+          ${CMAKE_COMMAND} -E copy_directory
+          ${SOURCE_ETC_PREFIX}/${SOURCE_ETC_SUFFIX}
+          ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX}
+        DEPENDS ${dyn_deps})
+      list(APPEND DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX})
+    else()
+      list(FIND DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX} index)
+      if(index GREATER -1)
+        set(APPEND_OPTION APPEND)
+      else()
+        set(APPEND_OPTION)
+      endif()
+      list(APPEND DEPENDS ${SOURCE_ETC_PREFIX}/${SOURCE_ETC_SUFFIX})
+      add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX}
+        COMMAND
+          ${CMAKE_COMMAND} -E copy ${SOURCE_ETC_PREFIX}/${SOURCE_ETC_SUFFIX}
+          ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX} ${APPEND_OPTION}
+        DEPENDS ${dyn_deps})
+      list(APPEND DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${SOURCE_ETC_SUFFIX})
+    endif()
+  endforeach()
+
+  add_custom_command(
+    OUTPUT romfs_etc.c
+    COMMAND ${CMAKE_COMMAND} -E make_directory romfs_etc
+    COMMAND if \[ \"etc\" != \"\" \]; then ${CMAKE_COMMAND} -E copy_directory
+            etc romfs_etc \; fi
+    COMMAND genromfs -f romfs.img -d romfs_etc -V etc
+    COMMAND xxd -i romfs.img romfs_etc.c
+    COMMAND sed -E -i'' -e "s/^unsigned/const unsigned/g" romfs_etc.c
+    DEPENDS ${DEPENDS})
+
+  add_custom_target(target-romfs DEPENDS ${DEPENDS})
+  nuttx_add_aux_library(romfs_etc)
+  target_sources(romfs_etc PRIVATE romfs_etc.c)
+  add_dependencies(romfs_etc target-romfs)
+
+  target_link_libraries(board PRIVATE romfs_etc)
+endfunction()

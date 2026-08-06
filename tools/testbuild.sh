@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # tools/testbuild.sh
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -22,6 +24,7 @@ nuttx=$WD/../nuttx
 
 progname=$0
 fail=0
+maxbuilds=4  # Retry 3 times on failure
 APPSDIR=$WD/../apps
 if [ -z $ARTIFACTDIR ]; then
   ARTIFACTDIR=$WD/../buildartifacts
@@ -31,12 +34,16 @@ EXTRA_FLAGS="EXTRAFLAGS="
 MAKE=make
 unset testfile
 unset HOPTION
+unset STORE
+unset NXTMPDIR
 unset JOPTION
 PRINTLISTONLY=0
 GITCLEAN=0
 SAVEARTIFACTS=0
 CHECKCLEAN=1
 CODECHECKER=0
+NINJACMAKE=0
+STORECMAKE=0
 RUN=0
 
 case $(uname -s) in
@@ -49,6 +56,9 @@ case $(uname -s) in
   MINGW32*)
     HOST=MinGw
     ;;
+  MSYS*)
+    HOST=Msys
+    ;;
   *)
 
     # Assume linux as a fallback
@@ -58,10 +68,11 @@ esac
 
 function showusage {
   echo ""
-  echo "USAGE: $progname [-l|m|c|g|n] [-d] [-e <extraflags>] [-x] [-j <ncpus>] [-a <appsdir>] [-t <topdir>] [-p] [-G] [--codechecker] <testlist-file>"
-  echo "       $progname -h"
+  echo "USAGE: $progname -h [-l|m|c|g|n] [-d] [-e <extraflags>] [-x] [-j <ncpus>] [-a <appsdir>] [-t <topdir>] [-p]"
+  echo "       [-A] [-C] [-G] [-N] [-R] [-S] [--codechecker] <testlist-file>"
   echo ""
   echo "Where:"
+  echo "  -h will show this help test and terminate"
   echo "  -l|m|c|g|n selects Linux (l), macOS (m), Cygwin (c),"
   echo "     MSYS/MSYS2 (g) or Windows native (n). Default Linux"
   echo "  -d enables script debug output"
@@ -79,8 +90,9 @@ function showusage {
   echo "       * This assumes that only nuttx and apps repos need to be cleaned."
   echo "       * If the tree has files not managed by git, they will be removed"
   echo "         as well."
+  echo "  -N Use CMake with Ninja as the backend."
   echo "  -R execute \"run\" script in the config directories if exists."
-  echo "  -h will show this help test and terminate"
+  echo "  -S Adds the nxtmpdir folder for third-party packages."
   echo "  --codechecker enables CodeChecker statically analyze the code."
   echo "  <testlist-file> selects the list of configurations to test.  No default"
   echo ""
@@ -132,8 +144,15 @@ while [ ! -z "$1" ]; do
   -C )
     CHECKCLEAN=0
     ;;
+  -N )
+    NINJACMAKE=1
+    ;;
   -R )
     RUN=1
+    ;;
+  -S )
+    STORE+=" $1"
+    STORECMAKE=1
     ;;
   --codechecker )
     CODECHECKER=1
@@ -177,13 +196,25 @@ fi
 
 export APPSDIR
 
-testlist=`grep -v -E "^(-|#)" $testfile || true`
+testlist=`grep -v -E "^(-|#)|^[C|c][M|m][A|a][K|k][E|e]" $testfile || true`
 blacklist=`grep "^-" $testfile || true`
+
+if [ ${NINJACMAKE} -eq 1 ]; then
+  cmakelist=`grep "^[C|c][M|m][A|a][K|k][E|e]" $testfile | cut -d',' -f2 || true`
+fi
+
+if [ ${STORECMAKE} -eq 1 ]; then
+  NXTMPDIR="ON"
+  echo "NXTMPDIR store is enabled"
+else
+  NXTMPDIR="OFF"
+  echo "NXTMPDIR store is disabled"
+fi
 
 cd $nuttx || { echo "ERROR: failed to CD to $nuttx"; exit 1; }
 
 function exportandimport {
-  # Do nothing until we finish to build the nuttx
+  # Do nothing until we finish to build the nuttx.
   if [ ! -f nuttx ]; then
     return $fail
   fi
@@ -265,15 +296,15 @@ function checkfunc {
 
 function distclean {
   echo "  Cleaning..."
-  if [ -f .config ]; then
-    if [ ${GITCLEAN} -eq 1 ]; then
+  if [ -f .config ] || [ -f build/.config ]; then
+    if [ ${GITCLEAN} -eq 1 ] || [ ! -z ${cmake} ]; then
       git -C $nuttx clean -xfdq
       git -C $APPSDIR clean -xfdq
     else
       makefunc distclean
 
       # Remove .version manually because this file is shipped with
-      # the release package and then distclean has to keep it
+      # the release package and then distclean has to keep it.
 
       rm -f .version
 
@@ -299,18 +330,17 @@ function distclean {
 
 # Configure for the next build
 
-function configure {
-  echo "  Configuring..."
-  if ! ./tools/configure.sh ${HOPTION} $config ${JOPTION} 1>/dev/null; then
+function configure_default {
+  if ! ./tools/configure.sh ${HOPTION} ${STORE} $config ${JOPTION} 1>/dev/null; then
     fail=1
   fi
 
   if [ "X$toolchain" != "X" ]; then
-    setting=`grep _TOOLCHAIN_ $nuttx/.config | grep -v CONFIG_ARCH_TOOLCHAIN_* | grep =y`
-    varname=`echo $setting | cut -d'=' -f1`
-    if [ ! -z "$varname" ]; then
-      echo "  Disabling $varname"
-      kconfig-tweak --file $nuttx/.config -d $varname
+    setting=`grep _TOOLCHAIN_ $nuttx/.config | grep -v CONFIG_TOOLCHAIN_WINDOWS | grep -v CONFIG_ARCH_TOOLCHAIN_* | grep =y`
+    original_toolchain=`echo $setting | cut -d'=' -f1`
+    if [ ! -z "$original_toolchain" ]; then
+      echo "  Disabling $original_toolchain"
+      kconfig-tweak --file $nuttx/.config -d $original_toolchain
     fi
 
     echo "  Enabling $toolchain"
@@ -322,10 +352,39 @@ function configure {
   return $fail
 }
 
+function configure_cmake {
+  if ! cmake -B build -DBOARD_CONFIG=$config -DNXTMPDIR="$NXTMPDIR" -GNinja 1>/dev/null; then
+    cmake -B build -DBOARD_CONFIG=$config -DNXTMPDIR="$NXTMPDIR" -GNinja
+    fail=1
+  fi
+
+  if [ "X$toolchain" != "X" ]; then
+    setting=`grep _TOOLCHAIN_ $nuttx/build/.config | grep -v CONFIG_TOOLCHAIN_WINDOWS | grep -v CONFIG_ARCH_TOOLCHAIN_* | grep =y`
+    original_toolchain=`echo $setting | cut -d'=' -f1`
+    if [ ! -z "$original_toolchain" ]; then
+      echo "  Disabling $original_toolchain"
+      kconfig-tweak --file $nuttx/build/.config -d $original_toolchain
+    fi
+
+    echo "  Enabling $toolchain"
+    kconfig-tweak --file $nuttx/build/.config -e $toolchain
+  fi
+
+  return $fail
+}
+
+function configure {
+  echo "  Configuring..."
+  if [ ! -z ${cmake} ]; then
+    configure_cmake
+  else
+    configure_default
+  fi
+}
+
 # Perform the next build
 
-function build {
-  echo "  Building NuttX..."
+function build_default {
   if [ "${CODECHECKER}" -eq 1 ]; then
     checkfunc
   else
@@ -341,7 +400,33 @@ function build {
   return $fail
 }
 
-function refresh {
+function build_cmake {
+  if ! cmake --build build 1>/dev/null; then
+    cmake --build build
+    fail=1
+  fi
+
+  if [ ${SAVEARTIFACTS} -eq 1 ]; then
+    artifactconfigdir=$ARTIFACTDIR/$(echo $config | sed "s/:/\//")/
+    mkdir -p $artifactconfigdir
+    cd $nuttx/build
+    xargs -I "{}" cp "{}" $artifactconfigdir < $nuttx/build/nuttx.manifest
+    cd $nuttx
+  fi
+
+  return $fail
+}
+
+function build {
+  echo "  Building NuttX..."
+  if [ ! -z ${cmake} ]; then
+    build_cmake
+  else
+    build_default
+  fi
+}
+
+function refresh_default {
   # Ensure defconfig in the canonical form
 
   if ! ./tools/refresh.sh --silent $config; then
@@ -366,11 +451,64 @@ function refresh {
   return $fail
 }
 
+function refresh_cmake {
+  # Ensure defconfig in the canonical form
+
+  if [ "X$toolchain" != "X" ]; then
+    if [ ! -z "$original_toolchain" ]; then
+      kconfig-tweak --file $nuttx/build/.config -e $original_toolchain
+    fi
+
+    kconfig-tweak --file $nuttx/build/.config -d $toolchain
+  fi
+
+  if ! cmake --build build -t refreshsilent 1>/dev/null; then
+    cmake --build build -t refreshsilent
+    fail=1
+  fi
+
+  rm -rf build
+
+  # Ensure nuttx and apps directory in clean state
+
+  if [ ${CHECKCLEAN} -ne 0 ]; then
+    if [ -d $nuttx/.git ] || [ -d $APPSDIR/.git ]; then
+      if [[ -n $(git -C $nuttx status -s) ]]; then
+        git -C $nuttx status
+        fail=1
+      fi
+      if [[ -n $(git -C $APPSDIR status -s) ]]; then
+        git -C $APPSDIR status
+        fail=1
+      fi
+    fi
+  fi
+
+  # Use -f option twice to remove git sub-repository
+
+  git -C $nuttx clean -f -xfdq
+  git -C $APPSDIR clean -f -xfdq
+
+  return $fail
+}
+
+function refresh {
+  # Ensure defconfig in the canonical form
+
+  if [ ! -z ${cmake} ]; then
+    refresh_cmake
+  else
+    refresh_default
+  fi
+}
+
 function run {
   if [ ${RUN} -ne 0 ]; then
-    run_script="$path/run"
+    run_script="$path/run.sh"
     if [ -x $run_script ]; then
       echo "  Running NuttX..."
+      export ARTIFACTCONFDIR=$ARTIFACTDIR/$(echo $config | sed "s/:/\//")/
+      export CURRENTCONFDIR=$(realpath $path)
       if ! $run_script; then
         fail=1
       fi
@@ -390,8 +528,20 @@ function dotest {
     if [[ "${check}" =~ ${re:1}$ ]]; then
       echo "Skipping: $1"
       skip=1
+      break
     fi
   done
+
+  unset cmake
+  if [ ${NINJACMAKE} -eq 1 ]; then
+    for l in $cmakelist; do
+      if [[ "${config/\//:}" == "${l}" ]]; then
+        echo "Cmake in present: $1"
+        cmake=1
+        break
+      fi
+    done
+  fi
 
   echo "Configuration/Tool: $1"
   if [ ${PRINTLISTONLY} -eq 1 ]; then
@@ -420,6 +570,7 @@ function dotest {
   fi
 
   unset toolchain
+  unset original_toolchain
   if [ "X$config" != "X$1" ]; then
     toolchain=`echo $1 | cut -d',' -f2`
     if [ -z "$toolchain" ]; then
@@ -428,15 +579,60 @@ function dotest {
   fi
 
   # Perform the build test
-
+  echo $(date '+%Y-%m-%d %H:%M:%S')
   echo "------------------------------------------------------------------------------------"
   distclean
-  configure
   if [ ${skip} -ne 1 ]; then
+    configure
     build
     run
+    refresh
+  else
+    echo "  Skipping: $1"
   fi
-  refresh
+}
+
+# Build one entry from the test list file. Retry on failure.
+function retrytest {
+  # Remember the Fail Status and clear it for each build
+  local line=$1
+  local prevfail=$fail
+  local backoff=60  # Initial Exponential Backoff, in seconds
+
+  # Build and retry on failure, with Random Exponential Backoff
+  for ((i = 1; i <= $maxbuilds; i++)); do
+    echo "Build Attempt $i of $maxbuilds"
+    fail=0
+    dotest $line
+
+    # Don't retry if the build succeeded
+    if [ ${fail} -eq 0 ]; then
+      break
+    else
+      # Build Failed: Clean up any corrupted downloads, don't reuse
+      git -C $nuttx clean -xfdq
+      git -C $APPSDIR clean -xfdq
+      pushd $nuttx ; git status ; popd
+      pushd $APPSDIR ; git status ; popd
+    fi
+
+    # If this is Final Retry: Don't retry subsequent builds
+    if [ $i -eq $maxbuilds ]; then
+      maxbuilds=1
+      break
+    fi
+
+    # Wait for Random Exponential Backoff, then retry
+    delay=$(( (RANDOM % $backoff) + 1 ))
+    echo "Wait $delay seconds ($backoff backoff)"
+    backoff=$(($backoff * 2))
+    sleep $delay
+  done
+
+  # Return the Previous Fail Status, unless this build failed
+  if [ ${fail} -eq 0 ]; then
+    fail=$prevfail
+  fi
 }
 
 # Perform the build test for each entry in the test list file
@@ -447,10 +643,10 @@ for line in $testlist; do
     dir=`echo $line | cut -d',' -f1`
     list=`find boards$dir -name defconfig | cut -d'/' -f4,6`
     for i in ${list}; do
-      dotest $i${line/"$dir"/}
+      retrytest $i${line/"$dir"/}
     done
   else
-    dotest $line
+    retrytest $line
   fi
 done
 

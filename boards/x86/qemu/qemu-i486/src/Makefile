@@ -1,6 +1,8 @@
 ############################################################################
 # boards/x86/qemu/qemu-i486/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,10 +22,10 @@
 
 include $(TOPDIR)/Make.defs
 
-CSRCS = qemu_boot.c
+CSRCS = qemu_boot.c qemu_bringup.c
 
-ifeq ($(CONFIG_BOARDCTL),y)
-  CSRCS += qemu_appinit.c
+ifeq ($(CONFIG_QEMU_VGA),y)
+  CSRCS += qemu_vga_lcd.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

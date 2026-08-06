@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/cxd56xx/common/src/cxd56_alt1250.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
   defined(CONFIG_CXD56_GPIO_IRQ) && defined(CONFIG_CXD56_SPI)
 
 #include <stdio.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <nuttx/arch.h>
 
@@ -38,6 +40,7 @@
 
 #include <arch/board/board.h>
 #include <arch/board/cxd56_alt1250.h>
+#include <arch/chip/pm.h>
 
 #include "cxd56_spi.h"
 #include "cxd56_dmac.h"
@@ -73,12 +76,18 @@
 #  error "Select LTE SPI 4 or 5"
 #endif
 
+#define POWER_ON_WAIT_TIME   (2)   /* ms */
+#define ACTIVE_SHUTDOWN_TIME (100) /* ms */
+#define TIME_TO_STABLE_VDDIO (10)  /* ms */
+
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
 
-static struct spi_dev_s *alt1250_poweron(void);
+static struct spi_dev_s *alt1250_poweron(bool keep_on);
 static void alt1250_poweroff(void);
+static bool alt1250_powerstatus(void);
+static int  alt1250_hibernation_mode(bool enable);
 static void alt1250_reset(void);
 static void alt1250_irqattach(xcpt_t handler);
 static void alt1250_irqenable(bool enable);
@@ -95,6 +104,8 @@ static const struct alt1250_lower_s g_alt1250_lower =
 {
   .poweron      = alt1250_poweron,
   .poweroff     = alt1250_poweroff,
+  .powerstatus  = alt1250_powerstatus,
+  .hiber_mode   = alt1250_hibernation_mode,
   .reset        = alt1250_reset,
   .irqattach    = alt1250_irqattach,
   .irqenable    = alt1250_irqenable,
@@ -191,7 +202,7 @@ static void set_spiparam(struct spi_dev_s *spidev)
  *
  ****************************************************************************/
 
-static struct spi_dev_s *alt1250_poweron(void)
+static struct spi_dev_s *alt1250_poweron(bool keep_on)
 {
   struct spi_dev_s *spi;
 #if defined(CONFIG_CXD56_LTE_SPI4_DMAC) || defined(CONFIG_CXD56_LTE_SPI5_DMAC)
@@ -199,7 +210,39 @@ static struct spi_dev_s *alt1250_poweron(void)
   dma_config_t          conf;
 #endif
 
-  /* Initialize spi deivce */
+  /* Hi-Z SHUTDOWN and PowerBTN signals before power-on */
+
+  cxd56_gpio_config(ALT1250_SHUTDOWN, false);
+
+  /* power on alt1250 modem device and wait until the power is distributed */
+
+  board_alt1250_poweron();
+  up_mdelay(POWER_ON_WAIT_TIME);
+
+  /* If keep_on is enabled, skip setting the SHUTDOWN signal to low
+   * because the ALT1250 is already in the power-on state.
+   */
+
+  if (!keep_on)
+    {
+      /* Drive SHUTDOWN signal low */
+
+      cxd56_gpio_write(ALT1250_SHUTDOWN, 0);
+    }
+
+  /* Keep the SHUTDOWN signal low for reset period */
+
+  up_mdelay(ACTIVE_SHUTDOWN_TIME);
+
+  /* Undrive SHUTDOWN signal to rise up to high by pull-up */
+
+  cxd56_gpio_write_hiz(ALT1250_SHUTDOWN);
+
+  /* Wait VDDIO on Alt1250 stable */
+
+  up_mdelay(TIME_TO_STABLE_VDDIO);
+
+  /* Initialize spi device */
 
   spi = cxd56_spibus_initialize(SPI_CH);
   if (!spi)
@@ -228,10 +271,6 @@ static struct spi_dev_s *alt1250_poweron(void)
     }
 #endif
 
-  /* power on altair modem device */
-
-  board_alt1250_poweron();
-
   /* Input enable */
 
   cxd56_gpio_config(ALT1250_SLAVE_REQ, true);
@@ -258,7 +297,6 @@ static struct spi_dev_s *alt1250_poweron(void)
   /* enable the SPI pin */
 
   spi_pincontrol(SPI_CH, true);
-
   set_spiparam(spi);
 
   return spi;
@@ -293,6 +331,43 @@ static void alt1250_poweroff(void)
 }
 
 /****************************************************************************
+ * Name: alt1250_powerstatus
+ *
+ * Description:
+ *   Get the power status for the Altair modem device on the board.
+ *
+ ****************************************************************************/
+
+static bool alt1250_powerstatus(void)
+{
+  return board_alt1250_powerstatus();
+}
+
+/****************************************************************************
+ * Name: alt1250_hibernation_mode
+ *
+ * Description:
+ *   Set power manager for entering hibernation mode.
+ *
+ ****************************************************************************/
+
+static int alt1250_hibernation_mode(bool enable)
+{
+  uint32_t bootmask = 0;
+
+  if (enable)
+    {
+      /* Set GPIO interrupt for wake-up */
+
+      bootmask = up_pm_get_bootmask();
+      bootmask |= PM_BOOT_COLD_GPIO;
+      up_pm_set_bootmask(bootmask);
+    }
+
+  return board_alt1250_powerkeep(enable);
+}
+
+/****************************************************************************
  * Name: alt1250_reset
  *
  * Description:
@@ -304,7 +379,8 @@ static void alt1250_reset(void)
 {
   /* Reset Altair modem device */
 
-  board_alt1250_reset();
+  alt1250_poweroff();
+  alt1250_poweron(false);
 }
 
 /****************************************************************************
@@ -426,6 +502,46 @@ int board_alt1250_initialize(const char *devpath)
     }
 
   return OK;
+}
+
+/****************************************************************************
+ * Name: board_alt1250_reset
+ *
+ * Description:
+ *   Reset the Altair modem device on the board.
+ *
+ ****************************************************************************/
+
+void board_alt1250_reset(void)
+{
+  /* power off Altair modem device */
+
+  board_alt1250_poweroff();
+
+  /* Hi-Z SHUTDOWN and PowerBTN signals before power-on */
+
+  cxd56_gpio_config(ALT1250_SHUTDOWN, false);
+
+  /* power on alt1250 modem device and wait until the power is distributed */
+
+  board_alt1250_poweron();
+  up_mdelay(POWER_ON_WAIT_TIME);
+
+  /* Drive SHUTDOWN signal low */
+
+  cxd56_gpio_write(ALT1250_SHUTDOWN, 0);
+
+  /* Keep the SHUTDOWN signal low for reset period */
+
+  up_mdelay(ACTIVE_SHUTDOWN_TIME);
+
+  /* Undrive SHUTDOWN signal to rise up to high by pull-up */
+
+  cxd56_gpio_write_hiz(ALT1250_SHUTDOWN);
+
+  /* Wait VDDIO on Alt1250 stable */
+
+  up_mdelay(TIME_TO_STABLE_VDDIO);
 }
 
 #endif

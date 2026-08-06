@@ -1,8 +1,9 @@
 /******************************************************************************
  * drivers/wireless/spirit/lib/spirit_gpio.c
  *
- *  Copyright(c) 2015 STMicroelectronics
- *  Author: VMA division - AMS
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: Copyright(c) 2015 STMicroelectronics
+ * SPDX-FileContributor: Author: VMA division - AMS
  *  Version 3.2.2 08-July-2015
  *
  * Redistribution and use in source and binary forms, with or without
@@ -344,7 +345,7 @@ int spirit_gpio_clockoutput_initialize(
             (uint8_t)(clockoutput->rcoprescaler) |
             (uint8_t)(clockoutput->xtracycles));
 
-  /* Write to the the MCU_CLOCK register */
+  /* Write to the MCU_CLOCK register */
 
   return spirit_reg_write(spirit, MCU_CK_CONF_BASE, &regval, 1);
 }

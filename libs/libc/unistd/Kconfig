@@ -94,29 +94,6 @@ config EXECFUNCS_SYSTEM_SYMTAB
 endif # EXECFUNCS_HAVE_SYMTAB
 endif # LIBC_EXECFUNCS
 
-config SYMTAB_ORDEREDBYNAME
-	bool "Symbol Tables Ordered by Name"
-	default n
-	---help---
-		Select if the symbol table is ordered by symbol name.  In this case,
-		the logic can perform faster lookups using a binary search.
-		Otherwise, the symbol table is assumed to be un-ordered and only
-		slow, linear searches are supported.
-
-config SYMTAB_ORDEREDBYVALUE
-	bool "Symbol Tables Ordered by Value"
-	default n
-	---help---
-		Select if the symbol table is ordered by symbol value.
-
-config SYMTAB_DECORATED
-	bool "Symbols are decorated with leading underscores"
-	default n
-	---help---
-		Select if symbols in relocatable objects are decorated with a leading
-		underscore. This option will remove the underscore from symbol names
-		when relocating a loadable object.
-
 config POSIX_SPAWN_DEFAULT_STACKSIZE
 	int "Default task_spawn Stack Size"
 	default DEFAULT_TASK_STACKSIZE
@@ -140,3 +117,25 @@ config LIBC_OPEN_MAX
 	---help---
 		The maximum number of files that a process can have open
 		at any time.  Must not be less than _POSIX_OPEN_MAX.
+
+config NAME_MAX
+	int "Maximum size of a file name"
+	default 32
+	---help---
+		The maximum size of a file name.
+
+config PATH_MAX
+	int "Maximum size of path name"
+	default 256
+	---help---
+		The maximum size of path name.
+
+config LINE_MAX
+	int "Maximum size of line"
+	default 64 if DEFAULT_SMALL
+	default 80 if !DEFAULT_SMALL
+	---help---
+		The maximum size of line. Unless otherwise noted, the maximum length, in bytes,
+		of a utility's input line (either standard input or another file), when the
+		utility is described as processing text files. The length includes room for
+		the trailing newline.

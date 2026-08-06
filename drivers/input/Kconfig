@@ -13,6 +13,57 @@ menuconfig INPUT
 
 if INPUT
 
+config INPUT_GOLDFISH_EVENTS
+	bool "Goldfish input events driver"
+	select INPUT_TOUCHSCREEN
+	select INPUT_KEYBOARD
+	select INPUT_MOUSE
+	default n
+
+config INPUT_GOLDFISH_NBUFFER
+	int "Number of goldfish events buffer"
+	depends on INPUT_GOLDFISH_EVENTS
+	default 8
+
+config INPUT_FF
+	bool "Support Force Feedback device"
+	default n
+	---help---
+		Enable support for force feedback devices.
+		The doc link: https://www.kernel.org/doc/html/v4.19/input/ff.html.
+
+if INPUT_FF
+
+config FF_DUMMY
+	bool "Enable dummy force feedback driver"
+	default n
+	---help---
+		Enable support for a dummy force feedback driver.
+
+config FF_AW86225
+	bool "Enable aw86225 driver"
+	default n
+	---help---
+		Enable aw86225 haptic controller chip.
+
+if FF_AW86225
+
+config AW86225_RTP_FILE_SUPPORT
+	bool "Enable aw86225 rtp file support"
+	default n
+	---help---
+		Enable support for aw86225 rtp file.
+
+config AW86225_RTP_FILE_PATH
+	string "Path of aw86225 rtp file"
+	default "/etc"
+	---help---
+		File path depend on the opening of FF_AW86225.
+
+endif # FF_AW86225
+
+endif # INPUT_FF
+
 config INPUT_MOUSE
 	bool
 	default n
@@ -45,9 +96,9 @@ config INPUT_UINPUT
 		Enable support virtual input device driver
 
 config UINPUT_RPMSG
-	bool "Enable uinput rpmsg"
+	bool "Enable uinput RPMSG"
 	depends on INPUT_UINPUT
-	depends on RPTUN
+	depends on RPMSG
 	default n
 	---help---
 		Enable support uinput cross core communication
@@ -167,12 +218,6 @@ config FT5X06_POLLMODE
 		in detecting touch related events and (2) it will consume a
 		significant amount of CPU time to perform the polling.
 
-config FT5X06_SWAPXY
-	bool "Swap X/Y"
-	default n
-	---help---
-		Reverse the meaning of X and Y to handle different LCD orientations.
-
 config FT5X06_SINGLEPOINT
 	bool "Single point"
 	default n
@@ -201,11 +246,11 @@ config FT5X06_THRESHY
 
 endif # FT5X06_SINGLEPOINT
 
-config FT5X06_NPOLLWAITERS
-	int "Number FT5336/FT5x06 poll waiters"
+config FT5X06_SAMPLE_NBUFFER
+	int "Number FT5336/FT5x06 sample buffers"
 	default 4
 	---help---
-		Maximum number of threads that can be waiting on poll()
+	Maximum number of samples buffered.
 
 endif # INPUT_FT5X06
 
@@ -415,6 +460,22 @@ config STMPE811_SWAPXY
 	---help---
 		Reverse the meaning of X and Y to handle different LCD orientations.
 
+config STMPE811_OFFSETX
+	int "X offset"
+	default 0
+	depends on !STMPE811_TSC_DISABLE
+	---help---
+		Horizontal offset between the left edge of the touchscreen and
+		the left edge of the display area.
+
+config STMPE811_OFFSETY
+	int "Y offset"
+	default 0
+	depends on !STMPE811_TSC_DISABLE
+	---help---
+		Vertical offset between the top edge of the touchscreen and
+		the top edge of the display area.
+
 config STMPE811_THRESHX
 	int "X threshold"
 	default 12
@@ -528,6 +589,13 @@ config INPUT_BUTTONS
 	---help---
 		Enable standard button upper half driver.
 
+config INPUT_BUTTONS_DEBOUNCE_DELAY
+	int "Button Debounce Delay (millisecond)"
+	default 0
+	depends on INPUT_BUTTONS
+	---help---
+		Button Debounce Delay in ms
+
 if INPUT_BUTTONS
 
 config INPUT_BUTTONS_LOWER
@@ -553,6 +621,47 @@ config INPUT_BUTTONS_NPOLLWAITERS
 	default 2
 
 endif # INPUT_BUTTONS
+
+config INPUT_SBUTTON
+	bool "Single Button Multi Actions"
+	select INPUT_KEYBOARD
+	default n
+	---help---
+		Enable the Single Button Multi Actions upper half driver.
+		This driver allows using a single button to generate two
+		events (mapped to short press and long press). Using it
+		is possible navigate a menu interface when using with a
+		LCD/OLED display.
+
+if INPUT_SBUTTON
+
+config INPUT_SBUTTON_KEY1
+	int "ASCII code to generate for short press"
+	default 9
+	---help---
+		Which key will be generated when user do a short press.
+		Default key is TAB (ASCII 9)
+
+config INPUT_SBUTTON_KEY2
+	int "ASCII code to generate for long press"
+	default 13
+	---help---
+		Which key will be generated when user do a short press.
+		Default key is ENTER (ASCII 13)
+
+config INPUT_SBUTTON_BUFSIZE
+	int "Buffer size to store keys"
+	default 8
+
+config INPUT_SBUTTON_KEY_THRESH_MS
+	int "Threshold in milliseconds for short press"
+	default 500
+
+config INPUT_SBUTTON_KEY_DEBOUNCE_MS
+	int "Key Debounce value in milliseconds"
+	default 30
+
+endif # INPUT_SBUTTON
 
 config INPUT_DJOYSTICK
 	bool "Discrete Joystick"
@@ -614,7 +723,7 @@ config INPUT_SPQ10KBD
 	select I2C
 	---help---
 		Enable the Solder Party Q10 BlackBerry Keyboard support.  This
-		exposes itself as a standard keyboard at /dev/kbdN.
+		exposes itself as a standard keyboard at /dev/keypadN.
 		This keyboard exists both as a standalone module and integrated
 		into the Solder Party Keyboard FeatherWing.  Information on this
 		can be found at https://www.solder.party/docs/keyboard-pmod/
@@ -640,4 +749,86 @@ config SPQ10KBD_NPOLLWAITERS
 
 endif # INPUT_SPQ10KBD
 
+config INPUT_KMATRIX
+	bool "Keyboard Matrix Driver"
+	default n
+	select INPUT_KEYBOARD
+	---help---
+		Enable support for keyboard matrix input devices with polling-based
+		scanning. This driver supports NxM key matrices with debounce and
+		anti-ghosting using diodes.
+
+if INPUT_KMATRIX
+
+config INPUT_KMATRIX_BUFSIZE
+	int "Keyboard matrix buffer size"
+	default 64
+	---help---
+		Size of the keyboard event buffer for each open file descriptor.
+
+config INPUT_KMATRIX_POLL_MS
+	int "Polling interval (milliseconds)"
+	default 10
+	---help---
+		Time interval in milliseconds between matrix scans. Smaller values
+		provide lower latency but consume more CPU. Default: 10ms.
+
+config INPUT_KMATRIX_DEBOUNCE
+	int "Debounce threshold (scan cycles)"
+	default 3
+	---help---
+		Number of consecutive scan cycles a key must maintain the same state
+		before generating a press/release event. Higher values provide more
+		robust debounce but increase latency. Default: 3 cycles.
+
+config INPUT_KMATRIX_DEVPATH
+	string "Device path"
+	default "/dev/keypad0"
+	---help---
+		Path where the keyboard matrix device will be registered. Default: /dev/keypad0
+
+config INPUT_KMATRIX_I2C
+	bool "Keyboard Matrix via I2C GPIO Expander"
+	depends on INPUT_KMATRIX && I2C
+	default n
+	---help---
+		Enable keyboard matrix driver using I2C GPIO expander (PCF8574 or MCP23017).
+		Requires I2C support to be enabled.
+
+if INPUT_KMATRIX_I2C
+
+config INPUT_KMATRIX_I2C_PCF8574
+	bool "Use PCF8574 I2C Expander"
+	default n
+	---help---
+		Use PCF8574 I2C GPIO expander (8-bit, quasi-bidirectional I/O).
+		This is a simple, low-cost 8-bit I/O expander commonly used in hobbyist projects.
+
+config INPUT_KMATRIX_I2C_MCP23017
+	bool "Use MCP23017 I2C Expander"
+	default n
+	---help---
+		Use MCP23017 I2C GPIO expander (16-bit, configurable I/O directions).
+		This offers more features and flexibility than PCF8574.
+
+endif # INPUT_KMATRIX_I2C
+
+endif # INPUT_KMATRIX
+
+config INPUT_MPR121_KEYPAD
+	bool "MPR121 Touch Keypad Driver"
+	default n
+	select INPUT_KEYBOARD
+	---help---
+		Enable support for keypad matrix powered by MPR121.
+
+if INPUT_MPR121_KEYPAD
+
+config INPUT_MPR121_KEYPAD_BUFSIZE
+	int "Keyboard matrix buffer size"
+	default 64
+	---help---
+		Size of the keyboard event buffer for each open file descriptor.
+
+endif # INPUT_MPR121_KEYPAD
 endif # INPUT

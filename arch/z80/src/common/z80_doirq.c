@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/z80/src/common/z80_doirq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,6 +35,7 @@
 #include <nuttx/board.h>
 
 #include <arch/irq.h>
+#include <sched/sched.h>
 
 #include "chip/switch.h"
 #include "z80_internal.h"
@@ -43,6 +46,11 @@
 
 FAR chipreg_t *z80_doirq(uint8_t irq, FAR chipreg_t *regs)
 {
+  struct tcb_s **running_task = &g_running_tasks[this_cpu()];
+  struct tcb_s *tcb;
+
+  z80_copystate((*running_task)->xcp.regs, regs)
+
   board_autoled_on(LED_INIRQ);
 
   DECL_SAVESTATE();
@@ -69,29 +77,38 @@ FAR chipreg_t *z80_doirq(uint8_t irq, FAR chipreg_t *regs)
 
       irq_dispatch(irq, regs);
 
-#ifdef CONFIG_ARCH_ADDRENV
       /* If a context switch occurred, 'newregs' will hold the new context */
 
       newregs = IRQ_STATE();
 
       if (newregs != regs)
         {
+          tcb = this_task();
+
+#ifdef CONFIG_ARCH_ADDRENV
           /* Make sure that the address environment for the previously
            * running task is closed down gracefully and set up the
            * address environment for the new thread at the head of the
            * ready-to-run list.
            */
 
-          addrenv_switch(NULL);
+          addrenv_switch(tcb);
+          tcb = this_task();
+#endif
+
+          /* Update scheduler parameters */
+
+          nxsched_switch_context(*running_task, tcb);
+
+          /* Record the new "running" task when context switch occurred.
+           * g_running_tasks[] is only used by assertion logic for reporting
+           * crashes.
+           */
+
+          *running_task = tcb;
         }
 
       regs = newregs;
-
-#else
-      /* If a context switch occurred, 'regs' will hold the new context */
-
-      regs = IRQ_STATE();
-#endif
 
       /* Indicate that we are no longer in interrupt processing logic */
 

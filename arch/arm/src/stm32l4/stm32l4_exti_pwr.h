@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l4/stm32l4_exti_pwr.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,7 +35,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_exti_pvd
+ * Name: stm32_exti_pvd
  *
  * Description:
  *   Sets/clears EXTI PVD interrupt.
@@ -50,7 +52,7 @@
  *
  ****************************************************************************/
 
-int stm32l4_exti_pvd(bool risingedge, bool fallingedge, bool event,
+int stm32_exti_pvd(bool risingedge, bool fallingedge, bool event,
                      xcpt_t func, void *arg);
 
 #endif /* STM32L4_EXTI_PWR_H_ */

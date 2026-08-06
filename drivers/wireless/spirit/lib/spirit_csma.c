@@ -1,8 +1,9 @@
 /******************************************************************************
  * drivers/wireless/spirit/lib/spirit_csma.c
  *
- *   Copyright(c) 2015 STMicroelectronics
- *   Author: VMA division - AMS
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: Copyright(c) 2015 STMicroelectronics
+ * SPDX-FileContributor: Author: VMA division - AMS
  *   Version 3.2.2 08-July-2015
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,7 +39,7 @@
 
 #include <sys/types.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "spirit_csma.h"
 #include "spirit_spi.h"
@@ -167,11 +168,11 @@ int spirit_csma_getinfo(FAR struct spirit_library_s *spirit,
       return ret;
     }
 
-  /* Reads the bu counter seed */
+  /* Reads the backoff counter seed */
 
   csmainit->seed = (uint16_t)regval[1] | (uint16_t)regval[0] << 8;
 
-  /* Reads the bu prescaler */
+  /* Reads the backoff prescaler */
 
   csmainit->prescaler = regval[2] >> 2;
 

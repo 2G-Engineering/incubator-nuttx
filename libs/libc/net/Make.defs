@@ -1,6 +1,8 @@
 ############################################################################
 # libs/libc/net/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,7 +22,7 @@
 
 # Add the networking C files to the build
 
-CSRCS += lib_addrconfig.c lib_base64.c lib_htons.c lib_htonl.c
+CSRCS += lib_addrconfig.c lib_base64.c lib_htons.c lib_htonl.c lib_htonq.c
 CSRCS += lib_inetaddr.c lib_inetaton.c lib_inetntoa.c
 CSRCS += lib_inetntop.c lib_inetpton.c lib_inetnetwork.c
 CSRCS += lib_etherntoa.c lib_etheraton.c

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/litex/litex_irq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
@@ -53,7 +55,7 @@ void up_irqinitialize(void)
 
 #ifdef CONFIG_ARCH_USE_S_MODE
   putreg32(0x0, LITEX_PLIC_ENABLE1);
-#else 
+#else
   asm volatile ("csrw %0, %1" :: "i"(LITEX_MMASK_CSR), "r"(0));
 #endif
 
@@ -66,8 +68,8 @@ void up_irqinitialize(void)
 
   /* litex vexriscv dont have priority and threshold control */
 
-#ifdef CONFIG_LITEX_CORE_VEXRISCV_SMP
-  /* litex vexriscv_smp does. */
+#if defined(CONFIG_LITEX_CORE_VEXRISCV_SMP) || defined(CONFIG_LITEX_CORE_VEXIIRISCV)
+  /* litex vexriscv_smp and vexiiriscv do. */
 
   /* Set priority for all global interrupts to 1 (lowest) */
 
@@ -91,6 +93,7 @@ void up_irqinitialize(void)
 
   /* And finally, enable interrupts */
 
+  riscv_color_intstack();
   up_irq_enable();
 #endif
 }
@@ -103,7 +106,7 @@ void up_irqinitialize(void)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_LITEX_CORE_VEXRISCV_SMP
+#if defined(CONFIG_LITEX_CORE_VEXRISCV_SMP) || defined(CONFIG_LITEX_CORE_VEXIIRISCV)
 void up_disable_irq(int irq)
 {
   int extirq;
@@ -147,13 +150,13 @@ void up_disable_irq(int irq)
     {
       /* Read mstatus & clear machine software interrupt enable in mie */
 
-      CLEAR_CSR(mie, MIE_MSIE);
+      CLEAR_CSR(CSR_MIE, MIE_MSIE);
     }
   else if (irq == RISCV_IRQ_MTIMER)
     {
       /* Read mstatus & clear machine timer interrupt enable in mie */
 
-      CLEAR_CSR(mie, MIE_MTIE);
+      CLEAR_CSR(CSR_MIE, MIE_MTIE);
     }
   else if (irq > RISCV_IRQ_MEXT)
     {
@@ -184,7 +187,7 @@ void up_disable_irq(int irq)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_LITEX_CORE_VEXRISCV_SMP
+#if defined(CONFIG_LITEX_CORE_VEXRISCV_SMP) || defined(CONFIG_LITEX_CORE_VEXIIRISCV)
 void up_enable_irq(int irq)
 {
   int extirq;
@@ -228,13 +231,13 @@ void up_enable_irq(int irq)
     {
       /* Read mstatus & set machine software interrupt enable in mie */
 
-      SET_CSR(mie, MIE_MSIE);
+      SET_CSR(CSR_MIE, MIE_MSIE);
     }
   else if (irq == RISCV_IRQ_MTIMER)
     {
       /* Read mstatus & set machine timer interrupt enable in mie */
 
-      SET_CSR(mie, MIE_MTIE);
+      SET_CSR(CSR_MIE, MIE_MTIE);
     }
   else if (irq > RISCV_IRQ_MEXT)
     {

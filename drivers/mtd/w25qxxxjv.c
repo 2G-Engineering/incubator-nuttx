@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/mtd/w25qxxxjv.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,7 +35,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <inttypes.h>
 
 #include <nuttx/kmalloc.h>
@@ -235,6 +237,7 @@
 /* W25Q016 (2 MB) memory capacity */
 
 #define W25Q016_SECTOR_SIZE         (4 * 1024)
+#define W25Q016_SECTOR_ERASE_TIME   (120)
 #define W25Q016_SECTOR_SHIFT        (12)
 #define W25Q016_SECTOR_COUNT        (512)
 #define W25Q016_PAGE_SIZE           (256)
@@ -243,6 +246,7 @@
 /* W25Q032 (4 MB) memory capacity */
 
 #define W25Q032_SECTOR_SIZE         (4 * 1024)
+#define W25Q032_SECTOR_ERASE_TIME   (120)
 #define W25Q032_SECTOR_SHIFT        (12)
 #define W25Q032_SECTOR_COUNT        (1024)
 #define W25Q032_PAGE_SIZE           (256)
@@ -251,6 +255,7 @@
 /* W25Q064 (8 MB) memory capacity */
 
 #define W25Q064_SECTOR_SIZE         (4 * 1024)
+#define W25Q064_SECTOR_ERASE_TIME   (60)
 #define W25Q064_SECTOR_SHIFT        (12)
 #define W25Q064_SECTOR_COUNT        (2048)
 #define W25Q064_PAGE_SIZE           (256)
@@ -259,6 +264,7 @@
 /* W25Q128 (16 MB) memory capacity */
 
 #define W25Q128_SECTOR_SIZE         (4 * 1024)
+#define W25Q128_SECTOR_ERASE_TIME   (45)
 #define W25Q128_SECTOR_SHIFT        (12)
 #define W25Q128_SECTOR_COUNT        (4096)
 #define W25Q128_PAGE_SIZE           (256)
@@ -267,6 +273,7 @@
 /* W25Q256 (32 MB) memory capacity */
 
 #define W25Q256_SECTOR_SIZE         (4 * 1024)
+#define W25Q256_SECTOR_ERASE_TIME   (50)
 #define W25Q256_SECTOR_SHIFT        (12)
 #define W25Q256_SECTOR_COUNT        (8192)
 #define W25Q256_PAGE_SIZE           (256)
@@ -275,6 +282,7 @@
 /* W25Q512 (64 MB) memory capacity */
 
 #define W25Q512_SECTOR_SIZE         (4 * 1024)
+#define W25Q512_SECTOR_ERASE_TIME   (60)
 #define W25Q512_SECTOR_SHIFT        (12)
 #define W25Q512_SECTOR_COUNT        (16384)
 #define W25Q512_PAGE_SIZE           (256)
@@ -283,6 +291,7 @@
 /* W25Q01 (128 MB) memory capacity */
 
 #define W25Q01_SECTOR_SIZE          (4 * 1024)
+#define W25Q01_SECTOR_ERASE_TIME    (50)
 #define W25Q01_SECTOR_SHIFT         (12)
 #define W25Q01_SECTOR_COUNT         (32768)
 #define W25Q01_PAGE_SIZE            (256)
@@ -328,6 +337,7 @@ struct w25qxxxjv_dev_s
   FAR struct qspi_dev_s *qspi;        /* Saved QuadSPI interface instance */
   uint32_t               diesize;     /* Size of a single die. 0 if just one die used */
   uint16_t               nsectors;    /* Number of erase sectors */
+  uint8_t                erasetime;   /* Typical time to erase one sector */
   uint8_t                sectorshift; /* Log2 of sector size */
   uint8_t                pageshift;   /* Log2 of page size */
   uint8_t                addresslen;  /* Length of address 3 or 4 bytes */
@@ -384,11 +394,11 @@ static int w25qxxxjv_get_die_from_addr(FAR struct w25qxxxjv_dev_s *priv,
                                        off_t addr);
 static int  w25qxxxjv_readid(FAR struct w25qxxxjv_dev_s *priv);
 static int  w25qxxxjv_protect(FAR struct w25qxxxjv_dev_s *priv,
-              off_t startblock, size_t nblocks);
+                              off_t startblock, size_t nblocks);
 static int  w25qxxxjv_unprotect(FAR struct w25qxxxjv_dev_s *priv,
-              off_t startblock, size_t nblocks);
+                                off_t startblock, size_t nblocks);
 static bool w25qxxxjv_isprotected(FAR struct w25qxxxjv_dev_s *priv,
-              uint8_t status, off_t address);
+                                  uint8_t status, off_t address);
 static int  w25qxxxjv_erase_sector(FAR struct w25qxxxjv_dev_s *priv,
                                    off_t offset);
 static int  w25qxxxjv_erase_chip(FAR struct w25qxxxjv_dev_s *priv);
@@ -710,6 +720,7 @@ static inline int w25qxxxjv_readid(FAR struct w25qxxxjv_dev_s *priv)
   switch (priv->cmdbuf[2])
     {
       case W25Q016_JEDEC_CAPACITY:
+        priv->erasetime   = W25Q016_SECTOR_ERASE_TIME;
         priv->sectorshift = W25Q016_SECTOR_SHIFT;
         priv->pageshift   = W25Q016_PAGE_SHIFT;
         priv->nsectors    = W25Q016_SECTOR_COUNT;
@@ -719,6 +730,7 @@ static inline int w25qxxxjv_readid(FAR struct w25qxxxjv_dev_s *priv)
         break;
 
       case W25Q032_JEDEC_CAPACITY:
+        priv->erasetime   = W25Q032_SECTOR_ERASE_TIME;
         priv->sectorshift = W25Q032_SECTOR_SHIFT;
         priv->pageshift   = W25Q032_PAGE_SHIFT;
         priv->nsectors    = W25Q032_SECTOR_COUNT;
@@ -728,6 +740,7 @@ static inline int w25qxxxjv_readid(FAR struct w25qxxxjv_dev_s *priv)
         break;
 
       case W25Q064_JEDEC_CAPACITY:
+        priv->erasetime   = W25Q064_SECTOR_ERASE_TIME;
         priv->sectorshift = W25Q064_SECTOR_SHIFT;
         priv->pageshift   = W25Q064_PAGE_SHIFT;
         priv->nsectors    = W25Q064_SECTOR_COUNT;
@@ -737,6 +750,7 @@ static inline int w25qxxxjv_readid(FAR struct w25qxxxjv_dev_s *priv)
         break;
 
       case W25Q128_JEDEC_CAPACITY:
+        priv->erasetime   = W25Q128_SECTOR_ERASE_TIME;
         priv->sectorshift = W25Q128_SECTOR_SHIFT;
         priv->pageshift   = W25Q128_PAGE_SHIFT;
         priv->nsectors    = W25Q128_SECTOR_COUNT;
@@ -746,6 +760,7 @@ static inline int w25qxxxjv_readid(FAR struct w25qxxxjv_dev_s *priv)
         break;
 
       case W25Q256_JEDEC_CAPACITY:
+        priv->erasetime   = W25Q256_SECTOR_ERASE_TIME;
         priv->sectorshift = W25Q256_SECTOR_SHIFT;
         priv->pageshift   = W25Q256_PAGE_SHIFT;
         priv->nsectors    = W25Q256_SECTOR_COUNT;
@@ -755,6 +770,7 @@ static inline int w25qxxxjv_readid(FAR struct w25qxxxjv_dev_s *priv)
         break;
 
       case W25Q512_JEDEC_CAPACITY:
+        priv->erasetime   = W25Q512_SECTOR_ERASE_TIME;
         priv->sectorshift = W25Q512_SECTOR_SHIFT;
         priv->pageshift   = W25Q512_PAGE_SHIFT;
         priv->nsectors    = W25Q512_SECTOR_COUNT;
@@ -764,6 +780,7 @@ static inline int w25qxxxjv_readid(FAR struct w25qxxxjv_dev_s *priv)
         break;
 
       case W25Q01_JEDEC_CAPACITY:
+        priv->erasetime   = W25Q01_SECTOR_ERASE_TIME;
         priv->diesize     = W25Q01_DIE_SIZE;
         priv->sectorshift = W25Q01_SECTOR_SHIFT;
         priv->pageshift   = W25Q01_PAGE_SHIFT;
@@ -944,6 +961,7 @@ static int w25qxxxjv_erase_sector(FAR struct w25qxxxjv_dev_s *priv,
 {
   off_t address;
   uint8_t status;
+  uint16_t nloops = priv->nsectors;
 
   finfo("sector: %08" PRIxOFF "\n", sector);
 
@@ -959,10 +977,16 @@ static int w25qxxxjv_erase_sector(FAR struct w25qxxxjv_dev_s *priv,
     }
 
   status = w25qxxxjv_read_status(priv);
-  if ((status & STATUS_BUSY_MASK) != STATUS_READY)
+  while ((status & STATUS_BUSY_MASK) != STATUS_READY)
     {
-      ferr("ERROR: Flash busy: %02x", status);
-      return -EBUSY;
+      if (nloops-- == 0)
+        {
+          ferr("ERROR: Flash busy: %02x", status);
+          return -EBUSY;
+        }
+
+      nxsched_usleep(priv->erasetime * 1000);
+      status = w25qxxxjv_read_status(priv);
     }
 
   if ((status & priv->protectmask) != 0 &&
@@ -981,7 +1005,12 @@ static int w25qxxxjv_erase_sector(FAR struct w25qxxxjv_dev_s *priv,
 
   /* Wait for erasure to finish */
 
-  while ((w25qxxxjv_read_status(priv) & STATUS_BUSY_MASK) != 0);
+  status = w25qxxxjv_read_status(priv);
+  while ((status & STATUS_BUSY_MASK) != 0)
+    {
+      nxsched_usleep(priv->erasetime * 1000);
+      status = w25qxxxjv_read_status(priv);
+    }
 
   return OK;
 }
@@ -1013,7 +1042,7 @@ static int w25qxxxjv_erase_chip(FAR struct w25qxxxjv_dev_s *priv)
   status = w25qxxxjv_read_status(priv);
   while ((status & STATUS_BUSY_MASK) != 0)
     {
-      nxsig_usleep(200 * 1000);
+      nxsched_usleep(200 * 1000);
       status = w25qxxxjv_read_status(priv);
     }
 
@@ -1078,7 +1107,7 @@ static int w25qxxxjv_write_page(FAR struct w25qxxxjv_dev_s *priv,
       /* Set up varying parts of the transfer description */
 
       meminfo.addr   = address;
-      meminfo.buffer = (void *)buffer;
+      meminfo.buffer = (FAR void *)buffer;
 
       /* Write one page */
 
@@ -1330,9 +1359,7 @@ static int w25qxxxjv_erase(FAR struct mtd_dev_s *dev, off_t startblock,
 {
   FAR struct w25qxxxjv_dev_s *priv = (FAR struct w25qxxxjv_dev_s *)dev;
   size_t blocksleft = nblocks;
-#ifdef CONFIG_W25QXXXJV_SECTOR512
   int ret;
-#endif
 
   finfo("startblock: %08" PRIxOFF " nblocks: %d\n",
         startblock, (int)nblocks);
@@ -1348,7 +1375,13 @@ static int w25qxxxjv_erase(FAR struct mtd_dev_s *dev, off_t startblock,
 #ifdef CONFIG_W25QXXXJV_SECTOR512
       w25qxxxjv_erase_cache(priv, startblock);
 #else
-      w25qxxxjv_erase_sector(priv, startblock);
+      ret = w25qxxxjv_erase_sector(priv, startblock);
+      if (ret < 0)
+        {
+          w25qxxxjv_unlock(priv->qspi);
+          return ret;
+        }
+
 #endif
       startblock++;
     }
@@ -1387,11 +1420,15 @@ static ssize_t w25qxxxjv_bread(FAR struct mtd_dev_s *dev, off_t startblock,
    * read
    */
 
+  w25qxxxjv_lock(priv->qspi);
+
   if (priv->numofdies != 0)
     {
       priv->currentdie = w25qxxxjv_get_die_from_addr(priv, startblock <<
                                                      priv->pageshift);
     }
+
+  w25qxxxjv_unlock(priv->qspi);
 
 #ifdef CONFIG_W25QXXXJV_SECTOR512
   nbytes = w25qxxxjv_read(dev, startblock << W25QXXXJV_SECTOR512_SHIFT,
@@ -1425,6 +1462,8 @@ static ssize_t w25qxxxjv_bwrite(FAR struct mtd_dev_s *dev, off_t startblock,
   finfo("startblock: %08" PRIxOFF " nblocks: %d\n",
         startblock, (int)nblocks);
 
+  w25qxxxjv_lock(priv->qspi);
+
   if (priv->numofdies != 0)
     {
       priv->currentdie = w25qxxxjv_get_die_from_addr(priv, startblock <<
@@ -1432,8 +1471,6 @@ static ssize_t w25qxxxjv_bwrite(FAR struct mtd_dev_s *dev, off_t startblock,
     }
 
   /* Lock the QuadSPI bus and write all of the pages to FLASH */
-
-  w25qxxxjv_lock(priv->qspi);
 
 #if defined(CONFIG_W25QXXXJV_SECTOR512)
   ret = w25qxxxjv_write_cache(priv, buffer, startblock, nblocks);

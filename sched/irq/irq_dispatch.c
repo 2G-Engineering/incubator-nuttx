@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/irq/irq_dispatch.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
 #include <nuttx/mm/mm.h>
@@ -45,49 +47,22 @@
 #  define NUSER_IRQS NR_IRQS
 #endif
 
-/* INCR_COUNT - Increment the count of interrupts taken on this IRQ number */
-
-#ifndef CONFIG_SCHED_IRQMONITOR
-#  define INCR_COUNT(ndx)
-#elif defined(CONFIG_HAVE_LONG_LONG)
-#  define INCR_COUNT(ndx) \
-     do \
-       { \
-         g_irqvector[ndx].count++; \
-       } \
-     while (0)
-#else
-#  define INCR_COUNT(ndx) \
-     do \
-       { \
-         if (++g_irqvector[ndx].lscount == 0) \
-           { \
-             g_irqvector[ndx].mscount++; \
-           } \
-       } \
-     while (0)
-#endif
-
 /* CALL_VECTOR - Call the interrupt service routine attached to this
  * interrupt request
  */
-
-#ifndef CONFIG_SCHED_CRITMONITOR_MAXTIME_IRQ
-#  define CONFIG_SCHED_CRITMONITOR_MAXTIME_IRQ 0
-#endif
 
 #ifdef CONFIG_SCHED_IRQMONITOR
 #  define CALL_VECTOR(ndx, vector, irq, context, arg) \
      do \
        { \
-         unsigned long start; \
-         unsigned long elapsed; \
-         start = up_perf_gettime(); \
+         clock_t start; \
+         clock_t elapsed; \
+         start = perf_gettime(); \
          vector(irq, context, arg); \
-         elapsed = up_perf_gettime() - start; \
+         elapsed = perf_gettime() - start; \
          if (ndx < NUSER_IRQS) \
            { \
-             INCR_COUNT(ndx); \
+             g_irqvector[ndx].count++; \
              if (elapsed > g_irqvector[ndx].time) \
                { \
                  g_irqvector[ndx].time = elapsed; \
@@ -96,8 +71,8 @@
          if (CONFIG_SCHED_CRITMONITOR_MAXTIME_IRQ > 0 && \
              elapsed > CONFIG_SCHED_CRITMONITOR_MAXTIME_IRQ) \
            { \
-             serr("IRQ %d(%p), execute time too long %lu\n", \
-                  irq, vector, elapsed); \
+             CRITMONITOR_PANIC("IRQ %d(%p), execute time too long %ju\n", \
+                               irq, vector, (uintmax_t)elapsed); \
            } \
        } \
      while (0)
@@ -127,13 +102,12 @@ void irq_dispatch(int irq, FAR void *context)
 #endif
   xcpt_t vector = irq_unexpected_isr;
   FAR void *arg = NULL;
-  unsigned int ndx = irq;
+  int ndx = IRQ_TO_NDX(irq);
 
 #if NR_IRQS > 0
-  if ((unsigned)irq < NR_IRQS)
+  if (ndx >= 0)
     {
 #ifdef CONFIG_ARCH_MINIMAL_VECTORTABLE
-      ndx = g_irqmap[irq];
       if (ndx < CONFIG_ARCH_NUSER_INTERRUPTS)
         {
           if (g_irqvector[ndx].handler)
@@ -183,9 +157,9 @@ void irq_dispatch(int irq, FAR void *context)
     }
 #endif
 
-  /* Record the new "running" task.  g_running_tasks[] is only used by
-   * assertion logic for reporting crashes.
-   */
-
-  g_running_tasks[this_cpu()] = this_task();
+#if defined(CONFIG_STACKCHECK_MARGIN) && (CONFIG_STACKCHECK_MARGIN > 0) && \
+    defined(CONFIG_ARCH_INTERRUPTSTACK) && (CONFIG_ARCH_INTERRUPTSTACK > 0)
+    DEBUGASSERT(up_check_intstack(this_cpu(),
+                                  CONFIG_STACKCHECK_MARGIN) == 0);
+#endif
 }

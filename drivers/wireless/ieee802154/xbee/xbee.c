@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/wireless/ieee802154/xbee/xbee.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -1217,7 +1219,7 @@ XBEEHANDLE xbee_init(FAR struct spi_dev_s *spi,
 
   /* Allocate object */
 
-  priv = (FAR struct xbee_priv_s *) kmm_zalloc(sizeof(struct xbee_priv_s));
+  priv = kmm_zalloc(sizeof(struct xbee_priv_s));
   if (priv == NULL)
     {
       wlinfo("Failed allocation xbee_priv_s structure\n");
@@ -1662,7 +1664,7 @@ void xbee_set_saddr(FAR struct xbee_priv_s *priv, FAR const uint8_t *saddr)
  *
  * Description:
  *   Sends API frame with AT command request in order to set the RF channel
- *   (Operatin Channel) of the device.
+ *   (Operation Channel) of the device.
  *
  ****************************************************************************/
 

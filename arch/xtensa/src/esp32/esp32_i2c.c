@@ -24,7 +24,7 @@
 
 #include <nuttx/config.h>
 
-#ifdef CONFIG_ESP32_I2C
+#ifdef CONFIG_ESPRESSIF_I2C_PERIPH_MASTER_MODE
 
 #include <sys/types.h>
 #include <stdio.h>
@@ -33,7 +33,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <time.h>
 #include <sys/time.h>
 
@@ -47,8 +47,8 @@
 #include <arch/board/board.h>
 
 #include "esp32_i2c.h"
-#include "esp32_gpio.h"
-#include "esp32_irq.h"
+#include "esp_gpio.h"
+#include "esp_irq.h"
 
 #include "xtensa.h"
 #include "hardware/esp32_gpio_sigmap.h"
@@ -620,7 +620,7 @@ static void esp32_i2c_init_clock(struct esp32_i2c_priv_s *priv,
 
   if (clk_freq == priv->clk_freq)
     {
-      return ;
+      return;
     }
 
   esp32_i2c_set_reg(priv, I2C_SCL_LOW_PERIOD_OFFSET, half_cycles);
@@ -648,22 +648,19 @@ static void esp32_i2c_init(struct esp32_i2c_priv_s *priv)
 {
   const struct esp32_i2c_config_s *config = priv->config;
 
-  esp32_gpiowrite(config->scl_pin, 1);
-  esp32_gpiowrite(config->sda_pin, 1);
+  esp_gpiowrite(config->scl_pin, 1);
+  esp_gpiowrite(config->sda_pin, 1);
 
-  esp32_configgpio(config->scl_pin, INPUT |
+  esp_configgpio(config->scl_pin, INPUT | OPEN_DRAIN | FUNCTION_3);
+  esp_gpio_matrix_out(config->scl_pin, config->scl_outsig, 0, 0);
+  esp_gpio_matrix_in(config->scl_pin, config->scl_insig, 0);
+
+  esp_configgpio(config->sda_pin, INPUT |
                                     OUTPUT |
                                     OPEN_DRAIN |
                                     FUNCTION_3);
-  esp32_gpio_matrix_out(config->scl_pin, config->scl_outsig, 0, 0);
-  esp32_gpio_matrix_in(config->scl_pin, config->scl_insig, 0);
-
-  esp32_configgpio(config->sda_pin, INPUT |
-                                    OUTPUT |
-                                    OPEN_DRAIN |
-                                    FUNCTION_3);
-  esp32_gpio_matrix_out(config->sda_pin, config->sda_outsig, 0, 0);
-  esp32_gpio_matrix_in(config->sda_pin, config->sda_insig, 0);
+  esp_gpio_matrix_out(config->sda_pin, config->sda_outsig, 0, 0);
+  esp_gpio_matrix_in(config->sda_pin, config->sda_insig, 0);
 
   modifyreg32(DPORT_PERIP_CLK_EN_REG, 0, config->clk_bit);
   modifyreg32(DPORT_PERIP_RST_EN_REG, config->rst_bit, 0);
@@ -750,7 +747,7 @@ static int esp32_i2c_sem_waitdone(struct esp32_i2c_priv_s *priv)
  *   priv          - Pointer to the internal driver state structure.
  *
  * Returned Values:
- *   Zero (OK) is returned on successfull transfer. -ETIMEDOUT is returned
+ *   Zero (OK) is returned on successful transfer. -ETIMEDOUT is returned
  *   in case a transfer didn't finish within the timeout interval. And ERROR
  *   is returned in case of any I2C error during the transfer has happened.
  *
@@ -1008,19 +1005,19 @@ static int esp32_i2c_clear_bus(struct esp32_i2c_priv_s *priv)
 
   /* Use GPIO configuration to un-wedge the bus */
 
-  esp32_configgpio(config->scl_pin, INPUT_PULLUP | OUTPUT_OPEN_DRAIN);
-  esp32_gpio_matrix_out(config->scl_pin, SIG_GPIO_OUT_IDX, 0, 0);
-  esp32_configgpio(config->sda_pin, INPUT_PULLUP | OUTPUT_OPEN_DRAIN);
-  esp32_gpio_matrix_out(config->sda_pin, SIG_GPIO_OUT_IDX, 0, 0);
+  esp_configgpio(config->scl_pin, INPUT_PULLUP | OUTPUT_OPEN_DRAIN);
+  esp_gpio_matrix_out(config->scl_pin, SIG_GPIO_OUT_IDX, 0, 0);
+  esp_configgpio(config->sda_pin, INPUT_PULLUP | OUTPUT_OPEN_DRAIN);
+  esp_gpio_matrix_out(config->sda_pin, SIG_GPIO_OUT_IDX, 0, 0);
 
   /* Set SDA to high */
 
-  esp32_gpiowrite(config->sda_pin, 1);
+  esp_gpiowrite(config->sda_pin, 1);
 
   /* Clock the bus until any slaves currently driving it let it go. */
 
   clock_count = 0;
-  while (!esp32_gpioread(config->sda_pin))
+  while (!esp_gpioread(config->sda_pin))
     {
       /* Give up if we have tried too hard */
 
@@ -1036,7 +1033,7 @@ static int esp32_i2c_clear_bus(struct esp32_i2c_priv_s *priv)
        */
 
       stretch_count = 0;
-      while (!esp32_gpioread(config->scl_pin))
+      while (!esp_gpioread(config->scl_pin))
         {
           /* Give up if we have tried too hard */
 
@@ -1051,12 +1048,12 @@ static int esp32_i2c_clear_bus(struct esp32_i2c_priv_s *priv)
 
       /* Drive SCL low */
 
-      esp32_gpiowrite(config->scl_pin, 0);
+      esp_gpiowrite(config->scl_pin, 0);
       up_udelay(10);
 
       /* Drive SCL high again */
 
-      esp32_gpiowrite(config->scl_pin, 1);
+      esp_gpiowrite(config->scl_pin, 1);
       up_udelay(10);
     }
 
@@ -1064,13 +1061,13 @@ static int esp32_i2c_clear_bus(struct esp32_i2c_priv_s *priv)
    * state machines.
    */
 
-  esp32_gpiowrite(config->sda_pin, 0);
+  esp_gpiowrite(config->sda_pin, 0);
   up_udelay(10);
-  esp32_gpiowrite(config->scl_pin, 0);
+  esp_gpiowrite(config->scl_pin, 0);
   up_udelay(10);
-  esp32_gpiowrite(config->scl_pin, 1);
+  esp_gpiowrite(config->scl_pin, 1);
   up_udelay(10);
-  esp32_gpiowrite(config->sda_pin, 1);
+  esp_gpiowrite(config->sda_pin, 1);
   up_udelay(10);
 
   ret = OK;
@@ -1248,8 +1245,8 @@ static void esp32_i2c_traceevent(struct esp32_i2c_priv_s *priv,
 
       /* Initialize the new trace entry */
 
-      trace->event  = event;
-      trace->parm   = parm;
+      trace->event = event;
+      trace->parm  = parm;
 
       /* Bump up the trace index (unless we are out of trace entries) */
 
@@ -1282,7 +1279,7 @@ static void esp32_i2c_tracedump(struct esp32_i2c_priv_s *priv)
   struct esp32_trace_s *trace;
   int i;
 
-  syslog(LOG_DEBUG, "Elapsed time: %" PRIu32 "\n",
+  syslog(LOG_DEBUG, "Elapsed time: %" PRId64 "\n",
          (clock_systime_ticks() - priv->start_time));
 
   for (i = 0; i < priv->tndx; i++)
@@ -1290,7 +1287,7 @@ static void esp32_i2c_tracedump(struct esp32_i2c_priv_s *priv)
       trace = &priv->trace[i];
       syslog(LOG_DEBUG,
              "%2d. STATUS: %08" PRIx32 " COUNT: %3" PRIu32 " EVENT: %s(%2d)"
-             " PARM: %08" PRIx32 " TIME: %" PRIu32 "\n",
+             " PARM: %08" PRIx32 " TIME: %" PRId64 "\n",
              i + 1, trace->status, trace->count, g_trace_names[trace->event],
              trace->event, trace->parm, trace->time - priv->start_time);
     }
@@ -1500,9 +1497,12 @@ struct i2c_master_s *esp32_i2cbus_initialize(int port)
 
   /* Set up to receive peripheral interrupts on the current CPU */
 
-  priv->cpu = up_cpu_index();
-  priv->cpuint = esp32_setup_irq(priv->cpu, config->periph,
-                                 1, ESP32_CPUINT_LEVEL);
+  priv->cpu = this_cpu();
+  priv->cpuint = esp_setup_irq(config->periph,
+                               1,
+                               ESP_IRQ_TRIGGER_LEVEL,
+                               esp32_i2c_irq,
+                               priv);
   if (priv->cpuint < 0)
     {
       /* Failed to allocate a CPU interrupt of this type */
@@ -1510,16 +1510,6 @@ struct i2c_master_s *esp32_i2cbus_initialize(int port)
       priv->refs--;
       nxmutex_unlock(&priv->lock);
 
-      return NULL;
-    }
-
-  ret = irq_attach(config->irq, esp32_i2c_irq, priv);
-  if (ret != OK)
-    {
-      esp32_teardown_irq(priv->cpu, config->periph, priv->cpuint);
-      priv->refs--;
-
-      nxmutex_unlock(&priv->lock);
       return NULL;
     }
 
@@ -1560,7 +1550,7 @@ int esp32_i2cbus_uninitialize(struct i2c_master_s *dev)
 
 #ifndef CONFIG_I2C_POLLED
   up_disable_irq(priv->config->irq);
-  esp32_teardown_irq(priv->cpu, priv->config->periph, priv->cpuint);
+  esp_teardown_irq(priv->config->periph, priv->cpuint);
 #endif
 
   esp32_i2c_deinit(priv);
@@ -1569,4 +1559,4 @@ int esp32_i2cbus_uninitialize(struct i2c_master_s *dev)
   return OK;
 }
 
-#endif /* CONFIG_ESP32_I2C */
+#endif /* CONFIG_ESPRESSIF_I2C_PERIPH_MASTER_MODE */

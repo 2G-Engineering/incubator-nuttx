@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/sensors/bmp180.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -68,7 +70,8 @@ extern "C"
  *   Register the BMP180 character device as 'devpath'
  *
  * Input Parameters:
- *   devpath - The full path to the driver to register. E.g., "/dev/press0"
+ *   path/no - The full path (or number) to the driver to register.
+ *             E.g.:("/dev/press0", i2c) or (0, i2c)
  *   i2c     - An instance of the I2C interface to use to communicate with
  *             BMP180
  *
@@ -77,7 +80,11 @@ extern "C"
  *
  ****************************************************************************/
 
+#ifndef CONFIG_SENSORS_BMP180_UORB
 int bmp180_register(FAR const char *devpath, FAR struct i2c_master_s *i2c);
+#else
+int bmp180_register_uorb(int devno, FAR struct i2c_master_s *i2c);
+#endif /* CONFIG_SENSORS_BMP180_UORB */
 
 #undef EXTERN
 #ifdef __cplusplus

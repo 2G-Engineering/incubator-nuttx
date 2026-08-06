@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/modem/alt1250.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,8 @@
 #include <nuttx/queue.h>
 #include <nuttx/mutex.h>
 #include <semaphore.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <pthread.h>
 
@@ -58,8 +61,11 @@
 #define ALT1250_IOC_SETEVTBUFF      _MODEMIOC(3)
 #define ALT1250_IOC_EXCHGCONTAINER  _MODEMIOC(4)
 
-#define ALT1250_EVTBIT_RESET (1ULL << 63)
-#define ALT1250_EVTBIT_REPLY (1ULL << 62)
+#define ALT1250_EVTBIT_RESET      (1ULL << 63)
+#define ALT1250_EVTBIT_REPLY      (1ULL << 62)
+#define ALT1250_EVTBIT_STOPAPI    (1ULL << 61)
+#define ALT1250_EVTBIT_SUSPEND    (1ULL << 60)
+#define ALT1250_EVTBIT_RESTARTAPI (1ULL << 59)
 
 /* Number of sockets */
 
@@ -87,7 +93,7 @@
 #define ALTCOM_FD_SET(s, set)   ALTCOM_FDSETSAFESET(s, (set)->fd_bits[(s)/8] |=  (1 << ((s) & 7)))
 #define ALTCOM_FD_CLR(s, set)   ALTCOM_FDSETSAFESET(s, (set)->fd_bits[(s)/8] &= ~(1 << ((s) & 7)))
 #define ALTCOM_FD_ISSET(s, set) ALTCOM_FDSETSAFEGET(s, (set)->fd_bits[(s)/8] &   (1 << ((s) & 7)))
-#define ALTCOM_FD_ZERO(set)     memset((void*)(set), 0, sizeof(*(set)))
+#define ALTCOM_FD_ZERO(set)     memset((FAR void*)(set), 0, sizeof(*(set)))
 
 #define ALTCOM_DNS_SERVERS (4)
 #define ALTCOM_REPEVT_FLAG_SIMSTAT (1 << 0)
@@ -257,6 +263,7 @@
 struct alt_power_s
 {
   uint32_t cmdid;
+  int      resp;
 };
 
 typedef struct alt_container_s
@@ -304,14 +311,16 @@ struct alt_readdata_s
 
 struct alt1250_lower_s
 {
-  FAR struct spi_dev_s * (*poweron)(void);
-  void (*poweroff)(void);
-  void (*reset)(void);
-  void (*irqattach)(xcpt_t handler);
-  void (*irqenable)(bool enable);
-  bool (*get_sready)(void);
-  void (*set_mready)(bool on);
-  void (*set_wakeup)(bool on);
+  CODE FAR struct spi_dev_s * (*poweron)(bool keep_on);
+  CODE void (*poweroff)(void);
+  CODE bool (*powerstatus)(void);
+  CODE int  (*hiber_mode)(bool);
+  CODE void (*reset)(void);
+  CODE void (*irqattach)(xcpt_t handler);
+  CODE void (*irqenable)(bool enable);
+  CODE bool (*get_sready)(void);
+  CODE void (*set_mready)(bool on);
+  CODE void (*set_wakeup)(bool on);
 };
 
 struct altcom_fd_set_s
@@ -339,7 +348,8 @@ struct alt1250_dev_s
   mutex_t evtmaplock;
   mutex_t pfdlock;
   FAR struct pollfd *pfd;
-  pthread_t recvthread;
+  int rxthread_pid;
+  sem_t rxthread_sem;
   FAR struct alt_evtbuffer_s *evtbuff;
   uint32_t discardcnt;
   mutex_t senddisablelock;
@@ -348,12 +358,15 @@ struct alt1250_dev_s
   struct alt_evtbuf_inst_s select_inst;
 };
 
-typedef int32_t (*compose_handler_t)(FAR void **arg, size_t arglen,
-  uint8_t altver, FAR uint8_t *pktbuf, const size_t pktsz,
-  FAR uint16_t *altcid);
-typedef int32_t (*parse_handler_t)(FAR struct alt1250_dev_s *dev,
-  FAR uint8_t *pktbuf, size_t pktsz, uint8_t altver, FAR void **arg,
-  size_t arglen, FAR uint64_t *bitmap);
+typedef CODE int32_t (*compose_handler_t)(FAR void **arg, size_t arglen,
+                                          uint8_t altver,
+                                          FAR uint8_t *pktbuf,
+                                          const size_t pktsz,
+                                          FAR uint16_t *altcid);
+typedef CODE int32_t (*parse_handler_t)(FAR struct alt1250_dev_s *dev,
+                                        FAR uint8_t *pktbuf, size_t pktsz,
+                                        uint8_t altver, FAR void **arg,
+                                        size_t arglen, FAR uint64_t *bitmap);
 
 /****************************************************************************
  * Public Function Prototypes
@@ -385,7 +398,8 @@ extern "C"
  ****************************************************************************/
 
 FAR void *alt1250_register(FAR const char *devpath,
-  FAR struct spi_dev_s *dev, FAR const struct alt1250_lower_s *lower);
+                           FAR struct spi_dev_s *dev,
+                           FAR const struct alt1250_lower_s *lower);
 
 #undef EXTERN
 #ifdef __cplusplus

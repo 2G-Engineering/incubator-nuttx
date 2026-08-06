@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/task/task_exit.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -22,11 +24,14 @@
  * Included Files
  ****************************************************************************/
 
-#include  <nuttx/config.h>
+#include <nuttx/config.h>
 
-#include  <sched.h>
+#include <sched.h>
+#include <nuttx/debug.h>
 
-#include  "sched/sched.h"
+#include <nuttx/sched_note.h>
+
+#include "sched/sched.h"
 
 #ifdef CONFIG_SMP
 #  include "irq/irq.h"
@@ -73,24 +78,17 @@ int nxtask_exit(void)
   FAR struct tcb_s *rtcb;
   int ret;
 #ifdef CONFIG_SMP
-  int cpu;
-
-  /* Get the current CPU.  By assumption, we are within a critical section
-   * and, hence, the CPU index will remain stable.
-   *
-   * Avoid using this_task() because it may assume a state that is not
+  /* Avoid using this_task() because it may assume a state that is not
    * appropriate for an exiting task.
    */
 
-  cpu  = this_cpu();
-  dtcb = current_task(cpu);
+  dtcb = current_task(this_cpu());
 #else
   dtcb = this_task();
 #endif
 
-  /* Update scheduler parameters */
-
-  nxsched_suspend_scheduler(dtcb);
+  sinfo("%s pid=%d,TCB=%p\n", get_task_name(dtcb),
+        dtcb->pid, dtcb);
 
   /* Remove the TCB of the current task from the ready-to-run list.  A
    * context switch will definitely be necessary -- that must be done
@@ -100,21 +98,15 @@ int nxtask_exit(void)
    * ready-to-run with state == TSTATE_TASK_RUNNING
    */
 
-  nxsched_remove_readytorun(dtcb, true);
+  nxsched_remove_self(dtcb);
 
   /* Get the new task at the head of the ready to run list */
 
 #ifdef CONFIG_SMP
-  rtcb = current_task(cpu);
+  rtcb = current_task(this_cpu());
 #else
   rtcb = this_task();
 #endif
-
-  /* NOTE: nxsched_resume_scheduler() was moved to up_exit()
-   * because the global IRQ control for SMP should be deferred until
-   * context switching, otherwise, the context switching would be done
-   * without a critical section
-   */
 
   /* We are now in a bad state -- the head of the ready to run task list
    * does not correspond to the thread that is running.  Disabling pre-
@@ -127,23 +119,7 @@ int nxtask_exit(void)
 
   rtcb->lockcount++;
 
-#ifdef CONFIG_SMP
-  /* Make sure that the system knows about the locked state */
-
-  spin_setbit(&g_cpu_lockset, this_cpu(), &g_cpu_locksetlock,
-              &g_cpu_schedlock);
-#endif
-
   rtcb->task_state = TSTATE_TASK_READYTORUN;
-
-  /* Move the TCB to the specified blocked task list and delete it.  Calling
-   * nxtask_terminate with non-blocking true will suppress atexit() and
-   * on-exit() calls and will cause buffered I/O to fail to be flushed.  The
-   * former is required _exit() behavior; the latter is optional _exit()
-   * behavior.
-   */
-
-  nxsched_add_blocked(dtcb, TSTATE_TASK_INACTIVE);
 
 #ifdef CONFIG_SMP
   /* NOTE:
@@ -156,7 +132,20 @@ int nxtask_exit(void)
   rtcb->irqcount++;
 #endif
 
-  ret = nxtask_terminate(dtcb->pid);
+  dtcb->task_state = TSTATE_TASK_INACTIVE;
+
+  /* Update scheduler parameters.
+   *
+   * When the thread exits, SYS_restore_context is called to
+   * restore the context, which does not update the scheduling
+   * information.
+   * We need to update the scheduling information before tcb is released.
+   */
+
+  nxsched_switch_context(dtcb, rtcb);
+
+  sched_note_stop(dtcb);
+  ret = nxsched_release_tcb(dtcb, dtcb->flags & TCB_FLAG_TTYPE_MASK);
 
 #ifdef CONFIG_SMP
   rtcb->irqcount--;
@@ -167,16 +156,6 @@ int nxtask_exit(void)
   /* Decrement the lockcount on rctb. */
 
   rtcb->lockcount--;
-
-#ifdef CONFIG_SMP
-  if (rtcb->lockcount == 0)
-    {
-      /* Make sure that the system knows about the unlocked state */
-
-      spin_clrbit(&g_cpu_lockset, this_cpu(), &g_cpu_locksetlock,
-                  &g_cpu_schedlock);
-    }
-#endif
 
   return ret;
 }

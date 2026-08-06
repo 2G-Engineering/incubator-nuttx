@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/s32k3xx/mr-canhubk3/src/s32k3xx_selftest.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdint.h>
 #include <stdio.h>
 

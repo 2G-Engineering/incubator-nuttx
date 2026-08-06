@@ -1,6 +1,8 @@
 ############################################################################
 # drivers/usbdev/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -35,7 +37,7 @@ ifeq ($(CONFIG_USBMSC),y)
 endif
 
 ifeq ($(CONFIG_USBDEV_COMPOSITE),y)
-  CSRCS += composite.c composite_desc.c
+  CSRCS += composite_desc.c
 endif
 
 ifeq ($(CONFIG_USBDEV_TRACE_STRINGS),y)
@@ -54,10 +56,27 @@ ifeq ($(CONFIG_USBADB),y)
   CSRCS += adb.c
 endif
 
+ifeq ($(CONFIG_USBUVC),y)
+  CSRCS += uvc.c
+endif
+
+ifeq ($(CONFIG_USBMTP),y)
+  CSRCS += mtp.c
+endif
+
 ifeq ($(CONFIG_NET_CDCECM),y)
   CSRCS += cdcecm.c
 endif
 
+ifeq ($(CONFIG_NET_CDCNCM),y)
+  CSRCS += cdcncm.c
+endif
+
+ifeq ($(CONFIG_USBDEV_FS),y)
+  CSRCS += usbdev_fs.c
+endif
+
+CSRCS += composite.c usbdev_desc.c usbdev_req.c
 CSRCS += usbdev_trace.c usbdev_trprintf.c
 
 # Include USB device build support

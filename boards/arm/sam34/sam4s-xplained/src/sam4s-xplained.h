@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/sam34/sam4s-xplained/src/sam4s-xplained.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -65,7 +67,7 @@
  *   LED_SIGNAL           In a signal handler          No change
  *   LED_ASSERTION        An assertion failed          No change
  *   LED_PANIC            The system has crashed     OFF      Blinking
- *   LED_IDLE             MCU is is sleep mode         Not used
+ *   LED_IDLE             MCU is in sleep mode         Not used
  *
  * Thus if D9 is statically on, NuttX has successfully booted and is,
  * apparently, running normmally.  If D10 is flashing at approximately

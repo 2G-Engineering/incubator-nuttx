@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/arm/arm_dataabort.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,14 +29,14 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 
 #include "sched/sched.h"
 #include "arm_internal.h"
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 #  include <nuttx/page.h>
 #  include "arm.h"
 #endif
@@ -49,8 +51,8 @@
  * Input Parameters:
  *   regs - The standard, ARM register save array.
  *
- * If CONFIG_PAGING is selected in the NuttX configuration file, then these
- * additional input values are expected:
+ * If CONFIG_LEGACY_PAGING is selected in the NuttX configuration file, then
+ * these additional input values are expected:
  *
  *   far - Fault address register.  On a data abort, the ARM MMU places the
  *     miss virtual address (MVA) into the FAR register.  This is the address
@@ -65,22 +67,21 @@
  *
  ****************************************************************************/
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 void arm_dataabort(uint32_t *regs, uint32_t far, uint32_t fsr)
 {
   struct tcb_s *tcb = this_task();
-#ifdef CONFIG_PAGING
-  uint32_t *savestate;
+#ifdef CONFIG_LEGACY_PAGING
+  uint32_t *saveregs;
+  bool savestate;
 
-  /* Save the saved processor context in CURRENT_REGS where it can be
-   * accessed for register dumps and possibly context switching.
-   */
-
-  savestate    = (uint32_t *)CURRENT_REGS;
+  savestate = up_interrupt_context();
+  saveregs = tcb->xcp.regs;
 #endif
-  CURRENT_REGS = regs;
+  tcb->xcp.regs = regs;
+  up_set_interrupt_context(true);
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
   /* In the NuttX on-demand paging implementation, only the read-only, .text
    * section is paged.  However, the ARM compiler generated PC-relative data
    * fetches from within the .text sections.  Also, it is customary to locate
@@ -133,30 +134,28 @@ void arm_dataabort(uint32_t *regs, uint32_t far, uint32_t fsr)
 
   pg_miss();
 
-  /* Restore the previous value of CURRENT_REGS.  NULL would indicate that
-   * we are no longer in an interrupt handler.  It will be non-NULL if we
-   * are returning from a nested interrupt.
-   */
+  /* Restore the previous value of irq flag. */
 
-  CURRENT_REGS = savestate;
+  up_set_interrupt_context(savestate);
+  tcb->xcp.regs = saveregs;
   return;
 
 segfault:
 #endif
-  _alert("Data abort. PC: %08x FAR: %08x FSR: %08x\n",
+  _alert("Data abort. "
+         "PC: %08" PRIx32 " FAR: %08" PRIx32 " FSR: %08" PRIx32 "\n",
          regs[REG_PC], far, fsr);
   PANIC_WITH_REGS("panic", regs);
 }
 
-#else /* CONFIG_PAGING */
+#else /* CONFIG_LEGACY_PAGING */
 
 void arm_dataabort(uint32_t *regs)
 {
-  /* Save the saved processor context in CURRENT_REGS where it can be
-   * accessed for register dumps and possibly context switching.
-   */
+  struct tcb_s *tcb = this_task();
 
-  CURRENT_REGS = regs;
+  tcb->xcp.regs = regs;
+  up_set_interrupt_context(true);
 
   /* Crash -- possibly showing diagnost debug information. */
 
@@ -164,4 +163,4 @@ void arm_dataabort(uint32_t *regs)
   PANIC_WITH_REGS("panic", regs);
 }
 
-#endif /* CONFIG_PAGING */
+#endif /* CONFIG_LEGACY_PAGING */

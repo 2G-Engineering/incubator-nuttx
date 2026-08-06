@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/cxd56xx/chip.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -48,25 +50,6 @@
  ****************************************************************************/
 
 #ifdef __ASSEMBLY__
-
-/****************************************************************************
- * Name: setintstack
- *
- * Description:
- *   Set the current stack pointer to the  "top" the correct interrupt stack
- *   for the current CPU.
- *
- ****************************************************************************/
-
-#if defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
-  .macro  setintstack, tmp1, tmp2
-  ldr \tmp1, =CXD56_ADSP_PID
-  ldr \tmp1, [\tmp1, 0]
-  sub \tmp1, 2                   /* tmp1 = getreg32(CXD56_ADSP_PID) - 2 */
-  ldr \tmp2, =g_cpu_intstack_top
-  ldr sp, [\tmp2, \tmp1, lsl #2] /* sp = g_cpu_intstack_top[tmp1] */
-  .endm
-#endif /* CONFIG_SMP && CONFIG_ARCH_INTERRUPTSTACK > 7 */
 
 #endif /* __ASSEMBLY__  */
 #endif /* __ARCH_ARM_SRC_CXD56XX_CHIP_H */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/spi/spi_bitbang.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -327,7 +329,7 @@ static uint16_t spi_bitexchange0(uint16_t dataout, uint32_t holdtime)
 {
   uint16_t datain;
 
-  /* Here the clock is is in the resting set (low).  Set MOSI output and wait
+  /* Here the clock is in the resting set (low).  Set MOSI output and wait
    * for the hold time
    */
 
@@ -462,7 +464,7 @@ static uint16_t spi_bitexchange2(uint16_t dataout, uint32_t holdtime)
 {
   uint16_t datain;
 
-  /* Here the clock is is in the resting set (high).  Set MOSI output and
+  /* Here the clock is in the resting set (high).  Set MOSI output and
    * wait for the hold time
    */
 

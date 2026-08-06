@@ -1,6 +1,8 @@
 ############################################################################
 # sched/group/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -18,10 +20,13 @@
 #
 ############################################################################
 
-CSRCS += group_create.c group_join.c group_leave.c group_find.c
-CSRCS += group_setupstreams.c group_setupidlefiles.c group_setuptaskfiles.c
-CSRCS += group_foreachchild.c group_killchildren.c group_signal.c
-CSRCS += group_argvstr.c
+CSRCS += group_create.c group_join.c group_leave.c
+CSRCS += group_setupidlefiles.c group_setuptaskfiles.c
+CSRCS += group_foreachchild.c group_killchildren.c
+
+ifneq ($(CONFIG_DISABLE_ALL_SIGNALS),y)
+CSRCS += group_signal.c
+endif
 
 ifeq ($(CONFIG_SCHED_HAVE_PARENT),y)
 ifeq ($(CONFIG_SCHED_CHILD_STATUS),y)
@@ -35,14 +40,11 @@ endif
 
 ifeq ($(CONFIG_SCHED_USER_IDENTITY),y)
 CSRCS += group_setuid.c group_setgid.c group_getuid.c group_getgid.c
+CSRCS += group_seteuid.c group_setegid.c group_geteuid.c group_getegid.c
 endif
 
 ifeq ($(CONFIG_SIG_SIGSTOP_ACTION),y)
 CSRCS += group_suspendchildren.c group_continue.c
-endif
-
-ifeq ($(CONFIG_BINFMT_LOADABLE),y)
-CSRCS += group_exitinfo.c
 endif
 
 ifeq ($(CONFIG_MM_KERNEL_HEAP),y)

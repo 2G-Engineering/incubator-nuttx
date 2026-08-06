@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/s32k1xx/ucans32k146/src/ucans32k146.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -89,9 +91,6 @@ extern const struct peripheral_clock_config_s g_peripheral_clockconfig0[];
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=y && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int s32k1xx_bringup(void);
@@ -116,6 +115,16 @@ int s32k1xx_i2cdev_initialize(void);
  ****************************************************************************/
 
 int s32k1xx_spidev_initialize(void);
+
+/****************************************************************************
+ * Name: s32k1xx_se05x_initialize
+ *
+ * Description:
+ *   Initialize SE05x chip and register /dev/se05x
+ *
+ ****************************************************************************/
+
+int s32k1xx_se05x_initialize(void);
 
 #endif /* __ASSEMBLY__ */
 #endif /* __BOARDS_ARM_S32K1XX_UCANS32K146_SRC_UCANS32K146_H */

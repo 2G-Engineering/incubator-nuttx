@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/route/net_add_ramroute.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,13 +29,14 @@
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/net/net.h>
 #include <nuttx/net/ip.h>
 
 #include <arch/irq.h>
 
+#include "netlink/netlink.h"
 #include "route/ramroute.h"
 #include "route/route.h"
 
@@ -79,13 +82,15 @@ int net_addroute_ipv4(in_addr_t target, in_addr_t netmask, in_addr_t router)
 
   /* Get exclusive address to the networking data structures */
 
-  net_lock();
+  net_lockroute_ipv4();
 
   /* Then add the new entry to the table */
 
   ramroute_ipv4_addlast((FAR struct net_route_ipv4_entry_s *)route,
                         &g_ipv4_routes);
-  net_unlock();
+  net_unlockroute_ipv4();
+
+  netlink_route_notify(route, RTM_NEWROUTE, AF_INET);
   return OK;
 }
 #endif
@@ -114,13 +119,13 @@ int net_addroute_ipv6(net_ipv6addr_t target, net_ipv6addr_t netmask,
 
   /* Get exclusive address to the networking data structures */
 
-  net_lock();
-
-  /* Then add the new entry to the table */
+  net_lockroute_ipv6();
 
   ramroute_ipv6_addlast((FAR struct net_route_ipv6_entry_s *)route,
                         &g_ipv6_routes);
-  net_unlock();
+  net_unlockroute_ipv6();
+
+  netlink_route_notify(route, RTM_NEWROUTE, AF_INET6);
   return OK;
 }
 #endif

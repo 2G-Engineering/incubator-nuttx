@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/include/arch.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -37,6 +39,42 @@
 #endif
 
 /****************************************************************************
+ * Pre-processor Prototypes
+ ****************************************************************************/
+
+#ifdef CONFIG_PIC
+
+#define PIC_REG         x29
+#define PIC_REG_STRING "x29"
+
+#define up_getpicbase(ppicbase) \
+do { \
+  uintptr_t picbase; \
+  __asm__ volatile \
+  ( \
+    "mv %0, " PIC_REG_STRING \
+    : "=r"(picbase) \
+    : \
+    : \
+  ); \
+  *(uintptr_t *)ppicbase = picbase; \
+} while (0)
+
+#define up_setpicbase(picbase) \
+do { \
+  uintptr_t _picbase = (uintptr_t)picbase; \
+  __asm__ volatile \
+  ( \
+    "mv " PIC_REG_STRING ", %0" \
+    : \
+    : "r"(_picbase) \
+    : PIC_REG_STRING \
+  ); \
+} while (0)
+
+#endif /* CONFIG_PIC */
+
+/****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
@@ -64,10 +102,16 @@
 /* A task group must have its L1 table in memory always, and the rest can
  * be dynamically committed to memory (and even swapped).
  *
- * In this implementation every level tables besides the final level N are
- * kept in memory always, while the level N tables are dynamically allocated.
+ * In this implementation level tables except the final level N are always
+ * kept in static memory, while the level N tables are always dynamically
+ * allocated. There is one static page per level in `spgtables[]`.
  *
  * The implications ? They depend on the MMU type.
+ *
+ * For Sv32 this means that:
+ * - A task can not have more than 4GB of memory allocated.
+ * - The minimum amount of memory needed for page tables per task is 8K,
+ *   which gives access to 4MB of memory. This is plenty for many tasks.
  *
  * For Sv39 this means that:
  * - A task can not have more than 1GB of memory allocated. This should be
@@ -78,26 +122,20 @@
 
 struct arch_addrenv_s
 {
-  /* Pointers to MAX_LEVELS-1 tables here, one of each are allocated for the
-   * task when it is created.
+  /* Physical addresses of the static page tables (levels N-1) here, these
+   * are allocated when a task is created.
    */
 
   uintptr_t spgtables[ARCH_SPGTS];
 
-  /* For convenience store the text base here */
+  /* The text, data, heap bases and heap size here */
 
   uintptr_t textvbase;
-
-  /* For convenience store the data base here */
-
   uintptr_t datavbase;
-
-  /* For convenience store the heap base and initial size here */
-
   uintptr_t heapvbase;
   size_t    heapsize;
 
-  /* For convenience store the satp value here */
+  /* The page directory root (satp) value */
 
   uintptr_t satp;
 };

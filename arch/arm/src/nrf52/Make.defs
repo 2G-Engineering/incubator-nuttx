@@ -1,6 +1,8 @@
 ############################################################################
 # arch/arm/src/nrf52/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,17 +22,17 @@
 
 include armv7-m/Make.defs
 
-ifeq ($(CONFIG_NRF52_SYSTIMER_SYSTICK),y)
-CHIP_CSRCS += nrf52_systick.c
-else
-ifeq ($(CONFIG_NRF52_SYSTIMER_RTC),y)
-CHIP_CSRCS += nrf52_tickless_rtc.c
-endif
-endif
-
 CHIP_CSRCS += nrf52_start.c nrf52_clockconfig.c nrf52_irq.c nrf52_utils.c
 CHIP_CSRCS += nrf52_allocateheap.c nrf52_lowputc.c nrf52_gpio.c
 CHIP_CSRCS += nrf52_uid.c
+
+ifeq ($(CONFIG_NRF52_SYSTIMER_SYSTICK),y)
+CHIP_CSRCS += nrf52_systick.c
+endif
+
+ifeq ($(CONFIG_NRF52_SYSTIMER_RTC),y)
+CHIP_CSRCS += nrf52_tickless_rtc.c
+endif
 
 ifeq ($(CONFIG_ALLOW_BSD_COMPONENTS),y)
 CHIP_CSRCS += nrf52_nvmc.c
@@ -89,6 +91,17 @@ endif
 
 ifeq ($(CONFIG_NRF52_RADIO),y)
 CHIP_CSRCS += nrf52_radio.c
+ifeq ($(CONFIG_NRF52_RADIO_IEEE802154),y)
+CHIP_CSRCS += nrf52_ieee802154_radio.c 
+CHIP_CSRCS += nrf52_ieee802154_tim.c 
+CHIP_CSRCS += nrf52_ieee802154.c
+ifeq ($(CONFIG_NRF52_RADIO_IEEE802154_SUPERFRAME),y)
+CHIP_CSRCS += nrf52_ieee802154_rtc.c 
+endif
+ifeq ($(CONFIG_NRF52_RADIO_IEEE802154_TRACE),y)
+CHIP_CSRCS += nrf52_ieee802154_trace.c
+endif
+endif
 endif
 
 ifeq ($(CONFIG_NRF52_TIMER),y)
@@ -108,6 +121,10 @@ endif
 
 ifeq ($(CONFIG_NRF52_SAADC),y)
 CHIP_CSRCS += nrf52_adc.c
+endif
+
+ifeq ($(CONFIG_NRF52_QDEC),y)
+CHIP_CSRCS += nrf52_qdec.c
 endif
 
 ifeq ($(CONFIG_PM),y)
@@ -149,14 +166,12 @@ endif
 
 CHIP_CSRCS += nrf52_sdc.c
 
-NRFX_DIR = $(ARCH_SRCDIR)$(DELIM)chip$(DELIM)nrfx
 NRFXLIB_DIR = $(ARCH_SRCDIR)$(DELIM)chip$(DELIM)sdk-nrfxlib
-CMSIS_DIR = $(ARCH_SRCDIR)$(DELIM)chip$(DELIM)CMSIS_5
 
 INCLUDES += \
-	$(shell $(INCDIR) "$(CC)" $(ARCH_SRCDIR)$(DELIM)chip$(DELIM)sdc) \
-	$(shell $(INCDIR) "$(CC)" $(NRFXLIB_DIR)$(DELIM)mpsl$(DELIM)include) \
-	$(shell $(INCDIR) "$(CC)" $(NRFXLIB_DIR)$(DELIM)softdevice_controller$(DELIM)include)
+	${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)sdc \
+	${INCDIR_PREFIX}$(NRFXLIB_DIR)$(DELIM)mpsl$(DELIM)include \
+	${INCDIR_PREFIX}$(NRFXLIB_DIR)$(DELIM)softdevice_controller$(DELIM)include
 
 CFLAGS += -DNRF52_SERIES
 

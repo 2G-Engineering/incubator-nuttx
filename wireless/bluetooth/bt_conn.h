@@ -1,6 +1,8 @@
 /****************************************************************************
  * wireless/bluetooth/bt_conn.h
  *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  *   Copyright (c) 2016, Intel Corporation
  *   All rights reserved.
  *
@@ -100,6 +102,7 @@ struct bt_conn_s
   FAR void *smp;
 
   uint8_t le_conn_interval;
+  enum bt_security_e sec_level;
   bt_atomic_t ref;
   enum bt_conn_state_e state;
 
@@ -365,7 +368,7 @@ int bt_conn_disconnect(FAR struct bt_conn_s *conn, uint8_t reason);
  *
  * Description:
  *  Allows initiate new LE link to remote peer using its address.
- *  Returns a new reference that the the caller is responsible for managing.
+ *  Returns a new reference that the caller is responsible for managing.
  *
  * Input Parameters:
  *   peer - Remote address.

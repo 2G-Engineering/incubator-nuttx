@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/sim/sim/sim/src/sim_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 #include <nuttx/compiler.h>
 
 #include <sys/types.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <nuttx/clock.h>
@@ -47,21 +49,29 @@
 #include <nuttx/serial/uart_rpmsg.h>
 #include <nuttx/timers/oneshot.h>
 #include <nuttx/video/fb.h>
-#include <nuttx/video/video.h>
-#include <nuttx/timers/oneshot.h>
+#include <nuttx/video/v4l2_cap.h>
 #include <nuttx/wireless/pktradio.h>
 #include <nuttx/wireless/bluetooth/bt_null.h>
 #include <nuttx/wireless/bluetooth/bt_uart_shim.h>
 #include <nuttx/wireless/ieee802154/ieee802154_loopback.h>
 #include <nuttx/usb/adb.h>
+#include <nuttx/usb/mtp.h>
 #include <nuttx/usb/rndis.h>
 
 #ifdef CONFIG_LCD_DEV
 #include <nuttx/lcd/lcd_dev.h>
 #endif
 
+#ifdef CONFIG_VNCSERVER
+#  include <nuttx/video/vnc.h>
+#endif
+
 #if defined(CONFIG_INPUT_BUTTONS_LOWER) && defined(CONFIG_SIM_BUTTONS)
 #include <nuttx/input/buttons.h>
+#endif
+
+#ifdef CONFIG_TIMER_WDOG
+#include <nuttx/timers/timer_wdog.h>
 #endif
 
 #include "sim_internal.h"
@@ -74,7 +84,7 @@
 #ifdef CONFIG_RPMSG_UART
 void rpmsg_serialinit(void)
 {
-#ifdef CONFIG_SIM_RPTUN_MASTER
+#ifdef CONFIG_SIM_RPMSG_MASTER
   uart_rpmsg_init("proxy", "proxy", 4096, false);
 #else
   uart_rpmsg_init("server", "proxy", 4096, true);
@@ -159,7 +169,7 @@ int sim_bringup(void)
 #ifdef CONFIG_RAMMTD
   /* Create a RAM MTD device if configured */
 
-  ramstart = (uint8_t *)kmm_malloc(128 * 1024);
+  ramstart = kmm_malloc(128 * 1024);
   if (ramstart == NULL)
     {
       syslog(LOG_ERR, "ERROR: Allocation for RAM MTD failed\n");
@@ -240,7 +250,7 @@ int sim_bringup(void)
 #endif
 
 #if !defined(CONFIG_DISABLE_MOUNTPOINT) && defined(CONFIG_BLK_RPMSG_SERVER)
-  ramdiskstart = (uint8_t *)kmm_malloc(512 * 2048);
+  ramdiskstart = kmm_malloc(512 * 2048);
   ret = ramdisk_register(1, ramdiskstart, 2048, 512,
                          RDFLAG_WRENABLED | RDFLAG_FUNLINK);
   if (ret < 0)
@@ -287,23 +297,30 @@ int sim_bringup(void)
 #ifdef CONFIG_VIDEO_FB
   /* Initialize and register the simulated framebuffer driver */
 
+#  ifdef CONFIG_VNCSERVER
+  ret = vnc_fb_register(0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: vnc_fb_register() failed: %d\n", ret);
+    }
+#  else
   ret = fb_register(0, 0);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: fb_register() failed: %d\n", ret);
     }
+#  endif
 #endif
 
-#ifdef CONFIG_SIM_VIDEO
+#ifdef CONFIG_SIM_CAMERA
   /* Initialize and register the simulated video driver */
 
-  ret = video_initialize(CONFIG_SIM_VIDEO_DEV_PATH);
+  ret = sim_camera_initialize();
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: video_initialize() failed: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: sim_camera_initialize() failed: %d\n", ret);
     }
 
-  sim_video_initialize();
 #endif
 
 #ifdef CONFIG_LCD
@@ -461,16 +478,34 @@ int sim_bringup(void)
 #endif
 
 #ifdef CONFIG_RPTUN
-#ifdef CONFIG_SIM_RPTUN_MASTER
-  sim_rptun_init("server-proxy", "proxy", true);
-#else
-  sim_rptun_init("server-proxy", "server", false);
+#  ifdef CONFIG_SIM_RPMSG_MASTER
+  sim_rptun_init("server-proxy", "proxy",
+                 SIM_RPTUN_MASTER | SIM_RPTUN_NOBOOT);
+#  else
+  sim_rptun_init("server-proxy", "server", SIM_RPTUN_SLAVE);
+#  endif
+#endif
+
+#ifdef CONFIG_RPMSG_VIRTIO_LITE
+#  ifdef CONFIG_SIM_RPMSG_MASTER
+  sim_rpmsg_virtio_init("server-proxy", "proxy", true);
+#  else
+  sim_rpmsg_virtio_init("server-proxy", "server", false);
+#  endif
+#endif
+
+#ifdef CONFIG_RPMSG_PORT_UART
+#  ifdef CONFIG_SIM_RPMSG_MASTER
+  sim_rpmsg_port_uart_init("server", "proxy", "/dev/ttyVS0");
+#  else
+  sim_rpmsg_port_uart_init("proxy", "server", "/dev/ttyVS0");
+#  endif
 #endif
 
 #ifdef CONFIG_DEV_RPMSG
-  rpmsgdev_register("server", "/dev/console", "/dev/server-console");
-  rpmsgdev_register("server", "/dev/null", "/dev/server-null");
-  rpmsgdev_register("server", "/dev/ttyUSB0", "/dev/ttyUSB0");
+  rpmsgdev_register("server", "/dev/console", "/dev/server-console", 0);
+  rpmsgdev_register("server", "/dev/null", "/dev/server-null", 0);
+  rpmsgdev_register("server", "/dev/ttyUSB0", "/dev/ttyUSB0", 0);
 #endif
 
 #ifdef CONFIG_BLK_RPMSG
@@ -479,7 +514,6 @@ int sim_bringup(void)
 
 #ifdef CONFIG_RPMSGMTD
   rpmsgmtd_register("server", "/dev/rammtd", NULL);
-#endif
 #endif
 
 #ifdef CONFIG_SIM_WTGAHRS2_UARTN
@@ -498,8 +532,14 @@ int sim_bringup(void)
   rc_dummy_initialize(0);
 #endif
 
-#if defined(CONFIG_USBADB) && !defined(CONFIG_USBADB_COMPOSITE)
+#if defined(CONFIG_USBADB) && \
+    !defined(CONFIG_USBADB_COMPOSITE) && \
+    !defined(CONFIG_BOARDCTL_USBDEVCTRL)
   usbdev_adb_initialize();
+#endif
+
+#if defined(CONFIG_USBMTP) && !defined(CONFIG_USBMTP_COMPOSITE)
+  usbdev_mtp_initialize();
 #endif
 
 #if defined(CONFIG_RNDIS) && !defined(CONFIG_RNDIS_COMPOSITE)
@@ -513,6 +553,30 @@ int sim_bringup(void)
   mac[4] = (CONFIG_SIM_RNDIS_MACADDR >> (8 * 1)) & 0xff;
   mac[5] = (CONFIG_SIM_RNDIS_MACADDR >> (8 * 0)) & 0xff;
   usbdev_rndis_initialize(mac);
+#endif
+
+#ifdef CONFIG_SIM_CANDEV_CHAR
+  ret = sim_canchar_initialize(CONFIG_SIM_CANDEV_CHAR_IDX, 0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: sim_canchar_initialize() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_SIM_CANDEV_SOCK
+  ret = sim_cansock_initialize(CONFIG_SIM_CANDEV_SOCK_IDX);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: sim_cansock_initialize() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_TIMER_WDOG
+  ret = timer_wdog_initialize(0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: timer_wdog_initialize failed: %d\n", ret);
+    }
 #endif
 
   return ret;

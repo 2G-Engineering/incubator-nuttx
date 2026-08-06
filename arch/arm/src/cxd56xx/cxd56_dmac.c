@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/cxd56xx/cxd56_dmac.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
@@ -147,29 +149,29 @@ typedef struct
   uint32_t control;           /* Transfer control */
 } dmac_lli_t;
 
-#define CXD56_DMAC_M2M   0  /**< Memory to memory */
-#define CXD56_DMAC_M2P   1  /**< Memory to peripheral, DMAC controlled */
-#define CXD56_DMAC_P2M   2  /**< Peripheral to memory, DMAC controlled */
-#define CXD56_DMAC_P2P   3  /**< Peripheral to peripheral */
-#define CXD56_DMAC_P2CP  4  /**< P2P destination controlled */
-#define CXD56_DMAC_M2CP  5  /**< M2P peripheral controlled */
-#define CXD56_DMAC_CP2M  6  /**< P2M peripheral controlled */
-#define CXD56_DMAC_CP2P  7  /**< P2P source controlled */
+#define CXD56_DMAC_M2M   0  /* Memory to memory */
+#define CXD56_DMAC_M2P   1  /* Memory to peripheral, DMAC controlled */
+#define CXD56_DMAC_P2M   2  /* Peripheral to memory, DMAC controlled */
+#define CXD56_DMAC_P2P   3  /* Peripheral to peripheral */
+#define CXD56_DMAC_P2CP  4  /* P2P destination controlled */
+#define CXD56_DMAC_M2CP  5  /* M2P peripheral controlled */
+#define CXD56_DMAC_CP2M  6  /* P2M peripheral controlled */
+#define CXD56_DMAC_CP2P  7  /* P2P source controlled */
 
-#define CXD56_DMAC_BSIZE1    0     /**< 1 burst */
-#define CXD56_DMAC_BSIZE4    1     /**< 4 burst */
-#define CXD56_DMAC_BSIZE8    2     /**< 8 burst */
-#define CXD56_DMAC_BSIZE16   3     /**< 16 burst */
-#define CXD56_DMAC_BSIZE32   4     /**< 32 burst */
-#define CXD56_DMAC_BSIZE64   5     /**< 64 burst */
-#define CXD56_DMAC_BSIZE128  6     /**< 128 burst */
-#define CXD56_DMAC_BSIZE256  7     /**< 256 burst */
+#define CXD56_DMAC_BSIZE1    0     /* 1 burst */
+#define CXD56_DMAC_BSIZE4    1     /* 4 burst */
+#define CXD56_DMAC_BSIZE8    2     /* 8 burst */
+#define CXD56_DMAC_BSIZE16   3     /* 16 burst */
+#define CXD56_DMAC_BSIZE32   4     /* 32 burst */
+#define CXD56_DMAC_BSIZE64   5     /* 64 burst */
+#define CXD56_DMAC_BSIZE128  6     /* 128 burst */
+#define CXD56_DMAC_BSIZE256  7     /* 256 burst */
 
-#define CXD56_DMAC_LITTLE_ENDIAN  0  /**< Little endian */
-#define CXD56_DMAC_BIG_ENDIAN     1  /**< Bit endian */
+#define CXD56_DMAC_LITTLE_ENDIAN  0  /* Little endian */
+#define CXD56_DMAC_BIG_ENDIAN     1  /* Bit endian */
 
-#define CXD56_DMAC_MASTER1 0 /**< AHB master 1 */
-#define CXD56_DMAC_MASTER2 1 /**< AHB master 2 */
+#define CXD56_DMAC_MASTER1 0 /* AHB master 1 */
+#define CXD56_DMAC_MASTER2 1 /* AHB master 2 */
 
 /* max transfer size at a time */
 
@@ -311,13 +313,13 @@ static int ch2dmac(int ch)
 {
   switch (ch)
     {
-    case 0: case 1:
+      case 0 ... 1:
         return 1;
-    case 2: case 3: case 4: case 5: case 6: /* APP IDMAC */
+      case 2 ... 6: /* APP IDMAC */
         return 3;
-    case 7: case 8: /* APP SKDMAC */
+      case 7 ... 8: /* APP SKDMAC */
         return 2;
-    default:
+      default:
         return 0;
     }
 }
@@ -328,9 +330,12 @@ static struct dmac_register_map *get_device(int ch)
 
   switch (id)
     {
-    case 1: return (struct dmac_register_map *)DMAC1_REG_BASE;
-    case 2: return (struct dmac_register_map *)DMAC2_REG_BASE;
-    case 3: return (struct dmac_register_map *)DMAC3_REG_BASE;
+      case 1:
+        return (struct dmac_register_map *)DMAC1_REG_BASE;
+      case 2:
+        return (struct dmac_register_map *)DMAC2_REG_BASE;
+      case 3:
+        return (struct dmac_register_map *)DMAC3_REG_BASE;
     }
 
     return NULL;
@@ -364,13 +369,13 @@ static int get_pmid(int ch)
 {
   switch (ch)
     {
-    case 0: case 1:
+      case 0 ... 1:
         return PM_APP_ADMAC;
-    case 2: case 3: case 4: case 5: case 6:
+      case 2 ... 6:
         return PM_APP_IDMAC;
-    case 7: case 8:
+      case 7 ... 8:
         return PM_APP_SKDMAC;
-    default:
+      default:
         break; /* may not comes here */
     }
 
@@ -399,6 +404,12 @@ static void _dmac_intc_handler(int ch)
   uint32_t mask;
   int itc;
   int err;
+
+  if (dev == NULL)
+    {
+      dmaerr("Cannot get device with channel number %d.\n", ch);
+      return;
+    }
 
   mask = (1u << (ch & 1));
 
@@ -442,8 +453,15 @@ static int intr_handler_admac1(int irq, void *context, void *arg)
 static int intr_handler_idmac(int irq, void *context, void *arg)
 {
   struct dmac_register_map *dev = get_device(2); /* XXX */
-  uint32_t stat = dev->intstatus & 0x1f;
+  uint32_t stat;
   int i;
+
+  if (dev == NULL)
+    {
+      return -ENODEV;
+    }
+
+  stat = dev->intstatus & 0x1f;
 
   for (i = 2; stat; i++, stat >>= 1)
     {
@@ -799,7 +817,7 @@ DMA_HANDLE cxd56_dmachannel(int ch, ssize_t maxsize)
       n++;
     }
 
-  dmach->list = (dmac_lli_t *)kmm_malloc(n * sizeof(dmac_lli_t));
+  dmach->list = kmm_malloc(n * sizeof(dmac_lli_t));
   if (dmach->list == NULL)
     {
       dmainfo("Failed to kmm_malloc\n");
@@ -926,7 +944,11 @@ void cxd56_rxdmasetup(DMA_HANDLE handle, uintptr_t paddr, uintptr_t maddr,
                                CXD56_DMAC_BSIZE4, CXD56_DMAC_BSIZE4,   /* Dest / Src burst size (fixed) */
                                CXD56_DMAC_MAX_SIZE);
 
-      dst += CXD56_DMAC_MAX_SIZE;
+      if (di)
+        {
+          dst += CXD56_DMAC_MAX_SIZE;
+        }
+
       rest -= CXD56_DMAC_MAX_SIZE;
     }
 
@@ -997,7 +1019,11 @@ void cxd56_txdmasetup(DMA_HANDLE handle, uintptr_t paddr, uintptr_t maddr,
                                    CXD56_DMAC_BSIZE1, CXD56_DMAC_BSIZE1,   /* Dest / Src burst size (fixed) */
                                    CXD56_DMAC_MAX_SIZE);
 
-      src += CXD56_DMAC_MAX_SIZE;
+      if (si)
+        {
+          src += CXD56_DMAC_MAX_SIZE;
+        }
+
       rest -= CXD56_DMAC_MAX_SIZE;
     }
 

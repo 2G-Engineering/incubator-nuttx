@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/tiva/common/tiva_eeprom.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -178,7 +180,7 @@ static inline void tiva_delay(uint32_t delay)
  *   register reads/writes.
  *
  *   NOTE: It takes five clock cycles after the write to enable a peripheral
- *   before the the peripheral is actually enabled.  During this time,
+ *   before the peripheral is actually enabled.  During this time,
  *   attempts to access the peripheral result in a bus fault.  Care should be
  *   taken to ensure that the peripheral is not accessed during this brief
  *   time period.

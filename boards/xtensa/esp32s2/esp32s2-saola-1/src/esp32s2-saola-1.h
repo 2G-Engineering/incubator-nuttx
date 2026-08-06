@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s2/esp32s2-saola-1/src/esp32s2-saola-1.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -51,6 +53,19 @@
 #define ONESHOT_TIMER         TIMER0
 #define ONESHOT_RESOLUTION_US 1
 
+/* RMT gpio */
+
+#define RMT_RXCHANNEL       1
+#define RMT_TXCHANNEL       0
+
+#ifdef CONFIG_RMT_LOOP_TEST_MODE
+#  define RMT_INPUT_PIN       0
+#  define RMT_OUTPUT_PIN      0
+#else
+#  define RMT_INPUT_PIN       2
+#  define RMT_OUTPUT_PIN      18
+#endif
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/
@@ -74,12 +89,21 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=y && CONFIG_BOARDCTL=y :
- *     Called from the NSH library via board_app_initialize()
- *
  ****************************************************************************/
 
 int esp32s2_bringup(void);
+
+/****************************************************************************
+ * Name: board_spiflash_init
+ *
+ * Description:
+ *   Initialize the SPIFLASH and register the MTD device.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ESPRESSIF_SPIFLASH
+int board_spiflash_init(void);
+#endif
 
 /****************************************************************************
  * Name: esp32s2_gpio_init
@@ -171,7 +195,8 @@ int board_bmp180_initialize(int devno, int busno);
  *
  ****************************************************************************/
 
-#if defined(CONFIG_ESP32S2_I2S) && !defined(CONFIG_AUDIO_CS4344)
+#if (defined(CONFIG_ESPRESSIF_I2S) && !defined(CONFIG_AUDIO_ES8311)) || \
+    defined(CONFIG_ESPRESSIF_I2S)
 int board_i2sdev_initialize(bool enable_tx, bool enable_rx);
 #endif
 
@@ -204,8 +229,19 @@ int esp32s2_cs4344_initialize(void);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ESP32S2_LEDC
+#ifdef CONFIG_ESPRESSIF_LEDC
 int esp32s2_pwm_setup(void);
+#endif
+
+/****************************************************************************
+ * Name: board_twai_setup
+ *
+ * Description:
+ *  Initialize TWAI and register the TWAI device
+ *
+ ****************************************************************************/
+#ifdef CONFIG_ESP32S2_TWAI
+int board_twai_setup(void);
 #endif
 
 #endif /* __ASSEMBLY__ */

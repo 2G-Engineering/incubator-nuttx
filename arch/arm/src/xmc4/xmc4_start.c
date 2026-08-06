@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/xmc4/xmc4_start.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/init.h>
 #include <arch/board/board.h>
@@ -163,6 +165,7 @@ static inline void xmc4_flash_waitstates(void)
  *
  ****************************************************************************/
 
+osentry_function
 void __start(void)
 {
   const uint32_t *src;
@@ -218,6 +221,10 @@ void __start(void)
     {
       *dest++ = *src++;
     }
+#endif
+
+#ifdef CONFIG_ARMV7M_STACKCHECK
+  arm_stack_check_init();
 #endif
 
   /* Set FLASH wait states prior to the configuration of clocking */

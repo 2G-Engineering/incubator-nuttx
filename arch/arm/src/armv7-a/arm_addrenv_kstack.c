@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv7-a/arm_addrenv_kstack.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -96,7 +98,7 @@
 
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/sched.h>
 #include <nuttx/kmalloc.h>
@@ -136,7 +138,7 @@ int up_addrenv_kstackalloc(struct tcb_s *tcb)
 
   /* Allocate the kernel stack */
 
-  tcb->xcp.kstack = (uint32_t *)kmm_memalign(8, ARCH_KERNEL_STACKSIZE);
+  tcb->xcp.kstack = kmm_memalign(8, ARCH_KERNEL_STACKSIZE);
   if (!tcb->xcp.kstack)
     {
       berr("ERROR: Failed to allocate the kernel stack\n");

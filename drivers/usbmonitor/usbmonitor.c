@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/usbmonitor/usbmonitor.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <sched.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/signal.h>
@@ -144,7 +146,7 @@ static int usbmonitor_tracecallback(struct usbtrace_s *trace, void *arg)
 }
 #endif
 
-static int usbmonitor_daemon(int argc, char **argv)
+static int usbmonitor_daemon(int argc, FAR char **argv)
 {
   uinfo("Running: %d\n", g_usbmonitor.pid);
 
@@ -152,7 +154,7 @@ static int usbmonitor_daemon(int argc, char **argv)
 
   while (!g_usbmonitor.stop)
     {
-      nxsig_sleep(CONFIG_USBMONITOR_INTERVAL);
+      nxsched_sleep(CONFIG_USBMONITOR_INTERVAL);
 #ifdef CONFIG_USBDEV_TRACE
       usbtrace_enumerate(usbmonitor_tracecallback, NULL);
 #endif

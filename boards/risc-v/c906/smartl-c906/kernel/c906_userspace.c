@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/risc-v/c906/smartl-c906/kernel/c906_userspace.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -48,6 +50,15 @@
 #endif
 
 /****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+static struct userspace_data_s g_userspace_data =
+{
+  .us_heap = &g_mmheap,
+};
+
+/****************************************************************************
  * Public Data
  ****************************************************************************/
 
@@ -78,9 +89,9 @@ const struct userspace_s userspace locate_data(".userspace") =
 
   .us_heapend       = (uintptr_t)__ld_usram_end,
 
-  /* Memory manager heap structure */
+  /* User data memory structure */
 
-  .us_heap          = &g_mmheap,
+  .us_data          = &g_userspace_data,
 
   /* Task/thread startup routines */
 

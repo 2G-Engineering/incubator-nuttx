@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s3/common/src/esp32s3_board_spiflash.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,6 +27,7 @@
 #include <nuttx/config.h>
 
 #include <sys/mount.h>
+#include <sys/param.h>
 
 #include "inttypes.h"
 #include <stdbool.h>
@@ -32,27 +35,119 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/spi/spi.h>
 #include <nuttx/mtd/mtd.h>
 #include <nuttx/fs/nxffs.h>
-#ifdef CONFIG_BCH
-#include <nuttx/drivers/drivers.h>
-#endif
+#include <nuttx/fs/partition.h>
 
-#include "esp32s3_spiflash.h"
-#include "esp32s3_spiflash_mtd.h"
-#include "esp32s3-devkit.h"
+#if defined(CONFIG_ESP32S3_SPIRAM) || defined(CONFIG_ESP32S3_PARTITION_TABLE)
+#  include "esp32s3_spiflash.h"
+#  include "esp32s3_spiflash_mtd.h"
+#else
+#  include "espressif/esp_spiflash.h"
+#  include "espressif/esp_spiflash_mtd.h"
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
+#ifdef CONFIG_ESP32S3_OTA_PARTITION_ENCRYPT
+#  define OTA_ENCRYPT true
+#else
+#  define OTA_ENCRYPT false
+#endif
+
+/****************************************************************************
+ * Private Types
+ ****************************************************************************/
+
+/****************************************************************************
+ * Private Function Prototypes
+ ****************************************************************************/
+
+#ifdef CONFIG_ESP32S3_HAVE_OTA_PARTITION
+static int init_ota_partitions(void);
+#endif
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+#ifdef CONFIG_ESP32S3_HAVE_OTA_PARTITION
+static const struct partition_s g_ota_partition_table[] =
+{
+  {
+    .name       = CONFIG_ESP32S3_OTA_PRIMARY_SLOT_DEVPATH,
+    .index      = 0,
+    .firstblock = CONFIG_ESP32S3_OTA_PRIMARY_SLOT_OFFSET,
+    .blocksize  = CONFIG_ESP32S3_OTA_SLOT_SIZE,
+  },
+  {
+    .name       = CONFIG_ESP32S3_OTA_SECONDARY_SLOT_DEVPATH,
+    .index      = 1,
+    .firstblock = CONFIG_ESP32S3_OTA_SECONDARY_SLOT_OFFSET,
+    .blocksize  = CONFIG_ESP32S3_OTA_SLOT_SIZE,
+  },
+  {
+    .name       = CONFIG_ESP32S3_OTA_SCRATCH_DEVPATH,
+    .index      = 2,
+    .firstblock = CONFIG_ESP32S3_OTA_SCRATCH_OFFSET,
+    .blocksize  = CONFIG_ESP32S3_OTA_SCRATCH_SIZE,
+  }
+};
+#endif
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: init_ota_partitions
+ *
+ * Description:
+ *   Initialize partitions that are dedicated to firmware OTA update.
+ *
+ * Input Parameters:
+ *   None.
+ *
+ * Returned Value:
+ *   Zero on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+ #ifdef CONFIG_ESP32S3_HAVE_OTA_PARTITION
+static int init_ota_partitions(void)
+{
+  struct mtd_dev_s *mtd;
+  int ret = OK;
+  int i;
+
+  for (i = 0; i < nitems(g_ota_partition_table); ++i)
+    {
+      const struct partition_s *part = &g_ota_partition_table[i];
+#if defined(CONFIG_ESP32S3_SPIRAM) || defined(CONFIG_ESP32S3_PARTITION_TABLE)
+      mtd = esp32s3_spiflash_alloc_mtdpart(part->firstblock, part->blocksize,
+                                           OTA_ENCRYPT);
+#else
+      mtd = esp_spiflash_alloc_mtdpart(part->firstblock, part->blocksize);
+#endif
+
+      ret = register_mtddriver(part->name, mtd, 0755, NULL);
+      if (ret < 0)
+        {
+          syslog(LOG_ERR, "ERROR: register_mtddriver %s failed: %d\n",
+                 part->name, ret);
+          return ret;
+        }
+    }
+
+  return ret;
+}
+#endif
 
 /****************************************************************************
  * Name: setup_smartfs
@@ -82,19 +177,20 @@ static int setup_smartfs(int smartn, struct mtd_dev_s *mtd,
   ret = smart_initialize(smartn, mtd, NULL);
   if (ret < 0)
     {
-      finfo("smart_initialize failed, Trying to erase first...\n");
+      syslog(LOG_INFO, "smart_initialize failed, "
+             "Trying to erase first...\n");
       ret = mtd->ioctl(mtd, MTDIOC_BULKERASE, 0);
       if (ret < 0)
         {
-          ferr("ERROR: ioctl(BULKERASE) failed: %d\n", ret);
+          syslog(LOG_ERR, "ERROR: ioctl(BULKERASE) failed: %d\n", ret);
           return ret;
         }
 
-      finfo("Erase successful, initializing it again.\n");
+      syslog(LOG_INFO, "Erase successful, initializing it again.\n");
       ret = smart_initialize(smartn, mtd, NULL);
       if (ret < 0)
         {
-          ferr("ERROR: smart_initialize failed: %d\n", ret);
+          syslog(LOG_ERR, "ERROR: smart_initialize failed: %d\n", ret);
           return ret;
         }
     }
@@ -106,7 +202,13 @@ static int setup_smartfs(int smartn, struct mtd_dev_s *mtd,
       ret = nx_mount(path, mnt_pt, "smartfs", 0, NULL);
       if (ret < 0)
         {
-          ferr("ERROR: Failed to mount the FS volume: %d\n", ret);
+          syslog(LOG_ERR, "ERROR: Failed to mount the FS volume: %d\n", ret);
+          if (ret == -ENODEV)
+            {
+              syslog(LOG_WARNING, "Smartfs seems unformatted. "
+                     "Did you run 'mksmartfs /dev/smart%d'?\n", smartn);
+            }
+
           return ret;
         }
     }
@@ -142,7 +244,7 @@ static int setup_littlefs(const char *path, struct mtd_dev_s *mtd,
   ret = register_mtddriver(path, mtd, priv, NULL);
   if (ret < 0)
     {
-      ferr("ERROR: Failed to register MTD: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: Failed to register MTD: %d\n", ret);
       return ERROR;
     }
 
@@ -154,7 +256,8 @@ static int setup_littlefs(const char *path, struct mtd_dev_s *mtd,
           ret = nx_mount(path, mnt_pt, "littlefs", 0, "forceformat");
           if (ret < 0)
             {
-              ferr("ERROR: Failed to mount the FS volume: %d\n", ret);
+              syslog(LOG_ERR, "ERROR: Failed to mount the FS volume: %d\n",
+                     ret);
               return ret;
             }
         }
@@ -190,7 +293,7 @@ static int setup_spiffs(const char *path, struct mtd_dev_s *mtd,
   ret = register_mtddriver(path, mtd, priv, NULL);
   if (ret < 0)
     {
-      ferr("ERROR: Failed to register MTD: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: Failed to register MTD: %d\n", ret);
       return ERROR;
     }
 
@@ -199,7 +302,7 @@ static int setup_spiffs(const char *path, struct mtd_dev_s *mtd,
       ret = nx_mount(path, mnt_pt, "spiffs", 0, NULL);
       if (ret < 0)
         {
-          ferr("ERROR: Failed to mount the FS volume: %d\n", ret);
+          syslog(LOG_ERR, "ERROR: Failed to mount the FS volume: %d\n", ret);
           return ret;
         }
     }
@@ -231,7 +334,7 @@ static int setup_nxffs(struct mtd_dev_s *mtd, const char *mnt_pt)
   ret = nxffs_initialize(mtd);
   if (ret < 0)
     {
-      ferr("ERROR: NXFFS init failed: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: NXFFS init failed: %d\n", ret);
       return ret;
     }
 
@@ -240,7 +343,7 @@ static int setup_nxffs(struct mtd_dev_s *mtd, const char *mnt_pt)
       ret = nx_mount(NULL, mnt_pt, "nxffs", 0, NULL);
       if (ret < 0)
         {
-          ferr("ERROR: Failed to mount the FS volume: %d\n", ret);
+          syslog(LOG_ERR, "ERROR: Failed to mount the FS volume: %d\n", ret);
           return ret;
         }
     }
@@ -265,12 +368,17 @@ static int init_storage_partition(void)
   int ret = OK;
   struct mtd_dev_s *mtd;
 
+#if defined(CONFIG_ESP32S3_SPIRAM) || defined(CONFIG_ESP32S3_PARTITION_TABLE)
   mtd = esp32s3_spiflash_alloc_mtdpart(CONFIG_ESP32S3_STORAGE_MTD_OFFSET,
                                        CONFIG_ESP32S3_STORAGE_MTD_SIZE,
-                                       false);
+                                       OTA_ENCRYPT);
+#else
+  mtd = esp_spiflash_alloc_mtdpart(CONFIG_ESP32S3_STORAGE_MTD_OFFSET,
+                                   CONFIG_ESP32S3_STORAGE_MTD_SIZE);
+#endif
   if (!mtd)
     {
-      ferr("ERROR: Failed to alloc MTD partition of SPI Flash\n");
+      syslog(LOG_ERR, "ERROR: Failed to alloc MTD partition of SPI Flash\n");
       return ERROR;
     }
 
@@ -279,7 +387,7 @@ static int init_storage_partition(void)
   ret = setup_smartfs(0, mtd, "/data");
   if (ret < 0)
     {
-      ferr("ERROR: Failed to setup smartfs\n");
+      syslog(LOG_ERR, "ERROR: Failed to setup smartfs\n");
       return ret;
     }
 
@@ -288,7 +396,7 @@ static int init_storage_partition(void)
   ret = setup_nxffs(mtd, "/data");
   if (ret < 0)
     {
-      ferr("ERROR: Failed to setup nxffs\n");
+      syslog(LOG_ERR, "ERROR: Failed to setup nxffs\n");
       return ret;
     }
 
@@ -298,7 +406,7 @@ static int init_storage_partition(void)
   ret = setup_littlefs(path, mtd, "/data", 0755);
   if (ret < 0)
     {
-      ferr("ERROR: Failed to setup littlefs\n");
+      syslog(LOG_ERR, "ERROR: Failed to setup littlefs\n");
       return ret;
     }
 
@@ -308,16 +416,16 @@ static int init_storage_partition(void)
   ret = setup_spiffs(path, mtd, "/data", 0755);
   if (ret < 0)
     {
-      ferr("ERROR: Failed to setup spiffs\n");
+      syslog(LOG_ERR, "ERROR: Failed to setup spiffs\n");
       return ret;
     }
 
 #else
 
-  ret = register_mtddriver("/dev/esp32s3flash", mtd, 0755, NULL);
+  ret = register_mtddriver("/dev/mtdblock0", mtd, 0755, NULL);
   if (ret < 0)
     {
-      ferr("ERROR: Failed to register MTD: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: Failed to register MTD mtdblock0: %d\n", ret);
       return ret;
     }
 
@@ -342,11 +450,21 @@ int board_spiflash_init(void)
 {
   int ret = OK;
 
+#if defined(CONFIG_ESP32S3_SPIRAM) || defined(CONFIG_ESP32S3_PARTITION_TABLE)
   ret = esp32s3_spiflash_init();
+#endif
   if (ret < 0)
     {
       return ret;
     }
+
+#ifdef CONFIG_ESP32S3_HAVE_OTA_PARTITION
+  ret = init_ota_partitions();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
 
   ret = init_storage_partition();
   if (ret < 0)
@@ -356,4 +474,3 @@ int board_spiflash_init(void)
 
   return ret;
 }
-

@@ -1,8 +1,9 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f746g-disco/src/stm32_extmem.c
  *
- *   Copyright (C) 2018 Marcin Wyrwas. All rights reserved.
- *   Author: Marcin Wyrwas <mvp1@wp.pl>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2018 Marcin Wyrwas. All rights reserved.
+ * SPDX-FileContributor: Marcin Wyrwas <mvp1@wp.pl>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -41,7 +42,7 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "chip.h"
 #include "arm_internal.h"
@@ -56,11 +57,11 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#ifndef CONFIG_STM32F7_FMC
+#ifndef CONFIG_STM32_FMC
 #  warning "FMC is not enabled"
 #endif
 
-#if STM32F7_NGPIO < 7
+#if STM32_NGPIO < 7
 #  error "Required GPIO ports not enabled"
 #endif
 
@@ -90,7 +91,7 @@ static const uint32_t g_addressconfig[STM32_FMC_NADDRCONFIGS] =
   GPIO_FMC_A5,  GPIO_FMC_A6,  GPIO_FMC_A7,  GPIO_FMC_A8,  GPIO_FMC_A9,
   GPIO_FMC_A10, GPIO_FMC_A11,
 
-  GPIO_FMC_SDCKE0_1, GPIO_FMC_SDNE0_3, GPIO_FMC_SDNWE_3, GPIO_FMC_NBL0,
+  GPIO_FMC_SDCKE0, GPIO_FMC_SDNE0, GPIO_FMC_SDNWE, GPIO_FMC_NBL0,
   GPIO_FMC_SDNRAS, GPIO_FMC_NBL1,  GPIO_FMC_BA0,   GPIO_FMC_BA1,
   GPIO_FMC_SDCLK,  GPIO_FMC_SDNCAS
 };

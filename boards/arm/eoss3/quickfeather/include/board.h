@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/eoss3/quickfeather/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,8 +27,6 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-
-#include "eoss3_gpio.h"
 
 #define BOARD_HCLK_FREQUENCY 79790000
 #define BOARD_CPU_FREQUENCY  79790000

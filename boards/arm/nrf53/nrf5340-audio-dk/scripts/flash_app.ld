@@ -1,5 +1,7 @@
 /****************************************************************************
-* boards/arm/nrf53/nrf5340-audio-dk/scripts/flash_net.ld
+ * boards/arm/nrf53/nrf5340-audio-dk/scripts/flash_net.ld
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -30,6 +32,7 @@ MEMORY
 {
     progmem (rx)  : ORIGIN = 0x00000000, LENGTH = 1024K
     datamem (rwx) : ORIGIN = 0x20000000, LENGTH = 512K - RPTUN_SHMEM
+    shmem (rw)    : ORIGIN = 0x20078000, LENGTH = RPTUN_SHMEM
 }
 
 OUTPUT_ARCH(arm)
@@ -57,7 +60,8 @@ SECTIONS
     .init_section :
     {
         _sinit = ABSOLUTE(.);
-        *(.init_array .init_array.*)
+        KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
+        KEEP(*(.init_array EXCLUDE_FILE(*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o) .ctors))
         _einit = ABSOLUTE(.);
     } > progmem
 
@@ -96,6 +100,15 @@ SECTIONS
         . = ALIGN(4);
         _ebss = ABSOLUTE(.);
     } > datamem
+
+    /* Shmem */
+
+    .shmem (NOLOAD):
+    {
+        . = ALIGN(4);
+        *(.shmem);
+        KEEP(*(.shmem))
+    } > shmem
 
     /* Stabs debugging sections. */
 

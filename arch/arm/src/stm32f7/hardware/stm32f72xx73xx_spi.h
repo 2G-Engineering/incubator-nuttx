@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/hardware/stm32f72xx73xx_spi.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -52,7 +54,7 @@
 
 /* Register Addresses *******************************************************/
 
-#if STM32F7_NSPI > 0
+#if STM32_NSPI > 0
 #  define STM32_SPI1_CR1          (STM32_SPI1_BASE+STM32_SPI_CR1_OFFSET)
 #  define STM32_SPI1_CR2          (STM32_SPI1_BASE+STM32_SPI_CR2_OFFSET)
 #  define STM32_SPI1_SR           (STM32_SPI1_BASE+STM32_SPI_SR_OFFSET)
@@ -62,7 +64,7 @@
 #  define STM32_SPI1_TXCRCR       (STM32_SPI1_BASE+STM32_SPI_TXCRCR_OFFSET)
 #endif
 
-#if STM32F7_NSPI > 1
+#if STM32_NSPI > 1
 #  define STM32_SPI2_CR1          (STM32_SPI2_BASE+STM32_SPI_CR1_OFFSET)
 #  define STM32_SPI2_CR2          (STM32_SPI2_BASE+STM32_SPI_CR2_OFFSET)
 #  define STM32_SPI2_SR           (STM32_SPI2_BASE+STM32_SPI_SR_OFFSET)
@@ -74,7 +76,7 @@
 #  define STM32_SPI2_I2SPR        (STM32_SPI2_BASE+STM32_SPI_I2SPR_OFFSET)
 #endif
 
-#if STM32F7_NSPI > 2
+#if STM32_NSPI > 2
 #  define STM32_SPI3_CR1          (STM32_SPI3_BASE+STM32_SPI_CR1_OFFSET)
 #  define STM32_SPI3_CR2          (STM32_SPI3_BASE+STM32_SPI_CR2_OFFSET)
 #  define STM32_SPI3_SR           (STM32_SPI3_BASE+STM32_SPI_SR_OFFSET)
@@ -86,7 +88,7 @@
 #  define STM32_SPI3_I2SPR        (STM32_SPI3_BASE+STM32_SPI_I2SPR_OFFSET)
 #endif
 
-#if STM32F7_NSPI > 3
+#if STM32_NSPI > 3
 #  define STM32_SPI4_CR1          (STM32_SPI4_BASE+STM32_SPI_CR1_OFFSET)
 #  define STM32_SPI4_CR2          (STM32_SPI4_BASE+STM32_SPI_CR2_OFFSET)
 #  define STM32_SPI4_SR           (STM32_SPI4_BASE+STM32_SPI_SR_OFFSET)
@@ -98,7 +100,7 @@
 #  define STM32_SPI4_I2SPR        (STM32_SPI4_BASE+STM32_SPI_I2SPR_OFFSET)
 #endif
 
-#if STM32F7_NSPI > 4
+#if STM32_NSPI > 4
 #  define STM32_SPI5_CR1          (STM32_SPI5_BASE+STM32_SPI_CR1_OFFSET)
 #  define STM32_SPI5_CR2          (STM32_SPI5_BASE+STM32_SPI_CR2_OFFSET)
 #  define STM32_SPI5_SR           (STM32_SPI5_BASE+STM32_SPI_SR_OFFSET)
@@ -110,7 +112,7 @@
 #  define STM32_SPI5_I2SPR        (STM32_SPI5_BASE+STM32_SPI_I2SPR_OFFSET)
 #endif
 
-#if STM32F7_NSPI > 5
+#if STM32_NSPI > 5
 #  define STM32_SPI6_CR1          (STM32_SPI6_BASE+STM32_SPI_CR1_OFFSET)
 #  define STM32_SPI6_CR2          (STM32_SPI6_BASE+STM32_SPI_CR2_OFFSET)
 #  define STM32_SPI6_SR           (STM32_SPI6_BASE+STM32_SPI_SR_OFFSET)

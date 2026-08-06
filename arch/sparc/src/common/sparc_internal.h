@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sparc/src/common/sparc_internal.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -80,19 +82,7 @@
 #  define CONFIG_ARCH_INTERRUPTSTACK 0
 #endif
 
-#define INTSTACK_SIZE (CONFIG_ARCH_INTERRUPTSTACK & ~STACK_ALIGN_MASK)
-
-/* sparc requires at least a 4-byte stack alignment.  For floating point use,
- * however, the stack must be aligned to 8-byte addresses.
- */
-
-#define STACK_ALIGNMENT     8
-
-/* Stack alignment macros */
-
-#define STACK_ALIGN_MASK    (STACK_ALIGNMENT - 1)
-#define STACK_ALIGN_DOWN(a) ((a) & ~STACK_ALIGN_MASK)
-#define STACK_ALIGN_UP(a)   (((a) + STACK_ALIGN_MASK) & ~STACK_ALIGN_MASK)
+#define INTSTACK_SIZE (CONFIG_ARCH_INTERRUPTSTACK & ~STACKFRAME_ALIGN_MASK)
 
 /* This is the value used to mark the stack for subsequent stack monitoring
  * logic.
@@ -195,13 +185,6 @@ int sparc_swint1(int irq, void *context, void *arg);
 
 void sparc_sigdeliver(void);
 
-/* Interrupt handling *******************************************************/
-
-#if CONFIG_ARCH_INTERRUPTSTACK > 7
-uintptr_t sparc_intstack_alloc(void);
-uintptr_t sparc_intstack_top(void);
-#endif
-
 /* Chip-specific functions **************************************************/
 
 /* Chip specific functions defined in arch/sparc/src/<chip> */
@@ -253,6 +236,13 @@ void sparc_usbuninitialize(void);
 #ifdef CONFIG_STACK_COLORATION
 size_t sparc_stack_check(void *stackbase, size_t nbytes);
 void sparc_stack_color(void *stackbase, size_t nbytes);
+#endif
+
+#if defined(CONFIG_STACK_COLORATION) && \
+    defined(CONFIG_ARCH_INTERRUPTSTACK) && CONFIG_ARCH_INTERRUPTSTACK > 7
+void sparc_color_intstack(void);
+#else
+#  define sparc_color_intstack()
 #endif
 
 #endif /* __ASSEMBLY__ */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f746g-disco/src/stm32_adc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdbool.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <nuttx/analog/adc.h>
@@ -34,11 +36,11 @@
 #include "stm32_gpio.h"
 #include "stm32_adc.h"
 
-#ifndef CONFIG_STM32F7_ADC3
+#ifndef CONFIG_STM32_ADC3
 #  error "Only ADC3 channels are available on the arduino header of the board"
 #endif
 
-#if defined(CONFIG_ADC) && defined(CONFIG_STM32F7_ADC3)
+#if defined(CONFIG_ADC) && defined(CONFIG_STM32_ADC3)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -102,7 +104,7 @@ static const uint32_t g_pinlist[6]  =
 
 int stm32_adc_setup(void)
 {
-#ifdef CONFIG_STM32F7_ADC3
+#ifdef CONFIG_STM32_ADC3
   static bool initialized = false;
   struct adc_dev_s *adc;
   int ret;
@@ -148,4 +150,4 @@ int stm32_adc_setup(void)
 #endif
 }
 
-#endif /* (CONFIG_ADC) && (CONFIG_STM32F7_ADC3) */
+#endif /* (CONFIG_ADC) && (CONFIG_STM32_ADC3) */

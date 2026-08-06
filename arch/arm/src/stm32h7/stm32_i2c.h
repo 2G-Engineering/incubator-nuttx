@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_i2c.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,10 +41,10 @@
  * seconds per byte value must be provided as well.
  */
 
-#ifdef CONFIG_STM32H7_I2C_DYNTIMEO
-#  if CONFIG_STM32H7_I2C_DYNTIMEO_USECPERBYTE < 1
-#    warning "Ignoring CONFIG_STM32H7_I2C_DYNTIMEO because of CONFIG_STM32H7_I2C_DYNTIMEO_USECPERBYTE"
-#    undef CONFIG_STM32H7_I2C_DYNTIMEO
+#ifdef CONFIG_STM32_I2C_DYNTIMEO
+#  if CONFIG_STM32_I2C_DYNTIMEO_USECPERBYTE < 1
+#    warning "Ignoring CONFIG_STM32_I2C_DYNTIMEO because of CONFIG_STM32_I2C_DYNTIMEO_USECPERBYTE"
+#    undef CONFIG_STM32_I2C_DYNTIMEO
 #  endif
 #endif
 

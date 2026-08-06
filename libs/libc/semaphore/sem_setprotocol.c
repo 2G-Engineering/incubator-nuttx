@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/semaphore/sem_setprotocol.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -77,21 +79,31 @@ int nxsem_set_protocol(FAR sem_t *sem, int protocol)
 {
   DEBUGASSERT(sem != NULL);
 
-  switch (protocol)
+  switch (protocol & SEM_PRIO_MASK)
     {
       case SEM_PRIO_NONE:
-        return OK;
+        break;
 
       case SEM_PRIO_INHERIT:
-      case SEM_PRIO_PROTECT:
         return -ENOTSUP;
+      case SEM_PRIO_PROTECT:
+#ifdef CONFIG_PRIORITY_PROTECT
+        break;
+#else
+        /* Not yet supported */
+
+        return -ENOTSUP;
+#endif
 
       default:
-        break;
+        return -EINVAL;
     }
 
-  return -EINVAL;
+  sem->flags = protocol;
+  return OK;
 }
+
+#endif /* !CONFIG_PRIORITY_INHERITANCE */
 
 /****************************************************************************
  * Name: sem_setprotocol
@@ -143,5 +155,3 @@ int sem_setprotocol(FAR sem_t *sem, int protocol)
 
   return ret;
 }
-
-#endif /* !CONFIG_PRIORITY_INHERITANCE */

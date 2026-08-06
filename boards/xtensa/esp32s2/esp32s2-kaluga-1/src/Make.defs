@@ -1,6 +1,8 @@
 ############################################################################
 # boards/xtensa/esp32s2/esp32s2-kaluga-1/src/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -18,15 +20,10 @@
 #
 ############################################################################
 
-include $(TOPDIR)/Make.defs
-
 CSRCS = esp32s2_boot.c esp32s2_bringup.c
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += esp32s2_appinit.c
 ifeq ($(CONFIG_BOARDCTL_RESET),y)
 CSRCS += esp32s2_reset.c
-endif
 endif
 
 ifeq ($(CONFIG_DEV_GPIO),y)
@@ -41,15 +38,11 @@ ifeq ($(CONFIG_I2C_DRIVER),y)
 CSRCS += esp32s2_board_i2c.c
 endif
 
-ifeq ($(CONFIG_ESP32S2_SPI),y)
-CSRCS += esp32s2_board_spi.c
-endif
-
 ifeq ($(CONFIG_ARCH_BUTTONS),y)
 CSRCS += esp32s2_buttons.c
 endif
 
 DEPPATH += --dep-path board
 VPATH += :board
-CFLAGS += $(shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board)
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board
 

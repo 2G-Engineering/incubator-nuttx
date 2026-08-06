@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32wb/flipperzero/src/flipperzero.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -80,7 +82,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32wb_spidev_initialize
+ * Name: stm32_spidev_initialize
  *
  * Description:
  *   Called to configure SPI chip select GPIO pins.
@@ -88,7 +90,7 @@
  ****************************************************************************/
 
 #ifdef CONFIG_SPI
-void weak_function stm32wb_spidev_initialize(void);
+void weak_function stm32_spidev_initialize(void);
 #endif
 
 #endif /* __ASSEMBLY__ */

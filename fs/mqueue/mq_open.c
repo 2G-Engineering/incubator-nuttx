@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/mqueue/mq_open.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,6 +41,7 @@
 
 #include "inode/inode.h"
 #include "mqueue/mqueue.h"
+#include "vfs/vfs.h"
 
 /****************************************************************************
  * Private Functions Prototypes
@@ -46,7 +49,7 @@
 
 static int nxmq_file_close(FAR struct file *filep);
 static int nxmq_file_poll(FAR struct file *filep,
-                          struct pollfd *fds, bool setup);
+                          FAR struct pollfd *fds, bool setup);
 
 /****************************************************************************
  * Private Data
@@ -73,7 +76,7 @@ static int nxmq_file_close(FAR struct file *filep)
 {
   FAR struct inode *inode = filep->f_inode;
 
-  if (inode->i_crefs <= 1 && (inode->i_flags & FSNODEFLAG_DELETED))
+  if (atomic_read(&inode->i_crefs) <= 1)
     {
       FAR struct mqueue_inode_s *msgq = inode->i_private;
 
@@ -88,7 +91,7 @@ static int nxmq_file_close(FAR struct file *filep)
 }
 
 static int nxmq_file_poll(FAR struct file *filep,
-                          struct pollfd *fds, bool setup)
+                          FAR struct pollfd *fds, bool setup)
 {
   FAR struct inode *inode = filep->f_inode;
   FAR struct mqueue_inode_s *msgq = inode->i_private;
@@ -105,7 +108,7 @@ static int nxmq_file_poll(FAR struct file *filep,
         {
           /* Find an available slot */
 
-          if (!msgq->fds[i])
+          if (msgq->fds[i] == NULL)
             {
               /* Bind the poll structure and this slot */
 
@@ -129,12 +132,12 @@ static int nxmq_file_poll(FAR struct file *filep,
           eventset |= POLLOUT;
         }
 
-      if (msgq->nmsgs)
+      if (msgq->nmsgs > 0)
         {
           eventset |= POLLIN;
         }
 
-      nxmq_pollnotify(msgq, eventset);
+      poll_notify(&fds, 1, eventset);
     }
   else if (fds->priv != NULL)
     {
@@ -155,7 +158,8 @@ errout:
 }
 
 static int file_mq_vopen(FAR struct file *mq, FAR const char *mq_name,
-                         int oflags, mode_t umask, va_list ap, int *created)
+                         int oflags, mode_t umask, va_list ap,
+                         FAR int *created)
 {
   FAR struct inode *inode;
   FAR struct mqueue_inode_s *msgq;
@@ -191,6 +195,14 @@ static int file_mq_vopen(FAR struct file *mq, FAR const char *mq_name,
 
       mode = va_arg(ap, mode_t);
       attr = va_arg(ap, FAR struct mq_attr *);
+      if (attr != NULL)
+        {
+          if (attr->mq_maxmsg <= 0 || attr->mq_msgsize <= 0)
+            {
+              ret = -EINVAL;
+              goto errout;
+            }
+        }
     }
 
   mode &= ~umask;
@@ -231,7 +243,6 @@ static int file_mq_vopen(FAR struct file *mq, FAR const char *mq_name,
       /* Something exists at this path.  Get the search results */
 
       inode = desc.node;
-      DEBUGASSERT(inode != NULL);
 
       /* Verify that the inode is a message queue */
 
@@ -253,13 +264,12 @@ static int file_mq_vopen(FAR struct file *mq, FAR const char *mq_name,
 
       /* Associate the inode with a file structure */
 
-      memset(mq, 0, sizeof(*mq));
       mq->f_oflags = oflags;
       mq->f_inode  = inode;
 
       if (created)
         {
-          *created = 1;
+          *created = 0;
         }
     }
   else
@@ -276,12 +286,7 @@ static int file_mq_vopen(FAR struct file *mq, FAR const char *mq_name,
 
       /* Create an inode in the pseudo-filesystem at this path */
 
-      ret = inode_lock();
-      if (ret < 0)
-        {
-          goto errout_with_lock;
-        }
-
+      inode_lock();
       ret = inode_reserve(fullpath, mode, &inode);
       inode_unlock();
 
@@ -302,7 +307,6 @@ static int file_mq_vopen(FAR struct file *mq, FAR const char *mq_name,
 
       /* Associate the inode with a file structure */
 
-      memset(mq, 0, sizeof(*mq));
       mq->f_oflags = oflags;
       mq->f_inode  = inode;
 
@@ -313,16 +317,19 @@ static int file_mq_vopen(FAR struct file *mq, FAR const char *mq_name,
 
       /* Set the initial reference count on this inode to one */
 
-      inode->i_crefs    = 1;
+      atomic_fetch_add(&inode->i_crefs, 1);
 
       if (created)
         {
-          *created = 0;
+          *created = 1;
         }
     }
 
   RELEASE_SEARCH(&desc);
   leave_critical_section(flags);
+#ifdef CONFIG_FS_NOTIFY
+  notify_open(fullpath, oflags);
+#endif
   return OK;
 
 errout_with_inode:
@@ -338,28 +345,32 @@ errout:
 
 static mqd_t nxmq_vopen(FAR const char *mq_name, int oflags, va_list ap)
 {
-  struct file mq;
+  FAR struct file *mq;
   int created;
   int ret;
+  int fd;
 
-  ret = file_mq_vopen(&mq, mq_name, oflags, getumask(), ap, &created);
+  mq = file_allocate();
+  if (mq == NULL)
+    {
+      return -ENOMEM;
+    }
+
+  ret = file_mq_vopen(mq, mq_name, oflags, getumask(), ap, &created);
   if (ret < 0)
     {
+      file_deallocate(mq);
       return ret;
     }
 
-  ret = file_allocate(mq.f_inode, mq.f_oflags,
-                      mq.f_pos, mq.f_priv, 0, false);
-  if (ret < 0)
+  fd = file_dup(mq, 0, oflags);
+  if (fd < 0)
     {
-      file_mq_close(&mq);
-      if (created)
-        {
-          file_mq_unlink(mq_name);
-        }
+      file_close(mq);
+      file_deallocate(mq);
     }
 
-  return ret;
+  return fd;
 }
 
 /****************************************************************************
@@ -381,6 +392,7 @@ static mqd_t nxmq_vopen(FAR const char *mq_name, int oflags, va_list ap)
  *  behavior of this function
  *
  * Input Parameters:
+ *   mq - address of to-be-initialized struct file instance.
  *   mq_name - Name of the queue to open
  *   oflags - open flags
  *   Optional parameters.  When the O_CREAT flag is specified, two optional
@@ -395,7 +407,7 @@ static mqd_t nxmq_vopen(FAR const char *mq_name, int oflags, va_list ap)
  * Returned Value:
  *   This is an internal OS interface and should not be used by applications.
  *   It follows the NuttX internal error return policy:  Zero (OK) is
- *   returned on success, mqdes point to the new message queue descriptor.
+ *   returned on success, instance pointed by mq is also initialized.
  *   A negated errno value is returned on failure.
  *
  ****************************************************************************/
@@ -405,6 +417,8 @@ int file_mq_open(FAR struct file *mq,
 {
   va_list ap;
   int ret;
+
+  memset(mq, 0, sizeof(*mq));
 
   va_start(ap, oflags);
   ret = file_mq_vopen(mq, mq_name, oflags, 0, ap, NULL);

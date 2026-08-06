@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/sam34/sam_dmac.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/irq.h>
@@ -977,7 +979,7 @@ static int sam_txbuffer(struct sam_dma_s *dmach, uint32_t paddr,
   uint32_t ctrla;
   uint32_t ctrlb;
 
-  /* If we are appending a buffer to a linklist, then re-use the CTRLA/B
+  /* If we are appending a buffer to a linklist, then reuse the CTRLA/B
    * values.  Otherwise, create them from the properties of the transfer.
    */
 
@@ -1026,7 +1028,7 @@ static int sam_rxbuffer(struct sam_dma_s *dmach, uint32_t paddr,
   uint32_t ctrla;
   uint32_t ctrlb;
 
-  /* If we are appending a buffer to a linklist, then re-use the CTRLA/B
+  /* If we are appending a buffer to a linklist, then reuse the CTRLA/B
    * values.  Otherwise, create them from the properties of the transfer.
    */
 
@@ -1109,7 +1111,7 @@ static inline int sam_single(struct sam_dma_s *dmach)
 
   putreg32(dmach->cfg, dmach->base + SAM_DMACHAN_CFG_OFFSET);
 
-  /* Enable the channel by writing a �1� to the CHER enable bit */
+  /* Enable the channel by writing a '1' to the CHER enable bit */
 
   putreg32(DMAC_CHER_ENA(dmach->chan), SAM_DMAC_CHER);
 
@@ -1173,7 +1175,7 @@ static inline int sam_multiple(struct sam_dma_s *dmach)
 
   putreg32((uint32_t)llhead, dmach->base + SAM_DMACHAN_DSCR_OFFSET);
 
-  /* Finally, enable the channel by writing a �1� to the CHER enable */
+  /* Finally, enable the channel by writing a '1' to the CHER enable */
 
   putreg32(DMAC_CHER_ENA(dmach->chan), SAM_DMAC_CHER);
 

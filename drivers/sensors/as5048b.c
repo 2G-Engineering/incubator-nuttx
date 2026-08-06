@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/as5048b.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdlib.h>
 
 #include <nuttx/kmalloc.h>
@@ -602,7 +604,7 @@ FAR struct qe_lowerhalf_s *as5048b_initialize(FAR struct i2c_master_s *i2c,
 
   /* Initialize the device's structure */
 
-  priv = (FAR struct as5048b_dev_s *)kmm_malloc(sizeof(*priv));
+  priv = kmm_malloc(sizeof(*priv));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");

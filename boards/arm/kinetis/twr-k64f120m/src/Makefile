@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/kinetis/twr-k64f120m/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -29,10 +31,6 @@ endif
 
 ifeq ($(CONFIG_ARCH_BUTTONS),y)
 #CSRCS += k64_buttons.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += k64_appinit.c
 endif
 
 ifeq ($(CONFIG_KINETIS_SDHC),y)

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/include/mode.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,12 +38,21 @@
 
 /* CSR definitions */
 
-#  define CSR_STATUS        sstatus          /* Global status register */
-#  define CSR_SCRATCH       sscratch         /* Scratch register */
-#  define CSR_EPC           sepc             /* Exception program counter */
-#  define CSR_IE            sie              /* Interrupt enable register */
-#  define CSR_CAUSE         scause           /* Interrupt cause register */
-#  define CSR_TVAL          stval            /* Trap value register */
+#  define CSR_STATUS        CSR_SSTATUS      /* Global status register */
+#  define CSR_SCRATCH       CSR_SSCRATCH     /* Scratch register */
+#  define CSR_EPC           CSR_SEPC         /* Exception program counter */
+#  define CSR_IE            CSR_SIE          /* Interrupt enable register */
+#  define CSR_IP            CSR_SIP          /* Interrupt pending register */
+#  define CSR_CAUSE         CSR_SCAUSE       /* Interrupt cause register */
+#  define CSR_TVAL          CSR_STVAL        /* Trap value register */
+#  define CSR_TVEC          CSR_STVEC        /* Trap vector base addr register */
+#  define CSR_ENVCFG        CSR_SENVCFG      /* Env configuration register */
+#  define CSR_IEH           CSR_SIEH
+#  define CSR_ISELECT       CSR_SISELECT     /* Indirect select register */
+#  define CSR_IREG          CSR_SIREG        /* Indirect alias register */
+#  define CSR_IPH           CSR_SIPH
+#  define CSR_TOPEI         CSR_STOPEI       /* Top external interrupt register */
+#  define CSR_TOPI          CSR_STOPI        /* Top interrupt register */
 
 /* In status register */
 
@@ -55,6 +66,12 @@
 #  define IE_EIE            SIE_SEIE         /* External interrupt enable */
 #  define IE_SIE            SIE_SSIE         /* Software interrupt enable */
 #  define IE_TIE            SIE_STIE         /* Timer interrupt enable */
+
+/* Interrupt pending bits */
+
+#  define IP_EIP            SIP_SEIP         /* External interrupt pending */
+#  define IP_SIP            SIP_SSIP         /* Software interrupt pending */
+#  define IP_TIP            SIP_STIP         /* Timer interrupt pending */
 
 /* External, timer and software interrupt */
 
@@ -70,12 +87,21 @@
 
 /* CSR definitions */
 
-#  define CSR_STATUS        mstatus          /* Global status register */
-#  define CSR_SCRATCH       mscratch         /* Scratch register */
-#  define CSR_EPC           mepc             /* Exception program counter */
-#  define CSR_IE            mie              /* Interrupt enable register */
-#  define CSR_CAUSE         mcause           /* Interrupt cause register */
-#  define CSR_TVAL          mtval            /* Trap value register */
+#  define CSR_STATUS        CSR_MSTATUS      /* Global status register */
+#  define CSR_SCRATCH       CSR_MSCRATCH     /* Scratch register */
+#  define CSR_EPC           CSR_MEPC         /* Exception program counter */
+#  define CSR_IE            CSR_MIE          /* Interrupt enable register */
+#  define CSR_IP            CSR_MIP          /* Interrupt pending register */
+#  define CSR_CAUSE         CSR_MCAUSE       /* Interrupt cause register */
+#  define CSR_TVAL          CSR_MTVAL        /* Trap value register */
+#  define CSR_TVEC          CSR_MTVEC        /* Trap vector base addr register */
+#  define CSR_ENVCFG        CSR_MENVCFG      /* Env configuration register */
+#  define CSR_IEH           CSR_MIEH
+#  define CSR_ISELECT       CSR_MISELECT     /* Indirect select register */
+#  define CSR_IREG          CSR_MIREG        /* Indirect alias register */
+#  define CSR_IPH           CSR_MIPH
+#  define CSR_TOPEI         CSR_MTOPEI       /* Top external interrupt register */
+#  define CSR_TOPI          CSR_MTOPI        /* Top interrupt register */
 
 /* In status register */
 
@@ -89,6 +115,12 @@
 #  define IE_EIE            MIE_MEIE         /* External interrupt enable */
 #  define IE_SIE            MIE_MSIE         /* Software interrupt enable */
 #  define IE_TIE            MIE_MTIE         /* Timer interrupt enable */
+
+/* Interrupt pending bits */
+
+#  define IP_EIP            MIP_MEIP         /* External interrupt pending */
+#  define IP_SIP            MIP_MSIP         /* Software interrupt pending */
+#  define IP_TIP            MIP_MTIP         /* Timer interrupt pending */
 
 /* External, timer and software interrupt */
 

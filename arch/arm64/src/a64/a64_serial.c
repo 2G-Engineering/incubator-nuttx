@@ -1,6 +1,8 @@
 /***************************************************************************
  * arch/arm64/src/a64/a64_serial.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,7 +41,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #ifdef CONFIG_SERIAL_TERMIOS
 #  include <termios.h>
@@ -266,6 +268,12 @@ struct a64_uart_port_s
   unsigned int irq_num;          /* UART IRQ Number */
   bool is_console;               /* 1 if this UART is console */
 };
+
+/***************************************************************************
+ * Private Data
+ ***************************************************************************/
+
+static spinlock_t g_a64_serial_lock = SP_UNLOCKED;
 
 /***************************************************************************
  * Private Function Prototypes
@@ -640,7 +648,8 @@ static int a64_uart_attach(struct uart_dev_s *dev)
 
   /* Set Interrupt Priority in Generic Interrupt Controller v2 */
 
-  arm64_gic_irq_set_priority(port->irq_num, 0, IRQ_TYPE_LEVEL);
+  up_prioritize_irq(port->irq_num, 0);
+  up_set_irq_type(port->irq_num, IRQ_HIGH_LEVEL);
 
   /* Enable UART Interrupt */
 
@@ -965,7 +974,7 @@ static int a64_uart_init(uint32_t gating, uint32_t rst, pio_pinset_t tx,
   irqstate_t flags;
   int ret = OK;
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_a64_serial_lock);
 
   /* Enable clocking to UART */
 
@@ -991,7 +1000,7 @@ static int a64_uart_init(uint32_t gating, uint32_t rst, pio_pinset_t tx,
         }
     }
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_a64_serial_lock, flags);
   return ret;
 };
 
@@ -1326,7 +1335,7 @@ static struct uart_dev_s g_uart4port =
  * Description:
  *   Performs the low level UART initialization early in
  *   debug so that the serial console will be available
- *   during bootup.  This must be called before arm64_serialinit.
+ *   during boot up.  This must be called before arm64_serialinit.
  *
  * Returned Value:
  *   None
@@ -1412,23 +1421,13 @@ void arm64_earlyserialinit(void)
  *
  ***************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef CONSOLE_DEV
   struct uart_dev_s *dev = &CONSOLE_DEV;
 
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      a64_uart_wait_send(dev, '\r');
-    }
-
   a64_uart_wait_send(dev, ch);
 #endif
-  return ch;
 }
 
 /***************************************************************************

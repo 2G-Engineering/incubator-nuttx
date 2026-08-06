@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/irq/irq_attach.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,8 +33,74 @@
 #include "irq/irq.h"
 
 /****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+static spinlock_t g_irqlock = SP_UNLOCKED;
+#if defined(CONFIG_ARCH_MINIMAL_VECTORTABLE_DYNAMIC) && \
+    !defined(CONFIG_ARCH_IRQ_TO_NDX)
+static int g_irqmap_count = 1;
+#endif
+
+/****************************************************************************
+ * Public Data
+ ****************************************************************************/
+
+#ifdef CONFIG_ARCH_MINIMAL_VECTORTABLE_DYNAMIC
+
+/* This is the interrupt vector mapping table.  This must be provided by
+ * architecture specific logic if CONFIG_ARCH_MINIMAL_VECTORTABLE is define
+ * in the configuration.
+ *
+ * REVISIT: This should be declared in include/nuttx/irq.h.  The declaration
+ * at that location, however, introduces a circular include dependency so the
+ * declaration is here for the time being.
+ */
+
+#  if !defined(CONFIG_ARCH_IRQ_TO_NDX)
+irq_mapped_t g_irqmap[NR_IRQS];
+#  endif
+int g_irqrevmap[CONFIG_ARCH_NUSER_INTERRUPTS];
+#endif
+
+/****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+#if defined(CONFIG_ARCH_MINIMAL_VECTORTABLE_DYNAMIC) && \
+    !defined(CONFIG_ARCH_IRQ_TO_NDX)
+int irq_to_ndx(int irq)
+{
+  DEBUGASSERT(g_irqmap_count < CONFIG_ARCH_NUSER_INTERRUPTS);
+
+  irqstate_t flags = spin_lock_irqsave(&g_irqlock);
+  if (g_irqmap[irq] == 0)
+    {
+      int ndx = g_irqmap_count++;
+      g_irqmap[irq] = ndx;
+      g_irqrevmap[ndx] = irq;
+    }
+
+  spin_unlock_irqrestore(&g_irqlock, flags);
+  return g_irqmap[irq];
+}
+#elif defined(CONFIG_ARCH_MINIMAL_VECTORTABLE) && \
+      !defined(CONFIG_ARCH_IRQ_TO_NDX)
+int ndx_to_irq(int ndx)
+{
+  int i;
+
+  for (i = 0; i < NR_IRQS; i++)
+    {
+      if (g_irqmap[i] == ndx)
+        {
+          return i;
+        }
+    }
+
+  return -EINVAL;
+}
+#endif
 
 /****************************************************************************
  * Name: irq_attach
@@ -45,34 +113,21 @@
 
 int irq_attach(int irq, xcpt_t isr, FAR void *arg)
 {
+  int ret = OK;
 #if NR_IRQS > 0
-  int ret = -EINVAL;
-
-  if ((unsigned)irq < NR_IRQS)
+  int ndx = IRQ_TO_NDX(irq);
+  if (ndx < 0)
     {
-      irqstate_t flags;
-      int ndx;
-
-#ifdef CONFIG_ARCH_MINIMAL_VECTORTABLE
-      /* Is there a mapping for this IRQ number? */
-
-      ndx = g_irqmap[irq];
-      if ((unsigned)ndx >= CONFIG_ARCH_NUSER_INTERRUPTS)
-        {
-          /* No.. then return failure. */
-
-          return ret;
-        }
-#else
-      ndx = irq;
-#endif
-
+      ret = ndx;
+    }
+  else
+    {
       /* If the new ISR is NULL, then the ISR is being detached.
        * In this case, disable the ISR and direct any interrupts
        * to the unexpected interrupt handler.
        */
 
-      flags = enter_critical_section();
+      irqstate_t flags = spin_lock_irqsave(&g_irqlock);
       if (isr == NULL)
         {
           /* Disable the interrupt if we can before detaching it.  We might
@@ -106,31 +161,25 @@ int irq_attach(int irq, xcpt_t isr, FAR void *arg)
       if (is_irqchain(ndx, isr))
         {
           ret = irqchain_attach(ndx, isr, arg);
-          leave_critical_section(flags);
-          return ret;
+          spin_unlock_irqrestore(&g_irqlock, flags);
         }
+      else
 #endif
+        {
+          /* Save the new ISR and its argument in the table. */
 
-      /* Save the new ISR and its argument in the table. */
+          g_irqvector[ndx].handler = isr;
+          g_irqvector[ndx].arg     = arg;
+    #ifdef CONFIG_SCHED_IRQMONITOR
+          g_irqvector[ndx].start   = clock_systime_ticks();
+          g_irqvector[ndx].time    = 0;
+          g_irqvector[ndx].count   = 0;
+    #endif
 
-      g_irqvector[ndx].handler = isr;
-      g_irqvector[ndx].arg     = arg;
-#ifdef CONFIG_SCHED_IRQMONITOR
-      g_irqvector[ndx].start   = clock_systime_ticks();
-#ifdef CONFIG_HAVE_LONG_LONG
-      g_irqvector[ndx].count   = 0;
-#else
-      g_irqvector[ndx].mscount = 0;
-      g_irqvector[ndx].lscount = 0;
-#endif
-#endif
-
-      leave_critical_section(flags);
-      ret = OK;
+          spin_unlock_irqrestore(&g_irqlock, flags);
+        }
     }
+#endif  /* NR_IRQS */
 
   return ret;
-#else
-  return OK;
-#endif
 }

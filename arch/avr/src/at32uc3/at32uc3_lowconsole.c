@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/avr/src/at32uc3/at32uc3_lowconsole.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,8 +28,8 @@
 #include "at32uc3_config.h"
 
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <arch/board/board.h>
 
@@ -348,7 +350,7 @@ void up_consoleinit(void)
 
 #endif
 
-  /* Enable selected clocks (and disabled unselected clocks) */
+  /* Enable selected clocks (and disable unselected clocks) */
 
   regval = getreg32(AVR32_PM_PBAMASK);
   regval &= ~(PM_PBAMASK_USART0 | PM_PBAMASK_USART1 | PM_PBAMASK_USART2);

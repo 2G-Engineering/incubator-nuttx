@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/include/lpc2378/irq.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -117,10 +119,8 @@ extern "C"
 #define EXTERN extern
 #endif
 
-#ifndef CONFIG_VECTORED_INTERRUPTS
 void up_attach_vector(int irq, int priority, vic_vector_t handler);
 void up_detach_vector(int vector);
-#endif
 
 #undef EXTERN
 #ifdef __cplusplus

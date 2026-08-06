@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/fat/fs_fat32util.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,7 +35,7 @@
 #include <time.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
@@ -211,6 +213,11 @@ static int fat_checkbootrecord(struct fat_mountpt_s *fs)
   /* Get the sectors per cluster */
 
   fs->fs_fatsecperclus = FBR_GETSECPERCLUS(fs->fs_buffer);
+  if (fs->fs_fatsecperclus == 0)
+    {
+      fwarn("WARNING: sectors per cluster cannot be 0\n");
+      return -EINVAL;
+    }
 
   /* Calculate the number of clusters */
 
@@ -383,7 +390,7 @@ uint32_t fat_systime2fattime(void)
     {
       /* Break done the seconds in date and time units */
 
-      if (gmtime_r((FAR const time_t *)&ts.tv_sec, &tm) != NULL)
+      if (gmtime_r(&ts.tv_sec, &tm) != NULL)
         {
           /* FAT can only represent dates since 1980.  struct tm can
            * represent dates since 1900.
@@ -782,7 +789,7 @@ int fat_hwwrite(struct fat_mountpt_s *fs, uint8_t *buffer, off_t sector,
 off_t fat_cluster2sector(FAR struct fat_mountpt_s *fs,  uint32_t cluster)
 {
   cluster -= 2;
-  if (cluster >= fs->fs_nclusters - 2)
+  if (cluster >= fs->fs_nclusters)
     {
       return -EINVAL;
     }
@@ -805,7 +812,7 @@ off_t fat_getcluster(struct fat_mountpt_s *fs, uint32_t clusterno)
 {
   /* Verify that the cluster number is within range */
 
-  if (clusterno >= 2 && clusterno < fs->fs_nclusters)
+  if (clusterno >= 2 && clusterno < fs->fs_nclusters + 2)
     {
       /* Okay.. Read the next cluster from the FAT.  The way we will do
        * this depends on the type of FAT filesystem we are dealing with.
@@ -888,6 +895,8 @@ off_t fat_getcluster(struct fat_mountpt_s *fs, uint32_t clusterno)
 
           case FSTYPE_FAT16 :
             {
+              /* 16 bits per entry, ie. 2 bytes per entry */
+
               unsigned int fatoffset = 2 * clusterno;
               off_t        fatsector = fs->fs_fatbase +
                                        SEC_NSECTORS(fs, fatoffset);
@@ -905,6 +914,8 @@ off_t fat_getcluster(struct fat_mountpt_s *fs, uint32_t clusterno)
 
           case FSTYPE_FAT32 :
             {
+              /* 32 bits per entry, ie. 4 bytes per entry */
+
               unsigned int fatoffset = 4 * clusterno;
               off_t        fatsector = fs->fs_fatbase +
                                        SEC_NSECTORS(fs, fatoffset);
@@ -945,7 +956,7 @@ int fat_putcluster(struct fat_mountpt_s *fs, uint32_t clusterno,
    * cluster.
    */
 
-  if (clusterno == 0 || (clusterno >= 2 && clusterno < fs->fs_nclusters))
+  if (clusterno == 0 || (clusterno >= 2 && clusterno < fs->fs_nclusters + 2))
     {
       /* Okay.. Write the next cluster into the FAT.  The way we will do
        * this depends on the type of FAT filesystem we are dealing with.
@@ -986,7 +997,7 @@ int fat_putcluster(struct fat_mountpt_s *fs, uint32_t clusterno,
                   /* Save the LS four bits of the next cluster */
 
                   value = (fs->fs_buffer[fatindex] & 0x0f) |
-                           nextcluster << 4;
+                           (uint8_t)nextcluster << 4;
                 }
               else
                 {
@@ -1113,7 +1124,7 @@ int fat_removechain(struct fat_mountpt_s *fs, uint32_t cluster)
 
   /* Loop while there are clusters in the chain */
 
-  while (cluster >= 2 && cluster < fs->fs_nclusters)
+  while (cluster >= 2 && cluster < fs->fs_nclusters + 2)
     {
       /* Get the next cluster after the current one */
 
@@ -1177,7 +1188,7 @@ int32_t fat_extendchain(struct fat_mountpt_s *fs, uint32_t cluster)
        */
 
       startcluster = fs->fs_fsinextfree;
-      if (startcluster == 0 || startcluster >= fs->fs_nclusters)
+      if (startcluster == 0 || startcluster >= fs->fs_nclusters + 2)
         {
           /* But it is bad.. we have to start at the beginning */
 
@@ -1203,7 +1214,7 @@ int32_t fat_extendchain(struct fat_mountpt_s *fs, uint32_t cluster)
 
           return 0;
         }
-      else if (startsector < fs->fs_nclusters)
+      else if (startsector < fs->fs_nclusters + 2)
         {
           /* It is already followed by next cluster */
 
@@ -1226,7 +1237,7 @@ int32_t fat_extendchain(struct fat_mountpt_s *fs, uint32_t cluster)
       /* Examine the next cluster in the FAT */
 
       newcluster++;
-      if (newcluster >= fs->fs_nclusters)
+      if (newcluster >= fs->fs_nclusters + 2)
         {
           /* If we hit the end of the available clusters, then
            * wrap back to the beginning because we might have
@@ -1332,7 +1343,7 @@ int fat_nextdirentry(struct fat_mountpt_s *fs, struct fs_fatdir_s *dir)
 
   ndx = dir->fd_index + 1;
 
-  /* Check if all of the directory entries in this sectory have
+  /* Check if all of the directory entries in this sector have
    * been examined.
    */
 
@@ -1368,7 +1379,7 @@ int fat_nextdirentry(struct fat_mountpt_s *fs, struct fs_fatdir_s *dir)
            * entire cluster comprising the directory.
            *
            * The current sector within the cluster is the entry number
-           * divided byte the number of entries per sector
+           * divided by the number of entries per sector
            */
 
           int sector = ndx / DIRSEC_NDIRS(fs);
@@ -1385,7 +1396,7 @@ int fat_nextdirentry(struct fat_mountpt_s *fs, struct fs_fatdir_s *dir)
 
               /* Check if a valid cluster was obtained. */
 
-              if (cluster < 2 || cluster >= fs->fs_nclusters)
+              if (cluster < 2 || cluster >= fs->fs_nclusters + 2)
                 {
                   /* No, we have probably reached the end of the cluster
                    * list.
@@ -1529,7 +1540,7 @@ int fat_dirshrink(struct fat_mountpt_s *fs, FAR uint8_t *direntry,
   clustersize = fs->fs_fatsecperclus * fs->fs_hwsectorsize;
   remaining   = length;
 
-  while (cluster >= 2 && cluster < fs->fs_nclusters)
+  while (cluster >= 2 && cluster < fs->fs_nclusters + 2)
     {
       /* Will there be data in the next cluster after the shrinkage? */
 
@@ -1654,7 +1665,7 @@ int fat_dirextend(FAR struct fat_mountpt_s *fs, FAR struct fat_file_s *ff,
             {
               return (int)cluster;
             }
-          else if (cluster < 2 || cluster >= fs->fs_nclusters)
+          else if (cluster < 2 || cluster >= fs->fs_nclusters + 2)
             {
               return -ENOSPC;
             }
@@ -2033,7 +2044,7 @@ int fat_computefreeclusters(struct fat_mountpt_s *fs)
 
       /* Examine every cluster in the fat */
 
-      for (sector = 2; sector < fs->fs_nclusters; sector++)
+      for (sector = 2; sector < fs->fs_nclusters + 2; sector++)
         {
           /* If the cluster is unassigned, then increment the count of free
            * clusters
@@ -2127,7 +2138,7 @@ int fat_nfreeclusters(struct fat_mountpt_s *fs, fsblkcnt_t *pfreeclusters)
    * value.
    */
 
-  if (fs->fs_fsifreecount <= fs->fs_nclusters - 2)
+  if (fs->fs_fsifreecount <= fs->fs_nclusters)
     {
       *pfreeclusters = fs->fs_fsifreecount;
       return OK;

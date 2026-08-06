@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/timers/rx8010.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,9 +27,10 @@
 #include <nuttx/config.h>
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <time.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/i2c/i2c_master.h>
@@ -391,11 +394,11 @@ int up_rtc_settime(FAR const struct timespec *tp)
       return -EAGAIN;
     }
 
-  rtcinfo("Setting time tp=(%d,%d)\n", (int)tp->tv_sec, (int)tp->tv_nsec);
+  rtcinfo("Setting time tp=(%jd,%ld)\n", (intmax_t)tp->tv_sec, tp->tv_nsec);
 
   /* Get the broken out time */
 
-  newtime = (time_t)tp->tv_sec;
+  newtime = tp->tv_sec;
   if (tp->tv_nsec >= 500000000)
     {
       /* Round up */

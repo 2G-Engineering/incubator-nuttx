@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/power/battery/axp202.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <assert.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/i2c/i2c_master.h>
@@ -243,7 +245,7 @@ static int axp202_health(FAR struct battery_charger_dev_s *dev,
 
   /*  Only a few of the possible states are supported by this driver:
    *   BATTERY_HEALTH_UNKNOWN       - health state is not known
-   *   BATTERY_HEALTH_GOOD          - is in good condiction
+   *   BATTERY_HEALTH_GOOD          - is in good condition
    *   BATTERY_HEALTH_DEAD          - is dead, nothing we can do
    *   BATTERY_HEALTH_OVERHEAT      - is over recommended temperature
    *   BATTERY_HEALTH_OVERVOLTAGE   - voltage is over recommended level
@@ -390,8 +392,7 @@ static int axp202_current(FAR struct battery_charger_dev_s *dev, int value)
       return ret;
     }
 
-  /**
-   * Charge current setting
+  /* Charge current setting
    * Icharge= [300+(Bit3-0)*100] mA
    */
 
@@ -675,7 +676,7 @@ axp202_initialize(FAR struct i2c_master_s *i2c, uint8_t addr,
 
   /* Initialize the axp202 device structure */
 
-  priv = (FAR struct axp202_dev_s *)kmm_zalloc(sizeof(struct axp202_dev_s));
+  priv = kmm_zalloc(sizeof(struct axp202_dev_s));
 
   if (priv)
     {

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_spi_slave.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <semaphore.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
 #include <nuttx/irq.h>
@@ -65,19 +67,19 @@
 
 /* SPI interrupts */
 
-#ifdef CONFIG_STM32H7_SPI_INTERRUPTS
+#ifdef CONFIG_STM32_SPI_INTERRUPTS
 #  error "Interrupt driven SPI not yet supported"
 #endif
 
 /* Can't have both interrupt driven SPI and SPI DMA */
 
-#if defined(CONFIG_STM32H7_SPI_INTERRUPTS) && defined(CONFIG_STM32H7_SPI_DMA)
+#if defined(CONFIG_STM32_SPI_INTERRUPTS) && defined(CONFIG_STM32_SPI_DMA)
 #  error "Cannot enable both interrupt mode and DMA mode for SPI"
 #endif
 
 /* SPI DMA priority */
 
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
 
 #  if defined(CONFIG_SPI_DMAPRIO)
 #    define SPI_DMA_PRIO  CONFIG_SPI_DMAPRIO
@@ -121,7 +123,7 @@
 #  if SPI123_KERNEL_CLOCK_FREQ > 200000000
 #    error Not supported SPI123 frequency
 #  endif
-#endif  /* SPI123 */
+#endif /* SPI123 */
 
 #if defined(CONFIG_STM32H7_SPI4_SLAVE) || defined(CONFIG_STM32H7_SPI5_SLAVE)
 #  if STM32_RCC_D2CCIP1R_SPI45SRC == RCC_D2CCIP1R_SPI45SEL_APB
@@ -132,7 +134,7 @@
 #  if SPI45_KERNEL_CLOCK_FREQ > 100000000
 #    error Not supported SPI45 frequency
 #  endif
-#endif  /* SPI45 */
+#endif /* SPI45 */
 
 #if defined(CONFIG_STM32H7_SPI6_SLAVE)
 #  if STM32_RCC_D3CCIPR_SPI6SRC == RCC_D3CCIPR_SPI6SEL_PCLK4
@@ -143,7 +145,7 @@
 #  if SPI6_KERNEL_CLOCK_FREQ > 100000000
 #    error Not supported SPI6 frequency
 #  endif
-#endif  /* SPI6 */
+#endif /* SPI6 */
 
 #if defined (CONFIG_STM32H7_SPI_SLAVE_QSIZE)
 #  if CONFIG_STM32H7_SPI_SLAVE_QSIZE > 65535
@@ -185,7 +187,7 @@ struct stm32_spidev_s
   uint32_t         spiclock;     /* Clocking for the SPI module */
   uint8_t          irq;          /* SPI IRQ number */
   uint32_t         nss_pin;      /* Chip select pin configuration */
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
   volatile uint8_t rxresult;     /* Result of the RX DMA */
   volatile uint8_t txresult;     /* Result of the TX DMA */
   uint32_t         rxch;         /* The RX DMA channel number */
@@ -219,7 +221,7 @@ struct stm32_spidev_s
   /* Input queue */
 
   uint16_t ihead;                 /* Location of next unread value */
-#ifndef CONFIG_STM32H7_SPI_DMA
+#ifndef CONFIG_STM32_SPI_DMA
   uint16_t itail;                 /* Index of next free memory pointer */
 #endif
   uint8_t *inq;
@@ -248,7 +250,7 @@ static inline void spi_dumpregs(struct stm32_spidev_s *priv);
 
 /* DMA support */
 
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
 static void        spi_dmarxcallback(DMA_HANDLE handle, uint8_t isr,
                                      void *arg);
 static void        spi_dmatxcallback(DMA_HANDLE handle, uint8_t isr,
@@ -309,14 +311,14 @@ static const struct spi_slave_ctrlrops_s g_ctrlr_ops =
 #define SPI_SLAVE_OUTQ(x) spi##x##_outq
 #define SPI_SLAVE_INQ(x) spi##x##_inq
 
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
 #define SPI_SLAVE_INIT_DMA(x)                           \
   .rxch          = DMAMAP_SPI##x##_RX,                  \
   .txch          = DMAMAP_SPI##x##_TX,                  \
   .rxsem         = SEM_INITIALIZER(0),                  \
   .txsem         = SEM_INITIALIZER(0),                  \
-  .outq	         = SPI_SLAVE_OUTQ(x),                   \
-  .inq	         = SPI_SLAVE_INQ(x),
+  .outq          = SPI_SLAVE_OUTQ(x),                   \
+  .inq           = SPI_SLAVE_INQ(x),
 #else
 #define SPI_SLAVE_INIT_DMA(x)
 #endif
@@ -338,7 +340,7 @@ static const struct spi_slave_ctrlrops_s g_ctrlr_ops =
   .initialized   = false,                               \
   .lock          = NXMUTEX_INITIALIZER,                 \
   SPI_SLAVE_INIT_PM_PREPARE                             \
-  .config        = CONFIG_STM32H7_SPI##x##_COMMTYPE,    \
+  .config        = CONFIG_STM32_SPI##x##_COMMTYPE,    \
 }
 
 #ifdef CONFIG_STM32H7_SPI1_SLAVE
@@ -662,11 +664,13 @@ static inline void spi_writebyte(struct stm32_spidev_s *priv,
 #ifdef CONFIG_DEBUG_SPI_INFO
 static void spi_dumpregs(struct stm32_spidev_s *priv)
 {
-  spiinfo("CR1: 0x%08x CFG1: 0x%08x CFG2: 0x%08x\n",
+  spiinfo("CR1: 0x%08" PRIx32 " CFG1: 0x%08" PRIx32
+          " CFG2: 0x%08" PRIx32 "\n",
           spi_getreg(priv, STM32_SPI_CR1_OFFSET),
           spi_getreg(priv, STM32_SPI_CFG1_OFFSET),
           spi_getreg(priv, STM32_SPI_CFG2_OFFSET));
-  spiinfo("IER: 0x%08x SR: 0x%08x I2SCFGR: 0x%08x\n",
+  spiinfo("IER: 0x%08" PRIx32 " SR: 0x%08" PRIx32
+          " I2SCFGR: 0x%08" PRIx32 "\n",
           spi_getreg(priv, STM32_SPI_IER_OFFSET),
           spi_getreg(priv, STM32_SPI_SR_OFFSET),
           spi_getreg(priv, STM32_SPI_I2SCFGR_OFFSET));
@@ -702,7 +706,7 @@ static inline bool spi_9to16bitmode(struct stm32_spidev_s *priv)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
 static void spi_dmarxcallback(DMA_HANDLE handle, uint8_t isr, void *arg)
 {
   struct stm32_spidev_s *priv = (struct stm32_spidev_s *)arg;
@@ -710,6 +714,7 @@ static void spi_dmarxcallback(DMA_HANDLE handle, uint8_t isr, void *arg)
   /* Wake-up the SPI driver */
 
   priv->rxresult = isr | 0x080;  /* OR'ed with 0x80 to assure non-zero */
+  SPIS_DEV_NOTIFY(priv->dev, SPISLAVE_RX_COMPLETE);
 }
 #endif
 
@@ -721,7 +726,7 @@ static void spi_dmarxcallback(DMA_HANDLE handle, uint8_t isr, void *arg)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
 static void spi_dmatxcallback(DMA_HANDLE handle, uint8_t isr, void *arg)
 {
   struct stm32_spidev_s *priv = (struct stm32_spidev_s *)arg;
@@ -729,6 +734,7 @@ static void spi_dmatxcallback(DMA_HANDLE handle, uint8_t isr, void *arg)
   /* Wake-up the SPI driver */
 
   priv->txresult = isr | 0x080;  /* OR'ed with 0x80 to assure non-zero */
+  SPIS_DEV_NOTIFY(priv->dev, SPISLAVE_TX_COMPLETE);
 }
 #endif
 
@@ -740,7 +746,7 @@ static void spi_dmatxcallback(DMA_HANDLE handle, uint8_t isr, void *arg)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
 static void spi_dmarxsetup(struct stm32_spidev_s *priv, size_t nwords)
 {
   stm32_dmacfg_t dmacfg;
@@ -789,7 +795,7 @@ static void spi_dmarxsetup(struct stm32_spidev_s *priv, size_t nwords)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
 static void spi_dmatxsetup(struct stm32_spidev_s *priv, size_t nwords)
 {
   /* TODO: set up dma to transfer out the new data from priv->outq,
@@ -844,7 +850,7 @@ static void spi_dmatxsetup(struct stm32_spidev_s *priv, size_t nwords)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
 static void spi_dmarxstart(struct stm32_spidev_s *priv)
 {
   /* Can't receive in tx only mode */
@@ -869,7 +875,7 @@ static void spi_dmarxstart(struct stm32_spidev_s *priv)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
 static void spi_dmatxstart(struct stm32_spidev_s *priv)
 {
   /* Can't transmit in rx only mode */
@@ -1217,7 +1223,7 @@ static int spi_nssinterrupt(int irq, void *context, void *arg)
 
   spi_enable(priv, false);
 
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
 
   /* Setup DMAs */
 
@@ -1357,7 +1363,7 @@ static void spi_qflush(struct spi_slave_ctrlr_s *ctrlr)
 
   DEBUGASSERT(priv != NULL && priv->dev != NULL);
 
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
   if (!priv->dmarunning)
     {
       return;
@@ -1371,7 +1377,7 @@ static void spi_qflush(struct spi_slave_ctrlr_s *ctrlr)
 
   /* Flush the input buffers */
 
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
   priv->ihead =
     CONFIG_STM32H7_SPI_SLAVE_QSIZE - stm32_dmaresidual(priv->rxdma);
 #else
@@ -1448,7 +1454,7 @@ static size_t spi_qpoll(struct spi_slave_ctrlr_s *ctrlr)
   DEBUGASSERT(priv != NULL && priv->dev != NULL);
   DEBUGASSERT(priv->ihead < CONFIG_STM32H7_SPI_SLAVE_QSIZE);
 
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
   if (!priv->dmarunning)
     {
       return 0;
@@ -1459,7 +1465,7 @@ static size_t spi_qpoll(struct spi_slave_ctrlr_s *ctrlr)
 
   spi_lock(ctrlr, true);
 
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
   itail = CONFIG_STM32H7_SPI_SLAVE_QSIZE - stm32_dmaresidual(priv->rxdma);
 #else
   #error Support only simplex mode rx with dma
@@ -1651,7 +1657,7 @@ static void spi_slave_initialize(struct stm32_spidev_s *priv)
 
   spi_putreg(priv, STM32_SPI_CRCPOLY_OFFSET, 7);
 
-#ifdef CONFIG_STM32H7_SPI_DMA
+#ifdef CONFIG_STM32_SPI_DMA
   /* DMA will be started in the interrupt handler, synchronized to the master
    * nss
    */
@@ -1790,4 +1796,4 @@ struct spi_slave_ctrlr_s *stm32_spi_slave_initialize(int bus)
   return (struct spi_slave_ctrlr_s *)priv;
 }
 
-#endif /* CONFIG_STM32H7_SPI1..6_SLAVE */
+#endif /* CONFIG_STM32_SPI1..6_SLAVE */

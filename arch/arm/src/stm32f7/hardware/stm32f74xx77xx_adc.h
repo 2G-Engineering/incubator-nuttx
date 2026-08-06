@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/hardware/stm32f74xx77xx_adc.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -62,7 +64,7 @@
 
 /* Register Addresses *******************************************************/
 
-#if STM32F7_NADC > 0
+#if STM32_NADC > 0
 #  define STM32_ADC1_SR              (STM32_ADC1_BASE+STM32_ADC_SR_OFFSET)
 #  define STM32_ADC1_CR1             (STM32_ADC1_BASE+STM32_ADC_CR1_OFFSET)
 #  define STM32_ADC1_CR2             (STM32_ADC1_BASE+STM32_ADC_CR2_OFFSET)
@@ -85,7 +87,7 @@
 #  define STM32_ADC1_DR              (STM32_ADC1_BASE+STM32_ADC_DR_OFFSET)
 #endif
 
-#if STM32F7_NADC > 1
+#if STM32_NADC > 1
 #  define STM32_ADC2_SR              (STM32_ADC2_BASE+STM32_ADC_SR_OFFSET)
 #  define STM32_ADC2_CR1             (STM32_ADC2_BASE+STM32_ADC_CR1_OFFSET)
 #  define STM32_ADC2_CR2             (STM32_ADC2_BASE+STM32_ADC_CR2_OFFSET)
@@ -108,7 +110,7 @@
 #  define STM32_ADC2_DR              (STM32_ADC2_BASE+STM32_ADC_DR_OFFSET)
 #endif
 
-#if STM32F7_NADC > 2
+#if STM32_NADC > 2
 #  define STM32_ADC3_SR              (STM32_ADC3_BASE+STM32_ADC_SR_OFFSET)
 #  define STM32_ADC3_CR1             (STM32_ADC3_BASE+STM32_ADC_CR1_OFFSET)
 #  define STM32_ADC3_CR2             (STM32_ADC3_BASE+STM32_ADC_CR2_OFFSET)

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/contactless/mfrc522.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,10 +37,11 @@
 #include <stdio.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
+#include <nuttx/power/pm.h>
 #include <nuttx/contactless/mfrc522.h>
 
 #include "mfrc522.h"
@@ -97,7 +100,7 @@ int mfrc522_picc_select(FAR struct mfrc522_dev_s *dev,
 #if 0 /* TODO */
 /* IRQ Handling */
 
-static int mfrc522_irqhandler(FAR int irq, FAR void *context, FAR void *dev);
+static int mfrc522_irqhandler(int irq, FAR void *context, FAR void *dev);
 static inline int mfrc522_attachirq(FAR struct mfrc522_dev_s *dev,
                                     xcpt_t isr);
 #endif
@@ -1095,7 +1098,7 @@ void mfrc522_softreset(FAR struct mfrc522_dev_s *dev)
 
   /* Wait the internal state machine to initialize */
 
-  nxsig_usleep(50000);
+  nxsched_usleep(50000);
 
   /* Wait for the PowerDown bit in COMMAND_REG to be cleared */
 
@@ -1217,6 +1220,14 @@ int mfrc522_mifare_read(FAR struct mfrc522_dev_s *dev,
   uint8_t length    = 18;
   uint8_t validbits = 0;
   int     ret       = OK;
+
+  /* Validate expected tag size (only pages 0x0, ..., 0xf are valid. */
+
+  if (data->address > 15)
+    {
+      ret = -ERANGE;
+      goto errout;
+    }
 
   /* Read block from address */
 
@@ -1414,15 +1425,14 @@ static int mfrc522_open(FAR struct file *filep)
   FAR struct inode *inode;
   FAR struct mfrc522_dev_s *dev;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
+  DEBUGASSERT(inode->i_private);
   dev = inode->i_private;
 
   mfrc522_configspi(dev->spi);
 
-  nxsig_usleep(10000);
+  nxsched_usleep(10000);
 
   mfrc522_getfwversion(dev);
 
@@ -1443,10 +1453,9 @@ static int mfrc522_close(FAR struct file *filep)
   FAR struct inode *inode;
   FAR struct mfrc522_dev_s *dev;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
+  DEBUGASSERT(inode->i_private);
   dev = inode->i_private;
 
   dev->state = MFRC522_STATE_NOT_INIT;
@@ -1472,10 +1481,9 @@ static ssize_t mfrc522_read(FAR struct file *filep, FAR char *buffer,
   FAR struct mfrc522_dev_s *dev;
   FAR struct picc_uid_s uid;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
+  DEBUGASSERT(inode->i_private);
   dev = inode->i_private;
 
   /* Is a card near? */
@@ -1516,10 +1524,9 @@ static ssize_t mfrc522_write(FAR struct file *filep, FAR const char *buffer,
   FAR struct inode *inode;
   FAR struct mfrc522_dev_s *dev;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
+  DEBUGASSERT(inode->i_private);
   dev = inode->i_private;
 
   UNUSED(dev);
@@ -1537,10 +1544,9 @@ static int mfrc522_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   FAR struct mfrc522_dev_s *dev;
   int ret = OK;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
+  DEBUGASSERT(inode->i_private);
   dev = inode->i_private;
 
   switch (cmd)
@@ -1633,7 +1639,7 @@ int mfrc522_register(FAR const char *devpath, FAR struct spi_dev_s *spi)
 
   /* Initialize the MFRC522 device structure */
 
-  dev = (FAR struct mfrc522_dev_s *)kmm_malloc(sizeof(struct mfrc522_dev_s));
+  dev = kmm_malloc(sizeof(struct mfrc522_dev_s));
   if (!dev)
     {
       ctlserr("ERROR: Failed to allocate instance\n");

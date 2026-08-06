@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/tlsr82/tlsr82_pwm.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -73,7 +75,9 @@ extern "C"
  * Public Function Prototypes
  ****************************************************************************/
 
-int tlsr82_pwminitialize(const char *devpath, int miror);
+#ifdef CONFIG_PWM
+int tlsr82_pwminitialize(const char *devpath, int minor);
+#endif
 
 #undef EXTERN
 #if defined(__cplusplus)

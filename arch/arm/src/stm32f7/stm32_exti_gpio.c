@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/stm32_exti_gpio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/irq.h>
 
@@ -42,9 +44,9 @@
  * families
  */
 
-#if defined(CONFIG_STM32F7_STM32F72XX) || defined(CONFIG_STM32F7_STM32F73XX) \
-  || defined(CONFIG_STM32F7_STM32F74XX) || defined(CONFIG_STM32F7_STM32F75XX) \
-  || defined(CONFIG_STM32F7_STM32F76XX) || defined(CONFIG_STM32F7_STM32F77XX)
+#if defined(CONFIG_STM32_STM32F72XX) || defined(CONFIG_STM32_STM32F73XX) \
+  || defined(CONFIG_STM32_STM32F74XX) || defined(CONFIG_STM32_STM32F75XX) \
+  || defined(CONFIG_STM32_STM32F76XX) || defined(CONFIG_STM32_STM32F77XX)
 
 /****************************************************************************
  * Private Types
@@ -374,4 +376,4 @@ int stm32_gpiosetevent(uint32_t pinset, bool risingedge, bool fallingedge,
   return OK;
 }
 
-#endif /* CONFIG_STM32F7_STM32F74XX || CONFIG_STM32F7_STM32F75XX */
+#endif /* CONFIG_STM32_STM32F74XX || CONFIG_STM32_STM32F75XX */

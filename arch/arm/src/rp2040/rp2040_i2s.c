@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rp2040/rp2040_i2s.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/mutex.h>
@@ -75,7 +77,7 @@
 /* Debug ********************************************************************/
 
 /* Check if SSC debug is enabled (non-standard.. no support in
- * include/debug.h
+ * include/nuttx/debug.h
  */
 
 #ifndef CONFIG_DEBUG_I2S_INFO
@@ -192,9 +194,9 @@ static int      i2s_checkwidth(struct rp2040_i2s_s *priv, int bits);
 
 static int      rp2040_i2s_txchannels(struct i2s_dev_s *dev,
                                       uint8_t channels);
-static uint32_t rp2040_i2s_txsamplerate(struct i2s_dev_s *dev,
+static int32_t  rp2040_i2s_txsamplerate(struct i2s_dev_s *dev,
                                         uint32_t rate);
-static uint32_t rp2040_i2s_txdatawidth(struct i2s_dev_s *dev, int bits);
+static int32_t  rp2040_i2s_txdatawidth(struct i2s_dev_s *dev, int bits);
 static int      rp2040_i2s_send(struct i2s_dev_s *dev,
                                 struct ap_buffer_s *apb,
                                 i2s_callback_t callback, void *arg,
@@ -747,7 +749,7 @@ static int rp2040_i2s_txchannels(struct i2s_dev_s *dev, uint8_t channels)
  *
  ****************************************************************************/
 
-static uint32_t rp2040_i2s_txsamplerate(struct i2s_dev_s *dev, uint32_t rate)
+static int32_t rp2040_i2s_txsamplerate(struct i2s_dev_s *dev, uint32_t rate)
 {
   struct rp2040_i2s_s *priv = (struct rp2040_i2s_s *)dev;
 
@@ -778,7 +780,7 @@ static uint32_t rp2040_i2s_txsamplerate(struct i2s_dev_s *dev, uint32_t rate)
  *
  ****************************************************************************/
 
-static uint32_t rp2040_i2s_txdatawidth(struct i2s_dev_s *dev, int bits)
+static int32_t rp2040_i2s_txdatawidth(struct i2s_dev_s *dev, int bits)
 {
   struct rp2040_i2s_s *priv = (struct rp2040_i2s_s *)dev;
   int ret;
@@ -1291,7 +1293,7 @@ struct i2s_dev_s *rp2040_i2sbus_initialize(int port)
 
   i2sinfo("port: %d\n", port);
 
-  priv = (struct rp2040_i2s_s *)kmm_zalloc(sizeof(struct rp2040_i2s_s));
+  priv = kmm_zalloc(sizeof(struct rp2040_i2s_s));
   if (!priv)
     {
       i2serr("ERROR: Failed to allocate a chip select structure\n");

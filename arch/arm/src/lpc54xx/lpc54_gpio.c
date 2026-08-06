@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lpc54xx/lpc54_gpio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/irq.h>
 
@@ -374,7 +376,7 @@ int lpc54_gpio_config(lpc54_pinset_t cfgset)
           break;
 #endif
 
-        case GPIO_OUTPUT:  /* GPIO outpout pin */
+        case GPIO_OUTPUT:  /* GPIO output pin */
           lpc54_gpio_output(cfgset, port, pin);
           break;
 

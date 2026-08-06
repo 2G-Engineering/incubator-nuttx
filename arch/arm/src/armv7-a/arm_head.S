@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv7-a/arm_head.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,14 +26,25 @@
 
 #include <nuttx/config.h>
 
+#include <arch/irq.h>
+
 #include "arm.h"
-#include "cp15.h"
 #include "sctlr.h"
 #include "mmu.h"
 #include "chip.h"
 #include "arm_internal.h"
 
-#ifndef CONFIG_PAGING
+#ifndef IDLE_STACK_BASE
+  #ifdef CONFIG_BOOT_SDRAM_DATA
+    #define IDLE_STACK_BASE IDLE_STACK_VBASE
+  #else
+    #define IDLE_STACK_BASE _ebss
+  #endif
+#endif
+
+#define IDLE_STACK_TOP  (IDLE_STACK_BASE + CONFIG_IDLETHREAD_STACKSIZE)
+
+#ifndef CONFIG_LEGACY_PAGING
 
 	.file	"arm_head.S"
 
@@ -166,27 +179,42 @@
 	.type	__start, #function
 
 __start:
-#if defined(CONFIG_SMP) && CONFIG_SMP_NCPUS > 1
+#if CONFIG_NCPUS > 1
 	/* Get cpuindex, cpu0 continue boot, others wait event from cpu0 */
 
 	mrc		CP15_MPIDR(r0)
 	and		r0, r0, #0x3
 	cmp		r0, #0
 	beq		__cpu0_start
+
+#ifdef CONFIG_ARM_BUSY_WAIT
+	ldr		r2, =CONFIG_ARM_BUSY_WAIT_FLAG_ADDR
+1:
+	ldr		r1, [r2, #0]
+	cmp		r1, #0
+	beq		1b
+#else
 	wfe
+#endif
+
+	ldr		r1, =cpu1_start
+	ldr		r1, [r1]
 	cmp		r0, #1
-	beq		__cpu1_start
-#  if CONFIG_SMP_NCPUS > 2
+	bxeq		r1
+#  if CONFIG_NCPUS > 2
+	ldr		r1, =cpu2_start
+	ldr		r1, [r1]
 	cmp		r0, #2
-	beq		__cpu2_start
+	bxeq		r1
 #  endif
-#  if CONFIG_SMP_NCPUS > 3
+#  if CONFIG_NCPUS > 3
+	ldr		r1, =cpu3_start
+	ldr		r1, [r1]
 	cmp		r0, #3
-	beq		__cpu3_start
+	bxeq		r1
 #  endif
-#  if CONFIG_SMP_NCPUS > 4
-	cmp		r0, #4
-	beq		__cpu4_start
+#  if CONFIG_NCPUS > 4
+#    error This logic needs to extended for CONFIG_SMP_NCPUS > 4
 #  endif
 
 __cpu0_start:
@@ -347,6 +375,7 @@ __cpu0_start:
 	 */
 
 	mov		r0, #0
+	mcr		CP15_TPIDRPRW(r0)	/* Initialize percpu reg TPIDRPRW */
 #ifdef CONFIG_ARM_HAVE_MPCORE
 	mcr		CP15_TLBIALLIS(r0)	/* Invalidate the entire unified TLB */
 	mcr		CP15_BPIALLIS(r0)	/* Invalidate entire branch prediction array */
@@ -664,6 +693,15 @@ __cpu0_start:
 
 	bl		arm_boot
 
+	/* finish busy wait */
+
+#ifdef CONFIG_ARM_BUSY_WAIT
+	ldr		r0, =CONFIG_ARM_BUSY_WAIT_FLAG_ADDR
+	mov		r1, #1
+	str		r1, [r0]
+	dsb		sy
+#endif
+
 	/* Finally branch to the OS entry point */
 
 	mov		lr, #0				/* LR = return address (none) */
@@ -752,13 +790,7 @@ arm_data_initialize:
 	.size	.Linitparms, . -.Linitparms
 
 .Lstackpointer:
-#ifdef CONFIG_BOOT_SDRAM_DATA
-	.long	IDLE_STACK_VBASE+CONFIG_IDLETHREAD_STACKSIZE
-#elif defined(CONFIG_SMP)
-	.long	_enoinit+CONFIG_IDLETHREAD_STACKSIZE
-#else
-	.long	_ebss+CONFIG_IDLETHREAD_STACKSIZE
-#endif
+	.long	IDLE_STACK_TOP
 	.size	.Lstackpointer, . -.Lstackpointer
 
 #ifdef CONFIG_BOOT_RUNFROMFLASH
@@ -786,13 +818,7 @@ arm_data_initialize:
 
 g_idle_topstack:
 
-#ifdef CONFIG_BOOT_SDRAM_DATA
-	.long	IDLE_STACK_VBASE+CONFIG_IDLETHREAD_STACKSIZE
-#elif defined(CONFIG_SMP)
-	.long	_enoinit+CONFIG_IDLETHREAD_STACKSIZE
-#else
-	.long	_ebss+CONFIG_IDLETHREAD_STACKSIZE
-#endif
+	.long	IDLE_STACK_TOP
 	.size	g_idle_topstack, .-g_idle_topstack
 	.end
 #endif

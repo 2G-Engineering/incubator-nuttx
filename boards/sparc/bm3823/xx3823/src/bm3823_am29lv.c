@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/sparc/bm3823/xx3823/src/bm3823_am29lv.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #ifdef CONFIG_MTD_AM29LV
 #  include <nuttx/mtd/mtd.h>
@@ -102,7 +104,7 @@ int bm3823_am29lv_initialize(int minor)
 
 #if defined(CONFIG_RAMMTD) && defined(CONFIG_XX3823_RAMMTD)
 
-  uint8_t *start = (uint8_t *)kmm_malloc(CONFIG_XX3823_RAMMTD_SIZE * 1024);
+  uint8_t *start = kmm_malloc(CONFIG_XX3823_RAMMTD_SIZE * 1024);
   mtd = rammtd_initialize(start, CONFIG_XX3823_RAMMTD_SIZE * 1024);
   mtd->ioctl(mtd, MTDIOC_BULKERASE, 0);
 

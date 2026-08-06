@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/audio/tone.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -74,9 +76,7 @@ extern "C"
  ****************************************************************************/
 
 int tone_register(FAR const char *path, FAR struct pwm_lowerhalf_s *tone,
-#ifdef CONFIG_PWM_MULTICHAN
                   int channel,
-#endif
                   FAR struct oneshot_lowerhalf_s *oneshot);
 
 #undef EXTERN

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/rv32m1/rv32m1_delay.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,6 +34,9 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+static_assert(CONFIG_BOARD_LOOPSPERMSEC != -1,
+              "Configure BOARD_LOOPSPERMSEC to non-default value.");
 
 #define CONFIG_BOARD_LOOPSPER100USEC ((CONFIG_BOARD_LOOPSPERMSEC+5)/10)
 #define CONFIG_BOARD_LOOPSPER10USEC  ((CONFIG_BOARD_LOOPSPERMSEC+50)/100)
@@ -189,7 +194,7 @@ void up_mdelay(unsigned int milliseconds)
 
   /* When Timer Service is up, and its frequency isn't less than 1KHz,
    * the granularity of Timer Service can provide 1 ms accuracy. In
-   * other cases, sofware delay timer is preferred.
+   * other cases, software delay timer is preferred.
    */
 
   if (!rv32m1_timersvc_up() || freq < 1000u || !period)
@@ -222,7 +227,7 @@ void up_udelay(useconds_t microseconds)
 
   /* When Timer Service is up, and its frequency isn't less than 1MHz,
    * the granularity of Timer Service can provide 1 us accuracy. In
-   * other cases, sofware delay timer is preferred.
+   * other cases, software delay timer is preferred.
    */
 
   if (!rv32m1_timersvc_up() || freq < 1000000u || !period)

@@ -1,6 +1,7 @@
 /****************************************************************************
  * net/devif/ipv6_input.c
- * Device driver IPv6 packet receipt interface
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -29,7 +30,7 @@
 #include <sys/ioctl.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
 #include <net/if.h>
@@ -47,10 +48,12 @@
 #include "pkt/pkt.h"
 #include "icmpv6/icmpv6.h"
 
+#include "nat/nat.h"
 #include "netdev/netdev.h"
 #include "ipforward/ipforward.h"
 #include "inet/inet.h"
 #include "devif/devif.h"
+#include "ipfilter/ipfilter.h"
 #include "ipfrag/ipfrag.h"
 
 /****************************************************************************
@@ -78,7 +81,7 @@ static int check_dev_destipaddr(FAR struct net_driver_s *dev, FAR void *arg)
    * to this device.
    */
 
-  if (net_ipv6addr_cmp(ipv6->destipaddr, dev->d_ipv6addr))
+  if (NETDEV_IS_MY_V6ADDR(dev, ipv6->destipaddr))
     {
       return 1;
     }
@@ -221,6 +224,8 @@ static int ipv6_in(FAR struct net_driver_s *dev)
 
   /* Get the size of the packet minus the size of link layer header */
 
+  dev->d_len -= NET_LL_HDRLEN(dev);
+
   if (IPv6_HDRLEN > dev->d_len)
     {
       nwarn("WARNING: Packet shorter than IPv6 header\n");
@@ -256,7 +261,7 @@ static int ipv6_in(FAR struct net_driver_s *dev)
 
   if (paylen < dev->d_len)
     {
-      iob_update_pktlen(dev->d_iob, paylen);
+      iob_update_pktlen(dev->d_iob, paylen, false);
       dev->d_len = paylen;
     }
   else if (paylen > dev->d_len)
@@ -295,6 +300,12 @@ static int ipv6_in(FAR struct net_driver_s *dev)
       iphdrlen += extlen;
       nxthdr    = exthdr->nxthdr;
     }
+
+#ifdef CONFIG_NET_NAT66
+  /* Try NAT inbound, rule matching will be performed in NAT module. */
+
+  ipv6_nat_inbound(dev, ipv6);
+#endif
 
 #ifdef CONFIG_NET_BROADCAST
   /* Check for a multicast packet, which may be destined to us (even if
@@ -389,7 +400,7 @@ static int ipv6_in(FAR struct net_driver_s *dev)
    * (the all zero address is the "unspecified" address.
    */
 
-  if (net_ipv6addr_cmp(dev->d_ipv6addr, g_ipv6_unspecaddr))
+  if (!NETDEV_HAS_V6ADDR(dev))
     {
       nwarn("WARNING: No IP address assigned\n");
       goto drop;
@@ -410,6 +421,14 @@ static int ipv6_in(FAR struct net_driver_s *dev)
 #endif
           goto drop;
         }
+    }
+#endif
+
+#ifdef CONFIG_NET_IPFILTER
+  if (ipv6_filter_in(dev) != IPFILTER_TARGET_ACCEPT)
+    {
+      ninfo("Drop/Reject INPUT packet due to filter.\n");
+      goto done;
     }
 #endif
 
@@ -438,12 +457,20 @@ static int ipv6_in(FAR struct net_driver_s *dev)
          *
          * Case 3 is handled here.  Logic here detects if (1) an attempt
          * to return with d_len > 0 and (2) that the device is an
-         * IEEE802.15.4 MAC network driver. Under those conditions, 6LoWPAN
-         * logic will be called to create the IEEE80215.4 frames.
+         * IEEE802.15.4 MAC or PKTRADIO network driver .
+         * Under those conditions, 6LoWPAN logic will be called to create the
+         * IEEE80215.4 or PKTRADIO frames.
          */
 
-        if (dev->d_len > 0 && dev->d_lltype == CONFIG_NET_6LOWPAN)
+        if ((dev->d_len > 0 && dev->d_lltype == NET_LL_IEEE802154) ||
+            (dev->d_len > 0 && dev->d_lltype == NET_LL_PKTRADIO))
           {
+            /* tcp_ipv6_input() can update dev->d_iob. Update ipv6 to ensure
+             * using the correct data.
+             */
+
+            ipv6 = IPv6BUF;
+
             /* Let 6LoWPAN handle the TCP output */
 
             sixlowpan_tcp_send(dev, dev, ipv6);
@@ -462,6 +489,35 @@ static int ipv6_in(FAR struct net_driver_s *dev)
         /* Forward the IPv6 UDP packet */
 
         udp_ipv6_input(dev, iphdrlen);
+
+#if defined(CONFIG_NET_6LOWPAN) && defined(CONFIG_NET_ICMPv6)
+        /* udp_ipv6 processing can return a icmpv6 frame when enabled.
+         * Logic here detects (1) if an attempt to return with d_len > 0 and
+         * (2) that the device is an IEEE802.15.4 MAC or PKTRADIO network
+         * driver.
+         * Under those conditions, 6LoWPAN logic will be called to create the
+         * IEEE80215.4 or PKTRADIO frames.
+         */
+
+        if ((dev->d_len > 0 && dev->d_lltype == NET_LL_IEEE802154) ||
+            (dev->d_len > 0 && dev->d_lltype == NET_LL_PKTRADIO))
+          {
+            /* udp_ipv6_input() might update dev->d_iob. Make sure to use
+             * the correct data by updating ipv6.
+             */
+
+            ipv6 = IPv6BUF;
+
+            /* Let 6LoWPAN handle the udp output */
+
+            sixlowpan_icmpv6_send(dev, dev, ipv6);
+
+            /* Drop the packet in the d_buf */
+
+            goto drop;
+          }
+#endif /* CONFIG_NET_6LOWPAN && CONFIG_NET_ICMPV6 */
+
         break;
 #endif
 
@@ -484,12 +540,20 @@ static int ipv6_in(FAR struct net_driver_s *dev)
          *
          * Case 2 is handled here.  Logic here detects if (1) an attempt
          * to return with d_len > 0 and (2) that the device is an
-         * IEEE802.15.4 MAC network driver. Under those conditions, 6LoWPAN
-         * logic will be called to create the IEEE80215.4 frames.
+         * IEEE802.15.4 MAC or PKTRADIO network driver.
+         * Under those conditions, 6LoWPAN logic will be called to create the
+         * IEEE80215.4 or PKTRADIO frames.
          */
 
-        if (dev->d_len > 0 && dev->d_lltype == CONFIG_NET_6LOWPAN)
+        if ((dev->d_len > 0 && dev->d_lltype == NET_LL_IEEE802154) ||
+            (dev->d_len > 0 && dev->d_lltype == NET_LL_PKTRADIO))
           {
+            /* icmpv6_input() might update dev->d_iob. Make sure to use the
+             * correct data by updating ipv6.
+             */
+
+            ipv6 = IPv6BUF;
+
             /* Let 6LoWPAN handle the ICMPv6 output */
 
             sixlowpan_icmpv6_send(dev, dev, ipv6);
@@ -511,7 +575,11 @@ static int ipv6_in(FAR struct net_driver_s *dev)
         goto drop;
     }
 
-#ifdef CONFIG_NET_IPFORWARD
+#ifdef CONFIG_NET_IPFILTER
+  ipfilter_out(dev);
+#endif
+
+#if defined(CONFIG_NET_IPFORWARD) || defined(CONFIG_NET_IPFILTER)
 done:
 #endif
 
@@ -609,6 +677,14 @@ int ipv6_input(FAR struct net_driver_s *dev)
   FAR uint8_t *buf;
   int ret;
 
+  netdev_lock(dev);
+
+  /* Store reception timestamp if enabled and not provided by hardware. */
+
+#if defined(CONFIG_NET_TIMESTAMP) && !defined(CONFIG_ARCH_HAVE_NETDEV_TIMESTAMP)
+  clock_gettime(CLOCK_REALTIME, &dev->d_rxtime);
+#endif
+
   if (dev->d_iob != NULL)
     {
       buf = dev->d_buf;
@@ -620,9 +696,12 @@ int ipv6_input(FAR struct net_driver_s *dev)
 
       dev->d_buf = buf;
 
+      netdev_unlock(dev);
       return ret;
     }
 
-  return netdev_input(dev, ipv6_in, true);
+  ret = netdev_input(dev, ipv6_in, true);
+  netdev_unlock(dev);
+  return ret;
 }
 #endif /* CONFIG_NET_IPv6 */

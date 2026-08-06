@@ -1,6 +1,8 @@
 ############################################################################
 # boards/sparc/s698pm/s698pm-dkit/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -22,10 +24,6 @@
 
 ASRCS =
 CSRCS = s698pm_boot.c
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += s698pm_appinit.c
-endif
 
 ifeq ($(CONFIG_S698PM_WDG),y)
 CSRCS += s698pm_wdt.c

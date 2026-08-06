@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/wireless/ieee802154/mrf24j40/mrf24j40.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -88,17 +90,17 @@ static int mrf24j40_energydetect(FAR struct mrf24j40_radio_s *dev,
   reg |= 0x30;
   mrf24j40_setreg(dev->spi, MRF24J40_TXBCON1, reg);
 
-  /* 1. Set RSSIMODE1 0x3E<7> – Initiate RSSI calculation. */
+  /* 1. Set RSSIMODE1 0x3E<7> - Initiate RSSI calculation. */
 
   mrf24j40_setreg(dev->spi, MRF24J40_BBREG6, 0x80);
 
-  /* 2. Wait until RSSIRDY 0x3E<0> is set to ‘1’ – RSSI calculation is
+  /* 2. Wait until RSSIRDY 0x3E<0> is set to '1' - RSSI calculation is
    *    complete.
    */
 
   while (!(mrf24j40_getreg(dev->spi, MRF24J40_BBREG6) & 0x01));
 
-  /* 3. Read RSSI 0x210<7:0> – The RSSI register contains the averaged RSSI
+  /* 3. Read RSSI 0x210<7:0> - The RSSI register contains the averaged RSSI
    *    received power level for 8 symbol periods.
    */
 

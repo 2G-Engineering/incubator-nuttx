@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/signal/sig_notification.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <string.h>
 #include <signal.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/signal.h>
 
@@ -104,16 +106,14 @@ int nxsig_notification(pid_t pid, FAR struct sigevent *event,
                        int code, FAR struct sigwork_s *work)
 {
   sinfo("pid=%" PRIu16 " signo=%d code=%d sival_ptr=%p\n",
-         pid, event->sigev_signo, code, event->sigev_value.sival_ptr);
+        pid, event->sigev_signo, code, event->sigev_value.sival_ptr);
 
   /* Notify client via a signal? */
 
-  if (event->sigev_notify == SIGEV_SIGNAL)
+  if (event->sigev_notify & SIGEV_SIGNAL)
     {
-#ifdef CONFIG_SCHED_HAVE_PARENT
-      FAR struct tcb_s *rtcb = this_task();
-#endif
       siginfo_t info;
+      bool      thread = false;
 
       /* Yes.. Create the siginfo structure */
 
@@ -121,9 +121,10 @@ int nxsig_notification(pid_t pid, FAR struct sigevent *event,
       info.si_code   = code;
       info.si_errno  = OK;
 #ifdef CONFIG_SCHED_HAVE_PARENT
-      info.si_pid    = rtcb->pid;
+      info.si_pid    = this_task()->pid;
       info.si_status = OK;
 #endif
+      info.si_user   = NULL;
 
       /* Some compilers (e.g., SDCC), do not permit assignment of aggregates.
        * Use of memcpy() is overkill;  We could just copy the larger of the
@@ -133,15 +134,23 @@ int nxsig_notification(pid_t pid, FAR struct sigevent *event,
 
       memcpy(&info.si_value, &event->sigev_value, sizeof(union sigval));
 
+      /* SIGEV_THREAD_ID currently used only by POSIX timer. */
+
+      if (event->sigev_notify & SIGEV_THREAD_ID)
+        {
+          thread = true;
+          pid = event->sigev_notify_thread_id;
+        }
+
       /* Send the signal */
 
-      return nxsig_dispatch(pid, &info);
+      return nxsig_dispatch(pid, &info, thread);
     }
 
 #ifdef CONFIG_SIG_EVTHREAD
   /* Notify the client via a function call */
 
-  else if (event->sigev_notify == SIGEV_THREAD)
+  else if (event->sigev_notify & SIGEV_THREAD)
     {
       /* Initialize the work information */
 
@@ -175,6 +184,6 @@ int nxsig_notification(pid_t pid, FAR struct sigevent *event,
 #ifdef CONFIG_SIG_EVTHREAD
 void nxsig_cancel_notification(FAR struct sigwork_s *work)
 {
-  work_cancel(SIG_EVTHREAD_WORK, &work->work);
+  work_cancel_sync(SIG_EVTHREAD_WORK, &work->work);
 }
 #endif

@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/net/netfilter/netfilter.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,6 +27,7 @@
  * Included Files
  ****************************************************************************/
 
+#include <netinet/in.h>
 #include <sys/types.h>
 
 /****************************************************************************
@@ -41,6 +44,15 @@
 #define NF_STOP   5 /* Deprecated, for userspace nf_queue compatibility. */
 #define NF_MAX_VERDICT NF_STOP
 
+/* IP Hooks */
+
+#define NF_IP_PRE_ROUTING  0 /* After promisc drops, checksum checks. */
+#define NF_IP_LOCAL_IN     1 /* If the packet is destined for this box. */
+#define NF_IP_FORWARD      2 /* If the packet is destined for another interface. */
+#define NF_IP_LOCAL_OUT    3 /* Packets coming from a local process. */
+#define NF_IP_POST_ROUTING 4 /* Packets about to hit the wire. */
+#define NF_IP_NUMHOOKS     5
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/
@@ -54,6 +66,28 @@ enum nf_inet_hooks
   NF_INET_POST_ROUTING,
   NF_INET_NUMHOOKS,
   NF_INET_INGRESS = NF_INET_NUMHOOKS,
+};
+
+enum
+{
+  NFPROTO_UNSPEC =  0,
+  NFPROTO_INET   =  1,
+  NFPROTO_IPV4   =  2,
+  NFPROTO_ARP    =  3,
+  NFPROTO_NETDEV =  5,
+  NFPROTO_BRIDGE =  7,
+  NFPROTO_IPV6   = 10,
+  NFPROTO_DECNET = 12,
+  NFPROTO_NUMPROTO,
+};
+
+union nf_inet_addr
+{
+  uint32_t        all[4];
+  uint32_t        ip;
+  uint32_t        ip6[4];
+  struct in_addr  in;
+  struct in6_addr in6;
 };
 
 #endif /* __INCLUDE_NUTTX_NET_NETFILTER_NETFILTER_H */

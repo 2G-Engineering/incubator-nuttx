@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/bch/bch.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -81,7 +83,7 @@ EXTERN const struct file_operations g_bch_fops;
  * Public Function Prototypes
  ****************************************************************************/
 
-EXTERN int  bchlib_flushsector(FAR struct bchlib_s *bch);
+EXTERN int  bchlib_flushsector(FAR struct bchlib_s *bch, bool discard);
 EXTERN int  bchlib_readsector(FAR struct bchlib_s *bch, size_t sector);
 
 #undef EXTERN

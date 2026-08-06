@@ -1,6 +1,8 @@
 /****************************************************************************
  * audio/pcm_decode.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,7 +35,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/audio/audio.h>
@@ -49,7 +51,7 @@
 
 struct pcm_decode_s
 {
-  /* This is is our our appearance to the outside world.  This *MUST* be the
+  /* This is our appearance to the outside world.  This *MUST* be the
    * first element of the structure so that we can freely cast between types
    * struct audio_lowerhalf and struct pcm_decode_s.
    */
@@ -802,7 +804,7 @@ static int pcm_shutdown(FAR struct audio_lowerhalf_s *dev)
   /* Defer the operation to the lower device driver */
 
   lower = priv->lower;
-  DEBUGASSERT(lower && lower->ops->start);
+  DEBUGASSERT(lower && lower->ops->shutdown);
 
   audinfo("Defer to lower shutdown\n");
   return lower->ops->shutdown(lower);
@@ -1090,6 +1092,7 @@ static int pcm_enqueuebuffer(FAR struct audio_lowerhalf_s *dev,
   if (headersize > 0)
     {
       struct audio_caps_s caps;
+      memset(&caps, 0, sizeof(caps));
 
       /* Configure the lower level for the number of channels, bitrate,
        * and sample bitwidth.
@@ -1388,7 +1391,7 @@ FAR struct audio_lowerhalf_s *
 
   /* Allocate an instance of our private data structure */
 
-  priv = (FAR struct pcm_decode_s *)kmm_zalloc(sizeof(struct pcm_decode_s));
+  priv = kmm_zalloc(sizeof(struct pcm_decode_s));
   if (!priv)
     {
       auderr("ERROR: Failed to allocate driver structure\n");

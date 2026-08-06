@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/ms58xx.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -26,7 +41,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdlib.h>
 
 #include <nuttx/kmalloc.h>
@@ -42,10 +57,6 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-#ifndef CONFIG_MS58XX_I2C_FREQUENCY
-#  define CONFIG_MS58XX_I2C_FREQUENCY 400000
-#endif
 
 /* Register Definitions *****************************************************/
 
@@ -854,7 +865,7 @@ static int ms58xx_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
       case SNIOC_OVERSAMPLING:
         ret = ms58xx_setosr(priv, (uint16_t)arg);
-        sninfo("osr: %04x ret: %d\n", *(uint16_t *)arg, ret);
+        sninfo("osr: %04x ret: %d\n", *(FAR uint16_t *)arg, ret);
         break;
 
       /* Unrecognized commands */
@@ -912,7 +923,7 @@ int ms58xx_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
 
   /* Initialize the device's structure */
 
-  priv = (FAR struct ms58xx_dev_s *)kmm_malloc(sizeof(*priv));
+  priv = kmm_malloc(sizeof(*priv));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");

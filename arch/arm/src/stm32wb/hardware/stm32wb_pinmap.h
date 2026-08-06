@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wb/hardware/stm32wb_pinmap.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,14 +30,10 @@
 #include <nuttx/config.h>
 #include "chip.h"
 
-#if defined(CONFIG_STM32WB_STM32WB10) || defined(CONFIG_STM32WB_STM32WB15) || \
-    defined(CONFIG_STM32WB_STM32WB30) || defined(CONFIG_STM32WB_STM32WB35) || \
-    defined(CONFIG_STM32WB_STM32WB50) || defined(CONFIG_STM32WB_STM32WB55)
-#  if defined(CONFIG_STM32WB_USE_LEGACY_PINMAP)
-#    include "hardware/stm32wbxx_pinmap_legacy.h"
-#  else
-#    include "hardware/stm32wbxx_pinmap.h"
-#  endif
+#if defined(CONFIG_STM32_STM32WB10) || defined(CONFIG_STM32_STM32WB15) || \
+    defined(CONFIG_STM32_STM32WB30) || defined(CONFIG_STM32_STM32WB35) || \
+    defined(CONFIG_STM32_STM32WB50) || defined(CONFIG_STM32_STM32WB55)
+#  include "hardware/stm32wbxx_pinmap.h"
 #else
 #  error "Unsupported STM32WB Pin map"
 #endif

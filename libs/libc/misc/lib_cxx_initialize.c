@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/misc/lib_cxx_initialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,9 +25,10 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/arch.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <sched.h>
 #include <stdlib.h>
 
@@ -34,10 +37,6 @@
 /****************************************************************************
  * External References
  ****************************************************************************/
-
-#if defined(CONFIG_ARCH_SIM) && defined(CONFIG_HOST_MACOS)
-extern void macho_call_saved_init_funcs(void);
-#endif
 
 /****************************************************************************
  * Public Functions
@@ -66,9 +65,6 @@ void lib_cxx_initialize(void)
 
   if (inited == 0)
     {
-#if defined(CONFIG_ARCH_SIM) && defined(CONFIG_HOST_MACOS)
-      macho_call_saved_init_funcs();
-#else
       initializer_t *initp;
 
       sinfo("_sinit: %p _einit: %p\n", _sinit, _einit);
@@ -90,7 +86,6 @@ void lib_cxx_initialize(void)
               initializer();
             }
         }
-#endif
 
       inited = 1;
     }

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/max326xx/max32660-evsys/src/max32660-evsys.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -97,11 +99,6 @@
  *
  *   If CONFIG_BOARD_LATE_INITIALIZE=y, then this function will be called
  *   from board_late_initialize().
- *
- *   If CONFIG_BOARD_LATE_INITIALIZE is not selected,
- *   but CONFIG_BOARDCTL=y
- *   then this function will *probably* be called from application logic via
- *   boardctl().
  *
  *   Otherwise, this function will not be called (which is usually a bad
  *   thing)

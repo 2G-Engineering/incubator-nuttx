@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/clock/clock_settime.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,15 +29,101 @@
 #include <time.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
+#include <sys/time.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/fs/fs.h>
+#include <nuttx/clock_notifier.h>
 #include <nuttx/irq.h>
+#include <nuttx/spinlock.h>
+#include <nuttx/timers/ptp_clock.h>
 
 #include "clock/clock.h"
 #ifdef CONFIG_CLOCK_TIMEKEEPING
 #  include "clock/clock_timekeeping.h"
 #endif
+
+#if defined(CONFIG_RTC) && defined(CONFIG_SCHED_LPWORK)
+static struct work_s g_rtc_work;
+static struct timespec g_rtc_to_set;
+#endif
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+#if defined(CONFIG_RTC) && defined(CONFIG_SCHED_LPWORK)
+static void rtc_worker(FAR void *arg)
+{
+  up_rtc_settime(arg);
+}
+#endif
+
+static void nxclock_set_realtime(FAR const struct timespec *tp)
+{
+#ifndef CONFIG_CLOCK_TIMEKEEPING
+  struct timespec bias;
+  irqstate_t flags;
+#  ifdef CONFIG_CLOCK_ADJTIME
+  const struct timeval zerodelta = {
+    0, 0
+  };
+#  endif
+
+  /* Interrupts are disabled here so that the in-memory time
+   * representation and the RTC setting will be as close as
+   * possible.
+   */
+
+  /* Get the elapsed time since power up (in milliseconds).  This is a
+   * bias value that we need to use to correct the base time.
+   */
+
+  clock_systime_timespec(&bias);
+
+  flags = spin_lock_irqsave(&g_basetime_lock);
+
+  clock_timespec_subtract(tp, &bias, &g_basetime);
+  clock_notifier_call_chain(CLOCK_REALTIME, tp);
+
+  spin_unlock_irqrestore(&g_basetime_lock, flags);
+
+  /* Setup the RTC (lo- or high-res) */
+
+#  ifdef CONFIG_RTC
+  if (g_rtc_enabled)
+    {
+#    ifdef CONFIG_SCHED_LPWORK
+      /* Setting the current time in RTC may be a blocking operation (driver
+       * needs to wait for oscillator stabilization after reset and so on).
+       * This may cause the unwanted effect of clock_settime blocking the
+       * code execution for a considerable amount of time.
+       *
+       * The solution is to plan a low priority work that takes care
+       * of setting the time in RTC and let clock_settime continue. We don't
+       * have to check if the work is available, just cancel it if there
+       * is a new time set request.
+       */
+
+      g_rtc_to_set = *tp;
+      work_queue(LPWORK, &g_rtc_work, rtc_worker,
+                 (FAR void *)&g_rtc_to_set, 0);
+#    else
+      up_rtc_settime(tp);
+#    endif
+    }
+#  endif
+
+#  ifdef CONFIG_CLOCK_ADJTIME
+  /* Cancel any ongoing adjustment */
+
+  adjtime(&zerodelta, NULL);
+#  endif
+#else
+  clock_timekeeping_set_wall_time(tp);
+#endif
+}
 
 /****************************************************************************
  * Public Functions
@@ -47,90 +135,42 @@
  * Description:
  *   Clock Functions based on POSIX APIs
  *
+ *   CLOCK_REALTIME - POSIX demands this to be present. This is the wall
+ *   time clock.
+ *
  ****************************************************************************/
 
 int clock_settime(clockid_t clock_id, FAR const struct timespec *tp)
 {
-#ifndef CONFIG_CLOCK_TIMEKEEPING
-  struct timespec bias;
-  irqstate_t flags;
-#endif
-  int ret = OK;
+  int ret = -EINVAL;
 
-  sinfo("clock_id=%d\n", clock_id);
-  DEBUGASSERT(tp != NULL);
-
-  /* CLOCK_REALTIME - POSIX demands this to be present. This is the wall
-   * time clock.
-   */
-
-  if (clock_id == CLOCK_REALTIME &&
-      tp->tv_nsec >= 0 && tp->tv_nsec < 1000000000)
+  if (tp != NULL && tp->tv_nsec >= 0 && tp->tv_nsec < 1000000000)
     {
-#ifndef CONFIG_CLOCK_TIMEKEEPING
-      /* Interrupts are disabled here so that the in-memory time
-       * representation and the RTC setting will be as close as
-       * possible.
-       */
-
-      flags = enter_critical_section();
-
-      /* Get the elapsed time since power up (in milliseconds).  This is a
-       * bias value that we need to use to correct the base time.
-       */
-
-      clock_systime_timespec(&bias);
-
-      /* Save the new base time. */
-
-      g_basetime.tv_sec  = tp->tv_sec;
-      g_basetime.tv_nsec = tp->tv_nsec;
-
-      /* Subtract that bias from the basetime so that when the system
-       * timer is again added to the base time, the result is the current
-       * time relative to basetime.
-       */
-
-      if (g_basetime.tv_nsec < bias.tv_nsec)
+      if (clock_id == CLOCK_REALTIME)
         {
-          g_basetime.tv_nsec += NSEC_PER_SEC;
-          g_basetime.tv_sec--;
+          nxclock_set_realtime(tp);
+          ret = 0;
         }
-
-      /* Result could be negative seconds */
-
-      g_basetime.tv_nsec -= bias.tv_nsec;
-      g_basetime.tv_sec  -= bias.tv_sec;
-
-      /* Setup the RTC (lo- or high-res) */
-
-#ifdef CONFIG_RTC
-      if (g_rtc_enabled)
+#ifdef CONFIG_PTP_CLOCK
+      else if ((clock_id & CLOCK_MASK) == CLOCK_FD)
         {
-          up_rtc_settime(tp);
+          FAR struct file *filep;
+
+          ret = ptp_clockid_to_filep(clock_id, &filep);
+          if (ret >= 0)
+            {
+              ret = file_ioctl(filep, PTP_CLOCK_SETTIME, tp);
+              fs_putfilep(filep);
+            }
         }
 #endif
-
-#ifdef CONFIG_CLOCK_ADJTIME
-      g_clk_adj_count = 0;
-      g_clk_adj_usec = 0;
-#endif
-
-      leave_critical_section(flags);
-
-      sinfo("basetime=(%ld,%lu) bias=(%ld,%lu)\n",
-            (long)g_basetime.tv_sec, (unsigned long)g_basetime.tv_nsec,
-            (long)bias.tv_sec, (unsigned long)bias.tv_nsec);
-#else
-      ret = clock_timekeeping_set_wall_time(tp);
-#endif
     }
-  else
+
+  if (ret < 0)
     {
-      serr("Returning ERROR\n");
-      set_errno(EINVAL);
-      ret = ERROR;
+      set_errno(-ret);
+      return ERROR;
     }
 
-  return ret;
+  return OK;
 }

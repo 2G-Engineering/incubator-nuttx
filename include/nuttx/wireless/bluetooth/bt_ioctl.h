@@ -1,8 +1,8 @@
 /****************************************************************************
  * include/nuttx/wireless/bluetooth/bt_ioctl.h
  *
- *   Copyright (c) 2016, Intel Corporation
- *   All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2016, Intel Corporation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -183,7 +183,7 @@
 #define SIOCBTGATTRD           _BLUETOOTHIOC(18)
 #define SIOCBTGATTWR           _BLUETOOTHIOC(19)
 
-/* Connect/diconnect from a peer */
+/* Connect/disconnect from a peer */
 
 #define SIOCBTCONNECT          _BLUETOOTHIOC(24)
 #define SIOCBTDISCONNECT       _BLUETOOTHIOC(25)
@@ -450,7 +450,7 @@ struct btreq_s
       bt_addr_le_t btgwr_wrpeer;                 /* IN:  Peer address */
       uint8_t btgwr_wrnbytes;                    /* IN:  Number of bytes to write */
       uint16_t btgwr_wrhandle;                   /* IN:  GATT handle */
-      FAR uint8_t btgwr_wrdata[HCI_GATTWR_DATA]; /* IN:  Data to be written */
+      uint8_t btgwr_wrdata[HCI_GATTWR_DATA];     /* IN:  Data to be written */
       uint8_t btgwr_wrresult;                    /* OUT: The result of the operation */
     } btgwr;
 

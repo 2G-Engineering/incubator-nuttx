@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/cache.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -66,6 +68,26 @@ extern "C"
 size_t up_get_icache_linesize(void);
 #else
 #  define up_get_icache_linesize() 0
+#endif
+
+/****************************************************************************
+ * Name: up_get_icache_size
+ *
+ * Description:
+ *   Get icache size
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   Cache size
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ARCH_ICACHE
+size_t up_get_icache_size(void);
+#else
+#  define up_get_icache_size() 0
 #endif
 
 /****************************************************************************
@@ -238,6 +260,26 @@ size_t up_get_dcache_linesize(void);
 #endif
 
 /****************************************************************************
+ * Name: up_get_dcache_size
+ *
+ * Description:
+ *   Get dcache size
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   Cache size
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ARCH_DCACHE
+size_t up_get_dcache_size(void);
+#else
+#  define up_get_dcache_size() 0
+#endif
+
+/****************************************************************************
  * Name: up_enable_dcache
  *
  * Description:
@@ -300,7 +342,7 @@ void up_disable_dcache(void);
 #ifdef CONFIG_ARCH_DCACHE
 void up_invalidate_dcache(uintptr_t start, uintptr_t end);
 #else
-#  define up_invalidate_dcache(start, end)
+#  define up_invalidate_dcache(start, end) ((void)(start), (void)(end))
 #endif
 
 /****************************************************************************
@@ -342,7 +384,7 @@ void up_invalidate_dcache_all(void);
 #ifdef CONFIG_ARCH_DCACHE
 void up_clean_dcache(uintptr_t start, uintptr_t end);
 #else
-#  define up_clean_dcache(start, end)
+#  define up_clean_dcache(start, end) ((void)(start), (void)(end))
 #endif
 
 /****************************************************************************

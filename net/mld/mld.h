@@ -1,6 +1,7 @@
 /****************************************************************************
  * net/mld/mld.h
- * Multicast Listener Discovery (MLD) Definitions
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -92,7 +93,7 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/semaphore.h>
 #include <nuttx/wqueue.h>
@@ -328,6 +329,16 @@ FAR struct mld_group_s *mld_grpallocfind(FAR struct net_driver_s *dev,
 
 void mld_grpfree(FAR struct net_driver_s *dev,
                  FAR struct mld_group_s *group);
+
+/****************************************************************************
+ * Name:  mld_grpfree_all
+ *
+ * Description:
+ *   Release all previously allocated groups for a device.
+ *
+ ****************************************************************************/
+
+void mld_grpfree_all(FAR struct net_driver_s *dev);
 
 /****************************************************************************
  * Name:  mld_new_pollcycle

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/timers/watchdog.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,6 +25,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/nuttx.h>
 
 #include <sys/types.h>
 #include <stdint.h>
@@ -31,11 +34,11 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/irq.h>
-#include <nuttx/kmalloc.h>
+#include <nuttx/lib/lib.h>
 #include <nuttx/panic_notifier.h>
 #include <nuttx/power/pm.h>
 #include <nuttx/mutex.h>
@@ -50,8 +53,8 @@
  ****************************************************************************/
 
 #ifdef CONFIG_WATCHDOG_AUTOMONITOR
-#  define WATCHDOG_AUTOMONITOR_TIMEOUT_MSEC \
-     (CONFIG_WATCHDOG_AUTOMONITOR_TIMEOUT * MSEC_PER_SEC)
+#  define WATCHDOG_AUTOMONITOR_TIMEOUT \
+     (CONFIG_WATCHDOG_AUTOMONITOR_TIMEOUT)
 #  if !defined(CONFIG_WATCHDOG_AUTOMONITOR_BY_CAPTURE) && \
       !defined(CONFIG_WATCHDOG_AUTOMONITOR_BY_IDLE)
 #    if CONFIG_WATCHDOG_AUTOMONITOR_PING_INTERVAL == 0
@@ -62,23 +65,39 @@
          CONFIG_WATCHDOG_AUTOMONITOR_PING_INTERVAL
 #    endif
 #    define WATCHDOG_AUTOMONITOR_PING_INTERVAL_MSEC \
-       (WATCHDOG_AUTOMONITOR_PING_INTERVAL * MSEC_PER_SEC)
+       (WATCHDOG_AUTOMONITOR_PING_INTERVAL)
 #    define WATCHDOG_AUTOMONITOR_PING_INTERVAL_TICK \
-       SEC2TICK(WATCHDOG_AUTOMONITOR_PING_INTERVAL)
+       MSEC2TICK(WATCHDOG_AUTOMONITOR_PING_INTERVAL)
 #  endif
 #endif
 
+#if defined(CONFIG_WATCHDOG_AUTOMONITOR_BY_ONESHOT)
+#  define WATCHDOG_NOTIFIER_ACTION WATCHDOG_KEEPALIVE_BY_ONESHOT
+#elif defined(CONFIG_WATCHDOG_AUTOMONITOR_BY_TIMER)
+#  define WATCHDOG_NOTIFIER_ACTION WATCHDOG_KEEPALIVE_BY_TIMER
+#elif defined(CONFIG_WATCHDOG_AUTOMONITOR_BY_WDOG)
+#  define WATCHDOG_NOTIFIER_ACTION WATCHDOG_KEEPALIVE_BY_WDOG
+#elif defined(CONFIG_WATCHDOG_AUTOMONITOR_BY_WORKER)
+#  define WATCHDOG_NOTIFIER_ACTION WATCHDOG_KEEPALIVE_BY_WORKER
+#elif defined(CONFIG_WATCHDOG_AUTOMONITOR_BY_CAPTURE)
+#  define WATCHDOG_NOTIFIER_ACTION WATCHDOG_KEEPALIVE_BY_CAPTURE
+#elif defined(CONFIG_WATCHDOG_AUTOMONITOR_BY_IDLE)
+#  define WATCHDOG_NOTIFIER_ACTION WATCHDOG_KEEPALIVE_BY_IDLE
+#endif
+
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 /* This structure describes the state of the upper half driver */
 
 struct watchdog_upperhalf_s
 {
+#ifdef CONFIG_WATCHDOG_PANIC_NOTIFIER
   /* When a crash occurs, stop the watchdog */
 
   struct notifier_block nb;
+#endif
 #ifdef CONFIG_WATCHDOG_AUTOMONITOR
 #  if defined(CONFIG_WATCHDOG_AUTOMONITOR_BY_ONESHOT)
   FAR struct oneshot_lowerhalf_s *oneshot;
@@ -110,11 +129,11 @@ struct watchdog_upperhalf_s
 static int     wdog_open(FAR struct file *filep);
 static int     wdog_close(FAR struct file *filep);
 static ssize_t wdog_read(FAR struct file *filep, FAR char *buffer,
-                 size_t buflen);
+                         size_t buflen);
 static ssize_t wdog_write(FAR struct file *filep, FAR const char *buffer,
-                 size_t buflen);
+                          size_t buflen);
 static int     wdog_ioctl(FAR struct file *filep, int cmd,
-                 unsigned long arg);
+                          unsigned long arg);
 
 /****************************************************************************
  * Private Data
@@ -129,6 +148,10 @@ static const struct file_operations g_wdogops =
   NULL,       /* seek */
   wdog_ioctl, /* ioctl */
 };
+
+#ifdef CONFIG_WATCHDOG_TIMEOUT_NOTIFIER
+static ATOMIC_NOTIFIER_HEAD(g_watchdog_notifier_list);
+#endif
 
 /****************************************************************************
  * Private Functions
@@ -164,7 +187,7 @@ watchdog_automonitor_oneshot(FAR struct oneshot_lowerhalf_s *oneshot,
       };
 
       lower->ops->keepalive(lower);
-      ONESHOT_START(oneshot, watchdog_automonitor_oneshot, upper, &ts);
+      ONESHOT_START(oneshot, &ts);
     }
 }
 #elif defined(CONFIG_WATCHDOG_AUTOMONITOR_BY_TIMER)
@@ -211,8 +234,11 @@ static void watchdog_automonitor_worker(FAR void *arg)
 static void watchdog_automonitor_idle(FAR struct pm_callback_s *cb,
                                       int domain, enum pm_state_e pmstate)
 {
-  FAR struct watchdog_upperhalf_s *upper = (FAR void *)cb;
-  FAR struct watchdog_lowerhalf_s *lower = upper->lower;
+  FAR struct watchdog_upperhalf_s *upper;
+  FAR struct watchdog_lowerhalf_s *lower;
+
+  upper = container_of(cb, struct watchdog_upperhalf_s, idle);
+  lower = upper->lower;
 
   if (domain == PM_IDLE_DOMAIN &&
       pmstate != PM_RESTORE && upper->monitor)
@@ -249,7 +275,7 @@ watchdog_automonitor_start(FAR struct watchdog_upperhalf_s *upper)
       };
 
       upper->oneshot = oneshot;
-      ONESHOT_START(oneshot, watchdog_automonitor_oneshot, upper, &ts);
+      ONESHOT_START(oneshot, &ts);
 #elif defined(CONFIG_WATCHDOG_AUTOMONITOR_BY_TIMER)
       upper->timer = timer;
       timer->ops->setcallback(timer, watchdog_automonitor_timer, upper);
@@ -268,7 +294,7 @@ watchdog_automonitor_start(FAR struct watchdog_upperhalf_s *upper)
       upper->monitor = true;
       if (lower->ops->settimeout)
         {
-          lower->ops->settimeout(lower, WATCHDOG_AUTOMONITOR_TIMEOUT_MSEC);
+          lower->ops->settimeout(lower, WATCHDOG_AUTOMONITOR_TIMEOUT);
         }
 
       lower->ops->start(lower);
@@ -300,6 +326,7 @@ static void watchdog_automonitor_stop(FAR struct watchdog_upperhalf_s *upper)
 }
 #endif
 
+#ifdef CONFIG_WATCHDOG_PANIC_NOTIFIER
 static int wdog_notifier(FAR struct notifier_block *nb, unsigned long action,
                          FAR void *data)
 {
@@ -317,6 +344,7 @@ static int wdog_notifier(FAR struct notifier_block *nb, unsigned long action,
 
   return 0;
 }
+#endif
 
 /****************************************************************************
  * Name: wdog_open
@@ -689,6 +717,55 @@ static int wdog_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
  * Public Functions
  ****************************************************************************/
 
+#ifdef CONFIG_WATCHDOG_TIMEOUT_NOTIFIER
+/****************************************************************************
+ * Name:  watchdog_notifier_chain_register
+ *
+ * Description:
+ *   Add notifier to the watchdog notifier chain
+ *
+ * Input Parameters:
+ *    nb - New entry in notifier chain
+ *
+ ****************************************************************************/
+
+void watchdog_notifier_chain_register(FAR struct notifier_block *nb)
+{
+  atomic_notifier_chain_register(&g_watchdog_notifier_list, nb);
+}
+
+/****************************************************************************
+ * Name:  watchdog_notifier_chain_unregister
+ *
+ * Description:
+ *   Remove notifier from the watchdog notifier chain
+ *
+ * Input Parameters:
+ *    nb - Entry to remove from notifier chain
+ *
+ ****************************************************************************/
+
+void watchdog_notifier_chain_unregister(FAR struct notifier_block *nb)
+{
+  atomic_notifier_chain_unregister(&g_watchdog_notifier_list, nb);
+}
+
+/****************************************************************************
+ * Name: watchdog_automonitor_timeout
+ *
+ * Description:
+ *   This function can be called in the watchdog timeout interrupt handler.
+ *   If so, callbacks on the watchdog timer notify chain are called when the
+ *   watchdog timer times out.
+ *
+ ****************************************************************************/
+
+void watchdog_automonitor_timeout(void)
+{
+  atomic_notifier_call_chain(&g_watchdog_notifier_list, action, data);
+}
+#endif /* CONFIG_WATCHDOG_TIMEOUT_NOTIFIER */
+
 /****************************************************************************
  * Name: watchdog_register
  *
@@ -771,6 +848,8 @@ FAR void *watchdog_register(FAR const char *path,
     }
 
 #if defined(CONFIG_WATCHDOG_AUTOMONITOR_BY_ONESHOT)
+  upper->oneshot->callback = watchdog_automonitor_oneshot;
+  upper->oneshot->arg      = upper;
   watchdog_automonitor_start(upper, oneshot);
 #elif defined(CONFIG_WATCHDOG_AUTOMONITOR_BY_TIMER)
   watchdog_automonitor_start(upper, timer);
@@ -778,13 +857,15 @@ FAR void *watchdog_register(FAR const char *path,
   watchdog_automonitor_start(upper);
 #endif
 
+#ifdef CONFIG_WATCHDOG_PANIC_NOTIFIER
   upper->nb.notifier_call = wdog_notifier;
   panic_notifier_chain_register(&upper->nb);
+#endif
 
   return (FAR void *)upper;
 
 errout_with_path:
-  kmm_free(upper->path);
+  lib_free(upper->path);
 
 errout_with_upper:
   nxmutex_destroy(&upper->lock);
@@ -835,11 +916,13 @@ void watchdog_unregister(FAR void *handle)
   /* Unregister the watchdog timer device */
 
   unregister_driver(upper->path);
+#ifdef CONFIG_WATCHDOG_PANIC_NOTIFIER
   panic_notifier_chain_unregister(&upper->nb);
+#endif
 
   /* Then free all of the driver resources */
 
-  kmm_free(upper->path);
+  lib_free(upper->path);
   nxmutex_destroy(&upper->lock);
   kmm_free(upper);
 }

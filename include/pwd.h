@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/pwd.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -47,6 +49,7 @@
 struct passwd
 {
   FAR char *pw_name;
+  FAR char *pw_passwd;
   uid_t     pw_uid;
   gid_t     pw_gid;
   FAR char *pw_gecos;
@@ -67,6 +70,12 @@ extern "C"
 #define EXTERN extern
 #endif
 
+void setpwent(void);
+void endpwent(void);
+FAR struct passwd *getpwent(void);
+int getpwent_r(FAR struct passwd *pwd,
+               FAR char *buf, size_t buflen,
+               FAR struct passwd **result);
 FAR struct passwd *getpwnam(FAR const char *name);
 FAR struct passwd *getpwuid(uid_t uid);
 int getpwnam_r(FAR const char *name, FAR struct passwd *pwd, FAR char *buf,

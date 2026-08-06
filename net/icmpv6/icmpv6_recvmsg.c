@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/icmpv6/icmpv6_recvmsg.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/semaphore.h>
 #include <nuttx/net/net.h>
@@ -92,14 +94,13 @@ struct icmpv6_recvfrom_s
  *
  ****************************************************************************/
 
-static uint16_t recvfrom_eventhandler(FAR struct net_driver_s *dev,
-                                      FAR void *pvpriv, uint16_t flags)
+static uint32_t recvfrom_eventhandler(FAR struct net_driver_s *dev,
+                                      FAR void *pvpriv, uint32_t flags)
 {
   FAR struct icmpv6_recvfrom_s *pstate = pvpriv;
-  FAR struct socket *psock;
   FAR struct ipv6_hdr_s *ipv6;
 
-  ninfo("flags: %04x\n", flags);
+  ninfo("flags: %" PRIx32 "\n", flags);
 
   if (pstate != NULL)
     {
@@ -112,15 +113,12 @@ static uint16_t recvfrom_eventhandler(FAR struct net_driver_s *dev,
           goto end_wait;
         }
 
-      psock = pstate->recv_sock;
-      DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
-
       /* Check if we have just received a ICMPv6 message. */
 
       if ((flags & ICMPv6_NEWDATA) != 0)    /* No incoming data */
         {
 #ifdef CONFIG_NET_SOCKOPTS
-          FAR struct icmpv6_conn_s *conn = psock->s_conn;
+          FAR struct icmpv6_conn_s *conn = pstate->recv_sock->s_conn;
 #endif
           unsigned int recvsize;
 
@@ -309,7 +307,12 @@ ssize_t icmpv6_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 
   /* Some sanity checks */
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL && buf != NULL);
+  if (msg->msg_iovlen != 1)
+    {
+      return -ENOTSUP;
+    }
+
+  DEBUGASSERT(buf != NULL);
 
   if (len < ICMPv6_HDRLEN)
     {
@@ -322,15 +325,14 @@ ssize_t icmpv6_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 
   if (from != NULL)
     {
-      if (fromlen == NULL && *fromlen < sizeof(struct sockaddr_in6))
+      if (fromlen == NULL || *fromlen < sizeof(struct sockaddr_in6))
         {
           return -EINVAL;
         }
     }
 
-  net_lock();
-
   conn = psock->s_conn;
+  conn_dev_lock(&conn->sconn, conn->dev);
   if (psock->s_type != SOCK_RAW)
     {
       /* Get the device that was used to send the ICMPv6 request. */
@@ -382,14 +384,15 @@ ssize_t icmpv6_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
           state.recv_cb->event = recvfrom_eventhandler;
 
           /* Wait for either the response to be received or for timeout to
-           * occur. (1) net_sem_timedwait will also terminate if a signal is
-           * received, (2) interrupts may be disabled!  They will be
-           * re-enabled while the task sleeps and automatically re-enabled
+           * occur. (1) conn_dev_sem_timedwait will also terminate if a
+           * signal is received, (2) interrupts may be disabled!  They will
+           * be re-enabled while the task sleeps and automatically re-enabled
            * when the task restarts.
            */
 
-          ret = net_sem_timedwait(&state.recv_sem,
-                              _SO_TIMEOUT(conn->sconn.s_rcvtimeo));
+          ret = conn_dev_sem_timedwait(&state.recv_sem, true,
+                                       _SO_TIMEOUT(conn->sconn.s_rcvtimeo),
+                                       &conn->sconn, dev);
           if (ret < 0)
             {
               state.recv_result = ret;
@@ -437,7 +440,7 @@ errout:
         }
     }
 
-  net_unlock();
+  conn_dev_unlock(&conn->sconn, conn->dev);
 
   return ret;
 }

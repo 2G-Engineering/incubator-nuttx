@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imxrt/imxrt_enc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
@@ -284,8 +286,8 @@ struct imxrt_qeconfig_s
 
 struct imxrt_qedata_s
 {
-  int32_t  index_pos;      /* Last position of index occurance */
-  uint32_t index_cnt;      /* Number of index occurance */
+  int32_t  index_pos;      /* Last position of index occurrence */
+  uint32_t index_cnt;      /* Number of index occurrence */
 };
 
 /* ENC Device Private Data */
@@ -591,7 +593,8 @@ void imxrt_enc_clock_enable(uint32_t base)
     }
 
 #if (defined(CONFIG_ARCH_FAMILY_IMXRT105x) || \
-     defined(CONFIG_ARCH_FAMILY_IMXRT106x))
+     defined(CONFIG_ARCH_FAMILY_IMXRT106x) || \
+     defined(CONFIG_ARCH_FAMILY_IMXRT117x))
   else if (base == IMXRT_ENC3_BASE)
     {
       imxrt_clockall_enc3();
@@ -623,7 +626,8 @@ void imxrt_enc_clock_disable(uint32_t base)
     }
 
 #if (defined(CONFIG_ARCH_FAMILY_IMXRT105x) || \
-     defined(CONFIG_ARCH_FAMILY_IMXRT106x))
+     defined(CONFIG_ARCH_FAMILY_IMXRT106x) || \
+     defined(CONFIG_ARCH_FAMILY_IMXRT117x))
   else if (base == IMXRT_ENC3_BASE)
     {
       imxrt_clockoff_enc3();

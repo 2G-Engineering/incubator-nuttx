@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/mpfs/mpfs_head.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,6 +31,8 @@
 #include "chip.h"
 #include "mpfs_memorymap.h"
 #include "riscv_internal.h"
+#include "riscv_macros.S"
+#include "mpfs_e51_csr.h"
 
 /****************************************************************************
  * Public Symbols
@@ -45,25 +49,33 @@ __start:
 
   /* Disable all interrupts (i.e. timer, external) in mie */
 
-  csrw mie, zero
-  csrw mip, zero
+  csrw CSR_MIE, zero
+  csrw CSR_MIP, zero
+
+  /* Clear all IPIs (above doesn't clear them) */
+
+  csrr a0, CSR_MHARTID
+  slli t1, a0, 2
+  li   t0, MPFS_CLINT_BASE
+  add  t1, t1, t0
+  sw   zero, 0(t1)
 
   /* Initialize the Machine Trap Vector */
 
   la   t0, __trap_vec
-  csrw mtvec, t0
+  csrw CSR_MTVEC, t0
 
   /* Make sure that mtvec is updated before continuing */
 
 1:
-  csrr t1, mtvec
+  csrr t1, CSR_MTVEC
   bne  t0, t1, 1b
 
   /* mscratch must be init to zero- we are not using scratch memory */
 
-  csrw mscratch, zero
-  csrw mcause, zero
-  csrw mepc, zero
+  csrw CSR_MSCRATCH, zero
+  csrw CSR_MCAUSE, zero
+  csrw CSR_MEPC, zero
   li   x1,  0
   li   x2,  0
   li   x3,  0
@@ -97,24 +109,39 @@ __start:
   li   x31, 0
 
   /* Skip delegation register, mmu and floating point initializations if E51 */
-  csrr a0, mhartid
+
+  csrr a0, CSR_MHARTID
   beqz a0, .skip_e51
 
   /* Delegation registers must be explicitly reset */
 
-  csrw mideleg, 0
-  csrw medeleg, 0
+  csrw CSR_MIDELEG, 0
+  csrw CSR_MEDELEG, 0
 
   /* Remove MMU mappings (if any) */
 
-  csrw satp, zero
+  csrw CSR_SATP, zero
   fence
 
   /* Flush TLB (does not make a difference really) */
 
   sfence.vma x0, x0
 
+  /* Skip the following E51 specific settings for u54 */
+
+  beqz x0, .skip_u54
+
 .skip_e51:
+
+  /* Enable/disable L1 caches with vendor specific CSR on E51 */
+
+#ifdef CONFIG_MPFS_E51_ENABLE_CACHE
+  csrw CSR_E51_MCACHE_CTL, (E51_MCACHE_CTL_DCACHE_EN | E51_MCACHE_CTL_ICACHE_EN)
+#else
+  csrw CSR_E51_MCACHE_CTL, 0
+#endif
+
+.skip_u54:
 
 /* initialize global pointer, global data
  * The __global_pointer is allocated in the linker script.
@@ -129,6 +156,10 @@ __start:
 .option pop
 
 #ifdef CONFIG_MPFS_BOOTLOADER
+  /* Clear PMP */
+
+  csrw CSR_PMPCFG0, zero
+  csrw CSR_PMPCFG2, zero
 
   /* Set all but the boot hart into wfi */
 
@@ -138,10 +169,12 @@ __start:
   /* Enable IRQ_M_SOFT */
 
   li a2, (1U << 3)
-  csrw mie, a2     /* Set MSIE bit to receive IPI */
+  csrw CSR_MIE, a2     /* Set MSIE bit to receive IPI */
 
   /* flush the instruction cache */
+#ifdef CONFIG_ARCH_RV_ISA_ZICSR_ZIFENCEI
   fence.i
+#endif
 
 .wait_boot:
   wfi
@@ -151,43 +184,46 @@ __start:
    * interrupt
    */
 
-  csrr a2, mip
+  csrr a2, CSR_MIP
   andi a2, a2, (1U << 3) /* MIP_MSIP */
   beqz a2, .wait_boot
 
   /* Disable and clear all interrupts (the sw interrupt) */
   li a2, 0x00000008      /* MSTATUS_MIE */
-  csrc mstatus, a2
-  csrw mie, zero
-  csrw mip, zero
+  csrc CSR_MSTATUS, a2
+  csrw CSR_MIE, zero
+  csrw CSR_MIP, zero
 
   /* Jump to application */
-  j mpfs_jump_to_app
+  tail mpfs_jump_to_app
 
 .continue_boot:
 
-  /* Clear PMP */
+#ifdef CONFIG_MPFS_L2_CLEAR
+  /* L2 needs to be zeroed before ECC (error correction) is enabled later. */
 
-  csrw pmpcfg0, zero
-  csrw pmpcfg2, zero
+  la  a4, __l2lim_start
+  la  a5, __l2lim_end
+
+.clear_l2lim:
+  sd   x0, 0(a4)
+  add  a4, a4, 8
+  blt  a4, a5, .clear_l2lim
+#endif /* CONFIG_MPFS_L2_CLEAR */
 #endif
 
   /* Set stack pointer to the idle thread stack */
 
+#ifdef CONFIG_SMP
+  addi a1, a0, -1        /* Only cores 1...3 can participate in SMP */
+  riscv_set_inital_sp MPFS_IDLESTACK_BASE, SMP_STACK_SIZE, a1
+#else
   la   sp, MPFS_IDLESTACK_TOP
+#endif
 
   /* Jump to __mpfs_start with mhartid in a0 */
 
-  jal  __mpfs_start
-
-  /* We shouldn't return from __mpfs_start
-   * in case of return, loop forever. nop's added so can be seen in debugger
-   */
-
-1:
-  nop
-  nop
-  j 1b
+  tail __mpfs_start
 
   .global _init
   .global _fini

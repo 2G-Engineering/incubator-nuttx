@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_mkdir.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,10 +31,12 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
+#include <unistd.h>
 
 #include <nuttx/fs/fs.h>
 
 #include "inode/inode.h"
+#include "vfs.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -133,18 +137,24 @@ int mkdir(const char *pathname, mode_t mode)
 
   else
     {
-      /* Create an inode in the pseudo-filesystem at this path.
-       * NOTE that the new inode will be created with a reference
-       * count of zero.
+      /* Verify write+search permission on the parent directory before
+       * adding a new name to the pseudo-filesystem tree.  POSIX requires
+       * both W_OK and X_OK to create a directory entry.
        */
 
-      ret = inode_lock();
+      ret = inode_checkperm(desc.parent, W_OK | X_OK);
       if (ret < 0)
         {
           errcode = -ret;
           goto errout_with_search;
         }
 
+      /* Create an inode in the pseudo-filesystem at this path.
+       * NOTE that the new inode will be created with a reference
+       * count of zero.
+       */
+
+      inode_lock();
       ret = inode_reserve(pathname, mode, &inode);
       inode_unlock();
 
@@ -165,6 +175,9 @@ int mkdir(const char *pathname, mode_t mode)
   /* Directory successfully created */
 
   RELEASE_SEARCH(&desc);
+#ifdef CONFIG_FS_NOTIFY
+  notify_mkdir(pathname);
+#endif
   return OK;
 
 errout_with_inode:

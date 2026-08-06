@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/umm_heap/umm_memalign.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdlib.h>
 #include <unistd.h>
-
+#include <errno.h>
 #include <nuttx/mm/mm.h>
 
 #include "umm_heap/umm_heap.h"
@@ -48,7 +50,7 @@
  *
  ****************************************************************************/
 
-#undef memalign /* See mm/README.txt */
+#undef memalign
 FAR void *memalign(size_t alignment, size_t size)
 {
 #if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
@@ -86,6 +88,19 @@ FAR void *memalign(size_t alignment, size_t size)
 
   return mem;
 #else
-  return mm_memalign(USR_HEAP, alignment, size);
+  FAR void *ret;
+
+  ret = mm_memalign(USR_HEAP, alignment, size);
+  if (ret == NULL)
+    {
+      set_errno(ENOMEM);
+    }
+  else
+    {
+      mm_notify_pressure(mm_heapfree(USR_HEAP),
+                         mm_heapfree_largest(USR_HEAP));
+    }
+
+  return ret;
 #endif
 }

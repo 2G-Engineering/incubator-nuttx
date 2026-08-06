@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/mips/pic32mx/ubw32/src/pic32_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,10 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
+
+#include <stdio.h>
+#include <syslog.h>
 
 #include <arch/board/board.h>
 
@@ -39,6 +44,28 @@
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: nsh_usbdevinitialize
+ *
+ * Description:
+ *   Initialize SPI-based microSD.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_USBDEV
+static int nsh_usbdevinitialize(void)
+{
+  /* The UBW32 has no way to know when the USB is connected.  So we will fake
+   * it and tell the USB driver that the USB is connected now.
+   */
+
+  pic32mx_usbattach();
+  return OK;
+}
+#else
+#  define nsh_usbdevinitialize()
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -74,3 +101,23 @@ void pic32mx_boardinitialize(void)
   pic32mx_led_initialize();
 #endif
 }
+
+/****************************************************************************
+ * Name: board_late_initialize
+ *
+ * Description:
+ *   If CONFIG_BOARD_LATE_INITIALIZE is selected, then an additional
+ *   initialization call will be performed in the boot-up sequence to a
+ *   function called board_late_initialize(). board_late_initialize() will be
+ *   called immediately after up_initialize() is called and just before the
+ *   initial application is started.  This additional initialization phase
+ *   may be used, for example, to initialize board-specific device drivers.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_BOARD_LATE_INITIALIZE
+void board_late_initialize(void)
+{
+  nsh_usbdevinitialize();
+}
+#endif /* CONFIG_BOARD_LATE_INITIALIZE */

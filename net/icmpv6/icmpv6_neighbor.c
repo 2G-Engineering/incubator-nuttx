@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/icmpv6/icmpv6_neighbor.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <unistd.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <netinet/in.h>
 #include <net/if.h>
@@ -42,6 +44,7 @@
 #include "inet/inet.h"
 #include "neighbor/neighbor.h"
 #include "route/route.h"
+#include "utils/utils.h"
 #include "icmpv6/icmpv6.h"
 
 #ifdef CONFIG_NET_ICMPv6_NEIGHBOR
@@ -72,12 +75,12 @@ struct icmpv6_neighbor_s
  * Name: icmpv6_neighbor_eventhandler
  ****************************************************************************/
 
-static uint16_t icmpv6_neighbor_eventhandler(FAR struct net_driver_s *dev,
-                                             FAR void *priv, uint16_t flags)
+static uint32_t icmpv6_neighbor_eventhandler(FAR struct net_driver_s *dev,
+                                             FAR void *priv, uint32_t flags)
 {
   FAR struct icmpv6_neighbor_s *state = (FAR struct icmpv6_neighbor_s *)priv;
 
-  ninfo("flags: %04x sent: %d\n", flags, state->snd_sent);
+  ninfo("flags: %" PRIx32 " sent: %d\n", flags, state->snd_sent);
 
   if (state)
     {
@@ -161,6 +164,8 @@ static uint16_t icmpv6_neighbor_eventhandler(FAR struct net_driver_s *dev,
  *   ICMPv6 Neighbor Advertisement.
  *
  * Input Parameters:
+ *   dev      The suggested device driver structure to do the solicitation,
+ *            can be NULL for auto decision, must set for link-local ipaddr.
  *   ipaddr   The IPv6 address to be queried.
  *
  * Returned Value:
@@ -176,9 +181,9 @@ static uint16_t icmpv6_neighbor_eventhandler(FAR struct net_driver_s *dev,
  *
  ****************************************************************************/
 
-int icmpv6_neighbor(const net_ipv6addr_t ipaddr)
+int icmpv6_neighbor(FAR struct net_driver_s *dev,
+                    const net_ipv6addr_t ipaddr)
 {
-  FAR struct net_driver_s *dev;
   struct icmpv6_notify_s notify;
   struct icmpv6_neighbor_s state;
   net_ipv6addr_t lookup;
@@ -202,7 +207,11 @@ int icmpv6_neighbor(const net_ipv6addr_t ipaddr)
 
   /* Get the device that can route this request */
 
-  dev = netdev_findby_ripv6addr(g_ipv6_unspecaddr, ipaddr);
+  if (!dev)
+    {
+      dev = netdev_findby_ripv6addr(g_ipv6_unspecaddr, ipaddr);
+    }
+
   if (!dev)
     {
       nerr("ERROR: Unreachable: %08lx\n", (unsigned long)ipaddr);
@@ -210,9 +219,20 @@ int icmpv6_neighbor(const net_ipv6addr_t ipaddr)
       goto errout;
     }
 
+  /* Neighbor support is only built if the Ethernet link layer is supported.
+   * Continue and send the Solicitation only if this device uses the
+   * Ethernet link layer protocol.
+   */
+
+  if (dev->d_lltype != NET_LL_ETHERNET &&
+      dev->d_lltype != NET_LL_IEEE80211)
+    {
+      return OK;
+    }
+
   /* Check if the destination address is on the local network. */
 
-  if (net_ipv6addr_maskcmp(ipaddr, dev->d_ipv6addr, dev->d_ipv6netmask))
+  if (NETDEV_V6ADDR_ONLINK(dev, ipaddr) || net_is_addr_linklocal(ipaddr))
     {
       /* Yes.. use the input address for the lookup */
 
@@ -238,6 +258,19 @@ int icmpv6_neighbor(const net_ipv6addr_t ipaddr)
 
       net_ipv6addr_copy(lookup, dev->d_ipv6draddr);
 #endif
+
+      if (net_is_addr_unspecified(lookup))
+        {
+          return -EHOSTUNREACH;
+        }
+    }
+
+  /* No ARP packet if this device do not support ARP */
+
+  if (IFF_IS_NOARP(dev->d_flags))
+    {
+      ninfo("ARP not supported on %s, no send!\n", dev->d_ifname);
+      return -EHOSTUNREACH;
     }
 
   /* Allocate resources to receive a callback.  This and the following
@@ -245,7 +278,7 @@ int icmpv6_neighbor(const net_ipv6addr_t ipaddr)
    * want anything to happen until we are ready.
    */
 
-  net_lock();
+  netdev_lock(dev);
   state.snd_cb = devif_callback_alloc((dev),
                                       &(dev)->d_conncb,
                                       &(dev)->d_conncb_tail);
@@ -304,15 +337,15 @@ int icmpv6_neighbor(const net_ipv6addr_t ipaddr)
 
       /* Notify the device driver that new TX data is available. */
 
-      netdev_txnotify_dev(dev);
+      netdev_txnotify_dev(dev, ICMPv6_POLL);
 
       /* Wait for the send to complete or an error to occur.
-       * net_sem_wait will also terminate if a signal is received.
+       * nxsem_wait will also terminate if a signal is received.
        */
 
       do
         {
-          net_sem_wait(&state.snd_sem);
+          conn_dev_sem_timedwait(&state.snd_sem, true, UINT_MAX, NULL, dev);
         }
       while (!state.snd_sent);
 
@@ -320,7 +353,7 @@ int icmpv6_neighbor(const net_ipv6addr_t ipaddr)
        * received.
        */
 
-      ret = icmpv6_wait(&notify, CONFIG_ICMPv6_NEIGHBOR_DELAYMSEC);
+      ret = icmpv6_wait(dev, &notify, CONFIG_ICMPv6_NEIGHBOR_DELAYMSEC);
 
       /* icmpv6_wait will return OK if and only if the matching Neighbor
        * Advertisement is received.  Otherwise, it will return -ETIMEDOUT.
@@ -340,7 +373,7 @@ int icmpv6_neighbor(const net_ipv6addr_t ipaddr)
   devif_dev_callback_free(dev, state.snd_cb);
 
 errout_with_lock:
-  net_unlock();
+  netdev_unlock(dev);
 
 errout:
   return ret;

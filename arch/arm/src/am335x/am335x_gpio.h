@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/am335x/am335x_gpio.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -165,13 +167,6 @@ typedef uint32_t gpio_pinset_t;
  * Public Data
  ****************************************************************************/
 
-/****************************************************************************
- * Inline Functions
- ****************************************************************************/
-
-extern const uintptr_t g_gpiobase[AM335X_GPIO_NPORTS];
-#define am335x_gpion_vbase(n) (g_gpiobase[(n)])
-
 #undef EXTERN
 #if defined(__cplusplus)
 #define EXTERN extern "C"
@@ -180,6 +175,13 @@ extern "C"
 #else
 #define EXTERN extern
 #endif
+
+/****************************************************************************
+ * Inline Functions
+ ****************************************************************************/
+
+EXTERN const uintptr_t g_gpiobase[AM335X_GPIO_NPORTS];
+#define am335x_gpion_vbase(n) (g_gpiobase[(n)])
 
 /****************************************************************************
  * Public Function Prototypes

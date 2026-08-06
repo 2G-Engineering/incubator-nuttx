@@ -1,6 +1,8 @@
 ############################################################################
 # boards/mips/pic32mx/pic32mx7mmb/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -24,10 +26,6 @@ CSRCS = pic32_boot.c pic32_bringup.c pic32_leds.c pic32_spi.c pic32_mio283qt2.c
 
 ifeq ($(CONFIG_PIC32MX_USBDEV),y)
 CSRCS += pic32_usbdev.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += pic32_appinit.c
 endif
 
 ifeq ($(CONFIG_USBMSC),y)

@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/spi/slave.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -250,7 +252,7 @@
  *
  * Input Parameters:
  *   dev  - SPI Slave device interface instance
- *   data - Pointer to the data buffer pointer to be shifed out.
+ *   data - Pointer to the data buffer pointer to be shifted out.
  *          The device will set the data buffer pointer to the actual data
  *
  * Returned Value:
@@ -265,6 +267,30 @@
 #define SPIS_DEV_GETDATA(d,v)  ((d)->ops->getdata(d,v))
 
 /****************************************************************************
+ * Name: SPIS_DEV_GETRECVBUF
+ *
+ * Description:
+ *   This is a SPI device callback should be called when the device would
+ *   like to do a nocopy transfer though the device. When the buffer pointer
+ *   controller get is not NULL, it will transfer the data from enqueue
+ *   directly.
+ *
+ * Input Parameters:
+ *   dev  - SPI Slave device interface instance
+ *   buffer - Pointer to the receive buffer pointer to be shifted in.
+ *
+ * Returned Value:
+ *   The size of data units can be received from this exchange.
+ *
+ * Assumptions:
+ *   May be called from an interrupt handler and the response is usually
+ *   time-critical.
+ *
+ ****************************************************************************/
+
+#define SPIS_DEV_GETRECVBUF(d,b)  ((d)->ops->getrecvbuf(d,b))
+
+/****************************************************************************
  * Name: SPIS_DEV_RECEIVE
  *
  * Description:
@@ -273,11 +299,11 @@
  *   synchronization by several words.
  *
  * Input Parameters:
- *   dev  - SPI Slave device interface instance
- *   data - Pointer to the new data that has been shifted in
- *   len  - Length of the new data in units of nbits wide,
- *          nbits being the data width previously provided to the bind()
- *          method.
+ *   dev    - SPI Slave device interface instance
+ *   data   - Pointer to the new data that has been shifted in
+ *   nwords - Length of the new data in units of nbits wide,
+ *            nbits being the data width previously provided to the bind()
+ *            method.
  *
  * Returned Value:
  *   Number of units accepted by the device. In other words,
@@ -291,7 +317,23 @@
  *
  ****************************************************************************/
 
-#define SPIS_DEV_RECEIVE(d,v,l)  ((d)->ops->receive(d,v,l))
+#define SPIS_DEV_RECEIVE(d,v,n)  ((d)->ops->receive(d,v,n))
+
+/****************************************************************************
+ * Name: SPIS_DEV_NOTIFY
+ *
+ * Description:
+ *   This is a SPI device callback that is used when the SPI controller
+ *   receives and sends complete or fail to notify spi slave upper half.
+ *   And this callback can call in interrupt handler.
+ *
+ * Input Parameters:
+ *   dev   - SPI Slave device interface instance
+ *   state - The Receive and send state, type of state is spi_slave_state_t
+ *
+ ****************************************************************************/
+
+#define SPIS_DEV_NOTIFY(d,s)  ((d)->ops->notify(d,s))
 
 /****************************************************************************
  * Public Types
@@ -372,8 +414,7 @@
  *
  * 4) When the first word from the master is shifted in, the SPI
  *    controller driver will call the device's receive() method to
- *    provide the master with the command word that was just shifted
- *    in.
+ *    provide the master command word that was just shifted in.
  *
  *    For the case of bi-directional data transfer or of a transfer of
  *    data from the SPI device to the master, the SPI device driver
@@ -475,6 +516,15 @@ enum spi_slave_mode_e
   SPISLAVE_MODE3          /* CPOL=1 CPHA=1 */
 };
 
+/* The SPI slave transfer state */
+
+typedef enum
+{
+  SPISLAVE_RX_COMPLETE = 0,
+  SPISLAVE_TX_COMPLETE,
+  SPISLAVE_TRANSFER_FAILED
+} spi_slave_state_t;
+
 /* The SPI slave controller driver vtable */
 
 struct spi_slave_ctrlr_s; /* Forward reference */
@@ -516,6 +566,10 @@ struct spi_slave_devops_s
                            FAR const void **data);
   CODE size_t   (*receive)(FAR struct spi_slave_dev_s *sdev,
                            FAR const void *data, size_t nwords);
+  CODE void     (*notify)(FAR struct spi_slave_dev_s *sdev,
+                          spi_slave_state_t state);
+  CODE size_t   (*getrecvbuf)(FAR struct spi_slave_dev_s *sdev,
+                              FAR void **buffer);
 };
 
 /* SPI slave device private data. This structure only defines the initial

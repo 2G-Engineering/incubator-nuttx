@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/mld/mld_query.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/wdog.h>
 #include <nuttx/net/netconfig.h>
@@ -86,45 +88,9 @@ static inline void mld_check_v1compat(FAR struct net_driver_s *dev,
        * running, this will reset the timer.
        */
 
-      mld_start_v1timer(dev,
-                    MSEC2TICK(MLD_V1PRESENT_MSEC((clock_t)MLD_QUERY_MSEC)));
+      mld_start_v1timer(dev, MSEC2TICK(MLD_V1PRESENT_MSEC(MLD_QUERY_MSEC)));
     }
 }
-
-/****************************************************************************
- * Name: mld_mrc2mrd
- *
- * Description:
- *  Convert the MLD Maximum Response Code (MRC) to the Maximum Response
- *  Delay (MRD) in units of system clock ticks.
- *
- ****************************************************************************/
-
-#if 0 /* Not used */
-static clock_t mld_mrc2mrd(uint16_t mrc)
-{
-  uint32_t mrd;  /* Units of milliseconds */
-
-  /* If bit 15 is not set (i.e., mrc < 32768),
-   * then no conversion is required.
-   */
-
-  if (mrc < 32768)
-    {
-      mrd = mrc;
-    }
-  else
-    {
-      /* Conversion required */
-
-      mrd = MLD_MRD_VALUE(mrc);
-    }
-
-  /* Return the MRD in units of clock ticks */
-
-  return MSEC2TICK((clock_t)mrd);
-}
-#endif
 
 /****************************************************************************
  * Name: mld_cmpaddr
@@ -139,11 +105,21 @@ static clock_t mld_mrc2mrd(uint16_t mrc)
 static bool mld_cmpaddr(FAR struct net_driver_s *dev,
                         const net_ipv6addr_t srcaddr)
 {
+  FAR const uint16_t *lladdr = netdev_ipv6_lladdr(dev);
   int i;
+
+  if (lladdr == NULL)
+    {
+      /* If no link-local address presents, regard address as ::, then nobody
+       * can be less than it.
+       */
+
+      return false;
+    }
 
   for (i = 0; i < 8; i++)
     {
-      if (srcaddr[i] < dev->d_ipv6addr[i])
+      if (srcaddr[i] < lladdr[i])
         {
           return true;
         }
@@ -439,7 +415,7 @@ int mld_query(FAR struct net_driver_s *dev,
 
   /* Not sent to all systems.  Check for Unicast General Query */
 
-  else if (net_ipv6addr_cmp(ipv6->destipaddr, dev->d_ipv6addr))
+  else if (NETDEV_IS_MY_V6ADDR(dev, ipv6->destipaddr))
     {
       mldinfo("Unicast query\n");
       MLD_STATINCR(g_netstats.mld.ucast_query_received);

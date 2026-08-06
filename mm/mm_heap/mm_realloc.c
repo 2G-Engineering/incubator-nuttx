@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/mm_heap/mm_realloc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,9 +33,10 @@
 #include <assert.h>
 
 #include <nuttx/mm/mm.h>
+#include <nuttx/mm/kasan.h>
+#include <nuttx/sched_note.h>
 
 #include "mm_heap/mm.h"
-#include "kasan/kasan.h"
 
 /****************************************************************************
  * Public Functions
@@ -81,23 +84,29 @@ FAR void *mm_realloc(FAR struct mm_heap_s *heap, FAR void *oldmem,
       return mm_malloc(heap, size);
     }
 
-#if CONFIG_MM_HEAP_MEMPOOL_THRESHOLD != 0
-  newmem = mempool_multiple_realloc(heap->mm_mpool, oldmem, size);
-  if (newmem != NULL)
+  DEBUGASSERT(mm_heapmember(heap, oldmem));
+
+#ifdef CONFIG_MM_HEAP_MEMPOOL
+  if (heap->mm_mpool)
     {
-      return newmem;
-    }
-  else if (size <= CONFIG_MM_HEAP_MEMPOOL_THRESHOLD ||
-           mempool_multiple_alloc_size(heap->mm_mpool, oldmem) >= 0)
-    {
-      newmem = mm_malloc(heap, size);
+      newmem = mempool_multiple_realloc(heap->mm_mpool, oldmem, size);
       if (newmem != NULL)
         {
-          memcpy(newmem, oldmem, MIN(size, mm_malloc_size(heap, oldmem)));
-          mm_free(heap, oldmem);
+          return newmem;
         }
+      else if (size <= heap->mm_threshold ||
+               mempool_multiple_alloc_size(heap->mm_mpool, oldmem) >= 0)
+        {
+          newmem = mm_malloc(heap, size);
+          if (newmem != NULL)
+            {
+              memcpy(newmem, oldmem,
+                     MIN(size, mm_malloc_size(heap, oldmem)));
+              mm_free(heap, oldmem);
+            }
 
-      return newmem;
+          return newmem;
+        }
     }
 #endif
 
@@ -106,12 +115,12 @@ FAR void *mm_realloc(FAR struct mm_heap_s *heap, FAR void *oldmem,
    * least MM_MIN_CHUNK.
    */
 
-  if (size < MM_MIN_CHUNK - OVERHEAD_MM_ALLOCNODE)
+  if (size < MM_MIN_CHUNK - MM_ALLOCNODE_OVERHEAD)
     {
-      size = MM_MIN_CHUNK - OVERHEAD_MM_ALLOCNODE;
+      size = MM_MIN_CHUNK - MM_ALLOCNODE_OVERHEAD;
     }
 
-  newsize = MM_ALIGN_UP(size + OVERHEAD_MM_ALLOCNODE);
+  newsize = MM_ALIGN_UP(size + MM_ALLOCNODE_OVERHEAD);
   if (newsize < size)
     {
       /* There must have been an integer overflow */
@@ -123,17 +132,16 @@ FAR void *mm_realloc(FAR struct mm_heap_s *heap, FAR void *oldmem,
   /* Map the memory chunk into an allocated node structure */
 
   oldnode = (FAR struct mm_allocnode_s *)
-    ((FAR char *)oldmem - SIZEOF_MM_ALLOCNODE);
+    ((FAR char *)kasan_clear_tag(oldmem) - MM_SIZEOF_ALLOCNODE);
 
   /* We need to hold the MM mutex while we muck with the nodelist. */
 
   DEBUGVERIFY(mm_lock(heap));
-  DEBUGASSERT(oldnode->size & MM_ALLOC_BIT);
-  DEBUGASSERT(mm_heapmember(heap, oldmem));
+  DEBUGASSERT(MM_NODE_IS_ALLOC(oldnode));
 
   /* Check if this is a request to reduce the size of the allocation. */
 
-  oldsize = SIZEOF_MM_NODE(oldnode);
+  oldsize = MM_SIZEOF_NODE(oldnode);
   if (newsize <= oldsize)
     {
       /* Handle the special case where we are not going to change the size
@@ -142,9 +150,11 @@ FAR void *mm_realloc(FAR struct mm_heap_s *heap, FAR void *oldmem,
 
       if (newsize < oldsize)
         {
+          heap->mm_curused += newsize - oldsize;
           mm_shrinkchunk(heap, oldnode, newsize);
-          kasan_poison((FAR char *)oldnode + SIZEOF_MM_NODE(oldnode) +
-                       sizeof(mmsize_t), oldsize - SIZEOF_MM_NODE(oldnode));
+          kasan_poison((FAR char *)oldnode + MM_SIZEOF_NODE(oldnode) +
+                       sizeof(mmsize_t) - CONFIG_MM_NODE_GUARDSIZE,
+                       oldsize - MM_SIZEOF_NODE(oldnode));
         }
 
       /* Then return the original address */
@@ -161,18 +171,18 @@ FAR void *mm_realloc(FAR struct mm_heap_s *heap, FAR void *oldmem,
    */
 
   next = (FAR struct mm_freenode_s *)((FAR char *)oldnode + oldsize);
-  if ((next->size & MM_ALLOC_BIT) == 0)
+  if (MM_NODE_IS_FREE(next))
     {
-      DEBUGASSERT((next->size & MM_PREVFREE_BIT) == 0);
-      nextsize = SIZEOF_MM_NODE(next);
+      DEBUGASSERT(MM_PREVNODE_IS_ALLOC(next));
+      nextsize = MM_SIZEOF_NODE(next);
     }
 
-  if ((oldnode->size & MM_PREVFREE_BIT) != 0)
+  if (MM_PREVNODE_IS_FREE(oldnode))
     {
       prev = (FAR struct mm_freenode_s *)
         ((FAR char *)oldnode - oldnode->preceding);
-      DEBUGASSERT((prev->size & MM_ALLOC_BIT) == 0);
-      prevsize = SIZEOF_MM_NODE(prev);
+      DEBUGASSERT(MM_NODE_IS_FREE(prev));
+      prevsize = MM_SIZEOF_NODE(prev);
     }
 
   /* Now, check if we can extend the current allocation or not */
@@ -258,7 +268,8 @@ FAR void *mm_realloc(FAR struct mm_heap_s *heap, FAR void *oldmem,
 
           if (prevsize < takeprev + MM_MIN_CHUNK)
             {
-              takeprev = prevsize;
+              heap->mm_curused += prevsize - takeprev;
+              takeprev          = prevsize;
             }
 
           /* Extend the node into the previous free chunk */
@@ -295,7 +306,7 @@ FAR void *mm_realloc(FAR struct mm_heap_s *heap, FAR void *oldmem,
                               (newnode->size & MM_MASK_BIT);
             }
 
-          newmem = (FAR void *)((FAR char *)newnode + SIZEOF_MM_ALLOCNODE);
+          newmem = (FAR void *)((FAR char *)newnode + MM_SIZEOF_ALLOCNODE);
 
           /* Now we want to return newnode */
 
@@ -331,7 +342,8 @@ FAR void *mm_realloc(FAR struct mm_heap_s *heap, FAR void *oldmem,
 
           if (nextsize < takenext + MM_MIN_CHUNK)
             {
-              takenext = nextsize;
+              heap->mm_curused += nextsize - takenext;
+              takenext          = nextsize;
             }
 
           /* Extend the node into the next chunk */
@@ -364,17 +376,33 @@ FAR void *mm_realloc(FAR struct mm_heap_s *heap, FAR void *oldmem,
             }
         }
 
-      mm_unlock(heap);
-      MM_ADD_BACKTRACE(heap, (FAR char *)newmem - SIZEOF_MM_ALLOCNODE);
+      /* Update heap statistics */
 
-      kasan_unpoison(newmem, mm_malloc_size(heap, newmem));
+      heap->mm_curused += newsize - oldsize;
+      if (heap->mm_curused > heap->mm_maxused)
+        {
+          heap->mm_maxused = heap->mm_curused;
+        }
+
+      sched_note_heap(NOTE_HEAP_FREE, heap, oldmem, oldsize,
+                      heap->mm_curused - newsize);
+      sched_note_heap(NOTE_HEAP_ALLOC, heap, newmem, newsize,
+                      heap->mm_curused);
+
+      size = MM_SIZEOF_NODE(oldnode);
+      mm_unlock(heap);
+      MM_ADD_BACKTRACE(heap, (FAR char *)newmem - MM_SIZEOF_ALLOCNODE);
+
+      newmem = kasan_unpoison(newmem, size - MM_ALLOCNODE_OVERHEAD);
+
+      oldmem = kasan_set_tag(oldmem, kasan_get_tag(newmem));
       if (newmem != oldmem)
         {
           /* Now we have to move the user contents 'down' in memory.  memcpy
            * should be safe for this.
            */
 
-          memcpy(newmem, oldmem, oldsize - OVERHEAD_MM_ALLOCNODE);
+          memcpy(newmem, oldmem, oldsize - MM_ALLOCNODE_OVERHEAD);
         }
 
       return newmem;
@@ -394,7 +422,7 @@ FAR void *mm_realloc(FAR struct mm_heap_s *heap, FAR void *oldmem,
       newmem = mm_malloc(heap, size);
       if (newmem)
         {
-          memcpy(newmem, oldmem, oldsize - OVERHEAD_MM_ALLOCNODE);
+          memcpy(newmem, oldmem, oldsize - MM_ALLOCNODE_OVERHEAD);
           mm_free(heap, oldmem);
         }
 

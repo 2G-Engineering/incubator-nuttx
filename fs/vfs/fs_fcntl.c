@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_fcntl.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -69,55 +71,13 @@ static int file_vfcntl(FAR struct file *filep, int cmd, va_list ap)
          */
 
         {
-          /* Does not set the errno variable in the event of a failure */
-
-          ret = file_dup(filep, va_arg(ap, int), false);
+          ret = file_dup(filep, va_arg(ap, int), 0);
         }
         break;
 
       case F_DUPFD_CLOEXEC:
         {
-          ret = file_dup(filep, va_arg(ap, int), true);
-        }
-        break;
-
-      case F_GETFD:
-        /* Get the file descriptor flags defined in <fcntl.h> that are
-         * associated with the file descriptor fd.  File descriptor flags are
-         * associated with a single file descriptor and do not affect other
-         * file descriptors that refer to the same file.
-         */
-
-        {
-          ret = filep->f_oflags & O_CLOEXEC ? FD_CLOEXEC : 0;
-        }
-        break;
-
-      case F_SETFD:
-        /* Set the file descriptor flags defined in <fcntl.h>, that are
-         * associated with fd, to the third argument, arg, taken as type int.
-         * If the FD_CLOEXEC flag in the third argument is 0, the file shall
-         * remain open across the exec functions; otherwise, the file shall
-         * be closed upon successful execution of one of the exec functions.
-         */
-
-        {
-          int oflags = va_arg(ap, int);
-
-          if (oflags & ~FD_CLOEXEC)
-            {
-              ret = -ENOSYS;
-              break;
-            }
-
-          if (oflags & FD_CLOEXEC)
-            {
-              ret = file_ioctl(filep, FIOCLEX, NULL);
-            }
-          else
-            {
-              ret = file_ioctl(filep, FIONCLEX, NULL);
-            }
+          ret = file_dup(filep, va_arg(ap, int), O_CLOEXEC);
         }
         break;
 
@@ -159,7 +119,7 @@ static int file_vfcntl(FAR struct file *filep, int cmd, va_list ap)
 
               if ((filep->f_oflags & O_APPEND) != 0)
                 {
-                  file_seek(filep, 0, SEEK_END);
+                  ret = file_seek(filep, 0, SEEK_END);
                 }
             }
         }
@@ -195,6 +155,12 @@ static int file_vfcntl(FAR struct file *filep, int cmd, va_list ap)
          * for the lock type which shall be set to F_UNLCK.
          */
 
+        {
+          ret = file_ioctl(filep, FIOC_GETLK,
+                           va_arg(ap, FAR struct flock *));
+        }
+
+        break;
       case F_SETLK:
         /* Set or clear a file segment lock according to the lock
          * description pointed to by the third argument, arg, taken as a
@@ -206,6 +172,12 @@ static int file_vfcntl(FAR struct file *filep, int cmd, va_list ap)
          * shall return immediately with a return value of -1.
          */
 
+        {
+          ret = file_ioctl(filep, FIOC_SETLK,
+                           va_arg(ap, FAR struct flock *));
+        }
+
+        break;
       case F_SETLKW:
         /* This command shall be equivalent to F_SETLK except that if a
          * shared or exclusive lock is blocked by other locks, the thread
@@ -216,9 +188,12 @@ static int file_vfcntl(FAR struct file *filep, int cmd, va_list ap)
          * the lock operation shall not be done.
          */
 
-        ret = -ENOSYS; /* Not implemented */
-        break;
+        {
+          ret = file_ioctl(filep, FIOC_SETLKW,
+                           va_arg(ap, FAR struct flock *));
+        }
 
+        break;
       case F_GETPATH:
         /* Get the path of the file descriptor. The argument must be a buffer
          * of size PATH_MAX or greater.
@@ -228,6 +203,26 @@ static int file_vfcntl(FAR struct file *filep, int cmd, va_list ap)
           ret = file_ioctl(filep, FIOC_FILEPATH, va_arg(ap, FAR char *));
         }
 
+        break;
+      case F_SETPIPE_SZ:
+        /* Modify the capacity of the pipe to arg bytes, but not larger than
+         * CONFIG_DEV_PIPE_MAXSIZE.
+         */
+
+        {
+          ret = file_ioctl(filep, PIPEIOC_SETSIZE, va_arg(ap, int));
+        }
+
+        break;
+      case F_GETPIPE_SZ:
+
+        /* Return the capacity of the pipe */
+
+        {
+          ret = file_ioctl(filep, PIPEIOC_GETSIZE);
+        }
+
+        break;
       default:
         break;
     }
@@ -298,7 +293,6 @@ int file_fcntl(FAR struct file *filep, int cmd, ...)
 
 int fcntl(int fd, int cmd, ...)
 {
-  FAR struct file *filep;
   va_list ap;
   int ret;
 
@@ -310,24 +304,73 @@ int fcntl(int fd, int cmd, ...)
 
   va_start(ap, cmd);
 
-  /* Get the file structure corresponding to the file descriptor. */
-
-  ret = fs_getfilep(fd, &filep);
-  if (ret >= 0)
+  switch (cmd)
     {
-      DEBUGASSERT(filep != NULL);
+      case F_GETFD:
+        /* Get the file descriptor flags defined in <fcntl.h> that are
+         * associated with the file descriptor fd.  File descriptor flags are
+         * associated with a single file descriptor and do not affect other
+         * file descriptors that refer to the same file.
+         */
 
-      /* Let file_vfcntl() do the real work.  The errno is not set on
-       * failures.
-       */
+        {
+          int flags;
 
-      ret = file_vfcntl(filep, cmd, ap);
-    }
+          ret = ioctl(fd, FIOGCLEX, &flags);
+          if (ret >= 0)
+            {
+              ret = flags;
+            }
+        }
+        break;
 
-  if (ret < 0)
-    {
-      set_errno(-ret);
-      ret = ERROR;
+      case F_SETFD:
+        /* Set the file descriptor flags defined in <fcntl.h>, that are
+         * associated with fd, to the third argument, arg, taken as type int.
+         * If the FD_CLOEXEC flag in the third argument is 0, the file shall
+         * remain open across the exec functions; otherwise, the file shall
+         * be closed upon successful execution of one of the exec functions.
+         */
+
+        {
+          int oflags = va_arg(ap, int);
+
+          if (oflags & ~FD_CLOEXEC)
+            {
+              set_errno(ENOSYS);
+              ret = ERROR;
+              break;
+            }
+
+          if (oflags & FD_CLOEXEC)
+            {
+              ret = ioctl(fd, FIOCLEX, NULL);
+            }
+          else
+            {
+              ret = ioctl(fd, FIONCLEX, NULL);
+            }
+        }
+        break;
+
+      default:
+        {
+          FAR struct file *filep;
+
+          ret = file_get(fd, &filep);
+          if (ret >= 0)
+            {
+              ret = file_vfcntl(filep, cmd, ap);
+              file_put(filep);
+            }
+
+          if (ret < 0)
+            {
+              set_errno(-ret);
+              ret = ERROR;
+            }
+        }
+        break;
     }
 
   va_end(ap);

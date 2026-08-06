@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/tiva/tm4c1294-launchpad/src/tm4c_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/i2c/i2c_master.h>
 #include <nuttx/sensors/bmi160.h>

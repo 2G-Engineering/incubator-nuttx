@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/leds/apa102.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 
 #include <stdlib.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
@@ -232,7 +234,7 @@ int apa102_register(FAR const char *devpath, FAR struct spi_dev_s *spi)
 
   /* Initialize the APA102 device structure */
 
-  priv = (FAR struct apa102_dev_s *)kmm_malloc(sizeof(struct apa102_dev_s));
+  priv = kmm_malloc(sizeof(struct apa102_dev_s));
   if (!priv)
     {
       snerr("ERROR: Failed to allocate instance\n");

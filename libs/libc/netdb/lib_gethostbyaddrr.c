@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/netdb/lib_gethostbyaddrr.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <string.h>
 #include <netdb.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <arpa/inet.h>
@@ -37,10 +39,8 @@
 
 #include "netdb/lib_netdb.h"
 
-#ifdef CONFIG_LIBC_NETDB
-
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 /* This is the layout of the caller provided memory area */
@@ -201,7 +201,9 @@ static int lib_localhost(FAR const void *addr, socklen_t len, int type,
 
   return 1;
 
+#if defined(CONFIG_NET_IPv4) || defined(CONFIG_NET_IPv6)
 out_copyname:
+#endif
 
   /* And copy localhost host name */
 
@@ -439,4 +441,3 @@ int gethostbyaddr_r(FAR const void *addr, socklen_t len, int type,
   return ret;
 }
 
-#endif /* CONFIG_LIBC_NETDB */

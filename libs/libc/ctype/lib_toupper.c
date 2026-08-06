@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/ctype/lib_toupper.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,3 +34,9 @@ int toupper(int c)
 {
   return (c >= 'a' && c <= 'z') ? c - 'a' + 'A' : c;
 }
+
+int toupper_l(int c, locale_t locale)
+{
+  return toupper(c);
+}
+

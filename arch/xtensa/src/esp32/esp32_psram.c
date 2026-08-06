@@ -27,24 +27,24 @@
 #include <stdbool.h>
 #include <strings.h>
 #include <assert.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/config.h>
 #include <nuttx/signal.h>
 
 #include "xtensa.h"
-#include "xtensa_attr.h"
-#include "esp32_rtc.h"
-#include "esp32_gpio.h"
+
+#include "espressif/esp_rtc.h"
+#include "esp_gpio.h"
 #include "esp32_psram.h"
 #include "hardware/esp32_spi.h"
 #include "hardware/esp32_dport.h"
 #include "hardware/esp32_iomux.h"
-#include "hardware/esp32_rtccntl.h"
+#include "soc/rtc_cntl_reg.h"
 #include "hardware/esp32_gpio_sigmap.h"
 
 #include "rom/esp32_efuse.h"
 #include "rom/esp32_spiflash.h"
-#include "hardware/efuse_reg.h"
 
 #ifdef CONFIG_ESP32_SPIRAM
 
@@ -188,6 +188,16 @@
 #  define PSRAM_CLK_SIGNAL    SPICLK_OUT_IDX
 #  define PSRAM_SPI_NUM       PSRAM_SPI_1
 #  define PSRAM_SPICLKEN      DPORT_SPI01_CLK_EN
+#endif
+
+/* Let's to assume SPIFLASH SPEED == SPIRAM SPEED for now */
+
+#if defined(CONFIG_ESP32_SPIRAM_SPEED_40M)
+#  define PSRAM_CS_HOLD_TIME 0
+#elif defined(CONFIG_ESP32_SPIRAM_SPEED_80M)
+#  define PSRAM_CS_HOLD_TIME 1
+#else
+#  error "FLASH speed can only be equal to or higher than SRAM speed while SRAM is enabled!"
 #endif
 
 /****************************************************************************
@@ -381,25 +391,22 @@ static int IRAM_ATTR esp32_get_vddsdio_config(
 
   efuse_reg = getreg32(EFUSE_BLK0_RDATA4_REG);
 
-  if (efuse_reg & EFUSE_RD_SDIO_FORCE)
+  if (efuse_reg & EFUSE_RD_XPD_SDIO_FORCE)
     {
       /* Get configuration from EFUSE */
 
       result->force = 0;
       result->enable = (efuse_reg & EFUSE_RD_XPD_SDIO_REG_M)
                                   >> EFUSE_RD_XPD_SDIO_REG_S;
-      result->tieh = (efuse_reg & EFUSE_RD_SDIO_TIEH_M)
-                                >> EFUSE_RD_SDIO_TIEH_S;
+      result->tieh = (efuse_reg & EFUSE_RD_XPD_SDIO_TIEH_M)
+                                >> EFUSE_RD_XPD_SDIO_TIEH_S;
 
       if (REG_GET_FIELD(EFUSE_BLK0_RDATA3_REG,
               EFUSE_RD_BLK3_PART_RESERVE) == 0)
         {
-          result->drefh = (efuse_reg & EFUSE_RD_SDIO_DREFH_M)
-                                     >> EFUSE_RD_SDIO_DREFH_S;
-          result->drefm = (efuse_reg & EFUSE_RD_SDIO_DREFM_M)
-                                     >> EFUSE_RD_SDIO_DREFM_S;
-          result->drefl = (efuse_reg & EFUSE_RD_SDIO_DREFL_M)
-                                     >> EFUSE_RD_SDIO_DREFL_S;
+          result->drefh = (efuse_reg >> 8) & 0x3;
+          result->drefm = (efuse_reg >> 10) & 0x3;
+          result->drefl = (efuse_reg >> 12) & 0x3;
         }
 
       return OK;
@@ -587,7 +594,7 @@ static void IRAM_ATTR
         }
     }
 
-  /* use Dram1 to visit ext sram. */
+  /* use DRAM1 to visit ext sram. */
 
   modifyreg32(DPORT_PRO_CACHE_CTRL1_REG,
               DPORT_PRO_CACHE_MASK_DRAM1 | DPORT_PRO_CACHE_MASK_OPSDRAM, 0);
@@ -595,10 +602,8 @@ static void IRAM_ATTR
   /* cache page mode :
    * 1 -->16k
    * 4 -->2k
-   * 0 -->32k,(accord with the settings in cache_sram_mmu_set)
+   * 0 -->32k, (accord with the settings in cache_sram_mmu_set)
    */
-
-  /* get into unknown exception if not comment */
 
   regval  = getreg32(DPORT_PRO_CACHE_CTRL1_REG);
   regval &= ~(DPORT_PRO_CMMU_SRAM_PAGE_MODE <<
@@ -608,8 +613,7 @@ static void IRAM_ATTR
   /* use DRAM1 to visit ext sram. */
 
   modifyreg32(DPORT_APP_CACHE_CTRL1_REG,
-              DPORT_APP_CACHE_MASK_DRAM1 |
-              DPORT_APP_CACHE_MASK_OPSDRAM, 0);
+              DPORT_APP_CACHE_MASK_DRAM1 | DPORT_APP_CACHE_MASK_OPSDRAM, 0);
 
   /* cache page mode :
    * 1 -->16k
@@ -989,7 +993,7 @@ static void psram_read_id(uint64_t *dev_id)
   psram_cmd_recv_start(spi_num, ps_cmd.rx_data,
                        ps_cmd.rx_data_bit_len / 8, PSRAM_CMD_SPI);
   psram_cmd_end(spi_num);
-  *dev_id = (uint64_t)(((uint64_t)psram_id[1] << 32) | psram_id[0]);
+  *dev_id = (((uint64_t)psram_id[1] << 32) | psram_id[0]);
 }
 
 /* enter QPI mode */
@@ -1140,12 +1144,12 @@ psram_2t_mode_enable(psram_spi_num_t spi_num)
    */
 
   GPIO_OUTPUT_SET(CONFIG_D0WD_PSRAM_CS_IO, 1);
-  esp32_gpio_matrix_out(CONFIG_D0WD_PSRAM_CS_IO, SIG_GPIO_OUT_IDX, 0, 0);
+  esp_gpio_matrix_out(CONFIG_D0WD_PSRAM_CS_IO, SIG_GPIO_OUT_IDX, 0, 0);
 
-  esp32_gpio_matrix_out(PSRAM_SPID_SD1_IO, SPIQ_OUT_IDX, 0, 0);
-  esp32_gpio_matrix_in(PSRAM_SPID_SD1_IO, SPIQ_IN_IDX, 0);
-  esp32_gpio_matrix_out(PSRAM_SPIQ_SD0_IO, SPID_OUT_IDX, 0, 0);
-  esp32_gpio_matrix_in(PSRAM_SPIQ_SD0_IO, SPID_IN_IDX, 0);
+  esp_gpio_matrix_out(PSRAM_SPID_SD1_IO, SPIQ_OUT_IDX, 0, 0);
+  esp_gpio_matrix_in(PSRAM_SPID_SD1_IO, SPIQ_IN_IDX, 0);
+  esp_gpio_matrix_out(PSRAM_SPIQ_SD0_IO, SPID_OUT_IDX, 0, 0);
+  esp_gpio_matrix_in(PSRAM_SPIQ_SD0_IO, SPID_IN_IDX, 0);
 
   uint32_t w_data_2t[4] =
                           {
@@ -1162,12 +1166,12 @@ psram_2t_mode_enable(psram_spi_num_t spi_num)
   psram_cmd_recv_start(spi_num, NULL, 0, PSRAM_CMD_SPI);
   psram_cmd_end(spi_num);
 
-  esp32_gpio_matrix_out(PSRAM_SPIQ_SD0_IO, SPIQ_OUT_IDX, 0, 0);
-  esp32_gpio_matrix_in(PSRAM_SPIQ_SD0_IO, SPIQ_IN_IDX, 0);
-  esp32_gpio_matrix_out(PSRAM_SPID_SD1_IO, SPID_OUT_IDX, 0, 0);
-  esp32_gpio_matrix_in(PSRAM_SPID_SD1_IO, SPID_IN_IDX, 0);
+  esp_gpio_matrix_out(PSRAM_SPIQ_SD0_IO, SPIQ_OUT_IDX, 0, 0);
+  esp_gpio_matrix_in(PSRAM_SPIQ_SD0_IO, SPIQ_IN_IDX, 0);
+  esp_gpio_matrix_out(PSRAM_SPID_SD1_IO, SPID_OUT_IDX, 0, 0);
+  esp_gpio_matrix_in(PSRAM_SPID_SD1_IO, SPID_IN_IDX, 0);
 
-  esp32_gpio_matrix_out(CONFIG_D0WD_PSRAM_CS_IO, SPICS1_OUT_IDX, 0, 0);
+  esp_gpio_matrix_out(CONFIG_D0WD_PSRAM_CS_IO, SPICS1_OUT_IDX, 0, 0);
 
   /* setp4: send cmd 0x5f
    *        send one more bit clock after send cmd
@@ -1263,8 +1267,8 @@ void psram_set_cs_timing(psram_spi_num_t spi_num, psram_clk_mode_t clk_mode)
 
       /* Set cs time. */
 
-      SET_PERI_REG_BITS(SPI_CTRL2_REG(spi_num), SPI_HOLD_TIME_V, 1,
-                        SPI_HOLD_TIME_S);
+      SET_PERI_REG_BITS(SPI_CTRL2_REG(spi_num), SPI_HOLD_TIME_V,
+                        PSRAM_CS_HOLD_TIME, SPI_HOLD_TIME_S);
       SET_PERI_REG_BITS(SPI_CTRL2_REG(spi_num), SPI_SETUP_TIME_V, 0,
                         SPI_SETUP_TIME_S);
     }
@@ -1399,16 +1403,16 @@ static void IRAM_ATTR psram_gpio_config(psram_io_t *psram_io,
    * version.
    */
 
-  esp32_gpio_matrix_out(psram_io->flash_cs_io, SPICS0_OUT_IDX, 0, 0);
-  esp32_gpio_matrix_out(psram_io->psram_cs_io, SPICS1_OUT_IDX, 0, 0);
-  esp32_gpio_matrix_out(psram_io->psram_spiq_sd0_io, SPIQ_OUT_IDX, 0, 0);
-  esp32_gpio_matrix_in(psram_io->psram_spiq_sd0_io, SPIQ_IN_IDX, 0);
-  esp32_gpio_matrix_out(psram_io->psram_spid_sd1_io, SPID_OUT_IDX, 0, 0);
-  esp32_gpio_matrix_in(psram_io->psram_spid_sd1_io, SPID_IN_IDX, 0);
-  esp32_gpio_matrix_out(psram_io->psram_spiwp_sd3_io, SPIWP_OUT_IDX, 0, 0);
-  esp32_gpio_matrix_in(psram_io->psram_spiwp_sd3_io, SPIWP_IN_IDX, 0);
-  esp32_gpio_matrix_out(psram_io->psram_spihd_sd2_io, SPIHD_OUT_IDX, 0, 0);
-  esp32_gpio_matrix_in(psram_io->psram_spihd_sd2_io, SPIHD_IN_IDX, 0);
+  esp_gpio_matrix_out(psram_io->flash_cs_io, SPICS0_OUT_IDX, 0, 0);
+  esp_gpio_matrix_out(psram_io->psram_cs_io, SPICS1_OUT_IDX, 0, 0);
+  esp_gpio_matrix_out(psram_io->psram_spiq_sd0_io, SPIQ_OUT_IDX, 0, 0);
+  esp_gpio_matrix_in(psram_io->psram_spiq_sd0_io, SPIQ_IN_IDX, 0);
+  esp_gpio_matrix_out(psram_io->psram_spid_sd1_io, SPID_OUT_IDX, 0, 0);
+  esp_gpio_matrix_in(psram_io->psram_spid_sd1_io, SPID_IN_IDX, 0);
+  esp_gpio_matrix_out(psram_io->psram_spiwp_sd3_io, SPIWP_OUT_IDX, 0, 0);
+  esp_gpio_matrix_in(psram_io->psram_spiwp_sd3_io, SPIWP_IN_IDX, 0);
+  esp_gpio_matrix_out(psram_io->psram_spihd_sd2_io, SPIHD_OUT_IDX, 0, 0);
+  esp_gpio_matrix_in(psram_io->psram_spihd_sd2_io, SPIHD_IN_IDX, 0);
 
   /* select pin function gpio */
 
@@ -1417,23 +1421,23 @@ static void IRAM_ATTR psram_gpio_config(psram_io_t *psram_io,
     {
       /* flash clock signal should come from IO MUX. */
 
-      esp32_configgpio(psram_io->flash_clk_io, OUTPUT_FUNCTION_2);
+      esp_configgpio(psram_io->flash_clk_io, OUTPUT_FUNCTION_2);
     }
   else
     {
       /* flash clock signal should come from GPIO matrix. */
 
-      esp32_configgpio(psram_io->flash_clk_io, OUTPUT_FUNCTION_3);
+      esp_configgpio(psram_io->flash_clk_io, OUTPUT_FUNCTION_3);
     }
 
-  esp32_configgpio(psram_io->flash_cs_io, OUTPUT | FUNCTION_3);
-  esp32_configgpio(psram_io->psram_cs_io, OUTPUT | FUNCTION_3);
-  esp32_configgpio(psram_io->psram_clk_io, OUTPUT | FUNCTION_3);
-  esp32_configgpio(psram_io->psram_spiq_sd0_io, OUTPUT | INPUT | FUNCTION_3);
-  esp32_configgpio(psram_io->psram_spid_sd1_io, OUTPUT | INPUT | FUNCTION_3);
-  esp32_configgpio(psram_io->psram_spihd_sd2_io,
+  esp_configgpio(psram_io->flash_cs_io, OUTPUT | FUNCTION_3);
+  esp_configgpio(psram_io->psram_cs_io, OUTPUT | FUNCTION_3);
+  esp_configgpio(psram_io->psram_clk_io, OUTPUT | FUNCTION_3);
+  esp_configgpio(psram_io->psram_spiq_sd0_io, OUTPUT | INPUT | FUNCTION_3);
+  esp_configgpio(psram_io->psram_spid_sd1_io, OUTPUT | INPUT | FUNCTION_3);
+  esp_configgpio(psram_io->psram_spihd_sd2_io,
                    OUTPUT | INPUT | FUNCTION_3);
-  esp32_configgpio(psram_io->psram_spiwp_sd3_io,
+  esp_configgpio(psram_io->psram_spiwp_sd3_io,
                    OUTPUT | INPUT | FUNCTION_3);
 
 #if 0
@@ -1507,15 +1511,17 @@ psram_enable(int mode, int vaddrmode)   /* psram init */
 {
   struct rtc_vddsdio_config_s cfg;
 
-  /* Let's assume we are not worring about OTA issue and ignore for now */
+  /* Let's assume we are not worrying about OTA issue and ignore for now */
 
   psram_io_t psram_io =
                         {
                           0
                         };
 
-  uint32_t chip_ver = REG_GET_FIELD(EFUSE_BLK0_RDATA3_REG,
-                                    EFUSE_RD_CHIP_VER_PKG);
+  uint32_t chip_ver = (REG_GET_FIELD(EFUSE_BLK0_RDATA3_REG,
+                                    EFUSE_RD_CHIP_PACKAGE_4BIT) << 3) |
+                      REG_GET_FIELD(EFUSE_BLK0_RDATA3_REG,
+                                    EFUSE_RD_CHIP_PACKAGE);
   uint32_t pkg_ver = chip_ver & 0x7;
   uint32_t spiconfig;
 
@@ -1562,7 +1568,7 @@ psram_enable(int mode, int vaddrmode)   /* psram init */
             }
           else
             {
-              merr("Not a valid or known package id: %d", pkg_ver);
+              merr("Not a valid or known package id: %" PRIu32 "", pkg_ver);
               PANIC();
             }
         }
@@ -1613,7 +1619,7 @@ psram_enable(int mode, int vaddrmode)   /* psram init */
         }
     }
 
-  assert(mode < PSRAM_CACHE_MAX && "we don't support any other mode.");
+  ASSERT(mode < PSRAM_CACHE_MAX && "we don't support any other mode.");
   s_psram_mode = mode;
 
   putreg32(0x1, SPI_EXT3_REG(0));
@@ -1624,7 +1630,7 @@ psram_enable(int mode, int vaddrmode)   /* psram init */
   switch (mode)
     {
       case PSRAM_CACHE_F80M_S80M:
-        esp32_gpio_matrix_out(psram_io.psram_clk_io, SPICLK_OUT_IDX, 0, 0);
+        esp_gpio_matrix_out(psram_io.psram_clk_io, SPICLK_OUT_IDX, 0, 0);
         break;
       case PSRAM_CACHE_F80M_S40M:
       case PSRAM_CACHE_F40M_S40M:
@@ -1643,21 +1649,21 @@ psram_enable(int mode, int vaddrmode)   /* psram init */
              */
 
             minfo("clk_mode == PSRAM_CLK_MODE_DCLK\n");
-            esp32_gpio_matrix_out(PSRAM_INTERNAL_IO_28,
+            esp_gpio_matrix_out(PSRAM_INTERNAL_IO_28,
                                   SPICLK_OUT_IDX, 0, 0);
-            esp32_gpio_matrix_in(PSRAM_INTERNAL_IO_28,
+            esp_gpio_matrix_in(PSRAM_INTERNAL_IO_28,
                                  SIG_IN_FUNC224_IDX, 0);
-            esp32_gpio_matrix_out(PSRAM_INTERNAL_IO_29,
+            esp_gpio_matrix_out(PSRAM_INTERNAL_IO_29,
                                   SIG_IN_FUNC224_IDX, 0, 0);
-            esp32_gpio_matrix_in(PSRAM_INTERNAL_IO_29,
+            esp_gpio_matrix_in(PSRAM_INTERNAL_IO_29,
                                  SIG_IN_FUNC225_IDX, 0);
-            esp32_gpio_matrix_out(psram_io.psram_clk_io,
+            esp_gpio_matrix_out(psram_io.psram_clk_io,
                                   SIG_IN_FUNC225_IDX, 0, 0);
           }
         else
           {
             minfo("clk_io == OUT_IDX\n");
-            esp32_gpio_matrix_out(psram_io.psram_clk_io,
+            esp_gpio_matrix_out(psram_io.psram_clk_io,
                                   SPICLK_OUT_IDX, 0, 0);
           }
         break;
@@ -1672,7 +1678,7 @@ psram_enable(int mode, int vaddrmode)   /* psram init */
   psram_gpio_config(&psram_io, mode);
   psram_read_id(&s_psram_id);
 
-  minfo("psram ID = 0x%x\n", (uint32_t)s_psram_id);
+  minfo("psram ID = 0x%" PRIx32 "\n", (uint32_t)s_psram_id);
 
   if (!PSRAM_IS_VALID(s_psram_id))
     {
@@ -1700,7 +1706,7 @@ psram_enable(int mode, int vaddrmode)   /* psram init */
            * ourselves
            */
 
-          esp32_gpio_matrix_out(psram_io.psram_clk_io,
+          esp_gpio_matrix_out(psram_io.psram_clk_io,
                                 PSRAM_CLK_SIGNAL, 0, 0);
 
           /* use spi3 clock,but use spi1 data/cs wires
@@ -1731,9 +1737,9 @@ psram_enable(int mode, int vaddrmode)   /* psram init */
        */
 
       s_clk_mode = PSRAM_CLK_MODE_NORM;
-      esp32_gpio_matrix_out(PSRAM_INTERNAL_IO_28, SIG_GPIO_OUT_IDX, 0, 0);
-      esp32_gpio_matrix_out(PSRAM_INTERNAL_IO_29, SIG_GPIO_OUT_IDX, 0, 0);
-      esp32_gpio_matrix_out(psram_io.psram_clk_io, SPICLK_OUT_IDX, 0, 0);
+      esp_gpio_matrix_out(PSRAM_INTERNAL_IO_28, SIG_GPIO_OUT_IDX, 0, 0);
+      esp_gpio_matrix_out(PSRAM_INTERNAL_IO_29, SIG_GPIO_OUT_IDX, 0, 0);
+      esp_gpio_matrix_out(psram_io.psram_clk_io, SPICLK_OUT_IDX, 0, 0);
     }
 
   /* Update cs timing according to psram driving method. */

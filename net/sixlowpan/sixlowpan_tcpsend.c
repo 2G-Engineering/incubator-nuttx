@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/sixlowpan/sixlowpan_tcpsend.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/semaphore.h>
 #include <nuttx/net/netdev.h>
@@ -213,7 +215,8 @@ static int sixlowpan_tcp_header(FAR struct tcp_conn_s *conn,
     }
   else
     {
-      net_ipv6addr_hdrcopy(ipv6tcp->ipv6.srcipaddr, dev->d_ipv6addr);
+      net_ipv6addr_hdrcopy(ipv6tcp->ipv6.srcipaddr,
+                           netdev_ipv6_srcaddr(dev, conn->u.ipv6.raddr));
     }
 
   ninfo("IPv6 length: %d\n",
@@ -299,8 +302,8 @@ static int sixlowpan_tcp_header(FAR struct tcp_conn_s *conn,
  *
  ****************************************************************************/
 
-static uint16_t tcp_send_eventhandler(FAR struct net_driver_s *dev,
-                                      FAR void *pvpriv, uint16_t flags)
+static uint32_t tcp_send_eventhandler(FAR struct net_driver_s *dev,
+                                      FAR void *pvpriv, uint32_t flags)
 {
   FAR struct sixlowpan_send_s *sinfo = pvpriv;
   FAR struct tcp_conn_s *conn = sinfo->s_conn;
@@ -336,7 +339,7 @@ static uint16_t tcp_send_eventhandler(FAR struct net_driver_s *dev,
       return flags;
     }
 
-  ninfo("flags: %04x acked: %" PRIu32 " sent: %zu\n",
+  ninfo("flags: %" PRIx32 " acked: %" PRIu32 " sent: %zu\n",
         flags, sinfo->s_acked, sinfo->s_sent);
 
   /* If this packet contains an acknowledgement, then update the count of
@@ -591,12 +594,10 @@ static int sixlowpan_send_packet(FAR struct socket *psock,
   struct sixlowpan_send_s sinfo;
 
   ninfo("len=%lu timeout=%u\n", (unsigned long)len, timeout);
-  DEBUGASSERT(psock != NULL && dev != NULL && conn != NULL && buf != NULL &&
-              destmac != NULL);
 
   memset(&sinfo, 0, sizeof(struct sixlowpan_send_s));
 
-  net_lock();
+  conn_dev_lock(&conn->sconn, dev);
   if (len > 0)
     {
       /* Allocate resources to receive a callback.
@@ -627,7 +628,7 @@ static int sixlowpan_send_packet(FAR struct socket *psock,
           /* Set up the callback in the connection */
 
           sinfo.s_cb->flags = (NETDEV_DOWN | TCP_ACKDATA | TCP_REXMIT |
-                               TCP_DISCONN_EVENTS | WPAN_POLL);
+                               TCP_DISCONN_EVENTS | TCP_POLL);
           sinfo.s_cb->priv  = (FAR void *)&sinfo;
           sinfo.s_cb->event = tcp_send_eventhandler;
 
@@ -639,10 +640,11 @@ static int sixlowpan_send_packet(FAR struct socket *psock,
 
           /* Notify the IEEE802.15.4 MAC that we have data to send. */
 
-          netdev_txnotify_dev(dev);
+          netdev_txnotify_dev(dev, TCP_POLL);
 
           /* Wait for the send to complete or an error to occur.
-           * net_sem_timedwait will also terminate if a signal is received.
+           * conn_dev_sem_timedwait will also terminate if a signal is
+           * received.
            */
 
           ninfo("Wait for send complete\n");
@@ -651,7 +653,8 @@ static int sixlowpan_send_packet(FAR struct socket *psock,
             {
               uint32_t acked = sinfo.s_acked;
 
-              ret = net_sem_timedwait(&sinfo.s_waitsem, timeout);
+              ret = conn_dev_sem_timedwait(&sinfo.s_waitsem, true, timeout,
+                                           &conn->sconn, dev);
               if (ret != -ETIMEDOUT || acked == sinfo.s_acked)
                 {
                   if (ret == -ETIMEDOUT)
@@ -675,7 +678,7 @@ static int sixlowpan_send_packet(FAR struct socket *psock,
     }
 
   nxsem_destroy(&sinfo.s_waitsem);
-  net_unlock();
+  conn_dev_unlock(&conn->sconn, dev);
 
   return (sinfo.s_result < 0 ? sinfo.s_result : len);
 }
@@ -718,7 +721,6 @@ ssize_t psock_6lowpan_tcp_send(FAR struct socket *psock, FAR const void *buf,
   ninfo("buflen %lu\n", (unsigned long)buflen);
   sixlowpan_dumpbuffer("Outgoing TCP payload", buf, buflen);
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
   DEBUGASSERT(psock->s_type == SOCK_STREAM);
 
   /* Make sure that this is a valid socket */
@@ -774,7 +776,7 @@ ssize_t psock_6lowpan_tcp_send(FAR struct socket *psock, FAR const void *buf,
 #ifdef CONFIG_NET_ICMPv6_NEIGHBOR
   /* Make sure that the IP address mapping is in the Neighbor Table */
 
-  ret = icmpv6_neighbor(conn->u.ipv6.raddr);
+  ret = icmpv6_neighbor(dev, conn->u.ipv6.raddr);
   if (ret < 0)
     {
       nerr("ERROR: Not reachable\n");
@@ -812,7 +814,7 @@ ssize_t psock_6lowpan_tcp_send(FAR struct socket *psock, FAR const void *buf,
  * Name: sixlowpan_tcp_send
  *
  * Description:
- *   TCP output comes through three different mechansims.  Either from:
+ *   TCP output comes through three different mechanisms.  Either from:
  *
  *   1. TCP socket output.  For the case of TCP output to an
  *      IEEE802.15.4, the TCP output is caught in the socket

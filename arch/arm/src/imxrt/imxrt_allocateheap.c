@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imxrt/imxrt_allocateheap.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
@@ -68,7 +70,7 @@
  * .bss in some RAM.  We refer to that RAM as the primary RAM.  It also
  * holds the IDLE threads stack and any remaining portion of the primary
  * OCRAM is automatically added to the heap.  The linker provided address,
- * ... .sbss, .ebss, .sdat, etc. ...  are expected to lie in the the region
+ * ... .sbss, .ebss, .sdat, etc. ...  are expected to lie in the region
  * defined by the OCRAM configuration settings.
  *
  * Other RAM regions must be selected use configuration options and the
@@ -92,6 +94,13 @@
  * SOC with 1MiB
  *    IMXRT_OCRAM2_BASE          0x20200000     512KB OCRAM2
  *    IMXRT_OCRAM_BASE           0x20280000     512KB OCRAM FlexRAM
+ *
+ * SOC with 2MiB
+ *    IMXRT_OCRAM_BASE           0x20240000     512KB OCRAM1
+ *    IMXRT_OCRAM2_BASE          0x202c0000     512KB OCRAM2
+ *    IMXRT_CM7_TCM_BASE         0x20380000     512KB M7 TCM FlexRAM
+ *    IMXRT_CM4_TCM_BASE         0x20200000     256KB M4 TCM FlexRAM
+ *    TODO ECC
  */
 
 /* There there then several memory configurations with a one primary memory
@@ -120,10 +129,12 @@
  * The pieces of the OCRAM used for DTCM and ITCM DTCM and ITCM memory spaces
  */
 
-#if defined(IMXRT_OCRAM2_BASE)
-#  define _IMXRT_OCRAM_BASE IMXRT_OCRAM2_BASE
+#if defined(CONFIG_ARCH_FAMILY_IMXRT117x)
+# define _IMXRT_OCRAM_BASE IMXRT_OCRAM_BASE
+#elif defined(IMXRT_OCRAM2_BASE)
+# define _IMXRT_OCRAM_BASE IMXRT_OCRAM2_BASE
 #else
-#  define _IMXRT_OCRAM_BASE IMXRT_OCRAM_BASE
+# define _IMXRT_OCRAM_BASE IMXRT_OCRAM_BASE
 #endif
 
 #define CONFIG_ITCM_USED 0
@@ -146,6 +157,13 @@
 #  define CONFIG_DTCM_USED (CONFIG_IMXRT_DTCM * 1024)
 #else
 #  define IMXRT_DTCM 0
+#endif
+
+#ifndef IMXRT_OCRAM_SIZE
+
+extern  const uint32_t  _ram_size[];  /* See linker script */
+
+#  define IMXRT_OCRAM_SIZE             ((uint32_t)_ram_size)
 #endif
 
 #define FLEXRAM_REMAINING_K ((IMXRT_OCRAM_SIZE / 1024) - (CONFIG_IMXRT_DTCM + CONFIG_IMXRT_DTCM))
@@ -185,7 +203,7 @@
 #  define IMXRT_OCRAM_ASSIGNED 1
 #elif defined(CONFIG_IMXRT_DTCM_HEAP) && !defined(IMXRT_DCTM_ASSIGNED)
 #  define REGION1_RAM_START    IMXRT_DTCM_BASE
-#  define REGION1_RAM_SIZE     CONFIG_DTCM_USED
+#  define REGION1_RAM_SIZE     (CONFIG_IMXRT_DTCM_HEAP_SIZE * 1024)
 #  define IMXRT_DCTM_ASSIGNED 1
 #elif defined(CONFIG_IMXRT_SDRAM_HEAP) && !defined(IMXRT_SDRAM_ASSIGNED)
 #  define REGION1_RAM_START    (CONFIG_IMXRT_SDRAM_START + CONFIG_IMXRT_SDRAM_HEAPOFFSET)
@@ -249,7 +267,7 @@
  * aligned).
  */
 
-const uintptr_t g_idle_topstack = (uintptr_t)_ebss +
+const uintptr_t g_idle_topstack = (uintptr_t)&_ebss +
                                   CONFIG_IDLETHREAD_STACKSIZE;
 
 /****************************************************************************

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nrf52/nrf52840-dk/src/nrf52_composite.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -126,7 +128,7 @@ void *board_composite0_connect(void)
   DEBUGASSERT(epin <= NRF52_NENDPOINTS);
   DEBUGASSERT(epout <= NRF52_NENDPOINTS);
 
-  return composite_initialize(dev_idx, dev);
+  return composite_initialize(composite_getdevdescs(), dev, dev_idx);
 }
 
 /****************************************************************************

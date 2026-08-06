@@ -1,2 +1,5 @@
+/bootloader
+/esp-hal-3rdparty
+/esp-hal-3rdparty-mcuboot
 /esp-nuttx-bootloader
-/esp-wireless-drivers-3rdparty
+/ulp

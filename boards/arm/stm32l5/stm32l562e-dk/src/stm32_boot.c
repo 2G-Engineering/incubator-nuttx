@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l5/stm32l562e-dk/src/stm32_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 
@@ -39,7 +41,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l5_board_initialize
+ * Name: stm32_board_initialize
  *
  * Description:
  *   All STM32 architectures must provide the following entry point.  This
@@ -49,7 +51,7 @@
  *
  ****************************************************************************/
 
-void stm32l5_board_initialize(void)
+void stm32_board_initialize(void)
 {
   /* On the STM32L562E-DK Vddio2 is supplied by Vdd_mcu.  Thus, when the MCU
    * is running Vddio2 is guaranteed to be valid.  LED LD10 is driven by
@@ -57,7 +59,7 @@ void stm32l5_board_initialize(void)
    * Vddio2 to be valid here.
    */
 
-  stm32l5_pwr_vddio2_valid(true);
+  stm32_pwr_vddio2_valid(true);
 
 #ifdef CONFIG_ARCH_LEDS
   /* Configure on-board LEDs if LED support has been selected. */

@@ -121,6 +121,50 @@ config ARCH_CHIP_SAMV71J21
 	select SAMV7_MEM_FLASH_2048
 	select SAMV7_MEM_RAM_384
 
+config ARCH_CHIP_PIC32CZCA70064
+	bool "PIC32CZ CA70 064"
+	select ARCH_CHIP_PIC32CZCA70
+	select SAMV7_MEM_FLASH_2048
+	select SAMV7_MEM_RAM_512
+	select SAMV7_QSPI_IS_SPI
+	select SAMV7_HAVE_USBFS
+	select SAMV7_HAVE_ISI8
+
+config ARCH_CHIP_PIC32CZCA70100
+	bool "PIC32CZ CA70 100"
+	select ARCH_CHIP_PIC32CZCA70
+	select SAMV7_MEM_FLASH_2048
+	select SAMV7_MEM_RAM_512
+	select SAMV7_QSPI_IS_SPI
+	select SAMV7_HAVE_MCAN1
+	select SAMV7_HAVE_DAC1 if !SAMV7_EMAC0
+	select SAMV7_HAVE_HSMCI0
+	select SAMV7_HAVE_SPI0
+	select SAMV7_HAVE_TWIHS2
+	select SAMV7_HAVE_USBHS
+	select SAMV7_HAVE_USART0
+	select SAMV7_HAVE_USART1
+	select SAMV7_HAVE_USART2
+
+config ARCH_CHIP_PIC32CZCA70144
+	bool "PIC32CZ CA70 144"
+	select ARCH_CHIP_PIC32CZCA70
+	select SAMV7_MEM_FLASH_2048
+	select SAMV7_MEM_RAM_512
+	select SAMV7_QSPI_IS_SPI
+	select SAMV7_HAVE_MCAN1
+	select SAMV7_HAVE_DAC1 if !SAMV7_EMAC0
+	select SAMV7_HAVE_EBI
+	select SAMV7_HAVE_HSMCI0
+	select SAMV7_HAVE_SDRAMC
+	select SAMV7_HAVE_SPI0
+	select SAMV7_HAVE_SPI1
+	select SAMV7_HAVE_TWIHS2
+	select SAMV7_HAVE_USBHS
+	select SAMV7_HAVE_USART0
+	select SAMV7_HAVE_USART1
+	select SAMV7_HAVE_USART2
+
 endchoice # Atmel SAMV7 Chip Selection
 
 config ARCH_CHIP_SAME70
@@ -137,6 +181,7 @@ config ARCH_CHIP_SAME70Q
 	bool
 	default n
 	select ARCH_CHIP_SAME70
+	select SAMV7_QSPI_IS_SPI
 	select SAMV7_HAVE_MCAN1
 	select SAMV7_HAVE_DAC1 if !SAMV7_EMAC0
 	select SAMV7_HAVE_EBI
@@ -154,6 +199,7 @@ config ARCH_CHIP_SAME70N
 	bool
 	default n
 	select ARCH_CHIP_SAME70
+	select SAMV7_QSPI_IS_SPI
 	select SAMV7_HAVE_MCAN1
 	select SAMV7_HAVE_DAC1 if !SAMV7_EMAC0
 	select SAMV7_HAVE_HSMCI0
@@ -171,6 +217,8 @@ config ARCH_CHIP_SAME70J
 	select SAMV7_QSPI_IS_SPI
 	select SAMV7_HAVE_USBFS
 	select SAMV7_HAVE_ISI8
+	select SAMV7_HAVE_USART0
+	select SAMV7_HAVE_USART1
 
 config ARCH_CHIP_SAMV71
 	bool
@@ -187,6 +235,7 @@ config ARCH_CHIP_SAMV71Q
 	bool
 	default n
 	select ARCH_CHIP_SAMV71
+	select SAMV7_QSPI_IS_SPI
 	select SAMV7_HAVE_MCAN1
 	select SAMV7_HAVE_DAC1 if !SAMV7_EMAC0
 	select SAMV7_HAVE_EBI
@@ -204,6 +253,7 @@ config ARCH_CHIP_SAMV71N
 	bool
 	default n
 	select ARCH_CHIP_SAMV71
+	select SAMV7_QSPI_IS_SPI
 	select SAMV7_HAVE_MCAN1
 	select SAMV7_HAVE_DAC1 if !SAMV7_EMAC0
 	select SAMV7_HAVE_HSMCI0
@@ -221,6 +271,18 @@ config ARCH_CHIP_SAMV71J
 	select SAMV7_QSPI_IS_SPI
 	select SAMV7_HAVE_USBFS
 	select SAMV7_HAVE_ISI8
+	select SAMV7_HAVE_USART0
+	select SAMV7_HAVE_USART1
+
+config ARCH_CHIP_PIC32CZCA70
+	bool
+	default n
+	select ARCH_HAVE_FPU
+	select ARCH_HAVE_DPFPU # REVISIT
+	select ARMV7M_HAVE_ICACHE
+	select ARMV7M_HAVE_DCACHE
+	select ARMV7M_HAVE_ITCM
+	select ARMV7M_HAVE_DTCM
 
 # Chip Capabilities
 
@@ -250,10 +312,15 @@ config SAMV7_MEM_RAM_384
 	bool
 	default n
 
+config SAMV7_MEM_RAM_512
+	bool
+	default n
+
 config ARCH_CHIP_SAMV7_MEM_RAM
 	hex
 	default 0x40000 if SAMV7_MEM_RAM_256
 	default 0x60000 if SAMV7_MEM_RAM_384
+	default 0x80000 if SAMV7_MEM_RAM_512
 
 config SAMV7_MCAN
 	bool
@@ -271,11 +338,19 @@ config SAMV7_DAC
 	bool
 	default n
 
+config SAMV7_QENCODER
+	bool
+	default n
+
 config SAMV7_HAVE_DAC1
 	bool
 	default n
 
 config SAMV7_HAVE_EBI
+	bool
+	default n
+
+config SAMV7_EEFC
 	bool
 	default n
 
@@ -312,7 +387,6 @@ config SAMV7_HAVE_MEDIALB
 config SAMV7_PWM
 	bool
 	default n
-	select ARCH_HAVE_PWM_MULTICHAN
 	select ARCH_HAVE_PWM_OVERWRITE
 	select ARCH_HAVE_PWM_DEADTIME
 
@@ -349,6 +423,18 @@ config SAMV7_HAVE_USBFS
 	default n
 
 config SAMV7_HAVE_USBHS
+	bool
+	default n
+
+config SAMV7_1WIREDRIVER
+	bool
+	default n
+
+config SAMV7_LIN_SOCKET
+	bool
+	default n
+
+config SAMV7_USART_IS_SPI_MASTER
 	bool
 	default n
 
@@ -653,14 +739,30 @@ menuconfig SAMV7_PWM0
 
 if SAMV7_PWM0
 
+config SAMV7_PWM0_SYNC
+	bool "PWM0 synchronous channels"
+	default n
+	---help---
+		This option makes the synchronization between channels possible.
+		This means every synchronized channel has the same clock, the
+		same period and the same alignment. If any channel is defined
+		as synchronous, channel 0 is defined as synchronous too because
+		channel 0's counter is used by other synchronous channels.
+		This option automatically defines channel 0 as synchronous.
+
 config SAMV7_PWM0_CH0
 	bool "PWM0 Channel 0"
 	default n
 
 if SAMV7_PWM0_CH0
 
+config SAMV7_PWM0_CH0_LONLY
+	bool "Use only L output"
+	default n
+
 config SAMV7_PWM0_CH0_COMP
 	bool "Use complementary output"
+	depends on !SAMV7_PWM0_CH0_LONLY
 	default n
 
 endif
@@ -671,8 +773,18 @@ config SAMV7_PWM0_CH1
 
 if SAMV7_PWM0_CH1
 
+config SAMV7_PWM0_CH1_LONLY
+	bool "Use only L output"
+	default n
+
 config SAMV7_PWM0_CH1_COMP
 	bool "Use complementary output"
+	depends on !SAMV7_PWM0_CH1_LONLY
+	default n
+
+config SAMV7_PWM0_CH1_SYNC
+	bool "Synchronous channel"
+	depends on SAMV7_PWM0_SYNC
 	default n
 
 endif
@@ -683,8 +795,18 @@ config SAMV7_PWM0_CH2
 
 if SAMV7_PWM0_CH2
 
+config SAMV7_PWM0_CH2_LONLY
+	bool "Use only L output"
+	default n
+
 config SAMV7_PWM0_CH2_COMP
 	bool "Use complementary output"
+	depends on !SAMV7_PWM0_CH2_LONLY
+	default n
+
+config SAMV7_PWM0_CH2_SYNC
+	bool "Synchronous channel"
+	depends on SAMV7_PWM0_SYNC
 	default n
 
 endif
@@ -695,8 +817,18 @@ config SAMV7_PWM0_CH3
 
 if SAMV7_PWM0_CH3
 
+config SAMV7_PWM0_CH3_LONLY
+	bool "Use only L output"
+	default n
+
 config SAMV7_PWM0_CH3_COMP
 	bool "Use complementary output"
+	depends on !SAMV7_PWM0_CH3_LONLY
+	default n
+
+config SAMV7_PWM0_CH3_SYNC
+	bool "Synchronous channel"
+	depends on SAMV7_PWM0_SYNC
 	default n
 
 endif
@@ -777,14 +909,23 @@ config SAMV7_PWM0_PA9
 	bool "External fault input from PA9"
 	default n
 
-if SAMV7_PWM1_PA9
+if SAMV7_PWM0_PA9
 
-config SAMV7_PWM1_PA9_POL
+config SAMV7_PWM0_PA9_POL
 	bool "Inverted polarity"
 	default n
 	---help---
 		Fault input is by default active on high level. This config
 		inverts the logic and makes fault active on low level.
+
+config SAMV7_PWM0_PA9_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
 
 endif
 
@@ -792,14 +933,23 @@ config SAMV7_PWM0_PD8
 	bool "External fault input from PD8"
 	default n
 
-if SAMV7_PWM1_PD8
+if SAMV7_PWM0_PD8
 
-config SAMV7_PWM1_PD8_POL
+config SAMV7_PWM0_PD8_POL
 	bool "Inverted polarity"
 	default n
 	---help---
 		Fault input is by default active on high level. This config
 		inverts the logic and makes fault active on low level.
+
+config SAMV7_PWM0_PD8_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
 
 endif
 
@@ -807,14 +957,23 @@ config SAMV7_PWM0_PD9
 	bool "External fault input from PD9"
 	default n
 
-if SAMV7_PWM1_PD9
+if SAMV7_PWM0_PD9
 
-config SAMV7_PWM1_PD9_POL
+config SAMV7_PWM0_PD9_POL
 	bool "Inverted polarity"
 	default n
 	---help---
 		Fault input is by default active on high level. This config
 		inverts the logic and makes fault active on low level.
+
+config SAMV7_PWM0_PD9_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
 
 endif
 
@@ -822,21 +981,86 @@ config SAMV7_PWM0_PMC
 	bool "External fault input from PMC"
 	default n
 
+if SAMV7_PWM0_PMC
+
+config SAMV7_PWM0_PMC_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
+
+endif
+
 config SAMV7_PWM0_AFEC0
 	bool "External fault input from AFEC0"
 	default n
+
+if SAMV7_PWM0_AFEC0
+
+config SAMV7_PWM0_AFEC0_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
+
+endif
 
 config SAMV7_PWM0_AFEC1
 	bool "External fault input from AFEC1"
 	default n
 
+if SAMV7_PWM0_AFEC1
+
+config SAMV7_PWM0_AFEC1_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
+
+endif
+
 config SAMV7_PWM0_ACC
 	bool "External fault input from ACC"
 	default n
 
+if SAMV7_PWM0_ACC
+
+config SAMV7_PWM0_ACC_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
+
+endif
+
 config SAMV7_PWM0_TIM0
 	bool "External fault input from Timer 0"
 	default n
+
+if SAMV7_PWM0_TIM0
+
+config SAMV7_PWM0_TIM0_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
+
+endif
 
 endmenu
 
@@ -869,14 +1093,30 @@ menuconfig SAMV7_PWM1
 
 if SAMV7_PWM1
 
+config SAMV7_PWM1_SYNC
+	bool "PWM1 synchronous channels"
+	default n
+	---help---
+		This option makes the synchronization between channels possible.
+		This means every synchronized channel has the same clock, the
+		same period and the same alignment. If any channel is defined
+		as synchronous, channel 0 is defined as synchronous too because
+		channel 0's counter is used by other synchronous channels.
+		This option automatically defines channel 0 as synchronous.
+
 config SAMV7_PWM1_CH0
 	bool "PWM1 Channel 0"
 	default n
 
 if SAMV7_PWM1_CH0
 
+config SAMV7_PWM1_CH0_LONLY
+	bool "Use only L output"
+	default n
+
 config SAMV7_PWM1_CH0_COMP
 	bool "Use complementary output"
+	depends on !SAMV7_PWM1_CH0_LONLY
 	default n
 
 endif
@@ -887,8 +1127,18 @@ config SAMV7_PWM1_CH1
 
 if SAMV7_PWM1_CH1
 
+config SAMV7_PWM1_CH1_LONLY
+	bool "Use only L output"
+	default n
+
 config SAMV7_PWM1_CH1_COMP
 	bool "Use complementary output"
+	depends on !SAMV7_PWM1_CH1_LONLY
+	default n
+
+config SAMV7_PWM1_CH1_SYNC
+	bool "Synchronous channel"
+	depends on SAMV7_PWM1_SYNC
 	default n
 
 endif
@@ -899,8 +1149,18 @@ config SAMV7_PWM1_CH2
 
 if SAMV7_PWM1_CH2
 
+config SAMV7_PWM1_CH2_LONLY
+	bool "Use only L output"
+	default n
+
 config SAMV7_PWM1_CH2_COMP
 	bool "Use complementary output"
+	depends on !SAMV7_PWM1_CH2_LONLY
+	default n
+
+config SAMV7_PWM1_CH2_SYNC
+	bool "Synchronous channel"
+	depends on SAMV7_PWM1_SYNC
 	default n
 
 endif
@@ -911,8 +1171,18 @@ config SAMV7_PWM1_CH3
 
 if SAMV7_PWM1_CH3
 
+config SAMV7_PWM1_CH3_LONLY
+	bool "Use only L output"
+	default n
+
 config SAMV7_PWM1_CH3_COMP
 	bool "Use complementary output"
+	depends on !SAMV7_PWM1_CH3_LONLY
+	default n
+
+config SAMV7_PWM1_CH3_SYNC
+	bool "Synchronous channel"
+	depends on SAMV7_PWM1_SYNC
 	default n
 
 endif
@@ -1000,6 +1270,15 @@ config SAMV7_PWM1_PA21_POL
 		Fault input is by default active on high level. This config
 		inverts the logic and makes fault active on low level.
 
+config SAMV7_PWM1_PA21_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
+
 endif
 
 config SAMV7_PWM1_PA26
@@ -1014,6 +1293,15 @@ config SAMV7_PWM1_PA26_POL
 	---help---
 		Fault input is by default active on high level. This config
 		inverts the logic and makes fault active on low level.
+
+config SAMV7_PWM1_PA26_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
 
 endif
 
@@ -1030,30 +1318,103 @@ config SAMV7_PWM1_PA28_POL
 		Fault input is by default active on high level. This config
 		inverts the logic and makes fault active on low level.
 
+config SAMV7_PWM1_PA28_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
+
 endif
 
 config SAMV7_PWM1_PMC
 	bool "External fault input from PMC"
 	default n
 
+if SAMV7_PWM1_PMC
+
+config SAMV7_PWM1_PMC_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
+
+endif
+
 config SAMV7_PWM1_AFEC0
 	bool "External fault input from AFEC0"
 	default n
+
+if SAMV7_PWM1_AFEC0
+
+config SAMV7_PWM1_AFEC0_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
+
+endif
 
 config SAMV7_PWM1_AFEC1
 	bool "External fault input from AFEC1"
 	default n
 
+if SAMV7_PWM1_AFEC1
+
+config SAMV7_PWM1_AFEC1_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
+
+endif
+
 config SAMV7_PWM1_ACC
 	bool "External fault input from ACC"
 	default n
+
+if SAMV7_PWM1_ACC
+
+config SAMV7_PWM1_ACC_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
+
+endif
 
 config SAMV7_PWM1_TIM0
 	bool "External fault input from Timer 0"
 	default n
 
-endmenu
+if SAMV7_PWM1_TIM0
 
+config SAMV7_PWM1_TIM0_LATCHED
+	bool "Latched fault"
+	default n
+	---help---
+		When this option is selected, the fault input remains active until it
+		is cleared by the software. When this option is not selected, the
+		fault is cleared once the fault input changes its polarity level back
+		to normal state.
+
+endif
+
+endmenu
 
 config SAMV7_PWM1_EVENT0
 	bool "Generate trigger on Event Line 0"
@@ -1166,35 +1527,125 @@ config SAMV7_TWIHS2
 	default n
 	depends on SAMV7_HAVE_TWIHS2
 
-config SAMV7_UART0
+menuconfig SAMV7_UART0
 	bool "UART 0"
 	default y
+
+if SAMV7_UART0
+
+choice
+	prompt "UART0 Driver Configuration"
+	default SAMV7_UART0_SERIALDRIVER
+	depends on SAMV7_UART0
+
+config SAMV7_UART0_SERIALDRIVER
+	bool "Standard serial driver"
 	select UART0_SERIALDRIVER
 	select ARCH_HAVE_SERIAL_TERMIOS
 
-config SAMV7_UART1
+config SAMV7_UART0_1WIREDRIVER
+	bool "1-Wire driver"
+	select SAMV7_1WIREDRIVER
+
+endchoice # "UART0 Driver Configuration"
+
+endif # SAMV7_UART0
+
+menuconfig SAMV7_UART1
 	bool "UART 1"
 	default n
+
+if SAMV7_UART1
+
+choice
+	prompt "UART1 Driver Configuration"
+	default SAMV7_UART1_SERIALDRIVER
+	depends on SAMV7_UART1
+
+config SAMV7_UART1_SERIALDRIVER
+	bool "Standard serial driver"
 	select UART1_SERIALDRIVER
 	select ARCH_HAVE_SERIAL_TERMIOS
 
-config SAMV7_UART2
+config SAMV7_UART1_1WIREDRIVER
+	bool "1-Wire driver"
+	select SAMV7_1WIREDRIVER
+
+endchoice # "UART1 Driver Configuration"
+
+endif # SAMV7_UART1
+
+menuconfig SAMV7_UART2
 	bool "UART 2"
 	default y
+
+if SAMV7_UART2
+
+choice
+	prompt "UART2 Driver Configuration"
+	default SAMV7_UART2_SERIALDRIVER
+	depends on SAMV7_UART2
+
+config SAMV7_UART2_SERIALDRIVER
+	bool "Standard serial driver"
 	select UART2_SERIALDRIVER
 	select ARCH_HAVE_SERIAL_TERMIOS
 
-config SAMV7_UART3
+config SAMV7_UART2_1WIREDRIVER
+	bool "1-Wire driver"
+	select SAMV7_1WIREDRIVER
+
+endchoice # "UART2 Driver Configuration"
+
+endif # SAMV7_UART2
+
+menuconfig SAMV7_UART3
 	bool "UART 3"
 	default n
+
+if SAMV7_UART3
+
+choice
+	prompt "UART3 Driver Configuration"
+	default SAMV7_UART3_SERIALDRIVER
+	depends on SAMV7_UART3
+
+config SAMV7_UART3_SERIALDRIVER
+	bool "Standard serial driver"
 	select UART3_SERIALDRIVER
 	select ARCH_HAVE_SERIAL_TERMIOS
 
-config SAMV7_UART4
+config SAMV7_UART3_1WIREDRIVER
+	bool "1-Wire driver"
+	select SAMV7_1WIREDRIVER
+
+endchoice # "UART3 Driver Configuration"
+
+endif # SAMV7_UART3
+
+menuconfig SAMV7_UART4
 	bool "UART 4"
 	default y
+
+if SAMV7_UART4
+
+choice
+	prompt "UART4 Driver Configuration"
+	default SAMV7_UART4_SERIALDRIVER
+	depends on SAMV7_UART4
+
+config SAMV7_UART4_SERIALDRIVER
+	bool "Standard serial driver"
 	select UART4_SERIALDRIVER
 	select ARCH_HAVE_SERIAL_TERMIOS
+
+config SAMV7_UART4_1WIREDRIVER
+	bool "1-Wire driver"
+	select SAMV7_1WIREDRIVER
+
+endchoice # "UART4 Driver Configuration"
+
+endif # SAMV7_UART4
 
 config SAMV7_USBDEVFS
 	bool "USB Device Full Speed (USBFS)"
@@ -1224,10 +1675,46 @@ menuconfig SAMV7_USART0
 	bool "USART 0"
 	default n
 	depends on SAMV7_HAVE_USART0
+
+if SAMV7_USART0
+
+choice
+	prompt "USART0 Driver Configuration"
+	default SAMV7_USART0_SERIALDRIVER
+	depends on SAMV7_USART0
+
+config SAMV7_USART0_SERIALDRIVER
+	bool "Standard serial driver"
 	select USART0_SERIALDRIVER
 	select ARCH_HAVE_SERIAL_TERMIOS
 
-if SAMV7_USART0
+config SAMV7_USART0_1WIREDRIVER
+	bool "1-Wire driver"
+	select SAMV7_1WIREDRIVER
+
+config SAMV7_USART0_LIN_SOCKET
+	bool "LIN driver over SocketCAN"
+	select SAMV7_LIN_SOCKET
+	depends on NET_CAN
+
+config SAMV7_USART0_SPI_MASTER
+	bool "USART0 as SPI Master driver"
+	select SAMV7_USART_IS_SPI_MASTER
+	---help---
+		Switch USART0 to SPI master (host) mode. In this mode USART is used
+		to emulate SPI peripheral. Pin configuration is following:
+
+			TXD - MOSI
+			RXD - MISO
+			SCK - SCK
+			RTS - NSS (chip select)
+
+		There is only one chip select therefore SPI master can be used to
+		communicate only with one slave device.
+
+endchoice # "USART0 Driver Configuration"
+
+if SAMV7_USART0_SERIALDRIVER
 
 config SAMV7_USART0_RS485MODE
 	bool "RS-485 on USART0"
@@ -1238,16 +1725,64 @@ config SAMV7_USART0_RS485MODE
 		logic is required to set the pin to logical 0 before the driver is
 		opened for the first time.
 
-endif
+endif # SAMV7_USART0_SERIALDRIVER
+
+if SAMV7_USART0_LIN_SOCKET
+
+config SAMV7_USART0_LIN_BAUD
+	int "BAUD rate"
+	default 19200
+	---help---
+		The configured BAUD of the LIN bus.
+
+endif # SAMV7_USART0_LIN_SOCKET
+
+endif # SAMV7_USART0
 
 menuconfig SAMV7_USART1
 	bool "USART 1"
 	default n
 	depends on SAMV7_HAVE_USART1
+
+if SAMV7_USART1
+
+choice
+	prompt "USART1 Driver Configuration"
+	default SAMV7_USART1_SERIALDRIVER
+	depends on SAMV7_USART1
+
+config SAMV7_USART1_SERIALDRIVER
+	bool "Standard serial driver"
 	select USART1_SERIALDRIVER
 	select ARCH_HAVE_SERIAL_TERMIOS
 
-if SAMV7_USART1
+config SAMV7_USART1_1WIREDRIVER
+	bool "1-Wire driver"
+	select SAMV7_1WIREDRIVER
+
+config SAMV7_USART1_LIN_SOCKET
+	bool "LIN driver over SocketCAN"
+	select SAMV7_LIN_SOCKET
+	depends on NET_CAN
+
+config SAMV7_USART1_SPI_MASTER
+	bool "USART1 as SPI Master driver"
+	select SAMV7_USART_IS_SPI_MASTER
+	---help---
+		Switch USART1 to SPI master (host) mode. In this mode USART is used
+		to emulate SPI peripheral. Pin configuration is following:
+
+			TXD - MOSI
+			RXD - MISO
+			SCK - SCK
+			RTS - NSS (chip select)
+
+		There is only one chip select therefore SPI master can be used to
+		communicate only with one slave device.
+
+endchoice # "USART1 Driver Configuration"
+
+if SAMV7_USART1_SERIALDRIVER
 
 config SAMV7_USART1_RS485MODE
 	bool "RS-485 on USART1"
@@ -1258,16 +1793,64 @@ config SAMV7_USART1_RS485MODE
 		logic is required to set the pin to logical 0 before the driver is
 		opened for the first time.
 
-endif
+endif # SAMV7_USART1_SERIALDRIVER
+
+if SAMV7_USART1_LIN_SOCKET
+
+config SAMV7_USART1_LIN_BAUD
+	int "BAUD rate"
+	default 19200
+	---help---
+		The configured BAUD of the LIN bus.
+
+endif # SAMV7_USART1_LIN_SOCKET
+
+endif # SAMV7_USART1
 
 menuconfig SAMV7_USART2
 	bool "USART 2"
 	default n
 	depends on SAMV7_HAVE_USART2
+
+if SAMV7_USART2
+
+choice
+	prompt "USART2 Driver Configuration"
+	default SAMV7_USART2_SERIALDRIVER
+	depends on SAMV7_USART2
+
+config SAMV7_USART2_SERIALDRIVER
+	bool "Standard serial driver"
 	select USART2_SERIALDRIVER
 	select ARCH_HAVE_SERIAL_TERMIOS
 
-if SAMV7_USART2
+config SAMV7_USART2_1WIREDRIVER
+	bool "1-Wire driver"
+	select SAMV7_1WIREDRIVER
+
+config SAMV7_USART2_LIN_SOCKET
+	bool "LIN driver over SocketCAN"
+	select SAMV7_LIN_SOCKET
+	depends on NET_CAN
+
+config SAMV7_USART2_SPI_MASTER
+	bool "USART2 as SPI Master driver"
+	select SAMV7_USART_IS_SPI_MASTER
+	---help---
+		Switch USART2 to SPI master (host) mode. In this mode USART is used
+		to emulate SPI peripheral. Pin configuration is following:
+
+			TXD - MOSI
+			RXD - MISO
+			SCK - SCK
+			RTS - NSS (chip select)
+
+		There is only one chip select therefore SPI master can be used to
+		communicate only with one slave device.
+
+endchoice # "USART2 Driver Configuration"
+
+if SAMV7_USART2_SERIALDRIVER
 
 config SAMV7_USART2_RS485MODE
 	bool "RS-485 on USART2"
@@ -1278,7 +1861,29 @@ config SAMV7_USART2_RS485MODE
 		logic is required to set the pin to logical 0 before the driver is
 		opened for the first time.
 
-endif
+endif # SAMV7_USART2_SERIALDRIVER
+
+if SAMV7_USART2_LIN_SOCKET
+
+config SAMV7_USART2_LIN_BAUD
+	int "BAUD rate"
+	default 19200
+	---help---
+		The configured BAUD of the LIN bus.
+
+endif # SAMV7_USART2_LIN_SOCKET
+
+endif # SAMV7_USART2
+
+if SAMV7_LIN_SOCKET
+config SAMV7_LIN_REGDEBUG
+	bool "Register level debug"
+	default n
+	depends on DEBUG_NET_INFO
+	---help---
+		Output detailed register-level LIN device debug information.
+		Requires also CONFIG_DEBUG_NET_INFO.
+endif # SAMV7_LIN_SOCKET
 
 config SAMV7_WDT
 	bool "Watchdog Timer (WDT)"
@@ -1430,8 +2035,7 @@ config SAMV7_WDT_INTERRUPT
 
 config SAMV7_WDT_DEBUGHALT
 	bool "Halt on DEBUG"
-	default y if DEBUG_FEATURES
-	default n if !DEBUG_FEATURES
+	default DEBUG_FEATURES
 	---help---
 		Halt the watchdog timer in the debug state
 
@@ -1464,8 +2068,7 @@ config SAMV7_RSWDT_INTERRUPT
 
 config SAMV7_RSWDT_DEBUGHALT
 	bool "Halt on DEBUG"
-	default y if DEBUG_FEATURES
-	default n if !DEBUG_FEATURES
+	default DEBUG_FEATURES
 	---help---
 		Halt the watchdog timer in the debug state
 
@@ -1492,6 +2095,7 @@ menuconfig SAMV7_PROGMEM
 	bool "FLASH program memory"
 	default n
 	select ARCH_HAVE_PROGMEM
+	select SAMV7_EEFC
 	---help---
 		Enable support FLASH interfaces as defined in include/nuttx/progmem.h
 
@@ -1509,6 +2113,16 @@ config SAMV7_PROGMEM_NSECTORS
 		prototyped in include/nuttx/progmem.h
 
 endif # SAMV7_PROGMEM
+
+config SAMV7_USER_SIGNATURE
+	bool "FLASH user signature"
+	default n
+	select SAMV7_EEFC
+	---help---
+		Each SAMv7 product contains a user signature area of 512 bytes in
+		embedded flash. It is possible to read, write and erase this area.
+		Data stored in this area are not erased by asserting ERASE pin or by
+		software ERASE command.
 
 menu "SDRAM Configuration"
 	depends on SAMV7_SDRAMC
@@ -1677,7 +2291,7 @@ config SAMV7_SPI_REGDEBUG
 endmenu # SPI device driver options
 
 menu "QSPI Device Driver Configuration"
-	depends on SAMV7_QSPI && !SAMV7_QSPI_IS_SPI
+	depends on SAMV7_QSPI && !SAMV7_QSPI_SPI_MODE
 
 config SAMV7_QSPI_DLYBS
 	int "Delay Before QSCK (nsec)"
@@ -2374,16 +2988,14 @@ endif # SAMV7_TC3
 
 config SAMV7_ONESHOT
 	bool "TC one-shot wrapper"
-	default n if !SCHED_TICKLESS
-	default y if SCHED_TICKLESS
+	default SCHED_TICKLESS
 	---help---
 		Enable a wrapper around the low level timer/counter functions to
 		support one-shot timer.
 
 config SAMV7_FREERUN
 	bool "TC free-running wrapper"
-	default n if !SCHED_TICKLESS
-	default y if SCHED_TICKLESS
+	default SCHED_TICKLESS
 	---help---
 		Enable a wrapper around the low level timer/counter functions to
 		support a free-running timer.
@@ -2489,6 +3101,21 @@ endmenu # DAC device driver configuration
 
 menu "HSMCI device driver options"
 	depends on SAMV7_HSMCI
+
+config SAMV7_HSMCI_SW_CARDDETECT
+	bool "MMC/SD card detect is SW on CD/DAT3"
+	depends on MMCSD_HAVE_CARDDETECT
+	default n
+	---help---
+		Some SD card connectors do not have separate card detection pin. In that
+		case card detection has to be done on CD/DAT3 data line. This means software
+		(i.e. architecture level driver) has to take care of pin configuration switching
+		(pin has to be set as data pin in case of transfer and as interrupt card detection
+		pin when there is no action on data line). SAMv7 HSMCI driver offers this method
+		of SD card detection. Following macros have to be defined in include/board.h:
+
+			GPIO_HSMCI0_CD - detection pin (same as CD/DAT3 but with IRQ)
+			IRQ_HSMCI0_CD  - IRQ number for the pin
 
 config SAMV7_HSMCI_DMA
 	bool "Support DMA data transfers"
@@ -2628,7 +3255,6 @@ config SAMV7_EMAC0_MII
 
 config SAMV7_EMAC0_RMII
 	bool "RMII"
-	depends on !ARCH_CHIP_SAM4E
 	---help---
 		Support Ethernet RMII interface (vs MII).
 
@@ -2942,21 +3568,21 @@ config SAMV7_MCAN0_PROPSEG
 
 config SAMV7_MCAN0_PHASESEG1
 	int "MCAN0 PhaseSeg1"
-	default 11
+	default 9
 	range 1 63
 	---help---
 		The length of the bit time is Tquanta * (SyncSeg + PropSeg + PhaseSeg1 + PhaseSeg2).
 
 config SAMV7_MCAN0_PHASESEG2
 	int "MCAN0 PhaseSeg2"
-	default 11
+	default 1
 	range 1 63
 	---help---
 		The length of the bit time is Tquanta * (SyncSeg + PropSeg + PhaseSeg1 + PhaseSeg2).
 
 config SAMV7_MCAN0_FSJW
 	int "MCAN0 synchronization jump width"
-	default 4
+	default 2
 	range 1 5
 	---help---
 		The duration of a synchronization jump is Tcan_clk x FSJW.
@@ -2977,14 +3603,14 @@ config SAMV7_MCAN0_FPROPSEG
 
 config SAMV7_MCAN0_FPHASESEG1
 	int "MCAN0 fast PhaseSeg1"
-	default 4
+	default 9
 	range 1 63
 	---help---
 		The length of the bit time is Tquanta * (SyncSeg + PropSeg + PhaseSeg1 + PhaseSeg2).
 
 config SAMV7_MCAN0_FPHASESEG2
 	int "MCAN0 fast PhaseSeg2"
-	default 4
+	default 1
 	range 1 63
 	---help---
 		The length of the bit time is Tquanta * (SyncSeg + PropSeg + PhaseSeg1 + PhaseSeg2).
@@ -3020,38 +3646,38 @@ config SAMV7_MCAN0_RXFIFO0_8BYTES
 
 config SAMV7_MCAN0_RXFIFO0_12BYTES
 	bool "12 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXFIFO0_16BYTES
 	bool "16 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXFIFO0_20BYTES
 	bool "20 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXFIFO0_24BYTES
 	bool "24 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXFIFO0_32BYTES
 	bool "32 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXFIFO0_48BYTES
 	bool "48 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXFIFO0_64BYTES
 	bool "64 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 endchoice # MCAN0 RX buffer element size
 
 config SAMV7_MCAN0_RXFIFO0_SIZE
 	int "MCAN0 RX FIFO0 size"
 	default 8
-	range 1 64
+	range 0 64
 	---help---
 		Number of receive FIFO 0 elements.  Zero disables FIFO 0.
 
@@ -3064,38 +3690,38 @@ config SAMV7_MCAN0_RXFIFO1_8BYTES
 
 config SAMV7_MCAN0_RXFIFO1_12BYTES
 	bool "12 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXFIFO1_16BYTES
 	bool "16 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXFIFO1_20BYTES
 	bool "20 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXFIFO1_24BYTES
 	bool "24 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXFIFO1_32BYTES
 	bool "32 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXFIFO1_48BYTES
 	bool "48 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXFIFO1_64BYTES
 	bool "64 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 endchoice # MCAN0 RX buffer element size
 
 config SAMV7_MCAN0_RXFIFO1_SIZE
 	int "MCAN0 RX FIFO1 size"
 	default 4
-	range 1 64
+	range 0 64
 	---help---
 		Number of receive FIFO 1 elements for MCAN0.  Zero disables FIFO 1.
 
@@ -3108,31 +3734,31 @@ config SAMV7_MCAN0_RXBUFFER_8BYTES
 
 config SAMV7_MCAN0_RXBUFFER_12BYTES
 	bool "12 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXBUFFER_16BYTES
 	bool "16 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXBUFFER_20BYTES
 	bool "20 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXBUFFER_24BYTES
 	bool "24 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXBUFFER_32BYTES
 	bool "32 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXBUFFER_48BYTES
 	bool "48 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_RXBUFFER_64BYTES
 	bool "64 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 endchoice # MCAN0 RX buffer element size
 
@@ -3155,31 +3781,31 @@ config SAMV7_MCAN0_TXBUFFER_8BYTES
 
 config SAMV7_MCAN0_TXBUFFER_12BYTES
 	bool "12 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_TXBUFFER_16BYTES
 	bool "16 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_TXBUFFER_20BYTES
 	bool "20 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_TXBUFFER_24BYTES
 	bool "24 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_TXBUFFER_32BYTES
 	bool "32 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_TXBUFFER_48BYTES
 	bool "48 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 config SAMV7_MCAN0_TXBUFFER_64BYTES
 	bool "64 bytes"
-	depends on SAMV7_MCAN0_FD
+	depends on SAMV7_MCAN0_FD || SAMV7_MCAN0_FD_BSW
 
 endchoice # MCAN0 TX buffer element size
 
@@ -3258,21 +3884,21 @@ config SAMV7_MCAN1_PROPSEG
 
 config SAMV7_MCAN1_PHASESEG1
 	int "MCAN1 PhaseSeg1"
-	default 11
+	default 9
 	range 1 63
 	---help---
 		The length of the bit time is Tquanta * (SyncSeg + PropSeg + PhaseSeg1 + PhaseSeg2).
 
 config SAMV7_MCAN1_PHASESEG2
 	int "MCAN1 PhaseSeg2"
-	default 11
+	default 1
 	range 1 63
 	---help---
 		The length of the bit time is Tquanta * (SyncSeg + PropSeg + PhaseSeg1 + PhaseSeg2).
 
 config SAMV7_MCAN1_FSJW
 	int "MCAN1 synchronization jump width"
-	default 4
+	default 2
 	range 1 5
 	---help---
 		The duration of a synchronization jump is Tcan_clk x FSJW.
@@ -3293,14 +3919,14 @@ config SAMV7_MCAN1_FPROPSEG
 
 config SAMV7_MCAN1_FPHASESEG1
 	int "MCAN1 fast PhaseSeg1"
-	default 4
+	default 9
 	range 1 63
 	---help---
 		The length of the bit time is Tquanta * (SyncSeg + PropSeg + PhaseSeg1 + PhaseSeg2).
 
 config SAMV7_MCAN1_FPHASESEG2
 	int "MCAN1 fast PhaseSeg2"
-	default 4
+	default 1
 	range 1 63
 	---help---
 		The length of the bit time is Tquanta * (SyncSeg + PropSeg + PhaseSeg1 + PhaseSeg2).
@@ -3336,38 +3962,38 @@ config SAMV7_MCAN1_RXFIFO0_8BYTES
 
 config SAMV7_MCAN1_RXFIFO0_12BYTES
 	bool "12 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXFIFO0_16BYTES
 	bool "16 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXFIFO0_20BYTES
 	bool "20 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXFIFO0_24BYTES
 	bool "24 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXFIFO0_32BYTES
 	bool "32 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXFIFO0_48BYTES
 	bool "48 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXFIFO0_64BYTES
 	bool "64 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 endchoice # MCAN1 RX buffer element size
 
 config SAMV7_MCAN1_RXFIFO0_SIZE
 	int "MCAN1 RX FIFO0 size"
 	default 8
-	range 1 64
+	range 0 64
 	---help---
 		Number of receive FIFO 0 elements.  Zero disables FIFO 0.
 
@@ -3380,38 +4006,38 @@ config SAMV7_MCAN1_RXFIFO1_8BYTES
 
 config SAMV7_MCAN1_RXFIFO1_12BYTES
 	bool "12 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXFIFO1_16BYTES
 	bool "16 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXFIFO1_20BYTES
 	bool "20 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXFIFO1_24BYTES
 	bool "24 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXFIFO1_32BYTES
 	bool "32 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXFIFO1_48BYTES
 	bool "48 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXFIFO1_64BYTES
 	bool "64 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 endchoice # MCAN1 RX buffer element size
 
 config SAMV7_MCAN1_RXFIFO1_SIZE
 	int "MCAN1 RX FIFO1 size"
 	default 4
-	range 1 64
+	range 0 64
 	---help---
 		Number of receive FIFO 1 elements for MCAN1.  Zero disables FIFO 1.
 
@@ -3424,31 +4050,31 @@ config SAMV7_MCAN1_RXBUFFER_8BYTES
 
 config SAMV7_MCAN1_RXBUFFER_12BYTES
 	bool "12 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXBUFFER_16BYTES
 	bool "16 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXBUFFER_20BYTES
 	bool "20 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXBUFFER_24BYTES
 	bool "24 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXBUFFER_32BYTES
 	bool "32 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXBUFFER_48BYTES
 	bool "48 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_RXBUFFER_64BYTES
 	bool "64 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 endchoice # MCAN1 RX buffer element size
 
@@ -3471,31 +4097,31 @@ config SAMV7_MCAN1_TXBUFFER_8BYTES
 
 config SAMV7_MCAN1_TXBUFFER_12BYTES
 	bool "12 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_TXBUFFER_16BYTES
 	bool "16 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_TXBUFFER_20BYTES
 	bool "20 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_TXBUFFER_24BYTES
 	bool "24 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_TXBUFFER_32BYTES
 	bool "32 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_TXBUFFER_48BYTES
 	bool "48 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 config SAMV7_MCAN1_TXBUFFER_64BYTES
 	bool "64 bytes"
-	depends on SAMV7_MCAN1_FD
+	depends on SAMV7_MCAN1_FD || SAMV7_MCAN1_FD_BSW
 
 endchoice # MCAN1 TX buffer element size
 
@@ -3545,6 +4171,7 @@ config SAMV7_TC0_QE
 	bool "TC0"
 	default n
 	depends on SAMV7_TC0
+	select SAMV7_QENCODER
 	select SAMV7_TC0_TIOA0
 	select SAMV7_TC0_TIOB0
 	---help---
@@ -3554,6 +4181,7 @@ config SAMV7_TC1_QE
 	bool "TC1"
 	default n
 	depends on SAMV7_TC1
+	select SAMV7_QENCODER
 	select SAMV7_TC1_TIOA3
 	select SAMV7_TC1_TIOB3
 	---help---
@@ -3563,6 +4191,7 @@ config SAMV7_TC2_QE
 	bool "TC2"
 	default n
 	depends on SAMV7_TC2
+	select SAMV7_QENCODER
 	select SAMV7_TC2_TIOA6
 	select SAMV7_TC2_TIOB6
 	---help---
@@ -3572,10 +4201,24 @@ config SAMV7_TC3_QE
 	bool "TC3"
 	default n
 	depends on SAMV7_TC3
+	select SAMV7_QENCODER
 	select SAMV7_TC3_TIOA9
 	select SAMV7_TC3_TIOB9
 	---help---
 		Reserve TC3 for use by QEncoder.
+
+config SAMV7_QENCODER_ENABLE_GETINDEX
+	bool "Support ioctl GETINDEX call"
+	default n
+	---help---
+		Index signal does not reset the internal counter.
+		However, each time index is hit, capture A and B registers
+		are used to save the counter's value instead of
+		resetting it.
+
+		This provides support for the GETINDEX ioctl call
+		with the qe_index_s struct. The 16 to 32 bit extension
+		of the driver's counter is also done.
 
 config SAMV7_QENCODER_FILTER
 	bool "Enable filtering on SAMV7 QEncoder input"

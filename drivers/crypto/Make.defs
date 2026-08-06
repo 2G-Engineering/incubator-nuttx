@@ -1,6 +1,8 @@
 ############################################################################
 # drivers/crypto/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -22,6 +24,11 @@ ifeq ($(CONFIG_DEV_URANDOM),y)
 ifneq ($(CONFIG_DEV_URANDOM_ARCH),y)
   CSRCS += dev_urandom.c
 endif
+endif
+
+ifeq ($(CONFIG_DEV_SE05X),y)
+  CSRCS += se05x.c
+  include crypto/pnt/Make.defs
 endif
 
 # Include crypto device driver build support

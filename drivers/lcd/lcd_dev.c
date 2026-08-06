@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/lcd/lcd_dev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <string.h>
 #include <poll.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 
 #include <nuttx/kmalloc.h>
@@ -51,6 +53,8 @@ struct lcddev_dev_s
 {
   FAR struct lcd_dev_s *lcd_ptr;
   struct lcd_planeinfo_s planeinfo;
+  mutex_t lock;
+  int16_t crefs;
 };
 
 /****************************************************************************
@@ -59,6 +63,8 @@ struct lcddev_dev_s
 
 /* Character driver methods */
 
+static int lcddev_open(FAR struct file *filep);
+static int lcddev_close(FAR struct file *filep);
 static int lcddev_ioctl(FAR struct file *filep, int cmd,
                         unsigned long arg);
 
@@ -68,8 +74,8 @@ static int lcddev_ioctl(FAR struct file *filep, int cmd,
 
 static const struct file_operations g_lcddev_fops =
 {
-  NULL,         /* open */
-  NULL,         /* close */
+  lcddev_open,  /* open */
+  lcddev_close, /* close */
   NULL,         /* read */
   NULL,         /* write */
   NULL,         /* seek */
@@ -81,6 +87,78 @@ static const struct file_operations g_lcddev_fops =
  ****************************************************************************/
 
 /****************************************************************************
+ * Name: lcddev_open
+ ****************************************************************************/
+
+static int lcddev_open(FAR struct file *filep)
+{
+  FAR struct lcddev_dev_s *priv;
+  int ret;
+
+  priv = filep->f_inode->i_private;
+
+  ret = nxmutex_lock(&priv->lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (priv->crefs == 0)
+    {
+      if (priv->lcd_ptr->open != NULL &&
+          (ret = priv->lcd_ptr->open(priv->lcd_ptr)) < 0)
+        {
+          goto err_lcd;
+        }
+    }
+
+  priv->crefs++;
+  DEBUGASSERT(priv->crefs > 0);
+
+  nxmutex_unlock(&priv->lock);
+  return OK;
+
+err_lcd:
+  nxmutex_unlock(&priv->lock);
+  return ret;
+}
+
+/****************************************************************************
+ * Name: lcddev_close
+ ****************************************************************************/
+
+static int lcddev_close(FAR struct file *filep)
+{
+  FAR struct lcddev_dev_s *priv;
+  int ret;
+
+  priv = filep->f_inode->i_private;
+
+  ret = nxmutex_lock(&priv->lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (priv->crefs == 1)
+    {
+      if (priv->lcd_ptr->close != NULL)
+        {
+          ret = priv->lcd_ptr->close(priv->lcd_ptr);
+        }
+    }
+
+  if (ret >= 0)
+    {
+      DEBUGASSERT(priv->crefs > 0);
+      priv->crefs--;
+    }
+
+  nxmutex_unlock(&priv->lock);
+  return ret;
+}
+
+/****************************************************************************
  * Name: lcddev_ioctl
  ****************************************************************************/
 
@@ -89,7 +167,7 @@ static int lcddev_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   FAR struct lcddev_dev_s *priv;
   int ret = OK;
 
-  priv = (FAR struct lcddev_dev_s *)filep->f_inode->i_private;
+  priv = filep->f_inode->i_private;
 
   switch (cmd)
     {
@@ -118,7 +196,10 @@ static int lcddev_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         FAR struct lcddev_area_s *lcd_area =
             (FAR struct lcddev_area_s *)arg;
         size_t cols = lcd_area->col_end - lcd_area->col_start + 1;
-        size_t row_size = cols * (priv->planeinfo.bpp >> 3);
+        size_t pixel_size = priv->planeinfo.bpp > 1 ?
+                            priv->planeinfo.bpp >> 3 : 1;
+        size_t row_size = lcd_area->stride > 0 ?
+                          lcd_area->stride : cols * pixel_size;
 
         if (priv->planeinfo.getarea)
           {
@@ -157,7 +238,10 @@ static int lcddev_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         FAR const struct lcddev_area_s *lcd_area =
             (FAR const struct lcddev_area_s *)arg;
         size_t cols = lcd_area->col_end - lcd_area->col_start + 1;
-        size_t row_size = cols * (priv->planeinfo.bpp >> 3);
+        size_t pixel_size = priv->planeinfo.bpp > 1 ?
+                            priv->planeinfo.bpp >> 3 : 1;
+        size_t row_size = lcd_area->stride > 0 ?
+                          lcd_area->stride : cols * pixel_size;
 
         if (priv->planeinfo.putarea)
           {
@@ -272,8 +356,37 @@ static int lcddev_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         *((FAR int *)arg) = priv->lcd_ptr->getframerate(priv->lcd_ptr);
       }
       break;
+    case LCDDEVIO_GETAREAALIGN:
+      {
+        FAR struct lcddev_area_align_s *area_align =
+            (FAR struct lcddev_area_align_s *)arg;
+
+        if (priv->lcd_ptr->getareaalign == NULL)
+          {
+            area_align->row_start_align = 1;
+            area_align->height_align    = 1;
+            area_align->col_start_align = 1;
+            area_align->width_align     = 1;
+            area_align->buf_align       = sizeof(uintptr_t);
+          }
+        else
+          {
+            ret = priv->lcd_ptr->getareaalign(priv->lcd_ptr, area_align);
+          }
+      }
+      break;
     default:
-      ret = -EINVAL;
+      {
+        if (priv->lcd_ptr->ioctl)
+          {
+            ret = priv->lcd_ptr->ioctl(priv->lcd_ptr, cmd, arg);
+          }
+        else
+          {
+            gerr("ERROR: Unsupported IOCTL command: %d\n", cmd);
+            ret = -ENOTTY;
+          }
+      }
       break;
     }
 
@@ -307,14 +420,22 @@ int lcddev_register(int devno)
 
   /* Allocate a new lcd_dev driver instance */
 
-  priv = (FAR struct lcddev_dev_s *)kmm_zalloc(sizeof(struct lcddev_dev_s));
+  priv = kmm_zalloc(sizeof(struct lcddev_dev_s));
 
   if (!priv)
     {
       return -ENOMEM;
     }
 
+  nxmutex_init(&priv->lock);
+
   priv->lcd_ptr = board_lcd_getdev(devno);
+  if (!priv->lcd_ptr)
+    {
+      ret = -ENODEV;
+      goto err;
+    }
+
   ret = priv->lcd_ptr->getplaneinfo(priv->lcd_ptr, 0, &priv->planeinfo);
   if (ret < 0)
     {
@@ -329,7 +450,9 @@ int lcddev_register(int devno)
     }
 
   return ret;
+
 err:
+  nxmutex_destroy(&priv->lock);
   kmm_free(priv);
   return ret;
 }

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lpc17xx_40xx/lpc17_40_mcpwm.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,8 +30,8 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/timers/pwm.h>
@@ -266,8 +268,13 @@ static int mcpwm_timer(struct lpc17_40_mcpwmtimer_s *priv,
 
   flags = enter_critical_section();
 
-  putreg32(info->frequency, LPC17_40_MCPWM_LIM0); /* Set PWMMR0 = number of counts */
-  putreg32(info->duty, LPC17_40_MCPWM_MAT0);      /* Set PWM cycle */
+  /* Set PWMMR0 = number of counts */
+
+  putreg32(info->frequency, LPC17_40_MCPWM_LIM0);
+
+  /* Set PWM cycle */
+
+  putreg32(info->channels[0].duty, LPC17_40_MCPWM_MAT0);
 
   leave_critical_section(flags);
   mcpwm_dumpregs(priv, "After starting");

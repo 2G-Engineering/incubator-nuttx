@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/nrf53/hardware/nrf53_temp.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -94,4 +96,4 @@
 
 #define NRF53_TEMP_INTENCLR_DATARDY  (1 << 0)  /* Read: Enabled */
 
-#endif // __ARCH_ARM_SRC_NRF53_HARDWARE_NRF53_TEMP_H
+#endif /* __ARCH_ARM_SRC_NRF53_HARDWARE_NRF53_TEMP_H */

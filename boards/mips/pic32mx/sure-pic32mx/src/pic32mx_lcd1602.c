@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/mips/pic32mx/sure-pic32mx/src/pic32mx_lcd1602.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,7 +25,7 @@
  * controller
  */
 
-/* LCD pin mapping (see boards/sure-pic32mx/README.txt)
+/* LCD pin mapping
  *
  *  --------------------- ---------- ----------------------------------
  *  PIC32                  Sure JP1   Sure Signal Description
@@ -66,7 +68,7 @@
 #include <poll.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/ascii.h>
@@ -107,7 +109,7 @@
 #define NOP              __asm__ __volatile__ ("nop");
 
 /****************************************************************************
- * Private Type Definition
+ * Private Types
  ****************************************************************************/
 
 /* Global LCD state */
@@ -230,7 +232,7 @@ static void lcd_dumpstream(const char *msg,
 {
   lcdinfo("%s:\n", msg);
   lcdinfo("  nget: %d nbytes: %d\n",
-          stream->public.nget, stream->buflen);
+          stream->common.nget, stream->buflen);
   lib_dumpbuffer("STREAM", stream->buffer, stream->buflen);
 }
 #endif
@@ -800,7 +802,7 @@ static ssize_t lcd_write(struct file *filep,  const char *buffer,
   /* Now decode and process every byte in the input buffer */
 
   memset(&state, 0, sizeof(struct slcdstate_s));
-  while ((result = slcd_decode(&instream.public,
+  while ((result = slcd_decode(&instream.common,
                                &state, &ch, &count)) != SLCDRET_EOF)
     {
       lcdinfo("slcd_decode returned result=%d char=%d count=%d\n",
@@ -971,7 +973,7 @@ static int lcd_ioctl(struct file *filep, int cmd, unsigned long arg)
  ****************************************************************************/
 
 static int lcd_poll(struct file *filep, struct pollfd *fds,
-                        bool setup)
+                    bool setup)
 {
   if (setup)
     {

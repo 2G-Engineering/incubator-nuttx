@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/string/lib_strcat.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,8 +34,9 @@
  * Public Functions
  ****************************************************************************/
 
-#if !defined(CONFIG_LIBC_ARCH_STRCAT) && defined(LIBC_BUILD_STRING)
-#undef strcat /* See mm/README.txt */
+#if !defined(CONFIG_LIBC_ARCH_STRCAT) && defined(LIBC_BUILD_STRCAT)
+#undef strcat
+no_builtin("strcat")
 FAR char *strcat(FAR char *dest, FAR const char *src)
 {
   FAR char *ret = dest;

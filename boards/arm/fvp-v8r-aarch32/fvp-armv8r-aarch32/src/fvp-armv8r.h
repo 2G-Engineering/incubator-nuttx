@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/fvp-v8r-aarch32/fvp-armv8r-aarch32/src/fvp-armv8r.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,8 +20,8 @@
  *
  ****************************************************************************/
 
-#ifndef __BOARDS_ARM_VDK_ARMV8R_BASE_SRC_VDK_ARMV8R_H__
-#define __BOARDS_ARM_VDK_ARMV8R_BASE_SRC_VDK_ARMV8R_H__
+#ifndef __BOARDS_ARM_FVP_V8R_AARCH32_FVP_ARMV8R_AARCH32_SRC_FVP_ARMV8R_H
+#define __BOARDS_ARM_FVP_V8R_AARCH32_FVP_ARMV8R_AARCH32_SRC_FVP_ARMV8R_H
 
 /****************************************************************************
  * Included Files
@@ -44,7 +46,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: vdk_bringup
+ * Name: fvp_bringup
  *
  * Description:
  *   Bring up board features
@@ -56,4 +58,4 @@ int fvp_bringup(void);
 #endif
 
 #endif /* __ASSEMBLY__ */
-#endif /* __BOARDS_ARM_VDK_ARMV8R_BASE_SRC_VDK_ARMV8R_H__ */
+#endif /* __BOARDS_ARM_FVP_V8R_AARCH32_FVP_ARMV8R_AARCH32_SRC_FVP_ARMV8R_H */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/local/local_release.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,7 +25,6 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#if defined(CONFIG_NET) && defined(CONFIG_NET_LOCAL)
 
 #include <errno.h>
 #include <assert.h>
@@ -57,7 +58,7 @@ int local_release(FAR struct local_conn_s *conn)
   /* There should be no references on this structure */
 
   DEBUGASSERT(conn->lc_crefs == 0);
-  net_lock();
+  local_lock();
 
 #ifdef CONFIG_NET_LOCAL_STREAM
   /* We should not bet here with state LOCAL_STATE_ACCEPT.  That is an
@@ -66,37 +67,23 @@ int local_release(FAR struct local_conn_s *conn)
 
   DEBUGASSERT(conn->lc_state != LOCAL_STATE_ACCEPT);
 
-  /* If the socket is connected (SOCK_STREAM client), then disconnect it */
-
-  if (conn->lc_state == LOCAL_STATE_CONNECTED ||
-      conn->lc_state == LOCAL_STATE_CONNECTING ||
-      conn->lc_state == LOCAL_STATE_DISCONNECTED)
-    {
-      DEBUGASSERT(conn->lc_proto == SOCK_STREAM);
-
-      /* Just free the connection structure */
-    }
-
   /* Is the socket is listening socket (SOCK_STREAM server) */
 
-  else if (conn->lc_state == LOCAL_STATE_LISTENING)
+  if (conn->lc_state == LOCAL_STATE_LISTENING)
     {
-      FAR struct local_conn_s *client;
+      FAR struct local_conn_s *accept;
       FAR dq_entry_t *waiter;
+      FAR dq_entry_t *tmp;
 
       DEBUGASSERT(conn->lc_proto == SOCK_STREAM);
 
       /* Are there still clients waiting for a connection to the server? */
 
-      for (waiter = dq_peek(&conn->u.server.lc_waiters);
-           waiter;
-           waiter = dq_next(&client->u.client.lc_waiter))
+      dq_for_every_safe(&conn->u.server.lc_waiters, waiter, tmp)
         {
-          client = container_of(waiter, struct local_conn_s,
-                                u.client.lc_waiter);
-          client->u.client.lc_result = -ENOTCONN;
-          nxsem_post(&client->lc_waitsem);
-          local_event_pollnotify(client, POLLOUT);
+          accept = container_of(waiter, struct local_conn_s,
+                                u.accept.lc_waiter);
+          local_subref(accept);
         }
 
       conn->u.server.lc_pending = 0;
@@ -110,8 +97,6 @@ int local_release(FAR struct local_conn_s *conn)
   /* Free the connection structure */
 
   local_free(conn);
-  net_unlock();
+  local_unlock();
   return OK;
 }
-
-#endif /* CONFIG_NET && CONFIG_NET_LOCAL */

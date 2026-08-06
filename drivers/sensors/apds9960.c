@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/apds9960.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /* Character driver for the APDS9960 Gesture Sensor
  *
  * This driver is based on APDS-9960 Arduino library developed by
@@ -33,7 +48,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdlib.h>
 
 #include <nuttx/kmalloc.h>
@@ -45,14 +60,6 @@
 #include <nuttx/sensors/apds9960.h>
 
 #if defined(CONFIG_I2C) && defined(CONFIG_SENSORS_APDS9960)
-
-/****************************************************************************
- * Pre-process Definitions
- ****************************************************************************/
-
-#ifndef CONFIG_APDS9960_I2C_FREQUENCY
-#  define CONFIG_APDS9960_I2C_FREQUENCY 400000
-#endif
 
 /****************************************************************************
  * Private Types
@@ -412,7 +419,7 @@ static int apds9960_setdefault(FAR struct apds9960_dev_s *priv)
   ret = apds9960_i2c_write8(priv, APDS9960_GCONFIG4, DEFAULT_GCONFIG4);
   if (ret < 0)
     {
-      snerr("ERROR: Failed to write APDS9960_GCONFIG3!\n");
+      snerr("ERROR: Failed to write APDS9960_GCONFIG4!\n");
       return ret;
     }
 
@@ -991,7 +998,7 @@ static int apds9960_readgesture(FAR struct apds9960_dev_s *priv)
     {
       /* Wait some time to collect next batch of FIFO data */
 
-      nxsig_usleep(FIFO_PAUSE_TIME);
+      nxsched_usleep(FIFO_PAUSE_TIME);
 
       /* Get the contents of the STATUS register. Is data still valid? */
 
@@ -1023,7 +1030,7 @@ static int apds9960_readgesture(FAR struct apds9960_dev_s *priv)
             {
               bytes_read = fifo_level * 4;
               ret = apds9960_i2c_read(priv, APDS9960_GFIFO_U,
-                                      (uint8_t *) fifo_data, bytes_read);
+                                      (FAR uint8_t *)fifo_data, bytes_read);
               if (ret < 0)
                 {
                   snerr("ERROR: Failed to read APDS9960_GFIFO_U!\n");
@@ -1087,7 +1094,7 @@ static int apds9960_readgesture(FAR struct apds9960_dev_s *priv)
         {
           /* Determine best guessed gesture and clean up */
 
-          nxsig_usleep(FIFO_PAUSE_TIME);
+          nxsched_usleep(FIFO_PAUSE_TIME);
           apds9960_decodegesture(priv);
           motion = priv->gesture_motion;
 
@@ -1134,11 +1141,10 @@ static ssize_t apds9960_read(FAR struct file *filep, FAR char *buffer,
   FAR struct apds9960_dev_s *priv;
   int ret;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv  = (FAR struct apds9960_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv  = inode->i_private;
 
   /* Check if the user is reading the right size */
 
@@ -1195,13 +1201,12 @@ static ssize_t apds9960_write(FAR struct file *filep,
 int apds9960_register(FAR const char *devpath,
                       FAR struct apds9960_config_s *config)
 {
+  FAR struct apds9960_dev_s *priv;
   int ret;
 
   /* Initialize the APDS9960 device structure */
 
-  FAR struct apds9960_dev_s *priv =
-    (FAR struct apds9960_dev_s *)kmm_zalloc(sizeof(struct apds9960_dev_s));
-
+  priv = kmm_zalloc(sizeof(struct apds9960_dev_s));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");
@@ -1218,6 +1223,7 @@ int apds9960_register(FAR const char *devpath,
   if (ret != OK)
     {
       snerr("ERROR: APDS-9960 is not responding!\n");
+      kmm_free(priv);
       return ret;
     }
 
@@ -1227,12 +1233,13 @@ int apds9960_register(FAR const char *devpath,
   if (ret < 0)
     {
       snerr("ERROR: Failed to initialize the APDS9960!\n");
+      kmm_free(priv);
       return ret;
     }
 
   /* Wait 100ms */
 
-  nxsig_usleep(100000);
+  nxsched_usleep(100000);
 
   /* Initialize the device (leave RESET) */
 
@@ -1240,6 +1247,7 @@ int apds9960_register(FAR const char *devpath,
   if (ret < 0)
     {
       snerr("ERROR: Failed to initialize the APDS9960!\n");
+      kmm_free(priv);
       return ret;
     }
 
@@ -1249,6 +1257,7 @@ int apds9960_register(FAR const char *devpath,
   if (ret < 0)
     {
       snerr("ERROR: Failed to initialize the APDS9960!\n");
+      kmm_free(priv);
       return ret;
     }
 
@@ -1262,6 +1271,7 @@ int apds9960_register(FAR const char *devpath,
   if (ret < 0)
     {
       snerr("ERROR: Failed to write APDS9960_GCONFIG4!\n");
+      kmm_free(priv);
       return ret;
     }
 
@@ -1271,6 +1281,7 @@ int apds9960_register(FAR const char *devpath,
   if (ret < 0)
     {
       snerr("ERROR: Failed to initialize the APDS9960!\n");
+      kmm_free(priv);
       return ret;
     }
 
@@ -1281,6 +1292,7 @@ int apds9960_register(FAR const char *devpath,
     {
       snerr("ERROR: Failed to register driver: %d\n", ret);
       kmm_free(priv);
+      return ret;
     }
 
   /* Attach to the interrupt */

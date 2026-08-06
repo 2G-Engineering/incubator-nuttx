@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/x86_64/src/intel64/intel64_rtc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,6 +28,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
 #include <nuttx/timers/rtc.h>
+#include <nuttx/spinlock.h>
 #include <arch/board/board.h>
 
 #include <stdlib.h>
@@ -62,6 +65,10 @@
  * Private Data
  ****************************************************************************/
 
+#ifdef CONFIG_RTC_HIRES
+static spinlock_t g_rtc_lock = SP_UNLOCKED;
+#endif
+
 /****************************************************************************
  * Public Data
  ****************************************************************************/
@@ -73,10 +80,8 @@ volatile bool g_rtc_enabled = false;
  * Private Functions
  ****************************************************************************/
 
-static unsigned long rtc_freq;
-static unsigned long rtc_overflow;
+extern unsigned long g_x86_64_timer_freq;
 static unsigned long rtc_last;
-static unsigned long rtc_overflows;
 
 /****************************************************************************
  * Private Functions
@@ -84,15 +89,19 @@ static unsigned long rtc_overflows;
 
 static unsigned long rtc_read(void)
 {
-  uint64_t  tmr = rdtsc();
+  uint64_t  tmr = rdtscp();
+  irqstate_t flags;
 
+  flags = spin_lock_irqsave(&g_rtc_lock);
   if (tmr < rtc_last)
     {
       tmr += (0xffffffffffffffffull - rtc_last);
     }
 
   rtc_last = tmr;
-  tmr = (tmr / (rtc_freq / 1000000ul)) * 1000l;
+  spin_unlock_irqrestore(&g_rtc_lock, flags);
+  tmr = (tmr / (g_x86_64_timer_freq / 1000000ul)) * 1000l;
+
   return tmr;
 }
 
@@ -117,7 +126,6 @@ static unsigned long rtc_read(void)
 
 int up_rtc_initialize(void)
 {
-  rtc_freq = comm_region->tsc_khz * 1000L;
   g_rtc_enabled = true;
 
   return OK;

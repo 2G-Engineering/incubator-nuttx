@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/mtd/filemtd.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,13 +35,16 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/fs/loopmtd.h>
 #include <nuttx/mtd/mtd.h>
+#ifndef CONFIG_MTD_CONFIG_NONE
+#  include <nuttx/mtd/configdata.h>
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -119,6 +124,8 @@ static ssize_t file_bytewrite(FAR struct mtd_dev_s *dev, off_t offset,
 #endif
 static int filemtd_ioctl(FAR struct mtd_dev_s *dev, int cmd,
                          unsigned long arg);
+static int filemtd_isbad(FAR struct mtd_dev_s *dev, off_t block);
+static int filemtd_markbad(FAR struct mtd_dev_s *dev, off_t block);
 
 #ifdef CONFIG_MTD_LOOP
 static ssize_t mtd_loop_read(FAR struct file *filep, FAR char *buffer,
@@ -148,6 +155,28 @@ static const struct file_operations g_fops =
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: filemtd_isbad
+ ****************************************************************************/
+
+static int filemtd_isbad(FAR struct mtd_dev_s *dev, off_t block)
+{
+  /* We always think it's all GOODBLOCK */
+
+  return 0;
+}
+
+/****************************************************************************
+ * Name: filemtd_markbad
+ ****************************************************************************/
+
+static int filemtd_markbad(FAR struct mtd_dev_s *dev, off_t block)
+{
+  /* Provides a dummy interface */
+
+  return 0;
+}
 
 /****************************************************************************
  * Name: filemtd_write
@@ -279,19 +308,12 @@ static int filemtd_erase(FAR struct mtd_dev_s *dev, off_t startblock,
       nblocks = priv->nblocks - startblock;
     }
 
-  /* Convert the erase block to a logical block and the number of blocks
-   * in logical block numbers
-   */
-
-  startblock *= (priv->erasesize / priv->blocksize);
-  nblocks    *= (priv->erasesize / priv->blocksize);
-
   /* Get the offset corresponding to the first block and the size
    * corresponding to the number of blocks.
    */
 
-  offset = startblock * priv->blocksize;
-  nbytes = nblocks * priv->blocksize;
+  offset = startblock * priv->erasesize;
+  nbytes = nblocks * priv->erasesize;
 
   /* Then erase the data in the file */
 
@@ -303,7 +325,7 @@ static int filemtd_erase(FAR struct mtd_dev_s *dev, off_t startblock,
       nbytes -= MIN(nbytes, sizeof(buffer));
     }
 
-  return OK;
+  return nblocks;
 }
 
 /****************************************************************************
@@ -532,8 +554,14 @@ static int filemtd_ioctl(FAR struct mtd_dev_s *dev, int cmd,
  ****************************************************************************/
 
 #ifdef CONFIG_MTD_LOOP
+#  ifndef CONFIG_MTD_CONFIG_NONE
+static int mtd_loop_setup(FAR const char *devname, FAR const char *filename,
+                          int sectsize, int erasesize, off_t offset,
+                          int configdata)
+#  else
 static int mtd_loop_setup(FAR const char *devname, FAR const char *filename,
                           int sectsize, int erasesize, off_t offset)
+#  endif
 {
   FAR struct mtd_dev_s *mtd;
   int ret;
@@ -544,7 +572,29 @@ static int mtd_loop_setup(FAR const char *devname, FAR const char *filename,
       return -ENOENT;
     }
 
-  ret = register_mtddriver(devname, mtd, 0755, NULL);
+#  ifndef CONFIG_MTD_CONFIG_NONE
+  if (configdata)
+    {
+      if (configdata == 2)
+        {
+          /* Try to erase the entire device, before register */
+
+          FAR struct file_dev_s *fdev = (FAR struct file_dev_s *)mtd;
+          mtd->erase(mtd, offset / erasesize, fdev->nblocks);
+        }
+
+      ret = mtdconfig_register_by_path(mtd, devname);
+      if (ret == -EDEADLK)
+        {
+          ferr("ERROR: mtdconfig_register_by_path failed: %d\n", ret);
+        }
+    }
+  else
+#  endif
+    {
+      ret = register_mtddriver(devname, mtd, 0755, NULL);
+    }
+
   if (ret != OK)
     {
       filemtd_teardown(mtd);
@@ -569,14 +619,12 @@ static int mtd_loop_teardown(FAR const char *devname)
   FAR struct inode *inode;
   int ret;
 
-  /* Open the block driver associated with devname so that we can get the
-   * inode reference.
-   */
+  /* Find the reference to the inode by devname */
 
-  ret = open_blockdriver(devname, MS_RDONLY, &inode);
+  ret = find_mtddriver(devname, &inode);
   if (ret < 0)
     {
-      ferr("ERROR: Failed to open %s: %d\n", devname, -ret);
+      ferr("ERROR: Failed to find %s: %d\n", devname, -ret);
       return ret;
     }
 
@@ -589,16 +637,26 @@ static int mtd_loop_teardown(FAR const char *devname)
   if (!filemtd_isfilemtd(&dev->mtd))
     {
       ferr("ERROR: Device is not a FILEMTD loop: %s\n", devname);
+      close_mtddriver(inode);
       return -EINVAL;
     }
 
-  close_blockdriver(inode);
+  close_mtddriver(inode);
 
   /* Now teardown the filemtd */
 
   filemtd_teardown(&dev->mtd);
-  unregister_blockdriver(devname);
-  kmm_free(dev);
+
+#  ifndef CONFIG_MTD_CONFIG_NONE
+  if (inode->i_private)
+    {
+      mtdconfig_unregister_by_path(devname);
+    }
+  else
+#  endif
+    {
+      unregister_mtddriver(devname);
+    }
 
   return OK;
 }
@@ -657,9 +715,15 @@ static int mtd_loop_ioctl(FAR struct file *filep, int cmd,
           }
         else
           {
+#  ifndef CONFIG_MTD_CONFIG_NONE
+            ret = mtd_loop_setup(setup->devname, setup->filename,
+                                 setup->sectsize, setup->erasesize,
+                                 setup->offset, setup->configdata);
+#  else
             ret = mtd_loop_setup(setup->devname, setup->filename,
                                  setup->sectsize, setup->erasesize,
                                  setup->offset);
+#  endif
           }
       }
       break;
@@ -710,7 +774,7 @@ static int mtd_loop_ioctl(FAR struct file *filep, int cmd,
  *
  ****************************************************************************/
 
-FAR struct mtd_dev_s *filemtd_initialize(FAR const char *path, size_t offset,
+FAR struct mtd_dev_s *filemtd_initialize(FAR const char *path, off_t offset,
                                          int16_t sectsize, int32_t erasesize)
 {
   FAR struct file_dev_s *priv;
@@ -740,7 +804,7 @@ FAR struct mtd_dev_s *filemtd_initialize(FAR const char *path, size_t offset,
 
   /* Create an instance of the FILE MTD device state structure */
 
-  priv = (FAR struct file_dev_s *)kmm_zalloc(sizeof(struct file_dev_s));
+  priv = kmm_zalloc(sizeof(struct file_dev_s));
   if (!priv)
     {
       ferr("ERROR: Failed to allocate the FILE MTD state structure\n");
@@ -749,7 +813,7 @@ FAR struct mtd_dev_s *filemtd_initialize(FAR const char *path, size_t offset,
 
   /* Set the file open mode. */
 
-  mode = O_RDOK | O_WROK;
+  mode = O_RDONLY | O_WRONLY | O_CLOEXEC;
 
   /* Try to open the file.  NOTE that block devices will use a character
    * driver proxy.
@@ -809,17 +873,19 @@ FAR struct mtd_dev_s *filemtd_initialize(FAR const char *path, size_t offset,
    * nullified by kmm_zalloc).
    */
 
-  priv->mtd.erase  = filemtd_erase;
-  priv->mtd.bread  = filemtd_bread;
-  priv->mtd.bwrite = filemtd_bwrite;
-  priv->mtd.read   = filemtd_byteread;
+  priv->mtd.erase   = filemtd_erase;
+  priv->mtd.bread   = filemtd_bread;
+  priv->mtd.bwrite  = filemtd_bwrite;
+  priv->mtd.read    = filemtd_byteread;
 #ifdef CONFIG_MTD_BYTE_WRITE
-  priv->mtd.write  = file_bytewrite;
+  priv->mtd.write   = file_bytewrite;
 #endif
-  priv->mtd.ioctl  = filemtd_ioctl;
-  priv->mtd.name   = "filemtd";
-  priv->offset     = offset;
-  priv->nblocks    = nblocks;
+  priv->mtd.ioctl   = filemtd_ioctl;
+  priv->mtd.isbad   = filemtd_isbad;
+  priv->mtd.markbad = filemtd_markbad;
+  priv->mtd.name    = "filemtd";
+  priv->offset      = offset;
+  priv->nblocks     = nblocks;
 
   return &priv->mtd;
 }

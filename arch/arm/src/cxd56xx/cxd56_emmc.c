@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/cxd56xx/cxd56_emmc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,10 +28,11 @@
 
 #include <sys/param.h>
 #include <sys/types.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/arch.h>
@@ -822,8 +825,8 @@ static int cxd56_emmc_open(struct inode *inode)
   struct cxd56_emmc_state_s *priv;
   int ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (struct cxd56_emmc_state_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   /* Just increment the reference count on the driver */
 
@@ -843,8 +846,8 @@ static int cxd56_emmc_close(struct inode *inode)
   struct cxd56_emmc_state_s *priv;
   int ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (struct cxd56_emmc_state_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   /* Decrement the reference count on the block driver */
 
@@ -867,10 +870,10 @@ static ssize_t cxd56_emmc_read(struct inode *inode,
   struct cxd56_emmc_state_s *priv;
   int ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (struct cxd56_emmc_state_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
-  finfo("Read sector %" PRIu32 " (%u sectors) to %p\n",
+  finfo("Read sector %" PRIuOFF " (%u sectors) to %p\n",
         start_sector, nsectors, buffer);
 
   ret = cxd56_emmc_readsectors(priv, buffer, start_sector, nsectors);
@@ -892,8 +895,8 @@ static ssize_t cxd56_emmc_write(struct inode *inode,
   struct cxd56_emmc_state_s *priv;
   int ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (struct cxd56_emmc_state_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   finfo("Write %p to sector %" PRIu32 " (%u sectors)\n", buffer,
         start_sector, nsectors);
@@ -914,8 +917,8 @@ static int cxd56_emmc_geometry(struct inode *inode,
 {
   struct cxd56_emmc_state_s *priv;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (struct cxd56_emmc_state_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   memset(geometry, 0, sizeof(*geometry));
 
@@ -949,7 +952,7 @@ int cxd56_emmcinitialize(void)
       return -EIO;
     }
 
-  buf = (uint8_t *)kmm_malloc(SECTOR_SIZE);
+  buf = kmm_malloc(SECTOR_SIZE);
   if (buf)
     {
       putreg32(SECTOR_SIZE, EMMC_BYTCNT);

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lpc17xx_40xx/lpc176x_gpio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/irq.h>
 
@@ -587,7 +589,7 @@ int lpc17_40_configgpio(lpc17_40_pinset_t cfgset)
           ret = lpc17_40_configinterrupt(cfgset, port, pin);
           break;
 
-        case GPIO_OUTPUT:  /* GPIO outpout pin */
+        case GPIO_OUTPUT:  /* GPIO output pin */
           ret = lpc17_40_configoutput(cfgset, port, pin);
           break;
 

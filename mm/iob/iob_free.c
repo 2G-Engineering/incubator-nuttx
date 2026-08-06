@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/iob/iob_free.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,10 +28,14 @@
 
 #include <stdbool.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
+#ifdef CONFIG_IOB_ALLOC
+#  include <nuttx/kmalloc.h>
+#endif
+#include <nuttx/nuttx.h>
 #include <nuttx/mm/iob.h>
 
 #include "iob.h"
@@ -112,45 +118,67 @@ FAR struct iob_s *iob_free(FAR struct iob_s *iob)
               next, next->io_pktlen, next->io_len);
     }
 
+#ifdef CONFIG_IOB_ALLOC
+  if (iob->io_free != NULL)
+    {
+      FAR uint8_t *io_data = (FAR uint8_t *)ALIGN_UP((uintptr_t)(iob + 1),
+                                                     IOB_ALIGNMENT);
+      if (iob->io_data == io_data)
+        {
+          iob->io_free(iob);
+        }
+      else
+        {
+          iob->io_free(iob->io_data);
+          kmm_free(iob);
+        }
+
+      return next;
+    }
+#endif
+
   /* Free the I/O buffer by adding it to the head of the free or the
    * committed list. We don't know what context we are called from so
    * we use extreme measures to protect the free list:  We disable
    * interrupts very briefly.
    */
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_iob_lock);
 
   /* Which list?  If there is a task waiting for an IOB, then put
    * the IOB on either the free list or on the committed list where
    * it is reserved for that allocation (and not available to
-   * iob_tryalloc()).
+   * iob_tryalloc()). This is true for both throttled and non-throttled
+   * cases.
    */
 
-  if (g_iob_sem.semcount < 0)
+  if (g_iob_count < 0)
+    {
+      g_iob_count++;
+      iob->io_flink   = g_iob_committed;
+      g_iob_committed = iob;
+      spin_unlock_irqrestore(&g_iob_lock, flags);
+      nxsem_post(&g_iob_sem);
+    }
+#if CONFIG_IOB_THROTTLE > 0
+  else if (g_throttle_wait > 0 && g_iob_count >= CONFIG_IOB_THROTTLE)
     {
       iob->io_flink   = g_iob_committed;
       g_iob_committed = iob;
+      g_throttle_wait--;
+      spin_unlock_irqrestore(&g_iob_lock, flags);
+      nxsem_post(&g_throttle_sem);
     }
+#endif
   else
     {
+      g_iob_count++;
       iob->io_flink   = g_iob_freelist;
       g_iob_freelist  = iob;
+      spin_unlock_irqrestore(&g_iob_lock, flags);
     }
 
-  /* Signal that an IOB is available.  If there is a thread blocked,
-   * waiting for an IOB, this will wake up exactly one thread.  The
-   * semaphore count will correctly indicated that the awakened task
-   * owns an IOB and should find it in the committed list.
-   */
-
-  nxsem_post(&g_iob_sem);
-  DEBUGASSERT(g_iob_sem.semcount <= CONFIG_IOB_NBUFFERS);
-
-#if CONFIG_IOB_THROTTLE > 0
-  nxsem_post(&g_throttle_sem);
-  DEBUGASSERT(g_throttle_sem.semcount <=
-              (CONFIG_IOB_NBUFFERS - CONFIG_IOB_THROTTLE));
-#endif
+  DEBUGASSERT(g_iob_count <= CONFIG_IOB_NBUFFERS);
 
 #ifdef CONFIG_IOB_NOTIFIER
   /* Check if the IOB was claimed by a thread that is blocked waiting
@@ -167,8 +195,6 @@ FAR struct iob_s *iob_free(FAR struct iob_s *iob)
       iob_notifier_signal();
     }
 #endif
-
-  leave_critical_section(flags);
 
   /* And return the I/O buffer after the one that was freed */
 

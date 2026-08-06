@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_dup2.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,13 +25,17 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/fs/fs.h>
+#include <nuttx/fs/ioctl.h>
 
 #include <unistd.h>
 #include <sched.h>
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #include "inode/inode.h"
+#include "sched/sched.h"
 
 /****************************************************************************
  * Public Functions
@@ -55,7 +61,6 @@
 int file_dup2(FAR struct file *filep1, FAR struct file *filep2)
 {
   FAR struct inode *inode;
-  struct file temp;
   int ret;
 
   if (filep1 == NULL || filep1->f_inode == NULL || filep2 == NULL)
@@ -71,18 +76,21 @@ int file_dup2(FAR struct file *filep1, FAR struct file *filep2)
   /* Increment the reference count on the contained inode */
 
   inode = filep1->f_inode;
-  ret   = inode_addref(inode);
+  inode_addref(inode);
+
+  /* Close the second file */
+
+  ret = file_close(filep2);
   if (ret < 0)
     {
+      inode_release(inode);
       return ret;
     }
 
-  /* Then clone the file structure */
-
-  memset(&temp, 0, sizeof(temp));
-  temp.f_oflags = filep1->f_oflags;
-  temp.f_pos    = filep1->f_pos;
-  temp.f_inode  = inode;
+  filep2->f_oflags = filep1->f_oflags;
+  filep2->f_priv   = NULL;
+  filep2->f_pos    = filep1->f_pos;
+  filep2->f_inode  = inode;
 
   /* Call the open method on the file, driver, mountpoint so that it
    * can maintain the correct open counts.
@@ -97,7 +105,7 @@ int file_dup2(FAR struct file *filep1, FAR struct file *filep2)
 
           if (inode->u.i_mops->dup)
             {
-              ret = inode->u.i_mops->dup(filep1, &temp);
+              ret = inode->u.i_mops->dup(filep1, filep2);
             }
         }
       else
@@ -105,11 +113,26 @@ int file_dup2(FAR struct file *filep1, FAR struct file *filep2)
         {
           /* (Re-)open the pseudo file or device driver */
 
-          temp.f_priv = filep1->f_priv;
+          filep2->f_priv = filep1->f_priv;
+
+          /* Add nonblock flags to avoid happening block when
+           * calling open()
+           */
+
+          filep2->f_oflags |= O_NONBLOCK;
 
           if (inode->u.i_ops->open)
             {
-              ret = inode->u.i_ops->open(&temp);
+              ret = inode->u.i_ops->open(filep2);
+            }
+
+          if (ret >= 0 && (filep1->f_oflags & O_NONBLOCK) == 0)
+            {
+              ret = file_ioctl(filep2, FIONBIO, 0);
+              if (ret < 0 && inode->u.i_ops->close)
+                {
+                  inode->u.i_ops->close(filep2);
+                }
             }
         }
 
@@ -118,19 +141,54 @@ int file_dup2(FAR struct file *filep1, FAR struct file *filep2)
       if (ret < 0)
         {
           inode_release(inode);
-          return ret;
         }
     }
 
-  /* If there is already an inode contained in the new file structure,
-   * close the file and release the inode.
-   */
+  return ret;
+}
 
-  ret = file_close(filep2);
-  DEBUGASSERT(ret == 0);
+/****************************************************************************
+ * Name: nx_dup2
+ *
+ * Description:
+ *   nx_dup2() is similar to the standard 'dup2' interface except that is
+ *   not a cancellation point and it does not modify the errno variable.
+ *
+ *   nx_dup2() is an internal NuttX interface and should not be called from
+ *   applications.
+ *
+ *   Clone a file descriptor to a specific descriptor number.
+ *
+ * Returned Value:
+ *   fd2 is returned on success; a negated errno value is return on
+ *   any failure.
+ *
+ ****************************************************************************/
 
-  /* Return the file structure */
+int nx_dup2(int fd1, int fd2)
+{
+  return fdlist_dup2(nxsched_get_fdlist_from_tcb(this_task()), fd1, fd2);
+}
 
-  memcpy(filep2, &temp, sizeof(temp));
-  return OK;
+/****************************************************************************
+ * Name: dup2
+ *
+ * Description:
+ *   Clone a file descriptor or socket descriptor to a specific descriptor
+ *   number
+ *
+ ****************************************************************************/
+
+int dup2(int fd1, int fd2)
+{
+  int ret;
+
+  ret = nx_dup2(fd1, fd2);
+  if (ret < 0)
+    {
+      set_errno(-ret);
+      ret = ERROR;
+    }
+
+  return ret;
 }

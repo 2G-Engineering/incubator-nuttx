@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/netdev/netdev_register.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <assert.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <net/if.h>
 #include <net/ethernet.h>
@@ -40,6 +42,7 @@
 #include <nuttx/net/can.h>
 
 #include "utils/utils.h"
+#include "icmpv6/icmpv6.h"
 #include "igmp/igmp.h"
 #include "mld/mld.h"
 #include "netdev/netdev.h"
@@ -102,6 +105,12 @@ uint32_t g_devset;
 
 uint32_t g_devfreed;
 #endif
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+static mutex_t g_netdevices_lock = NXMUTEX_INITIALIZER;
 
 /****************************************************************************
  * Private Functions
@@ -175,12 +184,12 @@ static int get_ifindex(void)
   uint32_t devset;
   int ndx;
 
-  /* Try to postpone re-using interface indices as long as possible */
+  /* Try to postpone reusing interface indices as long as possible */
 
   devset = g_devset | g_devfreed;
   if (devset == 0xffffffff)
     {
-      /* Time start re-using interface indices */
+      /* Time start reusing interface indices */
 
       devset     = g_devset;
       g_devfreed = 0;
@@ -212,6 +221,33 @@ static int get_ifindex(void)
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: netdev_list_lock
+ *
+ * Description:
+ *   Lock the network device list.  This is used to protect the network
+ *   device list from concurrent access.
+ *
+ ****************************************************************************/
+
+void netdev_list_lock(void)
+{
+  nxmutex_lock(&g_netdevices_lock);
+}
+
+/****************************************************************************
+ * Name: netdev_list_unlock
+ *
+ * Description:
+ *   Unlock the network device list.
+ *
+ ****************************************************************************/
+
+void netdev_list_unlock(void)
+{
+  nxmutex_unlock(&g_netdevices_lock);
+}
 
 /****************************************************************************
  * Name: netdev_register
@@ -389,15 +425,19 @@ int netdev_register(FAR struct net_driver_s *dev, enum net_lltype_e lltype)
       dev->d_conncb_tail = NULL;
       dev->d_devcb = NULL;
 
+      dev->d_polltype = 0;
+
+      nxrmutex_init(&dev->d_lock);
+
       /* We need exclusive access for the following operations */
 
-      net_lock();
+      netdev_list_lock();
 
 #ifdef CONFIG_NETDEV_IFINDEX
       ifindex = get_ifindex();
       if (ifindex < 0)
         {
-          net_unlock();
+          netdev_list_unlock();
           return ifindex;
         }
 
@@ -472,10 +512,21 @@ int netdev_register(FAR struct net_driver_s *dev, enum net_lltype_e lltype)
 #ifdef CONFIG_NET_MLD
       /* Configure the device for MLD support */
 
-      mld_devinit(dev);
+      if ((flags & IFF_MULTICAST) != 0)
+        {
+          /* MLD is only supported on multicast capable devices */
+
+          mld_devinit(dev);
+        }
 #endif
 
-      net_unlock();
+#ifdef NET_ICMPv6_HAVE_STACK
+      /* Configure the device for ICMPv6 support */
+
+      icmpv6_devinit(dev);
+#endif
+
+      netdev_list_unlock();
 
 #if defined(CONFIG_NET_ETHERNET) || defined(CONFIG_DRIVERS_IEEE80211)
       ninfo("Registered MAC: %02x:%02x:%02x:%02x:%02x:%02x as dev: %s\n",

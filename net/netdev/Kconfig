@@ -33,6 +33,15 @@ config NETDEV_CAN_FILTER_IOCTL
 		Enable support for ioctl() commands to add/remove CAN hardware-level
 		filters (NOTE: Not supported by all drivers)
 
+config NETDEV_CAN_STATE_IOCTL
+	bool "Enable CAN state ioctl()"
+	default n
+	select NETDEV_IOCTL
+	depends on NET_CAN
+	---help---
+		Enable support for ioctl() commands to set/see CAN or LIN controller-state
+		(NOTE: Not supported by all drivers)
+
 config NETDEV_WIRELESS_IOCTL
 	bool "Enable Wireless ioctl()"
 	default n
@@ -40,6 +49,14 @@ config NETDEV_WIRELESS_IOCTL
 	depends on DRIVERS_WIRELESS
 	---help---
 		Enable support for wireless device ioctl() commands
+
+config NETDEV_MODEM_LTE_IOCTL
+	bool "Enable LTE ioctl()"
+	default n
+	select NETDEV_IOCTL
+	depends on MODEM
+	---help---
+		Enable support for modem device ioctl() commands
 
 config NETDEV_IFINDEX
 	bool "Enable IF index support"
@@ -52,6 +69,24 @@ config NETDEV_IFINDEX
 
 		When enabled, these option also enables the user interfaces:
 		if_nametoindex() and if_indextoname().
+
+config NETDEV_MULTIPLE_IPv6
+	bool "Enable multiple IPv6 addresses support"
+	default n
+	select NETDEV_IFINDEX
+	depends on NET_IPv6
+	---help---
+		Enable support for multiple IPv6 addresses per network device.
+
+config NETDEV_MAX_IPv6_ADDR
+	int "Maximum number of IPv6 addresses per network device"
+	range 2 255
+	default 2
+	depends on NETDEV_MULTIPLE_IPv6
+	---help---
+		Maximum number of IPv6 addresses that can be assigned to a single
+		network device. Normally a link-local address and a global address
+		are needed.
 
 config NETDOWN_NOTIFIER
 	bool "Support network down notifications"

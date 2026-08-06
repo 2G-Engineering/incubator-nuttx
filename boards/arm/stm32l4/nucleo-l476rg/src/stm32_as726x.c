@@ -1,8 +1,9 @@
 /****************************************************************************
  * boards/arm/stm32l4/nucleo-l476rg/src/stm32_as726x.c
  *
- *   Copyright (C) 2019 Fabian Justi. All rights reserved.
- *   Author: Fabian Justi <Fabian.Justi@gmx.de>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2019 Fabian Justi. All rights reserved.
+ * SPDX-FileContributor: Fabian Justi <Fabian.Justi@gmx.de>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -40,12 +41,12 @@
 #include <nuttx/config.h>
 
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/spi/spi.h>
 #include <nuttx/sensors/as726x.h>
 
-#include "stm32l4.h"
+#include "stm32.h"
 #include "stm32l4_i2c.h"
 #include "nucleo-l476rg.h"
 
@@ -82,7 +83,7 @@ int stm32_as726xinitialize(const char *devpath)
 
   /* Initialize I2C */
 
-  i2c = stm32l4_i2cbus_initialize(AS726X_I2C_PORTNO);
+  i2c = stm32_i2cbus_initialize(AS726X_I2C_PORTNO);
 
   if (!i2c)
     {

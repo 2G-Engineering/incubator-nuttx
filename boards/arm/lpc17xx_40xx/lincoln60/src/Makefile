@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/lpc17xx_40xx/lincoln60/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -21,10 +23,6 @@
 include $(TOPDIR)/Make.defs
 
 CSRCS = lpc17_40_boot.c lpc17_40_leds.c
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += lpc17_40_appinit.c
-endif
 
 ifeq ($(CONFIG_USBMSC),y)
 CSRCS += lpc17_40_usbmsc.c

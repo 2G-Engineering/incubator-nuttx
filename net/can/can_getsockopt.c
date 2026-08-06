@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/can/can_getsockopt.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,9 +30,7 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
-
-#include <netpacket/can.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/net/net.h>
 #include <nuttx/net/can.h>
@@ -58,7 +58,7 @@
  *
  *   See <sys/socket.h> a complete list of values for the socket-level
  *   'option' argument.  Protocol-specific options are are protocol specific
- *   header files (such as netpacket/can.h for the case of the CAN protocol).
+ *   header files (such as nuttx/can.h for the case of the CAN protocol).
  *
  * Input Parameters:
  *   psock     Socket structure of the socket to query
@@ -80,22 +80,8 @@ int can_getsockopt(FAR struct socket *psock, int level, int option,
   FAR struct can_conn_s *conn;
   int ret = OK;
 
-  DEBUGASSERT(psock != NULL && value != NULL && value_len != NULL &&
-              psock->s_conn != NULL);
+  DEBUGASSERT(value != NULL && value_len != NULL);
   conn = psock->s_conn;
-
-#ifdef CONFIG_NET_TIMESTAMP
-  if (level == SOL_SOCKET && option == SO_TIMESTAMP)
-    {
-      if (*value_len != sizeof(int32_t))
-        {
-          return -EINVAL;
-        }
-
-      *(FAR int32_t *)value = conn->timestamp;
-      return OK;
-    }
-#endif
 
   if (level != SOL_CAN_RAW)
     {
@@ -141,85 +127,76 @@ int can_getsockopt(FAR struct socket *psock, int level, int option,
           }
         break;
 
+#ifdef CONFIG_NET_CAN_ERRORS
       case CAN_RAW_ERR_FILTER:
-        break;
-
-      case CAN_RAW_LOOPBACK:
-        if (*value_len < sizeof(conn->loopback))
+        if (*value_len < sizeof(can_err_mask_t))
           {
-            /* REVISIT: POSIX says that we should truncate the value if it
-             * is larger than value_len.   That just doesn't make sense
-             * to me in this case.
-             */
-
-            ret = -EINVAL;
+            return -EINVAL;
           }
         else
           {
-            FAR int32_t *loopback = (FAR int32_t *)value;
-            *loopback             = conn->loopback;
-            *value_len            = sizeof(conn->loopback);
-          }
-        break;
-
-      case CAN_RAW_RECV_OWN_MSGS:
-        if (*value_len < sizeof(conn->recv_own_msgs))
-          {
-            /* REVISIT: POSIX says that we should truncate the value if it
-             * is larger than value_len.   That just doesn't make sense
-             * to me in this case.
-             */
-
-            ret = -EINVAL;
-          }
-        else
-          {
-            FAR int32_t *recv_own_msgs = (FAR int32_t *)value;
-            *recv_own_msgs             = conn->recv_own_msgs;
-            *value_len                 = sizeof(conn->recv_own_msgs);
-          }
-        break;
-
-#ifdef CONFIG_NET_CAN_CANFD
-      case CAN_RAW_FD_FRAMES:
-        if (*value_len < sizeof(conn->fd_frames))
-          {
-            /* REVISIT: POSIX says that we should truncate the value if it
-             * is larger than value_len.   That just doesn't make sense
-             * to me in this case.
-             */
-
-            ret = -EINVAL;
-          }
-        else
-          {
-            FAR int32_t *fd_frames = (FAR int32_t *)value;
-            *fd_frames             = conn->fd_frames;
-            *value_len             = sizeof(conn->fd_frames);
+            FAR can_err_mask_t *mask = (FAR can_err_mask_t *)value;
+            *mask = conn->err_mask;
+            *value_len = sizeof(can_err_mask_t);
           }
         break;
 #endif
 
-      case CAN_RAW_JOIN_FILTERS:
-        break;
-
+      case CAN_RAW_LOOPBACK:
+      case CAN_RAW_RECV_OWN_MSGS:
+#ifdef CONFIG_NET_CAN_CANFD
+      case CAN_RAW_FD_FRAMES:
+#endif
 #ifdef CONFIG_NET_CAN_RAW_TX_DEADLINE
       case CAN_RAW_TX_DEADLINE:
-        if (*value_len < sizeof(conn->tx_deadline))
-          {
-            /* REVISIT: POSIX says that we should truncate the value if it
-             * is larger than value_len.   That just doesn't make sense
-             * to me in this case.
-             */
+#endif
+        /* Verify that option is the size of an 'int'.  Should also check
+         * that 'value' is properly aligned for an 'int'
+         */
 
-            ret = -EINVAL;
-          }
-        else
+        if (*value_len < sizeof(int))
           {
-            FAR int32_t *tx_deadline = (FAR int32_t *)value;
-            *tx_deadline             = conn->tx_deadline;
-            *value_len               = sizeof(conn->tx_deadline);
+            return -EINVAL;
+         }
+
+        /* Sample the current options.  This is atomic operation and so
+         * should not require any special steps for thread safety. We
+         * this outside of the macro because you can never be sure what
+         * a macro will do.
+         */
+
+          *(FAR int *)value = _SO_GETOPT(conn->sconn.s_options, option);
+          *value_len        = sizeof(int);
+          break;
+
+#if CONFIG_NET_RECV_BUFSIZE > 0
+      case SO_RCVBUF:
+        /* Verify that option is the size of an 'int'.  Should also check
+         * that 'value' is properly aligned for an 'int'
+         */
+
+        if (*value_len != sizeof(int))
+          {
+            return -EINVAL;
           }
+
+        *(FAR int *)value = conn->rcvbufs;
+
+        break;
+#endif
+
+#if CONFIG_NET_SEND_BUFSIZE > 0
+      case SO_SNDBUF:
+        /* Verify that option is the size of an 'int'.  Should also check
+          * that 'value' is properly aligned for an 'int'
+          */
+
+        if (*value_len < sizeof(int))
+          {
+            return -EINVAL;
+        }
+
+        *(FAR int *)value = conn->sndbufs;
         break;
 #endif
 

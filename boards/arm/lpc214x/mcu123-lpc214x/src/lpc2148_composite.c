@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/lpc214x/mcu123-lpc214x/src/lpc2148_composite.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdio.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/board.h>
@@ -142,7 +144,7 @@ static int board_mscclassobject(int minor,
  *   form the composite device logic.
  *
  * Input Parameters:
- *   classdev - The class driver instrance previously give to the composite
+ *   classdev - The class driver instance previously given to the composite
  *     driver by board_mscclassobject().
  *
  * Returned Value:
@@ -256,7 +258,7 @@ static void *board_composite0_connect(int port)
   ifnobase += dev[1].devinfo.ninterfaces;
   strbase  += dev[1].devinfo.nstrings;
 
-  return composite_initialize(2, dev);
+  return composite_initialize(composite_getdevdescs(), dev, 2);
 }
 #endif
 
@@ -317,7 +319,7 @@ static void *board_composite1_connect(int port)
       strbase  += dev[i].devinfo.nstrings;
     }
 
-  return composite_initialize(2, dev);
+  return composite_initialize(composite_getdevdescs(), dev, 2);
 }
 
 /****************************************************************************
@@ -335,8 +337,7 @@ static void *board_composite1_connect(int port)
 int board_composite_initialize(int port)
 {
   /* If system/composite is built as an NSH command, then SD slot should
-   * already have been initialized in board_app_initialize()
-   * (see lpc2148_appinit.c).
+   * already have been initialized.
    * In this case, there is nothing further to be done here.
    *
    * NOTE: CONFIG_NSH_BUILTIN_APPS is not a fool-proof indication that NSH

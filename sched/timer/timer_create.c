@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/timer/timer_create.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,7 +35,9 @@
 #include <nuttx/irq.h>
 #include <nuttx/wdog.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/spinlock.h>
 
+#include "sched/sched.h"
 #include "timer/timer.h"
 
 #ifndef CONFIG_DISABLE_POSIX_TIMERS
@@ -59,10 +63,10 @@ static FAR struct posix_timer_s *timer_allocate(void)
   /* Try to get a preallocated timer from the free list */
 
 #if CONFIG_PREALLOC_TIMERS > 0
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_locktimers);
   ret   = (FAR struct posix_timer_s *)
     sq_remfirst((FAR sq_queue_t *)&g_freetimers);
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_locktimers, flags);
 
   /* Did we get one? */
 
@@ -77,7 +81,7 @@ static FAR struct posix_timer_s *timer_allocate(void)
 
       ret = (FAR struct posix_timer_s *)
         kmm_malloc(sizeof(struct posix_timer_s));
-      pt_flags = 0;
+      pt_flags = 0u;
     }
 
   /* If we have a timer, then put it into the allocated timer list */
@@ -91,9 +95,9 @@ static FAR struct posix_timer_s *timer_allocate(void)
 
       /* And add it to the end of the list of allocated timers */
 
-      flags = enter_critical_section();
+      flags = spin_lock_irqsave(&g_locktimers);
       sq_addlast((FAR sq_entry_t *)ret, (FAR sq_queue_t *)&g_alloctimers);
-      leave_critical_section(flags);
+      spin_unlock_irqrestore(&g_locktimers, flags);
     }
 
   return ret;
@@ -154,64 +158,72 @@ static FAR struct posix_timer_s *timer_allocate(void)
 int timer_create(clockid_t clockid, FAR struct sigevent *evp,
                  FAR timer_t *timerid)
 {
-  FAR struct posix_timer_s *ret;
+  FAR struct posix_timer_s *ret = NULL;
+  FAR struct tcb_s *tcb = this_task();
 
   /* Sanity checks. */
 
   if (timerid == NULL || (clockid != CLOCK_REALTIME &&
-      clockid != CLOCK_MONOTONIC && clockid != CLOCK_BOOTTIME))
+      clockid != CLOCK_MONOTONIC && clockid != CLOCK_BOOTTIME) ||
+      (evp != NULL && evp->sigev_notify == SIGEV_SIGNAL &&
+       !GOOD_SIGNO(evp->sigev_signo)))
     {
       set_errno(EINVAL);
-      return ERROR;
-    }
-
-  /* Allocate a timer instance to contain the watchdog */
-
-  ret = timer_allocate();
-  if (!ret)
-    {
-      set_errno(EAGAIN);
-      return ERROR;
-    }
-
-  /* Initialize the timer instance */
-
-  ret->pt_clock = clockid;
-  ret->pt_crefs = 1;
-  ret->pt_owner = nxsched_getpid();
-  ret->pt_delay = 0;
-
-  /* Was a struct sigevent provided? */
-
-  if (evp)
-    {
-      /* Yes, copy the entire struct sigevent content */
-
-      memcpy(&ret->pt_event, evp, sizeof(struct sigevent));
     }
   else
     {
-      /* "If the evp argument is NULL, the effect is as if the evp argument
-       *  pointed to a sigevent structure with the sigev_notify member
-       *  having the value SIGEV_SIGNAL, the sigev_signo having a default
-       *  signal number, and the sigev_value member having the value of the
-       *  timer ID."
-       */
+      /* Allocate a timer instance to contain the watchdog */
 
-      ret->pt_event.sigev_notify            = SIGEV_SIGNAL;
-      ret->pt_event.sigev_signo             = SIGALRM;
-      ret->pt_event.sigev_value.sival_ptr   = ret;
+      ret = timer_allocate();
+      if (!ret)
+        {
+          set_errno(EAGAIN);
+        }
+      else
+        {
+          /* Initialize the timer instance */
+
+          ret->pt_clock = clockid;
+          ret->pt_crefs = 1u;
+          ret->pt_owner = tcb->pid;
+          ret->pt_delay = 0u;
+          ret->pt_expected = 0u;
+
+          /* Was a struct sigevent provided? */
+
+          if (evp)
+            {
+              /* Yes, copy the entire struct sigevent content */
+
+              memcpy(&ret->pt_event, evp, sizeof(struct sigevent));
+            }
+          else
+            {
+              /* "If the evp argument is NULL, the effect is as if the evp
+               * argument pointed to a sigevent structure with the
+               * sigev_notify member having the value SIGEV_SIGNAL,
+               * the sigev_signo having a default signal number,
+               * and the sigev_value member having the value of the
+               *  timer ID."
+               */
+
+              ret->pt_event.sigev_notify            = SIGEV_SIGNAL;
+              ret->pt_event.sigev_signo             = SIGALRM;
+              ret->pt_event.sigev_value.sival_ptr   = ret;
 
 #ifdef CONFIG_SIG_EVTHREAD
-      ret->pt_event.sigev_notify_function   = NULL;
-      ret->pt_event.sigev_notify_attributes = NULL;
+              ret->pt_event.sigev_notify_function   = NULL;
+              ret->pt_event.sigev_notify_attributes = NULL;
 #endif
+            }
+
+          /* Return the timer */
+
+          *timerid = ret;
+        }
     }
 
-  /* Return the timer */
-
-  *timerid = ret;
-  return OK;
+  return ret ? OK : ERROR;
 }
 
 #endif /* CONFIG_DISABLE_POSIX_TIMERS */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv7-r/arm_vectors.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,6 @@
 #include <nuttx/irq.h>
 
 #include "arm.h"
-#include "cp15.h"
 
 	.file	"arm_vectors.S"
 
@@ -200,7 +201,7 @@ arm_vectorirq:
 	/* Call arm_decodeirq() on the interrupt stack */
 
 	setirqstack	r1, r3				/* SP = interrupt stack top */
-#else
+#elif defined(CONFIG_ENABLE_ALL_SIGNALS)
 	/* Call arm_decodeirq() on the user stack */
 
 	/* If the interrupt stack is disabled, reserve xcpcontext to ensure
@@ -312,7 +313,7 @@ arm_vectorsvc:
 	/* Call arm_syscall() on the interrupt stack */
 
 	setirqstack	r1, r3				/* SP = interrupt stack top */
-#else
+#elif defined(CONFIG_ENABLE_ALL_SIGNALS)
 	/* Call arm_syscall() on the user stack */
 
 	/* If the interrupt stack is disabled, reserve xcpcontext to ensure
@@ -715,6 +716,22 @@ arm_vectorfiq:
 	subs	pc, lr, #4
 #endif
 	.size	arm_vectorfiq, . - arm_vectorfiq
+
+/****************************************************************************
+ *  Name: arm_vectoraddrexcptn
+ *
+ * Description:
+ *   Shouldn't happen.  This exception handler is in a separate file from
+ *   other vector handlers because some processors do not support the
+ *   Address Exception vector.
+ *
+ ****************************************************************************/
+
+	.globl	arm_vectoraddrexcptn
+	.type	arm_vectoraddrexcptn, %function
+arm_vectoraddrexcptn:
+	b		arm_vectoraddrexcptn
+	.size	arm_vectoraddrexcptn, . - arm_vectoraddrexcptn
 
 /****************************************************************************
  *  Name: g_intstackalloc/g_intstacktop

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l5/stm32l5_gpio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,10 +30,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/irq.h>
 #include <arch/stm32l5/chip.h>
+#include <nuttx/spinlock.h>
 
 #include "arm_internal.h"
 #include "chip.h"
@@ -40,40 +43,42 @@
 #include "hardware/stm32l5_syscfg.h"
 
 /****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+static spinlock_t g_configgpio_lock = SP_UNLOCKED;
+
+/****************************************************************************
  * Public Data
  ****************************************************************************/
 
-#if defined(CONFIG_STM32L5_USE_LEGACY_PINMAP)
-#  pragma message "CONFIG_STM32L5_USE_LEGACY_PINMAP will be deprecated migrate board.h see tools/stm32_pinmap_tool.py"
-#endif
-
 /* Base addresses for each GPIO block */
 
-const uint32_t g_gpiobase[STM32L5_NPORTS] =
+const uint32_t g_gpiobase[STM32_NPORTS] =
 {
-#if STM32L5_NPORTS > 0
-  STM32L5_GPIOA_BASE,
+#if STM32_NPORTS > 0
+  STM32_GPIOA_BASE,
 #endif
-#if STM32L5_NPORTS > 1
-  STM32L5_GPIOB_BASE,
+#if STM32_NPORTS > 1
+  STM32_GPIOB_BASE,
 #endif
-#if STM32L5_NPORTS > 2
-  STM32L5_GPIOC_BASE,
+#if STM32_NPORTS > 2
+  STM32_GPIOC_BASE,
 #endif
-#if STM32L5_NPORTS > 3
-  STM32L5_GPIOD_BASE,
+#if STM32_NPORTS > 3
+  STM32_GPIOD_BASE,
 #endif
-#if STM32L5_NPORTS > 4
-  STM32L5_GPIOE_BASE,
+#if STM32_NPORTS > 4
+  STM32_GPIOE_BASE,
 #endif
-#if STM32L5_NPORTS > 5
-  STM32L5_GPIOF_BASE,
+#if STM32_NPORTS > 5
+  STM32_GPIOF_BASE,
 #endif
-#if STM32L5_NPORTS > 6
-  STM32L5_GPIOG_BASE,
+#if STM32_NPORTS > 6
+  STM32_GPIOG_BASE,
 #endif
-#if STM32L5_NPORTS > 7
-  STM32L5_GPIOH_BASE,
+#if STM32_NPORTS > 7
+  STM32_GPIOH_BASE,
 #endif
 };
 
@@ -86,13 +91,13 @@ const uint32_t g_gpiobase[STM32L5_NPORTS] =
  ****************************************************************************/
 
 /****************************************************************************
- * Function:  stm32l5_gpioinit
+ * Function:  stm32_gpioinit
  *
  * Description:
  *   Based on configuration within the .config file, it does:
  *    - Remaps positions of alternative functions.
  *
- *   Typically called from stm32l5_start().
+ *   Typically called from stm32_start().
  *
  * Assumptions:
  *   This function is called early in the initialization sequence so that
@@ -100,17 +105,17 @@ const uint32_t g_gpiobase[STM32L5_NPORTS] =
  *
  ****************************************************************************/
 
-void stm32l5_gpioinit(void)
+void stm32_gpioinit(void)
 {
 }
 
 /****************************************************************************
- * Name: stm32l5_configgpio
+ * Name: stm32_configgpio
  *
  * Description:
  *   Configure a GPIO pin based on bit-encoded description of the pin.
  *   Once it is configured as Alternative (GPIO_ALT|GPIO_CNF_AFPP|...)
- *   function, it must be unconfigured with stm32l5_unconfiggpio() with
+ *   function, it must be unconfigured with stm32_unconfiggpio() with
  *   the same cfgset first before it can be set to non-alternative function.
  *
  * Returned Value:
@@ -121,7 +126,7 @@ void stm32l5_gpioinit(void)
  * To-Do: Auto Power Enable
  ****************************************************************************/
 
-int stm32l5_configgpio(uint32_t cfgset)
+int stm32_configgpio(uint32_t cfgset)
 {
   uintptr_t base;
   uint32_t regval;
@@ -136,7 +141,7 @@ int stm32l5_configgpio(uint32_t cfgset)
   /* Verify that this hardware supports the select GPIO port */
 
   port = (cfgset & GPIO_PORT_MASK) >> GPIO_PORT_SHIFT;
-  if (port >= STM32L5_NPORTS)
+  if (port >= STM32_NPORTS)
     {
       return -EINVAL;
     }
@@ -164,7 +169,7 @@ int stm32l5_configgpio(uint32_t cfgset)
 
         /* Set the initial output value */
 
-        stm32l5_gpiowrite(cfgset, (cfgset & GPIO_OUTPUT_SET) != 0);
+        stm32_gpiowrite(cfgset, (cfgset & GPIO_OUTPUT_SET) != 0);
         pinmode = GPIO_MODER_OUTPUT;
         break;
 
@@ -181,14 +186,14 @@ int stm32l5_configgpio(uint32_t cfgset)
    * exclusive access to all of the GPIO configuration registers.
    */
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_configgpio_lock);
 
   /* Now apply the configuration to the mode register */
 
-  regval  = getreg32(base + STM32L5_GPIO_MODER_OFFSET);
+  regval  = getreg32(base + STM32_GPIO_MODER_OFFSET);
   regval &= ~GPIO_MODER_MASK(pin);
   regval |= ((uint32_t)pinmode << GPIO_MODER_SHIFT(pin));
-  putreg32(regval, base + STM32L5_GPIO_MODER_OFFSET);
+  putreg32(regval, base + STM32_GPIO_MODER_OFFSET);
 
   /* Set up the pull-up/pull-down configuration (all but analog pins) */
 
@@ -211,10 +216,10 @@ int stm32l5_configgpio(uint32_t cfgset)
         }
     }
 
-  regval  = getreg32(base + STM32L5_GPIO_PUPDR_OFFSET);
+  regval  = getreg32(base + STM32_GPIO_PUPDR_OFFSET);
   regval &= ~GPIO_PUPDR_MASK(pin);
   regval |= (setting << GPIO_PUPDR_SHIFT(pin));
-  putreg32(regval, base + STM32L5_GPIO_PUPDR_OFFSET);
+  putreg32(regval, base + STM32_GPIO_PUPDR_OFFSET);
 
   /* Set the alternate function (Only alternate function pins) */
 
@@ -229,12 +234,12 @@ int stm32l5_configgpio(uint32_t cfgset)
 
   if (pin < 8)
     {
-      regoffset = STM32L5_GPIO_AFRL_OFFSET;
+      regoffset = STM32_GPIO_AFRL_OFFSET;
       pos       = pin;
     }
   else
     {
-      regoffset = STM32L5_GPIO_AFRH_OFFSET;
+      regoffset = STM32_GPIO_AFRH_OFFSET;
       pos       = pin - 8;
     }
 
@@ -272,14 +277,14 @@ int stm32l5_configgpio(uint32_t cfgset)
       setting = 0;
     }
 
-  regval  = getreg32(base + STM32L5_GPIO_OSPEED_OFFSET);
+  regval  = getreg32(base + STM32_GPIO_OSPEED_OFFSET);
   regval &= ~GPIO_OSPEED_MASK(pin);
   regval |= (setting << GPIO_OSPEED_SHIFT(pin));
-  putreg32(regval, base + STM32L5_GPIO_OSPEED_OFFSET);
+  putreg32(regval, base + STM32_GPIO_OSPEED_OFFSET);
 
   /* Set push-pull/open-drain (Only outputs and alternate function pins) */
 
-  regval  = getreg32(base + STM32L5_GPIO_OTYPER_OFFSET);
+  regval  = getreg32(base + STM32_GPIO_OTYPER_OFFSET);
   setting = GPIO_OTYPER_OD(pin);
 
   if ((pinmode == GPIO_MODER_OUTPUT || pinmode == GPIO_MODER_ALT) &&
@@ -292,14 +297,14 @@ int stm32l5_configgpio(uint32_t cfgset)
       regval &= ~setting;
     }
 
-  putreg32(regval, base + STM32L5_GPIO_OTYPER_OFFSET);
+  putreg32(regval, base + STM32_GPIO_OTYPER_OFFSET);
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_configgpio_lock, flags);
   return OK;
 }
 
 /****************************************************************************
- * Name: stm32l5_unconfiggpio
+ * Name: stm32_unconfiggpio
  *
  * Description:
  *   Unconfigure a GPIO pin based on bit-encoded description of the pin, set
@@ -319,7 +324,7 @@ int stm32l5_configgpio(uint32_t cfgset)
  * To-Do: Auto Power Disable
  ****************************************************************************/
 
-int stm32l5_unconfiggpio(uint32_t cfgset)
+int stm32_unconfiggpio(uint32_t cfgset)
 {
   /* Reuse port and pin number and set it to default HiZ INPUT */
 
@@ -328,18 +333,18 @@ int stm32l5_unconfiggpio(uint32_t cfgset)
 
   /* To-Do: Mark its unuse for automatic power saving options */
 
-  return stm32l5_configgpio(cfgset);
+  return stm32_configgpio(cfgset);
 }
 
 /****************************************************************************
- * Name: stm32l5_gpiowrite
+ * Name: stm32_gpiowrite
  *
  * Description:
  *   Write one or zero to the selected GPIO pin
  *
  ****************************************************************************/
 
-void stm32l5_gpiowrite(uint32_t pinset, bool value)
+void stm32_gpiowrite(uint32_t pinset, bool value)
 {
   uint32_t base;
   uint32_t bit;
@@ -347,7 +352,7 @@ void stm32l5_gpiowrite(uint32_t pinset, bool value)
   unsigned int pin;
 
   port = (pinset & GPIO_PORT_MASK) >> GPIO_PORT_SHIFT;
-  if (port < STM32L5_NPORTS)
+  if (port < STM32_NPORTS)
     {
       /* Get the port base address */
 
@@ -368,26 +373,26 @@ void stm32l5_gpiowrite(uint32_t pinset, bool value)
           bit = GPIO_BSRR_RESET(pin);
         }
 
-      putreg32(bit, base + STM32L5_GPIO_BSRR_OFFSET);
+      putreg32(bit, base + STM32_GPIO_BSRR_OFFSET);
     }
 }
 
 /****************************************************************************
- * Name: stm32l5_gpioread
+ * Name: stm32_gpioread
  *
  * Description:
  *   Read one or zero from the selected GPIO pin
  *
  ****************************************************************************/
 
-bool stm32l5_gpioread(uint32_t pinset)
+bool stm32_gpioread(uint32_t pinset)
 {
   uint32_t base;
   unsigned int port;
   unsigned int pin;
 
   port = (pinset & GPIO_PORT_MASK) >> GPIO_PORT_SHIFT;
-  if (port < STM32L5_NPORTS)
+  if (port < STM32_NPORTS)
     {
       /* Get the port base address */
 
@@ -396,7 +401,7 @@ bool stm32l5_gpioread(uint32_t pinset)
       /* Get the pin number and return the input state of that pin */
 
       pin = (pinset & GPIO_PIN_MASK) >> GPIO_PIN_SHIFT;
-      return ((getreg32(base + STM32L5_GPIO_IDR_OFFSET) & (1 << pin)) != 0);
+      return ((getreg32(base + STM32_GPIO_IDR_OFFSET) & (1 << pin)) != 0);
     }
 
   return 0;

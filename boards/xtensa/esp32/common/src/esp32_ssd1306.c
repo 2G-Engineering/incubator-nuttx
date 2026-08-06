@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/common/src/esp32_ssd1306.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <nuttx/lcd/lcd.h>
@@ -37,7 +39,7 @@
 #  include <nuttx/video/fb.h>
 #endif
 
-#include "esp32_gpio.h"
+#include "espressif/esp_gpio.h"
 #include "esp32_i2c.h"
 #include "hardware/esp32_gpio_sigmap.h"
 
@@ -85,14 +87,14 @@ int board_lcd_initialize(void)
    * putting the OLED into reset state.
    */
 
-  esp32_gpio_matrix_out(GPIO_SSD1306_RST, SIG_GPIO_OUT_IDX, 0, 0);
-  esp32_configgpio(GPIO_SSD1306_RST, OUTPUT_FUNCTION_3 | INPUT_FUNCTION_3);
-  esp32_gpiowrite(GPIO_SSD1306_RST, 0);
+  esp_gpio_matrix_out(GPIO_SSD1306_RST, SIG_GPIO_OUT_IDX, 0, 0);
+  esp_configgpio(GPIO_SSD1306_RST, OUTPUT_FUNCTION_3 | INPUT_FUNCTION_3);
+  esp_gpiowrite(GPIO_SSD1306_RST, 0);
 
   /* Wait a bit then release the OLED from the reset state */
 
   up_mdelay(20);
-  esp32_gpiowrite(GPIO_SSD1306_RST, 1);
+  esp_gpiowrite(GPIO_SSD1306_RST, 1);
 
   /* Initialize I2C */
 
@@ -117,18 +119,6 @@ int board_lcd_initialize(void)
   /* And turn the OLED on */
 
   g_lcddev->setpower(g_lcddev, CONFIG_LCD_MAXPOWER);
-
-#if defined(CONFIG_VIDEO_FB) && defined(CONFIG_LCD_FRAMEBUFFER)
-
-  /* Initialize and register the simulated framebuffer driver */
-
-  ret = fb_register(0, 0);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: fb_register() failed: %d\n", ret);
-      return -ENODEV;
-    }
-#endif
 
   return ret;
 }

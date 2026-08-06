@@ -1,6 +1,8 @@
 /**************************************************************************
  * libs/libc/machine/sim/arch_setjmp_x86_64.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -63,11 +65,11 @@
 #endif
 
 #ifdef __CYGWIN__
-# define SYMBOL(s) s
+#  define SYMBOL(s) _##s
 #elif defined(__ELF__)
-# define SYMBOL(s) s
+#  define SYMBOL(s) s
 #else
-# define SYMBOL(s) _##s
+#  define SYMBOL(s) _##s
 #endif
 
 /**************************************************************************
@@ -110,7 +112,7 @@ SYMBOL(setjmp):
 	movq	%r13, JB_R13(REGS)	/* Save 5: r13 */
 	movq	%r14, JB_R14(REGS)	/* Save 6: r14 */
 	movq	%r15, JB_R15(REGS)	/* Save 7: r15 */
-	movq	%rsi, JB_RSI(REGS)	/* Save 8: Return address */
+	movq	%rsi, JB_RIP(REGS)	/* Save 8: Return address */
 
 	ret
 
@@ -128,9 +130,12 @@ SYMBOL(longjmp):
 	/* Setup return value */
 
 	movl	%esi,%eax
+	testl	%eax,%eax
+	jnz	1f
+	incl	%eax
 
 	/* Restore registers */
-
+1:
 	movq	JB_RBX(REGS),%rbx	/* Load 1: rbx */
 	movq	JB_RSP(REGS),%rsp	/* Load 2: rsp */
 	movq	JB_RBP(REGS),%rbp	/* Load 3: rdi */
@@ -139,9 +144,9 @@ SYMBOL(longjmp):
 	movq	JB_R14(REGS),%r14	/* Load 6: r14 */
 	movq	JB_R15(REGS),%r15	/* Load 7: rbp */
 
-	/* Jump to the saved return address (rsi)  */
+	/* Jump to the saved return address (rip)  */
 
-	jmp		*JB_RSI(REGS)
+	jmp		*JB_RIP(REGS)
 
 #ifdef __ELF__
 	.size SYMBOL(longjmp), . - SYMBOL(longjmp)

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/cxd56xx/cxd56_textheap.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
@@ -49,8 +51,7 @@
 
 void *up_textheap_memalign(size_t align, size_t size)
 {
-  void *ret;
-  ret = (void *)kmm_malloc(size);
+  void *ret = kmm_malloc(size);
 
 #ifdef CONFIG_CXD56_USE_SYSBUS
   if (ret)

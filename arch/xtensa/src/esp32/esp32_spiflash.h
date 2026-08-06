@@ -31,8 +31,6 @@
 #include <stdint.h>
 #include <nuttx/mtd/mtd.h>
 
-#include "xtensa_attr.h"
-
 #ifndef __ASSEMBLY__
 
 #undef EXTERN
@@ -45,8 +43,49 @@ extern "C"
 #endif
 
 /****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#define CACHE_BLOCKSIZE (32*1024)
+
+/****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
+
+#ifdef CONFIG_ESP32_SPIRAM
+
+/****************************************************************************
+ * Name: esp32_set_bank
+ *
+ * Description:
+ *   Set Ext-SRAM-Cache mmu mapping.
+ *
+ * Input Parameters:
+ *   virt_bank - Beginning of the virtual bank
+ *   phys_bank - Beginning of the physical bank
+ *   ct        - Number of banks
+ *
+ * Returned Value:
+ *   None.
+ *
+ ****************************************************************************/
+
+void esp32_set_bank(int virt_bank, int phys_bank, int ct);
+
+#endif
+
+/****************************************************************************
+ * Name: esp32_spiflash_init
+ *
+ * Description:
+ *   Initialize ESP32 SPI flash driver.
+ *
+ * Returned Value:
+ *   OK if success or a negative value if fail.
+ *
+ ****************************************************************************/
+
+int esp32_spiflash_init(void);
 
 /****************************************************************************
  * Name: esp32_spiflash_alloc_mtdpart
@@ -116,6 +155,22 @@ struct mtd_dev_s *esp32_spiflash_encrypt_get_mtd(void);
  ****************************************************************************/
 
 bool esp32_flash_encryption_enabled(void);
+
+/****************************************************************************
+ * Name: esp32_get_flash_address_mapped_as_text
+ *
+ * Description:
+ *   Get flash address which is currently mapped as text
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   flash address which is currently mapped as text
+ *
+ ****************************************************************************/
+
+uint32_t esp32_get_flash_address_mapped_as_text(void);
 
 #ifdef __cplusplus
 }

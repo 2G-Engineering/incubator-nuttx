@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdlib/lib_strtoull.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,8 +31,6 @@
 #include <errno.h>
 
 #include "libc.h"
-
-#ifdef CONFIG_HAVE_LONG_LONG
 
 /****************************************************************************
  * Public Functions
@@ -107,6 +107,11 @@ unsigned long long strtoull(FAR const char *nptr,
               nptr++;
             }
 
+          while (lib_isbasedigit(*nptr, base, &value))
+            {
+              nptr++;
+            }
+
           if (sign == '-')
             {
               accum = (~accum) + 1;
@@ -132,4 +137,3 @@ unsigned long long strtoull(FAR const char *nptr,
   return accum;
 }
 
-#endif

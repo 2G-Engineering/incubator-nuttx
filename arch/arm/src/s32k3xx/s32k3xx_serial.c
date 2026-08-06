@@ -33,7 +33,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #ifdef CONFIG_SERIAL_TERMIOS
 #  include <termios.h>
@@ -1305,6 +1305,7 @@ struct s32k3xx_uart_s
   uint32_t ie;              /* Saved enabled interrupts */
   uint8_t  irq;             /* IRQ associated with this UART */
   uint8_t  parity;          /* 0=none, 1=odd, 2=even */
+  spinlock_t lock;          /* Spinlock */
   uint8_t  bits;            /* Number of bits (7 or 8) */
 #if defined(CONFIG_SERIAL_RS485CONTROL) || defined(CONFIG_SERIAL_IFLOWCONTROL)
   uint8_t  inviflow:1;      /* Invert RTS sense */
@@ -1332,7 +1333,6 @@ struct s32k3xx_uart_s
 #ifdef SERIAL_HAVE_TXDMA
   const unsigned int dma_txreqsrc;  /* DMAMUX source of TX DMA request */
   DMACH_HANDLE       txdma;         /* currently-open transmit DMA stream */
-  sem_t              txdmasem;      /* Indicate TX DMA completion */
 #endif
 
   /* RX DMA state */
@@ -1342,6 +1342,10 @@ struct s32k3xx_uart_s
   DMACH_HANDLE       rxdma;         /* currently-open receive DMA stream */
   bool               rxenable;      /* DMA-based reception en/disable */
   uint32_t           rxdmanext;     /* Next byte in the DMA buffer to be read */
+#ifdef CONFIG_ARMV7M_DCACHE
+  uint32_t           rxdmaavail;    /* Number of bytes available without need to
+                                     * to invalidate the data cache */
+#endif
   char *const        rxfifo;        /* Receive DMA buffer */
 #endif
 };
@@ -1728,6 +1732,7 @@ static struct s32k3xx_uart_s g_lpuart0priv =
   .baud         = CONFIG_LPUART0_BAUD,
   .irq          = S32K3XX_IRQ_LPUART0,
   .parity       = CONFIG_LPUART0_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART0_BITS,
   .stopbits2    = CONFIG_LPUART0_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART0_OFLOWCONTROL)
@@ -1795,6 +1800,7 @@ static struct s32k3xx_uart_s g_lpuart1priv =
   .baud         = CONFIG_LPUART1_BAUD,
   .irq          = S32K3XX_IRQ_LPUART1,
   .parity       = CONFIG_LPUART1_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART1_BITS,
   .stopbits2    = CONFIG_LPUART1_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART1_OFLOWCONTROL)
@@ -1862,6 +1868,7 @@ static struct s32k3xx_uart_s g_lpuart2priv =
   .baud         = CONFIG_LPUART2_BAUD,
   .irq          = S32K3XX_IRQ_LPUART2,
   .parity       = CONFIG_LPUART2_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART2_BITS,
   .stopbits2    = CONFIG_LPUART2_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART2_OFLOWCONTROL)
@@ -1929,6 +1936,7 @@ static struct s32k3xx_uart_s g_lpuart3priv =
   .baud         = CONFIG_LPUART3_BAUD,
   .irq          = S32K3XX_IRQ_LPUART3,
   .parity       = CONFIG_LPUART3_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART3_BITS,
   .stopbits2    = CONFIG_LPUART3_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART3_OFLOWCONTROL)
@@ -1996,6 +2004,7 @@ static struct s32k3xx_uart_s g_lpuart4priv =
   .baud         = CONFIG_LPUART4_BAUD,
   .irq          = S32K3XX_IRQ_LPUART4,
   .parity       = CONFIG_LPUART4_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART4_BITS,
   .stopbits2    = CONFIG_LPUART4_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART4_OFLOWCONTROL)
@@ -2063,6 +2072,7 @@ static struct s32k3xx_uart_s g_lpuart5priv =
   .baud         = CONFIG_LPUART5_BAUD,
   .irq          = S32K3XX_IRQ_LPUART5,
   .parity       = CONFIG_LPUART5_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART5_BITS,
   .stopbits2    = CONFIG_LPUART5_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART5_OFLOWCONTROL)
@@ -2130,6 +2140,7 @@ static struct s32k3xx_uart_s g_lpuart6priv =
   .baud         = CONFIG_LPUART6_BAUD,
   .irq          = S32K3XX_IRQ_LPUART6,
   .parity       = CONFIG_LPUART6_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART6_BITS,
   .stopbits2    = CONFIG_LPUART6_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART6_OFLOWCONTROL)
@@ -2197,6 +2208,7 @@ static struct s32k3xx_uart_s g_lpuart7priv =
   .baud         = CONFIG_LPUART7_BAUD,
   .irq          = S32K3XX_IRQ_LPUART7,
   .parity       = CONFIG_LPUART7_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART7_BITS,
   .stopbits2    = CONFIG_LPUART7_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART7_OFLOWCONTROL)
@@ -2264,6 +2276,7 @@ static struct s32k3xx_uart_s g_lpuart8priv =
   .baud         = CONFIG_LPUART8_BAUD,
   .irq          = S32K3XX_IRQ_LPUART8,
   .parity       = CONFIG_LPUART8_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART8_BITS,
   .stopbits2    = CONFIG_LPUART8_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART8_OFLOWCONTROL)
@@ -2331,6 +2344,7 @@ static struct s32k3xx_uart_s g_lpuart9priv =
   .baud         = CONFIG_LPUART9_BAUD,
   .irq          = S32K3XX_IRQ_LPUART9,
   .parity       = CONFIG_LPUART9_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART9_BITS,
   .stopbits2    = CONFIG_LPUART9_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART9_OFLOWCONTROL)
@@ -2398,6 +2412,7 @@ static struct s32k3xx_uart_s g_lpuart10priv =
   .baud         = CONFIG_LPUART10_BAUD,
   .irq          = S32K3XX_IRQ_LPUART10,
   .parity       = CONFIG_LPUART10_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART10_BITS,
   .stopbits2    = CONFIG_LPUART10_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART10_OFLOWCONTROL)
@@ -2465,6 +2480,7 @@ static struct s32k3xx_uart_s g_lpuart11priv =
   .baud         = CONFIG_LPUART11_BAUD,
   .irq          = S32K3XX_IRQ_LPUART11,
   .parity       = CONFIG_LPUART11_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART11_BITS,
   .stopbits2    = CONFIG_LPUART11_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART11_OFLOWCONTROL)
@@ -2532,6 +2548,7 @@ static struct s32k3xx_uart_s g_lpuart12priv =
   .baud         = CONFIG_LPUART12_BAUD,
   .irq          = S32K3XX_IRQ_LPUART12,
   .parity       = CONFIG_LPUART12_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART12_BITS,
   .stopbits2    = CONFIG_LPUART12_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART12_OFLOWCONTROL)
@@ -2599,6 +2616,7 @@ static struct s32k3xx_uart_s g_lpuart13priv =
   .baud         = CONFIG_LPUART13_BAUD,
   .irq          = S32K3XX_IRQ_LPUART13,
   .parity       = CONFIG_LPUART13_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART13_BITS,
   .stopbits2    = CONFIG_LPUART13_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART13_OFLOWCONTROL)
@@ -2666,6 +2684,7 @@ static struct s32k3xx_uart_s g_lpuart14priv =
   .baud         = CONFIG_LPUART14_BAUD,
   .irq          = S32K3XX_IRQ_LPUART14,
   .parity       = CONFIG_LPUART14_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART14_BITS,
   .stopbits2    = CONFIG_LPUART14_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART14_OFLOWCONTROL)
@@ -2733,6 +2752,7 @@ static struct s32k3xx_uart_s g_lpuart15priv =
   .baud         = CONFIG_LPUART15_BAUD,
   .irq          = S32K3XX_IRQ_LPUART15,
   .parity       = CONFIG_LPUART15_PARITY,
+  .lock         = SP_UNLOCKED,
   .bits         = CONFIG_LPUART15_BITS,
   .stopbits2    = CONFIG_LPUART15_2STOP,
 #  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_LPUART15_OFLOWCONTROL)
@@ -2814,8 +2834,9 @@ static inline void s32k3xx_serialout(struct s32k3xx_uart_s *priv,
 static int s32k3xx_dma_nextrx(struct s32k3xx_uart_s *priv)
 {
   int dmaresidual = s32k3xx_dmach_getcount(priv->rxdma);
+  DEBUGASSERT(dmaresidual <= RXDMA_BUFFER_SIZE);
 
-  return RXDMA_BUFFER_SIZE - dmaresidual;
+  return (RXDMA_BUFFER_SIZE - dmaresidual) % RXDMA_BUFFER_SIZE;
 }
 #endif
 
@@ -2829,7 +2850,7 @@ static inline void s32k3xx_disableuartint(struct s32k3xx_uart_s *priv,
   irqstate_t flags;
   uint32_t regval;
 
-  flags  = spin_lock_irqsave(NULL);
+  flags  = spin_lock_irqsave(&priv->lock);
   regval = s32k3xx_serialin(priv, S32K3XX_LPUART_CTRL_OFFSET);
 
   /* Return the current Rx and Tx interrupt state */
@@ -2841,7 +2862,7 @@ static inline void s32k3xx_disableuartint(struct s32k3xx_uart_s *priv,
 
   regval &= ~LPUART_ALL_INTS;
   s32k3xx_serialout(priv, S32K3XX_LPUART_CTRL_OFFSET, regval);
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 
 /****************************************************************************
@@ -2858,12 +2879,12 @@ static inline void s32k3xx_restoreuartint(struct s32k3xx_uart_s *priv,
    * enabled/disabled.
    */
 
-  flags   = spin_lock_irqsave(NULL);
+  flags   = spin_lock_irqsave(&priv->lock);
   regval  = s32k3xx_serialin(priv, S32K3XX_LPUART_CTRL_OFFSET);
   regval &= ~LPUART_ALL_INTS;
   regval |= ie;
   s32k3xx_serialout(priv, S32K3XX_LPUART_CTRL_OFFSET, regval);
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 
 /****************************************************************************
@@ -2908,8 +2929,6 @@ static int s32k3xx_dma_setup(struct uart_dev_s *dev)
             {
               return -EBUSY;
             }
-
-          nxsem_init(&priv->txdmasem, 0, 1);
         }
 
       /* Enable Tx DMA for the UART */
@@ -2964,13 +2983,16 @@ static int s32k3xx_dma_setup(struct uart_dev_s *dev)
        */
 
       priv->rxdmanext = 0;
+#ifdef CONFIG_ARMV7M_DCACHE
+      priv->rxdmaavail = 0;
+#endif
 
       /* Enable receive Rx DMA for the UART */
 
       modifyreg32(priv->uartbase + S32K3XX_LPUART_BAUD_OFFSET,
                   0, LPUART_BAUD_RDMAE);
 
-      /* Enable itnerrupt on Idel and erros */
+      /* Enable interrupt on Idle and errors */
 
       modifyreg32(priv->uartbase + S32K3XX_LPUART_CTRL_OFFSET, 0,
                   LPUART_CTRL_PEIE       |
@@ -3111,7 +3133,6 @@ static void s32k3xx_dma_shutdown(struct uart_dev_s *dev)
 
       s32k3xx_dmach_free(priv->txdma);
       priv->txdma = NULL;
-      nxsem_destroy(&priv->txdmasem);
     }
 #endif
 }
@@ -3306,9 +3327,12 @@ static int s32k3xx_interrupt(int irq, void *context, void *arg)
 
 static int s32k3xx_ioctl(struct file *filep, int cmd, unsigned long arg)
 {
-#if defined(CONFIG_SERIAL_TIOCSERGSTRUCT) || defined(CONFIG_SERIAL_TERMIOS)
+#if defined(CONFIG_SERIAL_TIOCSERGSTRUCT)      || \
+    defined(CONFIG_SERIAL_TERMIOS)             || \
+    defined(CONFIG_S32K3XX_LPUART_SINGLEWIRE ) || \
+    defined(CONFIG_S32K3XX_LPUART_INVERT )
   struct inode *inode = filep->f_inode;
-  struct uart_dev_s *dev   = inode->i_private;
+  struct uart_dev_s *dev = inode->i_private;
   irqstate_t flags;
 #endif
   int ret   = OK;
@@ -3487,7 +3511,7 @@ static int s32k3xx_ioctl(struct file *filep, int cmd, unsigned long arg)
              * implement TCSADRAIN / TCSAFLUSH
              */
 
-            flags  = spin_lock_irqsave(NULL);
+            flags  = spin_lock_irqsave(&priv->lock);
             s32k3xx_disableuartint(priv, &ie);
             ret = dev->ops->setup(dev);
 
@@ -3495,7 +3519,7 @@ static int s32k3xx_ioctl(struct file *filep, int cmd, unsigned long arg)
 
             s32k3xx_restoreuartint(priv, ie);
             priv->ie = ie;
-            spin_unlock_irqrestore(NULL, flags);
+            spin_unlock_irqrestore(&priv->lock, flags);
           }
       }
       break;
@@ -3505,10 +3529,9 @@ static int s32k3xx_ioctl(struct file *filep, int cmd, unsigned long arg)
     case TIOCSSINGLEWIRE:
       {
         uint32_t regval;
-        irqstate_t flags;
         struct s32k3xx_uart_s *priv = (struct s32k3xx_uart_s *)dev->priv;
 
-        flags  = spin_lock_irqsave(NULL);
+        flags  = spin_lock_irqsave(&priv->lock);
         regval   = s32k3xx_serialin(priv, S32K3XX_LPUART_CTRL_OFFSET);
 
         if ((arg & SER_SINGLEWIRE_ENABLED) != 0)
@@ -3522,7 +3545,7 @@ static int s32k3xx_ioctl(struct file *filep, int cmd, unsigned long arg)
 
         s32k3xx_serialout(priv, S32K3XX_LPUART_CTRL_OFFSET, regval);
 
-        spin_unlock_irqrestore(NULL, flags);
+        spin_unlock_irqrestore(&priv->lock, flags);
       }
       break;
 #endif
@@ -3533,10 +3556,9 @@ static int s32k3xx_ioctl(struct file *filep, int cmd, unsigned long arg)
         uint32_t ctrl;
         uint32_t stat;
         uint32_t regval;
-        irqstate_t flags;
         struct s32k3xx_uart_s *priv = (struct s32k3xx_uart_s *)dev->priv;
 
-        flags  = spin_lock_irqsave(NULL);
+        flags  = spin_lock_irqsave(&priv->lock);
         ctrl   = s32k3xx_serialin(priv, S32K3XX_LPUART_CTRL_OFFSET);
         stat   = s32k3xx_serialin(priv, S32K3XX_LPUART_STAT_OFFSET);
         regval = ctrl;
@@ -3575,7 +3597,7 @@ static int s32k3xx_ioctl(struct file *filep, int cmd, unsigned long arg)
         s32k3xx_serialout(priv, S32K3XX_LPUART_STAT_OFFSET, stat);
         s32k3xx_serialout(priv, S32K3XX_LPUART_CTRL_OFFSET, ctrl);
 
-        spin_unlock_irqrestore(NULL, flags);
+        spin_unlock_irqrestore(&priv->lock, flags);
       }
       break;
 #endif
@@ -3629,7 +3651,7 @@ static void s32k3xx_rxint(struct uart_dev_s *dev, bool enable)
 
   /* Enable interrupts for data available at Rx */
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&priv->lock);
   if (enable)
     {
 #ifndef CONFIG_SUPPRESS_SERIAL_INTS
@@ -3645,7 +3667,7 @@ static void s32k3xx_rxint(struct uart_dev_s *dev, bool enable)
   regval &= ~LPUART_ALL_INTS;
   regval |= priv->ie;
   s32k3xx_serialout(priv, S32K3XX_LPUART_CTRL_OFFSET, regval);
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 #endif
 
@@ -3780,13 +3802,56 @@ static bool s32k3xx_rxflowcontrol(struct uart_dev_s *dev,
 static int s32k3xx_dma_receive(struct uart_dev_s *dev, unsigned int *status)
 {
   struct s32k3xx_uart_s *priv = (struct s32k3xx_uart_s *)dev;
-  uint32_t nextrx = s32k3xx_dma_nextrx(priv);
-  int c = 0;
+  uint32_t nextrx             = s32k3xx_dma_nextrx(priv);
+  int c                       = 0;
 
   /* Check if more data is available */
 
   if (nextrx != priv->rxdmanext)
     {
+#ifdef CONFIG_ARMV7M_DCACHE
+      /* If the data cache is enabled, then we will also need to manage
+       * cache coherency.  Are any bytes available in the currently coherent
+       * region of the data cache?
+       */
+
+      if (priv->rxdmaavail == 0)
+        {
+          uint32_t rxdmaavail;
+          uintptr_t addr;
+
+          /* No.. then we will have to invalidate additional space in the Rx
+           * DMA buffer.
+           */
+
+          if (nextrx > priv->rxdmanext)
+            {
+              /* Number of available bytes */
+
+              rxdmaavail = nextrx - priv->rxdmanext;
+            }
+          else
+            {
+              /* Number of available bytes up to the end of RXDMA buffer */
+
+              rxdmaavail = RXDMA_BUFFER_SIZE - priv->rxdmanext;
+            }
+
+          /* Invalidate the DMA buffer range */
+
+          addr = (uintptr_t)&priv->rxfifo[priv->rxdmanext];
+          up_invalidate_dcache(addr, addr + rxdmaavail);
+
+          /* We don't need to invalidate the data cache for the next
+           * rxdmaavail number of next bytes.
+           */
+
+          priv->rxdmaavail = rxdmaavail;
+        }
+
+      priv->rxdmaavail--;
+#endif
+
       /* Now read from the DMA buffer */
 
       c = priv->rxfifo[priv->rxdmanext];
@@ -3851,6 +3916,9 @@ static void s32k3xx_dma_reenable(struct s32k3xx_uart_s *priv)
    */
 
   priv->rxdmanext = 0;
+#ifdef CONFIG_ARMV7M_DCACHE
+  priv->rxdmaavail = 0;
+#endif
 
   /* Start the DMA channel, and arrange for callbacks at the half and
    * full points in the FIFO.  This ensures that we have half a FIFO
@@ -3935,9 +4003,9 @@ static void s32k3xx_dma_txcallback(DMACH_HANDLE handle, void *arg, bool done,
 
   uart_xmitchars_done(&priv->dev);
 
-  /* Release waiter */
+  /* Send more data if available */
 
-  nxsem_post(&priv->txdmasem);
+  s32k3xx_dma_txavailable(&priv->dev);
 }
 #endif
 
@@ -3956,9 +4024,10 @@ static void s32k3xx_dma_txavailable(struct uart_dev_s *dev)
 
   /* Only send when the DMA is idle */
 
-  nxsem_wait(&priv->txdmasem);
-
-  uart_xmitchars_dma(dev);
+  if (s32k3xx_dmach_idle(priv->txdma) == 0)
+    {
+      uart_xmitchars_dma(dev);
+    }
 }
 #endif
 
@@ -4085,7 +4154,7 @@ static void s32k3xx_txint(struct uart_dev_s *dev, bool enable)
 
   /* Enable interrupt for TX complete */
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&priv->lock);
   if (enable)
     {
 #ifndef CONFIG_SUPPRESS_SERIAL_INTS
@@ -4101,7 +4170,7 @@ static void s32k3xx_txint(struct uart_dev_s *dev, bool enable)
   regval &= ~LPUART_ALL_INTS;
   regval |= priv->ie;
   s32k3xx_serialout(priv, S32K3XX_LPUART_CTRL_OFFSET, regval);
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 #endif
 
@@ -4154,9 +4223,6 @@ static void s32k3xx_dma_rxcallback(DMACH_HANDLE handle, void *arg, bool done,
 {
   struct s32k3xx_uart_s *priv = (struct s32k3xx_uart_s *)arg;
   uint32_t sr;
-
-  up_invalidate_dcache((uintptr_t)priv->rxfifo,
-                       (uintptr_t)priv->rxfifo + RXDMA_BUFFER_SIZE);
 
   if (priv->rxenable && s32k3xx_dma_rxavailable(&priv->dev))
     {
@@ -4211,25 +4277,25 @@ static void up_pm_notify(struct pm_callback_s *cb, int domain,
 {
   switch (pmstate)
     {
-      case(PM_NORMAL):
+      case (PM_NORMAL):
         {
           /* Logic for PM_NORMAL goes here */
         }
         break;
 
-      case(PM_IDLE):
+      case (PM_IDLE):
         {
           /* Logic for PM_IDLE goes here */
         }
         break;
 
-      case(PM_STANDBY):
+      case (PM_STANDBY):
         {
           /* Logic for PM_STANDBY goes here */
         }
         break;
 
-      case(PM_SLEEP):
+      case (PM_SLEEP):
         {
           /* Logic for PM_SLEEP goes here */
         }
@@ -4297,7 +4363,7 @@ static int up_pm_prepare(struct pm_callback_s *cb, int domain,
  *
  * Description:
  *   Performs the low level UART initialization early in debug so that the
- *   serial console will be available during bootup.  This must be called
+ *   serial console will be available during boot up.  This must be called
  *   before arm_serialinit.
  *
  ****************************************************************************/
@@ -4405,28 +4471,16 @@ void arm_serialinit(void)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef CONSOLE_DEV
   struct s32k3xx_uart_s *priv = (struct s32k3xx_uart_s *)&CONSOLE_DEV;
   uint32_t ie;
 
   s32k3xx_disableuartint(priv, &ie);
-
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      s32k3xx_lowputc('\r');
-    }
-
   s32k3xx_lowputc(ch);
   s32k3xx_restoreuartint(priv, ie);
 #endif
-
-  return ch;
 }
 
 #else /* USE_SERIALDRIVER */
@@ -4439,22 +4493,11 @@ int up_putc(int ch)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #if CONSOLE_LPUART > 0
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      arm_lowputc('\r');
-    }
-
   arm_lowputc(ch);
 #endif
-
-  return ch;
 }
 
 #endif /* USE_SERIALDRIVER */

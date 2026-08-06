@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/mips/src/pic32mx/excptmacros.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -118,7 +120,7 @@
    * register save array.
    */
 
-  addiu	sp, sp, -XCPTCONTEXT_SIZE
+  addiu sp, sp, -XCPTCONTEXT_SIZE
 
   /* Save the EPC and STATUS in the register context array */
 
@@ -267,7 +269,7 @@
    * Use k1 as the pointer to the register save array.
    */
 
-  move	k1, \regs
+  move k1, \regs
 
   /* Restore the floating point register state */
 

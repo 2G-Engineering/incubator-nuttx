@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/or1k/src/mor1kx/mor1kx_serial.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,8 +32,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/serial/serial.h>
@@ -51,6 +53,14 @@
 #define OR1K_DIVISOR (OR1K_SYS_CLK / (16*OR1K_BAUD))
 
 /****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+#ifdef HAVE_SERIAL_CONSOLE
+static spinlock_t g_serial_lock = SP_UNLOCKED;
+#endif
+
+/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -59,7 +69,7 @@
  *
  * Description:
  *   Performs the low level USART initialization early in debug so that the
- *   serial console will be available during bootup.  This must be called
+ *   serial console will be available during boot up.  This must be called
  *   before sam_serialinit.
  *
  ****************************************************************************/
@@ -106,7 +116,7 @@ void or1k_serialinit(void)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef HAVE_SERIAL_CONSOLE
   irqstate_t flags;
@@ -115,20 +125,10 @@ int up_putc(int ch)
    * interrupts from firing in the serial driver code.
    */
 
-  flags = enter_critical_section();
-
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      /* or1k_lowputc('\r'); */
-    }
+  flags = spin_lock_irqsave(&g_serial_lock);
 
   /* or1k_lowputc(ch); */
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_serial_lock, flags);
 #endif
-  return ch;
 }

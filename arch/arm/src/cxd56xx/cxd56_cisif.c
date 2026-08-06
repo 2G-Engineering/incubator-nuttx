@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/cxd56xx/cxd56_cisif.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <time.h>
 
 #include <nuttx/irq.h>
@@ -175,6 +177,7 @@ static uint32_t g_cisif_time_stop;
 #endif
 
 static imgdata_capture_t g_cxd56_cisif_complete_capture;
+static void *g_cxd56_cisif_capture_arg;
 
 /****************************************************************************
  * Private Function Prototypes
@@ -216,11 +219,14 @@ static int cxd56_cisif_start_capture
               uint8_t nr_datafmt,
               imgdata_format_t *datafmt,
               imgdata_interval_t *interval,
-              imgdata_capture_t callback);
+              imgdata_capture_t callback,
+              void *arg);
 static int cxd56_cisif_stop_capture(struct imgdata_s *data);
 static int cxd56_cisif_validate_buf(struct imgdata_s *data,
                                     uint8_t *addr, uint32_t size);
 static int cxd56_cisif_set_buf(struct imgdata_s *data,
+                               uint8_t nr_datafmt,
+                               imgdata_format_t *datafmt,
                                uint8_t *addr, uint32_t size);
 
 static const intc_func_table g_intcomp_func[] =
@@ -280,12 +286,9 @@ static uint64_t cisif_get_msec_time(void)
 {
   struct timespec tp;
 
-  if (clock_systime_timespec(&tp) < 0)
-    {
-      return 0;
-    }
+  clock_systime_timespec(&tp);
 
-  return (((uint64_t)tp.tv_sec) * 1000 + tp.tv_nsec / 1000000);
+  return tp.tv_sec * 1000 + tp.tv_nsec / 1000000;
 }
 
 static void cisif_trace_time_start(void)
@@ -373,7 +376,7 @@ static void cisif_callback_for_intlev(uint8_t code)
 
   /* Notify and get next addr */
 
-  g_cxd56_cisif_complete_capture(0, size, NULL);
+  g_cxd56_cisif_complete_capture(0, size, NULL, g_cxd56_cisif_capture_arg);
 
   g_jpgint_receive = false;
 
@@ -413,7 +416,8 @@ static void cisif_ycc_axi_trdn_int(uint8_t code)
   else
     {
       size = cisif_reg_read(CISIF_YCC_DSTRG_CONT);
-      g_cxd56_cisif_complete_capture(0, size, NULL);
+      g_cxd56_cisif_complete_capture(0, size, NULL,
+                                     g_cxd56_cisif_capture_arg);
       cisif_reg_write(CISIF_YCC_DREAD_CONT, 0);
     }
 }
@@ -463,7 +467,8 @@ static void cisif_jpg_axi_trdn_int(uint8_t code)
   else
     {
       size = cisif_reg_read(CISIF_JPG_DSTRG_CONT);
-      g_cxd56_cisif_complete_capture(0, size, NULL);
+      g_cxd56_cisif_complete_capture(0, size, NULL,
+                                     g_cxd56_cisif_capture_arg);
       cisif_reg_write(CISIF_JPG_DREAD_CONT, 0);
     }
 }
@@ -495,7 +500,8 @@ static void cisif_ycc_err_int(uint8_t code)
 #endif
 
   size = cisif_reg_read(CISIF_YCC_DSTRG_CONT);
-  g_cxd56_cisif_complete_capture(code, size, NULL);
+  g_cxd56_cisif_complete_capture(code, size, NULL,
+                                 g_cxd56_cisif_capture_arg);
   cisif_reg_write(CISIF_YCC_DREAD_CONT, 0);
   g_errint_receive = true;
 }
@@ -513,7 +519,8 @@ static void cisif_jpg_err_int(uint8_t code)
 #endif
 
   size = cisif_reg_read(CISIF_JPG_DSTRG_CONT);
-  g_cxd56_cisif_complete_capture(code, size, NULL);
+  g_cxd56_cisif_complete_capture(code, size, NULL,
+                                 g_cxd56_cisif_capture_arg);
   cisif_reg_write(CISIF_JPG_DREAD_CONT, 0);
   g_errint_receive = true;
 }
@@ -850,7 +857,8 @@ static int cxd56_cisif_start_capture
               uint8_t nr_fmt,
               imgdata_format_t *fmt,
               imgdata_interval_t *interval,
-              imgdata_capture_t callback)
+              imgdata_capture_t callback,
+              void *arg)
 {
   cisif_param_t param =
     {
@@ -924,6 +932,7 @@ static int cxd56_cisif_start_capture
     }
 
   g_cxd56_cisif_complete_capture = callback;
+  g_cxd56_cisif_capture_arg = arg;
 
   g_state = STATE_CAPTURE;
 
@@ -968,12 +977,36 @@ static int cxd56_cisif_validate_buf(struct imgdata_s *data,
   return OK;
 }
 
+static int32_t cisif_get_mode(uint8_t nr_datafmts,
+                              imgdata_format_t *datafmts)
+{
+  switch (datafmts[IMGDATA_FMT_MAIN].pixelformat)
+    {
+      case IMGDATA_PIX_FMT_UYVY:                /* YUV 4:2:2 */
+      case IMGDATA_PIX_FMT_RGB565:              /* RGB565 */
+
+        /* CISIF does not distinguish between YUV and RGB */
+
+        return MODE_YUV_TRS_EN;
+
+      case IMGDATA_PIX_FMT_JPEG:                /* JPEG */
+        return MODE_JPG_TRS_EN;
+
+      case IMGDATA_PIX_FMT_JPEG_WITH_SUBIMG:    /* JPEG + YUV 4:2:2 */
+        return MODE_INTLEV_TRS_EN;
+
+      default:
+        return -EINVAL;
+    }
+}
+
 static int cxd56_cisif_set_buf(struct imgdata_s *data,
+                               uint8_t nr_datafmts,
+                               imgdata_format_t *datafmts,
                                uint8_t *addr, uint32_t size)
 {
   int      ret;
-  uint32_t mode;
-  uint32_t regval;
+  int32_t  mode;
   uint16_t w;
   uint16_t h;
 
@@ -983,7 +1016,7 @@ static int cxd56_cisif_set_buf(struct imgdata_s *data,
       return ret;
     }
 
-  mode = cisif_reg_read(CISIF_MODE);
+  mode = cisif_get_mode(nr_datafmts, datafmts);
 
   switch (mode)
     {
@@ -995,17 +1028,18 @@ static int cxd56_cisif_set_buf(struct imgdata_s *data,
         ret = cisif_set_jpg_sarea(addr, size);
         break;
 
-      default: /* MODE_INTLEV_TRS_EN */
+      case MODE_INTLEV_TRS_EN:
 
-        /* Get YUV frame size information */
-
-        regval =  cisif_reg_read(CISIF_ACT_SIZE);
-        h = (regval >> 16) & 0x1ff;
-        w = regval & 0x01ff;
+        w = datafmts[IMGDATA_FMT_SUB].width;
+        h = datafmts[IMGDATA_FMT_SUB].height;
 
         ret = cisif_set_intlev_sarea(addr,
                                      size,
                                      YUV_SIZE(w, h));
+        break;
+
+      default:
+        ret = -EINVAL;
         break;
     }
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/clk/clk_fractional_divider.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -157,7 +159,7 @@ const struct clk_ops_s g_clk_fractional_divider_ops =
 FAR struct clk_s *
 clk_register_fractional_divider(FAR const char *name,
                                 FAR const char *parent_name,
-                                uint8_t flags, uint32_t reg,
+                                uint8_t flags, uintptr_t reg,
                                 uint8_t mshift, uint8_t mwidth,
                                 uint8_t nshift, uint8_t nwidth,
                                 uint8_t clk_divider_flags)

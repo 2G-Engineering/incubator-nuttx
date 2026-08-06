@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nrf53/nrf5340-dk/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,8 +33,6 @@
 #if defined(CONFIG_ARCH_IRQBUTTONS) && defined(CONFIG_NRF53_GPIOTE)
 #  include <nuttx/irq.h>
 #endif
-
-#include "hardware/nrf53_osc.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -178,5 +178,10 @@
                              GPIO_PORT0 | GPIO_PIN(15))
 #define NRF53_QSPI0_IO3_PIN (GPIO_MCUSEL_PERIP | GPIO_OUTPUT | \
                              GPIO_PORT0 | GPIO_PIN(16))
+
+/* QDEC Pins ****************************************************************/
+
+#define BOARD_QDEC0_A_PIN            (GPIO_MCUSEL_APP | GPIO_INPUT | GPIO_PORT0 | GPIO_PIN(25))
+#define BOARD_QDEC0_B_PIN            (GPIO_MCUSEL_APP | GPIO_INPUT | GPIO_PORT0 | GPIO_PIN(26))
 
 #endif /* __BOARDS_ARM_NRF53_NRF5340_DK_INCLUDE_BOARD_H */

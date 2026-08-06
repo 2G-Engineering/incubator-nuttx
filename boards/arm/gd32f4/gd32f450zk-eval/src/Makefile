@@ -1,5 +1,7 @@
 ############################################################################
-# boards/arm/gd32f4/gd32f450zk-eval/src/Make.defs
+# boards/arm/gd32f4/gd32f450zk-eval/src/Makefile
+#
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -20,16 +22,7 @@
 
 include $(TOPDIR)/Make.defs
 
-CSRCS = gd32f4xx_boot.c
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += gd32f4xx_appinit.c
-endif
-# ifeq ($(CONFIG_BOARDCTL),y)
-# CSRCS += gd32f4xx_appinit.c gd32f4xx_bringup.c
-# else ifeq ($(CONFIG_BOARD_LATE_INITIALIZE),y)
-# CSRCS += gd32f4xx_bringup.c
-# endif
+CSRCS = gd32f4xx_boot.c gd32f4xx_bringup.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += gd32f4xx_autoleds.c
@@ -57,7 +50,7 @@ ifeq ($(CONFIG_MTD_GD25),y)
 CSRCS += gd32f4xx_gd25.c
 endif
 
-ifeq ($(CONFIG_MTD_AT24XX), y)
+ifeq ($(CONFIG_MTD_AT24XX),y)
 CSRCS += gd32f4xx_at24.c
 endif
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f746g-disco/src/stm32_n25q.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <stdio.h>
 #include <syslog.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -79,7 +81,7 @@ int stm32_n25qxxx_setup(void)
   struct mtd_dev_s *mtd_dev;
   int ret = -1;
 
-  qspi_dev = stm32f7_qspi_initialize(0);
+  qspi_dev = stm32_qspi_initialize(0);
   if (!qspi_dev)
     {
       _err("ERROR: Failed to initialize W25 minor %d: %d\n",

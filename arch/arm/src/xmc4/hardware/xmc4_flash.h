@@ -1,36 +1,26 @@
 /****************************************************************************
  * arch/arm/src/xmc4/hardware/xmc4_flash.h
  *
- *   Copyright (C) 2017 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * SPDX-License-Identifier: Apache-2.0
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *
+ ****************************************************************************/
+
+/****************************************************************************
  * May include some logic from sample code provided by Infineon:
  *
  *   Copyright (C) 2011-2015 Infineon Technologies AG. All rights reserved.
@@ -63,6 +53,42 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+/* Flash memory address */
+
+#define XMC4_FLASH_S0_OFFSET       0X000000
+#define XMC4_FLASH_S1_OFFSET       0X004000
+#define XMC4_FLASH_S2_OFFSET       0X008000
+#define XMC4_FLASH_S3_OFFSET       0X00c000
+#define XMC4_FLASH_S4_OFFSET       0X010000
+#define XMC4_FLASH_S5_OFFSET       0X014000
+#define XMC4_FLASH_S6_OFFSET       0X018000
+#define XMC4_FLASH_S7_OFFSET       0X01c000
+#define XMC4_FLASH_S8_OFFSET       0X020000
+#define XMC4_FLASH_S9_OFFSET       0X040000
+#define XMC4_FLASH_S10_OFFSET      0X080000
+#define XMC4_FLASH_S11_OFFSET      0X0c0000
+#define XMC4_FLASH_S12_OFFSET      0X100000
+#define XMC4_FLASH_S13_OFFSET      0X140000
+#define XMC4_FLASH_S14_OFFSET      0X180000
+#define XMC4_FLASH_S15_OFFSET      0X1c0000
+
+#define XMC4_FLASH_S0  (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S0_OFFSET)
+#define XMC4_FLASH_S1  (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S1_OFFSET)
+#define XMC4_FLASH_S2  (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S2_OFFSET)
+#define XMC4_FLASH_S3  (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S3_OFFSET)
+#define XMC4_FLASH_S4  (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S4_OFFSET)
+#define XMC4_FLASH_S5  (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S5_OFFSET)
+#define XMC4_FLASH_S6  (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S6_OFFSET)
+#define XMC4_FLASH_S7  (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S7_OFFSET)
+#define XMC4_FLASH_S8  (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S8_OFFSET)
+#define XMC4_FLASH_S9  (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S9_OFFSET)
+#define XMC4_FLASH_S10 (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S10_OFFSET)
+#define XMC4_FLASH_S11 (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S11_OFFSET)
+#define XMC4_FLASH_S12 (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S12_OFFSET)
+#define XMC4_FLASH_S13 (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S13_OFFSET)
+#define XMC4_FLASH_S14 (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S14_OFFSET)
+#define XMC4_FLASH_S15 (XMC4_UNCACHED_PFLASH_BASE + XMC4_FLASH_S15_OFFSET)
 
 /* Register Offsets *********************************************************/
 

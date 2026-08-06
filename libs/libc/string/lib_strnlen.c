@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/string/lib_strnlen.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,10 +34,11 @@
  * Public Functions
  ****************************************************************************/
 
-#if !defined(CONFIG_LIBC_ARCH_STRNLEN) && defined(LIBC_BUILD_STRING)
-size_t strnlen(const char *s, size_t maxlen)
+#if !defined(CONFIG_LIBC_ARCH_STRNLEN) && defined(LIBC_BUILD_STRNLEN)
+#undef strnlen
+size_t strnlen(FAR const char *s, size_t maxlen)
 {
-  const char *sc;
+  FAR const char *sc;
   for (sc = s; maxlen != 0 && *sc != '\0'; maxlen--, ++sc);
   return sc - s;
 }

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/sam34/arduino-due/src/sam_autoleds.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 
@@ -74,7 +76,7 @@
  *   LED_SIGNAL           In a signal handler        N/C      GLOW     OFF
  *   LED_ASSERTION        An assertion failed        N/C      GLOW     OFF
  *   LED_PANIC            The system has crashed     N/C      N/C    Blinking
- *   LED_IDLE             MCU is is sleep mode       ------ Not used --------
+ *   LED_IDLE             MCU is in sleep mode       ------ Not used --------
  *
  * Thus if LED L is statically on, NuttX has successfully booted and is,
  * apparently, running normmally.  If LED RX is glowing, then NuttX is

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/sam34/sam_spi.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -389,7 +391,7 @@ static struct sam_spidev_s g_spi1dev =
  *
  * Returned Value:
  *   true:  This is the first register access of this type.
- *   flase: This is the same as the preceding register access.
+ *   false: This is the same as the preceding register access.
  *
  ****************************************************************************/
 
@@ -1730,7 +1732,7 @@ struct spi_dev_s *sam_spibus_initialize(int port)
    * chip select structures.
    */
 
-  spics = (struct sam_spics_s *)kmm_zalloc(sizeof(struct sam_spics_s));
+  spics = kmm_zalloc(sizeof(struct sam_spics_s));
   if (!spics)
     {
       spierr("ERROR: Failed to allocate a chip select structure\n");

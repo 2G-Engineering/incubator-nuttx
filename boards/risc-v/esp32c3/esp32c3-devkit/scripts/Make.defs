@@ -1,6 +1,8 @@
 ############################################################################
 # boards/risc-v/esp32c3/esp32c3-devkit/scripts/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,47 +22,40 @@
 
 include $(TOPDIR)/.config
 include $(TOPDIR)/tools/Config.mk
-include $(TOPDIR)/tools/esp32c3/Config.mk
+include $(TOPDIR)/tools/espressif/Config.mk
 include $(TOPDIR)/arch/risc-v/src/common/Toolchain.defs
 
-ARCHSCRIPT += $(BOARD_COMMON_DIR)$(DELIM)scripts$(DELIM)esp32c3_rom.ld
+# Remove quotes from CONFIG_ESPRESSIF_CHIP_SERIES configuration
+
+CHIP_SERIES = $(patsubst "%",%,$(CONFIG_ESPRESSIF_CHIP_SERIES))
 
 # Pick the linker scripts from the board level if they exist, if not
 # pick the common linker scripts.
 
-ifeq ($(CONFIG_BUILD_PROTECTED),y)
-  ARCHSCRIPT += $(call FINDSCRIPT,protected_memory.ld)
-  ARCHSCRIPT += $(call FINDSCRIPT,kernel-space.ld)
-else
-  ARCHSCRIPT += $(call FINDSCRIPT,flat_memory.ld)
+ARCHSCRIPT += $(BOARD_COMMON_DIR)/scripts/$(CHIP_SERIES)_aliases.ld
+ARCHSCRIPT += $(call FINDSCRIPT,$(CHIP_SERIES)_flat_memory.ld)
 
-  ifeq ($(CONFIG_ESP32C3_APP_FORMAT_MCUBOOT),y)
-    ARCHSCRIPT += $(call FINDSCRIPT,mcuboot_sections.ld)
-  else
-    ARCHSCRIPT += $(call FINDSCRIPT,legacy_sections.ld)
-  endif
+ifeq ($(CONFIG_ESPRESSIF_BOOTLOADER_MCUBOOT),y)
+  ARCHSCRIPT += $(call FINDSCRIPT,$(CHIP_SERIES)_sections.ld)
+else ifeq ($(CONFIG_ESPRESSIF_SIMPLE_BOOT),y)
+  ARCHSCRIPT += $(call FINDSCRIPT,$(CHIP_SERIES)_sections.ld)
+else
+  ARCHSCRIPT += $(call FINDSCRIPT,$(CHIP_SERIES)_legacy_sections.ld)
 endif
 
 ARCHPICFLAGS = -fpic
 
-CFLAGS := $(ARCHCFLAGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS) -pipe -Werror=return-type
+CFLAGS := $(ARCHCFLAGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS) -Werror=return-type
 CPICFLAGS = $(ARCHPICFLAGS) $(CFLAGS)
-CXXFLAGS := $(ARCHCXXFLAGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHXXINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS) -pipe
+CXXFLAGS := $(ARCHCXXFLAGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHXXINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
 CXXPICFLAGS = $(ARCHPICFLAGS) $(CXXFLAGS)
 CPPFLAGS := $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
 AFLAGS := $(CFLAGS) -D__ASSEMBLY__
 
 # Loadable module definitions
 
-CMODULEFLAGS = $(CFLAGS)
-
-LDMODULEFLAGS = -melf32lriscv -r -e module_initialize
-LDMODULEFLAGS += -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/modlib/gnu-elf.ld)
+LDMODULEFLAGS += -melf32lriscv
 
 # ELF module definitions
 
-CELFFLAGS = $(CFLAGS)
-CXXELFFLAGS = $(CXXFLAGS)
-
-LDELFFLAGS = -melf32lriscv -r -e main
-LDELFFLAGS += -T $(call CONVERT_PATH,$(TOPDIR)$(DELIM)binfmt$(DELIM)libelf$(DELIM)gnu-elf.ld)
+LDELFFLAGS += -melf32lriscv

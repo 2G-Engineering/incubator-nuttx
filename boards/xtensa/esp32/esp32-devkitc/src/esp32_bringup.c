@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/esp32-devkitc/src/esp32_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,25 +29,24 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
-#include <syslog.h>
-#include <debug.h>
-#include <stdio.h>
-
+#include <nuttx/debug.h>
 #include <errno.h>
-#if defined(CONFIG_ESP32_EFUSE)
+#if defined(CONFIG_ESPRESSIF_EFUSE)
 #include <nuttx/efuse/efuse.h>
 #endif
 #include <nuttx/fs/fs.h>
 #include <nuttx/himem/himem.h>
+#include <nuttx/board.h>
 
-#if defined(CONFIG_ESP32_EFUSE)
-#include "esp32_efuse.h"
+#if defined(CONFIG_ESPRESSIF_EFUSE)
+#include "espressif/esp_efuse.h"
 #endif
+#include "espressif/esp_gpio.h"
 #include "esp32_partition.h"
+#include "esp32_start.h"
 
 #ifdef CONFIG_USERLED
 #  include <nuttx/leds/userled.h>
@@ -56,7 +57,7 @@
 #endif
 
 #ifdef CONFIG_TIMER
-#include <esp32_tim_lowerhalf.h>
+#  include <esp32_tim_lowerhalf.h>
 #endif
 
 #ifdef CONFIG_ONESHOT
@@ -71,15 +72,15 @@
 #  include "esp32_board_spiflash.h"
 #endif
 
-#ifdef CONFIG_ESP32_BLE
+#ifdef CONFIG_ESPRESSIF_BLE
 #  include "esp32_ble.h"
 #endif
 
-#ifdef CONFIG_ESP32_WIFI
+#ifdef CONFIG_ESPRESSIF_WIFI
 #  include "esp32_board_wlan.h"
 #endif
 
-#ifdef CONFIG_ESP32_WIFI_BT_COEXIST
+#ifdef CONFIG_ESPRESSIF_WIFI_BT_COEXIST
 #  include "esp32_wifi_adapter.h"
 #endif
 
@@ -87,16 +88,29 @@
 #  include "esp32_board_i2c.h"
 #endif
 
-#ifdef CONFIG_ESP32_I2S
-#  include "esp32_i2s.h"
+#ifdef CONFIG_ESPRESSIF_I2S
+#  include "espressif/esp_i2s.h"
 #endif
 
-#ifdef CONFIG_ESP32_PCNT_AS_QE
-#  include "board_qencoder.h"
+#ifdef CONFIG_ESPRESSIF_I2S
+#  include "espressif/esp_i2s.h"
+#endif
+
+#ifdef CONFIG_ESP_PCNT
+#  include "espressif/esp_pcnt.h"
+#  include "esp32_board_pcnt.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_AUTO_SLEEP
+#  include "espressif/esp_pm.h"
 #endif
 
 #ifdef CONFIG_I2CMULTIPLEXER_TCA9548A
 #  include "esp32_tca9548a.h"
+#endif
+
+#ifdef CONFIG_SENSORS_APDS9960
+#include "esp32_board_apds9960.h"
 #endif
 
 #ifdef CONFIG_SENSORS_BMP180
@@ -111,7 +125,7 @@
 #  include "esp32_sht3x.h"
 #endif
 
-#ifdef CONFIG_SENSORS_MS5611
+#ifdef CONFIG_SENSORS_MS56XX
 #  include "esp32_ms5611.h"
 #endif
 
@@ -123,25 +137,32 @@
 #  include "esp32_aes.h"
 #endif
 
-#ifdef CONFIG_ESP32_RT_TIMER
-#  include "esp32_rt_timer.h"
-#endif
-
 #ifdef CONFIG_INPUT_BUTTONS
 #  include <nuttx/input/buttons.h>
 #endif
 
 #ifdef CONFIG_LCD_DEV
-#  include <nuttx/board.h>
 #  include <nuttx/lcd/lcd_dev.h>
 #endif
 
+#ifdef CONFIG_VIDEO_FB
+#  include <nuttx/video/fb.h>
+#endif
+
 #ifdef CONFIG_RTC_DRIVER
-#  include "esp32_rtc_lowerhalf.h"
+#  include "espressif/esp_rtc.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_HR_TIMER
+#  include "espressif/esp_hr_timer.h"
 #endif
 
 #ifdef CONFIG_SPI_DRIVER
 #  include "esp32_spi.h"
+#endif
+
+#ifdef CONFIG_SPI_SLAVE_DRIVER
+#  include "esp32_board_spislavedev.h"
 #endif
 
 #ifdef CONFIG_LCD_BACKPACK
@@ -150,6 +171,34 @@
 
 #ifdef CONFIG_SENSORS_MAX6675
 #  include "esp32_max6675.h"
+#endif
+
+#ifdef CONFIG_DAC
+#  include "esp32_board_dac.h"
+#endif
+
+#ifdef CONFIG_ESP_RMT
+#  include "esp32_board_rmt.h"
+#endif
+
+#ifdef CONFIG_ESP_MCPWM
+#  include "esp32_board_mcpwm.h"
+#endif
+
+#ifdef CONFIG_SYSTEM_NXDIAG_ESPRESSIF_CHIP_WO_TOOL
+#  include "espressif/esp_nxdiag.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_ESPNOW_PKTRADIO
+#  include "espressif/esp_espnow_pktradio.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_ADC
+#  include "esp32_board_adc.h"
+#endif
+
+#ifdef CONFIG_MMCSD_SPI
+#  include "esp32_board_sdmmc.h"
 #endif
 
 #include "esp32-devkitc.h"
@@ -166,9 +215,6 @@
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
  *
  ****************************************************************************/
 
@@ -194,8 +240,8 @@ int esp32_bringup(void)
     }
 #endif
 
-#if defined(CONFIG_ESP32_EFUSE)
-  ret = esp32_efuse_initialize("/dev/efuse");
+#if defined(CONFIG_ESPRESSIF_EFUSE)
+  ret = esp_efuse_initialize("/dev/efuse");
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: Failed to init EFUSE: %d\n", ret);
@@ -233,8 +279,8 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_MMCSD
-  ret = esp32_mmcsd_initialize(0);
+#ifdef CONFIG_MMCSD_SPI
+  ret = board_sdmmc_initialize();
   if (ret < 0)
     {
       syslog(LOG_ERR, "Failed to initialize SD slot: %d\n", ret);
@@ -242,7 +288,7 @@ int esp32_bringup(void)
 #endif
 
 #ifdef CONFIG_ESP32_SPIFLASH
-  ret = esp32_spiflash_init();
+  ret = board_spiflash_init();
   if (ret)
     {
       syslog(LOG_ERR, "ERROR: Failed to initialize SPI Flash\n");
@@ -266,6 +312,22 @@ int esp32_bringup(void)
     }
 #endif /* CONFIG_ESP32_LEDC */
 
+#ifdef CONFIG_ESP_MCPWM_CAPTURE
+  ret = board_capture_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_capture_initialize failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_ESP_MCPWM_MOTOR_BDC
+  ret = board_motor_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_motor_initialize failed: %d\n", ret);
+    }
+#endif
+
 #ifdef CONFIG_SENSORS_MAX6675
   ret = board_max6675_initialize(0, 2);
   if (ret < 0)
@@ -285,24 +347,16 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESP32_RT_TIMER
-  ret = esp32_rt_timer_init();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "Failed to initialize RT timer: %d\n", ret);
-    }
-#endif
-
-#ifdef CONFIG_ESP32_WIFI_BT_COEXIST
+#ifdef CONFIG_ESPRESSIF_WIFI_BT_COEXIST
   ret = esp32_wifi_bt_coexist_init();
   if (ret)
     {
       syslog(LOG_ERR, "ERROR: Failed to initialize Wi-Fi and BT "
-             "coexistence support\n");
+                      "coexistence support\n");
     }
 #endif
 
-#ifdef CONFIG_ESP32_BLE
+#ifdef CONFIG_ESPRESSIF_BLE
   ret = esp32_ble_initialize();
   if (ret)
     {
@@ -310,22 +364,47 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESP32_WIFI
+#ifdef CONFIG_ESPRESSIF_WIFI
   ret = board_wlan_init();
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: Failed to initialize wireless subsystem=%d\n",
+      syslog(LOG_ERR, "ERROR: Failed to initialize wlan subsystem=%d\n",
              ret);
     }
 #endif
 
-/* First, register the timer drivers and let timer 1 for oneshot
- * if it is enabled.
- */
+#ifdef CONFIG_ESPRESSIF_ESPNOW_PKTRADIO
+  ret = pktradio_espnow();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize ESPNOW pktradio=%d\n",
+             ret);
+    }
+#endif
+
+#ifdef CONFIG_ESP32_OPENETH
+  ret = esp_openeth_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize Open ETH ethernet.\n");
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_HR_TIMER
+  ret = esp_hr_timer_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: esp_hr_timer_init() failed: %d\n", ret);
+    }
+#endif
+
+  /* First, register the timer drivers and let timer 1 for oneshot
+   * if it is enabled.
+   */
 
 #ifdef CONFIG_TIMER
 
-#if defined(CONFIG_ESP32_TIMER0) && !defined(CONFIG_ESP32_RT_TIMER)
+#if defined(CONFIG_ESP32_TIMER0) && !defined(CONFIG_ESPRESSIF_HR_TIMER)
   ret = esp32_timer_initialize("/dev/timer0", TIMER0);
   if (ret < 0)
     {
@@ -419,16 +498,21 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_SENSORS_QENCODER
-  /* Initialize and register the qencoder driver */
-
-  ret = board_qencoder_initialize(0, PCNT_QE0_ID);
-  if (ret != OK)
+#ifdef CONFIG_ESP_PCNT
+  ret = board_pcnt_initialize();
+  if (ret < 0)
     {
-      syslog(LOG_ERR,
-             "ERROR: Failed to register the qencoder: %d\n",
-             ret);
-      return ret;
+      syslog(LOG_ERR, "ERROR: board_pcnt_initialize failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_AUTO_SLEEP
+  /* Configure PM */
+
+  ret = esp_pmconfigure();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: esp_pmconfigure failed: %d\n", ret);
     }
 #endif
 
@@ -447,8 +531,6 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_I2C_DRIVER
-
 #ifdef CONFIG_ESP32_I2C0
   ret = esp32_i2c_register(0);
 
@@ -465,8 +547,6 @@ int esp32_bringup(void)
     {
       syslog(LOG_ERR, "Failed to initialize I2C Driver for I2C1: %d\n", ret);
     }
-#endif
-
 #endif
 
 #ifdef CONFIG_SENSORS_BMP180
@@ -491,15 +571,15 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESP32_I2S
+#if defined(CONFIG_ESPRESSIF_I2S) || defined(CONFIG_ESPRESSIF_I2S)
 
-#if defined(CONFIG_ESP32_I2S0) && !defined(CONFIG_AUDIO_CS4344) || \
-    defined(CONFIG_ESP32_I2S1)
+#if defined(CONFIG_ESPRESSIF_I2S0) && !defined(CONFIG_AUDIO_CS4344) || \
+    defined(CONFIG_ESPRESSIF_I2S1)
   bool i2s_enable_tx;
   bool i2s_enable_rx;
 #endif
 
-#ifdef CONFIG_ESP32_I2S0
+#if defined(CONFIG_ESPRESSIF_I2S0) || defined(CONFIG_ESPRESSIF_I2S0)
 
   /* Configure I2S0 */
 
@@ -514,17 +594,17 @@ int esp32_bringup(void)
     }
 #else
 
-#ifdef CONFIG_ESP32_I2S0_TX
+#if defined(CONFIG_ESPRESSIF_I2S0_TX) || defined (CONFIG_ESPRESSIF_I2S0_TX)
   i2s_enable_tx = true;
 #else
   i2s_enable_tx = false;
-#endif /* CONFIG_ESP32_I2S0_TX */
+#endif /* CONFIG_ESPRESSIF_I2S0_TX || CONFIG_ESPRESSIF_I2S0_TX */
 
-#ifdef CONFIG_ESP32_I2S0_RX
+#if defined(CONFIG_ESPRESSIF_I2S0_RX) || defined (CONFIG_ESPRESSIF_I2S0_RX)
     i2s_enable_rx = true;
 #else
     i2s_enable_rx = false;
-#endif /* CONFIG_ESP32_I2S0_RX */
+#endif /* CONFIG_ESPRESSIF_I2S0_RX || CONFIG_ESPRESSIF_I2S0_RX */
 
   /* Configure I2S generic audio on I2S0 */
 
@@ -532,26 +612,26 @@ int esp32_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "Failed to initialize I2S%d driver: %d\n",
-             CONFIG_ESP32_I2S0, ret);
+             ESP32_I2S0, ret);
     }
 
 #endif /* CONFIG_AUDIO_CS4344 */
 
-#endif  /* CONFIG_ESP32_I2S0 */
+#endif /* CONFIG_ESPRESSIF_I2S0 || CONFIG_ESPRESSIF_I2S0 */
 
-#ifdef CONFIG_ESP32_I2S1
+#if defined(CONFIG_ESPRESSIF_I2S1) || defined(CONFIG_ESPRESSIF_I2S1)
 
-#ifdef CONFIG_ESP32_I2S1_TX
+#if defined(CONFIG_ESPRESSIF_I2S1_TX) || defined (CONFIG_ESPRESSIF_I2S1_TX)
   i2s_enable_tx = true;
 #else
   i2s_enable_tx = false;
-#endif /* CONFIG_ESP32_I2S1_TX */
+#endif /* CONFIG_ESPRESSIF_I2S1_TX || CONFIG_ESPRESSIF_I2S1_TX */
 
-#ifdef CONFIG_ESP32_I2S1_RX
+#if defined(CONFIG_ESPRESSIF_I2S1_RX) || defined (CONFIG_ESPRESSIF_I2S1_RX)
     i2s_enable_rx = true;
 #else
     i2s_enable_rx = false;
-#endif /* CONFIG_ESP32_I2S1_RX */
+#endif /* CONFIG_ESPRESSIF_I2S1_RX || CONFIG_ESPRESSIF_I2S1_RX */
 
   /* Configure I2S generic audio on I2S1 */
 
@@ -559,12 +639,12 @@ int esp32_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "Failed to initialize I2S%d driver: %d\n",
-             CONFIG_ESP32_I2S1, ret);
+             ESP32_I2S1, ret);
     }
 
-#endif  /* CONFIG_ESP32_I2S1 */
+#endif /* CONFIG_ESPRESSIF_I2S1 || CONFIG_ESPRESSIF_I2S1 */
 
-#endif /* CONFIG_ESP32_I2S */
+#endif /* CONFIG_ESPRESSIF_I2S || CONFIG_ESPRESSIF_I2S */
 
 #ifdef CONFIG_SENSORS_SHT3X
   /* Try to register SHT3x device in I2C0 */
@@ -577,7 +657,7 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_SENSORS_MS5611
+#ifdef CONFIG_SENSORS_MS56XX
   /* Try to register MS5611 device in I2C0 as device 0: I2C addr 0x77 */
 
   ret = board_ms5611_initialize(0, 0);
@@ -624,10 +704,32 @@ int esp32_bringup(void)
     }
 #endif
 
+#ifdef CONFIG_DAC
+  ret = board_dac_initialize(CONFIG_ESP32_DAC_DEVPATH);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_dac_initialize(0) failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_ESP_RMT
+  ret = board_rmt_txinitialize(RMT_OUTPUT_PIN);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_rmt_txinitialize() failed: %d\n", ret);
+    }
+
+  ret = board_rmt_rxinitialize(RMT_INPUT_PIN);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_rmt_txinitialize() failed: %d\n", ret);
+    }
+#endif
+
 #ifdef CONFIG_RTC_DRIVER
   /* Instantiate the ESP32 RTC driver */
 
-  ret = esp32_rtc_driverinit();
+  ret = esp_rtc_driverinit();
   if (ret < 0)
     {
       syslog(LOG_ERR,
@@ -635,15 +737,69 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_SPI_DRIVER
-#  ifdef CONFIG_ESP32_SPI2
+#if defined(CONFIG_ESP32_SPI2) && defined(CONFIG_SPI_DRIVER)
   ret = board_spidev_initialize(ESP32_SPI2);
   if (ret < 0)
     {
       syslog(LOG_ERR, "Failed to initialize SPI%d driver: %d\n",
              ESP32_SPI2, ret);
     }
+#endif
+
+# if defined(CONFIG_ESP32_SPI2) && defined(CONFIG_SPI_SLAVE_DRIVER)
+  ret = board_spislavedev_initialize(ESP32_SPI2);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize SPI%d Slave driver: %d\n",
+              ESP32_SPI2, ret);
+    }
+#endif
+
+#ifdef CONFIG_WS2812
+#  ifndef CONFIG_WS2812_NON_SPI_DRIVER
+  ret = board_ws2812_initialize(0, ESP32_SPI3, CONFIG_WS2812_LED_COUNT);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize ws2812 driver\n");
+    }
 #  endif
+#endif
+
+#ifdef CONFIG_VIDEO_FB
+  /* Initialize and register the framebuffer driver */
+
+  ret = fb_register(0, 0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: fb_register() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_SENSORS_APDS9960
+  /* Register the APDS-9960 gesture sensor */
+
+  ret = board_apds9960_initialize(0, 0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_apds9960_initialize() failed: %d\n",
+             ret);
+    }
+#endif
+
+#ifdef CONFIG_SYSTEM_NXDIAG_ESPRESSIF_CHIP_WO_TOOL
+  ret = esp_nxdiag_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: esp_nxdiag_initialize failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_ADC
+  ret = board_adc_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_adc_init failed: %d\n", ret);
+    }
 #endif
 
   /* If we got here then perhaps not all initialization was successful, but

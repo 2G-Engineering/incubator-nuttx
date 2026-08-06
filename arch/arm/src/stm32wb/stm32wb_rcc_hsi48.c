@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wb/stm32wb_rcc_hsi48.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,7 +35,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32wb_rcc_enable_hsi48
+ * Name: stm32_rcc_enable_hsi48
  *
  * Description:
  *   HSI48 clock signal is generated from an internal 48 MHz RC oscillator
@@ -51,7 +53,7 @@
  *   frequency which is subject to manufacturing process variations.
  *
  * Input Parameters:
- *   Identifies the syncrhonization source for the HSI48.  When used as the
+ *   Identifies the synchronization source for the HSI48.  When used as the
  *   USB source clock, this must be set to SYNCSRC_USB.
  *
  * Returned Value:
@@ -59,7 +61,7 @@
  *
  ****************************************************************************/
 
-void stm32wb_rcc_enable_hsi48(crs_syncsrc_t syncsrc)
+void stm32_rcc_enable_hsi48(crs_syncsrc_t syncsrc)
 {
   uint32_t regval;
 
@@ -75,13 +77,13 @@ void stm32wb_rcc_enable_hsi48(crs_syncsrc_t syncsrc)
    * enabled.
    */
 
-  regval  = getreg32(STM32WB_RCC_CRRCR);
+  regval  = getreg32(STM32_RCC_CRRCR);
   regval |= RCC_CRRCR_HSI48ON;
-  putreg32(regval, STM32WB_RCC_CRRCR);
+  putreg32(regval, STM32_RCC_CRRCR);
 
   /* Wait for the HSI48 clock to stabilize */
 
-  while ((getreg32(STM32WB_RCC_CRRCR) & RCC_CRRCR_HSI48RDY) == 0);
+  while ((getreg32(STM32_RCC_CRRCR) & RCC_CRRCR_HSI48RDY) == 0);
 
   /* Return if no synchronization */
 
@@ -95,7 +97,7 @@ void stm32wb_rcc_enable_hsi48(crs_syncsrc_t syncsrc)
    * clock or the USB SOF signal.
    */
 
-  regval = getreg32(STM32WB_CRS_CFGR);
+  regval = getreg32(STM32_CRS_CFGR);
   regval &= ~CRS_CFGR_SYNCSRC_MASK;
 
   switch (syncsrc)
@@ -114,7 +116,7 @@ void stm32wb_rcc_enable_hsi48(crs_syncsrc_t syncsrc)
         break;
     }
 
-  putreg32(regval, STM32WB_CRS_CFGR);
+  putreg32(regval, STM32_CRS_CFGR);
 
   /* Set the AUTOTRIMEN bit the CRS_CR register to enables the automatic
    * hardware adjustment of TRIM bits according to the measured frequency
@@ -122,13 +124,13 @@ void stm32wb_rcc_enable_hsi48(crs_syncsrc_t syncsrc)
    * frequency error counter and SYNC events.
    */
 
-  regval  = getreg32(STM32WB_CRS_CR);
+  regval  = getreg32(STM32_CRS_CR);
   regval |= CRS_CR_AUTOTRIMEN | CRS_CR_CEN;
-  putreg32(regval, STM32WB_CRS_CR);
+  putreg32(regval, STM32_CRS_CR);
 }
 
 /****************************************************************************
- * Name: stm32wb_rcc_disable_hsi48
+ * Name: stm32_rcc_disable_hsi48
  *
  * Description:
  *   Disable the HSI48 clock.
@@ -141,24 +143,24 @@ void stm32wb_rcc_enable_hsi48(crs_syncsrc_t syncsrc)
  *
  ****************************************************************************/
 
-void stm32wb_rcc_disable_hsi48(void)
+void stm32_rcc_disable_hsi48(void)
 {
   uint32_t regval;
 
   /* Disable the HSI48 clock */
 
-  regval  = getreg32(STM32WB_RCC_CRRCR);
+  regval  = getreg32(STM32_RCC_CRRCR);
   regval &= ~RCC_CRRCR_HSI48ON;
-  putreg32(regval, STM32WB_RCC_CRRCR);
+  putreg32(regval, STM32_RCC_CRRCR);
 
   /* Set other registers to the default settings. */
 
-  regval  = getreg32(STM32WB_CRS_CFGR);
+  regval  = getreg32(STM32_CRS_CFGR);
   regval &= ~CRS_CFGR_SYNCSRC_MASK;
   regval |= CRS_CFGR_SYNCSRC_USBSOF;
-  putreg32(regval, STM32WB_CRS_CFGR);
+  putreg32(regval, STM32_CRS_CFGR);
 
-  regval  = getreg32(STM32WB_CRS_CR);
+  regval  = getreg32(STM32_CRS_CR);
   regval &= ~CRS_CR_AUTOTRIMEN;
-  putreg32(regval, STM32WB_CRS_CR);
+  putreg32(regval, STM32_CRS_CR);
 }

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/video/video_framebuff.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -41,7 +43,6 @@ static void init_buf_chain(video_framebuff_t *fbuf)
 
   fbuf->vbuf_empty = fbuf->vbuf_alloced;
   fbuf->vbuf_next  = NULL;
-  fbuf->vbuf_curr  = NULL;
   fbuf->vbuf_top   = NULL;
   fbuf->vbuf_tail  = NULL;
 
@@ -70,6 +71,11 @@ static inline vbuf_container_t *dequeue_vbuf_unsafe(video_framebuff_t *fbuf)
     }
   else
     {
+      if (fbuf->mode == V4L2_BUF_MODE_RING)
+        {
+          fbuf->vbuf_tail->next = fbuf->vbuf_top->next;
+        }
+
       fbuf->vbuf_top = fbuf->vbuf_top->next;
     }
 
@@ -98,25 +104,38 @@ int video_framebuff_realloc_container(video_framebuff_t *fbuf, int sz)
 {
   vbuf_container_t *vbuf;
 
+  nxmutex_lock(&fbuf->lock_empty);
   if (fbuf->container_size == sz)
     {
+      nxmutex_unlock(&fbuf->lock_empty);
       return OK;
     }
 
-  vbuf = kmm_realloc(fbuf->vbuf_alloced, sizeof(vbuf_container_t) * sz);
-  if (vbuf != NULL)
+  if (sz > 0)
     {
-      memset(vbuf, 0, sizeof(vbuf_container_t) * sz);
+      vbuf = kmm_realloc(fbuf->vbuf_alloced, sizeof(vbuf_container_t) * sz);
+      if (vbuf != NULL)
+        {
+          memset(vbuf, 0, sizeof(vbuf_container_t) * sz);
+          fbuf->vbuf_alloced = vbuf;
+          fbuf->container_size = sz;
+        }
+      else
+        {
+          nxmutex_unlock(&fbuf->lock_empty);
+          return -ENOMEM;
+        }
     }
-  else if (sz != 0)
+  else
     {
-      return -ENOMEM;
+      kmm_free(fbuf->vbuf_alloced);
+      fbuf->vbuf_alloced = NULL;
+      fbuf->container_size = 0;
     }
-
-  fbuf->vbuf_alloced = vbuf;
-  fbuf->container_size = sz;
 
   init_buf_chain(fbuf);
+  nxmutex_unlock(&fbuf->lock_empty);
+
   return OK;
 }
 
@@ -155,7 +174,7 @@ void video_framebuff_queue_container(video_framebuff_t *fbuf,
 {
   irqstate_t flags;
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&fbuf->lock_queue);
   if (fbuf->vbuf_top != NULL)
     {
       fbuf->vbuf_tail->next = tgt;
@@ -180,7 +199,7 @@ void video_framebuff_queue_container(video_framebuff_t *fbuf,
       tgt->next = NULL;
     }
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&fbuf->lock_queue, flags);
 }
 
 vbuf_container_t *video_framebuff_dq_valid_container(video_framebuff_t *fbuf)
@@ -188,13 +207,13 @@ vbuf_container_t *video_framebuff_dq_valid_container(video_framebuff_t *fbuf)
   vbuf_container_t *ret = NULL;
   irqstate_t flags;
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&fbuf->lock_queue);
   if (fbuf->vbuf_top != NULL && fbuf->vbuf_top != fbuf->vbuf_next)
     {
       ret = dequeue_vbuf_unsafe(fbuf);
     }
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&fbuf->lock_queue, flags);
   return ret;
 }
 
@@ -204,16 +223,18 @@ video_framebuff_get_vacant_container(video_framebuff_t *fbuf)
   vbuf_container_t *ret;
   irqstate_t flags;
 
-  flags = enter_critical_section();
-  ret = fbuf->vbuf_curr = fbuf->vbuf_next;
-  leave_critical_section(flags);
+  flags = spin_lock_irqsave(&fbuf->lock_queue);
+  ret = fbuf->vbuf_next;
+  spin_unlock_irqrestore(&fbuf->lock_queue, flags);
 
   return ret;
 }
 
 void video_framebuff_capture_done(video_framebuff_t *fbuf)
 {
-  fbuf->vbuf_curr = NULL;
+  irqstate_t flags;
+
+  flags = spin_lock_irqsave(&fbuf->lock_queue);
   if (fbuf->vbuf_next != NULL)
     {
       fbuf->vbuf_next = fbuf->vbuf_next->next;
@@ -223,6 +244,8 @@ void video_framebuff_capture_done(video_framebuff_t *fbuf)
           fbuf->vbuf_tail = fbuf->vbuf_tail->next;
         }
     }
+
+  spin_unlock_irqrestore(&fbuf->lock_queue, flags);
 }
 
 void video_framebuff_change_mode(video_framebuff_t  *fbuf,
@@ -230,7 +253,7 @@ void video_framebuff_change_mode(video_framebuff_t  *fbuf,
 {
   irqstate_t flags;
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&fbuf->lock_queue);
   if (fbuf->mode != mode)
     {
       if (fbuf->vbuf_tail)
@@ -249,7 +272,7 @@ void video_framebuff_change_mode(video_framebuff_t  *fbuf,
       fbuf->mode = mode;
     }
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&fbuf->lock_queue, flags);
 }
 
 vbuf_container_t *video_framebuff_pop_curr_container(video_framebuff_t *fbuf)
@@ -257,12 +280,12 @@ vbuf_container_t *video_framebuff_pop_curr_container(video_framebuff_t *fbuf)
   vbuf_container_t *ret = NULL;
   irqstate_t flags;
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&fbuf->lock_queue);
   if (fbuf->vbuf_top != NULL)
     {
       ret = dequeue_vbuf_unsafe(fbuf);
     }
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&fbuf->lock_queue, flags);
   return ret;
 }

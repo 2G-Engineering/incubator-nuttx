@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm64/src/common/arm64_allocateheap.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,8 @@
 #include <stdint.h>
 
 #include <assert.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
 #include <nuttx/userspace.h>
@@ -143,7 +146,7 @@ void up_allocate_heap(void **heap_start, size_t *heap_size)
  ****************************************************************************/
 
 #if defined(CONFIG_BUILD_PROTECTED) && defined(CONFIG_MM_KERNEL_HEAP)
-void up_allocate_kheap(void **heap_start, size_t *heap_size)
+void weak_function up_allocate_kheap(void **heap_start, size_t *heap_size)
 {
   /* Get the unaligned size and position of the user-space heap.
    * This heap begins after the user-space .bss section at an offset

@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/audio/cs4344.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -45,7 +47,7 @@
  *   worker thread.
  * CONFIG_CS4344_BUFFER_SIZE - Preferred buffer size
  * CONFIG_CS4344_NUM_BUFFERS - Preferred number of buffers
- * CONFIG_CS4344_WORKER_STACKSIZE - Stack size to use when creating the the
+ * CONFIG_CS4344_WORKER_STACKSIZE - Stack size to use when creating the
  *   CS4344 worker thread.
  * CONFIG_CS4344_REGDUMP - Enable logic to dump all CS4344 registers to
  *   the SYSLOG device.

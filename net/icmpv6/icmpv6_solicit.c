@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/icmpv6/icmpv6_solicit.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/net/net.h>
 #include <nuttx/net/netdev.h>
@@ -95,7 +97,7 @@ void icmpv6_solicit(FAR struct net_driver_s *dev,
   dstaddr[7] = ipaddr[7];
 
   ipv6_build_header(IPv6BUF, l3size, IP_PROTO_ICMP6,
-                    dev->d_ipv6addr, dstaddr, 255, 0);
+                    netdev_ipv6_srcaddr(dev, ipaddr), dstaddr, 255, 0);
 
   /* Set up the ICMPv6 Neighbor Solicitation message */
 
@@ -122,13 +124,15 @@ void icmpv6_solicit(FAR struct net_driver_s *dev,
 
   /* Update device buffer length */
 
-  iob_update_pktlen(dev->d_iob, IPv6_HDRLEN + l3size);
+  iob_update_pktlen(dev->d_iob, IPv6_HDRLEN + l3size, false);
 
   /* Calculate the checksum over both the ICMP header and payload */
 
   sol->chksum   = 0;
-  sol->chksum   = ~icmpv6_chksum(dev, IPv6_HDRLEN);
 
+#ifdef CONFIG_NET_ICMPv6_CHECKSUMS
+  sol->chksum   = ~icmpv6_chksum(dev, IPv6_HDRLEN);
+#endif
   /* Set the size to the size of the IPv6 header and the payload size */
 
   dev->d_len    = IPv6_HDRLEN + l3size;

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/ioexpander/pcf8574.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <sys/param.h>
 
 #include <nuttx/kmalloc.h>
@@ -44,7 +46,6 @@
 
 /* PCF8574xx Helpers */
 
-static int pcf8574_lock(FAR struct pcf8574_dev_s *priv);
 static int pcf8574_read(FAR struct pcf8574_dev_s *priv,
                         FAR uint8_t *portval);
 static int pcf8574_write(struct pcf8574_dev_s *priv, uint8_t portval);
@@ -61,9 +62,9 @@ static int pcf8574_readpin(FAR struct ioexpander_dev_s *dev, uint8_t pin,
              FAR bool *value);
 #ifdef CONFIG_IOEXPANDER_MULTIPIN
 static int pcf8574_multiwritepin(FAR struct ioexpander_dev_s *dev,
-             FAR uint8_t *pins, FAR bool *values, int count);
+             FAR const uint8_t *pins, FAR const bool *values, int count);
 static int pcf8574_multireadpin(FAR struct ioexpander_dev_s *dev,
-             FAR uint8_t *pins, FAR bool *values, int count);
+             FAR const uint8_t *pins, FAR bool *values, int count);
 #endif
 #ifdef CONFIG_IOEXPANDER_INT_ENABLE
 static FAR void *pcf8574_attach(FAR struct ioexpander_dev_s *dev,
@@ -526,8 +527,8 @@ errout_with_lock:
 
 #ifdef CONFIG_IOEXPANDER_MULTIPIN
 static int pcf8574_multiwritepin(FAR struct ioexpander_dev_s *dev,
-                                 FAR uint8_t *pins, FAR bool *values,
-                                 int count)
+                                 FAR const uint8_t *pins,
+                                 FAR const bool *values, int count)
 {
   FAR struct pcf8574_dev_s *priv = (FAR struct pcf8574_dev_s *)dev;
   uint8_t pin;
@@ -556,7 +557,7 @@ static int pcf8574_multiwritepin(FAR struct ioexpander_dev_s *dev,
       pin = pins[i];
       DEBUGASSERT(pin < 8);
 
-      gpioinfo("%d. pin=%u value=%u\n", pin, values[i]);
+      gpioinfo("%d. pin=%u value=%u\n", i, pin, values[i]);
 
       if ((priv->inpins & (1 << pin)) != 0)
         {
@@ -606,8 +607,8 @@ static int pcf8574_multiwritepin(FAR struct ioexpander_dev_s *dev,
 
 #ifdef CONFIG_IOEXPANDER_MULTIPIN
 static int pcf8574_multireadpin(FAR struct ioexpander_dev_s *dev,
-                                FAR uint8_t *pins, FAR bool *values,
-                                int count)
+                                FAR const uint8_t *pins,
+                                FAR bool *values, int count)
 {
   FAR struct pcf8574_dev_s *priv = (FAR struct pcf8574_dev_s *)dev;
   uint8_t regval;
@@ -672,7 +673,7 @@ static int pcf8574_multireadpin(FAR struct ioexpander_dev_s *dev,
           values[i] = ((regval & (1 << pin)) != 0);
         }
 
-      gpioinfo("%d. pin=%u value=%u\n", pin, values[i]);
+      gpioinfo("%d. pin=%u value=%u\n", i, pin, values[i]);
     }
 
   ret = OK;
@@ -840,18 +841,13 @@ static void pcf8574_int_update(void *handle, uint8_t input)
 #endif
 
 /****************************************************************************
- * Name: tc64_update_registers
+ * Name: pcf8574_register_update
  *
  * Description:
  *   Read all pin states and update pending interrupts.
  *
  * Input Parameters:
- *   dev - Device-specific state data
- *   pins - The list of pin indexes to alter in this call
- *   val - The list of pin levels.
- *
- * Returned Value:
- *   0 on success, else a negative error code
+ *   priv - pointer to pcf8574_dev_s structure
  *
  ****************************************************************************/
 
@@ -945,7 +941,6 @@ static void pcf8574_irqworker(void *arg)
 
   /* Re-start the poll timer */
 
-  sched_lock();
   ret = wd_start(&priv->wdog, PCF8574_POLLDELAY,
                  pcf8574_poll_expiry, (wdparm_t)priv);
   if (ret < 0)
@@ -957,10 +952,6 @@ static void pcf8574_irqworker(void *arg)
   /* Re-enable interrupts */
 
   priv->config->enable(priv->config, true);
-
-#ifdef CONFIG_PCF8574_INT_POLL
-  sched_unlock();
-#endif
 }
 #endif
 
@@ -1081,7 +1072,6 @@ FAR struct ioexpander_dev_s *pcf8574_initialize(FAR struct i2c_master_s *i2c,
                               FAR struct pcf8574_config_s *config)
 {
   FAR struct pcf8574_dev_s *priv;
-  int ret;
 
 #ifdef CONFIG_PCF8574_MULTIPLE
   /* Allocate the device state structure */
@@ -1115,9 +1105,8 @@ FAR struct ioexpander_dev_s *pcf8574_initialize(FAR struct i2c_master_s *i2c,
 #ifdef CONFIG_PCF8574_INT_POLL
   /* Set up a timer to poll for missed interrupts */
 
-  ret = wd_start(&priv->wdog, PCF8574_POLLDELAY,
-                 pcf8574_poll_expiry, (wdparm_t)priv);
-  if (ret < 0)
+  if (wd_start(&priv->wdog, PCF8574_POLLDELAY,
+                 pcf8574_poll_expiry, (wdparm_t)priv) < 0)
     {
       gpioerr("ERROR: Failed to start poll timer\n");
     }

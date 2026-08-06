@@ -5,7 +5,7 @@
 
 config BINFMT_DISABLE
 	bool "Disable BINFMT support"
-	default n
+	default DEFAULT_SMALL
 	---help---
 		By default, support for loadable binary formats is built.  This logic
 		may be suppressed by defining this setting.
@@ -22,13 +22,13 @@ config PATH_INITIAL
 
 config BINFMT_LOADABLE
 	bool
-	select BUILD_LOADABLE
+	select MODULES
 	default n
 	---help---
 		Automatically selected if a loadable binary format is selected.
 
 config PIC
-	bool
+	bool "Executable elf position-independent support"
 	default n
 	---help---
 		Automatically selected if the binary format requires position
@@ -50,19 +50,48 @@ config ELF
 	bool "Enable the ELF Binary Format"
 	default n
 	select BINFMT_LOADABLE
-	select LIBC_ARCH_ELF
+	select LIBC_ELF
 	---help---
 		Enable support for the ELF binary format.  Default: n
 
 if ELF
-source "binfmt/libelf/Kconfig"
+config ELF_STACKSIZE
+	int "ELF Stack Size"
+	default DEFAULT_TASK_STACKSIZE
+	---help---
+		This is the default stack size that will be used when starting ELF binaries.
 endif
 endif
 
 config BINFMT_CONSTRUCTORS
 	bool "C++ Static Constructor Support"
 	default n
-	depends on HAVE_CXX && SCHED_STARTHOOK && ELF
+	depends on HAVE_CXX && ELF
 	---help---
 		Built-in support for C++ constructors in loaded modules.  Currently
 		only support for ELF binary formats.
+
+choice
+	prompt "File output format"
+	default BINFMT_ELF_RELOCATABLE
+	---help---
+		Defines the type of ELF file produced by the NuttX build system.
+
+config BINFMT_ELF_RELOCATABLE
+	bool "Relocatable ELF"
+	---help---
+		Produce a relocatable object as output. This is also known as partial linking.
+
+config BINFMT_ELF_EXECUTABLE
+	bool "Executable ELF"
+	depends on ARCH_HAVE_ELF_EXECUTABLE
+	---help---
+		Produce a full linked executable object as output.
+
+endchoice
+
+config BINFMT_STORE_FILENAME
+	bool "Store the binary filename"
+	default n
+	---help---
+		Store the filename of the loaded binary

@@ -1,6 +1,6 @@
-***************************
+===========================
 NSH "Built-In" Applications
-***************************
+===========================
 
 **Overview.** In addition to these commands that are a part of NSH,
 external programs can also be executed as NSH commands. These external
@@ -16,6 +16,8 @@ Built-in application support is enabled with these configuration option:
   -  ``CONFIG_BUILTIN``: Enable NuttX support for builtin applications.
   -  ``CONFIG_NSH_BUILTIN_APPS``: Enable NSH support for builtin
      applications.
+  -  ``CONFIG_NSH_BUILTIN_AS_COMMAND``: Enable NSH run builtin applications
+     directly without creating a separate thread (optional).
 
 When these configuration options are set, you will also be able to see
 the built-in applications if you enter "nsh> help". They will appear at
@@ -27,7 +29,7 @@ Note that no detailed help information beyond the name of the built-in
 application is provided.
 
 Built-In Applications
-~~~~~~~~~~~~~~~~~~~~~
+=====================
 
 **Overview.** The underlying logic that supports the NSH built-in
 applications is called "Built-In Applications". The builtin application
@@ -185,7 +187,7 @@ be mentioned.
      functionality.
 
 Synchronous Built-In Applications
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=================================
 
 By default, built-in commands started from the NSH command line will run
 asynchronously with NSH. If you want to force NSH to execute commands

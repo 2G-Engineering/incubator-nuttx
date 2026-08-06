@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samd2l2/sam_adc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/signal.h>
@@ -469,7 +471,7 @@ struct adc_dev_s *sam_adcinitialize(int genclk)
   g_sam_adc_dev.ad_ops = &sam_adc_ops;
 
   priv->num_channels = BOARD_ADC_NUM_CHANNELS;
-  priv->channels = (int *)kmm_malloc(priv->num_channels * sizeof(int));
+  priv->channels = kmm_malloc(priv->num_channels * sizeof(int));
 
 #if BOARD_ADC_REF == ADC_REFCTRL_REFSEL_VREFA
   sam_configport(PORT_ADC_VREFA);

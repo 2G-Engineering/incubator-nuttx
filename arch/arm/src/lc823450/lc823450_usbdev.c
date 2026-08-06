@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lc823450/lc823450_usbdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,13 +33,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <stddef.h>
 #ifdef CONFIG_SYSTEM_PROPERTY
 #  include <system_property.h>
 #endif
 
+#include <nuttx/nuttx.h>
 #include <nuttx/arch.h>
 #include <nuttx/spinlock.h>
 #include <nuttx/kmalloc.h>
@@ -121,6 +124,7 @@ struct lc823450_usbdev_s
   struct usbdev_s             usbdev;
   struct usbdevclass_driver_s *driver;
   struct lc823450_ep_s        eplist[LC823450_NPHYSENDPOINTS];
+  spinlock_t                  lock;         /* Spinlock */
   int                         bufoffset;
   uint8_t                     used;         /* used phyep */
 #ifdef CONFIG_WAKELOCK
@@ -476,7 +480,7 @@ static int lc823450_epclearreq(struct usbdev_ep_s *ep)
   struct lc823450_ep_s *privep = (struct lc823450_ep_s *)ep;
   irqstate_t flags;
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_usbdev.lock);
   while (privep->req_q.tail)
     {
       struct usbdev_req_s *req;
@@ -493,7 +497,7 @@ static int lc823450_epclearreq(struct usbdev_ep_s *ep)
       req->callback(ep, req);
     }
 
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_usbdev.lock, flags);
   return 0;
 }
 
@@ -658,27 +662,27 @@ static int lc823450_epsubmit(struct usbdev_ep_s *ep,
 
   if (privep->epphy == 0)
     {
-      flags = spin_lock_irqsave(NULL);
+      flags = spin_lock_irqsave(&g_usbdev.lock);
       req->xfrd = epbuf_write(privep->epphy, req->buf, req->len);
-      spin_unlock_irqrestore(NULL, flags);
+      spin_unlock_irqrestore(&g_usbdev.lock, flags);
       req->callback(ep, req);
     }
   else if (privep->in)
     {
       /* Send packet request from function driver */
 
-      flags = spin_lock_irqsave(NULL);
+      flags = spin_lock_irqsave(&g_usbdev.lock);
 
       if ((getreg32(USB_EPCOUNT(privep->epphy * 2)) &
           USB_EPCOUNT_PHYCNT_MASK) >> USB_EPCOUNT_PHYCNT_SHIFT ||
           privep->req_q.tail)
         {
           sq_addfirst(&privreq->q_ent, &privep->req_q); /* non block */
-          spin_unlock_irqrestore(NULL, flags);
+          spin_unlock_irqrestore(&g_usbdev.lock, flags);
         }
        else
         {
-          spin_unlock_irqrestore(NULL, flags);
+          spin_unlock_irqrestore(&g_usbdev.lock, flags);
           req->xfrd = epbuf_write(privep->epphy, req->buf, req->len);
           req->callback(ep, req);
         }
@@ -687,9 +691,9 @@ static int lc823450_epsubmit(struct usbdev_ep_s *ep,
     {
       /* receive packet buffer from function driver */
 
-      flags = spin_lock_irqsave(NULL);
+      flags = spin_lock_irqsave(&g_usbdev.lock);
       sq_addfirst(&privreq->q_ent, &privep->req_q); /* non block */
-      spin_unlock_irqrestore(NULL, flags);
+      spin_unlock_irqrestore(&g_usbdev.lock, flags);
       lc823450_epack(privep->epphy, 1);
     }
 
@@ -713,9 +717,9 @@ static int lc823450_epcancel(struct usbdev_ep_s *ep,
 
   /* Remove request from req_queue */
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_usbdev.lock);
   sq_remafter(&privreq->q_ent, &privep->req_q);
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_usbdev.lock, flags);
   return 0;
 }
 
@@ -734,7 +738,7 @@ static int lc823450_epstall(struct usbdev_ep_s *ep, bool resume)
 
   /* STALL or RESUME the endpoint */
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_usbdev.lock);
   usbtrace(resume ? TRACE_EPRESUME : TRACE_EPSTALL, privep->epphy);
 
   if (resume)
@@ -748,7 +752,7 @@ static int lc823450_epstall(struct usbdev_ep_s *ep, bool resume)
       epcmd_write(privep->epphy, USB_EPCMD_STALL_SET | USB_EPCMD_TGL_SET);
     }
 
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_usbdev.lock, flags);
   return OK;
 }
 
@@ -757,11 +761,11 @@ void up_epignore_clear_stall(struct usbdev_ep_s *ep, bool ignore)
 {
   struct lc823450_ep_s *privep = (struct lc823450_ep_s *)ep;
   irqstate_t flags;
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_usbdev.lock);
 
   privep->ignore_clear_stall = ignore;
 
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_usbdev.lock, flags);
 }
 #endif /* CONFIG_USBMSC_IGNORE_CLEAR_STALL */
 
@@ -918,7 +922,7 @@ static void usb_suspend_work_func(void *arg)
     }
 #endif
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_usbdev.lock);
   if (getreg32(USB_DEVS) & USB_DEVS_SUSPEND)
     {
       uinfo("USB BUS SUSPEND\n");
@@ -933,7 +937,7 @@ static void usb_suspend_work_func(void *arg)
       wake_unlock(&priv->wlock);
     }
 
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_usbdev.lock, flags);
 }
 #endif
 
@@ -1251,7 +1255,7 @@ static void subintr_epin(uint8_t epnum, struct lc823450_ep_s *privep)
   /* Send packet done */
 
   irqstate_t flags;
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_usbdev.lock);
 
   if (privep->req_q.tail)
     {
@@ -1262,7 +1266,7 @@ static void subintr_epin(uint8_t epnum, struct lc823450_ep_s *privep)
 
       q_ent = sq_remlast(&privep->req_q);
 
-      spin_unlock_irqrestore(NULL, flags);
+      spin_unlock_irqrestore(&g_usbdev.lock, flags);
 
       req = &container_of(q_ent, struct lc823450_req_s, q_ent)->req;
 
@@ -1278,7 +1282,7 @@ static void subintr_epin(uint8_t epnum, struct lc823450_ep_s *privep)
     }
   else
     {
-      spin_unlock_irqrestore(NULL, flags);
+      spin_unlock_irqrestore(&g_usbdev.lock, flags);
       epcmd_write(epnum, USB_EPCMD_EMPTY_CLR);
     }
 }
@@ -1296,7 +1300,7 @@ static void subintr_epout(uint8_t epnum, struct lc823450_ep_s *privep)
   /* Packet receive from host */
 
   irqstate_t flags;
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_usbdev.lock);
 
   if (privep->req_q.tail)
     {
@@ -1315,7 +1319,7 @@ static void subintr_epout(uint8_t epnum, struct lc823450_ep_s *privep)
           lc823450_epack(epnum, 0);
         }
 
-      spin_unlock_irqrestore(NULL, flags);
+      spin_unlock_irqrestore(&g_usbdev.lock, flags);
 
       /* PIO */
 
@@ -1328,7 +1332,7 @@ static void subintr_epout(uint8_t epnum, struct lc823450_ep_s *privep)
     }
   else
     {
-      spin_unlock_irqrestore(NULL, flags);
+      spin_unlock_irqrestore(&g_usbdev.lock, flags);
       uinfo("REQ Buffer Exhault\n");
       epcmd_write(epnum, USB_EPCMD_READY_CLR);
     }
@@ -1429,6 +1433,7 @@ void arm_usbinitialize(void)
   memset(&g_usbdev, 0, sizeof(g_usbdev));
   g_usbdev.usbdev.ops = &g_devops;
   g_usbdev.usbdev.ep0 = &g_usbdev.eplist[0].ep;
+  spin_lock_init(&g_usbdev.lock);
 
   for (i = 0; i < LC823450_NPHYSENDPOINTS; i++)
     {
@@ -1576,7 +1581,7 @@ int usbdev_register(struct usbdevclass_driver_s *driver)
 
       putreg32(~USB_DEVS_SOF, USB_DEVS);
 
-      nxsig_usleep(100000);
+      nxsched_usleep(100000);
 
       /* SOF is not arrived & D+/D- is HIGH */
 
@@ -1646,7 +1651,7 @@ int usbdev_unregister(struct usbdevclass_driver_s *driver)
    * canceled while the class driver is still bound.
    */
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_usbdev.lock);
 
 #ifdef CONFIG_WAKELOCK
   /* cancel USB suspend work */
@@ -1682,7 +1687,7 @@ int usbdev_unregister(struct usbdevclass_driver_s *driver)
   pm_unregister(&g_pm_cb);
 #endif /* CONFIG_PM */
 
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_usbdev.lock, flags);
 
 #ifdef CONFIG_LC823450_LSISTBY
   /* disable USB */
@@ -1918,6 +1923,7 @@ void usbdev_msc_stop(void)
  *
  * return value : 0 : charger was not detected.
  *               !0 : charger was detected.
+ *
  ****************************************************************************/
 
 int usbdev_is_usbcharger(void)
@@ -1932,7 +1938,7 @@ static void usbdev_pmnotify(struct pm_callback_s *cb,
 {
   irqstate_t flags;
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_usbdev.lock);
 
   switch (pmstate)
     {
@@ -1955,6 +1961,6 @@ static void usbdev_pmnotify(struct pm_callback_s *cb,
         break;
     }
 
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_usbdev.lock, flags);
 }
 #endif

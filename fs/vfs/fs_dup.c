@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_dup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,9 @@
 #include <fcntl.h>
 
 #include <nuttx/fs/fs.h>
+
 #include "inode/inode.h"
+#include "sched/sched.h"
 
 /****************************************************************************
  * Public Functions
@@ -50,37 +54,10 @@
  *
  ****************************************************************************/
 
-int file_dup(FAR struct file *filep, int minfd, bool cloexec)
+int file_dup(FAR struct file *filep, int minfd, int flags)
 {
-  struct file filep2;
-  int fd2;
-  int ret;
-
-  /* Let file_dup2() do the real work */
-
-  memset(&filep2, 0, sizeof(filep2));
-  ret = file_dup2(filep, &filep2);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  /* Then allocate a new file descriptor for the inode */
-
-  if (cloexec)
-    {
-      filep2.f_oflags |= O_CLOEXEC;
-    }
-
-  fd2 = file_allocate(filep2.f_inode, filep2.f_oflags,
-                      filep2.f_pos, filep2.f_priv, minfd, false);
-  if (fd2 < 0)
-    {
-      file_close(&filep2);
-      return fd2;
-    }
-
-  return fd2;
+  return fdlist_dupfile(nxsched_get_fdlist_from_tcb(this_task()),
+                        flags, minfd, filep);
 }
 
 /****************************************************************************
@@ -98,17 +75,16 @@ int dup(int fd)
 
   /* Get the file structure corresponding to the file descriptor. */
 
-  ret = fs_getfilep(fd, &filep);
+  ret = file_get(fd, &filep);
   if (ret < 0)
     {
       goto err;
     }
 
-  DEBUGASSERT(filep != NULL);
-
   /* Let file_dup() do the real work */
 
   ret = file_dup(filep, 0, 0);
+  file_put(filep);
   if (ret < 0)
     {
       goto err;

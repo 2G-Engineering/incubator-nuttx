@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/common/riscv_switchcontext.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <sched.h>
 #include <syscall.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/sched.h>
@@ -57,42 +59,28 @@
 
 void up_switch_context(struct tcb_s *tcb, struct tcb_s *rtcb)
 {
-  /* Update scheduler parameters */
-
-  nxsched_suspend_scheduler(rtcb);
-
   /* Are we in an interrupt handler? */
 
-  if (CURRENT_REGS)
+  if (up_interrupt_context())
     {
       /* Yes, then we have to do things differently.
-       * Just copy the CURRENT_REGS into the OLD rtcb.
+       * Just copy the current_regs into the OLD rtcb.
        */
 
-      riscv_savestate(rtcb->xcp.regs);
-
-      /* Update scheduler parameters */
-
-      nxsched_resume_scheduler(tcb);
+      riscv_savecontext(rtcb);
 
       /* Then switch contexts.  Any necessary address environment
        * changes will be made when the interrupt returns.
        */
 
-      riscv_restorestate(tcb->xcp.regs);
+      riscv_restorecontext(tcb);
     }
 
   /* No, then we will need to perform the user context switch */
 
   else
     {
-      /* Update scheduler parameters */
-
-      nxsched_resume_scheduler(tcb);
-
-      /* Then switch contexts */
-
-      riscv_switchcontext(&rtcb->xcp.regs, tcb->xcp.regs);
+      riscv_switchcontext();
 
       /* riscv_switchcontext forces a context switch to the task at the
        * head of the ready-to-run list.  It does not 'return' in the

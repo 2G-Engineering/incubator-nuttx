@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/lsm330_spi.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -29,9 +44,10 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/mutex.h>
@@ -45,7 +61,7 @@
 #define LSM330_INITIAL_GYROCR_SIZE 5
 
 /****************************************************************************
- * Private structure definitions
+ * Private Types
  ****************************************************************************/
 
 struct sensor_data_s
@@ -1320,7 +1336,7 @@ int lsm330_register(FAR const char *devpath_acl,
 
   /* Initialize the LSM330 accelerometer device structure. */
 
-  priv = (FAR struct lsm330_dev_s *)kmm_malloc(sizeof(struct lsm330_dev_s));
+  priv = kmm_malloc(sizeof(struct lsm330_dev_s));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate accelerometer instance\n");
@@ -1363,7 +1379,7 @@ int lsm330_register(FAR const char *devpath_acl,
 
   /* Initialize the LSM330 gyroscope device structure. */
 
-  priv = (FAR struct lsm330_dev_s *)kmm_malloc(sizeof(struct lsm330_dev_s));
+  priv = kmm_malloc(sizeof(struct lsm330_dev_s));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate gyroscope instance\n");

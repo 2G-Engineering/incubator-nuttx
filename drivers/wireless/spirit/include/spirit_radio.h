@@ -1,8 +1,9 @@
 /******************************************************************************
  * drivers/wireless/spirit/include/spirit_radio.h
  *
- *   Copyright(c) 2015 STMicroelectronics
- *   Author: VMA division - AMS
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: Copyright(c) 2015 STMicroelectronics
+ * SPDX-FileContributor: Author: VMA division - AMS
  *   Version 3.2.2 08-July-2015
  *
  * Redistribution and use in source and binary forms, with or without
@@ -783,7 +784,7 @@ int spirit_radio_convert_datarate(FAR struct spirit_library_s *spirit,
  *   Returns the mantissa and exponent for a given bandwidth.  Even if it is
  *   possible to pass as parameter any value in the below mentioned range, the
  *   API will search the closer value according to a fixed table of channel
- *   bandwidth values (@ref s_vectnBandwidth), as defined in the datasheet,
+ *   bandwidth values (s_vectnBandwidth), as defined in the datasheet,
  *   returning the corresponding mantissa and exponent value.
  *
  * Input Parameters:
@@ -1167,7 +1168,7 @@ int spirit_radio_set_palevel_dbm(FAR struct spirit_library_s *spirit,
  *   Returns a specific PA_LEVEL register, returning a value in dBm.
  *
  *   NOTE:
- *   This function makes use of the @ref spirit_radio_convert_reg2power fcn to
+ *   This function makes use of the spirit_radio_convert_reg2power fcn to
  *   interpolate the power value.
  *
  * Input Parameters:
@@ -2246,7 +2247,7 @@ int spirit_radio_set_refdiv(FAR struct spirit_library_s *spirit,
  * Name: spirit_radio_get_refdiv
  *
  * Description:
- *   Get the the synthesizer reference divider state.
+ *   Get the synthesizer reference divider state.
  *
  * Input Parameters:
  *   spirit - Reference to a Spirit library state structure instance
@@ -2281,7 +2282,7 @@ int spirit_radio_enable_digdivider(FAR struct spirit_library_s *spirit,
  * Name: spirit_radio_isenabled_digdivider
  *
  * Description:
- *   Get the the synthesizer reference divider state.
+ *   Get the synthesizer reference divider state.
  *
  * Input Parameters:
  *   spirit - Reference to a Spirit library state structure instance

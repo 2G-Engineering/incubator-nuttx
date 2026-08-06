@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/local/local_sendmsg.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,14 +25,13 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#if defined(CONFIG_NET) && defined(CONFIG_NET_LOCAL)
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/net/net.h>
@@ -58,20 +59,29 @@
  ****************************************************************************/
 
 #ifdef CONFIG_NET_LOCAL_SCM
+static void local_freectl(FAR struct local_conn_s *conn, int count)
+{
+  FAR struct local_conn_s *peer = conn->lc_peer;
+
+  while (count-- > 0)
+    {
+      file_put(peer->lc_cfps[--peer->lc_cfpcount]);
+      peer->lc_cfps[peer->lc_cfpcount] = NULL;
+    }
+}
+
 static int local_sendctl(FAR struct local_conn_s *conn,
-                         FAR struct msghdr *msg)
+                         FAR const struct msghdr *msg)
 {
   FAR struct local_conn_s *peer;
-  FAR struct file *filep2;
   FAR struct file *filep;
-  struct cmsghdr *cmsg;
+  FAR struct cmsghdr *cmsg;
   int count = 0;
-  int *fds;
+  FAR int *fds;
   int ret;
   int i = 0;
 
-  net_lock();
-
+  local_lock();
   peer = conn->lc_peer;
   if (peer == NULL)
     {
@@ -88,10 +98,10 @@ static int local_sendctl(FAR struct local_conn_s *conn,
           goto fail;
         }
 
-      fds = (int *)CMSG_DATA(cmsg);
+      fds = (FAR int *)CMSG_DATA(cmsg);
       count = (cmsg->cmsg_len - sizeof(struct cmsghdr)) / sizeof(int);
 
-      if (count + peer->lc_cfpcount > LOCAL_NCONTROLFDS)
+      if (count + peer->lc_cfpcount >= LOCAL_NCONTROLFDS)
         {
           ret = -EMFILE;
           goto fail;
@@ -99,44 +109,22 @@ static int local_sendctl(FAR struct local_conn_s *conn,
 
       for (i = 0; i < count; i++)
         {
-          ret = fs_getfilep(fds[i], &filep);
+          ret = file_get(fds[i], &filep);
           if (ret < 0)
             {
               goto fail;
             }
 
-          filep2 = (FAR struct file *)kmm_zalloc(sizeof(*filep2));
-          if (!filep2)
-            {
-              ret = -ENOMEM;
-              goto fail;
-            }
-
-          ret = file_dup2(filep, filep2);
-          if (ret < 0)
-            {
-              kmm_free(filep2);
-              goto fail;
-            }
-
-          peer->lc_cfps[peer->lc_cfpcount++] = filep2;
+          peer->lc_cfps[peer->lc_cfpcount++] = filep;
         }
     }
 
-  net_unlock();
-
+  local_unlock();
   return count;
 
 fail:
-  while (i-- > 0)
-    {
-      file_close(peer->lc_cfps[--peer->lc_cfpcount]);
-      kmm_free(peer->lc_cfps[peer->lc_cfpcount]);
-      peer->lc_cfps[peer->lc_cfpcount] = NULL;
-    }
-
-  net_unlock();
-
+  local_freectl(conn, i);
+  local_unlock();
   return ret;
 }
 #endif /* CONFIG_NET_LOCAL_SCM */
@@ -170,33 +158,37 @@ static ssize_t local_send(FAR struct socket *psock,
     {
 #ifdef CONFIG_NET_LOCAL_STREAM
       case SOCK_STREAM:
+#endif /* CONFIG_NET_LOCAL_STREAM */
+#ifdef CONFIG_NET_LOCAL_DGRAM
+      case SOCK_DGRAM:
+#endif /* CONFIG_NET_LOCAL_DGRAM */
         {
-          FAR struct local_conn_s *peer;
+          FAR struct local_conn_s *conn = psock->s_conn;
 
           /* Local TCP packet send */
 
-          DEBUGASSERT(psock && psock->s_conn && buf);
-          peer = psock->s_conn;
+          DEBUGASSERT(buf);
 
           /* Verify that this is a connected peer socket and that it has
            * opened the outgoing FIFO for write-only access.
            */
 
-          if (peer->lc_state != LOCAL_STATE_CONNECTED ||
-              peer->lc_outfile.f_inode == NULL)
+          if (conn->lc_state != LOCAL_STATE_CONNECTED)
             {
-              if (peer->lc_state == LOCAL_STATE_CONNECTING)
-                {
-                  return -EAGAIN;
-                }
-
               nerr("ERROR: not connected\n");
               return -ENOTCONN;
             }
 
+          /* Check shutdown state */
+
+          if (conn->lc_outfile.f_inode == NULL)
+            {
+              return -EPIPE;
+            }
+
           /* Send the packet */
 
-          ret = nxmutex_lock(&peer->lc_sendlock);
+          ret = nxmutex_lock(&conn->lc_sendlock);
           if (ret < 0)
             {
               /* May fail because the task was canceled. */
@@ -204,24 +196,10 @@ static ssize_t local_send(FAR struct socket *psock,
               return ret;
             }
 
-          ret = local_send_packet(&peer->lc_outfile, buf, len, false);
-          nxmutex_unlock(&peer->lc_sendlock);
+          ret = local_send_packet(&conn->lc_outfile, buf, len);
+          nxmutex_unlock(&conn->lc_sendlock);
         }
         break;
-#endif /* CONFIG_NET_LOCAL_STREAM */
-
-#ifdef CONFIG_NET_LOCAL_DGRAM
-      case SOCK_DGRAM:
-        {
-          /* Local UDP packet send */
-
-          /* #warning Missing logic */
-
-          ret = -ENOSYS;
-        }
-        break;
-#endif /* CONFIG_NET_LOCAL_DGRAM */
-
       default:
         {
           /* EDESTADDRREQ.  Signifies that the socket is not connection-mode
@@ -269,7 +247,8 @@ static ssize_t local_sendto(FAR struct socket *psock,
 {
 #ifdef CONFIG_NET_LOCAL_DGRAM
   FAR struct local_conn_s *conn = psock->s_conn;
-  FAR struct sockaddr_un *unaddr = (FAR struct sockaddr_un *)to;
+  FAR struct local_conn_s *server;
+  FAR const struct sockaddr_un *unaddr = (FAR const struct sockaddr_un *)to;
   ssize_t ret;
 
   /* Verify that a valid address has been provided */
@@ -279,6 +258,17 @@ static ssize_t local_sendto(FAR struct socket *psock,
       nerr("ERROR: Unrecognized address family: %d\n",
            to->sa_family);
       return -EAFNOSUPPORT;
+    }
+
+  /* At present, only standard pathname type address are support */
+
+  if (tolen < sizeof(sa_family_t) + 2)
+    {
+      /* EFAULT
+       * - An invalid user space address was specified for a parameter
+       */
+
+      return -EFAULT;
     }
 
   /* If this is a connected socket, then return EISCONN */
@@ -303,31 +293,43 @@ static ssize_t local_sendto(FAR struct socket *psock,
       return -EISCONN;
     }
 
+  local_lock();
+
+  server = local_findconn(conn, unaddr);
+  if (server == NULL)
+    {
+      local_unlock();
+      nerr("ERROR: No such file or directory\n");
+      return -ENOENT;
+    }
+
+  local_unlock();
+
+  /* Make sure that dgram is sent safely */
+
+  ret = nxmutex_lock(&conn->lc_sendlock);
+  if (ret < 0)
+    {
+      /* May fail because the task was canceled. */
+
+      nerr("ERROR: Failed to get localsocket sendlock: %zd\n", ret);
+      return ret;
+    }
+
   /* The outgoing FIFO should not be open */
 
   DEBUGASSERT(conn->lc_outfile.f_inode == NULL);
-
-  /* At present, only standard pathname type address are support */
-
-  if (tolen < sizeof(sa_family_t) + 2)
-    {
-      /* EFAULT
-       * - An invalid user space address was specified for a parameter
-       */
-
-      return -EFAULT;
-    }
 
   /* Make sure that half duplex FIFO has been created.
    * REVISIT:  Or should be just make sure that it already exists?
    */
 
-  ret = local_create_halfduplex(conn, unaddr->sun_path);
+  ret = local_create_halfduplex(conn, unaddr->sun_path, server->lc_rcvsize);
   if (ret < 0)
     {
       nerr("ERROR: Failed to create FIFO for %s: %zd\n",
-           conn->lc_path, ret);
-      return ret;
+           unaddr->sun_path, ret);
+      goto errout_with_lock;
     }
 
   /* Open the sending side of the transfer */
@@ -343,25 +345,24 @@ static ssize_t local_sendto(FAR struct socket *psock,
       goto errout_with_halfduplex;
     }
 
-  /* Make sure that dgram is sent safely */
+  /* Send the preamble */
 
-  ret = nxmutex_lock(&conn->lc_sendlock);
+  ret = local_send_preamble(conn, &conn->lc_outfile, buf, len,
+                            server->lc_rcvsize);
   if (ret < 0)
     {
-      /* May fail because the task was canceled. */
-
+      nerr("ERROR: Failed to send the preamble: %zd\n", ret);
       goto errout_with_sender;
     }
 
   /* Send the packet */
 
-  ret = local_send_packet(&conn->lc_outfile, buf, len, true);
+  ret = local_send_packet(&conn->lc_outfile, buf, len);
   if (ret < 0)
     {
       nerr("ERROR: Failed to send the packet: %zd\n", ret);
+      goto errout_with_sender;
     }
-
-  nxmutex_unlock(&conn->lc_sendlock);
 
 errout_with_sender:
 
@@ -375,6 +376,12 @@ errout_with_halfduplex:
   /* Release our reference to the half duplex FIFO */
 
   local_release_halfduplex(conn);
+
+errout_with_lock:
+
+  /* Release localsocket sendlock */
+
+  nxmutex_unlock(&conn->lc_sendlock);
   return ret;
 #else
   return -EISCONN;
@@ -403,13 +410,14 @@ errout_with_halfduplex:
  *
  ****************************************************************************/
 
-ssize_t local_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
+ssize_t local_sendmsg(FAR struct socket *psock, FAR const struct msghdr *msg,
                       int flags)
 {
   FAR const struct sockaddr *to = msg->msg_name;
   FAR const struct iovec *buf = msg->msg_iov;
   socklen_t tolen = msg->msg_namelen;
   size_t len = msg->msg_iovlen;
+
 #ifdef CONFIG_NET_LOCAL_SCM
   FAR struct local_conn_s *conn = psock->s_conn;
   int count = 0;
@@ -423,27 +431,20 @@ ssize_t local_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
           return count;
         }
     }
-#endif /* CONFIG_NET_LOCAL_SCM */
 
   len = to ? local_sendto(psock, buf, len, flags, to, tolen) :
              local_send(psock, buf, len, flags);
-#ifdef CONFIG_NET_LOCAL_SCM
+
   if (len < 0 && count > 0)
     {
-      net_lock();
-
-      while (count-- > 0)
-        {
-          file_close(conn->lc_cfps[--conn->lc_cfpcount]);
-          kmm_free(conn->lc_cfps[conn->lc_cfpcount]);
-          conn->lc_cfps[conn->lc_cfpcount] = NULL;
-        }
-
-      net_unlock();
+      local_lock();
+      local_freectl(conn, count);
+      local_unlock();
     }
+#else
+  len = to ? local_sendto(psock, buf, len, flags, to, tolen) :
+             local_send(psock, buf, len, flags);
 #endif
 
   return len;
 }
-
-#endif /* CONFIG_NET && CONFIG_NET_LOCAL */

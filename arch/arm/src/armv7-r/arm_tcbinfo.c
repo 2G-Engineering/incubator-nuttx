@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv7-r/arm_tcbinfo.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,10 +26,9 @@
 
 #include <nuttx/config.h>
 
-#ifdef CONFIG_DEBUG_TCBINFO
-
 #include <nuttx/sched.h>
 #include <arch/irq.h>
+#include <sys/param.h>
 
 /****************************************************************************
  * Private Data
@@ -53,7 +54,8 @@ static const uint16_t g_reg_offs[] =
   TCB_REG_OFF(REG_R15),
   TCB_REG_OFF(REG_CPSR),
 
-#ifdef CONFIG_ARCH_FPU
+#if 0
+#  ifdef CONFIG_ARCH_FPU
   TCB_REG_OFF(REG_D0),
   TCB_REG_OFF(REG_D1),
   TCB_REG_OFF(REG_D2),
@@ -70,9 +72,9 @@ static const uint16_t g_reg_offs[] =
   TCB_REG_OFF(REG_D13),
   TCB_REG_OFF(REG_D14),
   TCB_REG_OFF(REG_D15),
-#endif
+#  endif
 
-#ifdef CONFIG_ARM_DPFPU32
+#  ifdef CONFIG_ARM_DPFPU32
   TCB_REG_OFF(REG_D16),
   TCB_REG_OFF(REG_D17),
   TCB_REG_OFF(REG_D18),
@@ -89,10 +91,11 @@ static const uint16_t g_reg_offs[] =
   TCB_REG_OFF(REG_D29),
   TCB_REG_OFF(REG_D30),
   TCB_REG_OFF(REG_D31),
-#endif
+#  endif
 
-#ifdef CONFIG_ARCH_FPU
+#  ifdef CONFIG_ARCH_FPU
   TCB_REG_OFF(REG_FPSCR),
+#  endif
 #endif
 };
 
@@ -100,23 +103,21 @@ static const uint16_t g_reg_offs[] =
  * Public Data
  ****************************************************************************/
 
-const struct tcbinfo_s g_tcbinfo =
+const struct tcbinfo_s g_tcbinfo used_data =
 {
-  .pid_off   = TCB_PID_OFF,
-  .state_off = TCB_STATE_OFF,
-  .pri_off   = TCB_PRI_OFF,
-  .name_off  = TCB_NAME_OFF,
-  .regs_off  = TCB_REGS_OFF,
-  .basic_num = 17,
-  .total_num = sizeof(g_reg_offs) / sizeof(g_reg_offs[0]),
+  .pid_off        = TCB_PID_OFF,
+  .state_off      = TCB_STATE_OFF,
+  .pri_off        = TCB_PRI_OFF,
+  .name_off       = TCB_NAME_OFF,
+  .stack_off      = TCB_STACK_OFF,
+  .stack_size_off = TCB_STACK_SIZE_OFF,
+  .regs_off       = TCB_REGS_OFF,
+  .regs_num       = nitems(g_reg_offs),
   {
     .p = g_reg_offs,
   },
 };
 
-#endif
-
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
-

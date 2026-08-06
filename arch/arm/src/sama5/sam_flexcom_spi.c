@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/sama5/sam_flexcom_spi.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -521,7 +523,7 @@ static struct sam_flex_spidev_s g_flexcom4dev =
  *
  * Returned Value:
  *   true:  This is the first register access of this type.
- *   flase: This is the same as the preceding register access.
+ *   false: This is the same as the preceding register access.
  *
  ****************************************************************************/
 
@@ -1813,7 +1815,7 @@ static void flex_spi_recvblock(struct spi_dev_s *dev, void *buffer,
  *   Initialize the selected flexcom SPI port
  *
  * Input Parameters:
- *   port - the 5 flexcom ports only have 2 physial CS lines
+ *   port - the 5 flexcom ports only have 2 physical CS lines
  *        - so there are 10 "logical" ports.
  *
  * Returned Value:
@@ -1857,8 +1859,7 @@ struct spi_dev_s *sam_flex_spibus_initialize(int port)
    * chip select structures.
    */
 
-  flex_spics = (struct sam_flex_spics_s *)kmm_zalloc(
-                sizeof(struct sam_flex_spics_s));
+  flex_spics = kmm_zalloc(sizeof(struct sam_flex_spics_s));
   if (!flex_spics)
     {
       spierr("ERROR: Failed to allocate a flexcom chip select structure\n");

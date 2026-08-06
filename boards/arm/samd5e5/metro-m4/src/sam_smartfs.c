@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/samd5e5/metro-m4/src/sam_smartfs.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "arm_internal.h"
 #include "chip.h"
@@ -145,7 +147,7 @@ int sam_smartfs_initialize(void)
 
               /* Test if this is the config partition */
 
-            #if defined  CONFIG_MTD_CONFIG
+            #ifndef  CONFIG_MTD_CONFIG_NONE
               if (partno == 0)
                 {
                   /* Register the partition as the config device */

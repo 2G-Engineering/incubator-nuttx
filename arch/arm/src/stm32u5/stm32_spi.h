@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32u5/stm32_spi.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -112,21 +114,21 @@ struct spi_slave_ctrlr_s *stm32_spi_slave_initialize(int bus);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32U5_SPI1
+#ifdef CONFIG_STM32_SPI1
 void stm32_spi1select(struct spi_dev_s *dev, uint32_t devid,
                       bool selected);
 uint8_t stm32_spi1status(struct spi_dev_s *dev, uint32_t devid);
 int stm32_spi1cmddata(struct spi_dev_s *dev, uint32_t devid, bool cmd);
 #endif
 
-#ifdef CONFIG_STM32U5_SPI2
+#ifdef CONFIG_STM32_SPI2
 void stm32_spi2select(struct spi_dev_s *dev, uint32_t devid,
                       bool selected);
 uint8_t stm32_spi2status(struct spi_dev_s *dev, uint32_t devid);
 int stm32_spi2cmddata(struct spi_dev_s *dev, uint32_t devid, bool cmd);
 #endif
 
-#ifdef CONFIG_STM32U5_SPI3
+#ifdef CONFIG_STM32_SPI3
 void stm32_spi3select(struct spi_dev_s *dev, uint32_t devid,
                       bool selected);
 uint8_t stm32_spi3status(struct spi_dev_s *dev, uint32_t devid);
@@ -154,17 +156,17 @@ int stm32_spi3cmddata(struct spi_dev_s *dev, uint32_t devid, bool cmd);
  ****************************************************************************/
 
 #ifdef CONFIG_SPI_CALLBACK
-#ifdef CONFIG_STM32U5_SPI1
+#ifdef CONFIG_STM32_SPI1
 int stm32_spi1register(struct spi_dev_s *dev, spi_mediachange_t callback,
                        void *arg);
 #endif
 
-#ifdef CONFIG_STM32U5_SPI2
+#ifdef CONFIG_STM32_SPI2
 int stm32_spi2register(struct spi_dev_s *dev, spi_mediachange_t callback,
                        void *arg);
 #endif
 
-#ifdef CONFIG_STM32U5_SPI3
+#ifdef CONFIG_STM32_SPI3
 int stm32_spi3register(struct spi_dev_s *dev, spi_mediachange_t callback,
                        void *arg);
 #endif

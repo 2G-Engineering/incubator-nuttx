@@ -1,16 +1,8 @@
 /****************************************************************************
  * libs/libc/string/lib_vikmemcpy.c
  *
- * This is version of the optimized memcpy by Daniel Vik, adapted to the
- * NuttX environment.
- *
- *   Copyright (C) 1999-2010 Daniel Vik
- *
- * Adaptations include:
- * - File name change
- * - Use of types defined in stdint.h
- * - Integration with the NuttX configuration system
- * - Other cosmetic changes for consistency with NuttX coding standards
+ * SPDX-License-Identifier: Zlib
+ * SPDX-FileCopyrightText: Copyright (C) 1999-2010 Daniel Vik
  *
  * This software is provided 'as-is', without any express or implied
  * warranty. In no event will the authors be held liable for any
@@ -32,23 +24,6 @@
  * 3. This notice may not be removed or altered from any source
  *    distribution.
  *
- * Description: Implementation of the standard library function memcpy.
- *              This implementation of memcpy() is ANSI-C89 compatible.
- *
- * The following configuration options can be set:
- *
- *   CONFIG_ENDIAN_BIG
- *     Uses processor with big endian addressing. Default is little endian.
- *
- *   CONFIG_MEMCPY_PRE_INC_PTRS
- *     Use pre increment of pointers. Default is post increment of pointers.
- *
- *   CONFIG_MEMCPY_INDEXED_COPY
- *     Copying data using array indexing. Using this option, disables the
- *     CONFIG_MEMCPY_PRE_INC_PTRS option.
- *
- *   CONFIG_MEMCPY_64BIT - Compiles memcpy for 64 bit architectures
- *
  ****************************************************************************/
 
 /****************************************************************************
@@ -64,31 +39,23 @@
 
 #include "libc.h"
 
-#if !defined(CONFIG_LIBC_ARCH_MEMCPY) && defined(LIBC_BUILD_STRING)
+#if !defined(CONFIG_LIBC_ARCH_MEMCPY) && defined(LIBC_BUILD_MEMCPY)
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Can't support CONFIG_MEMCPY_64BIT if the platform does not have 64-bit
- * integer types.
- */
+/* Remove definitions when CONFIG_LIBC_MEMCPY_INDEXED_COPY is defined */
 
-#ifndef CONFIG_HAVE_LONG_LONG
-#  undef CONFIG_MEMCPY_64BIT
-#endif
-
-/* Remove definitions when CONFIG_MEMCPY_INDEXED_COPY is defined */
-
-#if defined (CONFIG_MEMCPY_INDEXED_COPY)
-#  if defined (CONFIG_MEMCPY_PRE_INC_PTRS)
-#    undef CONFIG_MEMCPY_PRE_INC_PTRS
-#  endif /* CONFIG_MEMCPY_PRE_INC_PTRS */
-#endif /* CONFIG_MEMCPY_INDEXED_COPY */
+#ifdef CONFIG_LIBC_MEMCPY_INDEXED_COPY
+#  ifdef CONFIG_LIBC_MEMCPY_PRE_INC_PTRS
+#    undef CONFIG_LIBC_MEMCPY_PRE_INC_PTRS
+#  endif /* CONFIG_LIBC_MEMCPY_PRE_INC_PTRS */
+#endif /* CONFIG_LIBC_MEMCPY_INDEXED_COPY */
 
 /* Definitions for pre and post increment of pointers */
 
-#if defined (CONFIG_MEMCPY_PRE_INC_PTRS)
+#ifdef CONFIG_LIBC_MEMCPY_PRE_INC_PTRS
 
 #  define START_VAL(x)            (x)--
 #  define INC_VAL(x)              *++(x)
@@ -97,7 +64,7 @@
 #  define PRE_LOOP_ADJUST         - (TYPE_WIDTH - 1)
 #  define PRE_SWITCH_ADJUST       + 1
 
-#else /* CONFIG_MEMCPY_PRE_INC_PTRS */
+#else /* CONFIG_LIBC_MEMCPY_PRE_INC_PTRS */
 
 #  define START_VAL(x)
 #  define INC_VAL(x)              *(x)++
@@ -106,7 +73,7 @@
 #  define PRE_LOOP_ADJUST
 #  define PRE_SWITCH_ADJUST
 
-#endif /* CONFIG_MEMCPY_PRE_INC_PTRS */
+#endif /* CONFIG_LIBC_MEMCPY_PRE_INC_PTRS */
 
 /* Definitions for endian-ness */
 
@@ -164,21 +131,21 @@
  * configuration.
  ****************************************************************************/
 
-#if defined (CONFIG_MEMCPY_INDEXED_COPY)
+#ifdef CONFIG_LIBC_MEMCPY_INDEXED_COPY
 
 #  define CP(idx)               CP_INDEX(idx)
 #  define CP_SH(idx, shl, shr)  CP_INDEX_SH(idx, shl, shr)
 
 #  define INC_INDEX(p, o)       ((p) += (o))
 
-#else /* CONFIG_MEMCPY_INDEXED_COPY */
+#else /* CONFIG_LIBC_MEMCPY_INDEXED_COPY */
 
 #  define CP(idx)               CP_INCR()
 #  define CP_SH(idx, shl, shr)  CP_INCR_SH(shl, shr)
 
 #  define INC_INDEX(p, o)
 
-#endif /* CONFIG_MEMCPY_INDEXED_COPY */
+#endif /* CONFIG_LIBC_MEMCPY_INDEXED_COPY */
 
 #define COPY_REMAINING(count)                                     \
 {                                                                 \
@@ -281,7 +248,7 @@
  * Type Definitions
  ****************************************************************************/
 
-#ifdef CONFIG_MEMCPY_64BIT
+#ifdef CONFIG_LIBC_MEMCPY_64BIT
 typedef uint64_t            uintn;
 #  define TYPE_WIDTH        8L
 #else
@@ -332,15 +299,31 @@ FAR void *memcpy(FAR void *dest, FAR const void *src, size_t count)
 
   switch ((((uintptr_t)src8) PRE_SWITCH_ADJUST) & (TYPE_WIDTH - 1))
     {
-    case 0: COPY_NO_SHIFT(); break;
-    case 1: COPY_SHIFT(1);   break;
-    case 2: COPY_SHIFT(2);   break;
-    case 3: COPY_SHIFT(3);   break;
+    case 0:
+      COPY_NO_SHIFT();
+      break;
+    case 1:
+      COPY_SHIFT(1);
+      break;
+    case 2:
+      COPY_SHIFT(2);
+      break;
+    case 3:
+      COPY_SHIFT(3);
+      break;
 #if TYPE_WIDTH > 4
-    case 4: COPY_SHIFT(4);   break;
-    case 5: COPY_SHIFT(5);   break;
-    case 6: COPY_SHIFT(6);   break;
-    case 7: COPY_SHIFT(7);   break;
+    case 4:
+      COPY_SHIFT(4);
+      break;
+    case 5:
+      COPY_SHIFT(5);
+      break;
+    case 6:
+      COPY_SHIFT(6);
+      break;
+    case 7:
+      COPY_SHIFT(7);
+      break;
 #endif
     }
 

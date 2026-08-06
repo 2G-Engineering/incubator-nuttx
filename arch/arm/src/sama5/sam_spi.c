@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/sama5/sam_spi.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -302,7 +304,7 @@ static const struct spi_ops_s g_spi0ops =
   .setfrequency      = spi_setfrequency,
 #ifdef CONFIG_SPI_DELAY_CONTROL
   .setdelay          = spi_setdelay,
-#endif  
+#endif
   .setmode           = spi_setmode,
   .setbits           = spi_setbits,
 #ifdef CONFIG_SPI_HWFEATURES
@@ -395,7 +397,7 @@ static struct sam_spidev_s g_spi1dev =
  *
  * Returned Value:
  *   true:  This is the first register access of this type.
- *   flase: This is the same as the preceding register access.
+ *   false: This is the same as the preceding register access.
  *
  ****************************************************************************/
 
@@ -507,7 +509,7 @@ static void spi_dumpregs(struct sam_spidev_s *spi, const char *msg)
           getreg32(spi->base + SAM_SPI_MR_OFFSET),
           getreg32(spi->base + SAM_SPI_SR_OFFSET),
           getreg32(spi->base + SAM_SPI_IMR_OFFSET));
-  spiinfo("  CSR0:%" PRIx32 " CSR1:%" PRIx32 " CSR2:%" PRIx32 " CSR3:%" \
+  spiinfo("  CSR0:%" PRIx32 " CSR1:%" PRIx32 " CSR2:%" PRIx32 " CSR3:%"
           PRIx32 "\n",
           getreg32(spi->base + SAM_SPI_CSR0_OFFSET),
           getreg32(spi->base + SAM_SPI_CSR1_OFFSET),
@@ -1140,7 +1142,7 @@ static int spi_setdelay(struct spi_dev_s *dev, uint32_t startdelay,
   regval |= (uint32_t) dlybs << SPI_CSR_DLYBS_SHIFT;
   spi_putreg(spi, regval, offset);
 
-  /* stopdelay = DLYBCT: Delay Between Consecutive Transfers.
+  /* ifdelay = DLYBCT: Delay Between Consecutive Transfers.
    * This field defines the delay between two consecutive transfers with the
    * same peripheral without removing the chip select. The delay is always
    * inserted after each transfer and before removing the chip select if
@@ -1154,11 +1156,11 @@ static int spi_setdelay(struct spi_dev_s *dev, uint32_t startdelay,
    */
 
   dlybct  = SAM_SPI_CLOCK;
-  dlybct *= stopdelay;
+  dlybct *= ifdelay;
   dlybct /= 1000000000;
   dlybct /= 32;
 
-  if ((dlybct == 0) && (stopdelay > 0))
+  if ((dlybct == 0) && (ifdelay > 0))
     {
       dlybct++;
     }
@@ -1556,7 +1558,7 @@ static void spi_exchange(struct spi_dev_s *dev, const void *txbuffer,
 
   rxflags = DMACH_FLAG_FIFOCFG_LARGEST | DMACH_FLAG_PERIPHPID(spi->pid) |
             DMACH_FLAG_PERIPHH2SEL | DMACH_FLAG_PERIPHISPERIPH |
-#ifdef ATSAMA5D2            
+#ifdef ATSAMA5D2
             DMACH_FLAG_PERIPHAHB_AHB_IF1 | DMACH_FLAG_PERIPHWIDTH_8BITS |
 #else
             DMACH_FLAG_PERIPHAHB_AHB_IF2 | DMACH_FLAG_PERIPHWIDTH_8BITS |
@@ -1582,7 +1584,7 @@ static void spi_exchange(struct spi_dev_s *dev, const void *txbuffer,
 
   txflags = DMACH_FLAG_FIFOCFG_LARGEST | DMACH_FLAG_PERIPHPID(spi->pid) |
             DMACH_FLAG_PERIPHH2SEL | DMACH_FLAG_PERIPHISPERIPH |
-#ifdef ATSAMA5D2            
+#ifdef ATSAMA5D2
             DMACH_FLAG_PERIPHAHB_AHB_IF1 | DMACH_FLAG_PERIPHWIDTH_8BITS |
 #else
             DMACH_FLAG_PERIPHAHB_AHB_IF2 | DMACH_FLAG_PERIPHWIDTH_8BITS |
@@ -1831,7 +1833,7 @@ struct spi_dev_s *sam_spibus_initialize(int port)
    * chip select structures.
    */
 
-  spics = (struct sam_spics_s *)kmm_zalloc(sizeof(struct sam_spics_s));
+  spics = kmm_zalloc(sizeof(struct sam_spics_s));
   if (!spics)
     {
       spierr("ERROR: Failed to allocate a chip select structure\n");

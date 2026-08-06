@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/lpc31xx/olimex-lpc-h3131/src/lpc31_leds.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <arch/board/board.h>
@@ -74,7 +76,7 @@ void board_autoled_initialize(void)
  *   LED_SIGNAL         2  In a signal handler        N/C      N/C
  *   LED_ASSERTION      2  An assertion failed        N/C      N/C
  *   LED_PANIC          3  The system has crashed     N/C      Blinking
- *   LED_IDLE           -  MCU is is sleep mode         Not used
+ *   LED_IDLE           -  MCU is in sleep mode         Not used
  *
  ****************************************************************************/
 
@@ -120,7 +122,7 @@ void board_autoled_on(int led)
  *   LED_SIGNAL         2  In a signal handler        N/C      N/C
  *   LED_ASSERTION      2  An assertion failed        N/C      N/C
  *   LED_PANIC          3  The system has crashed     N/C      Blinking
- *   LED_IDLE           -  MCU is is sleep mode         Not used
+ *   LED_IDLE           -  MCU is in sleep mode         Not used
  *
  ****************************************************************************/
 

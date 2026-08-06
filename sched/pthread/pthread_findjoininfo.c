@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/pthread/pthread_findjoininfo.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,9 @@
 
 #include <sys/types.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
+
+#include <nuttx/nuttx.h>
 
 #include "group/group.h"
 #include "pthread/pthread.h"
@@ -34,70 +38,6 @@
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: pthread_createjoininfo
- *
- * Description:
- *    Allocate a detachable structure to support pthread_join logic and add
- *    the joininfo to the thread.
- *
- * Input Parameters:
- *   ptcb
- *
- * Returned Value:
- *   joininfo point.
- *
- * Assumptions:
- *
- ****************************************************************************/
-
-static FAR struct join_s *
-pthread_createjoininfo(FAR struct pthread_tcb_s *ptcb)
-{
-  FAR struct join_s *pjoin;
-
-  /* Allocate a detachable structure to support pthread_join logic */
-
-  pjoin = (FAR struct join_s *)kmm_zalloc(sizeof(struct join_s));
-  if (!pjoin)
-    {
-      serr("ERROR: Failed to allocate join\n");
-      return NULL;
-    }
-
-  pjoin->thread = (pthread_t)ptcb->cmn.pid;
-
-  /* Initialize the semaphore in the join structure to zero. */
-
-  if (nxsem_init(&pjoin->exit_sem, 0, 0) < 0)
-    {
-      kmm_free(pjoin);
-      return NULL;
-    }
-  else
-    {
-      FAR struct task_group_s *group = ptcb->cmn.group;
-
-      /* Attach the join info to the TCB. */
-
-      ptcb->joininfo = (FAR void *)pjoin;
-
-      pjoin->next = NULL;
-      if (!group->tg_jointail)
-        {
-          group->tg_joinhead = pjoin;
-        }
-      else
-        {
-          group->tg_jointail->next = pjoin;
-        }
-
-      group->tg_jointail = pjoin;
-    }
-
-  return pjoin;
-}
 
 /****************************************************************************
  * Public Functions
@@ -113,40 +53,64 @@ pthread_createjoininfo(FAR struct pthread_tcb_s *ptcb)
  *   group - The group that the pid is (or was) a member of
  *   pid - The ID of the pthread
  *
+ * Output Parameters:
+ *   pjoin - None or pointer to the found entry
+ *
  * Returned Value:
- *   None or pointer to the found entry.
+ *   0 if successful.  Otherwise, one of the following error codes:
+ *
+ *   EINVAL  The value specified by thread does not refer to joinable
+ *           thread.
+ *   ESRCH   No thread could be found corresponding to that specified by the
+ *           given thread ID.
  *
  * Assumptions:
  *   The caller has provided protection from re-entrancy.
  *
  ****************************************************************************/
 
-FAR struct join_s *pthread_findjoininfo(FAR struct task_group_s *group,
-                                        pid_t pid)
+int pthread_findjoininfo(FAR struct task_group_s *group, pid_t pid,
+                         FAR struct task_join_s **pjoin, bool create)
 {
-  FAR struct join_s *pjoin;
+  FAR struct task_join_s *join;
+  FAR sq_entry_t *curr;
+  FAR sq_entry_t *next;
 
-  DEBUGASSERT(group);
+  nxrmutex_lock(&group->tg_mutex);
 
-  /* Find the entry with the matching pid */
-
-  for (pjoin = group->tg_joinhead;
-       (pjoin && (pid_t)pjoin->thread != pid);
-       pjoin = pjoin->next);
-
-  /* and return it */
-
-  if (pjoin == NULL)
+  sq_for_every_safe(&group->tg_joinqueue, curr, next)
     {
-      FAR struct tcb_s *tcb = nxsched_get_tcb(pid);
+      join = container_of(curr, struct task_join_s, entry);
 
-      if (tcb != NULL && (tcb->flags & TCB_FLAG_DETACHED) == 0 &&
-          (tcb->flags & TCB_FLAG_TTYPE_MASK) == TCB_FLAG_TTYPE_PTHREAD &&
-          tcb->group == group)
+      if (join->pid == pid)
         {
-          pjoin = pthread_createjoininfo((FAR struct pthread_tcb_s *)tcb);
+          goto found;
         }
     }
 
-  return pjoin;
+  nxrmutex_unlock(&group->tg_mutex);
+
+  if (!create)
+    {
+      return EINVAL;
+    }
+
+  join = kmm_zalloc(sizeof(struct task_join_s));
+  if (join == NULL)
+    {
+      return ENOMEM;
+    }
+
+  join->pid = pid;
+
+  nxrmutex_lock(&group->tg_mutex);
+
+  sq_addfirst(&join->entry, &group->tg_joinqueue);
+
+found:
+  nxrmutex_unlock(&group->tg_mutex);
+
+  *pjoin = join;
+
+  return OK;
 }

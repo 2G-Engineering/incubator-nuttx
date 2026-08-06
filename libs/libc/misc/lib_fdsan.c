@@ -1,7 +1,8 @@
 /****************************************************************************
  * libs/libc/misc/lib_fdsan.c
- * Copyright (C) 2018 The Android Open Source Project
- * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-FileCopyrightText: 2018 The Android Open Source Project
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,7 +34,7 @@
 
 #include <android/fdsan.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <setjmp.h>
@@ -136,7 +137,7 @@ int android_fdsan_close_with_tag(int fd, uint64_t expected_tag)
    * If we were expecting to close with a tag, abort on EBADF.
    **************************************************************************/
 
-  if (expected_tag && ret == -1 && errno == EBADF)
+  if (expected_tag && ret == -1 && get_errno() == EBADF)
     {
       ferr("double-close of file descriptor %d detected\n", fd);
       PANIC();
@@ -151,7 +152,7 @@ void android_fdsan_exchange_owner_tag(int fd, uint64_t expected_tag,
   uint64_t tag;
   int ret;
 
-  ret = ioctl(fd, FIOC_GETTAG, &tag);
+  ret = ioctl(fd, FIOC_GETTAG_FDSAN, &tag);
   if (ret < 0)
     {
       return;
@@ -159,7 +160,7 @@ void android_fdsan_exchange_owner_tag(int fd, uint64_t expected_tag,
 
   if (tag == expected_tag)
     {
-      ret = ioctl(fd, FIOC_SETTAG, &new_tag);
+      ret = ioctl(fd, FIOC_SETTAG_FDSAN, &new_tag);
       DEBUGASSERT(ret == 0);
     }
   else
@@ -198,7 +199,7 @@ void android_fdsan_exchange_owner_tag(int fd, uint64_t expected_tag,
            * but expected == actual?
            ******************************************************************/
 
-          ferr("fdsan atomic_compare_exchange_strong failed unexpectedly "
+          ferr("fdsan atomic_cmpxchg failed unexpectedly "
                "while exchanging owner tag\n");
           PANIC();
         }

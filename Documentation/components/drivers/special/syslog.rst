@@ -2,6 +2,11 @@
 SYSLOG
 ======
 
+Overview
+========
+
+.. image:: image/syslog-overview.png
+
 SYSLOG Interfaces
 =================
 
@@ -67,12 +72,32 @@ The above are all standard interfaces as defined at
 Those interfaces are available for use by application software.
 The remaining interfaces discussed in this section are non-standard, OS-internal interfaces.
 
+Early Syslog Interfaces
+-----------------------
+
+Provides a minimal SYSLOG output facility that can be used during the
+very early boot phase or when the system is in a down state, before the
+full SYSLOG subsystem or scheduler becomes available.
+
+.. c::function:: void early_syslog(FAR const char *fmt, ...);
+
+  See ``include/nuttx/syslog/syslog.h``.
+  This function provides basic formatted output similar to printf(),
+  and writes the resulting characters directly to the low-level output
+  device via up_putc(). It is primarily intended for debugging or
+  diagnostic messages in early system contexts, where interrupts may
+  be disabled and locking mechanisms are not yet available.
+
+  The function automatically appends a newline character ('\n') if
+  the formatted message does not already end with one, ensuring proper
+  alignment of log output in serial consoles or early boot traces.
+
 Debug Interfaces
 ----------------
 
 In NuttX, syslog output is really synonymous to debug output and,
 therefore, the debugging interface macros defined in the header
-file ``include/debug.h`` are also syslogging interfaces. Those
+file ``include/nuttx/debug.h`` are also syslogging interfaces. Those
 macros are simply wrappers around ``syslog()``. The debugging
 interfaces differ from the syslog interfaces in that:
 
@@ -149,14 +174,14 @@ defined in ``include/nuttx/syslog/syslog.h``:
   };
 
 The channel interface is instantiated by calling
-:c:func:`syslog_channel()`.
+:c:func:`syslog_channel_register()`.
 
-.. c:function:: int syslog_channel(FAR const struct syslog_channel_s *channel);
+.. c:function:: int syslog_channel_register(FAR syslog_channel_t *channel);
 
   Configure the SYSLOG function to use the provided
   channel to generate SYSLOG output.
 
-  ``syslog_channel()`` is a non-standard, internal OS interface and
+  ``syslog_channel_register()`` is a non-standard, internal OS interface and
   is not available to applications. It may be called numerous times
   as necessary to change channel interfaces. By default, all system
   log output goes to console (``/dev/console``).
@@ -233,6 +258,23 @@ even further initialization. For example, the file SYSLOG channel
 (described below) cannot be initialized until the necessary file
 systems have been mounted.
 
+SYSLOG Channel Filtering
+-----------------------------
+If you enable the CONFIG_SYSLOG_IOCTL configuration, you can enable
+syslog to open or close the specified channel at runtime.
+
+You can control SYSLOG channels by using the ioctl command in NuttX
+with either the SYSLOGIOC_GETCHANNELS or SYSLOGIOC_SETFILTER.
+
+-  ``SYSLOGIOC_GETCHANNELS``. This command can get a list of all channels
+-  ``SYSLOGIOC_SETFILTER``. This command enables/disables the specified channel.
+
+In nsh, you can view/set the syslog channel status through the setlogmask command.
+
+-  ``setlogmask list``. Print all channel status
+-  ``setlogmask <enable/disable> <channel>``. Enable or disable the
+   specified channel.
+
 Interrupt Level SYSLOG Output
 -----------------------------
 
@@ -246,8 +288,8 @@ There are three conditions under which SYSLOG output generated
 from interrupt level processing can a included the SYSLOG output
 stream:
 
-  #. **Low-Level Serial Output**. If you are using a SYSLOG console
-     channel (``CONFIG_SYSLOG_CONSOLE``) and if the underlying
+  #. **Low-Level Serial Output**. If you are using the "default" SYSLOG
+     channel (``CONFIG_SYSLOG_DEFAULT``) and if the underlying
      architecture supports the low-level ``up_putc()``
      interface(\ ``CONFIG_ARCH_LOWPUTC``), then the SYSLOG logic
      will direct the output to ``up_putc()`` which is capable of
@@ -346,7 +388,7 @@ serial console is used and ``up_putc()`` is supported.
   device is used for a console -- such as a USB console or a Telnet
   console. The SYSLOG channel is not redirected as ``stdout`` is;
   the SYSLOG channel will stayed fixed (unless it is explicitly
-  changed via ``syslog_channel()``).
+  changed via ``syslog_channel_register()``).
 
 References: ``drivers/syslog/syslog_consolechannel.c`` and
 ``drivers/syslog/syslog_device.c``
@@ -391,16 +433,16 @@ mounting of the file systems.
 The interface ``syslog_file_channel()`` is used to configure the
 SYSLOG file channel:
 
-.. c:function:: FAR struct syslog_channel_s * \
+.. c:function:: FAR syslog_channel_t * \
                     syslog_file_channel(FAR const char *devpath);
 
   Configure to use a file in a mounted file system
   at ``devpath`` as the SYSLOG channel.
 
   This tiny function is simply a wrapper around
-  ``syslog_dev_initialize()`` and ``syslog_channel()``. It calls
+  ``syslog_dev_initialize()`` and ``syslog_channel_register()``. It calls
   ``syslog_dev_initialize()`` to configure the character file at
-  ``devpath`` then calls ``syslog_channel()`` to use that device as
+  ``devpath`` then calls ``syslog_channel_register()`` to use that device as
   the SYSLOG output channel.
 
   File SYSLOG channels differ from other SYSLOG channels in that
@@ -490,7 +532,7 @@ RAMLOG Configuration options
 
 Other miscellaneous settings
 
--  ``CONFIG_RAMLOG_CRLF``: Pre-pend a carriage return before every
+-  ``CONFIG_RAMLOG_CRLF``: Prepend a carriage return before every
    linefeed that goes into the RAM log.
 
 -  ``CONFIG_RAMLOG_NONBLOCKING``: Reading from the RAMLOG will
@@ -501,3 +543,214 @@ Other miscellaneous settings
 
 -  ``CONFIG_RAMLOG_NPOLLWAITERS``: The maximum number of threads
    that may be waiting on the poll method.
+
+RAMLOG Rate Limiting
+--------------------
+
+The RAMLOG SYSLOG channel supports rate limiting to prevent log flooding.
+You can set or get the rate limit using the following IOCTLs:
+
+- ``SYSLOGIOC_SETRATELIMIT``: Set the rate limit.
+- ``SYSLOGIOC_GETRATELIMIT``: Get the current rate limit.
+
+The argument is a pointer to:
+
+.. code-block:: c
+
+   struct syslog_ratelimit_s
+   {
+     unsigned int interval; /* The interval in seconds */
+     unsigned int burst;    /* The max allowed log entries during interval */
+   };
+
+**Example (C code):**
+
+.. code-block:: c
+
+   struct syslog_ratelimit_s limit = { .interval = 1, .burst = 100 };
+   ioctl(fd, SYSLOGIOC_SETRATELIMIT, (unsigned long)&limit);
+
+**NSH Tool Example: setlograte**
+
+You can implement a simple NSH command to control the RAMLOG rate limit at runtime, similar to setlogmask:
+
+.. code-block:: c
+
+   int cmd_setlograte(int argc, char **argv)
+   {
+     int fd;
+     struct syslog_ratelimit_s limit;
+
+     if (argc != 3)
+       {
+         printf("Usage: setlograte <interval_sec> <burst>\n");
+         return -1;
+       }
+
+     limit.interval = atoi(argv[1]);
+     limit.burst = atoi(argv[2]);
+
+     fd = open("/dev/ramlog", O_RDWR);
+     if (fd < 0)
+       {
+         printf("Failed to open /dev/ramlog\n");
+         return -1;
+       }
+
+     if (ioctl(fd, SYSLOGIOC_SETRATELIMIT, (unsigned long)&limit) < 0)
+       {
+         printf("Failed to set rate limit\n");
+         close(fd);
+         return -1;
+       }
+
+     printf("Set RAMLOG rate limit: interval=%u sec, burst=%u\n", limit.interval, limit.burst);
+     close(fd);
+     return 0;
+   }
+
+This command allows you to set the maximum number of log entries (burst) allowed in a given interval (seconds) for the RAMLOG device at runtime.
+
+Syslog Configuration Options
+============================
+
+Syslog functionality is fully controlled by Kconfig options, which are grouped
+below by their functional role (matching the syslog system architecture). All
+options are prefixed with ``CONFIG_SYSLOG_`` and follow NuttX's RTOS configuration
+conventions.
+
+Basic Debug Log Level Configuration
+-----------------------------------
+These options control the base debug assertion and log level filtering,
+defining which severity levels of messages are captured by the syslog system.
+
+- ``CONFIG_DEBUG_ASSERT``: Enable assertion checks in the syslog subsystem.
+- ``CONFIG_DEBUG_ERROR``: Enable logging of error-level (``LOG_ERR``) messages.
+- ``CONFIG_DEBUG_WARN``: Enable logging of warning-level (``LOG_WARNING``) messages.
+- ``CONFIG_DEBUG_INFO``: Enable logging of info-level (``LOG_INFO``) messages.
+
+Additionally, runtime log level filtering is supported via:
+- ``CONFIG_SYSTEM_SETLOGMASK``: Enable the ``setlogmask(int mask)`` API, allowing dynamic adjustment of log levels at runtime.
+
+Message Formatting Configuration
+--------------------------------
+These options define the metadata and visual formatting of syslog messages,
+including timestamps, identifiers, and color coding.
+
+Timestamp Configuration
+-----------------------
+- ``CONFIG_SYSLOG_TIMESTAMP``: Enable timestamp addition to all syslog messages.
+- ``CONFIG_SYSLOG_TIMESTAMP_MS``:  Use millisecond (ms) precision in timestamps, replacing the default microsecond (µs) precision. (requires ``CONFIG_SYSLOG_TIMESTAMP``).
+- ``CONFIG_SYSLOG_TIMESTAMP_REALTIME``: Use real-time clock (RTC) time for timestamps (requires ``CONFIG_SYSLOG_TIMESTAMP``).
+- ``CONFIG_SYSLOG_TIMESTAMP_FORMATTED``: Enable custom formatted timestamps (requires ``CONFIG_SYSLOG_TIMESTAMP``).
+- ``CONFIG_SYSLOG_TIMESTAMP_FORMAT``: Define custom timestamp format string (default: ``"%d/%m/%y %H:%M:%S"``, requires ``CONFIG_SYSLOG_TIMESTAMP_FORMATTED``).
+- ``CONFIG_SYSLOG_TIMESTAMP_LOCALTIME``: Use local time (instead of UTC) for timestamps (requires ``CONFIG_SYSLOG_TIMESTAMP_REALTIME``).
+
+Message Metadata & Prefix
+-------------------------
+- ``CONFIG_SYSLOG_PRIORITY``: Include message priority level in the syslog prefix.
+- ``CONFIG_SYSLOG_PROCESS_NAME``: Include the process name in the syslog prefix.
+- ``CONFIG_SYSLOG_PROCESSID``: Include the process ID (PID) in the syslog prefix.
+- ``CONFIG_SYSLOG_CPUID``: Include the CPU ID (for SMP systems) in the syslog prefix.
+- ``CONFIG_SYSLOG_PREFIX``: Enable custom prefix support for syslog messages.
+- ``CONFIG_SYSLOG_PREFIX_STRING``: Define a static custom string to prepend to all syslog messages (requires ``CONFIG_SYSLOG_PREFIX``).
+
+Visual Formatting
+-----------------
+- ``CONFIG_SYSLOG_COLOR_OUTPUT``: Enable ANSI color coding for syslog messages (differentiates log levels visually).
+
+Core System & Buffer Configuration
+----------------------------------
+These options control the core syslog system infrastructure, including buffering
+and low-level formatting dependencies.
+
+- ``CONFIG_SYSLOG_BUFFER``: Enable a dedicated buffer for syslog messages to prevent loss.
+- ``CONFIG_SYSLOG_INTBUFFER``: Enable an interrupt-safe buffer for syslog messages (critical for interrupt context logging).
+- ``CONFIG_SYSLOG_CRLF``: Automatically convert line feeds (``\n``) to carriage return + line feed (``\r\n``) in output.
+- ``lib_vsprintf``: (Implicit dependency) The syslog system relies on NuttX's ``lib_vsprintf`` for message formatting.
+
+Output Channel Configuration
+----------------------------
+Syslog supports multiple output channels, with configuration options to enable
+channels and their respective destinations. The maximum number of channels is
+fixed at compile time.
+
+Core Channel Settings
+---------------------
+- ``CONFIG_SYSLOG_MAX_CHANNELS``: Set the maximum number of syslog channels (default: 1 in the architecture, configurable per platform).
+- ``CONFIG_SYSLOG_DEFAULT``: Enable the **default channel** (maps to UART output).
+- ``CONFIG_SYSLOG_CRLF``: (Shared) Applies line ending conversion to all channel output.
+
+Individual Channel & Destination Options
+----------------------------------------
+- ``CONFIG_SYSLOG_RAMLOG``: Enable the **ramlog channel** (outputs syslog messages to RAM for later retrieval).
+- ``CONFIG_SYSLOG_RPMSG``: Enable the **rpmsg channel** (routes syslog messages over IPC via rpmsg).
+- ``CONFIG_SYSLOG_FILE``: Enable the **dev channel** (supports output to character devices or regular files via a character driver).
+
+Stdout Stream Integration
+-------------------------
+- ``stdout stream``: (Implicit) Syslog messages are forwarded to the standard ``stdout`` stream, which maps to ``/dev/console`` by default.
+
+Driver Implementation
+=====================
+
+The syslog driver is implemented as a special character driver. It uses the
+NuttX logging infrastructure to collect messages and route them to the
+configured output channels. The driver supports:
+
+- **Multiple Outputs**: Simultaneous logging to UART, RAM, IPC, files, and ``/dev/console``.
+- **Interrupt Safety**: Via ``CONFIG_SYSLOG_INTBUFFER``, safe for logging from interrupt handlers.
+- **Format Flexibility**: Configurable timestamps, prefixes, and color coding for readability.
+- **POSIX Compatibility**: Aligns with POSIX syslog semantics while optimizing for embedded RTOS constraints.
+
+API Reference
+=============
+
+The syslog driver provides an API compatible with the POSIX ``syslog()``
+function, as well as NuttX-specific extensions for runtime configuration:
+
+- ``void syslog(int priority, const char *format, ...)``: Log a message with a specified priority.
+- ``int setlogmask(int mask)``: Set the log level mask (enabled if ``CONFIG_SYSTEM_SETLOGMASK`` is defined).
+- ``void vsyslog(int priority, const char *format, va_list ap)``: Variadic version of ``syslog()`` for use in custom wrappers.
+
+Usage Notes
+===========
+
+1. **Interrupt Context Logging**: Always enable ``CONFIG_SYSLOG_INTBUFFER`` if logging from interrupt handlers to avoid race conditions.
+2. **RAM Log Usage**: The RAM log (``CONFIG_SYSLOG_RAMLOG``) is useful for systems without persistent storage; retrieve logs via the ramlog driver.
+3. **rpmsg Logging**: When using ``CONFIG_SYSLOG_RPMSG``, ensure the rpmsg subsystem is properly configured for inter-processor communication.
+4. **Timestamps**: For accurate real-time timestamps, enable an RTC driver and ``CONFIG_SYSLOG_TIMESTAMP_REALTIME``.
+5. **Color Output**: Disable ``CONFIG_SYSLOG_COLOR_OUTPUT`` if logging to non-ANSI terminals (e.g., raw UART terminals without color support).
+
+SYSLOG Protocol (RFC 5424)
+==========================
+
+`RFC 5424 <https://www.rfc-editor.org/rfc/rfc5424>`_ is a protocol defined for
+syslog messages which makes provisions to have logs created by "originators" to
+be saved on "collectors" (log servers).
+
+NuttX is capable of generating RFC 5424 compatible ``syslog`` entries with the
+option ``CONFIG_SYSLOG_RFC5424``. Not all features of RFC 5424 are currently
+implemented, such as the ``HOSTNAME`` field or ``MSGID`` fields. However, the
+majority of the RFC 5424 functionality is in place and allows for a NuttX device
+to become a RFC 5424 originator.
+
+Syslog over the network
+-----------------------
+
+Using RFC 5424, network capable NuttX devices can become originators and
+transmit ``syslog`` entries to a collector (log server). This is currently
+possible using the basic UDP implementation with
+:doc:`/applications/system/syslogd/index`.
+
+If using ``syslogd``, it is recommended to use the ``RAMLOG`` device as the
+syslog sink. This allows very fast recording of logs, which unlocks the
+ability to record logs from interrupt contexts or time-sensitive code. The
+``syslogd`` daemon can then transmit these later from user space. As stated
+in :doc:`the syslogd documentation </applications/system/syslogd/index>`, it is
+recommended to configure ``RAMLOG`` in blocking mode.
+
+Once messages are set up for transmission with ``syslogd``, you can consume them
+on another network capable host device using one of the RFC 5424 compatible log
+servers. You're even able to use `WireShark <https://www.wireshark.org/>`_ to
+view and parse ``syslog`` entries in your packet captures.

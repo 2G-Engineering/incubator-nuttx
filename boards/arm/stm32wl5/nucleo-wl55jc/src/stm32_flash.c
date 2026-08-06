@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32wl5/nucleo-wl55jc/src/stm32_flash.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <nuttx/fs/smart.h>
 #include <nuttx/fs/fs.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 
 #include "nucleo-wl55jc.h"
@@ -89,7 +91,7 @@
 #   warning "There is unused space on flash"
 #endif
 
-#define FLASH_PAGE_SIZE    STM32WL5_FLASH_PAGESIZE
+#define FLASH_PAGE_SIZE    STM32_FLASH_PAGESIZE
 
 /****************************************************************************
  * Private Definitions
@@ -171,7 +173,7 @@ static const struct part_table part_table[] =
  * Public Functions
  ****************************************************************************/
 
-int stm32wl5_flash_init(void)
+int stm32_flash_init(void)
 {
   struct mtd_dev_s *mtd;
   struct mtd_dev_s *mtd_part;
@@ -180,6 +182,7 @@ int stm32wl5_flash_init(void)
   int mtdblk_minor;
   int smart_minor;
   int nxf_minor;
+  char path[32];
   int ret;
   int i;
 
@@ -252,12 +255,15 @@ int stm32wl5_flash_init(void)
 
       if (strcmp(fs, "rawfs") == 0)
         {
-          /* for raw fs just create mtdblock using ftl */
+          /* Register the MTD driver */
 
-          if ((ret = ftl_initialize(mtdblk_minor, mtd_part)))
+          snprintf(path, sizeof(path), "/dev/mtdblock%d", mtdblk_minor);
+          ret = register_mtddriver(path, mtd, 0755, NULL);
+          if (ret < 0)
             {
-              ferr("[%s]ERROR: ftl_initialize failed %d\n", name, ret);
-              continue;
+              ferr("[%s]ERROR:Failed to register the MTD driver %s ret %d\n",
+                   name, path, ret);
+              return ret;
             }
 
           mtdblk_minor++;
@@ -324,7 +330,7 @@ int stm32wl5_flash_init(void)
         }
 #endif
 
-#if defined(CONFIG_MTD_CONFIG)
+#if !defined(CONFIG_MTD_CONFIG_NONE)
       else if (strcmp(fs, "mtdconfig") == 0)
         {
           if (mtdconfig_minor)

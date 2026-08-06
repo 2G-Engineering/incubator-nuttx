@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/local/local_connect.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,19 +30,18 @@
 #include <unistd.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/queue.h>
 #include <nuttx/net/net.h>
 
 #include <arch/irq.h>
 #include <sys/stat.h>
+#include <sys/param.h>
 
 #include "utils/utils.h"
 #include "socket/socket.h"
 #include "local/local.h"
-
-#ifdef CONFIG_NET_LOCAL_STREAM
 
 /****************************************************************************
  * Private Functions
@@ -68,6 +69,7 @@ static int inline local_stream_connect(FAR struct local_conn_s *client,
                                        FAR struct local_conn_s *server,
                                        bool nonblock)
 {
+  FAR struct local_conn_s *conn;
   int ret;
   int sval;
 
@@ -86,19 +88,11 @@ static int inline local_stream_connect(FAR struct local_conn_s *client,
       return -ECONNREFUSED;
     }
 
-  /* Increment the number of pending server connection s */
-
-  server->u.server.lc_pending++;
-  DEBUGASSERT(server->u.server.lc_pending != 0);
-
-  /* Create the FIFOs needed for the connection */
-
-  ret = local_create_fifos(client);
+  ret = local_alloc_accept(server, client, &conn);
   if (ret < 0)
     {
-      nerr("ERROR: Failed to create FIFOs for %s: %d\n",
+      nerr("ERROR: Failed to alloc accept conn %s: %d\n",
            client->lc_path, ret);
-
       return ret;
     }
 
@@ -106,25 +100,38 @@ static int inline local_stream_connect(FAR struct local_conn_s *client,
    * prevent the server-side from blocking as well.
    */
 
-  ret = local_open_client_tx(client, nonblock);
+  ret = local_open_client_tx(client, conn, nonblock);
   if (ret < 0)
     {
       nerr("ERROR: Failed to open write-only FIFOs for %s: %d\n",
            client->lc_path, ret);
-
-      goto errout_with_fifos;
+      goto errout_with_conn;
     }
 
   DEBUGASSERT(client->lc_outfile.f_inode != NULL);
 
-  /* Set the busy "result" before giving the semaphore. */
-
-  client->u.client.lc_result = -EBUSY;
   client->lc_state = LOCAL_STATE_ACCEPT;
+
+  /* Yes.. open the read-only FIFO */
+
+  ret = local_open_client_rx(client, conn, nonblock);
+  if (ret < 0)
+    {
+      nerr("ERROR: Failed to open read-only FIFOs for %s: %d\n",
+           client->lc_path, ret);
+      goto errout_with_outfd;
+    }
+
+  DEBUGASSERT(client->lc_infile.f_inode != NULL);
+
+  /* Increment the number of pending server connections */
+
+  server->u.server.lc_pending++;
+  DEBUGASSERT(server->u.server.lc_pending != 0);
 
   /* Add ourself to the list of waiting connections and notify the server. */
 
-  dq_addlast(&client->u.client.lc_waiter, &server->u.server.lc_waiters);
+  dq_addlast(&conn->u.accept.lc_waiter, &server->u.server.lc_waiters);
   local_event_pollnotify(server, POLLIN);
 
   if (nxsem_get_value(&server->lc_waitsem, &sval) >= 0 && sval < 1)
@@ -132,56 +139,20 @@ static int inline local_stream_connect(FAR struct local_conn_s *client,
       nxsem_post(&server->lc_waitsem);
     }
 
-  /* Wait for the server to accept the connections */
-
-  if (!nonblock)
-    {
-      do
-        {
-          net_sem_wait_uninterruptible(&client->lc_waitsem);
-          ret = client->u.client.lc_result;
-        }
-      while (ret == -EBUSY);
-
-      /* Did we successfully connect? */
-
-      if (ret < 0)
-        {
-          nerr("ERROR: Failed to connect: %d\n", ret);
-          goto errout_with_outfd;
-        }
-    }
-
-  /* Yes.. open the read-only FIFO */
-
-  ret = local_open_client_rx(client, nonblock);
-  if (ret < 0)
-    {
-      nerr("ERROR: Failed to open write-only FIFOs for %s: %d\n",
-           client->lc_path, ret);
-      goto errout_with_outfd;
-    }
-
-  DEBUGASSERT(client->lc_infile.f_inode != NULL);
-
-  nxsem_post(&client->lc_donesem);
-
-  if (!nonblock)
-    {
-      client->lc_state = LOCAL_STATE_CONNECTED;
-      return ret;
-    }
-
-  client->lc_state = LOCAL_STATE_CONNECTING;
-  return -EINPROGRESS;
+  client->lc_state = LOCAL_STATE_CONNECTED;
+  return ret;
 
 errout_with_outfd:
   file_close(&client->lc_outfile);
   client->lc_outfile.f_inode = NULL;
 
-errout_with_fifos:
-  local_release_fifos(client);
+errout_with_conn:
+  local_release_fifos(conn);
   client->lc_state = LOCAL_STATE_BOUND;
+  local_lock();
+  local_free(conn);
+  local_unlock();
+
   return ret;
 }
 
@@ -202,7 +173,7 @@ int32_t local_generate_instance_id(void)
   static int32_t g_next_instance_id = 0;
   int32_t id;
 
-  /* Called from local_connect with net_lock held. */
+  /* Called from local_connect with local_lock held. */
 
   id = g_next_instance_id++;
   if (g_next_instance_id < 0)
@@ -237,16 +208,13 @@ int32_t local_generate_instance_id(void)
 int psock_local_connect(FAR struct socket *psock,
                         FAR const struct sockaddr *addr)
 {
-  FAR struct local_conn_s *client;
+  FAR struct local_conn_s *client = psock->s_conn;
   FAR struct sockaddr_un *unaddr = (FAR struct sockaddr_un *)addr;
   FAR const char *unpath = unaddr->sun_path;
   FAR struct local_conn_s *conn = NULL;
   uint8_t type = LOCAL_TYPE_PATHNAME;
   struct stat buf;
-  int ret;
-
-  DEBUGASSERT(psock && psock->s_conn);
-  client = psock->s_conn;
+  int ret = OK;
 
   if (client->lc_state == LOCAL_STATE_ACCEPT ||
       client->lc_state == LOCAL_STATE_CONNECTED)
@@ -262,12 +230,12 @@ int psock_local_connect(FAR struct socket *psock,
 
   /* Find the matching server connection */
 
-  net_lock();
+  local_lock();
   while ((conn = local_nextconn(conn)) != NULL)
     {
-      /* Slef found, continue */
+      /* Self found, continue */
 
-      if (conn == psock->s_conn)
+      if (conn == client)
         {
           continue;
         }
@@ -290,13 +258,10 @@ int psock_local_connect(FAR struct socket *psock,
               conn->lc_type == type && conn->lc_proto == SOCK_STREAM &&
               strncmp(conn->lc_path, unpath, UNIX_PATH_MAX - 1) == 0)
             {
-              ret = OK;
-
               /* Bind the address and protocol */
 
               client->lc_type  = conn->lc_type;
               client->lc_proto = conn->lc_proto;
-              strlcpy(client->lc_path, unpath, sizeof(client->lc_path));
               client->lc_instance_id = local_generate_instance_id();
 
               /* The client is now bound to an address */
@@ -305,13 +270,10 @@ int psock_local_connect(FAR struct socket *psock,
 
               /* We have to do more for the SOCK_STREAM family */
 
-              if (conn->lc_proto == SOCK_STREAM)
-                {
-                  ret = local_stream_connect(client, conn,
+              ret = local_stream_connect(client, conn,
                           _SS_ISNONBLOCK(client->lc_conn.s_flags));
-                }
 
-              net_unlock();
+              local_unlock();
               return ret;
             }
 
@@ -319,14 +281,12 @@ int psock_local_connect(FAR struct socket *psock,
 
         default:        /* Bad, memory must be corrupted */
           DEBUGPANIC(); /* PANIC if debug on */
-          net_unlock();
+          local_unlock();
           return -EINVAL;
         }
     }
 
-  net_unlock();
+  local_unlock();
   ret = nx_stat(unpath, &buf, 1);
   return ret < 0 ? ret : -ECONNREFUSED;
 }
-
-#endif /* CONFIG_NET_LOCAL_STREAM */

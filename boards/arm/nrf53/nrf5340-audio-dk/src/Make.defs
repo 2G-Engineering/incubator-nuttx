@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/nrf53/nrf5340-audio-dk/src/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -22,10 +24,6 @@ include $(TOPDIR)/Make.defs
 
 CSRCS = nrf53_boot.c nrf53_bringup.c
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += nrf53_appinit.c
-endif
-
 ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += nrf53_autoleds.c
 else
@@ -34,4 +32,4 @@ endif
 
 DEPPATH += --dep-path board
 VPATH += :board
-CFLAGS += $(shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board)
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board

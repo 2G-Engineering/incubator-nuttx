@@ -1,6 +1,8 @@
 ############################################################################
 # libs/libc/zoneinfo/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -46,7 +48,7 @@ $(COBJS): %$(OBJEXT): %.c
 	$(call COMPILE, $<, $@)
 
 .built: .tzbuilt romfs $(OBJS)
-	$(call ARCHIVE_ADD, ..$(DELIM)$(BIN), $(OBJS))
+	$(call ARCHIVE, ..$(DELIM)$(BIN), $(OBJS))
 	$(Q) touch .built
 
 # ROMFS file system containing the TZ database
@@ -118,6 +120,7 @@ clean:
 	$(call CLEAN)
 
 distclean: clean
+	$(call DELFILE, $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds))
 	$(call DELFILE, Make.dep)
 	$(call DELFILE, .depend)
 	$(call DELFILE, .tzunpack)

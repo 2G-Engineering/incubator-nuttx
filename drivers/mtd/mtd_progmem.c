@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/mtd/mtd_progmem.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -101,8 +103,10 @@ static struct progmem_dev_s g_progmem =
     progmem_write,
 #endif
     progmem_ioctl,
+#ifdef CONFIG_FTL_BBM
     NULL,
     NULL,
+#endif
     "progmem",
   }
 };

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/hc/src/common/hc_doirq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,6 +34,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
 #include <arch/board/board.h>
+#include <sched/sched.h>
 
 #include "hc_internal.h"
 
@@ -57,6 +60,11 @@
 
 uint8_t *hc_doirq(int irq, uint8_t *regs)
 {
+  struct tcb_s **running_task = &g_running_tasks[this_cpu()];
+  struct tcb_s *tcb;
+
+  hc_copystate((*running_task)->xcp.regs);
+
   board_autoled_on(LED_INIRQ);
 #ifdef CONFIG_SUPPRESS_INTERRUPTS
   PANIC();
@@ -67,14 +75,13 @@ uint8_t *hc_doirq(int irq, uint8_t *regs)
    * Nested interrupts are not supported
    */
 
-  DEBUGASSERT(g_current_regs == NULL);
-  g_current_regs = regs;
+  DEBUGASSERT(up_current_regs() == NULL);
+  up_set_current_regs(regs);
 
   /* Deliver the IRQ */
 
   irq_dispatch(irq, regs);
 
-#if defined(CONFIG_ARCH_FPU) || defined(CONFIG_ARCH_ADDRENV)
   /* Check for a context switch.  If a context switch occurred, then
    * g_current_regs will have a different value than it did on entry.  If an
    * interrupt level context switch has occurred, then restore the floating
@@ -82,13 +89,15 @@ uint8_t *hc_doirq(int irq, uint8_t *regs)
    * returning from the interrupt.
    */
 
-  if (regs != g_current_regs)
+  if (regs != up_current_regs())
     {
 #ifdef CONFIG_ARCH_FPU
       /* Restore floating point registers */
 
-      up_restorefpu((uint32_t *)g_current_regs);
+      up_restorefpu(up_current_regs());
 #endif
+
+      tcb = this_task();
 
 #ifdef CONFIG_ARCH_ADDRENV
       /* Make sure that the address environment for the previously
@@ -97,10 +106,21 @@ uint8_t *hc_doirq(int irq, uint8_t *regs)
        * thread at the head of the ready-to-run list.
        */
 
-      addrenv_switch(NULL);
+      addrenv_switch(tcb);
+      tcb = this_task();
 #endif
+
+      /* Update scheduler parameters. */
+
+      nxsched_switch_context(*running_task, tcb);
+
+      /* Record the new "running" task when context switch occurred.
+       * g_running_tasks[] is only used by assertion logic for reporting
+       * crashes.
+       */
+
+      *running_task = tcb;
     }
-#endif
 
   /* If a context switch occurred while processing the interrupt then
    * g_current_regs may have change value.  If we return any value different
@@ -108,14 +128,20 @@ uint8_t *hc_doirq(int irq, uint8_t *regs)
    * switch occurred during interrupt processing.
    */
 
-  regs = (uint8_t *)g_current_regs;
+  regs = up_current_regs();
 
   /* Set g_current_regs to NULL to indicate that we are no longer in an
    * interrupt handler.
    */
 
-  g_current_regs = NULL;
+  up_set_current_regs(NULL);
 #endif
   board_autoled_off(LED_INIRQ);
+
+  /* (*running_task)->xcp.regs is about to become invalid
+   * and will be marked as NULL to avoid misusage.
+   */
+
+  (*running_task)->xcp.regs = NULL;
   return regs;
 }

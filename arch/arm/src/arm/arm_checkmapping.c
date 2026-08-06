@@ -1,7 +1,7 @@
 /****************************************************************************
  * arch/arm/src/arm/arm_checkmapping.c
- * Check if the current task's fault address has been mapped into the virtual
- * address space.
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -28,14 +28,14 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/sched.h>
 #include <nuttx/page.h>
 
 #include "arm_internal.h"
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -106,4 +106,4 @@ bool up_checkmapping(struct tcb_s *tcb)
   return (*pte != 0);
 }
 
-#endif /* CONFIG_PAGING */
+#endif /* CONFIG_LEGACY_PAGING */

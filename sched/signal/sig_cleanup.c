@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/signal/sig_cleanup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,6 +26,7 @@
 
 #include <nuttx/config.h>
 #include <nuttx/arch.h>
+#include <nuttx/spinlock.h>
 
 #include "signal/signal.h"
 
@@ -43,6 +46,7 @@
 
 void nxsig_cleanup(FAR struct tcb_s *stcb)
 {
+#ifdef CONFIG_ENABLE_ALL_SIGNALS
   FAR sigq_t *sigq;
 
   /* Deallocate all entries in the list of pending signal actions */
@@ -58,6 +62,7 @@ void nxsig_cleanup(FAR struct tcb_s *stcb)
     {
       nxsig_release_pendingsigaction(sigq);
     }
+#endif
 
   /* Misc. signal-related clean-up */
 
@@ -78,22 +83,35 @@ void nxsig_cleanup(FAR struct tcb_s *stcb)
 
 void nxsig_release(FAR struct task_group_s *group)
 {
+#ifdef CONFIG_ENABLE_ALL_SIGNALS
   FAR sigactq_t  *sigact;
+#endif
   FAR sigpendq_t *sigpend;
+  irqstate_t flags;
 
+  flags = spin_lock_irqsave(&group->tg_lock);
+
+#ifdef CONFIG_ENABLE_ALL_SIGNALS
   /* Deallocate all entries in the list of signal actions */
 
   while ((sigact = (FAR sigactq_t *)sq_remfirst(&group->tg_sigactionq))
          != NULL)
     {
+      spin_unlock_irqrestore(&group->tg_lock, flags);
       nxsig_release_action(sigact);
+      flags = spin_lock_irqsave(&group->tg_lock);
     }
+#endif
 
   /* Deallocate all entries in the list of pending signals */
 
   while ((sigpend = (FAR sigpendq_t *)sq_remfirst(&group->tg_sigpendingq))
          != NULL)
     {
+      spin_unlock_irqrestore(&group->tg_lock, flags);
       nxsig_release_pendingsignal(sigpend);
+      flags = spin_lock_irqsave(&group->tg_lock);
     }
+
+  spin_unlock_irqrestore(&group->tg_lock, flags);
 }

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/x86/qemu/qemu-i486/src/qemu_i486.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -47,6 +49,19 @@
 /****************************************************************************
  * Public Functions Definitions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: qemu_bringup
+ *
+ * Description:
+ *   Perform architecture-specific initialization
+ *
+ *   CONFIG_BOARD_LATE_INITIALIZE=y :
+ *     Called from board_late_initialize().
+ *
+ ****************************************************************************/
+
+int qemu_bringup(void);
 
 #endif /* __ASSEMBLY__ */
 #endif /* __BOARDS_X86_QEMU_QEMU_I486_SRC_QEMU_I486_H */

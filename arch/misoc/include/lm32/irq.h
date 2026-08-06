@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/misoc/include/lm32/irq.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -179,12 +181,7 @@
 
 struct xcptcontext
 {
-  /* The following function pointer is non-NULL if there are pending signals
-   * to be processed.
-   */
-
-  void *sigdeliver;       /* Actual type is sig_deliver_t */
-
+#ifdef CONFIG_ENABLE_ALL_SIGNALS
   /* These additional register save locations are used to implement the
    * signal delivery trampoline.
    *
@@ -204,6 +201,7 @@ struct xcptcontext
 
   uint32_t sigreturn;
 #endif
+#endif /* CONFIG_ENABLE_ALL_SIGNALS */
 
 #ifdef CONFIG_BUILD_KERNEL
   /* The following array holds information needed to return from each nested
@@ -219,6 +217,24 @@ struct xcptcontext
 
   uint32_t regs[XCPTCONTEXT_REGS];
 };
+
+/****************************************************************************
+ * Public Function Prototypes
+ ****************************************************************************/
+
+/****************************************************************************
+ * Name: up_getusrpc
+ ****************************************************************************/
+
+#define up_getusrpc(regs) \
+    (((uint32_t *)((regs) ? (regs) : up_current_regs()))[REG_EPC])
+
+/****************************************************************************
+ * Name: up_getusrsp
+ ****************************************************************************/
+
+#define up_getusrsp(regs) \
+    ((uintptr_t)((uint32_t *)(regs))[REG_SP])
 
 #endif /* __ASSEMBLY__ */
 #endif /* __ARCH_MISOC_INCLUDE_LM32_IRQ_H */

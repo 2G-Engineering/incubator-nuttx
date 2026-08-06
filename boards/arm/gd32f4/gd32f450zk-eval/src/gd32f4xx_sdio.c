@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/gd32f4/gd32f450zk-eval/src/gd32f4xx_sdio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/sdio.h>
@@ -57,7 +59,7 @@
 
 static struct sdio_dev_s *g_sdio_dev;
 #ifdef HAVE_NCD
-static bool g_sd_inserted = 0xff; /* Impossible value */
+static bool g_sd_inserted;
 #endif
 
 /****************************************************************************
@@ -104,13 +106,6 @@ int gd32_sdio_initialize(void)
 {
   int ret;
 
-#ifdef HAVE_NCD
-  /* Card detect */
-
-  bool cd_status;
-
-#endif
-
   /* Mount the SDIO-based MMC/SD block driver
    * First, get an instance of the SDIO interface
    */
@@ -140,10 +135,10 @@ int gd32_sdio_initialize(void)
 #ifdef HAVE_NCD
   /* Use SD card detect pin to check if a card is g_sd_inserted */
 
-  cd_status = !gd32_gpio_read(GPIO_SDMMC1_NCD);
-  finfo("Card detect : %d\n", cd_status);
+  g_sd_inserted = !gd32_gpio_read(GPIO_SDMMC1_NCD);
+  finfo("Card detect : %d\n", g_sd_inserted);
 
-  sdio_mediachange(g_sdio_dev, cd_status);
+  sdio_mediachange(g_sdio_dev, g_sd_inserted);
 #else
   /* Assume that the SD card is inserted.  What choice do we have? */
 

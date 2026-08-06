@@ -21,6 +21,10 @@ config ARCH_CHIP_ESP32S2WROVER
 
 endchoice # ESP32-S2 Chip Selection
 
+config ESPRESSIF_CHIP_SERIES
+	string
+	default "esp32s2"
+
 choice ESP32S2_DEFAULT_CPU_FREQ
 	prompt "CPU Frequency"
 	default ESP32S2_DEFAULT_CPU_FREQ_240
@@ -43,6 +47,10 @@ config ESP32S2_DEFAULT_CPU_FREQ_MHZ
 	default 80 if ESP32S2_DEFAULT_CPU_FREQ_80
 	default 160 if ESP32S2_DEFAULT_CPU_FREQ_160
 	default 240 if ESP32S2_DEFAULT_CPU_FREQ_240
+
+config ESPRESSIF_NUM_CPUS
+	int
+	default 1
 
 menu "Cache Configuration"
 
@@ -77,12 +85,12 @@ choice ESP32S2_INSTRUCTION_CACHE_LINE_SIZE
 	---help---
 		Instruction cache line size to be set on application startup.
 
-	config ESP32S2_INSTRUCTION_CACHE_LINE_16B
-		bool "16 Bytes"
-		depends on ESP32S2_INSTRUCTION_CACHE_16KB
+config ESP32S2_INSTRUCTION_CACHE_LINE_16B
+	bool "16 Bytes"
+	depends on ESP32S2_INSTRUCTION_CACHE_16KB
 
-	config ESP32S2_INSTRUCTION_CACHE_LINE_32B
-		bool "32 Bytes"
+config ESP32S2_INSTRUCTION_CACHE_LINE_32B
+	bool "32 Bytes"
 
 endchoice
 
@@ -131,11 +139,11 @@ choice ESP32S2_DATA_CACHE_LINE_SIZE
 	---help---
 		Data cache line size to be set on application startup.
 
-	config ESP32S2_DATA_CACHE_LINE_16B
-		bool "16 Bytes"
+config ESP32S2_DATA_CACHE_LINE_16B
+	bool "16 Bytes"
 
-	config ESP32S2_DATA_CACHE_LINE_32B
-		bool "32 Bytes"
+config ESP32S2_DATA_CACHE_LINE_32B
+	bool "32 Bytes"
 
 endchoice
 
@@ -155,6 +163,10 @@ config ESP32S2_FLASH_4M
 	default n
 
 config ESP32S2_FLASH_8M
+	bool
+	default n
+
+config ESP32S2_FLASH_16M
 	bool
 	default n
 
@@ -187,6 +199,8 @@ config ESP32S2_RUN_IRAM
 
 menu "ESP32-S2 Peripheral Selection"
 
+source "arch/xtensa/src/common/espressif/Kconfig"
+
 config ESP32S2_UART
 	bool
 	default n
@@ -215,13 +229,15 @@ config ESP32S2_RNG
 		ESP32-S2 supports a RNG that passed on Dieharder test suite.
 
 config ESP32S2_I2S
-	bool "I2S"
+	bool "I2S (legacy implementation: read help)"
 	default n
 	select I2S
 	select ARCH_DMA
-	select ESP32S2_GPIO_IRQ
+	select ESPRESSIF_GPIO_IRQ
+	select ESPRESSIF_I2S0
 	---help---
-		See the Board Selection menu to configure the pins used by I2S.
+		This is a deprecated Kconfig macro. Its kept for retrocompatibility only.
+		Use "CONFIG_ESPRESSIF_I2S" instead.
 
 if ESP32S2_I2S
 
@@ -339,26 +355,22 @@ config ESP32S2_SPI2
 	default n
 	select ESP32S2_SPI
 	select SPI
+	select ESPRESSIF_SPI_PERIPH
 
 config ESP32S2_SPI3
 	bool "SPI 3"
 	default n
 	select ESP32S2_SPI
 	select SPI
-
-config ESP32S2_SPIFLASH
-	bool "SPI Flash"
-	default n
+	select ESPRESSIF_SPI_PERIPH
 
 config ESP32S2_SPIRAM
 	bool "SPI RAM Support"
 	default n
 
 config ESP32S2_EFUSE
-	bool "EFUSE support"
-	default n
-	---help---
-		Enable ESP32-S2 efuse support.
+	bool
+	select ESPRESSIF_EFUSE
 
 config ESP32S2_TIMER0
 	bool "64-bit Timer 0 (Group 0 Timer 0)"
@@ -416,6 +428,32 @@ config ESP32S2_RWDT
 		to have the RTC module reset, please, use the Timers' Module WDTs.
 		They will only reset Main System.
 
+config ESP32S2_XTWDT
+	bool "XTAL32K Watchdog Timer"
+	depends on ESP32S2_RTC_CLK_EXT_OSC || ESP32S2_RTC_CLK_EXT_XTAL
+	default n
+	select ESP32S2_WDT
+	select ESP32S2_RTCIO_IRQ
+	---help---
+		Includes XTWDT. This watchdog timer monitors the status of the
+		external 32 kHz crystal oscillator (XTAL32K). When XTAL32K_CLK works
+		as the clock source of RTC_SLOW_CLK and it stops oscillating, the
+		XTAL32K watchdog timer first switches to BACKUP32K_CLK derived from
+		RC_SLOW_CLK (if ESP32S2_XTWDT_BACKUP_CLK_ENABLE) and, then, generates
+		an interrupt that could be captured by WDIOC_CAPTURE.
+
+config ESP32S2_XTWDT_BACKUP_CLK_ENABLE
+	bool "Automatically switch to BACKUP32K_CLK when timer expires"
+	depends on ESP32S2_XTWDT
+	default y
+	---help---
+		Enable this to automatically switch to BACKUP32K_CLK as the source of
+		RTC_SLOW_CLK when the watchdog timer expires.
+
+config ESP32S2_RTC
+	bool "Real Time Clock (RTC)"
+	default y
+
 config ESP32S2_UART0
 	bool "UART 0"
 	default n
@@ -442,18 +480,80 @@ config ESP32S2_I2C1
 	select ESP32S2_I2C
 	select I2C
 
+config ESP32S2_RTC_I2C
+	bool "RTC I2C"
+	default n
+	select ESP32S2_I2C
+	select I2C
+
+config ESP32S2_I2C_PERIPH_MASTER_MODE
+	bool
+	depends on (ESP32S2_I2C0_MASTER_MODE || ESP32S2_I2C1_MASTER_MODE || ESP32S2_RTC_I2C)
+	default y if ESP32S2_RTC_I2C
+	default n
+	select ESPRESSIF_I2C_PERIPH_MASTER_MODE
+
+config ESP32S2_I2C_PERIPH_SLAVE_MODE
+	bool
+	depends on (ESP32S2_I2C0_SLAVE_MODE || ESP32S2_I2C1_SLAVE_MODE)
+	default n
+	select ESPRESSIF_I2C_PERIPH_SLAVE_MODE
+	select ESPRESSIF_I2C0_SLAVE if ESP32S2_I2C0_SLAVE_MODE
+	select ESPRESSIF_I2C1_SLAVE if ESP32S2_I2C1_SLAVE_MODE
+
+choice ESP32S2_I2C0_MODE
+	prompt "I2C0 Mode"
+	depends on ESP32S2_I2C0
+	default ESP32S2_I2C0_MASTER_MODE
+
+config ESP32S2_I2C0_MASTER_MODE
+	bool "I2C0 Master Mode"
+	select ESP32S2_I2C_PERIPH_MASTER_MODE
+
+config ESP32S2_I2C0_SLAVE_MODE
+	bool "I2C0 Slave Mode"
+	select I2C_SLAVE
+	select I2C_SLAVE_DRIVER
+	select ESP32S2_I2C_PERIPH_SLAVE_MODE
+
+endchoice # ESP32S2_I2C0_MODE
+
+choice ESP32S2_I2C1_MODE
+	prompt "I2C1 Mode"
+	depends on ESP32S2_I2C1
+	default ESP32S2_I2C1_MASTER_MODE
+
+config ESP32S2_I2C1_MASTER_MODE
+	bool "I2C1 Master Mode"
+	select ESP32S2_I2C_PERIPH_MASTER_MODE
+
+config ESP32S2_I2C1_SLAVE_MODE
+	bool "I2C1 Slave Mode"
+	select I2C_SLAVE
+	select I2C_SLAVE_DRIVER
+	select ESP32S2_I2C_PERIPH_SLAVE_MODE
+
+endchoice # ESP32S2_I2C1_MODE
+
+config ESP32S2_TWAI
+	bool "TWAI (CAN)"
+	default n
+	select CAN
+
 config ESP32S2_LEDC
 	bool "LEDC (PWM)"
 	default n
 	select PWM
-	select ARCH_HAVE_PWM_MULTICHAN
+	select ESPRESSIF_LEDC
 	---help---
 		Enable support to PWM on ESP32S2 using LEDC peripheral.
 
 config ESP32S2_RT_TIMER
-	bool "Real-time Timer"
-	select ESP32S2_TIMER
+	bool "Real-Time Timer"
 	default n
+	select ESPRESSIF_HR_TIMER
+	---help---
+		Deprecated: Use ESPRESSIF_HR_TIMER instead.
 
 endmenu # ESP32-S2 Peripheral Selection
 
@@ -467,12 +567,21 @@ config ESP32S2_ULP_COPROC_RESERVE_MEM
 	int "Reserved ULP co-processor DRAM"
 	default 0
 
+comment "Additional Heaps"
+
+config ESP32S2_RTC_HEAP
+	bool "Use the RTC memory as a separate heap"
+	select ARCH_HAVE_EXTRA_HEAPS
+	default n
+
 endmenu # Memory Configuration
 
 config ESP32S2_GPIO_IRQ
 	bool "GPIO pin interrupts"
+	select ESPRESSIF_GPIO_IRQ
 	---help---
-		Enable support for interrupting GPIO pins.
+		This is a deprecated Kconfig macro. Its kept for retrocompatibility only.
+		Use "CONFIG_ESPRESSIF_GPIO_IRQ" instead.
 
 config ESP32S2_RTCIO_IRQ
 	bool "RTC IO interrupts"
@@ -496,22 +605,44 @@ config ESP32S2_SPI_UDCS
 	---help---
 		Use user-defined CS.
 
+config ESP32S2_SPI2_SLAVE
+	bool "SPI2 Slave mode"
+	default n
+	depends on SPI_SLAVE && ESP32S2_SPI2
+	select ESPRESSIF_GPIO_IRQ
+	---help---
+		Configure SPI2 to operate in Slave mode.
+
 config ESP32S2_SPI2_DMA
 	bool "SPI2 use DMA"
 	default y
 	depends on ESP32S2_SPI2
+
+config ESP32S2_SPI3_SLAVE
+	bool "SPI3 Slave mode"
+	default n
+	depends on SPI_SLAVE && ESP32S2_SPI3
+	select ESPRESSIF_GPIO_IRQ
+	---help---
+		Configure SPI3 to operate in Slave mode.
 
 config ESP32S2_SPI3_DMA
 	bool "SPI3 use DMA"
 	default y
 	depends on ESP32S2_SPI3
 
-config SPI_DMADESC_NUM
-	int "SPI DMA maximum number of descriptors"
-	default 2
+config ESP32S2_SPI_DMA_BUFSIZE
+	int "SPI Master GDMA buffer size"
+	default 2048
+	depends on ESP32S2_SPI2_DMA || ESP32S2_SPI3_DMA
 	---help---
-		Configure the maximum number of out-link/in-link descriptors to
-		be chained for a SPI DMA transfer.
+		This is used to calculate and allocate DMA description buffer,
+		not really allocate TX/RX buffer.
+
+config ESP32S2_SPI_SLAVE_BUFSIZE
+	int "SPI Slave buffer size"
+	default 2048
+	depends on SPI_SLAVE
 
 config ESP32S2_SPI_DMATHRESHOLD
 	int "SPI DMA threshold"
@@ -543,6 +674,17 @@ config ESP32S2_SPI2_MISOPIN
 	default 13
 	range 0 48
 
+config ESP32S2_SPI2_IO2PIN
+	int "SPI2 IO2 Pin"
+	default 14
+	range 0 48
+	depends on ESP32S2_SPI_IO_QIO
+
+config ESP32S2_SPI2_IO3PIN
+	int "SPI2 IO3 Pin"
+	default 9
+	range 0 48
+	depends on ESP32S2_SPI_IO_QIO
 endif # ESP32S2_SPI2
 
 if ESP32S2_SPI3
@@ -574,6 +716,31 @@ menu "UART Configuration"
 
 if ESP32S2_UART0
 
+config ESP32S2_UART0_RS485
+	bool "RS-485 on UART0"
+	default n
+	---help---
+		Enable RS-485 interface on UART0. Your board config will have to
+		provide GPIO_UART0_RS485_DIR pin definition.
+
+config ESP32S2_UART0_RS485_DIR_PIN
+	int "UART0 RS-485 DIR pin"
+	default 25
+	range 0 46
+	depends on ESP32S2_UART0_RS485
+	---help---
+		DIR pin for RS-485 on UART0. This pin will control the RS485 enable
+		TX of the RS485 transceiver.
+
+config ESP32S2_UART0_RS485_DIR_POLARITY
+	int "UART0 RS-485 DIR pin polarity"
+	default 1
+	range 0 1
+	depends on ESP32S2_UART0_RS485
+	---help---
+		Polarity of DIR pin for RS-485 on UART0. Set to state on DIR pin which
+		enables TX (0 - low / nTXEN, 1 - high / TXEN).
+
 config ESP32S2_UART0_TXPIN
 	int "UART0 Tx Pin"
 	default 43
@@ -600,14 +767,39 @@ endif # ESP32S2_UART0
 
 if ESP32S2_UART1
 
+config ESP32S2_UART1_RS485
+	bool "RS-485 on UART1"
+	default n
+	---help---
+		Enable RS-485 interface on UART1. Your board config will have to
+		provide GPIO_UART1_RS485_DIR pin definition.
+
+config ESP32S2_UART1_RS485_DIR_PIN
+	int "UART1 RS-485 DIR pin"
+	default 14
+	range 0 46
+	depends on ESP32S2_UART1_RS485
+	---help---
+		DIR pin for RS-485 on UART1. This pin will control the RS485 enable
+		TX of the RS485 transceiver.
+
+config ESP32S2_UART1_RS485_DIR_POLARITY
+	int "UART1 RS-485 DIR pin polarity"
+	default 1
+	range 0 1
+	depends on ESP32S2_UART1_RS485
+	---help---
+		Polarity of DIR pin for RS-485 on UART1. Set to state on DIR pin which
+		enables TX (0 - low / nTXEN, 1 - high / TXEN).
+
 config ESP32S2_UART1_TXPIN
 	int "UART1 Tx Pin"
-	default 37
+	default 17
 	range 0 46
 
 config ESP32S2_UART1_RXPIN
 	int "UART1 Rx Pin"
-	default 38
+	default 18
 	range 0 46
 
 config ESP32S2_UART1_RTSPIN
@@ -655,101 +847,108 @@ config ESP32S2_I2C1_SDAPIN
 	default 7
 	range 0 46
 
-endif # ESP32S2_I2C1
+endif # ESPRESSIF_I2C1
+
+if ESP32S2_RTC_I2C
+
+choice
+	prompt "RTC I2C SCL Pin"
+	default ESP32S2_RTC_I2C_SCLPIN_2
+
+config ESP32S2_RTC_I2C_SCLPIN_0
+	bool "Use GPIO0 as RTC I2C SCL Pin"
+
+config ESP32S2_RTC_I2C_SCLPIN_2
+	bool "Use GPIO2 as RTC I2C SCL Pin"
+
+endchoice # RTC I2C SCL Pin
+
+config ESP32S2_RTC_I2C_SCLPIN
+	int
+	default 0 if ESP32S2_RTC_I2C_SCLPIN_0
+	default 2 if ESP32S2_RTC_I2C_SCLPIN_2
+
+choice
+	prompt "RTC I2C SDA Pin"
+	default ESP32S2_RTC_I2C_SDAPIN_3
+
+config ESP32S2_RTC_I2C_SDAPIN_1
+	bool "Use GPIO1 as RTC I2C SDA Pin"
+
+config ESP32S2_RTC_I2C_SDAPIN_3
+	bool "Use GPIO3 as RTC I2C SDA Pin"
+
+endchoice # RTC I2C SDA Pin
+
+config ESP32S2_RTC_I2C_SDAPIN
+	int
+	default 1 if ESP32S2_RTC_I2C_SDAPIN_1
+	default 3 if ESP32S2_RTC_I2C_SDAPIN_3
+
+endif # ESP32S2_RTC_I2C
 
 config ESP32S2_I2CTIMEOSEC
 	int "Timeout seconds"
 	default 0
+	depends on ESP32S2_I2C_PERIPH_MASTER_MODE
 
 config ESP32S2_I2CTIMEOMS
 	int "Timeout milliseconds"
 	default 500
+	depends on ESP32S2_I2C_PERIPH_MASTER_MODE
 
 endmenu # I2C Configuration
 
-menu "SPI Flash Configuration"
+menu "TWAI driver options"
+	depends on ESP32S2_TWAI
 
-choice ESP32S2_FLASH_MODE
-	prompt "SPI Flash mode"
-	default ESP32S2_FLASH_MODE_DIO
+if ESP32S2_TWAI
+
+config ESP32S2_TWAI_TXPIN
+	int "TWAI TX Pin"
+	default 0
+
+config ESP32S2_TWAI_RXPIN
+	int "TWAI RX Pin"
+	default 2
+
+config ESP32S2_TWAI_BITRATE
+	int "TWAI bitrate"
+	default 1000000
 	---help---
-		These options control how many I/O pins are used for communication
-		with the attached SPI Flash chip.
-		The option selected here is then used by esptool when flashing.
+		TWAI bit rate.
 
-	config ESP32S2_FLASH_MODE_DIO
-	bool "Dual IO (DIO)"
-
-	config ESP32S2_FLASH_MODE_DOUT
-	bool "Dual Output (DOUT)"
-
-	config ESP32S2_FLASH_MODE_QIO
-	bool "Quad IO (QIO)"
-
-	config ESP32S2_FLASH_MODE_QOUT
-	bool "Quad Output (QOUT)"
-
-endchoice # ESP32S2_FLASH_MODE
-
-choice ESP32S2_FLASH_FREQ
-	prompt "SPI Flash frequency"
-	default ESP32S2_FLASH_FREQ_40M
+config ESP32S2_TWAI_SAMPLEP
+	int "TWAI sample point"
+	default 80
 	---help---
-		SPI Flash frequency.
+		TWAI sample point location as a percent value.
 
-	config ESP32S2_FLASH_FREQ_80M
-	bool "80 MHz"
+config ESP32S2_TWAI_SJW
+	int "TWAI synchronization jump width"
+	default 3
+	---help---
+		SJW limits the number of Time Quanta corrections during bit
+		Resynchronization.
 
-	config ESP32S2_FLASH_FREQ_40M
-	bool "40 MHz"
+config ESP32S2_TWAI_SAM
+	bool "TWAI sampling"
+	default n
+	---help---
+		The bus is sampled 3 times (recommended for low to medium speed buses
+		to spikes on the bus-line).
 
-	config ESP32S2_FLASH_FREQ_26M
-	bool "26 MHz"
+endif # ESP32S2_TWAI
 
-	config ESP32S2_FLASH_FREQ_20M
-	bool "20 MHz"
+config ESP32S2_TWAI_REGDEBUG
+	bool "TWAI register level debug"
+	depends on DEBUG_CAN_INFO
+	default n
+	---help---
+		Output detailed register-level TWAI debug information. Requires also
+		CONFIG_DEBUG_CAN_INFO.
 
-endchoice # ESP32S2_FLASH_FREQ
-
-if ESP32S2_HAVE_OTA_PARTITION
-
-comment "Application Image OTA Update support"
-
-config ESP32S2_OTA_PRIMARY_SLOT_OFFSET
-	hex "Application image primary slot offset"
-	default 0x10000
-
-config ESP32S2_OTA_PRIMARY_SLOT_DEVPATH
-	string "Application image primary slot device path"
-	default "/dev/ota0"
-
-config ESP32S2_OTA_SECONDARY_SLOT_OFFSET
-	hex "Application image secondary slot offset"
-	default 0x110000
-
-config ESP32S2_OTA_SECONDARY_SLOT_DEVPATH
-	string "Application image secondary slot device path"
-	default "/dev/ota1"
-
-config ESP32S2_OTA_SLOT_SIZE
-	hex "Application image slot size (in bytes)"
-	default 0x100000
-
-config ESP32S2_OTA_SCRATCH_OFFSET
-	hex "Scratch partition offset"
-	default 0x210000
-
-config ESP32S2_OTA_SCRATCH_SIZE
-	hex "Scratch partition size"
-	default 0x40000
-
-config ESP32S2_OTA_SCRATCH_DEVPATH
-	string "Scratch partition device path"
-	default "/dev/otascratch"
-
-endif
-
-endmenu # SPI Flash Configuration
+endmenu #ESP32S2_TWAI
 
 menu "SPI RAM Configuration"
 	depends on ESP32S2_SPIRAM
@@ -839,7 +1038,59 @@ config ESP32S2_SPIRAM_IGNORE_NOTFOUND
 		panic. If this is enabled, booting will complete but no PSRAM
 		will be available.
 
+config ESP32S2_SPIRAM_MEMTEST
+	bool "Run write-read test on SPIRAM during startup"
+	default y
+	depends on ESP32S2_SPIRAM_BOOT_INIT
+	---help---
+		If enabled, SPI RAM will be tested during initial boot.
+		Disabling this test will reduce startup time at the expense
+		of testing the external memory.
+
 endmenu # SPI RAM Configuration
+
+menu "RTC Configuration"
+	depends on ESP32S2_RTC
+
+choice ESP32S2_RTC_CLK_SRC
+	prompt "RTC clock source"
+	default ESP32S2_RTC_CLK_INT_RC
+	---help---
+		Choose which clock is used as RTC clock source.
+
+		- "Internal 90KHz oscillator" option provides lowest deep sleep current
+			consumption, and does not require extra external components. However
+			frequency stability with respect to temperature is poor, so time may
+			drift in deep/light sleep modes.
+		- "External 32KHz crystal" provides better frequency stability, at the
+			expense of slightly higher (1uA) deep sleep current consumption.
+		- "External 32KHz oscillator" allows using 32KHz clock generated by an
+			external circuit. In this case, external clock signal must be connected
+			to 32K_XN pin. Amplitude should be <1.2V in case of sine wave signal,
+			and <1V in case of square wave signal. Common mode voltage should be
+			0.1 < Vcm < 0.5Vamp, where Vamp is the signal amplitude.
+			Additionally, 1nF capacitor must be connected between 32K_XP pin and
+			ground. 32K_XP pin can not be used as a GPIO in this case.
+		- "Internal 8.5MHz oscillator divided by 256" option results in higher
+			deep sleep current (by 5uA) but has better frequency stability than
+			the internal 90KHz oscillator. It does not require external components.
+
+config ESP32S2_RTC_CLK_INT_RC
+	bool "Internal 90KHz RC oscillator"
+
+config ESP32S2_RTC_CLK_EXT_XTAL
+	bool "External 32KHz crystal"
+	select ESP_SYSTEM_RTC_EXT_XTAL
+
+config ESP32S2_RTC_CLK_EXT_OSC
+	bool "External 32KHz oscillator at 32K_XN pin"
+	select ESP_SYSTEM_RTC_EXT_XTAL
+
+config ESP32S2_RTC_CLK_INT_8MD256
+	bool "Internal 8.5MHz oscillator, divided by 256 (~33kHz)"
+
+endchoice
+endmenu # "RTC Configuration"
 
 menu "Real-Time Timer Configuration"
 	depends on ESP32S2_RT_TIMER
@@ -962,64 +1213,221 @@ config ESP32S2_LEDC_CHANNEL7_PIN
 
 endmenu # LEDC configuration
 
-config ESP32S2_HAVE_OTA_PARTITION
-	bool
+menu "ADC Configuration"
+	depends on ESPRESSIF_ADC
+
+if ESPRESSIF_ADC_1
+
+config ESPRESSIF_ADC_1_DEVNAME
+	string "ADC 1 Device Name"
+	default "/dev/adc0"
+
+choice ESPRESSIF_ADC_1_ATTENUATION
+	prompt "ADC 1 Input Attenuation"
+	default ESPRESSIF_ADC_1_ATTEN_12
+	---help---
+		Select input attenuation for the ADC unit.
+		Relates to maximum measurable input voltage.
+		See ESP32 Technical Reference Manual for details.
+
+config ESPRESSIF_ADC_1_ATTEN_0
+	bool "0 dB (1.1 V)"
+
+config ESPRESSIF_ADC_1_ATTEN_2_5
+	bool "2.5 dB (1.47 V)"
+
+config ESPRESSIF_ADC_1_ATTEN_6
+	bool "6 dB (2.2 V)"
+
+config ESPRESSIF_ADC_1_ATTEN_12
+	bool "12 dB (4.4 V)"
+
+endchoice  # ESPRESSIF_ADC_1_ATTENUATION
+
+config ESPRESSIF_ADC_1_ATTENUATION
+	int
+	default 0 if ESPRESSIF_ADC_1_ATTEN_0
+	default 1 if ESPRESSIF_ADC_1_ATTEN_2_5
+	default 2 if ESPRESSIF_ADC_1_ATTEN_6
+	default 3 if ESPRESSIF_ADC_1_ATTEN_12
+
+choice ESPRESSIF_ADC_1_MODE
+	prompt "ADC 1 Mode"
+	default ESPRESSIF_ADC_1_MODE_ONE_SHOT
+	---help---
+		Select operating mode for ADC 1.
+
+config ESPRESSIF_ADC_1_MODE_ONE_SHOT
+	bool "One-Shot Mode"
+
+config ESPRESSIF_ADC_1_MODE_CONTINUOUS
+	bool "Continuous Mode"
+
+endchoice  # ESPRESSIF_ADC_1_MODE
+
+menu "ADC 1 Channel Selection"
+
+config ESPRESSIF_ADC_1_CH0
+	bool "Channel 0"
+	default y
+
+config ESPRESSIF_ADC_1_CH1
+	bool "Channel 1"
+	default y
+
+config ESPRESSIF_ADC_1_CH2
+	bool "Channel 2"
+	default y
+
+config ESPRESSIF_ADC_1_CH3
+	bool "Channel 3"
+	default y
+
+config ESPRESSIF_ADC_1_CH4
+	bool "Channel 4"
 	default n
 
-menu "Application Image Configuration"
+config ESPRESSIF_ADC_1_CH5
+	bool "Channel 5"
+	default n
 
-choice
-	prompt "Application Image Format"
-	default ESP32S2_APP_FORMAT_LEGACY
-	---help---
-		Depending on the chosen 2nd stage bootloader, the application may
-		be required to be perform a specific startup routine. Furthermore,
-		the image binary must be formatted according to the definition from
-		the 2nd stage bootloader.
+config ESPRESSIF_ADC_1_CH6
+	bool "Channel 6"
+	default n
 
-config ESP32S2_APP_FORMAT_LEGACY
-	bool "Legacy format"
+config ESPRESSIF_ADC_1_CH7
+	bool "Channel 7"
+	default n
+
+config ESPRESSIF_ADC_1_CH8
+	bool "Channel 8"
+	default n
+
+config ESPRESSIF_ADC_1_CH9
+	bool "Channel 9"
+	default n
+
+endmenu # ADC 1 Channel Selection
+
+endif  # ESPRESSIF_ADC_1
+
+if ESPRESSIF_ADC_2
+
+config ESPRESSIF_ADC_2_DEVNAME
+	string "ADC 2 Device Name"
+	default "/dev/adc1"
+
+choice ESPRESSIF_ADC_2_ATTENUATION
+	prompt "ADC 2 Input Attenuation"
+	default ESPRESSIF_ADC_2_ATTEN_12
 	---help---
-		This is the legacy application image format, as supported by the ESP-IDF
-		2nd stage bootloader.
+		Select input attenuation for the ADC unit.
+		Relates to maximum measurable input voltage (Vmax) and the internal ADC reference voltage (approx. 1100 mV).
+		See ESP32 Technical Reference Manual for details.
+
+config ESPRESSIF_ADC_2_ATTEN_0
+	bool "0 dB (1.1 V)"
+
+config ESPRESSIF_ADC_2_ATTEN_2_5
+	bool "2.5 dB (1.47 V)"
+
+config ESPRESSIF_ADC_2_ATTEN_6
+	bool "6 dB (2.2 V)"
+
+config ESPRESSIF_ADC_2_ATTEN_12
+	bool "12 dB (4.4 V)"
+
+endchoice  # ESPRESSIF_ADC_2_ATTENUATION
+
+config ESPRESSIF_ADC_2_ATTENUATION
+	int
+	default 0 if ESPRESSIF_ADC_2_ATTEN_0
+	default 1 if ESPRESSIF_ADC_2_ATTEN_2_5
+	default 2 if ESPRESSIF_ADC_2_ATTEN_6
+	default 3 if ESPRESSIF_ADC_2_ATTEN_12
+
+choice ESPRESSIF_ADC_2_MODE
+	prompt "ADC 2 Mode"
+	default ESPRESSIF_ADC_2_MODE_ONE_SHOT
+	---help---
+		Select operating mode for ADC 2.
+
+config ESPRESSIF_ADC_2_MODE_ONE_SHOT
+	bool "One-Shot Mode"
+
+config ESPRESSIF_ADC_2_MODE_CONTINUOUS
+	bool "Continuous Mode"
+
+endchoice  # ESPRESSIF_ADC_2_MODE
+
+menu "ADC 2 Channel Selection"
+
+config ESPRESSIF_ADC_2_CH0
+	bool "Channel 0"
+	default y
+
+config ESPRESSIF_ADC_2_CH1
+	bool "Channel 1"
+	default y
+
+config ESPRESSIF_ADC_2_CH2
+	bool "Channel 2"
+	default y
+
+config ESPRESSIF_ADC_2_CH3
+	bool "Channel 3"
+	default y
+
+config ESPRESSIF_ADC_2_CH4
+	bool "Channel 4"
+	default n
+
+config ESPRESSIF_ADC_2_CH5
+	bool "Channel 5"
+	default n
+
+config ESPRESSIF_ADC_2_CH6
+	bool "Channel 6"
+	default n
+
+config ESPRESSIF_ADC_2_CH7
+	bool "Channel 7"
+	default n
+
+config ESPRESSIF_ADC_2_CH8
+	bool "Channel 8"
+	default n
+
+config ESPRESSIF_ADC_2_CH9
+	bool "Channel 9"
+	default n
+
+endmenu # ADC 2 Channel Selection
+
+endif  # ESPRESSIF_ADC_2
+
+endmenu  # ADC Configuration
+
+menu "Bootloader and Image Configuration"
+
+config ESPRESSIF_SIMPLE_BOOT
+	bool
+	depends on !ESP32S2_APP_FORMAT_MCUBOOT
+	default y
 
 config ESP32S2_APP_FORMAT_MCUBOOT
-	bool "MCUboot-bootable format"
-	select ESP32S2_HAVE_OTA_PARTITION
+	bool "Enable MCUboot-bootable format"
+	depends on !MCUBOOT_BOOTLOADER
+	select ESPRESSIF_BOOTLOADER_MCUBOOT
+	default n
+	select ESPRESSIF_HAVE_OTA_PARTITION
 	---help---
-		The Espressif port of MCUboot supports the loading of unsegmented firmware
-		images.
-
-endchoice # Application Image Format
-
-choice
-	prompt "Source for bootloader binaries"
-	default ESP32S2_BOOTLOADER_DOWNLOAD_PREBUILT
-	---help---
-		Select the action to be taken by the build system for the
-		"make bootloader" target.
-
-config ESP32S2_BOOTLOADER_DOWNLOAD_PREBUILT
-	bool "Download prebuilt binaries"
-	---help---
-		The build system will download the prebuilt binaries from
-		https://github.com/espressif/esp-nuttx-bootloader according to the chosen
-		Application Image Format (ESP32S2_APP_FORMAT_LEGACY or ESP32S2_APP_FORMAT_MCUBOOT)
-
-config ESP32S2_BOOTLOADER_BUILD_FROM_SOURCE
-	bool "Build binaries from source"
-	---help---
-		The build system will build all the required binaries from source. It will clone
-		the https://github.com/espressif/esp-nuttx-bootloader repository and build a
-		custom bootloader according to the chosen Application Image Format
-		(ESP32S2_APP_FORMAT_LEGACY or ESP32S2_APP_FORMAT_MCUBOOT) and partition information.
-
-endchoice
+		Enables the Espressif port of MCUboot to be used as 2nd stage bootloader.
 
 choice
 	prompt "Target slot for image flashing"
 	default ESP32S2_ESPTOOL_TARGET_PRIMARY
-	depends on ESP32S2_HAVE_OTA_PARTITION
+	depends on ESPRESSIF_HAVE_OTA_PARTITION
 	---help---
 		Slot to which ESPTOOL will flash the generated binary image.
 
@@ -1041,18 +1449,18 @@ config ESP32S2_ESPTOOL_TARGET_SECONDARY
 
 endchoice
 
+config ESP32S2_MCUBOOT_VERSION
+	string "MCUboot version"
+	default "8a07053d42e592c85cb35b79c4de1b7749943387"
+	depends on ESP32S2_APP_FORMAT_MCUBOOT
+
 config ESP32S2_APP_MCUBOOT_HEADER_SIZE
 	int "Application image header size (in bytes)"
 	default 32
 	depends on ESP32S2_APP_FORMAT_MCUBOOT
 
-config ESP32S2_PARTITION_TABLE_OFFSET
-	hex "Partition Table offset"
-	default 0x8000
-	depends on ESP32S2_APP_FORMAT_LEGACY
-
 source "arch/xtensa/src/esp32s2/Kconfig.security"
 
-endmenu # Application Image Configuration
+endmenu # Bootloader and Image Configuration
 
 endif # ARCH_CHIP_ESP32S2

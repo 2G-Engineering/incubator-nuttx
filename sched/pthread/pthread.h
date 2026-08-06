@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/pthread/pthread.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -37,27 +39,8 @@
 #include <nuttx/sched.h>
 
 /****************************************************************************
- * Public Type Declarations
+ * Pre-processor Definitions
  ****************************************************************************/
-
-/* The following defines an entry in the pthread logic's local data set.
- * Note that this structure is used to implemented a singly linked list.
- * This structure is used (instead of, say, a binary search tree) because
- * the data set will be searched using the pid as a key -- a process IDs will
- * always be created in a montonically increasing fashion.
- */
-
-struct join_s
-{
-  FAR struct join_s *next;       /* Implements link list */
-  uint8_t        crefs;          /* Reference count */
-  bool           detached;       /* true: pthread_detached'ed */
-  bool           terminated;     /* true: detach'ed+exit'ed */
-  pthread_t      thread;         /* Includes pid */
-  sem_t          exit_sem;       /* Implements join */
-  sem_t          data_sem;       /* Implements join */
-  pthread_addr_t exit_value;     /* Returned data */
-};
 
 /****************************************************************************
  * Public Data
@@ -75,35 +58,20 @@ extern "C"
  * Public Function Prototypes
  ****************************************************************************/
 
-struct pthread_tcb_s; /* Forward reference */
 struct task_group_s;  /* Forward reference */
 
-int pthread_setup_scheduler(FAR struct pthread_tcb_s *tcb, int priority,
+int pthread_setup_scheduler(FAR struct tcb_s *tcb, int priority,
                             start_t start, pthread_startroutine_t entry);
 
 int pthread_completejoin(pid_t pid, FAR void *exit_value);
 void pthread_destroyjoin(FAR struct task_group_s *group,
-                         FAR struct join_s *pjoin);
-FAR struct join_s *pthread_findjoininfo(FAR struct task_group_s *group,
-                                        pid_t pid);
+                         FAR struct task_join_s *pjoin);
+int pthread_findjoininfo(FAR struct task_group_s *group, pid_t pid,
+                         FAR struct task_join_s **join, bool create);
 void pthread_release(FAR struct task_group_s *group);
 
-int pthread_sem_take(FAR sem_t *sem, FAR const struct timespec *abs_timeout);
-#ifdef CONFIG_PTHREAD_MUTEX_UNSAFE
-int pthread_sem_trytake(sem_t *sem);
-#endif
-int pthread_sem_give(sem_t *sem);
-
 #ifndef CONFIG_PTHREAD_MUTEX_UNSAFE
-int pthread_mutex_take(FAR struct pthread_mutex_s *mutex,
-                       FAR const struct timespec *abs_timeout);
-int pthread_mutex_trytake(FAR struct pthread_mutex_s *mutex);
-int pthread_mutex_give(FAR struct pthread_mutex_s *mutex);
-void pthread_mutex_inconsistent(FAR struct tcb_s *tcb);
-#else
-#  define pthread_mutex_take(m,abs_timeout)  pthread_sem_take(&(m)->sem,(abs_timeout))
-#  define pthread_mutex_trytake(m)             pthread_sem_trytake(&(m)->sem)
-#  define pthread_mutex_give(m)                pthread_sem_give(&(m)->sem)
+void pthread_mutex_inconsistent(FAR struct tls_info_s *tls);
 #endif
 
 #ifdef CONFIG_PTHREAD_MUTEX_TYPES

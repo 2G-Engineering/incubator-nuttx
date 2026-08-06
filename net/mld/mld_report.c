@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/mld/mld_report.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/wdog.h>
 #include <nuttx/net/netstats.h>
@@ -55,12 +57,13 @@ int mld_report(FAR struct net_driver_s *dev,
   FAR struct mld_group_s *group;
 
   /* Reports are send to the group multicast address.  Hence, the IPv6
-   * destipaddr idenfies the group.
+   * destipaddr identifies the group.
    */
 
   mldinfo("grpaddr: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
-          grpaddr[0], grpaddr[1], grpaddr[2], grpaddr[3],
-          grpaddr[4], grpaddr[5], grpaddr[6], grpaddr[7]);
+          NTOHS(grpaddr[0]), NTOHS(grpaddr[1]), NTOHS(grpaddr[2]),
+          NTOHS(grpaddr[3]), NTOHS(grpaddr[4]), NTOHS(grpaddr[5]),
+          NTOHS(grpaddr[6]), NTOHS(grpaddr[7]));
 
 #ifdef CONFIG_NET_MLD_ROUTER
   /* Assure that the group address is an IPv6 multicast address */

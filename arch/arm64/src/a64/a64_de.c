@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm64/src/a64/a64_de.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -44,7 +46,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include "hardware/a64_memorymap.h"
@@ -794,7 +796,7 @@ int a64_de_ui_channel_init(uint8_t channel,
    *   (Input Data Format is XRGB 8888 or ARGB 8888)
    * Set LAY_ALPHA_MODE (Bits 1 to 2) to 2
    *   (Global Alpha is mixed with Pixel Alpha)
-   *   (Input Alpha Value = Global Alpha Value * Pixel’s Alpha Value)
+   *   (Input Alpha Value = Global Alpha Value * Pixel's Alpha Value)
    * Set LAY_EN (Bit 0) to 1 (Enable Layer)
    */
 

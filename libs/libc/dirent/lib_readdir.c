@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/dirent/lib_readdir.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -57,6 +59,7 @@
 
 FAR struct dirent *readdir(DIR *dirp)
 {
+  int errcode;
   int ret;
 
   if (!dirp)
@@ -65,10 +68,21 @@ FAR struct dirent *readdir(DIR *dirp)
       return NULL;
     }
 
+  /* Save errno so it can be restored on end-of-directory.  POSIX requires
+   * errno to be unchanged at EOF, but the read() path may not preserve it.
+   */
+
+  errcode = get_errno();
+
   ret = read(dirp->fd, &dirp->entry, sizeof(struct dirent));
-  if (ret <= 0)
+  if (ret == 0)
     {
+      set_errno(errcode);  /* EOF: restore errno (not an error) */
       return NULL;
+    }
+  else if (ret < 0)
+    {
+      return NULL;         /* error: read() already set errno */
     }
 
   return &dirp->entry;

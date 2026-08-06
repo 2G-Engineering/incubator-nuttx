@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/timers/arch_timer.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,6 +26,8 @@
 
 #include <nuttx/config.h>
 
+#include <assert.h>
+
 #include <nuttx/arch.h>
 #include <nuttx/clock.h>
 #include <nuttx/timers/arch_timer.h>
@@ -32,13 +36,25 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#if defined(CONFIG_SCHED_TICKLESS) && defined(CONFIG_SCHED_TICKLESS_ALARM)
-#  error CONFIG_SCHED_TICKLESS_ALARM must be unset to use the arch timer
-#endif
+/* If no value is given, we proceed with 0 since a timer is used for accurate
+ * delays. A runtime DEBUGASSERT catches the case where the timer lower-half
+ * isn't registered in time.
+ *
+ * Value is unset if ARCH_HAVE_DYNAMIC_UDELAY is set. In that case,
+ * ARCH_HAVE_UDELAY is also set and the only user of these values
+ * (udelay_coarse) is excluded from the build.
+ */
 
-#define CONFIG_BOARD_LOOPSPER100USEC ((CONFIG_BOARD_LOOPSPERMSEC+5)/10)
-#define CONFIG_BOARD_LOOPSPER10USEC  ((CONFIG_BOARD_LOOPSPERMSEC+50)/100)
-#define CONFIG_BOARD_LOOPSPERUSEC    ((CONFIG_BOARD_LOOPSPERMSEC+500)/1000)
+#ifndef CONFIG_ARCH_HAVE_UDELAY
+#  if CONFIG_BOARD_LOOPSPERMSEC == -1
+#    undef  CONFIG_BOARD_LOOPSPERMSEC
+#    define CONFIG_BOARD_LOOPSPERMSEC 0
+#  endif
+
+#  define CONFIG_BOARD_LOOPSPER100USEC ((CONFIG_BOARD_LOOPSPERMSEC+5)/10)
+#  define CONFIG_BOARD_LOOPSPER10USEC  ((CONFIG_BOARD_LOOPSPERMSEC+50)/100)
+#  define CONFIG_BOARD_LOOPSPERUSEC    ((CONFIG_BOARD_LOOPSPERMSEC+500)/1000)
+#endif
 
 /****************************************************************************
  * Private Types
@@ -60,14 +76,6 @@ static struct arch_timer_s g_timer;
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
-
-static inline void timespec_from_usec(FAR struct timespec *ts,
-                                      uint64_t microseconds)
-{
-  ts->tv_sec    = microseconds / USEC_PER_SEC;
-  microseconds -= (uint64_t)ts->tv_sec * USEC_PER_SEC;
-  ts->tv_nsec   = microseconds * NSEC_PER_USEC;
-}
 
 #ifdef CONFIG_SCHED_TICKLESS
 
@@ -112,7 +120,8 @@ static uint64_t current_usec(void)
     }
   while (timebase != g_timer.timebase);
 
-  return TICK2USEC(timebase) + (status.timeout - status.timeleft);
+  return TICK2USEC(timebase) +
+         (status.timeout - status.timeleft);
 }
 
 static void udelay_accurate(useconds_t microseconds)
@@ -124,9 +133,23 @@ static void udelay_accurate(useconds_t microseconds)
     }
 }
 
+#ifndef CONFIG_ARCH_HAVE_UDELAY
+
+/****************************************************************************
+ * Name: udelay_coarse
+ *
+ * Description:
+ *   Wait loop called (only) by up_udelay if udelay_accurate
+ *   is not available. (Excluded from the build if up_udelay is also
+ *   excluded from the build.)
+ *
+ ****************************************************************************/
+
 static void udelay_coarse(useconds_t microseconds)
 {
   volatile int i;
+
+  DEBUGASSERT(CONFIG_BOARD_LOOPSPERMSEC != 0);
 
   /* We'll do this a little at a time because we expect that the
    * CONFIG_BOARD_LOOPSPERUSEC is very inaccurate during to truncation in
@@ -171,6 +194,8 @@ static void udelay_coarse(useconds_t microseconds)
     }
 }
 
+#endif /* ifndef CONFIG_ARCH_HAVE_UDELAY */
+
 static bool timer_callback(FAR uint32_t *next_interval, FAR void *arg)
 {
 #ifdef CONFIG_SCHED_TICKLESS
@@ -180,7 +205,7 @@ static bool timer_callback(FAR uint32_t *next_interval, FAR void *arg)
   g_timer.timebase     += *next_interval;
   temp_interval         = g_oneshot_maxticks;
   g_timer.next_interval = &temp_interval;
-  nxsched_timer_expiration();
+  nxsched_process_timer();
   g_timer.next_interval = NULL;
 
   TIMER_TICK_GETSTATUS(g_timer.lower, &status);
@@ -203,17 +228,17 @@ static bool timer_callback(FAR uint32_t *next_interval, FAR void *arg)
 
 void up_timer_set_lowerhalf(FAR struct timer_lowerhalf_s *lower)
 {
-  g_timer.lower = lower;
-
 #ifdef CONFIG_SCHED_TICKLESS
   TIMER_TICK_MAXTIMEOUT(lower, &g_oneshot_maxticks);
-  TIMER_TICK_SETTIMEOUT(g_timer.lower, g_oneshot_maxticks);
+  TIMER_TICK_SETTIMEOUT(lower, g_oneshot_maxticks);
 #else
-  TIMER_TICK_SETTIMEOUT(g_timer.lower, 1);
+  TIMER_TICK_SETTIMEOUT(lower, 1);
 #endif
 
-  TIMER_SETCALLBACK(g_timer.lower, timer_callback, NULL);
-  TIMER_START(g_timer.lower);
+  TIMER_SETCALLBACK(lower, timer_callback, NULL);
+  TIMER_START(lower);
+
+  g_timer.lower = lower;
 }
 
 /****************************************************************************
@@ -249,7 +274,6 @@ void up_timer_set_lowerhalf(FAR struct timer_lowerhalf_s *lower)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_CLOCK_TIMEKEEPING
 void weak_function up_timer_getmask(FAR clock_t *mask)
 {
   uint32_t maxticks;
@@ -268,9 +292,7 @@ void weak_function up_timer_getmask(FAR clock_t *mask)
       *mask = next;
     }
 }
-#endif
 
-#if defined(CONFIG_SCHED_TICKLESS) || defined(CONFIG_CLOCK_TIMEKEEPING)
 int weak_function up_timer_gettick(FAR clock_t *ticks)
 {
   int ret = -EAGAIN;
@@ -283,7 +305,23 @@ int weak_function up_timer_gettick(FAR clock_t *ticks)
 
   return ret;
 }
-#endif
+
+int weak_function up_timer_gettime(struct timespec *ts)
+{
+  int ret = -EAGAIN;
+  uint64_t usec;
+
+  if (g_timer.lower != NULL)
+    {
+      usec = current_usec();
+
+      ts->tv_sec  = usec / USEC_PER_SEC;
+      ts->tv_nsec = (usec % USEC_PER_SEC) * NSEC_PER_USEC;
+      ret = OK;
+    }
+
+  return ret;
+}
 
 /****************************************************************************
  * Name: up_timer_cancel
@@ -291,7 +329,7 @@ int weak_function up_timer_gettick(FAR clock_t *ticks)
  * Description:
  *   Cancel the interval timer and return the time remaining on the timer.
  *   These two steps need to be as nearly atomic as possible.
- *   nxsched_timer_expiration() will not be called unless the timer is
+ *   nxsched_process_timer() will not be called unless the timer is
  *   restarted with up_timer_start().
  *
  *   If, as a race condition, the timer has already expired when this
@@ -340,14 +378,14 @@ int weak_function up_timer_tick_cancel(FAR clock_t *ticks)
  * Name: up_timer_start
  *
  * Description:
- *   Start the interval timer.  nxsched_timer_expiration() will be called at
+ *   Start the interval timer.  nxsched_process_timer() will be called at
  *   the completion of the timeout (unless up_timer_cancel is called to stop
  *   the timing.
  *
  *   Provided by platform-specific code and called from the RTOS base code.
  *
  * Input Parameters:
- *   ts - Provides the time interval until nxsched_timer_expiration() is
+ *   ts - Provides the time interval until nxsched_process_timer() is
  *        called.
  *
  * Returned Value:
@@ -395,9 +433,15 @@ int weak_function up_timer_tick_start(clock_t ticks)
  *   units.
  ****************************************************************************/
 
-unsigned long weak_function up_perf_gettime(void)
+#ifndef CONFIG_ARCH_HAVE_PERF_EVENTS
+void up_perf_init(FAR void *arg)
 {
-  unsigned long ret = 0;
+  UNUSED(arg);
+}
+
+clock_t up_perf_gettime(void)
+{
+  clock_t ret = 0;
 
   if (g_timer.lower != NULL)
     {
@@ -407,16 +451,16 @@ unsigned long weak_function up_perf_gettime(void)
   return ret;
 }
 
-unsigned long weak_function up_perf_getfreq(void)
+unsigned long up_perf_getfreq(void)
 {
   return USEC_PER_SEC;
 }
 
-void weak_function up_perf_convert(unsigned long elapsed,
-                                   FAR struct timespec *ts)
+void up_perf_convert(clock_t elapsed, FAR struct timespec *ts)
 {
-  timespec_from_usec(ts, elapsed);
+  clock_usec2time(ts, elapsed);
 }
+#endif /* CONFIG_ARCH_PERF_EVENTS */
 
 /****************************************************************************
  * Name: up_mdelay
@@ -440,7 +484,13 @@ void weak_function up_mdelay(unsigned int milliseconds)
  *
  *   *** NOT multi-tasking friendly ***
  *
+ *   This function is both compiled optionally based on ARCH_HAVE_UDELAY
+ *   and declared with weak attribute. See comment of up_udelay
+ *   implementation in sched/clock/clock_delay.c for explanation.
+ *
  ****************************************************************************/
+
+#ifndef CONFIG_ARCH_HAVE_UDELAY
 
 void weak_function up_udelay(useconds_t microseconds)
 {
@@ -452,4 +502,21 @@ void weak_function up_udelay(useconds_t microseconds)
     {
       udelay_coarse(microseconds);
     }
+}
+
+#endif
+
+/****************************************************************************
+ * Name: up_ndelay
+ *
+ * Description:
+ *   Delay inline for the requested number of nanoseconds.
+ *
+ *   *** NOT multi-tasking friendly ***
+ *
+ ****************************************************************************/
+
+void weak_function up_ndelay(unsigned long nanoseconds)
+{
+  up_udelay((nanoseconds + NSEC_PER_USEC - 1) / NSEC_PER_USEC);
 }

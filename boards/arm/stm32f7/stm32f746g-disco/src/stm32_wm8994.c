@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f746g-disco/src/stm32_wm8994.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <assert.h>
 #include <errno.h>
 
@@ -272,7 +274,7 @@ int stm32_wm8994_initialize(int minor)
         }
 
       /* No we can embed the WM8994/I2C/I2S conglomerate into a PCM decoder
-       * instance so that we will have a PCM front end for the the WM8994
+       * instance so that we will have a PCM front end for the WM8994
        * driver.
        */
 
@@ -286,7 +288,7 @@ int stm32_wm8994_initialize(int minor)
 
       /* Create a device name */
 
-      snprintf(devname, 12, "pcm%d", minor);
+      snprintf(devname, sizeof(devname), "pcm%d", minor);
 
       /* Finally, we can register the ADAU1961/I2C/I2S audio device. */
 

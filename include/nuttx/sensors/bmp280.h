@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/sensors/bmp280.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -135,25 +137,6 @@ struct bmp280_meas_s
   uint8_t   xlsb;   /* meas value XLSB */
 };
 
-#ifdef CONFIG_SENSORS_BMP280_SCU
-/****************************************************************************
- * Name: bmp280_init
- *
- * Description:
- *   Initialize BMP280 pressure device
- *
- * Input Parameters:
- *   i2c     - An instance of the I2C interface to use to communicate with
- *             BMP280
- *
- * Returned Value:
- *   Zero (OK) on success; a negated errno value on failure.
- *
- ****************************************************************************/
-
-int bmp280_init(FAR struct i2c_master_s *i2c, int port);
-#endif
-
 /****************************************************************************
  * Name: bmp280_register
  *
@@ -170,14 +153,7 @@ int bmp280_init(FAR struct i2c_master_s *i2c, int port);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_SENSORS_BMP280_SCU
-int bmp280press_register(FAR const char *devpath, int minor,
-                         FAR struct i2c_master_s *i2c, int port);
-int bmp280temp_register(FAR const char *devpath, int minor,
-                        FAR struct i2c_master_s *i2c, int port);
-#else
 int bmp280_register(int devno, FAR struct i2c_master_s *i2c);
-#endif
 
 #undef EXTERN
 #ifdef __cplusplus

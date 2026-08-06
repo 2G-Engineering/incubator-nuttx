@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f746g-disco/src/stm32_lcd.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
@@ -38,7 +40,7 @@
 #include "stm32_gpio.h"
 #include "stm32_ltdc.h"
 
-#ifdef CONFIG_STM32F7_LTDC
+#ifdef CONFIG_STM32_LTDC
 /****************************************************************************
  * Public Functions
  ****************************************************************************/

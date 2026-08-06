@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/nucleo-l452re/src/stm32_buttons.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -59,7 +61,7 @@ uint32_t board_button_initialize(void)
    * also configured for the pin.
    */
 
-  stm32l4_configgpio(GPIO_BTN_USER);
+  stm32_configgpio(GPIO_BTN_USER);
   return NUM_BUTTONS;
 }
 
@@ -73,7 +75,7 @@ uint32_t board_buttons(void)
    * pressed.
    */
 
-  bool released = stm32l4_gpioread(GPIO_BTN_USER);
+  bool released = stm32_gpioread(GPIO_BTN_USER);
   return !released;
 }
 
@@ -106,7 +108,7 @@ int board_button_irq(int id, xcpt_t irqhandler, void *arg)
 
   if (id == BUTTON_USER)
     {
-      ret = stm32l4_gpiosetevent(GPIO_BTN_USER, true, true, true,
+      ret = stm32_gpiosetevent(GPIO_BTN_USER, true, true, true,
                                  irqhandler, arg);
     }
 

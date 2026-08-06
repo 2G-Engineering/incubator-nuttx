@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/x86/src/i486/i486_utils.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -55,7 +57,7 @@
 
 	.type	gdt_flush, @function
 gdt_flush:
-	movl	%eax, 4(%esp)	/* Get the pointer to the GDT, passed as a parameter */
+	movl	4(%esp), %eax	/* Get the pointer to the GDT, passed as a parameter */
 	lgdt	(%eax)			/* Load the new GDT pointer */
 
 	mov		$KSEG, %ax 		/* KSEG is the offset in the GDT to our data segment */
@@ -75,7 +77,7 @@ gdt_flush:
 
 	.type	idt_flush, @function
 idt_flush:
-	movl	%eax, 4(%esp)	/* Get the pointer to the IDT, passed as a parameter */
+	movl	4(%esp), %eax	/* Get the pointer to the IDT, passed as a parameter */
 	lidt	(%eax)			/* Load the IDT pointer */
 	ret
 	.size	idt_flush, . - idt_flush

@@ -1,6 +1,8 @@
 ############################################################################
 # boards/risc-v/c906/smartl-c906/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -21,10 +23,6 @@
 include $(TOPDIR)/Make.defs
 
 CSRCS  = c906_bringup.c c906_boot.c
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += c906_appinit.c
-endif
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += c906_leds.c

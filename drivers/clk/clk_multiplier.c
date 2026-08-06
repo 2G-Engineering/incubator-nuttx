@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/clk/clk_multiplier.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/clk/clk.h>
 #include <nuttx/clk/clk_provider.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdlib.h>
 
 #include "clk.h"
@@ -107,7 +109,7 @@ static bool __is_best_rate(uint32_t rate, uint32_t new,
 {
   if (flags & CLK_MULT_ROUND_CLOSEST)
     {
-      return abs(rate - new) < abs(rate - best);
+      return clk_is_best_rate_closest(rate, new, best);
     }
 
   return new >= rate && new < best;
@@ -225,7 +227,7 @@ const struct clk_ops_s g_clk_multiplier_ops =
 
 FAR struct clk_s *clk_register_multiplier(FAR const char *name,
                                           FAR const char *parent_name,
-                                          uint8_t flags, uint32_t reg,
+                                          uint8_t flags, uintptr_t reg,
                                           uint8_t shift,
                                           uint8_t width,
                                           uint8_t clk_multiplier_flags)

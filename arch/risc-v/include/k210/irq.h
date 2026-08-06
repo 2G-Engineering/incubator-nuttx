@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/include/k210/irq.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,11 +33,9 @@
 
 /* Map RISC-V exception code to NuttX IRQ */
 
-#ifdef CONFIG_K210_WITH_QEMU
-#define K210_IRQ_UART0    (RISCV_IRQ_MEXT + 4)
-#else
+#define K210_IRQ_WDT0     (RISCV_IRQ_MEXT + 21)
+#define K210_IRQ_WDT1     (RISCV_IRQ_MEXT + 22)
 #define K210_IRQ_UART0    (RISCV_IRQ_MEXT + 33)
-#endif
 
 /* Total number of IRQs */
 

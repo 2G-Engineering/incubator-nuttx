@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/mm/mm.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,15 +28,21 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/userspace.h>
 
 #include <sys/types.h>
 #include <stdbool.h>
+#include <malloc.h>
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
 /* Configuration ************************************************************/
+
+#if CONFIG_MM_HEAP_MEMPOOL_THRESHOLD >= 0
+#  define CONFIG_MM_HEAP_MEMPOOL
+#endif
 
 /* If the MCU has a small (16-bit) address capability, then we will use
  * a smaller chunk header that contains 16-bit size/offset information.
@@ -98,17 +106,107 @@
 #  endif
 #endif
 
-#define MM_BACKTRACE_INVALID_PID ((pid_t)-4)
-#define MM_BACKTRACE_MEMPOOL_PID ((pid_t)-3)
-#define MM_BACKTRACE_FREE_PID    ((pid_t)-2)
-#define MM_BACKTRACE_ALLOC_PID   ((pid_t)-1)
+#define mm_memdump_s malltask
+
+#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
+/* In the kernel build, there are multiple user heaps; one for each task
+ * group.  In this build configuration, the user heap structure lies
+ * in a reserved region at the beginning of the .bss/.data address
+ * space (CONFIG_ARCH_DATA_VBASE).  The size of that region is given by
+ * ARCH_DATA_RESERVE_SIZE
+ */
+
+#  define USR_HEAP (ARCH_DATA_RESERVE->ar_usrheap)
+
+#elif defined(CONFIG_BUILD_PROTECTED) && defined(__KERNEL__)
+/* In the protected mode, there are two heaps:  A kernel heap and a single
+ * user heap.  Kernel code must obtain the address of the user heap data
+ * structure from the userspace interface.
+ */
+
+#  define USR_HEAP (*USERSPACE->us_data->us_heap)
+
+#else
+/* Otherwise, the user heap data structures are in common .bss */
+
+#  define USR_HEAP g_mmheap
+#endif
+
+#ifdef CONFIG_MM_KERNEL_HEAP
+#  define KRN_HEAP               g_kmmheap
+#  define MM_INTERNAL_HEAP(heap) ((heap) == USR_HEAP || (heap) == g_kmmheap)
+#else
+#  define KRN_HEAP               USR_HEAP
+#  define MM_INTERNAL_HEAP(heap) ((heap) == USR_HEAP)
+#endif
+
+#if CONFIG_MM_BACKTRACE >= 0
+#  define MM_DUMP_ALLOC(dump, node) \
+    ((node) != NULL && (dump)->pid == PID_MM_ALLOC && \
+     (node)->pid != PID_MM_MEMPOOL)
+#  ifdef CONFIG_MM_BACKTRACE_SEQNO
+#    define MM_DUMP_SEQNO(dump, node) \
+    ((node)->seqno >= (dump)->seqmin && (node)->seqno <= (dump)->seqmax)
+#  else
+#    define MM_DUMP_SEQNO(dump,node)  (true)
+#  endif
+#  define MM_DUMP_ASSIGN(dump, node) \
+    ((node) != NULL && (dump)->pid == (node)->pid)
+#  define MM_DUMP_LEAK(dump, node) \
+    ((node) != NULL && (dump)->pid == PID_MM_LEAK && (node)->pid >= 0 && \
+     nxsched_get_tcb((node)->pid) == NULL)
+#else
+#  define MM_DUMP_ALLOC(dump,node)  ((dump)->pid == PID_MM_ALLOC)
+#  define MM_DUMP_SEQNO(dump,node)  (true)
+#  define MM_DUMP_ASSIGN(dump,node) (false)
+#  define MM_DUMP_LEAK(dump,pid)    (false)
+#endif
+
+#if CONFIG_MM_DEFAULT_ALIGNMENT == 0
+#  define MM_ALIGN       sizeof(uintptr_t)
+#else
+#  define MM_ALIGN       CONFIG_MM_DEFAULT_ALIGNMENT
+#endif
+
+#define MM_INIT_MAGIC    0xcc
+#define MM_ALLOC_MAGIC   0xaa
+#define MM_FREE_MAGIC    0x55
+
+#ifdef CONFIG_MM_BACKTRACE_SEQNO
+#  define MM_INCSEQNO(p) ((p)->seqno = g_mm_seqno++)
+#else
+#  define MM_INCSEQNO(p)
+#endif
 
 /****************************************************************************
  * Public Types
  ****************************************************************************/
 
 struct mm_heap_s; /* Forward reference */
-struct mm_memdump_s;
+
+struct mm_heap_config_s
+{
+  /* If heap == NULL, means use the heap memory ([start, start + size])
+   * to construct the heap struct.
+   * If heap != NULL, means malloc struct mm_heap_s from this heap.
+   */
+
+  FAR struct mm_heap_s *heap;
+  FAR const char       *name;
+  FAR void             *start;
+  size_t                size;
+  bool                  nokasan;
+};
+
+struct mempool_init_s
+{
+  FAR const size_t *poolsize;
+  size_t            npools;
+  size_t            threshold;
+  size_t            chunksize;
+  size_t            expandsize;
+  size_t            dict_expendsize;
+};
 
 /****************************************************************************
  * Public Data
@@ -121,6 +219,10 @@ extern "C"
 {
 #else
 #define EXTERN extern
+#endif
+
+#ifdef CONFIG_MM_BACKTRACE_SEQNO
+extern unsigned long g_mm_seqno;
 #endif
 
 /* User heap structure:
@@ -164,8 +266,31 @@ EXTERN FAR struct mm_heap_s *g_kmmheap;
 
 /* Functions contained in mm_initialize.c ***********************************/
 
-FAR struct mm_heap_s *mm_initialize(FAR const char *name,
-                                    FAR void *heap_start, size_t heap_size);
+FAR struct mm_heap_s *
+mm_initialize_heap(FAR const struct mm_heap_config_s *config);
+
+static inline_function FAR struct mm_heap_s *
+mm_initialize(FAR const char *name, FAR void *heapstart, size_t heapsize)
+{
+  struct mm_heap_config_s config;
+
+  memset(&config, 0, sizeof(config));
+  config.name  = name;
+  config.start = heapstart;
+  config.size  = heapsize;
+
+  return mm_initialize_heap(&config);
+}
+
+#ifdef CONFIG_MM_HEAP_MEMPOOL
+FAR struct mm_heap_s *
+mm_initialize_pool(FAR const struct mm_heap_config_s *config,
+                   FAR const struct mempool_init_s *init);
+
+#else
+#  define mm_initialize_pool(config, init) mm_initialize_heap(config)
+#endif
+
 void mm_addregion(FAR struct mm_heap_s *heap, FAR void *heapstart,
                   size_t heapsize);
 void mm_uninitialize(FAR struct mm_heap_s *heap);
@@ -314,18 +439,19 @@ void kmm_extend(FAR void *mem, size_t size, int region);
 
 /* Functions contained in mm_mallinfo.c *************************************/
 
-struct mallinfo; /* Forward reference */
-int mm_mallinfo(FAR struct mm_heap_s *heap, FAR struct mallinfo *info);
-struct mallinfo_task; /* Forward reference */
+struct mallinfo mm_mallinfo(FAR struct mm_heap_s *heap);
 struct mallinfo_task mm_mallinfo_task(FAR struct mm_heap_s *heap,
-                                      FAR const struct mm_memdump_s *dump);
+                                      FAR const struct malltask *task);
+
+size_t mm_heapfree(FAR struct mm_heap_s *heap);
+size_t mm_heapfree_largest(FAR struct mm_heap_s *heap);
 
 /* Functions contained in kmm_mallinfo.c ************************************/
 
 #ifdef CONFIG_MM_KERNEL_HEAP
 struct mallinfo kmm_mallinfo(void);
 #  if CONFIG_MM_BACKTRACE >= 0
-struct mallinfo_task kmm_mallinfo_task(FAR const struct mm_memdump_s *dump);
+struct mallinfo_task kmm_mallinfo_task(FAR const struct malltask *task);
 #  endif
 #endif
 
@@ -334,6 +460,10 @@ struct mallinfo_task kmm_mallinfo_task(FAR const struct mm_memdump_s *dump);
 void mm_memdump(FAR struct mm_heap_s *heap,
                 FAR const struct mm_memdump_s *dump);
 
+/* Functions contained in umm_memdump.c *************************************/
+
+void umm_memdump(FAR const struct mm_memdump_s *dump);
+
 #ifdef CONFIG_DEBUG_MM
 /* Functions contained in mm_checkcorruption.c ******************************/
 
@@ -341,16 +471,12 @@ void mm_checkcorruption(FAR struct mm_heap_s *heap);
 
 /* Functions contained in umm_checkcorruption.c *****************************/
 
-FAR void umm_checkcorruption(void);
-
-/* Functions contained in umm_memdump.c *************************************/
-
-void umm_memdump(FAR const struct mm_memdump_s *dump);
+void umm_checkcorruption(void);
 
 /* Functions contained in kmm_checkcorruption.c *****************************/
 
 #ifdef CONFIG_MM_KERNEL_HEAP
-FAR void kmm_checkcorruption(void);
+void kmm_checkcorruption(void);
 #else
 #define kmm_checkcorruption()  umm_checkcorruption()
 #endif
@@ -362,6 +488,14 @@ FAR void kmm_checkcorruption(void);
 #define kmm_checkcorruption()
 
 #endif /* CONFIG_DEBUG_MM */
+
+/* Functions contained in fs_procfspressure.c *******************************/
+
+#ifdef CONFIG_FS_PROCFS_INCLUDE_PRESSURE
+void mm_notify_pressure(size_t remaining, size_t largest);
+#else
+#  define mm_notify_pressure(remaining, largest)
+#endif
 
 #undef EXTERN
 #ifdef __cplusplus

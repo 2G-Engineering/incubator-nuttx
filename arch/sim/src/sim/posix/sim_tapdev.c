@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/posix/sim_tapdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -62,7 +64,6 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/uio.h>
-#include <sys/socket.h>
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -249,10 +250,20 @@ void sim_tapdev_init(int devidx, void *priv,
       close(tapdevfd);
       return;
     }
-#else
+#endif
+
   memset(&ifr, 0, sizeof(ifr));
   strncpy(ifr.ifr_name, gdevname[devidx], IFNAMSIZ);
-#endif
+  ifr.ifr_mtu = CONFIG_SIM_NETDEV_MTU;
+  ret = ioctl(sockfd, SIOCSIFMTU, &ifr);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "TAPDEV: ioctl failed (can't set MTU "
+                      "for %s): %d\n", gdevname[devidx], -ret);
+      close(sockfd);
+      close(tapdevfd);
+      return;
+    }
 
   ret = ioctl(sockfd, SIOCGIFMTU, &ifr);
   close(sockfd);

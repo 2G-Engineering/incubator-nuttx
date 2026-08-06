@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/efm32/efm32_usbdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
@@ -1223,7 +1225,7 @@ static void efm32_epin_request(struct efm32_usbdev_s *priv,
       return;
     }
 
-  uinfo("EP%d req=%p: len=%d xfrd=%d zlp=%d\n",
+  uinfo("EP%d req=%p: len=%zu xfrd=%zu zlp=%d\n",
         privep->epphy, privreq, privreq->req.len,
         privreq->req.xfrd, privep->zlp);
 
@@ -1506,7 +1508,7 @@ static void efm32_epout_complete(struct efm32_usbdev_s *priv,
       return;
     }
 
-  uinfo("EP%d: len=%d xfrd=%d\n",
+  uinfo("EP%d: len=%zu xfrd=%zu\n",
         privep->epphy, privreq->req.len, privreq->req.xfrd);
 
   /* Return the completed read request to the class driver and mark the state
@@ -1638,7 +1640,7 @@ static inline void efm32_epout_receive(struct efm32_ep_s *privep,
       return;
     }
 
-  uinfo("EP%d: len=%d xfrd=%d\n",
+  uinfo("EP%d: len=%zu xfrd=%zu\n",
         privep->epphy, privreq->req.len, privreq->req.xfrd);
   usbtrace(TRACE_READ(privep->epphy), bcnt);
 
@@ -2119,7 +2121,7 @@ static inline void efm32_ep0out_testmode(struct efm32_usbdev_s *priv,
  * Name: efm32_ep0out_stdrequest
  *
  * Description:
- *   Handle a stanard request on EP0.  Pick off the things of interest to
+ *   Handle a standard request on EP0.  Pick off the things of interest to
  *   the USB device controller driver; pass what is left to the class driver.
  *
  ****************************************************************************/
@@ -3673,6 +3675,7 @@ static int efm32_usbinterrupt(int irq, void *context, void *arg)
           usbtrace(TRACE_INTDECODE(EFM32_TRACEINTID_SOF),
                   (uint16_t)regval);
           efm32_putreg(USB_GINTSTS_SOF, EFM32_USB_GINTSTS);
+          usbdev_sof_irq(&priv->usbdev, efm32_getframe(&priv->usbdev));
         }
 #endif
 
@@ -4328,7 +4331,7 @@ static struct usbdev_req_s *efm32_ep_allocreq(struct usbdev_ep_s *ep)
 
   usbtrace(TRACE_EPALLOCREQ, ((struct efm32_ep_s *)ep)->epphy);
 
-  privreq = (struct efm32_req_s *)kmm_malloc(sizeof(struct efm32_req_s));
+  privreq = kmm_malloc(sizeof(struct efm32_req_s));
   if (!privreq)
     {
       usbtrace(TRACE_DEVERROR(EFM32_TRACEERR_ALLOCFAIL), 0);
@@ -5588,7 +5591,7 @@ void arm_usbinitialize(void)
 
   arm_usbuninitialize();
 
-  /* Initialie the driver data structure */
+  /* Initialize the driver data structure */
 
   efm32_swinitialize(priv);
 

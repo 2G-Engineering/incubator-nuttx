@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/lm92.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -28,7 +43,7 @@
 #include <fixedmath.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
@@ -42,17 +57,13 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#ifndef CONFIG_LM92_I2C_FREQUENCY
-#  define CONFIG_LM92_I2C_FREQUENCY 400000
-#endif
-
 /* Centigrade to Fahrenheit conversion:  F = 9*C/5 + 32 */
 
 #define B16_9DIV5  (9 * 65536 / 5)
 #define B16_32     (32 * 65536)
 
 /****************************************************************************
- * Private
+ * Private Types
  ****************************************************************************/
 
 struct lm92_dev_s
@@ -452,7 +463,7 @@ static int lm92_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
       case SNIOC_WRITECONF:
         ret = lm92_writeconf(priv, (uint8_t)arg);
-        sninfo("conf: %02x ret: %d\n", *(uint8_t *)arg, ret);
+        sninfo("conf: %02x ret: %d\n", *(FAR uint8_t *)arg, ret);
         break;
 
       /* Shutdown the LM92.  Arg:  None */
@@ -628,7 +639,7 @@ int lm92_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
 
   /* Initialize the LM92 device structure */
 
-  priv = (FAR struct lm92_dev_s *)kmm_malloc(sizeof(struct lm92_dev_s));
+  priv = kmm_malloc(sizeof(struct lm92_dev_s));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/nucleo-l496zg/src/stm32_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,10 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
+
+#include <sys/types.h>
+#include <syslog.h>
 
 #include <nuttx/board.h>
 #include <arch/board/board.h>
@@ -33,11 +38,15 @@
 #include "nucleo-144.h"
 
 /****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_board_initialize
+ * Name: stm32_board_initialize
  *
  * Description:
  *   All STM32 architectures must provide the following entry point.
@@ -47,7 +56,7 @@
  *
  ****************************************************************************/
 
-void stm32l4_board_initialize(void)
+void stm32_board_initialize(void)
 {
 #ifdef CONFIG_ARCH_LEDS
   /* Configure on-board LEDs if LED support has been selected. */
@@ -55,7 +64,7 @@ void stm32l4_board_initialize(void)
   board_autoled_initialize();
 #endif
 
-#if defined(CONFIG_STM32L4_OTGFS) || defined(CONFIG_STM32L4_HOST)
+#if defined(CONFIG_STM32_OTGFS) || defined(CONFIG_STM32L4_HOST)
   stm32_usbinitialize();
 #endif
 
@@ -83,13 +92,6 @@ void stm32l4_board_initialize(void)
 #ifdef CONFIG_BOARD_LATE_INITIALIZE
 void board_late_initialize(void)
 {
-#if defined(CONFIG_NSH_LIBRARY) && !defined(CONFIG_BOARDCTL)
-  /* Perform NSH initialization here instead of from the NSH.  This
-   * alternative NSH initialization is necessary when NSH is ran in
-   * user-space but the initialization function must run in kernel space.
-   */
-
-  board_app_initialize(0);
-#endif
+  stm32_bringup();
 }
 #endif

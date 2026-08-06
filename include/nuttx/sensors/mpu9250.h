@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/sensors/mpu9250.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,24 +30,21 @@
 #include <nuttx/config.h>
 #include <nuttx/sensors/sensor.h>
 #include <nuttx/sensors/ioctl.h>
+#include <nuttx/bits.h>
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Sets bit @n */
-
-#define BIT(n)  (1 << (n))
-
-/* Creates a mask of @m bits, i.e. MASK(2) -> 00000011 */
+/* Creates a mask of m bits, i.e. MASK(2) -> 00000011 */
 
 #define MASK(m) (BIT(m) - 1)
 
-/* Masks and shifts @v into bit field @m */
+/* Masks and shifts v into bit field m */
 
 #define TO_BITFIELD(m,v) (((v) & MASK(m ##_WIDTH)) << (m ##_SHIFT))
 
-/* Un-masks and un-shifts bit field @m from @v */
+/* Un-masks and un-shifts bit field m from v */
 
 #define FROM_BITFIELD(m,v) (((v) >> (m ##_SHIFT)) & MASK(m ##_WIDTH))
 
@@ -84,7 +83,7 @@ enum accel_config_bit
   ACCEL_FS_SEL_2G  = 0, /* 0b00000 */
   ACCEL_FS_SEL_4G  = 1, /* 0b01000 */
   ACCEL_FS_SEL_8G  = 2, /* 0b10000 */
-  ACCEL_FS_SEL_16G = 3, /* 0b11000 */
+  ACCEL_FS_SEL_16G = 3  /* 0b11000 */
 };
 
 /* These structures are defined elsewhere, and we don't need their
@@ -159,11 +158,20 @@ struct mpu9250_config_s
  * Public Function Prototypes
  ****************************************************************************/
 
-/* Declares the existence of an mpu9250 chip, wired according to
- * config; creates an interface to it at path.
+/****************************************************************************
+ * Name: mpu9250_register
  *
- * Returns 0 on success, or negative errno.
- */
+ * Description:
+ *   Registers the mpu9250 character device
+ *
+ * Input Parameters:
+ *   devno   - Instance number for driver
+ *   config  - Configuration information
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
 
 int mpu9250_register(int devno, FAR struct mpu9250_config_s *config);
 

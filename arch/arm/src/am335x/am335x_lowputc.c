@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/am335x/am335x_lowputc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -189,7 +191,7 @@ void am335x_lowsetup(void)
 #warning Missing logic
 
   /* Configure UART pins for the selected CONSOLE.  If there are multiple
-   * pin options for a given UART, the the applicable option must be
+   * pin options for a given UART, the applicable option must be
    * disambiguated in the board.h header file.
    */
 
@@ -221,7 +223,7 @@ void am335x_lowsetup(void)
 
   putreg32(UART_SYSC_SRESET | getreg32(CONSOLE_BASE +
            AM335X_UART_SYSC_OFFSET),
-          CONSOLE_BASE + AM335X_UART_SYSC_OFFSET);
+           CONSOLE_BASE + AM335X_UART_SYSC_OFFSET);
 
   /* Wait until the process of Module Reset is complete. */
 

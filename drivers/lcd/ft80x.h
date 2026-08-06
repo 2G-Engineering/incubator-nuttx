@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/lcd/ft80x.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -186,7 +188,9 @@ struct ft80x_dev_s
 
   /* Event notification support */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   struct ft80x_eventinfo_s notify[FT80X_INT_NEVENTS];
+#endif
 };
 
 /****************************************************************************

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f769i-disco/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -86,7 +88,7 @@
  * 2 <= PLLQ <= 15
  */
 
-#if defined(CONFIG_STM32F7_OTGFS)
+#if defined(CONFIG_STM32_OTGFS)
 /* USB OTG FS clock (= SDMMCCLK = RNGCLK) must be 48 MHz
  *
  * PLL_VCO = (25,000,000 / 25) * 384 = 384 MHz
@@ -105,7 +107,7 @@
 #define STM32_SYSCLK_FREQUENCY  (STM32_VCO_FREQUENCY / 2)
 #define STM32_OTGFS_FREQUENCY   (STM32_VCO_FREQUENCY / 8)
 
-#elif defined(CONFIG_STM32F7_SDMMC1) || defined(CONFIG_STM32F7_SDMMC2) || defined(CONFIG_STM32F7_RNG)
+#elif defined(CONFIG_STM32_SDMMC1) || defined(CONFIG_STM32_SDMMC2) || defined(CONFIG_STM32_RNG)
 /* SDMMCCLK (= USB OTG FS clock = RNGCLK) should be <= 48MHz
  *
  * PLL_VCO = (25,000,000 / 25) * 432 = 432 MHz
@@ -347,20 +349,20 @@
  * (work in progress as of 2017 07 19)
  */
 
-#define	BOARD_LTDC_WIDTH        800
-#define	BOARD_LTDC_HEIGHT       472
+#define BOARD_LTDC_WIDTH        800
+#define BOARD_LTDC_HEIGHT       472
 
-#define	BOARD_LTDC_HSYNC        10
-#define	BOARD_LTDC_HFP          10
-#define	BOARD_LTDC_HBP          20
-#define	BOARD_LTDC_VSYNC        2
-#define	BOARD_LTDC_VFP          4
-#define	BOARD_LTDC_VBP          2
+#define BOARD_LTDC_HSYNC        10
+#define BOARD_LTDC_HFP          10
+#define BOARD_LTDC_HBP          20
+#define BOARD_LTDC_VSYNC        2
+#define BOARD_LTDC_VFP          4
+#define BOARD_LTDC_VBP          2
 
-#define	BOARD_LTDC_GCR_PCPOL    0
-#define	BOARD_LTDC_GCR_DEPOL    0
-#define	BOARD_LTDC_GCR_VSPOL    0
-#define	BOARD_LTDC_GCR_HSPOL    0
+#define BOARD_LTDC_GCR_PCPOL    0
+#define BOARD_LTDC_GCR_DEPOL    0
+#define BOARD_LTDC_GCR_VSPOL    0
+#define BOARD_LTDC_GCR_HSPOL    0
 
 /* DMA Channel/Stream Selections ********************************************/
 

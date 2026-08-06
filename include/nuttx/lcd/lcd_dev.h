@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/lcd/lcd_dev.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -50,17 +52,19 @@
 #define LCDDEVIO_SETPLANENO   _LCDIOC(10) /* Arg: int */
 
 #ifdef CONFIG_FB_CMAP
-#define LCDDEVIO_GETCMAP      _LCDIOC(9)  /* Arg: struct fb_cmap_s* */
-#define LCDDEVIO_PUTCMAP      _LCDIOC(10) /* Arg: const struct fb_cmap_s* */
+#define LCDDEVIO_GETCMAP      _LCDIOC(11) /* Arg: struct fb_cmap_s* */
+#define LCDDEVIO_PUTCMAP      _LCDIOC(12) /* Arg: const struct fb_cmap_s* */
 #endif
 
 #ifdef CONFIG_FB_HWCURSOR
-#define LCDDEVIO_GETCURSOR    _LCDIOC(11) /* Arg: struct fb_cursorattrib_s* */
-#define LCDDEVIO_SETCURSOR    _LCDIOC(12) /* Arg: struct fb_setcursor_s* */
+#define LCDDEVIO_GETCURSOR    _LCDIOC(13) /* Arg: struct fb_cursorattrib_s* */
+#define LCDDEVIO_SETCURSOR    _LCDIOC(14) /* Arg: struct fb_setcursor_s* */
 #endif
 
-#define LCDDEVIO_SETFRAMERATE _LCDIOC(13) /* Arg: int */
-#define LCDDEVIO_GETFRAMERATE _LCDIOC(14) /* Arg: int* */
+#define LCDDEVIO_SETFRAMERATE _LCDIOC(15) /* Arg: int */
+#define LCDDEVIO_GETFRAMERATE _LCDIOC(16) /* Arg: int* */
+
+#define LCDDEVIO_GETAREAALIGN _LCDIOC(17) /* Arg: struct lcddev_area_align_s* */
 
 /****************************************************************************
  * Public Data
@@ -85,6 +89,7 @@ struct lcddev_area_s
 {
   fb_coord_t row_start, row_end;
   fb_coord_t col_start, col_end;
+  fb_coord_t stride;               /* row stride in bytes */
   FAR uint8_t *data;
 };
 

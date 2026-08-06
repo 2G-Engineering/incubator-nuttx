@@ -19,44 +19,51 @@ config ESP32_QEMU_IMAGE
 	---help---
 		Create a binary flash image used for QEMU.
 
-choice ESP32_SPIFLASH_FS
-	prompt "Mount SPI Flash MTD on bring-up"
-	default ESP32_SPIFLASH_SMARTFS
+config ESP32_SPIFLASH_AUTO_BRINGUP
+	bool "Automatic mount of SPI Flash MTD"
+	default y
 	depends on ESP32_SPIFLASH
-	optional
+	---help---
+		Auto bring-up the SPI Flash MTD on board bring-up.
+		If not selected, the MTD will be registered as a device node on /dev.
+
+choice ESP32_SPIFLASH_FS
+	prompt "File system to mount on SPI Flash MTD"
+	default ESP32_SPIFLASH_SMARTFS
+	depends on ESP32_SPIFLASH_AUTO_BRINGUP
 	---help---
 		Mount the SPI Flash MTD with the selected File System format on board
 		bring-up.
 		If not selected, the MTD will be registered as a device node on /dev.
 
-	config ESP32_SPIFLASH_SMARTFS
-		bool "SmartFS"
-		select FS_SMARTFS
-		select MTD_SMART
-		depends on !ESP32_SECURE_FLASH_ENC_ENABLED
+config ESP32_SPIFLASH_SMARTFS
+	bool "SmartFS"
+	select FS_SMARTFS
+	select MTD_SMART
+	depends on !ESP32_SECURE_FLASH_ENC_ENABLED
 
-	comment "SmartFS not supported with Flash Encryption"
-		depends on ESP32_SECURE_FLASH_ENC_ENABLED
+comment "SmartFS not supported with Flash Encryption"
+	depends on ESP32_SECURE_FLASH_ENC_ENABLED
 
-	config ESP32_SPIFLASH_NXFFS
-		bool "NXFFS"
-		select FS_NXFFS
-		depends on !ESP32_SECURE_FLASH_ENC_ENABLED
+config ESP32_SPIFLASH_NXFFS
+	bool "NXFFS"
+	select FS_NXFFS
+	depends on !ESP32_SECURE_FLASH_ENC_ENABLED
 
-	comment "NXFFS not supported with Flash Encryption"
-		depends on ESP32_SECURE_FLASH_ENC_ENABLED
+comment "NXFFS not supported with Flash Encryption"
+	depends on ESP32_SECURE_FLASH_ENC_ENABLED
 
-	config ESP32_SPIFLASH_SPIFFS
-		bool "SPIFFS"
-		select FS_SPIFFS
-		depends on !ESP32_SECURE_FLASH_ENC_ENABLED
+config ESP32_SPIFLASH_SPIFFS
+	bool "SPIFFS"
+	select FS_SPIFFS
+	depends on !ESP32_SECURE_FLASH_ENC_ENABLED
 
-	comment "SPIFFS not supported with Flash Encryption"
-		depends on ESP32_SECURE_FLASH_ENC_ENABLED
+comment "SPIFFS not supported with Flash Encryption"
+	depends on ESP32_SECURE_FLASH_ENC_ENABLED
 
-	config ESP32_SPIFLASH_LITTLEFS
-		bool "LittleFS"
-		select FS_LITTLEFS
+config ESP32_SPIFLASH_LITTLEFS
+	bool "LittleFS"
+	select FS_LITTLEFS
 
 endchoice
 

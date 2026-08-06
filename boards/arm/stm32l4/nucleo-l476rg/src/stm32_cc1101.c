@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/nucleo-l476rg/src/stm32_cc1101.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,17 +27,16 @@
 #include <nuttx/config.h>
 
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
-#include <nuttx/config.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/spi/spi.h>
 #include <nuttx/wireless/cc1101.h>
 
-#include "stm32l4.h"
+#include "stm32.h"
 #include "nucleo-l476rg.h"
 
 #ifdef CONFIG_WL_CC1101
@@ -53,7 +54,7 @@
 
 static void cc1101_wait(struct cc1101_dev_s *dev, uint32_t pin)
 {
-  while (stm32l4_gpioread(pin) == true)
+  while (stm32_gpioread(pin) == true)
     {
     }
 }
@@ -69,11 +70,11 @@ static void cc1101_irq(struct cc1101_dev_s *dev, bool enable)
 {
   if (enable)
     {
-      stm32l4_gpiosetevent(dev->isr_pin, false, true, true, cc1101_isr, dev);
+      stm32_gpiosetevent(dev->isr_pin, false, true, true, cc1101_isr, dev);
     }
   else
     {
-      stm32l4_gpiosetevent(dev->isr_pin, false, true, true, NULL, NULL);
+      stm32_gpiosetevent(dev->isr_pin, false, true, true, NULL, NULL);
     }
 }
 
@@ -93,19 +94,19 @@ static void cc1101_pwr(struct cc1101_dev_s *dev, bool enable)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_cc1101_initialize
+ * Name: stm32_cc1101_initialize
  *
  * Description:
  *   Initialize and register the cc1101 radio driver
  *
  ****************************************************************************/
 
-int stm32l4_cc1101_initialize(void)
+int stm32_cc1101_initialize(void)
 {
   struct spi_dev_s *spi    = NULL;
   struct cc1101_dev_s *dev = NULL;
 
-  spi = stm32l4_spibus_initialize(CONFIG_CC1101_SPIDEV);
+  spi = stm32_spibus_initialize(CONFIG_CC1101_SPIDEV);
   if (spi == NULL)
     {
       ierr("ERROR: Failed to initialize SPI bus %d\n", CONFIG_CC1101_SPIDEV);

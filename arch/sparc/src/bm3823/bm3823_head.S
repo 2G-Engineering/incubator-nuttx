@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sparc/src/bm3823/bm3823_head.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -325,7 +327,7 @@ __start:
 
         set   EXTER_REG,%g1
         ld    [%g1+4], %g2
-        or    %g2, 0x4f, %g2        	/*将存储器配置为读改写（区别于写选通），等待后期设置为最大*/
+        or    %g2, 0x4f, %g2        	/*将存储器配置为读改写（区别于写选通）, 等待后期设置为最大*/
         st    %g2, [%g1+4]
         nop
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32u5/stm32_exti.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -139,7 +141,7 @@ int stm32_exti_wakeup(bool risingedge, bool fallingedge, bool event,
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32U5_COMP
+#ifdef CONFIG_STM32_COMP
 int stm32_exti_comp(int cmp, bool risingedge, bool fallingedge,
                       bool event, xcpt_t func, void *arg);
 #endif

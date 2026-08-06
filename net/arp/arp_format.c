@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/arp/arp_format.c
  *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  *   Copyright (C) 2007-2011, 2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
@@ -44,7 +46,7 @@
 #include <nuttx/config.h>
 
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <netinet/in.h>
 
@@ -109,7 +111,7 @@ void arp_format(FAR struct net_driver_s *dev, in_addr_t ipaddr)
 
   /* Update device buffer length */
 
-  iob_update_pktlen(dev->d_iob, sizeof(struct arp_hdr_s));
+  iob_update_pktlen(dev->d_iob, sizeof(struct arp_hdr_s), false);
 }
 
 #endif /* CONFIG_NET_ARP */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l5/nucleo-l552ze/src/stm32_autoleds.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <sys/param.h>
 
@@ -62,7 +64,7 @@ static void phy_set_led(int led, bool state)
 {
   /* Active High */
 
-  stm32l5_gpiowrite(g_ledmap[led], state);
+  stm32_gpiowrite(g_ledmap[led], state);
 }
 
 /****************************************************************************
@@ -81,7 +83,7 @@ void board_autoled_initialize(void)
 
   for (i = 0; i < nitems(g_ledmap); i++)
     {
-      stm32l5_configgpio(g_ledmap[i]);
+      stm32_configgpio(g_ledmap[i]);
     }
 }
 

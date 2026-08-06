@@ -40,6 +40,38 @@ config CRYPTO_CRYPTODEV
 	depends on ALLOW_BSD_COMPONENTS
 	default n
 
+config CRYPTO_CRYPTODEV_SOFTWARE_CRYPTO
+	bool "cryptodev software cipher support"
+	depends on CRYPTO_CRYPTODEV && CRYPTO_SW_AES
+	select CRYPTO_CURVE25519
+	default n
+
+config CRYPTO_CRYPTODEV_SOFTWARE_KEYMGMT
+	bool "cryptodev software key management support"
+	depends on CRYPTO_CRYPTODEV && !MTD_CONFIG_NONE
+	select CRYPTO_CURVE25519
+	default n
+
+if CRYPTO_CRYPTODEV_SOFTWARE_KEYMGMT
+
+config CRYPTO_CRYPTODEV_SOFTWARE_KEYMGMT_DEVICE
+	string "device of trusted storage"
+	default "/dev/nvs"
+
+config CRYPTO_CRYPTODEV_SOFTWARE_KEYMGMT_NSLOTS
+	int "Maximum number of key in cache"
+	default 4
+
+config CRYPTO_CRYPTODEV_SOFTWARE_KEYMGMT_BUFSIZE
+	int "Maximum size of key buffer in cache (bytes)"
+	default 64
+
+config CRYPTO_CRYPTODEV_SOFTWARE_KEYMGMT_NKEYS
+	int "Maximum number of key in flash"
+	default 32
+
+endif # CRYPTO_CRYPTODEV_SOFTWARE_KEYMGMT
+
 config CRYPTO_CRYPTODEV_HARDWARE
 	bool "cryptodev hardware support"
 	depends on CRYPTO_CRYPTODEV
@@ -57,16 +89,11 @@ config CRYPTO_SW_AES
 		implementations.  This needs to support up_aesinitialize() and
 		aes_cypher() per include/nuttx/crypto/crypto.h.
 
-config CRYPTO_BLAKE2S
-	bool "BLAKE2s hash algorithm"
-	default n
-	---help---
-		Enable the BLAKE2s hash algorithm
-
 config CRYPTO_RANDOM_POOL
-	bool "Entropy pool and strong randon number generator"
+	bool "Entropy pool and strong random number generator"
+	select CRYPTO_IDGEN
+	select CRYPTO_CURVE25519
 	default n
-	select CRYPTO_BLAKE2S
 	---help---
 		Entropy pool gathers environmental noise from device drivers,
 		user-space, etc., and returns good random numbers, suitable
@@ -75,6 +102,14 @@ config CRYPTO_RANDOM_POOL
 
 		NOTE: May not actually be cyptographically secure, if
 		not enough entropy is made available to the entropy pool.
+
+config CRYPTO_CURVE25519
+	bool
+	default n
+
+config CRYPTO_IDGEN
+	bool
+	default n
 
 if CRYPTO_RANDOM_POOL
 

@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/eoss3/quickfeather/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,7 +22,7 @@
 
 include $(TOPDIR)/Make.defs
 
-CSRCS = eoss3_boot.c eoss3_bringup.c eoss3_appinit.c
+CSRCS = eoss3_boot.c eoss3_bringup.c
 
 ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += eoss3_autoleds.c

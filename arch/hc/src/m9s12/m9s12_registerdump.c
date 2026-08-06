@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/hc/src/m9s12/m9s12_registerdump.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,8 +27,8 @@
 #include <nuttx/config.h>
 
 #include <stdint.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 
@@ -37,22 +39,12 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_getusrsp
- ****************************************************************************/
-
-uintptr_t up_getusrsp(void *regs)
-{
-  uint8_t *ptr = regs;
-  return (uintptr_t)(ptr[REG_SPH] << 8 | ptr[REG_SPL]);
-}
-
-/****************************************************************************
  * Name: up_dump_register
  ****************************************************************************/
 
 void up_dump_register(void *dumpregs)
 {
-  volatile uint8_t *regs = dumpregs ? dumpregs : (uint8_t *)g_current_regs;
+  volatile uint8_t *regs = dumpregs ? dumpregs : up_current_regs();
 
   _alert("A:%02x B:%02x X:%02x%02x Y:%02x%02x PC:%02x%02x CCR:%02x\n",
          regs[REG_A],  regs[REG_B],  regs[REG_XH],  regs[REG_XL],

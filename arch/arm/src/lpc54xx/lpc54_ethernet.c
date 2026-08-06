@@ -1,15 +1,12 @@
 /****************************************************************************
  * arch/arm/src/lpc54xx/lpc54_ethernet.c
  *
- *   Copyright (C) 2017 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
- *
- * Some of the logic in this file was developed using sample code provided by
- * NXP that has a compatible BSD license:
- *
- *   Copyright (c) 2016, Freescale Semiconductor, Inc.
- *   Copyright 2016-2017 NXP
- *   All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2017 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2016 Freescale Semiconductor Inc.
+ * SPDX-FileCopyrightText: 2016 - 2017, NXP
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.org>
+ * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -69,7 +66,7 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arpa/inet.h>
 
@@ -80,6 +77,7 @@
 #include <nuttx/wqueue.h>
 #include <nuttx/clock.h>
 #include <nuttx/net/mii.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 
 #ifdef CONFIG_NET_PKT
@@ -1222,7 +1220,7 @@ static void lpc54_eth_txdone(struct lpc54_ethdriver_s *priv,
     {
       /* Update statistics */
 
-      NETDEV_TXDONE(priv->eth_dev);
+      NETDEV_TXDONE(&priv->eth_dev);
 
       /* Free the Tx buffer assigned to the descriptor */
 
@@ -1320,12 +1318,12 @@ static void lpc54_eth_channel_work(struct lpc54_ethdriver_s *priv,
 
       if ((pending & LPC54_RXERR_INTMASK) != 0)
         {
-          NETDEV_RXERRORS(priv->eth_dev);
+          NETDEV_RXERRORS(&priv->eth_dev);
         }
 
       if ((pending & LPC54_TXERR_INTMASK) != 0)
         {
-          NETDEV_TXERRORS(priv->eth_dev);
+          NETDEV_TXERRORS(&priv->eth_dev);
         }
 
       /* The Receive Buffer Unavailable (RBU) error is a special case.  It
@@ -1374,7 +1372,7 @@ static void lpc54_eth_channel_work(struct lpc54_ethdriver_s *priv,
             {
               /* Update statistics if a packet was dispatched */
 
-              NETDEV_RXPACKETS(priv->eth_dev);
+              NETDEV_RXPACKETS(&priv->eth_dev);
             }
           else
             {
@@ -1575,7 +1573,7 @@ static void lpc54_eth_txtimeout_work(void *arg)
 
   /* Increment statistics and dump debug info */
 
-  NETDEV_TXTIMEOUTS(priv->eth_dev);
+  NETDEV_TXTIMEOUTS(&priv->eth_dev);
 
   /* Then reset the hardware by bringing it down and taking it back up
    * again.
@@ -1722,11 +1720,9 @@ static int lpc54_eth_ifup(struct net_driver_s *dev)
   int i;
 
 #ifdef CONFIG_NET_IPv4
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff),
-        (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff),
-        (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 #endif
 #ifdef CONFIG_NET_IPv6
   ninfo("Bringing up: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -1975,6 +1971,9 @@ static int lpc54_eth_ifup(struct net_driver_s *dev)
 
   priv->eth_bifup = 1;
   up_enable_irq(LPC54_IRQ_ETHERNET);
+
+  netdev_carrier_on(dev);
+
   return OK;
 }
 
@@ -2052,6 +2051,9 @@ static int lpc54_eth_ifdown(struct net_driver_s *dev)
 
   priv->eth_bifup = 0;
   leave_critical_section(flags);
+
+  netdev_carrier_off(dev);
+
   return OK;
 }
 
@@ -2655,7 +2657,7 @@ static void lpc54_phy_write(struct lpc54_ethdriver_s *priv,
  * Name: lpc54_phy_linkstatus
  *
  * Description:
- *   Read the MII status register and return tru if the link is up.
+ *   Read the MII status register and return true if the link is up.
  *
  * Input Parameters:
  *   priv - Reference to the driver state structure
@@ -2667,7 +2669,7 @@ static void lpc54_phy_write(struct lpc54_ethdriver_s *priv,
 
 static inline bool lpc54_phy_linkstatus(struct lpc54_ethdriver_s *priv)
 {
-  /* Read the status register and return tru of the linkstatus bit is set. */
+  /* Read the status register and return true if the linkstatus bit is set. */
 
   return ((lpc54_phy_read(priv, MII_MSR) & MII_MSR_LINKSTATUS) != 0);
 }

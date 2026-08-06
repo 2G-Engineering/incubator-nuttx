@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/audio/cs43l22.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -47,7 +49,7 @@
  *   worker thread.
  * CONFIG_CS43L22_BUFFER_SIZE - Preferred buffer size
  * CONFIG_CS43L22_NUM_BUFFERS - Preferred number of buffers
- * CONFIG_CS43L22_WORKER_STACKSIZE - Stack size to use when creating the the
+ * CONFIG_CS43L22_WORKER_STACKSIZE - Stack size to use when creating the
  *   CS43L22 worker thread.
  * CONFIG_CS43L22_REGDUMP - Enable logic to dump all CS43L22 registers to
  *   the SYSLOG device.

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l4/hardware/stm32l4x6xx_firewall.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,23 +38,23 @@
 
 /* Register Offsets *********************************************************/
 
-#define STM32L4_FIREWALL_CSSA_OFFSET    0x0000
-#define STM32L4_FIREWALL_CSL_OFFSET     0x0004
-#define STM32L4_FIREWALL_NVDSSA_OFFSET  0x0008
-#define STM32L4_FIREWALL_NVDSL_OFFSET   0x000c
-#define STM32L4_FIREWALL_VDSSA_OFFSET   0x0010
-#define STM32L4_FIREWALL_VDSL_OFFSET    0x0014
-#define STM32L4_FIREWALL_CR_OFFSET      0x0020
+#define STM32_FIREWALL_CSSA_OFFSET    0x0000
+#define STM32_FIREWALL_CSL_OFFSET     0x0004
+#define STM32_FIREWALL_NVDSSA_OFFSET  0x0008
+#define STM32_FIREWALL_NVDSL_OFFSET   0x000c
+#define STM32_FIREWALL_VDSSA_OFFSET   0x0010
+#define STM32_FIREWALL_VDSL_OFFSET    0x0014
+#define STM32_FIREWALL_CR_OFFSET      0x0020
 
 /* Register Addresses *******************************************************/
 
-#define STM32L4_FIREWALL_CSSA           (STM32L4_FIREWALL_BASE+STM32L4_FIREWALL_CSSA_OFFSET)
-#define STM32L4_FIREWALL_CSL            (STM32L4_FIREWALL_BASE+STM32L4_FIREWALL_CSL_OFFSET)
-#define STM32L4_FIREWALL_NVDSSA         (STM32L4_FIREWALL_BASE+STM32L4_FIREWALL_NVDSSA_OFFSET)
-#define STM32L4_FIREWALL_NVDSL          (STM32L4_FIREWALL_BASE+STM32L4_FIREWALL_NVDSL_OFFSET)
-#define STM32L4_FIREWALL_VDSSA          (STM32L4_FIREWALL_BASE+STM32L4_FIREWALL_VDSSA_OFFSET)
-#define STM32L4_FIREWALL_VDSL           (STM32L4_FIREWALL_BASE+STM32L4_FIREWALL_VDSL_OFFSET)
-#define STM32L4_FIREWALL_CR             (STM32L4_FIREWALL_BASE+STM32L4_FIREWALL_CR_OFFSET)
+#define STM32_FIREWALL_CSSA           (STM32_FIREWALL_BASE+STM32_FIREWALL_CSSA_OFFSET)
+#define STM32_FIREWALL_CSL            (STM32_FIREWALL_BASE+STM32_FIREWALL_CSL_OFFSET)
+#define STM32_FIREWALL_NVDSSA         (STM32_FIREWALL_BASE+STM32_FIREWALL_NVDSSA_OFFSET)
+#define STM32_FIREWALL_NVDSL          (STM32_FIREWALL_BASE+STM32_FIREWALL_NVDSL_OFFSET)
+#define STM32_FIREWALL_VDSSA          (STM32_FIREWALL_BASE+STM32_FIREWALL_VDSSA_OFFSET)
+#define STM32_FIREWALL_VDSL           (STM32_FIREWALL_BASE+STM32_FIREWALL_VDSL_OFFSET)
+#define STM32_FIREWALL_CR             (STM32_FIREWALL_BASE+STM32_FIREWALL_CR_OFFSET)
 
 /* Register Bitfield Definitions ********************************************/
 
@@ -79,7 +81,7 @@
 /* Volatile Data Segment Start Address */
 
 #define FIREWALL_VDSADD_SHIFT           6
-#if defined(CONFIG_STM32L4_STM32L496XX)
+#if defined(CONFIG_STM32_STM32L496XX)
 #  define FIREWALL_VDSADD_MASK          (0x0fff << FIREWALL_VDSADD_SHIFT)
 #else
 #  define FIREWALL_VDSADD_MASK          (0x07ff << FIREWALL_VDSADD_SHIFT)
@@ -88,7 +90,7 @@
 /* Volatile Data Segment Length */
 
 #define FIREWALL_VDSLENG_SHIFT          6
-#if defined(CONFIG_STM32L4_STM32L496XX)
+#if defined(CONFIG_STM32_STM32L496XX)
 #  define FIREWALL_VDSLENG_MASK         (0x0fff << FIREWALL_VDSLENG_SHIFT)
 #else
 #  define FIREWALL_VDSLENG_MASK         (0x07ff << FIREWALL_VDSLENG_SHIFT)

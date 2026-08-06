@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/icmp/icmp_recvmsg.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/semaphore.h>
 #include <nuttx/net/net.h>
@@ -35,15 +37,10 @@
 
 #include "devif/devif.h"
 #include "socket/socket.h"
+#include "utils/utils.h"
 #include "icmp/icmp.h"
 
 #ifdef CONFIG_NET_ICMP_SOCKET
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-#define ICMPSIZE ((dev)->d_len - IPv4_HDRLEN)
 
 /****************************************************************************
  * Private Types
@@ -89,16 +86,14 @@ struct icmp_recvfrom_s
  *
  ****************************************************************************/
 
-static uint16_t recvfrom_eventhandler(FAR struct net_driver_s *dev,
-                                      FAR void *pvpriv, uint16_t flags)
+static uint32_t recvfrom_eventhandler(FAR struct net_driver_s *dev,
+                                      FAR void *pvpriv, uint32_t flags)
 {
   FAR struct icmp_recvfrom_s *pstate = pvpriv;
   FAR struct socket *psock;
-  FAR struct icmp_conn_s *conn;
   FAR struct ipv4_hdr_s *ipv4;
-  FAR struct icmp_hdr_s *icmp;
 
-  ninfo("flags: %04x\n", flags);
+  ninfo("flags: %" PRIx32 "\n", flags);
 
   if (pstate != NULL)
     {
@@ -111,42 +106,31 @@ static uint16_t recvfrom_eventhandler(FAR struct net_driver_s *dev,
           goto end_wait;
         }
 
-      /* Is this a response on the same device that we sent the request out
-       * on?
-       */
-
       psock = pstate->recv_sock;
-      DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
-      conn  = psock->s_conn;
-      if (dev != conn->dev)
-        {
-          ninfo("Wrong device\n");
-          return flags;
-        }
 
       /* Check if we have just received a ICMP ECHO reply. */
 
       if ((flags & ICMP_NEWDATA) != 0)    /* No incoming data */
         {
           unsigned int recvsize;
-
-          /* Check if it is for us */
-
-          icmp = IPBUF(IPv4_HDRLEN);
-          if (conn->id != icmp->id)
-            {
-              ninfo("Wrong ID: %u vs %u\n", icmp->id, conn->id);
-              return flags;
-            }
+          unsigned int offset = 0;
 
           ninfo("Received ICMP reply\n");
+          ipv4 = IPv4BUF;
 
-          /* What should we do if the received reply is larger that the
+          /* What should we do if the received message is larger that the
            * buffer that the caller of sendto provided?  Truncate?  Error
            * out?
            */
 
-          recvsize = ICMPSIZE;
+          if (psock->s_type != SOCK_RAW)
+            {
+              /* Skip L3 header when not SOCK_RAW */
+
+              offset = (ipv4->vhl & IPv4_HLMASK) << 2;
+            }
+
+          recvsize = dev->d_len - offset;
           if (recvsize > pstate->recv_buflen)
             {
               recvsize = pstate->recv_buflen;
@@ -154,7 +138,7 @@ static uint16_t recvfrom_eventhandler(FAR struct net_driver_s *dev,
 
           /* Copy the ICMP ECHO reply to the user provided buffer */
 
-          memcpy(pstate->recv_buf, IPBUF(IPv4_HDRLEN), recvsize);
+          memcpy(pstate->recv_buf, IPBUF(offset), recvsize);
 
           /* Return the size of the returned data */
 
@@ -163,17 +147,7 @@ static uint16_t recvfrom_eventhandler(FAR struct net_driver_s *dev,
 
           /* Return the IPv4 address of the sender from the IPv4 header */
 
-          ipv4 = IPv4BUF;
           net_ipv4addr_hdrcopy(&pstate->recv_from, ipv4->srcipaddr);
-
-          /* Decrement the count of outstanding requests.  I suppose this
-           * could have already been decremented of there were multiple
-           * threads calling sendto() or recvfrom().  If there finds, we
-           * may have to beef up the design.
-           */
-
-          DEBUGASSERT(conn->nreqs > 0);
-          conn->nreqs--;
 
           /* Indicate that the data has been consumed */
 
@@ -225,7 +199,7 @@ end_wait:
 static inline ssize_t icmp_readahead(FAR struct icmp_conn_s *conn,
                                      FAR void *buf, size_t buflen,
                                      FAR struct sockaddr_in *from,
-                                     FAR socklen_t *fromlen)
+                                     FAR socklen_t *fromlen, bool raw)
 {
   FAR struct iob_s *iob;
   ssize_t ret = -ENODATA;
@@ -236,6 +210,8 @@ static inline ssize_t icmp_readahead(FAR struct icmp_conn_s *conn,
 
   if ((iob = iob_peek_queue(&conn->readahead)) != NULL)
     {
+      unsigned int offset = 0;
+
       DEBUGASSERT(iob->io_pktlen > 0);
 
       /* Then get address */
@@ -247,7 +223,17 @@ static inline ssize_t icmp_readahead(FAR struct icmp_conn_s *conn,
 
       /* Copy to user */
 
-      ret = (ssize_t)iob_copyout(buf, iob, buflen, 0);
+      if (!raw)
+        {
+          FAR struct ipv4_hdr_s *ipv4 =
+                                 (FAR struct ipv4_hdr_s *)IOB_DATA(iob);
+
+          /* Skip L3 header when not SOCK_RAW */
+
+          offset = (ipv4->vhl & IPv4_HLMASK) << 2;
+        }
+
+      ret = (ssize_t)iob_copyout(buf, iob, buflen, offset);
 
       ninfo("Received %ld bytes (of %u)\n", (long)ret, iob->io_pktlen);
 
@@ -305,13 +291,18 @@ ssize_t icmp_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
   FAR socklen_t *fromlen = &msg->msg_namelen;
   FAR struct sockaddr_in *inaddr;
   FAR struct icmp_conn_s *conn;
-  FAR struct net_driver_s *dev;
+  FAR struct net_driver_s *dev = NULL;
   struct icmp_recvfrom_s state;
   ssize_t ret;
 
   /* Some sanity checks */
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL && buf != NULL);
+  if (msg->msg_iovlen != 1)
+    {
+      return -ENOTSUP;
+    }
+
+  DEBUGASSERT(buf != NULL);
 
   if (len < ICMP_HDRLEN)
     {
@@ -330,27 +321,19 @@ ssize_t icmp_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
         }
     }
 
-  net_lock();
-
-  /* We cannot receive a response from a device until a request has been
-   * sent to the devivce.
-   */
-
   conn = psock->s_conn;
-  if (conn->nreqs < 1)
-    {
-      ret = -EPROTO;
-      goto errout;
-    }
-
-  /* Get the device that was used to send the ICMP request. */
-
   dev = conn->dev;
-  DEBUGASSERT(dev != NULL);
-  if (dev == NULL)
+
+  conn_dev_lock(&conn->sconn, dev);
+  if (psock->s_type != SOCK_RAW)
     {
-      ret = -EPROTO;
-      goto errout;
+      /* Get the device that was used to send the ICMP request. */
+
+      if (dev == NULL)
+        {
+          ret = -EPROTO;
+          goto errout;
+        }
     }
 
   /* Check if there is buffered read-ahead data for this socket.  We may have
@@ -359,8 +342,8 @@ ssize_t icmp_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 
   if (!IOB_QEMPTY(&conn->readahead))
     {
-      ret = icmp_readahead(conn, buf, len,
-                           (FAR struct sockaddr_in *)from, fromlen);
+      ret = icmp_readahead(conn, buf, len, (FAR struct sockaddr_in *)from,
+                           fromlen, psock->s_type == SOCK_RAW);
     }
   else if (_SS_ISNONBLOCK(conn->sconn.s_flags) ||
            (flags & MSG_DONTWAIT) != 0)
@@ -391,12 +374,13 @@ ssize_t icmp_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
           state.recv_cb->event = recvfrom_eventhandler;
 
           /* Wait for either the response to be received or for timeout to
-           * occur. net_sem_timedwait will also terminate if a signal is
+           * occur. conn_dev_sem_timedwait will also terminate if a signal is
            * received.
            */
 
-          ret = net_sem_timedwait(&state.recv_sem,
-                              _SO_TIMEOUT(conn->sconn.s_rcvtimeo));
+          ret = conn_dev_sem_timedwait(&state.recv_sem, true,
+                                       _SO_TIMEOUT(conn->sconn.s_rcvtimeo),
+                                       &conn->sconn, dev);
           if (ret < 0)
             {
               state.recv_result = ret;
@@ -434,17 +418,16 @@ ssize_t icmp_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
        */
 
 errout:
-      if (conn->nreqs < 1)
+      if (ret < 0)
         {
-          conn->id    = 0;
-          conn->nreqs = 0;
-          conn->dev   = NULL;
+          conn->id  = 0;
+          conn->dev = NULL;
 
           iob_free_queue(&conn->readahead);
         }
     }
 
-  net_unlock();
+  conn_dev_unlock(&conn->sconn, dev);
 
   return ret;
 }

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/risc-v/c906/smartl-c906/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,8 +32,6 @@
 #ifndef __ASSEMBLY__
 #  include <stdint.h>
 #endif
-
-#include "c906.h"
 
 /****************************************************************************
  * Pre-processor Definitions

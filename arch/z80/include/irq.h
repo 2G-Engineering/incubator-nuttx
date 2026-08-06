@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/z80/include/irq.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,6 +35,16 @@
 #include <arch/chip/irq.h>
 
 /****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+/* The Z80 stack does not need to be aligned.  Here it is aligned at word
+ * (4 byte) boundary.
+ */
+
+#define STACKFRAME_ALIGN 4
+
+/****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
 
@@ -47,6 +59,20 @@ extern "C"
 /* Return the current value of the stack pointer */
 
 uintptr_t up_getsp(void);
+
+/****************************************************************************
+ * Name: up_getusrpc
+ ****************************************************************************/
+
+#define up_getusrpc(regs) \
+    (((FAR chipreg_t *)((regs) ? (regs) : up_current_regs()))[XCPT_PC])
+
+/****************************************************************************
+ * Name: up_getusrsp
+ ****************************************************************************/
+
+#define up_getusrsp(regs) \
+    ((uintptr_t)((FAR chipreg_t*)(regs))[XCPT_SP])
 
 #undef EXTERN
 #ifdef __cplusplus

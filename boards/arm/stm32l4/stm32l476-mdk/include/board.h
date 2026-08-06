@@ -1,8 +1,9 @@
 /****************************************************************************
  * boards/arm/stm32l4/stm32l476-mdk/include/board.h
  *
- *   Copyright (C) 2016 Gregory Nutt. All rights reserved.
- *   Copyright (C) 2016 Motorola Mobility, LLC.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2016 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2016 Motorola Mobility, LLC.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -163,7 +164,7 @@
 #define LED_SIGNAL       2 /* In a signal handler     N/C      */
 #define LED_ASSERTION    2 /* An assertion failed     N/C      */
 #define LED_PANIC        3 /* The system has crashed  FLASH    */
-#undef  LED_IDLE           /* MCU is is sleep mode    Not used */
+#undef  LED_IDLE           /* MCU is in sleep mode    Not used */
 
 /* Thus if the white LED is statically on, NuttX has successfully  booted and
  * is, apparently, running normally.  If white LED is flashing at
@@ -199,7 +200,7 @@ extern "C"
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_board_initialize
+ * Name: stm32_board_initialize
  *
  * Description:
  *   All STM32L4 architectures must provide the following entry point.  This
@@ -209,7 +210,7 @@ extern "C"
  *
  ****************************************************************************/
 
-void stm32l4_board_initialize(void);
+void stm32_board_initialize(void);
 
 #undef EXTERN
 #if defined(__cplusplus)

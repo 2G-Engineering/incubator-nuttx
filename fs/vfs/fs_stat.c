@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_stat.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -278,12 +280,14 @@ int inode_stat(FAR struct inode *inode, FAR struct stat *buf, int resolve)
     }
   else
 #endif
-#if defined(CONFIG_FS_SHM)
+#if defined(CONFIG_FS_SHMFS)
   /* Check for shared memory */
 
   if (INODE_IS_SHM(inode))
     {
       buf->st_mode = S_IFSHM;
+      buf->st_mode |= S_IRUSR | S_IWUSR;
+      buf->st_size = inode->i_size;
     }
   else
 #endif
@@ -360,7 +364,15 @@ int inode_stat(FAR struct inode *inode, FAR struct stat *buf, int resolve)
     }
   else
 #endif
+#if defined(CONFIG_PIPES)
+  /* Check for pipes */
 
+  if (INODE_IS_PIPE(inode))
+    {
+      buf->st_mode = S_IRWXO | S_IRWXG | S_IRWXU | S_IFIFO;
+    }
+  else
+#endif
   /* Handle "normal inodes */
 
   if (inode->u.i_ops != NULL)
@@ -369,12 +381,12 @@ int inode_stat(FAR struct inode *inode, FAR struct stat *buf, int resolve)
        * and write methods.
        */
 
-      if (inode->u.i_ops->read)
+      if (inode->u.i_ops->readv || inode->u.i_ops->read)
         {
           buf->st_mode = S_IROTH | S_IRGRP | S_IRUSR;
         }
 
-      if (inode->u.i_ops->write)
+      if (inode->u.i_ops->writev || inode->u.i_ops->write)
         {
           buf->st_mode |= S_IWOTH | S_IWGRP | S_IWUSR;
         }
@@ -416,7 +428,18 @@ int inode_stat(FAR struct inode *inode, FAR struct stat *buf, int resolve)
         {
           /* What is it if it also has child inodes? */
 
-          buf->st_mode |= S_IFCHR;
+          buf->st_size = inode->i_size;
+
+#ifdef CONFIG_PSEUDOFS_FILE
+          if (inode_is_pseudofile(inode))
+            {
+              buf->st_mode |= S_IFREG;
+            }
+          else
+#endif
+            {
+              buf->st_mode |= S_IFCHR;
+            }
         }
     }
   else
@@ -431,7 +454,7 @@ int inode_stat(FAR struct inode *inode, FAR struct stat *buf, int resolve)
     }
 
 #ifdef CONFIG_PSEUDOFS_ATTRIBUTES
-  buf->st_mode |= inode->i_mode;
+  buf->st_mode = (buf->st_mode & S_IFMT) | inode->i_mode;
   buf->st_uid   = inode->i_owner;
   buf->st_gid   = inode->i_group;
   buf->st_atim  = inode->i_atime;

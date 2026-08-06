@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/cxd56xx/cxd56_powermgr_procfs.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,7 +34,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include "cxd56_clock.h"
@@ -114,6 +116,7 @@ const struct procfs_operations cxd56_powermgr_procfs_operations =
   cxd56_powermgr_procfs_close,     /* close */
   cxd56_powermgr_procfs_read,      /* read */
   NULL,                            /* write */
+  NULL,                            /* poll */
   cxd56_powermgr_procfs_dup,       /* dup */
   cxd56_powermgr_procfs_opendir,   /* opendir */
   cxd56_powermgr_procfs_closedir,  /* closedir */
@@ -485,7 +488,7 @@ static int cxd56_powermgr_procfs_open(struct file *filep,
    * REVISIT:  Write-able proc files could be quite useful.
    */
 
-  if (((oflags & O_WRONLY) != 0 || (oflags & O_RDONLY) == 0))
+  if ((oflags & O_ACCMODE) != O_RDONLY)
     {
       pmerr("ERROR: Only O_RDONLY supported\n");
       return -EACCES;
@@ -553,7 +556,7 @@ static ssize_t cxd56_powermgr_procfs_read(struct file *filep,
   pminfo("READ buffer=%p buflen=%lu len=%lu\n", buffer,
          (unsigned long)buflen, g_powermg_procfs_len);
 
-  DEBUGASSERT(filep && filep->f_priv);
+  DEBUGASSERT(filep->f_priv);
 
   priv = (struct cxd56_powermgr_procfs_file_s *)filep->f_priv;
 

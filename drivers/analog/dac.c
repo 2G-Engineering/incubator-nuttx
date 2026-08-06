@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/analog/dac.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/signal.h>
@@ -181,7 +183,7 @@ static int dac_close(FAR struct file *filep)
 
           while (dev->ad_xmit.af_head != dev->ad_xmit.af_tail)
             {
-               nxsig_usleep(HALF_SECOND_USEC);
+               nxsched_usleep(HALF_SECOND_USEC);
             }
 
           /* Free the IRQ and disable the DAC device */

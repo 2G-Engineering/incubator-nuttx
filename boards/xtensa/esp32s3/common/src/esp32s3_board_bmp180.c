@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s3/common/src/esp32s3_board_bmp180.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 
 #include <nuttx/arch.h>
@@ -32,7 +34,6 @@
 #include <nuttx/sensors/bmp180.h>
 
 #include "esp32s3_i2c.h"
-#include "esp32s3-devkit.h"
 
 /****************************************************************************
  * Public Functions

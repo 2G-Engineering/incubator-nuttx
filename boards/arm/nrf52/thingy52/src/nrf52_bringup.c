@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nrf52/thingy52/src/nrf52_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -112,9 +114,6 @@ static void nrf52_i2ctool(void)
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int nrf52_bringup(void)
@@ -144,7 +143,6 @@ int nrf52_bringup(void)
 
 #ifdef CONFIG_NRF52_SOFTDEVICE_CONTROLLER
   ret = nrf52_sdc_initialize();
-
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: nrf52_sdc_initialize() failed: %d\n", ret);
@@ -153,6 +151,14 @@ int nrf52_bringup(void)
 
 #if defined(CONFIG_I2C) && defined(CONFIG_SYSTEM_I2CTOOL)
   nrf52_i2ctool();
+#endif
+
+#ifdef CONFIG_IOEXPANDER_SX1509
+  ret = nrf52_sx1509_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: nrf52_sx1509_initialize() failed: %d\n", ret);
+    }
 #endif
 
   UNUSED(ret);

@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/analog/ioctl.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -91,18 +93,43 @@
 
 /* See arch/arm/src/stm32l4/stm32l4_adc.h */
 
-#define AN_STM32L4_FIRST (AN_ADS7828_FIRST + AN_ADS7828_NCMDS)
-#define AN_STM32L4_NCMDS 2
+#define AN_STM32_FIRST (AN_ADS7828_FIRST + AN_ADS7828_NCMDS)
+#define AN_STM32_NCMDS 2
 
 /* See include/nuttx/analog/max1161x.h */
 
-#define AN_MAX1161X_FIRST (AN_STM32L4_FIRST + AN_STM32L4_NCMDS)
+#define AN_MAX1161X_FIRST (AN_STM32_FIRST + AN_STM32_NCMDS)
 #define AN_MAX1161X_NCMDS 8
 
 /* See include/nuttx/analog/mcp48xx.h */
 
 #define AN_MCP48XX_FIRST (AN_MAX1161X_FIRST + AN_MAX1161X_NCMDS)
 #define AN_MCP48XX_NCMDS 3
+
+/* See arch/arm/src/samv7/sam_afec.h */
+
+#define AN_SAMV7_AFEC_FIRST (AN_MCP48XX_FIRST + AN_MCP48XX_NCMDS)
+#define AN_SAMV7_AFEC_NCMDS 1
+
+/* See include/nuttx/analog/mcp3008.h */
+
+#define AN_MCP3008_FIRST (AN_SAMV7_AFEC_FIRST + AN_SAMV7_AFEC_NCMDS)
+#define AN_MCP3008_NCMDS 1
+
+/* See include/nuttx/analog/ads1115.h */
+
+#define AN_ADS1115_FIRST (AN_MCP3008_FIRST + AN_MCP3008_NCMDS)
+#define AN_ADS1115_NCMDS 10
+
+/* See include/nuttx/analog/mcp47x6.h */
+
+#define AN_MCP47X6_FIRST (AN_ADS1115_FIRST + AN_ADS1115_NCMDS)
+#define AN_MCP47X6_NCMDS 3
+
+/* See include/nuttx/analog/ads7046.h */
+
+#define AN_ADS7046_FIRST  (AN_MCP47X6_FIRST + AN_MCP47X6_NCMDS)
+#define AN_ADS7046_NCMDS  3
 
 /****************************************************************************
  * Public Function Prototypes

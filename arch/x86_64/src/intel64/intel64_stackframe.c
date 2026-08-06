@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/x86_64/src/intel64/intel64_stackframe.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <sched.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <arch/irq.h>
@@ -75,7 +77,7 @@ void *up_stack_frame(struct tcb_s *tcb, size_t frame_size)
 
   /* Align the frame_size */
 
-  frame_size = STACK_ALIGN_UP(frame_size);
+  frame_size = STACKFRAME_ALIGN_UP(frame_size);
 
   /* Is there already a stack allocated? Is it big enough? */
 
@@ -85,12 +87,12 @@ void *up_stack_frame(struct tcb_s *tcb, size_t frame_size)
     }
 
   ret = tcb->stack_base_ptr;
-  memset(ret, 0, tcb->adj_stack_size);
+  memset(ret, 0, frame_size);
 
   /* Save the adjusted stack values in the struct tcb_s */
 
   tcb->stack_base_ptr  = (uint8_t *)tcb->stack_base_ptr + frame_size;
-  tcb->adj_stack_size -= frame_size;
+  tcb->adj_stack_size -= frame_size + 8;
 
   /* And return the pointer to the allocated region */
 

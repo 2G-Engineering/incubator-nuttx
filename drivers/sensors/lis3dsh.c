@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/lis3dsh.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -26,9 +41,10 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/random.h>
@@ -39,7 +55,7 @@
 #if defined(CONFIG_SPI) && defined(CONFIG_LIS3DSH)
 
 /****************************************************************************
- * Private
+ * Private Types
  ****************************************************************************/
 
 struct lis3dsh_sensor_data_s
@@ -209,7 +225,7 @@ static void lis3dsh_read_measurement_data(FAR struct lis3dsh_dev_s *dev)
   uint16_t z_acc = 0;
   int ret;
 
-  /* Read acclerometer data */
+  /* Read accelerometer data */
 
   lis3dsh_read_acclerometer_data(dev, &x_acc, &y_acc, &z_acc);
 
@@ -522,7 +538,7 @@ int lis3dsh_register(FAR const char *devpath, FAR struct spi_dev_s *spi,
   /* Initialize the LIS3DSH device structure */
 
   priv =
-      (FAR struct lis3dsh_dev_s *)kmm_malloc(sizeof(struct lis3dsh_dev_s));
+      kmm_malloc(sizeof(struct lis3dsh_dev_s));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");

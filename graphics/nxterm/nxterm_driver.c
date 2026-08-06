@@ -1,6 +1,8 @@
 /****************************************************************************
  * graphics/nxterm/nxterm_driver.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 
@@ -68,7 +70,9 @@ const struct file_operations g_nxterm_drvrops =
   nxterm_ioctl,   /* ioctl */
   NULL,           /* mmap */
   NULL,           /* truncate */
-  nxterm_poll     /* poll */
+  nxterm_poll,    /* poll */
+  NULL,           /* readv */
+  NULL            /* writev */
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
   , nxterm_unlink /* unlink */
 #endif
@@ -86,7 +90,9 @@ const struct file_operations g_nxterm_drvrops =
   nxterm_ioctl,   /* ioctl */
   NULL,           /* mmap */
   NULL,           /* truncate */
-  NULL            /* poll */
+  NULL,           /* poll */
+  NULL,           /* readv */
+  NULL            /* writev */
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
   , nxterm_unlink /* unlink */
 #endif
@@ -107,18 +113,16 @@ static int nxterm_open(FAR struct file *filep)
   FAR struct inode         *inode = filep->f_inode;
   FAR struct nxterm_state_s *priv = inode->i_private;
 
-  DEBUGASSERT(filep && filep->f_inode);
-
   /* Get the driver structure from the inode */
 
   inode = filep->f_inode;
-  priv  = (FAR struct nxterm_state_s *)inode->i_private;
+  priv  = inode->i_private;
   DEBUGASSERT(priv);
 
   /* Verify that the driver is opened for write-only access */
 
 #ifndef CONFIG_NXTERM_NXKBDIN
-  if ((filep->f_oflags & O_RDOK) != 0)
+  if ((filep->f_oflags & O_ACCMODE) != O_WRONLY)
     {
       gerr("ERROR: Attempted open with read access\n");
       return -EACCES;
@@ -150,7 +154,7 @@ static int nxterm_close(FAR struct file *filep)
 
   /* Recover our private state structure */
 
-  DEBUGASSERT(filep != NULL && filep->f_priv != NULL);
+  DEBUGASSERT(filep->f_priv != NULL);
   priv = (FAR struct nxterm_state_s *)filep->f_priv;
 
   /* Get exclusive access */
@@ -202,7 +206,7 @@ static ssize_t nxterm_write(FAR struct file *filep, FAR const char *buffer,
 
   /* Recover our private state structure */
 
-  DEBUGASSERT(filep != NULL && filep->f_priv != NULL);
+  DEBUGASSERT(filep->f_priv != NULL);
   priv = (FAR struct nxterm_state_s *)filep->f_priv;
 
   /* Get exclusive access */
@@ -229,7 +233,7 @@ static ssize_t nxterm_write(FAR struct file *filep, FAR const char *buffer,
 
       do
         {
-          /* Is the character part of a VT100 escape sequnce? */
+          /* Is the character part of a VT100 escape sequence? */
 
           state = nxterm_vt100(priv, ch);
           switch (state)
@@ -308,7 +312,7 @@ static int nxterm_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 {
   /* NOTE:  We don't need driver context here because the NXTERM handle
    * provided within each of the NXTERM IOCTL command data.  Mutual
-   * exclusion is similar managed by the IOCTL cmmand handler.
+   * exclusion is similar managed by the IOCTL command handler.
    *
    * This permits the IOCTL to be called in abnormal context (such as
    * from boardctl())
@@ -327,7 +331,7 @@ static int nxterm_unlink(FAR struct inode *inode)
   FAR struct nxterm_state_s *priv;
   int ret;
 
-  DEBUGASSERT(inode != NULL && inode->i_private != NULL);
+  DEBUGASSERT(inode->i_private != NULL);
   priv = inode->i_private;
 
   /* Get exclusive access */
@@ -374,7 +378,7 @@ static int nxterm_unlink(FAR struct inode *inode)
  *
  * NOTE:  We don't need driver context here because the NXTERM handle
  * provided within each of the NXTERM IOCTL command data.  Mutual
- * exclusion is similar managed by the IOCTL cmmand handler.
+ * exclusion is similar managed by the IOCTL command handler.
  *
  * This permits the IOCTL to be called in abnormal context (such as
  * from boardctl())
@@ -428,7 +432,7 @@ int nxterm_ioctl_tap(int cmd, uintptr_t arg)
          break;
 
       /* CMD:           NXTERMIOC_NXTERM_RESIZE
-       * DESCRIPTION:   Inform NxTerm keyboard the the size of the window has
+       * DESCRIPTION:   Inform NxTerm keyboard the size of the window has
        *                changed
        * ARG:           A reference readable instance of struct
        *                nxtermioc_resize_s

@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/shm/shmat.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <sys/shm.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/sched.h>
@@ -34,9 +36,8 @@
 #include <nuttx/pgalloc.h>
 #include <nuttx/mm/map.h>
 
+#include "sched/sched.h"
 #include "shm/shm.h"
-
-#ifdef CONFIG_MM_SHM
 
 /****************************************************************************
  * Private Functions
@@ -222,7 +223,7 @@ FAR void *shmat(int shmid, FAR const void *shmaddr, int shmflg)
 
   /* Get the TCB and group containing our virtual memory allocator */
 
-  tcb = nxsched_self();
+  tcb = this_task();
   DEBUGASSERT(tcb && tcb->group);
 
   group = tcb->group;
@@ -306,4 +307,3 @@ errout_with_ret:
   return (FAR void *)ERROR;
 }
 
-#endif /* CONFIG_MM_SHM */

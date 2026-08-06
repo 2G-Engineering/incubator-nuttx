@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/hardware/stm32f74xx77xx_uart.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,8 +29,8 @@
 
 #include <nuttx/config.h>
 
-#if defined(CONFIG_STM32F7_STM32F74XX) || defined(CONFIG_STM32F7_STM32F75XX) || \
-    defined(CONFIG_STM32F7_STM32F76XX) || defined(CONFIG_STM32F7_STM32F77XX)
+#if defined(CONFIG_STM32_STM32F74XX) || defined(CONFIG_STM32_STM32F75XX) || \
+    defined(CONFIG_STM32_STM32F76XX) || defined(CONFIG_STM32_STM32F77XX)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -50,7 +52,7 @@
 
 /* Register Addresses *******************************************************/
 
-#if STM32F7_NUSART > 0
+#if STM32_NUSART > 0
 #  define STM32_USART1_CR1        (STM32_USART1_BASE+STM32_USART_CR1_OFFSET)
 #  define STM32_USART1_CR2        (STM32_USART1_BASE+STM32_USART_CR2_OFFSET)
 #  define STM32_USART1_CR3        (STM32_USART1_BASE+STM32_USART_CR3_OFFSET)
@@ -65,7 +67,7 @@
 #  define STM32_USART1_TDR        (STM32_USART1_BASE+STM32_USART_TDR_OFFSET)
 #endif
 
-#if STM32F7_NUSART > 1
+#if STM32_NUSART > 1
 #  define STM32_USART2_CR1        (STM32_USART2_BASE+STM32_USART_CR1_OFFSET)
 #  define STM32_USART2_CR2        (STM32_USART2_BASE+STM32_USART_CR2_OFFSET)
 #  define STM32_USART2_CR3        (STM32_USART2_BASE+STM32_USART_CR3_OFFSET)
@@ -80,7 +82,7 @@
 #  define STM32_USART2_TDR        (STM32_USART2_BASE+STM32_USART_TDR_OFFSET)
 #endif
 
-#if STM32F7_NUSART > 2
+#if STM32_NUSART > 2
 #  define STM32_USART3_CR1        (STM32_USART3_BASE+STM32_USART_CR1_OFFSET)
 #  define STM32_USART3_CR2        (STM32_USART3_BASE+STM32_USART_CR2_OFFSET)
 #  define STM32_USART3_CR3        (STM32_USART3_BASE+STM32_USART_CR3_OFFSET)
@@ -95,7 +97,7 @@
 #  define STM32_USART3_TDR        (STM32_USART3_BASE+STM32_USART_TDR_OFFSET)
 #endif
 
-#if STM32F7_NUSART > 3
+#if STM32_NUSART > 3
 #  define STM32_USART6_CR1        (STM32_USART6_BASE+STM32_USART_CR1_OFFSET)
 #  define STM32_USART6_CR2        (STM32_USART6_BASE+STM32_USART_CR2_OFFSET)
 #  define STM32_USART6_CR3        (STM32_USART6_BASE+STM32_USART_CR3_OFFSET)
@@ -110,7 +112,7 @@
 #  define STM32_USART6_TDR        (STM32_USART6_BASE+STM32_USART_TDR_OFFSET)
 #endif
 
-#if STM32F7_NUART > 0
+#if STM32_NUART > 0
 #  define STM32_UART4_CR1        (STM32_UART4_BASE+STM32_USART_CR1_OFFSET)
 #  define STM32_UART4_CR2        (STM32_UART4_BASE+STM32_USART_CR2_OFFSET)
 #  define STM32_UART4_CR3        (STM32_UART4_BASE+STM32_USART_CR3_OFFSET)
@@ -125,7 +127,7 @@
 #  define STM32_UART4_TDR        (STM32_UART4_BASE+STM32_USART_TDR_OFFSET)
 #endif
 
-#if STM32F7_NUART > 1
+#if STM32_NUART > 1
 #  define STM32_UART5_CR1        (STM32_UART5_BASE+STM32_USART_CR1_OFFSET)
 #  define STM32_UART5_CR2        (STM32_UART5_BASE+STM32_USART_CR2_OFFSET)
 #  define STM32_UART5_CR3        (STM32_UART5_BASE+STM32_USART_CR3_OFFSET)
@@ -140,7 +142,7 @@
 #  define STM32_UART5_TDR        (STM32_UART5_BASE+STM32_USART_TDR_OFFSET)
 #endif
 
-#if STM32F7_NUART > 2
+#if STM32_NUART > 2
 #  define STM32_UART7_CR1        (STM32_UART7_BASE+STM32_USART_CR1_OFFSET)
 #  define STM32_UART7_CR2        (STM32_UART7_BASE+STM32_USART_CR2_OFFSET)
 #  define STM32_UART7_CR3        (STM32_UART7_BASE+STM32_USART_CR3_OFFSET)
@@ -155,7 +157,7 @@
 #  define STM32_UART7_TDR        (STM32_UART7_BASE+STM32_USART_TDR_OFFSET)
 #endif
 
-#if STM32F7_NUART > 3
+#if STM32_NUART > 3
 #  define STM32_UART8_CR1        (STM32_UART8_BASE+STM32_USART_CR1_OFFSET)
 #  define STM32_UART8_CR2        (STM32_UART8_BASE+STM32_USART_CR2_OFFSET)
 #  define STM32_UART8_CR3        (STM32_UART8_BASE+STM32_USART_CR3_OFFSET)
@@ -354,5 +356,5 @@
 #define USART_TDR_SHIFT           (0)       /* Bits 8:0: Transmit data value */
 #define USART_TDR_MASK            (0x1ff << USART_TDR_SHIFT)
 
-#endif /* CONFIG_STM32F7_STM32F74XX || CONFIG_STM32F7_STM32F75XX */
+#endif /* CONFIG_STM32_STM32F74XX || CONFIG_STM32_STM32F75XX */
 #endif /* __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32F74XX77XX_UART_H */

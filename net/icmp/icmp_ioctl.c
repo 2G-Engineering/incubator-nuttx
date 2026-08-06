@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/icmp/icmp_ioctl.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,8 +27,9 @@
 #include <nuttx/config.h>
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <net/if.h>
@@ -35,6 +38,7 @@
 #include <nuttx/mm/iob.h>
 #include <nuttx/net/net.h>
 
+#include "utils/utils.h"
 #include "icmp/icmp.h"
 
 /****************************************************************************
@@ -59,7 +63,7 @@ int icmp_ioctl(FAR struct socket *psock, int cmd, unsigned long arg)
   FAR struct icmp_conn_s *conn = psock->s_conn;
   int ret = OK;
 
-  net_lock();
+  conn_lock(&conn->sconn);
 
   switch (cmd)
     {
@@ -77,12 +81,18 @@ int icmp_ioctl(FAR struct socket *psock, int cmd, unsigned long arg)
       case FIONSPACE:
         *(FAR int *)((uintptr_t)arg) = MIN_UDP_MSS;
         break;
+      case FIOC_FILEPATH:
+        snprintf((FAR char *)(uintptr_t)arg, PATH_MAX,
+                 "icmp:[dev %s, id %" PRIu16 ", flg %" PRIx8 "]",
+                 conn->dev ? conn->dev->d_ifname : "NULL",
+                 NTOHS(conn->id), conn->sconn.s_flags);
+        break;
       default:
         ret = -ENOTTY;
         break;
     }
 
-  net_unlock();
+  conn_unlock(&conn->sconn);
 
   return ret;
 }

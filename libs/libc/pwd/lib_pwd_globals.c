@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/pwd/lib_pwd_globals.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,19 +28,17 @@
 
 #include "pwd/lib_pwd.h"
 
-#ifdef CONFIG_LIBC_PASSWD_FILE
-
 /****************************************************************************
  * Public Data
  ****************************************************************************/
 
 /* Data for non-reentrant group functions */
 
+int g_passwd_index;
 struct passwd g_passwd;
+struct spwd g_spwd;
 char g_passwd_buffer[CONFIG_LIBC_PASSWD_LINESIZE];
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
-
-#endif /* CONFIG_LIBC_GROUP_FILE */

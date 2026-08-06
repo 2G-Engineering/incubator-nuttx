@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/cxd56xx/cxd56_timer.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,8 +34,8 @@
 #include <limits.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/timers/timer.h>
 #include <arch/board/board.h>
@@ -334,7 +336,7 @@ static int cxd56_getstatus(struct timer_lowerhalf_s *lower,
 
   /* Get the time remaining until the timer expires (in microseconds). */
 
-  remaining = (uint64_t)getreg32(priv->base + CXD56_TIMER_VALUE);
+  remaining = getreg32(priv->base + CXD56_TIMER_VALUE);
   status->timeleft =
     (uint32_t)(remaining * 1000000ULL * TIMER_DIVIDER / priv->clkticks);
 

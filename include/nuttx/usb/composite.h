@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/usb/composite.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,8 +29,6 @@
 
 #include <nuttx/config.h>
 #include <nuttx/usb/usbdev.h>
-
-#ifdef CONFIG_USBDEV_COMPOSITE
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -67,6 +67,7 @@ extern "C"
  ****************************************************************************/
 
 struct composite_devdesc_s;
+struct usbdev_devdescs_s;
 
 /****************************************************************************
  * Public Functions Definitions
@@ -93,8 +94,9 @@ struct composite_devdesc_s;
  *
  ****************************************************************************/
 
-FAR void *composite_initialize(uint8_t ndevices,
-                               FAR struct composite_devdesc_s *pdevices);
+FAR void *composite_initialize(FAR const struct usbdev_devdescs_s *devdescs,
+                               FAR struct composite_devdesc_s *pdevices,
+                               uint8_t ndevices);
 
 /****************************************************************************
  * Name: composite_uninitialize
@@ -137,10 +139,21 @@ int composite_ep0submit(FAR struct usbdevclass_driver_s *driver,
                         FAR struct usbdev_req_s *ctrlreq,
                         FAR const struct usb_ctrlreq_s *ctrl);
 
+#ifdef CONFIG_USBDEV_COMPOSITE
+/****************************************************************************
+ * Name: composite_getdevdescs
+ *
+ * Description:
+ *   Return a pointer to the device descriptor
+ *
+ ****************************************************************************/
+
+FAR const struct usbdev_devdescs_s *composite_getdevdescs(void);
+#endif
+
 #undef EXTERN
 #if defined(__cplusplus)
 }
 #endif
 
-#endif /* CONFIG_USBDEV_COMPOSITE */
 #endif /* __INCLUDE_NUTTX_USB_COMPOSITE_H */

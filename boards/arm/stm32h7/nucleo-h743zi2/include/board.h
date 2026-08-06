@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32h7/nucleo-h743zi2/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -164,8 +166,8 @@
  */
 
 #define STM32_RCC_D1CFGR_HPRE   RCC_D1CFGR_HPRE_SYSCLKd2        /* HCLK  = SYSCLK / 2 */
-#define STM32_ACLK_FREQUENCY    (STM32_CPUCLK_FREQUENCY / 2)    /* ACLK in D1, HCLK3 in D1 */
-#define STM32_HCLK_FREQUENCY    (STM32_CPUCLK_FREQUENCY / 2)    /* HCLK in D2, HCLK4 in D3 */
+#define STM32_ACLK_FREQUENCY    (STM32_SYSCLK_FREQUENCY / 2)    /* ACLK in D1, HCLK3 in D1 */
+#define STM32_HCLK_FREQUENCY    (STM32_SYSCLK_FREQUENCY / 2)    /* HCLK in D2, HCLK4 in D3 */
 
 /* APB1 clock (PCLK1) is HCLK/4 (54 MHz) */
 
@@ -240,7 +242,7 @@
 
 /* ADC 1 2 3 clock source - pll2_pclk */
 
-#define STM32_RCC_D3CCIPR_ADCSEL     RCC_D3CCIPR_ADCSEL_PLL2
+#define STM32_RCC_D3CCIPR_ADCSRC     RCC_D3CCIPR_ADCSEL_PLL2
 
 /* FDCAN 1 2 clock source - HSE (TODO: Not the best choice for this board?) */
 
@@ -328,7 +330,7 @@
 #define LED_SIGNAL         5 /* In a signal handler      N/C    GLOW  N/C  */
 #define LED_ASSERTION      6 /* An assertion failed      GLOW   N/C   GLOW */
 #define LED_PANIC          7 /* The system has crashed   Blink  OFF   N/C  */
-#define LED_IDLE           8 /* MCU is is sleep mode     ON     OFF   OFF  */
+#define LED_IDLE           8 /* MCU is in sleep mode     ON     OFF   OFF  */
 
 /* Thus if the Green LED is statically on, NuttX has successfully booted and
  * is, apparently, running normally.  If the Red LED is flashing at
@@ -407,6 +409,10 @@
 
 #define GPIO_TIM4_CH1IN   (GPIO_TIM4_CH1IN_2|GPIO_SPEED_50MHz)   /* PD12 */
 #define GPIO_TIM4_CH2IN   (GPIO_TIM4_CH2IN_2|GPIO_SPEED_50MHz)   /* PD13 */
+
+/* TIM8 */
+
+#define GPIO_TIM8_CH1OUT  (GPIO_TIM8_CH1OUT_1|GPIO_SPEED_50MHz)  /* PC6 */
 
 /* FDCAN1 */
 

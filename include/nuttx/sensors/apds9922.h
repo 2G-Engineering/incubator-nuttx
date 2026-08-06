@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/sensors/apds9922.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -191,12 +193,12 @@ struct apds9922_als_setup_s
 {
   int      rate;        /* als measurement rate              */
   int      res;         /* als resolution                    */
-  int      gain;        /* als gain                          */
+  uint8_t  gain;        /* als gain                          */
   struct   adps9922_als_thresh
            thresh;      /* Upper and lower thresholds        */
-  int      thresh_var;  /* threshold variation               */
+  uint8_t  thresh_var;  /* threshold variation               */
   int      int_mode;    /* Interrupt mode                    */
-  uint8_t  persistance; /* Num events before interrupt       */
+  uint8_t  persistence; /* Num events before interrupt       */
   uint32_t als_factor;  /* Lux correction factor applied     */
   uint32_t range_lim;   /* % limit of ADC full range
                          * allowed in autogain mode.
@@ -219,7 +221,7 @@ struct apds9922_ps_setup_s
            thresh;      /* Upper and lower thresholds        */
   uint16_t cancel_lev;  /* Intelligent cancellation lev.     */
   int      int_mode;    /* Interrupt mode                    */
-  uint8_t  persistance; /* Num events before interrupt       */
+  uint8_t  persistence; /* Num events before interrupt       */
   int      notify;      /* States that cause a notify        */
 };
 
@@ -227,7 +229,7 @@ struct apds9922_ps_setup_s
 
 struct apds9922_ps_data
 {
-  uint16_t ps;          /* Current prximity measure          */
+  uint16_t ps;          /* Current proximity measure         */
   bool     close;       /* Object is far (false) or close    */
 };
 

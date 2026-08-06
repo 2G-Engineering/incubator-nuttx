@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/stm32_capture.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -39,6 +41,7 @@
 #include "arm_internal.h"
 #include "stm32_gpio.h"
 #include "stm32_capture.h"
+#include "stm32_rcc.h"
 
 /****************************************************************************
  * Private Types
@@ -89,18 +92,18 @@
  * intended for some other purpose.
  */
 
-#if defined(CONFIG_STM32F7_TIM1_CAP)  || \
-    defined(CONFIG_STM32F7_TIM2_CAP)  || \
-    defined(CONFIG_STM32F7_TIM3_CAP)  || \
-    defined(CONFIG_STM32F7_TIM4_CAP)  || \
-    defined(CONFIG_STM32F7_TIM5_CAP)  || \
-    defined(CONFIG_STM32F7_TIM8_CAP)  || \
-    defined(CONFIG_STM32F7_TIM9_CAP)  || \
-    defined(CONFIG_STM32F7_TIM10_CAP) || \
-    defined(CONFIG_STM32F7_TIM11_CAP) || \
-    defined(CONFIG_STM32F7_TIM12_CAP) || \
-    defined(CONFIG_STM32F7_TIM13_CAP) || \
-    defined(CONFIG_STM32F7_TIM14_CAP)
+#if defined(CONFIG_STM32_TIM1_CAP)  || \
+    defined(CONFIG_STM32_TIM2_CAP)  || \
+    defined(CONFIG_STM32_TIM3_CAP)  || \
+    defined(CONFIG_STM32_TIM4_CAP)  || \
+    defined(CONFIG_STM32_TIM5_CAP)  || \
+    defined(CONFIG_STM32_TIM8_CAP)  || \
+    defined(CONFIG_STM32_TIM9_CAP)  || \
+    defined(CONFIG_STM32_TIM10_CAP) || \
+    defined(CONFIG_STM32_TIM11_CAP) || \
+    defined(CONFIG_STM32_TIM12_CAP) || \
+    defined(CONFIG_STM32_TIM13_CAP) || \
+    defined(CONFIG_STM32_TIM14_CAP)
 
 /****************************************************************************
  * Private Types
@@ -179,7 +182,7 @@ stm32_cap_gpio(const struct stm32_cap_priv_s *priv, int channel)
 {
   switch (priv->base)
     {
-#ifdef CONFIG_STM32F7_TIM1_CAP
+#ifdef CONFIG_STM32_TIM1_CAP
       case STM32_TIM1_BASE:
         switch (channel)
           {
@@ -206,7 +209,7 @@ stm32_cap_gpio(const struct stm32_cap_priv_s *priv, int channel)
           }
         break;
 #endif
-#ifdef CONFIG_STM32F7_TIM2_CAP
+#ifdef CONFIG_STM32_TIM2_CAP
       case STM32_TIM2_BASE:
         switch (channel)
           {
@@ -233,7 +236,7 @@ stm32_cap_gpio(const struct stm32_cap_priv_s *priv, int channel)
           }
         break;
 #endif
-#ifdef CONFIG_STM32F7_TIM3_CAP
+#ifdef CONFIG_STM32_TIM3_CAP
       case STM32_TIM3_BASE:
         switch (channel)
           {
@@ -260,7 +263,7 @@ stm32_cap_gpio(const struct stm32_cap_priv_s *priv, int channel)
           }
         break;
 #endif
-#ifdef CONFIG_STM32F7_TIM4_CAP
+#ifdef CONFIG_STM32_TIM4_CAP
       case STM32_TIM4_BASE:
         switch (channel)
           {
@@ -287,7 +290,7 @@ stm32_cap_gpio(const struct stm32_cap_priv_s *priv, int channel)
           }
         break;
 #endif
-#ifdef CONFIG_STM32F7_TIM5_CAP
+#ifdef CONFIG_STM32_TIM5_CAP
       case STM32_TIM5_BASE:
         switch (channel)
           {
@@ -317,7 +320,7 @@ stm32_cap_gpio(const struct stm32_cap_priv_s *priv, int channel)
 
       /* TIM6 and TIM7 cannot be used in capture */
 
-#ifdef CONFIG_STM32F7_TIM8_CAP
+#ifdef CONFIG_STM32_TIM8_CAP
       case STM32_TIM8_BASE:
         switch (channel)
           {
@@ -345,7 +348,7 @@ stm32_cap_gpio(const struct stm32_cap_priv_s *priv, int channel)
         break;
 #endif
 
-#ifdef CONFIG_STM32F7_TIM9_CAP
+#ifdef CONFIG_STM32_TIM9_CAP
       case STM32_TIM9_BASE:
         switch (channel)
           {
@@ -373,7 +376,7 @@ stm32_cap_gpio(const struct stm32_cap_priv_s *priv, int channel)
         break;
 #endif
 
-#ifdef CONFIG_STM32F7_TIM10_CAP
+#ifdef CONFIG_STM32_TIM10_CAP
       case STM32_TIM10_BASE:
         switch (channel)
           {
@@ -401,7 +404,7 @@ stm32_cap_gpio(const struct stm32_cap_priv_s *priv, int channel)
         break;
 #endif
 
-#ifdef CONFIG_STM32F7_TIM11_CAP
+#ifdef CONFIG_STM32_TIM11_CAP
       case STM32_TIM11_BASE:
         switch (channel)
           {
@@ -429,7 +432,7 @@ stm32_cap_gpio(const struct stm32_cap_priv_s *priv, int channel)
         break;
 #endif
 
-#ifdef CONFIG_STM32F7_TIM12_CAP
+#ifdef CONFIG_STM32_TIM12_CAP
       case STM32_TIM12_BASE:
         switch (channel)
           {
@@ -457,7 +460,7 @@ stm32_cap_gpio(const struct stm32_cap_priv_s *priv, int channel)
         break;
 #endif
 
-#ifdef CONFIG_STM32F7_TIM13_CAP
+#ifdef CONFIG_STM32_TIM13_CAP
       case STM32_TIM13_BASE:
         switch (channel)
           {
@@ -485,7 +488,7 @@ stm32_cap_gpio(const struct stm32_cap_priv_s *priv, int channel)
         break;
 #endif
 
-#ifdef CONFIG_STM32F7_TIM14_CAP
+#ifdef CONFIG_STM32_TIM14_CAP
       case STM32_TIM14_BASE:
         switch (channel)
           {
@@ -525,31 +528,31 @@ static inline int stm32_cap_set_rcc(const struct stm32_cap_priv_s *priv,
 
   switch (priv->base)
     {
-#ifdef CONFIG_STM32F7_TIM1_CAP
+#ifdef CONFIG_STM32_TIM1_CAP
       case STM32_TIM1_BASE:
         offset = STM32_RCC_APB2ENR;
         mask   = RCC_APB2ENR_TIM1EN;
         break;
 #endif
-#ifdef CONFIG_STM32F7_TIM2_CAP
+#ifdef CONFIG_STM32_TIM2_CAP
       case STM32_TIM2_BASE:
         offset = STM32_RCC_APB1ENR;
         mask   = RCC_APB1ENR_TIM2EN;
         break;
 #endif
-#ifdef CONFIG_STM32F7_TIM3_CAP
+#ifdef CONFIG_STM32_TIM3_CAP
       case STM32_TIM3_BASE:
         offset = STM32_RCC_APB1ENR;
         mask   = RCC_APB1ENR_TIM3EN;
         break;
 #endif
-#ifdef CONFIG_STM32F7_TIM4_CAP
+#ifdef CONFIG_STM32_TIM4_CAP
       case STM32_TIM4_BASE:
         offset = STM32_RCC_APB1ENR;
         mask   = RCC_APB1ENR_TIM4EN;
         break;
 #endif
-#ifdef CONFIG_STM32F7_TIM5_CAP
+#ifdef CONFIG_STM32_TIM5_CAP
       case STM32_TIM5_BASE:
         offset = STM32_RCC_APB1ENR;
         mask   = RCC_APB1ENR_TIM5EN;
@@ -558,43 +561,43 @@ static inline int stm32_cap_set_rcc(const struct stm32_cap_priv_s *priv,
 
       /* TIM6 and TIM7 cannot be used in capture */
 
-#ifdef CONFIG_STM32F7_TIM8_CAP
+#ifdef CONFIG_STM32_TIM8_CAP
       case STM32_TIM8_BASE:
         offset = STM32_RCC_APB2ENR;
         mask   = RCC_APB2ENR_TIM8EN;
         break;
 #endif
-#ifdef CONFIG_STM32F7_TIM9_CAP
+#ifdef CONFIG_STM32_TIM9_CAP
       case STM32_TIM9_BASE:
         offset = STM32_RCC_APB2ENR;
         mask   = RCC_APB2ENR_TIM9EN;
         break;
 #endif
-#ifdef CONFIG_STM32F7_TIM10_CAP
+#ifdef CONFIG_STM32_TIM10_CAP
       case STM32_TIM10_BASE:
         offset = STM32_RCC_APB2ENR;
         mask   = RCC_APB2ENR_TIM10EN;
         break;
 #endif
-#ifdef CONFIG_STM32F7_TIM11_CAP
+#ifdef CONFIG_STM32_TIM11_CAP
       case STM32_TIM11_BASE:
         offset = STM32_RCC_APB2ENR;
         mask   = RCC_APB2ENR_TIM11EN;
         break;
 #endif
-#ifdef CONFIG_STM32F7_TIM12_CAP
+#ifdef CONFIG_STM32_TIM12_CAP
       case STM32_TIM12_BASE:
         offset = STM32_RCC_APB1ENR;
         mask   = RCC_APB1ENR_TIM12EN;
         break;
 #endif
-#ifdef CONFIG_STM32F7_TIM13_CAP
+#ifdef CONFIG_STM32_TIM13_CAP
       case STM32_TIM13_BASE:
         offset = STM32_RCC_APB1ENR;
         mask   = RCC_APB1ENR_TIM13EN;
         break;
 #endif
-#ifdef CONFIG_STM32F7_TIM14_CAP
+#ifdef CONFIG_STM32_TIM14_CAP
       case STM32_TIM14_BASE:
         offset = STM32_RCC_APB1ENR;
         mask   = RCC_APB1ENR_TIM14EN;
@@ -1079,7 +1082,7 @@ struct stm32_cap_ops_s stm32_cap_ops =
   .getflags     = &stm32_cap_getflags
 };
 
-#ifdef CONFIG_STM32F7_TIM1_CAP
+#ifdef CONFIG_STM32_TIM1_CAP
 const struct stm32_cap_priv_s stm32_tim1_priv =
 {
   .ops          = &stm32_cap_ops,
@@ -1091,7 +1094,7 @@ const struct stm32_cap_priv_s stm32_tim1_priv =
 };
 #endif
 
-#ifdef CONFIG_STM32F7_TIM2_CAP
+#ifdef CONFIG_STM32_TIM2_CAP
 const struct stm32_cap_priv_s stm32_tim2_priv =
 {
   .ops          = &stm32_cap_ops,
@@ -1103,7 +1106,7 @@ const struct stm32_cap_priv_s stm32_tim2_priv =
 };
 #endif
 
-#ifdef CONFIG_STM32F7_TIM3_CAP
+#ifdef CONFIG_STM32_TIM3_CAP
 const struct stm32_cap_priv_s stm32_tim3_priv =
 {
   .ops          = &stm32_cap_ops,
@@ -1115,7 +1118,7 @@ const struct stm32_cap_priv_s stm32_tim3_priv =
 };
 #endif
 
-#ifdef CONFIG_STM32F7_TIM4_CAP
+#ifdef CONFIG_STM32_TIM4_CAP
 const struct stm32_cap_priv_s stm32_tim4_priv =
 {
   .ops          = &stm32_cap_ops,
@@ -1127,7 +1130,7 @@ const struct stm32_cap_priv_s stm32_tim4_priv =
 };
 #endif
 
-#ifdef CONFIG_STM32F7_TIM5_CAP
+#ifdef CONFIG_STM32_TIM5_CAP
 const struct stm32_cap_priv_s stm32_tim5_priv =
 {
   .ops          = &stm32_cap_ops,
@@ -1141,7 +1144,7 @@ const struct stm32_cap_priv_s stm32_tim5_priv =
 
 /* TIM6 and TIM7 cannot be used in capture */
 
-#ifdef CONFIG_STM32F7_TIM8_CAP
+#ifdef CONFIG_STM32_TIM8_CAP
 const struct stm32_cap_priv_s stm32_tim8_priv =
 {
   .ops          = &stm32_cap_ops,
@@ -1153,7 +1156,7 @@ const struct stm32_cap_priv_s stm32_tim8_priv =
 };
 #endif
 
-#ifdef CONFIG_STM32F7_TIM9_CAP
+#ifdef CONFIG_STM32_TIM9_CAP
 const struct stm32_cap_priv_s stm32_tim9_priv =
 {
   .ops          = &stm32_cap_ops,
@@ -1165,7 +1168,7 @@ const struct stm32_cap_priv_s stm32_tim9_priv =
 };
 #endif
 
-#ifdef CONFIG_STM32F7_TIM10_CAP
+#ifdef CONFIG_STM32_TIM10_CAP
 const struct stm32_cap_priv_s stm32_tim10_priv =
 {
   .ops          = &stm32_cap_ops,
@@ -1177,7 +1180,7 @@ const struct stm32_cap_priv_s stm32_tim10_priv =
 };
 #endif
 
-#ifdef CONFIG_STM32F7_TIM11_CAP
+#ifdef CONFIG_STM32_TIM11_CAP
 const struct stm32_cap_priv_s stm32_tim11_priv =
 {
   .ops          = &stm32_cap_ops,
@@ -1189,7 +1192,7 @@ const struct stm32_cap_priv_s stm32_tim11_priv =
 };
 #endif
 
-#ifdef CONFIG_STM32F7_TIM12_CAP
+#ifdef CONFIG_STM32_TIM12_CAP
 const struct stm32_cap_priv_s stm32_tim12_priv =
 {
   .ops          = &stm32_cap_ops,
@@ -1201,7 +1204,7 @@ const struct stm32_cap_priv_s stm32_tim12_priv =
 };
 #endif
 
-#ifdef CONFIG_STM32F7_TIM13_CAP
+#ifdef CONFIG_STM32_TIM13_CAP
 const struct stm32_cap_priv_s stm32_tim13_priv =
 {
   .ops          = &stm32_cap_ops,
@@ -1213,7 +1216,7 @@ const struct stm32_cap_priv_s stm32_tim13_priv =
 };
 #endif
 
-#ifdef CONFIG_STM32F7_TIM14_CAP
+#ifdef CONFIG_STM32_TIM14_CAP
 const struct stm32_cap_priv_s stm32_tim14_priv =
 {
   .ops          = &stm32_cap_ops,
@@ -1229,54 +1232,54 @@ static inline const struct stm32_cap_priv_s * stm32_cap_get_priv(int timer)
 {
   switch (timer)
     {
-#ifdef CONFIG_STM32F7_TIM1_CAP
+#ifdef CONFIG_STM32_TIM1_CAP
       case 1:
         return &stm32_tim1_priv;
 #endif
-#ifdef CONFIG_STM32F7_TIM2_CAP
+#ifdef CONFIG_STM32_TIM2_CAP
       case 2:
         return &stm32_tim2_priv;
 #endif
-#ifdef CONFIG_STM32F7_TIM3_CAP
+#ifdef CONFIG_STM32_TIM3_CAP
       case 3:
         return &stm32_tim3_priv;
 #endif
-#ifdef CONFIG_STM32F7_TIM4_CAP
+#ifdef CONFIG_STM32_TIM4_CAP
       case 4:
         return &stm32_tim4_priv;
 #endif
-#ifdef CONFIG_STM32F7_TIM5_CAP
+#ifdef CONFIG_STM32_TIM5_CAP
       case 5:
         return &stm32_tim5_priv;
 #endif
 
       /* TIM6 and TIM7 cannot be used in capture */
 
-#ifdef CONFIG_STM32F7_TIM8_CAP
+#ifdef CONFIG_STM32_TIM8_CAP
       case 8:
         return &stm32_tim8_priv;
 #endif
-#ifdef CONFIG_STM32F7_TIM9_CAP
+#ifdef CONFIG_STM32_TIM9_CAP
       case 9:
         return &stm32_tim9_priv;
 #endif
-#ifdef CONFIG_STM32F7_TIM10_CAP
+#ifdef CONFIG_STM32_TIM10_CAP
       case 10:
         return &stm32_tim10_priv;
 #endif
-#ifdef CONFIG_STM32F7_TIM11_CAP
+#ifdef CONFIG_STM32_TIM11_CAP
       case 11:
         return &stm32_tim11_priv;
 #endif
-#ifdef CONFIG_STM32F7_TIM12_CAP
+#ifdef CONFIG_STM32_TIM12_CAP
       case 12:
         return &stm32_tim12_priv;
 #endif
-#ifdef CONFIG_STM32F7_TIM13_CAP
+#ifdef CONFIG_STM32_TIM13_CAP
       case 13:
         return &stm32_tim13_priv;
 #endif
-#ifdef CONFIG_STM32F7_TIM14_CAP
+#ifdef CONFIG_STM32_TIM14_CAP
       case 14:
         return &stm32_tim14_priv;
 #endif
@@ -1333,4 +1336,4 @@ int stm32_cap_deinit(struct stm32_cap_dev_s * dev)
   return OK;
 }
 
-#endif /* defined(CONFIG_STM32F7_TIM1 || ... || TIM14) */
+#endif /* defined(CONFIG_STM32_TIM1 || ... || TIM14) */

@@ -23,13 +23,20 @@
 
 # You can set these variables from the command line, and also
 # from the environment for the first two.
-SPHINXOPTS    ?= -j auto -A nuttx_versions="latest,${NUTTX_VERSIONS}"
-SPHINXBUILD   ?= sphinx-build
-SOURCEDIR     = .
-BUILDDIR      = _build
+# Ignore the _tags directory as per sphinx-tags docs to avoid infinite loop
+SPHINXOPTS      ?= -j auto -W -A nuttx_versions="latest,${NUTTX_VERSIONS}"
+SPHINXAUTOOPTS  ?= -j auto -W --ignore "_tags/*"
+SPHINXBUILD     ?= sphinx-build
+SPHINXAUTOBUILD ?= sphinx-autobuild
+SOURCEDIR       = .
+BUILDDIR        = _build
 
 # Put it first so that "make" without argument is like "make help".
 help:
+	$(info =>)
+	$(info => Use `make autobuild` to build live preview of the documentation.)
+	$(info => You can then watch live edit changes at http://localhost:8000.)
+	$(info =>)
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
 .PHONY: help Makefile
@@ -37,7 +44,7 @@ help:
 html: clean
 
 autobuild: clean
-	sphinx-autobuild . _build -j=8
+	@$(SPHINXAUTOBUILD) "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXAUTOOPTS) $(O)
 
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).

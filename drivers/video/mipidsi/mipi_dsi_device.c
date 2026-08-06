@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/video/mipidsi/mipi_dsi_device.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
@@ -66,7 +68,7 @@
  *   msg - Message to transfer
  *
  * Returned Value:
- *   The number of bytes successfully transfered or a negative error code on
+ *   The number of bytes successfully transferred or a negative error code on
  *   failure.
  *
  ****************************************************************************/
@@ -996,8 +998,8 @@ int mipi_dsi_dcs_get_display_brightness(FAR struct mipi_dsi_device *device,
  *   channel - The channel used by dsi device
  *
  * Returned Value:
- *   struct mipi_dsi_device* if the driver was successfully register; NULL is
- *   returned on any failure.
+ *   struct mipi_dsi_device* if the driver was successfully registered;
+ *   NULL is returned on any failure.
  *
  ****************************************************************************/
 
@@ -1031,7 +1033,7 @@ mipi_dsi_device_register(FAR struct mipi_dsi_host *host,
           kmm_free(dev);
           dev = NULL;
         }
-#endif // CONFIG_MIPI_DSI_DRIVER
+#endif /* CONFIG_MIPI_DSI_DRIVER */
     }
 
   return dev;

@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/pthread/pthread_exit.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <pthread.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/signal.h>
@@ -63,32 +65,41 @@
 void nx_pthread_exit(FAR void *exit_value)
 {
   FAR struct tcb_s *tcb = this_task();
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   sigset_t set;
+#endif
   int status;
 
   sinfo("exit_value=%p\n", exit_value);
 
   DEBUGASSERT(tcb != NULL);
-  DEBUGASSERT((tcb->flags & TCB_FLAG_TTYPE_MASK) == TCB_FLAG_TTYPE_PTHREAD);
 
   /* Block any signal actions that would awaken us while were
    * are performing the JOIN handshake.
    */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   sigfillset(&set);
   nxsig_procmask(SIG_SETMASK, &set, NULL);
+#endif
 
   /* Complete pending join operations */
 
   status = pthread_completejoin(nxsched_gettid(), exit_value);
   if (status != OK)
     {
-      /* Assume that the join completion failured because this
+      /* Assume that the join completion failed because this is
        * not really a pthread.  Exit by calling exit().
        */
 
       _exit(EXIT_FAILURE);
     }
+
+  /* Make sure that we are in a critical section with local interrupts.
+   * The IRQ state will be restored when the next task is started.
+   */
+
+  enter_critical_section();
 
   /* Perform common task termination logic.  This will get called again later
    * through logic kicked off by up_exit().
@@ -101,6 +112,8 @@ void nx_pthread_exit(FAR void *exit_value)
    * list and trying to execute code that depends on this_task() crashes at
    * once, or does something very naughty.
    */
+
+  tcb->flags |= TCB_FLAG_EXIT_PROCESSING;
 
   nxtask_exithook(tcb, status);
 

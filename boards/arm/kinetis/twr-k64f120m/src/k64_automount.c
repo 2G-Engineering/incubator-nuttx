@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/kinetis/twr-k64f120m/src/k64_automount.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,8 +31,8 @@
 #endif
 
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/clock.h>
 #include <nuttx/fs/automount.h>

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/bl602/bl602_pwm_lowerhalf.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -385,7 +387,7 @@ static int bl602_pwm_start(struct pwm_lowerhalf_s *dev,
     }
 #else
   bl602_pwm_freq(priv, 0, info->frequency);
-  bl602_pwm_duty(priv, 0, info->duty);
+  bl602_pwm_duty(priv, 0, info->channels[0].duty);
   pwm_channel_enable(0);
 #endif
 

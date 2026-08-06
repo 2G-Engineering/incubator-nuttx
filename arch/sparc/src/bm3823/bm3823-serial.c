@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sparc/src/bm3823/bm3823-serial.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <semaphore.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #ifdef CONFIG_SERIAL_TERMIOS
 #  include <termios.h>
@@ -152,6 +154,7 @@ struct up_dev_s
   uint8_t   parity;    /* 0=none, 1=odd, 2=even */
   uint8_t   bits;      /* Number of bits (5, 6, 7 or 8) */
   bool      stopbits2; /* true: Configure with 2 stop bits instead of 1 */
+  spinlock_t lock;     /* Spinlock */
 };
 
 /****************************************************************************
@@ -230,6 +233,7 @@ static struct up_dev_s g_uart1priv =
   .parity    = CONFIG_UART1_PARITY,
   .bits      = CONFIG_UART1_BITS,
   .stopbits2 = CONFIG_UART1_2STOP,
+  .lock      = SP_UNLOCKED,
 };
 
 static uart_dev_t g_uart1port =
@@ -260,6 +264,7 @@ static struct up_dev_s g_uart2priv =
   .parity    = CONFIG_UART2_PARITY,
   .bits      = CONFIG_UART2_BITS,
   .stopbits2 = CONFIG_UART2_2STOP,
+  .lock      = SP_UNLOCKED,
 };
 
 static uart_dev_t g_uart2port =
@@ -290,6 +295,7 @@ static struct up_dev_s g_uart3priv =
   .parity    = CONFIG_UART3_PARITY,
   .bits      = CONFIG_UART3_BITS,
   .stopbits2 = CONFIG_UART3_2STOP,
+  .lock      = SP_UNLOCKED,
 };
 
 static uart_dev_t g_uart3port =
@@ -353,18 +359,24 @@ static inline void up_setuartint(struct up_dev_s *priv)
  * Name: up_restoreuartint
  ****************************************************************************/
 
+static void up_restoreuartint_nolock(struct uart_dev_s *dev, uint8_t im)
+{
+  up_rxint(dev, RX_ENABLED(im));
+  up_txint(dev, TX_ENABLED(im));
+}
+
 static void up_restoreuartint(struct uart_dev_s *dev, uint8_t im)
 {
+  struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
   irqstate_t flags;
 
   /* Re-enable/re-disable interrupts corresponding to the state of bits in
    * im
    */
 
-  flags = enter_critical_section();
-  up_rxint(dev, RX_ENABLED(im));
-  up_txint(dev, TX_ENABLED(im));
-  leave_critical_section(flags);
+  flags = spin_lock_irqsave(&priv->lock);
+  up_restoreuartint_nolock(dev, im);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 
 /****************************************************************************
@@ -376,14 +388,14 @@ static void up_disableuartint(struct uart_dev_s *dev, uint8_t *im)
   struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
   irqstate_t flags;
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&priv->lock);
   if (im)
     {
       *im = priv->im;
     }
 
-  up_restoreuartint(dev, 0);
-  leave_critical_section(flags);
+  up_restoreuartint_nolock(dev, 0);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 
 /****************************************************************************
@@ -443,7 +455,7 @@ static void up_shutdown(struct uart_dev_s *dev)
  * Description:
  *   Configure the UART to operation in interrupt driven mode.  This method
  *   is called when the serial port is opened.  Normally, this is just after
- *   the the setup() method is called, however, the serial console may
+ *   the setup() method is called, however, the serial console may
  *   operate in a non-interrupt driven mode during the boot phase.
  *
  *   RX and TX interrupts are not enabled by the attach method (unless the
@@ -572,7 +584,6 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
   struct up_dev_s   *priv;
   int                ret = OK;
 
-  DEBUGASSERT(filep, filep->f_inode);
   inode = filep->f_inode;
   dev   = inode->i_private;
 
@@ -807,7 +818,7 @@ static bool up_txempty(struct uart_dev_s *dev)
  *
  * Description:
  *   Performs the low level UART initialization early in debug so that the
- *   serial console will be available during bootup.  This must be called
+ *   serial console will be available during boot up.  This must be called
  *   before sparc_serialinit.  NOTE:  This function depends on GPIO pin
  *   configuration performed in sparc_consoleinit() and main clock
  *   iniialization performed in up_clkinitialize().
@@ -866,27 +877,16 @@ void sparc_serialinit(void)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef HAVE_SERIAL_CONSOLE
   struct uart_dev_s *dev = (struct uart_dev_s *)&CONSOLE_DEV;
   uint8_t imr = 0;
 
   up_disableuartint(dev, &imr);
-
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      sparc_lowputc('\r');
-    }
-
   sparc_lowputc(ch);
   up_restoreuartint(dev, imr);
 #endif
-  return ch;
 }
 
 /****************************************************************************
@@ -908,9 +908,8 @@ void sparc_serialinit(void)
 {
 }
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
-  return ch;
 }
 
 #endif /* HAVE_UART_DEVICE */
@@ -924,21 +923,11 @@ int up_putc(int ch)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef HAVE_SERIAL_CONSOLE
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      sparc_lowputc('\r');
-    }
-
   sparc_lowputc(ch);
 #endif
-  return ch;
 }
 
 #endif /* USE_SERIALDRIVER */

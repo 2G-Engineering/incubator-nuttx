@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/sched/sched_get_stateinfo.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,32 +37,6 @@
  * Pre-processor types
  ****************************************************************************/
 
-/* This is the state info of the task_state field of the TCB */
-
-static FAR const char * const g_statenames[] =
-{
-  "Invalid",
-  "Waiting,Unlock",
-  "Ready",
-#ifdef CONFIG_SMP
-  "Assigned",
-#endif
-  "Running",
-  "Inactive",
-  "Waiting,Semaphore",
-  "Waiting,Signal"
-#if !defined(CONFIG_DISABLE_MQUEUE) || !defined(CONFIG_DISABLE_MQUEUE_SYSV)
-  , "Waiting,MQ empty"
-  , "Waiting,MQ full"
-#endif
-#ifdef CONFIG_PAGING
-  , "Waiting,Paging fill"
-#endif
-#ifdef CONFIG_SIG_SIGSTOP_ACTION
-  , "Stopped"
-#endif
-};
-
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -82,6 +58,32 @@ void nxsched_get_stateinfo(FAR struct tcb_s *tcb, FAR char *state,
                            size_t length)
 {
   irqstate_t flags;
+  static FAR const char * const g_statenames[] =
+    {
+      "Invalid",
+      "Waiting,Unlock",
+      "Ready",
+#ifdef CONFIG_SMP
+      "Assigned",
+#endif
+      "Running",
+      "Inactive",
+      "Waiting,Semaphore",
+      "Waiting,Signal"
+#ifdef CONFIG_SCHED_EVENTS
+      , "Waiting,Event"
+#endif
+#if !defined(CONFIG_DISABLE_MQUEUE) || !defined(CONFIG_DISABLE_MQUEUE_SYSV)
+      , "Waiting,MQ empty"
+      , "Waiting,MQ full"
+#endif
+#ifdef CONFIG_LEGACY_PAGING
+      , "Waiting,Paging fill"
+#endif
+#ifdef CONFIG_SIG_SIGSTOP_ACTION
+      , "Stopped"
+#endif
+    };
 
 #ifdef CONFIG_ARCH_ADDRENV
   FAR struct addrenv_s *oldenv;
@@ -99,7 +101,7 @@ void nxsched_get_stateinfo(FAR struct tcb_s *tcb, FAR char *state,
   if (tcb->task_state == TSTATE_WAIT_SEM &&
       ((FAR sem_t *)(tcb->waitobj))->flags & SEM_TYPE_MUTEX)
     {
-      pid_t holder = ((FAR mutex_t *)(tcb->waitobj))->holder;
+      pid_t holder = nxmutex_get_holder((FAR mutex_t *)tcb->waitobj);
       leave_critical_section(flags);
 
       snprintf(state, length, "Waiting,Mutex:%d", holder);

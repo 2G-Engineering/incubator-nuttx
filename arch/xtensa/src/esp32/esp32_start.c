@@ -24,6 +24,7 @@
 
 #include <nuttx/config.h>
 
+#include <nuttx/debug.h>
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
@@ -32,9 +33,7 @@
 #include <nuttx/irq.h>
 
 #include "xtensa.h"
-#include "xtensa_attr.h"
 
-#include "esp32_clockconfig.h"
 #include "esp32_region.h"
 #include "esp32_start.h"
 #include "esp32_spiram.h"
@@ -43,8 +42,24 @@
 #  include "esp32_userspace.h"
 #endif
 #include "hardware/esp32_dport.h"
-#include "hardware/esp32_rtccntl.h"
+#include "soc/rtc_cntl_reg.h"
+#include "rom/rtc.h"
+#include "esp_rom_sys.h"
 #include "rom/esp32_libc_stubs.h"
+#include "espressif/esp_loader.h"
+#include "espressif/esp_efuse.h"
+#include "esp_private/startup_internal.h"
+#include "esp_clk_internal.h"
+#include "esp_cpu.h"
+#include "esp_sleep.h"
+#include "esp_private/spi_flash_os.h"
+#include "esp_private/esp_mmu_map_private.h"
+#include "bootloader_flash_config.h"
+
+#ifdef CONFIG_ESPRESSIF_SIMPLE_BOOT
+#  include "bootloader_init.h"
+#  include "esp_rom_spiflash.h"
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -56,28 +71,36 @@
 #  define showprogress(c)
 #endif
 
-#ifdef CONFIG_ESP32_APP_FORMAT_MCUBOOT
+#if defined(CONFIG_ESP32_APP_FORMAT_MCUBOOT) || \
+    defined (CONFIG_ESPRESSIF_SIMPLE_BOOT)
+#  ifdef CONFIG_ESP32_APP_FORMAT_MCUBOOT
+#    define PRIMARY_SLOT_OFFSET   CONFIG_ESP32_OTA_PRIMARY_SLOT_OFFSET
+#  else
+     /* Force offset to the beginning of the whole image */
 
-#define PRIMARY_SLOT_OFFSET   CONFIG_ESP32_OTA_PRIMARY_SLOT_OFFSET
-
-#define HDR_ATTR              __attribute__((section(".entry_addr"))) \
+#    define PRIMARY_SLOT_OFFSET   0x0000
+#  endif
+#  define HDR_ATTR              __attribute__((section(".entry_addr"))) \
                                 __attribute__((used))
 
-/* Cache MMU block size */
-
-#define MMU_BLOCK_SIZE        0x00010000  /* 64 KB */
-
-/* Cache MMU address mask (MMU tables ignore bits which are zero) */
-
-#define MMU_FLASH_MASK        (~(MMU_BLOCK_SIZE - 1))
-
 #endif
+
+/* On chips with different virtual address space for flash and PSRAM, code in
+ * flash is not available before XIP is initialized. Hence, these functions
+ * have to be in the IRAM.
+ */
+
+#define MSPI_INIT_ATTR NOINLINE_ATTR static
+
+#define RWDT_RESET           RESET_REASON_CORE_RTC_WDT
+#define MWDT_RESET           RESET_REASON_CORE_MWDT0
 
 /****************************************************************************
  * Private Types
  ****************************************************************************/
 
-#ifdef CONFIG_ESP32_APP_FORMAT_MCUBOOT
+#if defined(CONFIG_ESP32_APP_FORMAT_MCUBOOT) || \
+    defined (CONFIG_ESPRESSIF_SIMPLE_BOOT)
 extern uint8_t _image_irom_vma[];
 extern uint8_t _image_irom_lma[];
 extern uint8_t _image_irom_size[];
@@ -91,22 +114,14 @@ extern uint8_t _image_drom_size[];
  * ROM Function Prototypes
  ****************************************************************************/
 
-#ifdef CONFIG_ESP32_APP_FORMAT_MCUBOOT
 extern int ets_printf(const char *fmt, ...) printf_like(1, 2);
-extern void cache_read_enable(int cpu);
-extern void cache_read_disable(int cpu);
-extern void cache_flush(int cpu);
-extern unsigned int cache_flash_mmu_set(int cpu_no, int pid,
-                                        unsigned int vaddr,
-                                        unsigned int paddr,
-                                        int psize, int num);
-#endif
 
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
 
-#ifdef CONFIG_ESP32_APP_FORMAT_MCUBOOT
+#if defined(CONFIG_ESP32_APP_FORMAT_MCUBOOT) || \
+    defined (CONFIG_ESPRESSIF_SIMPLE_BOOT)
 noreturn_function void __start(void);
 #endif
 
@@ -122,7 +137,8 @@ extern void esp32_lowsetup(void);
  * Private Data
  ****************************************************************************/
 
-#ifdef CONFIG_ESP32_APP_FORMAT_MCUBOOT
+#if defined(CONFIG_ESP32_APP_FORMAT_MCUBOOT) || \
+    defined (CONFIG_ESPRESSIF_SIMPLE_BOOT)
 HDR_ATTR static void (*_entry_point)(void) = __start;
 #endif
 
@@ -139,10 +155,92 @@ uint32_t g_idlestack[IDLETHREAD_STACKWORDS]
  * Private Functions
  ****************************************************************************/
 
+/****************************************************************************
+ * Name: sys_rtc_init
+ *
+ * Description:
+ *   Initialize RTC and power-related hardware early in the startup path.
+ *   When CONFIG_BOOTLOADER_WDT_ENABLE is not set, if the reset was caused
+ *   by the RTC watchdog (RWDT) or main system watchdog (MWDT) on any core
+ *   (e.g. from a panic handler), the RTC WDT is disabled so the system can
+ *   continue. Then esp_rtc_init() is called to configure power/RTC; after
+ *   this, MSPI timing tuning can be performed.
+ *
+ * Input Parameters:
+ *   rst_reas - Array of reset reasons per CPU core (indexed by core id).
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+MSPI_INIT_ATTR void sys_rtc_init(const soc_reset_reason_t *rst_reas)
+{
+#ifndef CONFIG_BOOTLOADER_WDT_ENABLE
+  /* From panic handler we can be reset by RWDT or TG0WDT */
+
+  if (rst_reas[0] == RWDT_RESET || rst_reas[0] == MWDT_RESET
+#ifdef CONFIG_SMP
+      || rst_reas[1] == RWDT_RESET || rst_reas[1] == MWDT_RESET
+#endif
+      )
+    {
+      wdt_hal_context_t rtc_wdt_ctx = RWDT_HAL_CONTEXT_DEFAULT();
+      wdt_hal_write_protect_disable(&rtc_wdt_ctx);
+      wdt_hal_disable(&rtc_wdt_ctx);
+      wdt_hal_write_protect_enable(&rtc_wdt_ctx);
+    }
+#endif
+
+  /* Configure the power related stuff. After this the MSPI timing tuning can
+   * be done.
+   */
+
+  esp_rtc_init();
+}
+
+/****************************************************************************
+ * Name: get_reset_reason
+ *
+ * Description:
+ *   Fill the given array with the reset reason for each CPU core from ROM.
+ *   Core 0 is always filled; when CONFIG_SMP is set, core 1 is also filled.
+ *
+ * Input Parameters:
+ *   rst_reas - Array to receive reset reasons (indexed by core id).
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+FORCE_INLINE_ATTR IRAM_ATTR
+void get_reset_reason(soc_reset_reason_t *rst_reas)
+{
+  rst_reas[0] = esp_rom_get_reset_reason(0);
+#ifdef CONFIG_SMP
+  rst_reas[1] = esp_rom_get_reset_reason(1);
+#endif
+}
+
 static noreturn_function void __esp32_start(void)
 {
-  uint32_t sp;
+#ifdef CONFIG_SMP
+  soc_reset_reason_t rst_reas[SOC_CPU_CORES_NUM] =
+    {
+      [0 ... SOC_CPU_CORES_NUM - 1] = RESET_REASON_CHIP_POWER_ON
+    };
+#else
+  soc_reset_reason_t rst_reas[1] =
+    {
+      RESET_REASON_CHIP_POWER_ON
+    };
+#endif
+
   uint32_t regval unused_data;
+  uint32_t chip_rev;
+#ifndef CONFIG_ESPRESSIF_SIMPLE_BOOT
+  uint32_t sp;
 
   /* Make sure that normal interrupts are disabled.  This is really only an
    * issue when we are started in un-usual ways (such as from IRAM).  In this
@@ -189,6 +287,18 @@ static noreturn_function void __esp32_start(void)
 
   memset(_sbss, 0, _ebss - _sbss);
 
+#endif
+
+  /* Initialize flash state and MMU */
+
+  esp_mspi_pin_init();
+
+  bootloader_flash_update_id();
+
+  spi_flash_init_chip_state();
+
+  esp_mmu_map_init();
+
 #ifndef CONFIG_SMP
   /* Make sure that the APP_CPU is disabled for now */
 
@@ -197,6 +307,10 @@ static noreturn_function void __esp32_start(void)
   putreg32(regval, DPORT_APPCPU_CTRL_B_REG);
 #endif
 
+  get_reset_reason(rst_reas);
+
+  sys_rtc_init(rst_reas);
+
   /* The 2nd stage bootloader enables RTC WDT to check on startup sequence
    * related issues in application. Hence disable that as we are about to
    * start the NuttX environment.
@@ -204,9 +318,9 @@ static noreturn_function void __esp32_start(void)
 
   esp32_wdt_early_deinit();
 
-  /* Set CPU frequency configured in board.h */
+  /* Initialize RTC controller and set CPU frequency */
 
-  esp32_clockconfig();
+  esp_clk_init();
 
 #ifndef CONFIG_SUPPRESS_UART_CONFIG
   /* Configure the UART so we can get debug output */
@@ -234,6 +348,13 @@ static noreturn_function void __esp32_start(void)
   else
     {
       esp_spiram_init_cache();
+#  if defined(CONFIG_ESP32_SPIRAM_MEMTEST)
+      if (esp_spiram_test() != OK)
+        {
+          ets_printf("SPIRAM test failed\n");
+          PANIC();
+        }
+#  endif // CONFIG_ESP32_SPIRAM_MEMTEST
     }
 
   /* Set external memory bss section to zero */
@@ -265,118 +386,79 @@ static noreturn_function void __esp32_start(void)
   showprogress('C');
 #endif
 
+  chip_rev = esp_efuse_hal_chip_revision();
+
+  ets_printf("ESP32 chip revision is v%" PRId32 ".%01ld\n",
+             chip_rev / 100, chip_rev % 100);
+
+  if (chip_rev < 300)
+    {
+#ifndef CONFIG_ESP32_IGNORE_CHIP_REVISION_CHECK
+      ets_printf("ERROR: NuttX supports ESP32 chip revision >= v3.0"
+                 " (chip revision is v%" PRId32 ".%01ld)\n",
+                 chip_rev / 100, chip_rev % 100);
+      PANIC();
+#endif
+      ets_printf("WARNING: NuttX supports ESP32 chip revision >= v3.0"
+                 " (chip is v%" PRId32 ".%01ld).\n"
+                 "Ignoring this error and continuing because "
+                 "`ESP32_IGNORE_CHIP_REVISION_CHECK` is set...\n"
+                 "THIS MAY NOT WORK! DON'T USE THIS CHIP IN PRODUCTION!\n",
+                 chip_rev / 100, chip_rev % 100);
+    }
+
   /* Bring up NuttX */
 
   nx_start();
+
   for (; ; ); /* Should not return */
 }
 
 /****************************************************************************
- * Name: calc_mmu_pages
- *
- * Description:
- *   Calculate the number of cache pages to map.
- *
- * Input Parameters:
- *   size  - Size of data to map
- *   vaddr - Virtual address where data will be mapped
- *
- * Returned Value:
- *   Number of cache MMU pages required to do the mapping.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_ESP32_APP_FORMAT_MCUBOOT
-static inline uint32_t calc_mmu_pages(uint32_t size, uint32_t vaddr)
-{
-  return (size + (vaddr - (vaddr & MMU_FLASH_MASK)) + MMU_BLOCK_SIZE - 1) /
-    MMU_BLOCK_SIZE;
-}
-#endif
-
-/****************************************************************************
- * Name: map_rom_segments
- *
- * Description:
- *   Configure the MMU and Cache peripherals for accessing ROM code and data.
- *
- * Input Parameters:
- *   None.
- *
- * Returned Value:
- *   None.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_ESP32_APP_FORMAT_MCUBOOT
-static int map_rom_segments(void)
-{
-  uint32_t rc = 0;
-  uint32_t regval;
-  uint32_t drom_lma_aligned;
-  uint32_t drom_vma_aligned;
-  uint32_t drom_page_count;
-  uint32_t irom_lma_aligned;
-  uint32_t irom_vma_aligned;
-  uint32_t irom_page_count;
-
-  size_t partition_offset = PRIMARY_SLOT_OFFSET;
-  uint32_t app_irom_lma = partition_offset + (uint32_t)_image_irom_lma;
-  uint32_t app_irom_size = (uint32_t)_image_irom_size;
-  uint32_t app_irom_vma = (uint32_t)_image_irom_vma;
-  uint32_t app_drom_lma = partition_offset + (uint32_t)_image_drom_lma;
-  uint32_t app_drom_size = (uint32_t)_image_drom_size;
-  uint32_t app_drom_vma = (uint32_t)_image_drom_vma;
-
-  volatile uint32_t *pro_flash_mmu_table =
-    (volatile uint32_t *)DPORT_PRO_FLASH_MMU_TABLE_REG;
-
-  cache_read_disable(0);
-  cache_flush(0);
-
-  /* Clear the MMU entries that are already set up, so the new app only has
-   * the mappings it creates.
-   */
-
-  for (int i = 0; i < DPORT_FLASH_MMU_TABLE_SIZE; i++)
-    {
-      putreg32(DPORT_FLASH_MMU_TABLE_INVALID_VAL, pro_flash_mmu_table++);
-    }
-
-  drom_lma_aligned = app_drom_lma & MMU_FLASH_MASK;
-  drom_vma_aligned = app_drom_vma & MMU_FLASH_MASK;
-  drom_page_count = calc_mmu_pages(app_drom_size, app_drom_vma);
-  rc  = cache_flash_mmu_set(0, 0, drom_vma_aligned, drom_lma_aligned, 64,
-                            (int)drom_page_count);
-  rc |= cache_flash_mmu_set(1, 0, drom_vma_aligned, drom_lma_aligned, 64,
-                            (int)drom_page_count);
-
-  irom_lma_aligned = app_irom_lma & MMU_FLASH_MASK;
-  irom_vma_aligned = app_irom_vma & MMU_FLASH_MASK;
-  irom_page_count = calc_mmu_pages(app_irom_size, app_irom_vma);
-  rc |= cache_flash_mmu_set(0, 0, irom_vma_aligned, irom_lma_aligned, 64,
-                            (int)irom_page_count);
-  rc |= cache_flash_mmu_set(1, 0, irom_vma_aligned, irom_lma_aligned, 64,
-                            (int)irom_page_count);
-
-  regval  = getreg32(DPORT_PRO_CACHE_CTRL1_REG);
-  regval &= ~(DPORT_PRO_CACHE_MASK_IRAM0 | DPORT_PRO_CACHE_MASK_DROM0 |
-              DPORT_PRO_CACHE_MASK_DRAM1);
-  putreg32(regval, DPORT_PRO_CACHE_CTRL1_REG);
-
-  regval  = getreg32(DPORT_APP_CACHE_CTRL1_REG);
-  regval &= ~(DPORT_APP_CACHE_MASK_IRAM0 | DPORT_APP_CACHE_MASK_DROM0 |
-              DPORT_APP_CACHE_MASK_DRAM1);
-  putreg32(regval, DPORT_APP_CACHE_CTRL1_REG);
-
-  cache_read_enable(0);
-  return (int)rc;
-}
-#endif
-
-/****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: xtensa_soc_initialize
+ *
+ * Description:
+ *   Initialize SoC-specific initialization.
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+void weak_function xtensa_soc_initialize(void)
+{
+  sys_startup_fn();
+}
+
+/****************************************************************************
+ * Name: sys_startup_fn
+ *
+ * Description:
+ *   Execute the system layer startup function for the current CPU core.
+ *   This function calls the appropriate startup function from the per-CPU
+ *   startup function array (g_startup_fn) based on the current core ID.
+ *   The SYS_STARTUP_FN() macro retrieves the core ID, indexes into the
+ *   g_startup_fn array, and invokes the corresponding startup function.
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+void sys_startup_fn(void)
+{
+  SYS_STARTUP_FN();
+}
 
 /****************************************************************************
  * Name: __start
@@ -391,10 +473,44 @@ static int map_rom_segments(void)
  *
  ****************************************************************************/
 
-void __start(void)
+noreturn_function void __start(void)
 {
-#ifdef CONFIG_ESP32_APP_FORMAT_MCUBOOT
-  if (map_rom_segments() != 0)
+#if defined(CONFIG_ESP32_APP_FORMAT_MCUBOOT) || \
+    defined (CONFIG_ESPRESSIF_SIMPLE_BOOT)
+  size_t partition_offset = PRIMARY_SLOT_OFFSET;
+  uint32_t app_irom_start = partition_offset + (uint32_t)_image_irom_lma;
+  uint32_t app_irom_size  = (uint32_t)_image_irom_size;
+  uint32_t app_irom_vaddr = (uint32_t)_image_irom_vma;
+  uint32_t app_drom_start = partition_offset + (uint32_t)_image_drom_lma;
+  uint32_t app_drom_size  = (uint32_t)_image_drom_size;
+  uint32_t app_drom_vaddr = (uint32_t)_image_drom_vma;
+
+#  ifdef CONFIG_ESPRESSIF_SIMPLE_BOOT
+  uint32_t sp;
+
+  /* Move CPU0 exception vectors to IRAM */
+
+  __asm__ __volatile__ ("wsr %0, vecbase\n"::"r" (_init_start));
+
+  /* Move the stack to a known location.  Although we were given a stack
+   * pointer at start-up, we don't know where that stack pointer is
+   * positioned with respect to our memory map.  The only safe option is to
+   * switch to a well-known IDLE thread stack.
+   */
+
+  sp = (uint32_t)g_idlestack + IDLETHREAD_STACKSIZE;
+  __asm__ __volatile__("mov sp, %0\n" : : "r"(sp));
+
+  if (bootloader_init() != 0)
+    {
+      ets_printf("Hardware init failed, aborting\n");
+      while (true);
+    }
+
+#  endif
+
+  if (map_rom_segments(app_drom_start, app_drom_vaddr, app_drom_size,
+                       app_irom_start, app_irom_vaddr, app_irom_size) != 0)
     {
       ets_printf("Failed to setup XIP, aborting\n");
       while (true);

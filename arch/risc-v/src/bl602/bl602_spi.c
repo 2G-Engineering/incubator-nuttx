@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/bl602/bl602_spi.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -1027,7 +1029,7 @@ static void bl602_spi_dma_exchange(struct bl602_spi_priv_s *priv,
 
   if (err < 0)
     {
-      spierr("Failed to initalize DMA LLI\n");
+      spierr("Failed to initialize DMA LLI\n");
       return;
     }
 

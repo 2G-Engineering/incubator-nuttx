@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/nxffs/nxffs_stat.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/mtd/mtd.h>
@@ -74,7 +76,6 @@ int nxffs_statfs(FAR struct inode *mountpt, FAR struct statfs *buf)
    * REVISIT: Need f_bfree, f_bavail, f_files, f_ffree calculation
    */
 
-  memset(buf, 0, sizeof(struct statfs));
   buf->f_type    = NXFFS_MAGIC;
   buf->f_bsize   = volume->geo.blocksize;
   buf->f_blocks  = volume->nblocks;
@@ -182,16 +183,16 @@ int nxffs_fstat(FAR const struct file *filep, FAR struct stat *buf)
   int ret;
 
   finfo("Buf %p\n", buf);
-  DEBUGASSERT(filep != NULL && buf != NULL);
+  DEBUGASSERT(buf != NULL);
 
   /* Recover the open file state from the struct file instance */
 
-  DEBUGASSERT(filep->f_priv != NULL && filep->f_inode != NULL);
+  DEBUGASSERT(filep->f_priv != NULL);
   ofile = (FAR struct nxffs_ofile_s *)filep->f_priv;
 
   /* Recover the volume state from the open file */
 
-  volume = (FAR struct nxffs_volume_s *)filep->f_inode->i_private;
+  volume = filep->f_inode->i_private;
   DEBUGASSERT(volume != NULL);
 
   /* Get exclusive access to the volume.  Note that the volume lock

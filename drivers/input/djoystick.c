@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/input/djoystick.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -41,7 +43,7 @@
 #include <poll.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -82,9 +84,11 @@ struct djoy_open_s
 
   /* Joystick event notification information */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   pid_t do_pid;
   struct djoy_notify_s do_notify;
   struct sigwork_s do_work;
+#endif
 
   /* Poll event information */
 
@@ -170,9 +174,10 @@ static void djoy_enable(FAR struct djoy_upperhalf_s *priv)
       release |= opriv->do_pollevents.dp_release;
 
       /* OR in the signal events */
-
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
       press   |= opriv->do_notify.dn_press;
       release |= opriv->do_notify.dn_release;
+#endif
     }
 
   /* Enable/disable button interrupts */
@@ -269,6 +274,7 @@ static void djoy_sample(FAR struct djoy_upperhalf_s *priv)
 
       /* Have any signal events occurred? */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
       if ((press & opriv->do_notify.dn_press)     != 0 ||
           (release & opriv->do_notify.dn_release) != 0)
         {
@@ -278,6 +284,7 @@ static void djoy_sample(FAR struct djoy_upperhalf_s *priv)
           nxsig_notification(opriv->do_pid, &opriv->do_notify.dn_event,
                              SI_QUEUE, &opriv->do_work);
         }
+#endif
     }
 
   priv->du_sample = sample;
@@ -297,14 +304,13 @@ static int djoy_open(FAR struct file *filep)
   djoy_buttonset_t supported;
   irqstate_t flags;
 
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
-  priv = (FAR struct djoy_upperhalf_s *)inode->i_private;
+  priv = inode->i_private;
 
   /* Allocate a new open structure */
 
-  opriv = (FAR struct djoy_open_s *)kmm_zalloc(sizeof(struct djoy_open_s));
+  opriv = kmm_zalloc(sizeof(struct djoy_open_s));
   if (!opriv)
     {
       ierr("ERROR: Failed to allocate open structure\n");
@@ -352,11 +358,11 @@ static int djoy_close(FAR struct file *filep)
   FAR struct djoy_open_s *prev;
   irqstate_t flags;
 
-  DEBUGASSERT(filep && filep->f_priv && filep->f_inode);
+  DEBUGASSERT(filep->f_priv);
   opriv = filep->f_priv;
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
-  priv  = (FAR struct djoy_upperhalf_s *)inode->i_private;
+  priv  = inode->i_private;
 
   flags = enter_critical_section();
 
@@ -415,11 +421,10 @@ static ssize_t djoy_read(FAR struct file *filep, FAR char *buffer,
   irqstate_t flags;
   int ret;
 
-  DEBUGASSERT(filep && filep->f_inode);
   opriv = filep->f_priv;
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
-  priv  = (FAR struct djoy_upperhalf_s *)inode->i_private;
+  priv  = inode->i_private;
 
   /* Make sure that the buffer is sufficiently large to hold at least one
    * complete sample.
@@ -461,11 +466,11 @@ static int djoy_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   irqstate_t flags;
   int ret;
 
-  DEBUGASSERT(filep && filep->f_priv && filep->f_inode);
+  DEBUGASSERT(filep->f_priv);
   opriv = filep->f_priv;
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
-  priv  = (FAR struct djoy_upperhalf_s *)inode->i_private;
+  priv  = inode->i_private;
 
   /* Get exclusive access to the driver structure */
 
@@ -541,6 +546,7 @@ static int djoy_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
      *              failure with the errno value set appropriately.
      */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
     case DJOYIOC_REGISTER:
       {
         FAR struct djoy_notify_s *notify =
@@ -562,6 +568,7 @@ static int djoy_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
           }
       }
       break;
+#endif
 
     default:
       ierr("ERROR: Unrecognized command: %d\n", cmd);
@@ -586,7 +593,7 @@ static int djoy_poll(FAR struct file *filep, FAR struct pollfd *fds,
   int ret = OK;
   int i;
 
-  DEBUGASSERT(filep && filep->f_priv && filep->f_inode);
+  DEBUGASSERT(filep->f_priv);
   opriv = filep->f_priv;
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
@@ -626,8 +633,8 @@ static int djoy_poll(FAR struct file *filep, FAR struct pollfd *fds,
       if (i >= CONFIG_INPUT_DJOYSTICK_NPOLLWAITERS)
         {
           ierr("ERROR: Too man poll waiters\n");
-          fds->priv    = NULL;
-          ret          = -EBUSY;
+          fds->priv = NULL;
+          ret       = -EBUSY;
           goto errout;
         }
     }

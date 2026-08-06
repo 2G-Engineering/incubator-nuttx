@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lpc31xx/lpc31_timerisr.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdint.h>
 #include <time.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <arch/board/board.h>
@@ -35,6 +37,7 @@
 #include "arm_internal.h"
 #include "lpc31_timer.h"
 #include "lpc31.h"
+#include "lpc31_cgudrvr.h"
 
 /****************************************************************************
  * Private Functions
@@ -94,7 +97,7 @@ void up_timer_initialize(void)
    * of the timer0 module clock (in the AHB0APB1_BASE domain (2)).
    */
 
-  freq = (uint64_t)lpc31_clkfreq(CLKID_TIMER0PCLK, DOMAINID_AHB0APB1);
+  freq = lpc31_clkfreq(CLKID_TIMER0PCLK, DOMAINID_AHB0APB1);
 
   /* If the clock is >1MHz, use pre-dividers */
 
@@ -108,7 +111,7 @@ void up_timer_initialize(void)
       freq   >>= 4;
     }
 
-  load = ((freq * (uint64_t)10000) / 1000000);
+  load = ((freq * 10000) / 1000000);
   putreg32((uint32_t)load, LPC31_TIMER0_LOAD);
 
   /* Set periodic mode */

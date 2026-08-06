@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rtl8720c/amebaz_driver.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,6 +29,7 @@
 
 #include <nuttx/config.h>
 #include <nuttx/semaphore.h>
+#include <nuttx/mutex.h>
 #include <nuttx/wdog.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/net/netdev.h>
@@ -84,6 +87,7 @@ struct amebaz_dev_s
   rtw_scan_result_t         scan_data[AMEBAZ_SCAN_AP_COUNT];
   unsigned int scan_count;
   unsigned char             country[2];
+  mutex_t                   lock;
 };
 
 int amebaz_wl_start_scan(struct amebaz_dev_s *priv,

@@ -2,6 +2,8 @@
 ESP32 DevKitC
 =============
 
+.. tags:: chip:esp32, chip:esp32wroom32
+
 The `ESP32 DevKitC <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/hw-reference/modules-and-boards.html#esp32-devkitc-v4>`_ is a development board for the ESP32 SoC from Espressif, based on a ESP-WROOM-32 module. You can find the original V2 version and the newer V4 variant. They are
 pin compatible.
 
@@ -130,7 +132,7 @@ to bypass the audio subsystem and write directly to the I2S peripheral.
         -> ESP32 Peripheral Selection
             -> I2S
                 -> I2S0/1
-                    -> Bit Witdh
+                    -> Bit Width
 
   And make sure the data stream buffer being written to the I2S peripheral is
   aligned to the next boundary i.e. 16 bits for the 8 and 16-bit-widths and
@@ -162,6 +164,27 @@ All of the configurations presented below can be tested by running the following
 
 Where <config_name> is the name of board configuration you want to use, i.e.: nsh, buttons, wifi...
 Then use a serial console terminal like ``picocom`` configured to 115200 8N1.
+
+adc
+---
+
+The ``adc`` configuration enables the ADC driver and the ADC example application.
+ADC Unit 1 is registered to ``/dev/adc0`` with channels 0, 3 and 4 enabled by default.
+Currently, the ADC operates in oneshot mode.
+
+More ADC channels can be enabled or disabled in ``ADC Configuration`` menu.
+
+This example shows channels 0 and 4 connected to GND and channel 3 to 3.3 V (all readings
+show in units of mV)::
+
+    nsh> adc -n 1
+    adc_main: g_adcstate.count: 1
+    adc_main: Hardware initialized. Opening the ADC device: /dev/adc0
+    Sample:
+    1: channel: 0 value: 142
+    2: channel: 3 value: 3441
+    3: channel: 4 value: 142
+
 
 audio
 -----
@@ -279,6 +302,23 @@ You can check that the sensor is working by using the ``sensortest`` application
     baro0: timestamp:66870000 value1:1008.37 value2:31.70
     baro0: timestamp:66890000 value1:1008.31 value2:31.70
 
+brickmatch
+----------
+
+This configuration enables brickmatch game using LCD screen (APA102) and gesture sensor (APDS9960).
+Alternatively, you can use led matrix (ws2812) by enabling `GAMES_BRICKMATCH_USE_LED_MATRIX` option for
+output device. Also for input device selection you can enable `GAMES_BRICKMATCH_USE_DJOYSTICK` to use joystick,
+`GAMES_BRICKMATCH_USE_GPIO` to use gpio and `GAMES_BRICKMATCH_USE_CONSOLEKEY` to use serial console.
+
+You can run the game by using ``brick`` command::
+
+    nsh> brick
+
+Here is the sample wiring diagram that demonstrates how to wire ws2812 with buttons for brickmatch example:
+
+.. figure:: esp32-brickmatch-game-schematic.jpg
+    :align: center
+
 buttons
 -------
 
@@ -294,6 +334,22 @@ the ``buttons`` application and pressing on any of the available board buttons::
     nsh> Sample = 1
     Sample = 0
 
+capture
+--------
+
+The capture configuration enables the capture driver and the capture example, allowing
+the user to measure duty cycle and frequency of a signal. Default pin is GPIO 14 with
+an internal pull-up resistor enabled. When connecting a 50 Hz pulse with 50% duty cycle,
+the following output is expected::
+
+    nsh> cap
+    cap_main: Hardware initialized. Opening the capture device: /dev/capture0
+    cap_main: Number of samples: 0
+    pwm duty cycle: 50 %
+    pwm frequency: 50 Hz
+    pwm duty cycle: 50 %
+    pwm frequency: 50 Hz
+
 coremark
 --------
 
@@ -304,11 +360,18 @@ disables the NuttShell to get the best possible score.
 .. note:: As the NSH is disabled, the application will start as soon as the
   system is turned on.
 
+crypto
+--------
+
+This configuration enables support for the cryptographic hardware and
+the /dev/crypto device file. Currently, only the hashing operation is
+supported.
+
 cxx
 ---
 
-Development enviroment ready for C++ applications. You can check if the setup
-was successfull by running ``cxxtest``::
+Development environment ready for C++ applications. You can check if the setup
+was successful by running ``cxxtest``::
 
     nsh> cxxtest
     Test ofstream ================================
@@ -329,6 +392,33 @@ was successfull by running ``cxxtest``::
     Invalid file! /invalid
     File /proc/version exists!
 
+dac
+---
+This configuration enables DAC and registers a `DAC example application <https://github.com/apache/nuttx-apps/tree/master/examples/dac>`_.
+
+.. note:: The DAC module is hard-wired to pins 25 (channel 0) and 26
+  (channel 1). The default device name is ``/dev/dac0`` and can be changed in
+  the config menu.
+
+.. note:: The DAC channels in `IDF <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/dac.html>`_ are numbered ``channel 1`` (pin 25) and ``channel 2`` (pin 26).
+
+.. note:: Max value 255 should be close to VRef (3.3V) but it probably will not.
+  You can more realistically expect to get voltage around 3.09V.
+
+With this example you can use (not only) the following commands:
+
+For a multimeter, you can use the command:
+
+``dac -d 5000 -s 32 test``
+
+For oscilloscope or anything else with tracing:
+
+``dac -d 0 -s 4 test``
+
+For more info about the example capabilities invoke help message by typing
+
+``dac -h``
+
 efuse
 -----
 
@@ -340,6 +430,176 @@ elf
 
 This configuration uses apps/examples/elf in order to test the ELF loader.
 It can be tested by executing the ``elf`` application.
+
+espnow
+------
+
+WARNING: espnow and wifi are using the same hardware on the esp32. When a
+connection to a accespoint is made while espnow is operational the espnow
+connection will break if the accesspoint wants to use a different wifi
+channel.
+
+A ``espnow`` setup can be used to create a 6lowpan network of esp32 nodes.
+A sample configuration is found in ``esp32-devkitc:espnow``. The node
+address can be changed under ``ESP32 Peripherals`` option ``Espnow``. The
+node address is direct related to the ipv6 address of the node. Changing
+the ipv6 address also changes the node address.
+
+To test the communication using ``udpserver`` and ``udpclient`` two nodes
+need to be prepared with different ipv6 address.
+
+The server node is assigned the node address ``0x000a`` and the udp server
+is started using:
+
+.. code-block :: bash
+
+  nsh> ifconfig wpan0 inet6 fe80::ff:fe00:a
+  nsh> ifup wpan0
+  ifup wpan0..OK
+  nsh> udpserver &
+  udpserver [6:100]
+
+The client node can use the default node address (``0xfffe``) and the
+updclient can be started using:
+
+.. code-block :: bash
+
+  nsh> ifup wpan0
+  ifup wpan0..OK
+  nsh> udpclient fe80::ff:fe00:a
+  client: 0. Sending 96 bytes
+  client: 0. Sent 96 bytes
+  client: 1. Sending 96 bytes
+  client: 1. Sent 96 bytes
+
+The server node will show the incoming messages:
+
+.. code-block :: bash
+
+  nsh> udpserver &
+  udpserver [6:100]
+  nsh> server: 0. Receiving up 1024 bytes
+  server: 0. Received 96 bytes from fe80:0000:0000:0000:0000:00ff:fe00:feff port 5472
+  server: 1. Receiving up 1024 bytes
+  server: 1. Received 96 bytes from fe80:0000:0000:0000:0000:00ff:fe00:feff port 5472
+  server: 2. Receiving up 1024 bytes
+
+The sample configuration also allows a telnet session over espnow:
+
+On the server (node ``0x000a``):
+
+.. code-block :: bash
+
+  nsh> ifconfig wpan0 inet6 fe80::ff:fe00:a
+  nsh> ifup wpan0
+  ifup wpan0..OK
+  nsh> telnetd -6 &
+
+On the client (node ``Oxfffe``):
+
+.. code-block :: bash
+
+  nsh> ifup wpan0
+  ifup wpan0..OK
+  nsh> telnet fe80::ff:fe00:a
+
+  NuttShell (NSH) NuttX-12.8.0
+  nsh> free
+  free
+        total       used       free    maxused    maxfree  nused  nfree name
+       253292      65996     187296      66624     129952    185      3 Umem
+  nsh> exit
+  exit
+  nsh>
+
+gpio
+----
+
+This configuration enables the GPIO character device and the gpio tool,
+which provides an easy-to-use way of testing the GPIO peripherals.
+
+Default GPIOs for this board are defined in ``boards/xtensa/esp32/esp32-devkitc/src/esp32_gpio.c``
+file as follows:
+
+========== ===========
+GPIO Type  GPIO Pin
+========== ===========
+Output      15
+Input       18
+Interrupt   22
+========== ===========
+
+After successfully built and flashed, the gpio device will be available at `/dev/gpioX`:
+
+.. code-block :: bash
+
+  nsh> ls /dev
+  /dev:
+    console
+    gpio0
+    gpio1
+    gpio2
+    null
+    ttyS0
+    zero
+
+You can then use the gpio tool to test the GPIO peripherals:
+
+.. code-block :: bash
+
+  nsh> gpio -o 0 /dev/gpio0
+  Driver: /dev/gpio0
+    Output pin:    Value=1
+    Writing:       Value=0
+    Verify:        Value=0
+
+i2c
+---
+
+This configuration enables the I2C character device and the i2c tool,
+which provides an easy-to-use way of testing the I2C peripherals.
+
+``I2C0`` is used by default. It is possible to also select ``I2C1`` by enabling the ``CONFIG_ESP32_I2C1`` option
+in menuconfig.
+
+After successfully built and flashed, the ``i2c0`` device will be available at ``/dev/i2c0``:
+
+.. code-block :: bash
+
+  nsh> ls /dev
+  /dev:
+    console
+    i2c0
+    null
+    ttyS0
+    zero
+
+You can then use the i2c tool to test the I2C peripherals:
+
+.. code-block :: bash
+
+  nsh> i2c bus
+  BUS   EXISTS?
+  Bus 0: YES
+  Bus 1: NO
+
+**I2C0 pinout**
+
+========== ========== ============
+ESP32 Pin  Signal Pin Description
+========== ========== ============
+22          SCL        Clock
+23          SDA        Data
+========== ========== ============
+
+**I2C1 pinout**
+
+========== ========== ============
+ESP32 Pin  Signal Pin Description
+========== ========== ============
+26          SCL        Clock
+25          SDA        Data
+========== ========== ============
 
 i2schar
 -------
@@ -375,7 +635,7 @@ After successfully built and flashed, run on the boards's terminal::
 
     i2schar -p /dev/i2schar[0-1]
 
-The corresponding output should show related debug informations.
+The corresponding output should show related debug information.
 
 knsh
 ----
@@ -416,6 +676,22 @@ to demonstrate the use of the userleds subsystem::
     led_daemon: LED set 0x01
     led_daemon: LED set 0x00
     led_daemon: LED set 0x01
+
+match4
+------
+
+This configuration enables match4 game using led matrix (ws2812) and gpio pins.
+Alternatively, you can use serial console for input with enabling `GAMES_MATCH4_USE_CONSOLEKEY`
+option.
+
+You can run the game by using ``match`` command::
+
+    nsh> match
+
+Here is the sample wiring diagram that demonstrates how to wire ws2812 with buttons for match4 example:
+
+.. figure:: esp32-brickmatch-game-schematic.jpg
+    :align: center
 
 max6675
 -------
@@ -461,6 +737,21 @@ Pin   Signal
 The MCP2515 interrupt (INT) pin is connected to the pin 22 of the
 ESP32-Devkit.
 
+mcuboot_nsh
+-----------
+
+This configuration is the same as the ``nsh`` configuration, but it generates the application
+image in a format that can be used by MCUboot. It also makes the ``make bootloader`` command to
+build the MCUboot bootloader image using the Espressif HAL.
+
+mcuboot_update_agent
+--------------------
+
+This configuration is used to represent an MCUboot image that contains an update agent
+to perform over-the-air (OTA) updates. Wi-Fi settings are already enabled and image confirmation program is included.
+
+Follow the instructions in the :ref:`MCUBoot and OTA Update <MCUBoot and OTA Update ESP32>` section to execute OTA update.
+
 mcuboot_slot_confirm
 --------------------
 
@@ -469,28 +760,6 @@ after flashing. The image can be confirmed by using the following command::
 
     nsh> mcuboot_confirm
     Application Image successfully confirmed!
-
-For more information, check `this demo <https://www.youtube.com/watch?v=Vzy0rl-ixbc>`_.
-
-mcuboot_update_agent
---------------------
-
-This configuration is used to represent an MCUboot image that contains an update agent
-to perform OTA updates. First, you will have to setup a HTTP server to provide the update
-image. To do that, we can run a simple Python server on the same folder that contains our
-binary file on the computer::
-
-    sudo python -m http.server 8080
-
-After this, we can use NSH to connect to our network and use the agent to perform the firmware
-update::
-
-    nsh> ifup wlan0
-    nsh> wapi mode wlan0 2
-    nsh> wapi psk wlan0 mypasswd 3
-    nsh> wapi essid wlan0 myssid 1
-    nsh> renew wlan0
-    nsh> mcuboot_agent http://<SERVER_IP>:8080/nuttx.bin
 
 For more information, check `this demo <https://www.youtube.com/watch?v=Vzy0rl-ixbc>`_.
 
@@ -510,6 +779,19 @@ module
 ------
 
 This config is to run apps/examples/module.
+
+motor
+-------
+
+The motor configuration enables the MCPWM peripheral with support to brushed DC motor
+control.
+
+It creates a ``/dev/motor0`` device with speed and direction control capabilities
+by using two GPIOs (GPIO15 and GPIO16) for PWM output. PWM frequency is configurable
+from 25 Hz to 3 kHz, however it defaults to 1 kHz.
+There is also support for an optional fault GPIO (defaults to GPIO10), which can be used
+for quick motor braking. All GPIOs are configurable in ``menuconfig``.
+
 
 mqttc
 -----
@@ -698,6 +980,16 @@ To test it, just execute the ``pwm`` application::
     pwm_main: starting output with frequency: 10000 duty: 00008000
     pwm_main: stopping output
 
+qencoder
+---
+
+This configuration demonstrates the use of Quadrature Encoder connected to pins
+GPIO10 and GPIO11. You can start measurement of pulses using the following
+command (by default, it will open ``\dev\qe0`` device and print 20 samples
+using 1 second delay)::
+
+    nsh> qe
+
 random
 ------
 
@@ -710,6 +1002,69 @@ To test it, just run ``rand`` to get 32 randomly generated bytes::
     Random values (0x3ffe0b00):
     0000  98 b9 66 a2 a2 c0 a2 ae 09 70 93 d1 b5 91 86 c8  ..f......p......
     0010  8f 0e 0b 04 29 64 21 72 01 92 7c a2 27 60 6f 90  ....)d!r..|.'`o.
+
+rmt
+---
+
+This configuration enables usage of Remote Control Transceiver (RMT) module and
+example ``ws2812esp32`` demonstrating the usage of **RMT** by driving RGB LEDs.
+To test the module connect a Data pin of RGB LED compatible with WS2812
+to ESP32 GPIO 4 and run::
+
+    nsh> ws2812esp32 0 <number_of_leds_on_strip>
+
+romfs
+-----
+
+This configuration demonstrates the use of ROMFS (Read-Only Memory File System) to provide
+automated system initialization and startup scripts. ROMFS allows embedding a read-only
+filesystem directly into the NuttX binary, which is mounted at ``/etc`` during system startup.
+
+**What ROMFS provides:**
+
+* **System initialization script** (``/etc/init.d/rc.sysinit``): Executed after board bring-up
+* **Startup script** (``/etc/init.d/rcS``): Executed after system init, typically used to start applications
+
+**Default behavior:**
+
+When this configuration is used, NuttX will:
+
+1. Create a read-only RAM disk containing the ROMFS filesystem
+2. Mount the ROMFS at ``/etc``
+3. Execute ``/etc/init.d/rc.sysinit`` during system initialization
+4. Execute ``/etc/init.d/rcS`` for application startup
+
+**Customizing startup scripts:**
+
+The startup scripts are located in:
+``boards/xtensa/esp32/common/src/etc/init.d/``
+
+* ``rc.sysinit`` - System initialization script
+* ``rcS`` - Application startup script
+
+To customize these scripts:
+
+1. **Edit the script files** in ``boards/xtensa/esp32/common/src/etc/init.d/``
+2. **Add your initialization commands** using any NSH-compatible commands
+
+**Example customizations:**
+
+* **rc.sysinit** - Set up system services, mount additional filesystems, configure network.
+* **rcS** - Start your application, launch daemons, configure peripherals. This is executed after the rc.sysinit script.
+
+Example output::
+
+    *** Booting NuttX ***
+    [...]
+    rc.sysinit is called!
+    rcS file is called!
+    NuttShell (NSH) NuttX-12.8.0
+    nsh> ls /etc/init.d
+    /etc/init.d:
+    .
+    ..
+    rc.sysinit
+    rcS
 
 rtc
 ---
@@ -726,6 +1081,52 @@ You can set an alarm, check its progress and receive a notification after it exp
     Opening /dev/rtc0
     Alarm 0 is active with 10 seconds to expiration
     nsh> alarm_daemon: alarm 0 received
+
+sdm
+---
+
+This configuration enables the support for the Sigma-Delta Modulation (SDM) driver
+which can be used for LED dimming, simple dac with help of an low pass filter either
+active or passive and so on. ESP32 supports 1 group of SDM up to 8 channels with
+any GPIO up to user. This configuration enables 1 channel of SDM on GPIO5. You can test
+DAC feature with following command with connecting simple LED on GPIO5
+
+    nsh> dac -d 100 -s 10 test
+
+After this command you will see LED will light up in different brightness.
+
+sdmmc_spi
+---------
+
+This configuration is used to mount a FAT/FAT32 SD Card into the OS' filesystem.
+It uses SPI to communicate with the SD Card, defaulting to SPI3.
+
+The SD slot number, SPI port number and minor number can be modified in ``Application Configuration → NSH Library``.
+
+To access the card's files, make sure ``/dev/mmcsd0`` exists and then execute the following commands::
+
+    nsh> ls /dev
+    /dev:
+    console
+    mmcsd0
+    null
+    ttyS0
+    zero
+    nsh> mount -t vfat /dev/mmcsd0 /mnt
+
+This will mount the SD Card to ``/mnt``. Now, you can use the SD Card as a normal filesystem.
+For example, you can read a file and write to it::
+
+    nsh> ls /mnt
+    /mnt:
+    hello.txt
+    nsh> cat /mnt/hello.txt
+    Hello World
+    nsh> echo 'NuttX RTOS' >> /mnt/hello.txt
+    nsh> cat /mnt/hello.txt
+    Hello World!
+    NuttX RTOS
+    nsh>
 
 smp
 ---
@@ -747,10 +1148,79 @@ The apps/testing/smp test is included::
   CONFIG_TESTING_SMP_PRIORITY=100
   CONFIG_TESTING_SMP_STACKSIZE=2048
 
+snake
+-----
+
+This configuration enables snake game using led matrix (ws2812) and gpio pins.
+Alternatively, you can use serial console for input with enabling `GAMES_SNAKE_USE_CONSOLEKEY`
+option.
+
+You can run the game by using ``snake`` command::
+
+    nsh> snake
+
+Here is the sample wiring diagram that demonstrates how to wire ws2812 with buttons for snake example:
+
+.. figure:: esp32-brickmatch-game-schematic.jpg
+    :align: center
+
 sotest
 ------
 
 This config is to run ``apps/examples/sotest``.
+
+spi
+---
+
+This configuration enables the SPI character device and the spi tool,
+which provides an easy-to-use way of testing the SPI peripherals.
+
+``SPI2`` is used by default. It is possible to also select ``SPI3`` by enabling the ``CONFIG_ESP32_SPI3`` option
+in menuconfig.
+
+**SPI2 pinout**
+
+========== ========== ===============
+ESP32 Pin  Signal Pin Description
+========== ========== ===============
+14         SCK        SPI2 Clock
+13         MOSI       SPI2 Master Out Slave In
+12         MISO       SPI2 Master In Slave Out
+15         CS         SPI2 Chip Select
+========== ========== ===============
+
+**SPI3 pinout**
+
+========== ========== ===============
+ESP32 Pin  Signal Pin Description
+========== ========== ===============
+18         SCK        SPI3 Clock
+23         MOSI       SPI3 Master Out Slave In
+19         MISO       SPI3 Master In Slave Out
+5          CS         SPI3 Chip Select
+========== ========== ===============
+
+After successfully built and flashed, the spi device will be available at ``/dev/spiX``:
+
+.. code-block :: bash
+
+  nsh> ls /dev
+  /dev:
+    console
+    spi2
+    null
+    ttyS0
+    zero
+
+You can then use the spi tool to test the SPI peripherals:
+
+.. code-block :: bash
+
+  nsh> spi bus
+   BUS   EXISTS?
+  Bus 2: YES
+  Bus 3: NO
+
 
 spiflash
 --------
@@ -804,6 +1274,24 @@ To test it, just run the following::
 
 Where x in the timer instance.
 
+twai
+----
+
+This configuration enables the support for the TWAI (Two-Wire Automotive Interface) driver.
+You can test it by connecting TWAI RX and TWAI TX pins which are GPIO0 and GPIO2 by default
+to a external transceiver or connecting TWAI RX to TWAI TX pin by enabling
+the ``Device Drivers -> CAN Driver Support -> CAN loopback mode`` option and running the ``can`` example::
+
+    nsh> can
+    nmsgs: 0
+    min ID: 1 max ID: 2047
+    Bit timing:
+      Baud: 1000000
+      TSEG1: 15
+      TSEG2: 4
+        SJW: 3
+      ID:    1 DLC: 1
+
 wamr_wasi_debug
 ---------------
 
@@ -819,10 +1307,12 @@ This example uses littlefs on ESP32's SPI flash to store wasm modules.
 
       % python3 mkfsimg.py \
         --img-filename ..../littlefs.bin \
-        --img-size 3080192 \
+        --img-size 2621440 \
         --block-size 4096 \
         --prog-size 256 \
         --read-size 256 \
+        --name-max 32 \
+        --disk-version 2.0 \
         ..../wasm_binary_directory
 
 2. Write the NuttX image and the filesystem to ESP32::
@@ -929,6 +1419,89 @@ Find your board IP using ``nsh> ifconfig`` and then from your computer::
 
 Where x and y are the last two numbers of the IP that your router gave to
 your board.
+
+wifishare
+---------
+
+The ``wifishare`` let your ESP32 board to work as Access Point (WiFi Router)
+and WiFi Station at same time. This way your board will connect to a real
+WiFi Router (from your ISP for example) and will offer WiFi connection to other
+devices and share WiFi connection with them.
+
+After configuring the ``esp32-devkit:wifishare`` you need to define your
+credentials in the menuconfig. You can define your credentials this way::
+
+    $ make menuconfig
+    -> Application Configuration
+        -> Network Utilities
+            -> Network initialization (NETUTILS_NETINIT [=y])
+                -> WAPI Configuration
+
+After compile and flash your board you need to confirm you have two interfaces::
+
+    nsh> ifconfig
+    wlan0   Link encap:Ethernet HWaddr bc:dd:c2:d4:a9:ec at RUNNING mtu 1504
+            inet addr:192.168.0.7 DRaddr:192.168.0.1 Mask:255.255.255.0
+
+    wlan1   Link encap:Ethernet HWaddr bc:dd:c2:d4:a9:ed at DOWN mtu 1504
+            inet addr:0.0.0.0 DRaddr:0.0.0.0 Mask:0.0.0.0
+
+Now you need to configure your wlan1 to become a WiFi Access Point::
+
+    nsh> dhcpd_start wlan1
+    nsh> wapi psk wlan1 mypasswd 3
+    nsh> wapi essid wlan1 nuttxap 1
+
+And you need to make the route to your WiFi Router (i.e. 192.168.0.1) the default route::
+
+    nsh> addroute default 192.168.0.1 wlan0
+    nsh> route
+    SEQ   TARGET          NETMASK         ROUTER
+       1. 0.0.0.0         0.0.0.0         192.168.0.1
+
+Finally we will setup an iptables rule to NAT the wlan0 interface::
+
+    nsh> iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE
+
+After connectig a client (i.e. Linux computer) to the `nuttxap` Access Point
+you can confirm it is working this way::
+
+    $ ifconfig
+    lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+            inet 127.0.0.1  netmask 255.0.0.0
+            inet6 ::1  prefixlen 128  scopeid 0x10<host>
+            loop  txqueuelen 1000  (Local Loopback)
+            RX packets 5666  bytes 547514 (547.5 KB)
+            RX errors 0  dropped 0  overruns 0  frame 0
+            TX packets 5666  bytes 547514 (547.5 KB)
+            TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+    wlp0s20f3: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+            inet 10.0.0.4  netmask 255.255.255.0  broadcast 10.0.0.255
+            inet6 xxxx::xxxx:xxx:xxxx:xx  prefixlen 64  scopeid 0x20<link>
+            ether xx:xx:xx:xx:xx:xx  txqueuelen 1000  (Ethernet)
+            RX packets 127217  bytes 146539379 (146.5 MB)
+            RX errors 0  dropped 0  overruns 0  frame 0
+            TX packets 37079  bytes 23604536 (23.6 MB)
+            TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+    $ ping 10.0.0.1
+    PING 10.0.0.1 (10.0.0.1) 56(84) bytes of data.
+    64 bytes from 10.0.0.1: icmp_seq=1 ttl=64 time=3.28 ms
+    64 bytes from 10.0.0.1: icmp_seq=2 ttl=64 time=9.72 ms
+    64 bytes from 10.0.0.1: icmp_seq=3 ttl=64 time=2.63 ms
+    64 bytes from 10.0.0.1: icmp_seq=4 ttl=64 time=18.9 ms
+    64 bytes from 10.0.0.1: icmp_seq=5 ttl=64 time=4.82 ms
+
+    $ ping 8.8.8.8
+    PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+    64 bytes from 8.8.8.8: icmp_seq=1 ttl=111 time=63.0 ms
+    64 bytes from 8.8.8.8: icmp_seq=2 ttl=111 time=51.4 ms
+    64 bytes from 8.8.8.8: icmp_seq=3 ttl=111 time=55.0 ms
+    64 bytes from 8.8.8.8: icmp_seq=4 ttl=111 time=64.3 ms
+    64 bytes from 8.8.8.8: icmp_seq=5 ttl=111 time=52.8 ms
+
+That is it. You can use this 8.8.8.8 as DNS to resolve names.
 
 Debugging with OpenOCD
 ======================

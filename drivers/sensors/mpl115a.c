@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/mpl115a.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /* Character driver for the Freescale MPL115A1 Barometer Sensor */
 
 /****************************************************************************
@@ -29,7 +44,7 @@
 #include <stdlib.h>
 #include <fixedmath.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -41,11 +56,7 @@
 #if defined(CONFIG_SPI) && defined(CONFIG_SENSORS_MPL115A)
 
 /****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/****************************************************************************
- * Private
+ * Private Types
  ****************************************************************************/
 
 struct mpl115a_dev_s
@@ -208,7 +219,7 @@ static void mpl115a_read_press_temp(FAR struct mpl115a_dev_s *priv)
 
   /* Delay 5ms */
 
-  nxsig_usleep(5000);
+  nxsched_usleep(5000);
 
   priv->mpl115a_pressure =
     mpl115a_getreg8(priv, MPL115A_BASE_CMD | (MPL115A_PADC_MSB << 1)) << 8;
@@ -270,7 +281,7 @@ static int mpl115a_getpressure(FAR struct mpl115a_dev_s *priv)
   /* These code are from Freescale AN3785 */
 
   c12x2 = ((int32_t)priv->mpl115a_cal_c12 * tadc) >> 11;
-  a1 = (int32_t) (priv->mpl115a_cal_b1 + c12x2);
+  a1 = (int32_t)(priv->mpl115a_cal_b1 + c12x2);
   a1x1 = a1 * padc;
   y1 = (((int32_t)priv->mpl115a_cal_a0) << 10) + a1x1;
   a2x2 = (((int32_t)priv->mpl115a_cal_b2) * tadc) >> 1;

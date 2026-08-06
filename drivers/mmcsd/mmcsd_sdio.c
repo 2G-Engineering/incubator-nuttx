@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/mmcsd/mmcsd_sdio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,7 +41,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/kmalloc.h>
@@ -54,10 +56,16 @@
 
 #include "mmcsd.h"
 #include "mmcsd_sdio.h"
+#include "mmcsd_csd.h"
+#include "mmcsd_extcsd.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+#define MCSD_SZ_512             0x00000200UL
+#define MCSD_SZ_128K            0x00020000UL
+#define MCSD_SZ_512K            0x00080000UL
 
 /* The maximum number of references on the driver (because a uint8_t is used.
  * Use a larger type if more references are needed.
@@ -83,7 +91,10 @@
 
 #define MMCSD_SCR_DATADELAY     (100)      /* Wait up to 100MS to get SCR */
 #define MMCSD_BLOCK_RDATADELAY  (100)      /* Wait up to 100MS to get one data block */
-#define MMCSD_BLOCK_WDATADELAY  (260)      /* Wait up to 260MS to write one data block */
+
+/* Wait timeout to write one data block */
+
+#define MMCSD_BLOCK_WDATADELAY  CONFIG_MMCSD_BLOCK_WDATADELAY
 
 #define IS_EMPTY(priv) (priv->type == MMCSD_CARDTYPE_UNKNOWN)
 
@@ -95,44 +106,26 @@
 
 #define MMCSD_CAPACITY(b, s)    ((s) >= 10 ? (b) << ((s) - 10) : (b) >> (10 - (s)))
 
+#ifdef CONFIG_BOARD_COREDUMP_BLKDEV
+#  define MMCSD_USLEEP(usec) \
+    do \
+    { \
+      if (up_interrupt_context()) \
+        { \
+          up_udelay(usec); \
+        } \
+      else \
+        { \
+          nxsched_usleep(usec); \
+        } \
+    } while (0)
+#else
+#  define MMCSD_USLEEP(usec) nxsched_usleep(usec)
+#endif
+
 /****************************************************************************
  * Private Types
  ****************************************************************************/
-
-/* This structure is contains the unique state of the MMC/SD block driver */
-
-struct mmcsd_state_s
-{
-  FAR struct sdio_dev_s *dev;      /* The SDIO device bound to this instance */
-  uint8_t  crefs;                  /* Open references on the driver */
-  mutex_t  lock;                   /* Assures mutually exclusive access to the slot */
-
-  /* Status flags */
-
-  uint8_t probed:1;                /* true: mmcsd_probe() discovered a card */
-  uint8_t widebus:1;               /* true: Wide 4-bit bus selected */
-  uint8_t mediachanged:1;          /* true: Media changed since last check */
-  uint8_t wrbusy:1;                /* true: Last transfer was a write, card may be busy */
-  uint8_t wrprotect:1;             /* true: Card is write protected (from CSD) */
-  uint8_t locked:1;                /* true: Media is locked (from R1) */
-  uint8_t dsrimp:1;                /* true: card supports CMD4/DSR setting (from CSD) */
-#ifdef CONFIG_SDIO_DMA
-  uint8_t dma:1;                   /* true: hardware supports DMA */
-#endif
-
-  uint8_t mode:2;                  /* (See MMCSDMODE_* definitions) */
-  uint8_t type:4;                  /* Card type (See MMCSD_CARDTYPE_* definitions) */
-  uint8_t buswidth:4;              /* Bus widths supported (SD only) */
-  sdio_capset_t caps;              /* SDIO driver capabilities/limitations */
-  uint16_t selblocklen;            /* The currently selected block length */
-  uint16_t rca;                    /* Relative Card Address (RCS) register */
-
-  /* Memory card geometry (extracted from the CSD) */
-
-  uint8_t  blockshift;             /* Log2 of blocksize */
-  uint16_t blocksize;              /* Read block length (== block size) */
-  uint32_t nblocks;                /* Number of blocks */
-};
 
 /****************************************************************************
  * Private Function Prototypes
@@ -167,6 +160,9 @@ static int     mmcsd_get_r1(FAR struct mmcsd_state_s *priv,
                             FAR uint32_t *r1);
 static int     mmcsd_verifystate(FAR struct mmcsd_state_s *priv,
                                  uint32_t status);
+#ifdef CONFIG_MMCSD_MMCSUPPORT
+static int     mmcsd_switch(FAR struct mmcsd_state_s *priv, uint32_t arg);
+#endif
 
 /* Transfer helpers *********************************************************/
 
@@ -179,18 +175,22 @@ static int     mmcsd_stoptransmission(FAR struct mmcsd_state_s *priv);
 #endif
 static int     mmcsd_setblocklen(FAR struct mmcsd_state_s *priv,
                                  uint32_t blocklen);
-static ssize_t mmcsd_readsingle(FAR struct mmcsd_state_s *priv,
+#if MMCSD_MULTIBLOCK_LIMIT != 1
+static int     mmcsd_setblockcount(FAR struct mmcsd_state_s *priv,
+                                   uint32_t nblocks);
+#endif
+static ssize_t mmcsd_readsingle(FAR struct mmcsd_part_s *part,
                                 FAR uint8_t *buffer, off_t startblock);
 #if MMCSD_MULTIBLOCK_LIMIT != 1
-static ssize_t mmcsd_readmultiple(FAR struct mmcsd_state_s *priv,
+static ssize_t mmcsd_readmultiple(FAR struct mmcsd_part_s *part,
                                   FAR uint8_t *buffer, off_t startblock,
                                   size_t nblocks);
 #endif
-static ssize_t mmcsd_writesingle(FAR struct mmcsd_state_s *priv,
+static ssize_t mmcsd_writesingle(FAR struct mmcsd_part_s *part,
                                  FAR const uint8_t *buffer,
                                  off_t startblock);
 #if MMCSD_MULTIBLOCK_LIMIT != 1
-static ssize_t mmcsd_writemultiple(FAR struct mmcsd_state_s *priv,
+static ssize_t mmcsd_writemultiple(FAR struct mmcsd_part_s *part,
                                    FAR const uint8_t *buffer,
                                    off_t startblock,
                                    size_t nblocks);
@@ -217,18 +217,20 @@ static void    mmcsd_mediachange(FAR void *arg);
 static int     mmcsd_widebus(FAR struct mmcsd_state_s *priv);
 #ifdef CONFIG_MMCSD_MMCSUPPORT
 static int     mmcsd_mmcinitialize(FAR struct mmcsd_state_s *priv);
-static int     mmcsd_read_csd(FAR struct mmcsd_state_s *priv);
+static int     mmcsd_read_extcsd(FAR struct mmcsd_state_s *priv,
+                                 FAR uint8_t *extcsd);
+static void    mmcsd_decode_extcsd(FAR struct mmcsd_state_s *priv,
+                                   FAR const uint8_t *extcsd);
 #endif
 static int     mmcsd_sdinitialize(FAR struct mmcsd_state_s *priv);
 static int     mmcsd_cardidentify(FAR struct mmcsd_state_s *priv);
 static int     mmcsd_probe(FAR struct mmcsd_state_s *priv);
 static int     mmcsd_removed(FAR struct mmcsd_state_s *priv);
 static int     mmcsd_hwinitialize(FAR struct mmcsd_state_s *priv);
-static void    mmcsd_hwuninitialize(FAR struct mmcsd_state_s *priv);
 #ifdef CONFIG_MMCSD_IOCSUPPORT
-static int     mmcsd_iocmd(FAR struct mmcsd_state_s *priv,
+static int     mmcsd_iocmd(FAR struct mmcsd_part_s *part,
                            FAR struct mmc_ioc_cmd *ic_ptr);
-static int     mmcsd_multi_iocmd(FAR struct mmcsd_state_s *priv,
+static int     mmcsd_multi_iocmd(FAR struct mmcsd_part_s *part,
                                  FAR struct mmc_ioc_multi_cmd *imc_ptr);
 #endif
 
@@ -245,6 +247,20 @@ static const struct block_operations g_bops =
   mmcsd_geometry, /* geometry */
   mmcsd_ioctl     /* ioctl    */
 };
+
+static FAR const char *g_partname[MMCSD_PART_COUNT] =
+    {
+      "",
+#ifdef CONFIG_MMCSD_MMCSUPPORT
+      "boot0",
+      "boot1",
+      "rpmb",
+      "gp1",
+      "gp2",
+      "gp3",
+      "gp4"
+#endif
+    };
 
 /****************************************************************************
  * Private Functions
@@ -367,12 +383,12 @@ static inline int mmcsd_sendcmd4(FAR struct mmcsd_state_s *priv)
        */
 
       mmcsd_sendcmdpoll(priv, MMCSD_CMD4, CONFIG_MMCSD_DSR << 16);
-      nxsig_usleep(MMCSD_DSR_DELAY);
+      MMCSD_USLEEP(MMCSD_DSR_DELAY);
 
       /* Send it again to have more confidence */
 
       mmcsd_sendcmdpoll(priv, MMCSD_CMD4, CONFIG_MMCSD_DSR << 16);
-      nxsig_usleep(MMCSD_DSR_DELAY);
+      MMCSD_USLEEP(MMCSD_DSR_DELAY);
     }
   else
     {
@@ -474,13 +490,32 @@ static int mmcsd_recv_r6(FAR struct mmcsd_state_s *priv, uint32_t cmd)
  *   Obtain the SD card's Configuration Register (SCR)
  *
  * Returned Value:
- *   OK on success; a negated ernno on failure.
+ *   OK on success; a negated errno on failure.
  *
  ****************************************************************************/
 
 static int mmcsd_get_scr(FAR struct mmcsd_state_s *priv, uint32_t scr[2])
 {
   int ret;
+#ifdef CONFIG_SDIO_DMA
+  bool drop = false;
+#endif
+
+#if defined(CONFIG_SDIO_DMA) && defined(CONFIG_ARCH_HAVE_SDIO_PREFLIGHT)
+  /* If we think we are going to perform a DMA transfer, make sure that we
+   * will be able to before we commit the card to the operation.
+   */
+
+  if ((priv->caps & SDIO_CAPS_DMASUPPORTED) != 0)
+    {
+      ret = SDIO_DMAPREFLIGHT(priv->dev, (FAR uint8_t *)scr, 8);
+      if (ret != OK)
+        {
+          finfo("SDIO_DMAPREFLIGHT: error %d, drop to RECVSETUP\n", ret);
+          drop = true;
+        }
+    }
+#endif
 
   /* Set Block Size To 8 Bytes */
 
@@ -494,7 +529,22 @@ static int mmcsd_get_scr(FAR struct mmcsd_state_s *priv, uint32_t scr[2])
   /* Setup up to receive data with interrupt mode */
 
   SDIO_BLOCKSETUP(priv->dev, 8, 1);
-  SDIO_RECVSETUP(priv->dev, (FAR uint8_t *)scr, 8);
+#ifdef CONFIG_SDIO_DMA
+  if (!drop && (priv->caps & SDIO_CAPS_DMASUPPORTED) != 0)
+    {
+      ret = SDIO_DMARECVSETUP(priv->dev, (FAR uint8_t *)scr, 8);
+      if (ret != OK)
+        {
+          finfo("SDIO_DMARECVSETUP: error %d, drop to RECVSETUP\n", ret);
+          drop = true;
+        }
+    }
+
+  if (drop)
+#endif
+    {
+      SDIO_RECVSETUP(priv->dev, (FAR uint8_t *)scr, 8);
+    }
 
   SDIO_WAITENABLE(priv->dev,
                   SDIOWAIT_TRANSFERDONE | SDIOWAIT_TIMEOUT | SDIOWAIT_ERROR,
@@ -652,22 +702,35 @@ static void mmcsd_decode_csd(FAR struct mmcsd_state_s *priv, uint32_t csd[4])
            * C_SIZE: 73:64 from Word 2 and 63:62 from Word 3
            */
 
-          /* If the card is MMC and it has Block addressing
-           * then the correct  number of blocks should already be
-           * read from extended CSD register.
+          /* If the card is MMC and it has Block addressing, then C_SIZE
+           * parameter is used to compute the device capacity for devices up
+           * to 2 GB of density only, while SEC_COUNT is used to calculate
+           * densities greater than 2 GB. When the device density is greater
+           * than 2GB, 0xFFF should be set to C_SIZE bitfield (See 7.3.12)
            */
 
-#ifdef CONFIG_DEBUG_FS_INFO
           uint16_t csize        = ((csd[1] & 0x03ff) << 2) |
                                   ((csd[2] >> 30) & 3);
           uint8_t  csizemult    = (csd[2] >> 15) & 7;
-#endif
 
           priv->blockshift      = readbllen;
           priv->blocksize       = (1 << readbllen);
 
+          /* For emmc densities up to 2 GB */
+
+          if (csize != MMCSD_CSD_CSIZE_THRESHOLD)
+            {
+              priv->part[0].nblocks = ((uint32_t)csize + 1) *
+                                      (1 << (csizemult + 2));
+            }
+
           if (priv->blocksize > 512)
             {
+              if (csize != MMCSD_CSD_CSIZE_THRESHOLD)
+                {
+                  priv->part[0].nblocks <<= (priv->blockshift - 9);
+                }
+
               priv->blocksize   = 512;
               priv->blockshift  = 9;
             }
@@ -700,7 +763,7 @@ static void mmcsd_decode_csd(FAR struct mmcsd_state_s *priv, uint32_t csd[4])
 
           priv->blockshift      = 9;
           priv->blocksize       = 1 << 9;
-          priv->nblocks         = (csize + 1) << (19 - priv->blockshift);
+          priv->part[0].nblocks = (csize + 1) << (19 - priv->blockshift);
 
 #ifdef CONFIG_DEBUG_FS_INFO
           decoded.u.sdblock.csize        = csize;
@@ -721,7 +784,7 @@ static void mmcsd_decode_csd(FAR struct mmcsd_state_s *priv, uint32_t csd[4])
                                   ((csd[2] >> 30) & 3);
       uint8_t  csizemult        = (csd[2] >> 15) & 7;
 
-      priv->nblocks             = ((uint32_t)csize + 1) *
+      priv->part[0].nblocks     = ((uint32_t)csize + 1) *
                                   (1 << (csizemult + 2));
       priv->blockshift          = readbllen;
       priv->blocksize           = (1 << readbllen);
@@ -736,7 +799,7 @@ static void mmcsd_decode_csd(FAR struct mmcsd_state_s *priv, uint32_t csd[4])
 
       if (priv->blocksize > 512)
         {
-          priv->nblocks       <<= (priv->blockshift - 9);
+          priv->part[0].nblocks <<= (priv->blockshift - 9);
           priv->blocksize       = 512;
           priv->blockshift      = 9;
         }
@@ -892,9 +955,10 @@ static void mmcsd_decode_csd(FAR struct mmcsd_state_s *priv, uint32_t csd[4])
   finfo("  FILE_FORMAT: %d ECC: %d (MMC) CRC: %d\n",
         decoded.fileformat, decoded.mmcecc, decoded.crc);
 
-  finfo("Capacity: %luKb, Block size: %db, nblocks: %d wrprotect: %d\n",
-        (unsigned long)MMCSD_CAPACITY(priv->nblocks, priv->blockshift),
-        priv->blocksize, priv->nblocks, priv->wrprotect);
+  finfo("Capacity: %luKB, Block size: %dB, nblocks: %d wrprotect: %d\n",
+        (unsigned long)MMCSD_CAPACITY(priv->part[0].nblocks,
+                                      priv->blockshift),
+        priv->blocksize, priv->part[0].nblocks, priv->wrprotect);
 #endif
 }
 
@@ -914,17 +978,19 @@ static void mmcsd_decode_cid(FAR struct mmcsd_state_s *priv, uint32_t cid[4])
 
   /* Word 1: Bits 127-96:
    *   mid - 127-120  8-bit Manufacturer ID
-   *   oid - 119-104 16-bit OEM/Application ID (ascii)
-   *   pnm - 103-64  40-bit Product Name (ascii) + null terminator
+   *   cbx - 113-112  2-bit Device/BGA
+   *   oid - 111-104  8-bit OEM/Application ID (ascii)
+   *   pnm - 103-56   48-bit Product Name (ascii) + null terminator
    *         pnm[0] 103:96
    */
 
   decoded.mid    =  cid[0] >> 24;
-  decoded.oid    = (cid[0] >> 8) & 0xffff;
+  decoded.cbx    = (cid[0] >> 16) & 0x3;
+  decoded.oid    = (cid[0] >> 8) & 0xff;
   decoded.pnm[0] =  cid[0] & 0xff;
 
   /* Word 2: Bits 64:95
-   *   pnm - 103-64  40-bit Product Name (ascii) + null terminator
+   *   pnm - 103-56  48-bit Product Name (ascii) + null terminator
    *         pnm[1] 95:88
    *         pnm[2] 87:80
    *         pnm[3] 79:72
@@ -935,30 +1001,32 @@ static void mmcsd_decode_cid(FAR struct mmcsd_state_s *priv, uint32_t cid[4])
   decoded.pnm[2] = (cid[1] >> 16) & 0xff;
   decoded.pnm[3] = (cid[1] >> 8) & 0xff;
   decoded.pnm[4] =  cid[1] & 0xff;
-  decoded.pnm[5] = '\0';
 
   /* Word 3: Bits 32-63
-   *   prv -  63-56   8-bit Product revision
-   *   psn -  55-24  32-bit Product serial number
+   *         pnm[5] 63-56
+   *   prv    -  55-48   8-bit Product revision
+   *   psn    -  47-16   32-bit Product serial number
+   *         psn 47-32
    */
 
-  decoded.prv    = cid[2] >> 24;
-  decoded.psn    = cid[2] << 8;
+  decoded.pnm[5] = cid[2] >> 24;
+  decoded.pnm[6] = '\0';
+  decoded.prv    = (cid[2] >> 16) & 0xff;
+  decoded.psn    = cid[2] << 16;
 
   /* Word 4: Bits 0-31
-   *   psn -  55-24  32-bit Product serial number
-   *          23-20   4-bit (reserved)
-   *   mdt -  19:8   12-bit Manufacturing date
+   *          psn 31-16
+   *   mdt -  15:8    8-bit Manufacturing date
    *   crc -   7:1    7-bit CRC7
    */
 
-  decoded.psn   |=  cid[3] >> 24;
-  decoded.mdt    = (cid[3] >> 8) & 0x0fff;
+  decoded.psn   |=  cid[3] >> 16;
+  decoded.mdt    = (cid[3] >> 8) & 0xff;
   decoded.crc    = (cid[3] >> 1) & 0x7f;
 
-  finfo("mid: %02x oid: %04x pnm: %s prv: %d psn: %lu mdt: %02x crc: %02x\n",
-      decoded.mid, decoded.oid, decoded.pnm, decoded.prv,
-      (unsigned long)decoded.psn, decoded.mdt, decoded.crc);
+  finfo("mid: %02x cbx: %01x oid: %01x pnm: %s prv: %d psn: %08x mdt: %02x\
+         crc: %02x\n", decoded.mid, decoded.cbx, decoded.oid, decoded.pnm,
+         decoded.prv, (unsigned long)decoded.psn, decoded.mdt, decoded.crc);
 }
 #endif
 
@@ -983,13 +1051,16 @@ static void mmcsd_decode_scr(FAR struct mmcsd_state_s *priv, uint32_t scr[2])
    *   DATA_STATE_AFTER_ERASE 55:55 1-bit erase status
    *   SD_SECURITY            54:52 3-bit SD security support level
    *   SD_BUS_WIDTHS          51:48 4-bit bus width indicator
-   *   Reserved               47:32 16-bit SD reserved space
+   *   Reserved               47:34 14-bit SD reserved space
+   *   CMD_SUPPORT            33:32 2-bit command supported (bit33 for cmd23)
    */
 
 #ifdef CONFIG_ENDIAN_BIG  /* Card transfers SCR in big-endian order */
   priv->buswidth     = (scr[0] >> 16) & 15;
+  priv->cmd23support = (scr[0] >> 1)  & 1;
 #else
-  priv->buswidth     = (scr[0] >> 8) & 15;
+  priv->buswidth     = (scr[0] >> 8)  & 15;
+  priv->cmd23support = (scr[0] >> 25) & 1;
 #endif
 
 #ifdef CONFIG_DEBUG_FS_INFO
@@ -1033,6 +1104,63 @@ static void mmcsd_decode_scr(FAR struct mmcsd_state_s *priv, uint32_t scr[2])
         decoded.mfgdata);
 #endif
 }
+
+/****************************************************************************
+ * Name: mmcsd_switch
+ *
+ * Description:
+ *   Execute CMD6 to switch the mode of operation of the selected device or
+ *   modify the EXT_CSD registers.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_MMCSD_MMCSUPPORT
+static int mmcsd_switch(FAR struct mmcsd_state_s *priv, uint32_t arg)
+{
+  /* After putting a slave into transfer state, master sends
+   * CMD6(SWITCH) to set the PARTITION_ACCESS bits in the EXT_CSD
+   * register, byte[179].After that, master can use the Multiple Block
+   * read and write commands (CMD23, CMD18 and CMD25) to access the
+   * specified partition.
+   * PARTITION_CONFIG[179](see 7.4.69)
+   * Bit[2:0] : PARTITION_ACCESS (before BOOT_PARTITION_ACCESS)
+   * User selects partitions to access:
+   *   0x0 : No access to boot partition (default)
+   *   0x1 : R/W boot partition 1
+   *   0x2 : R/W boot partition 2
+   *   0x3 : R/W Replay Protected Memory Block (RPMB)
+   *   0x4 : Access to General Purpose partition 1
+   *   0x5 : Access to General Purpose partition 2
+   *   0x6 : Access to General Purpose partition 3
+   *   0x7 : Access to General Purpose partition 4
+   *
+   * CMD6 Argument(see 6.10.4)
+   *  [31:26] Set to 0
+   *  [25:24] Access Bits
+   *    00 Command Set
+   *    01 Set Bits
+   *    10 Clear Bits
+   *    11 Write Byte
+   *  [23:16] Index
+   *  [15:8] Value
+   *  [7:3] Set to 0
+   *  [2:0] Cmd Set
+   */
+
+  int ret;
+
+  ret = mmcsd_transferready(priv);
+  if (ret != OK)
+    {
+      ferr("ERROR: Card not ready: %d\n", ret);
+      return ret;
+    }
+
+  mmcsd_sendcmdpoll(priv, MMCSD_CMD6, arg);
+  priv->wrbusy = true;
+  return mmcsd_recv_r1(priv, MMCSD_CMD6);
+}
+#endif
 
 /****************************************************************************
  * Name: mmcsd_get_r1
@@ -1243,7 +1371,7 @@ static int mmcsd_transferready(FAR struct mmcsd_state_s *priv)
       if (ret != OK)
         {
           ferr("ERROR: mmcsd_get_r1 failed: %d\n", ret);
-          goto errorout;
+          return ret;
         }
 
       /* Now check if the card is in the expected transfer state. */
@@ -1273,13 +1401,18 @@ static int mmcsd_transferready(FAR struct mmcsd_state_s *priv)
            */
 
           ferr("ERROR: Unexpected R1 state: %08" PRIx32 "\n", r1);
-          ret = -EINVAL;
-          goto errorout;
+          return -EINVAL;
         }
 
       /* Do not hog the CPU */
 
-      nxsig_usleep(1000);
+#ifdef CONFIG_MMCSD_CHECK_READY_STATUS_WITHOUT_SLEEP
+      /* Use sched_yield when tick is big to avoid low writing speed */
+
+      sched_yield();
+#else
+      MMCSD_USLEEP(1000);
+#endif
 
       /* We are still in the programming state. Calculate the elapsed
        * time... we can't stay in this loop forever!
@@ -1290,10 +1423,6 @@ static int mmcsd_transferready(FAR struct mmcsd_state_s *priv)
   while (elapsed < TICK_PER_SEC);
 
   return -ETIMEDOUT;
-
-errorout:
-  mmcsd_removed(priv);
-  return ret;
 }
 
 /****************************************************************************
@@ -1359,6 +1488,31 @@ static int mmcsd_setblocklen(FAR struct mmcsd_state_s *priv,
   return ret;
 }
 
+#if MMCSD_MULTIBLOCK_LIMIT != 1
+/****************************************************************************
+ * Name: mmcsd_setblockcount
+ *
+ * Description:
+ *   Set the block counts.
+ *
+ ****************************************************************************/
+
+static int mmcsd_setblockcount(FAR struct mmcsd_state_s *priv,
+                               uint32_t nblocks)
+{
+  int ret;
+
+  mmcsd_sendcmdpoll(priv, MMCSD_CMD23, nblocks);
+  ret = mmcsd_recv_r1(priv, MMCSD_CMD23);
+  if (ret != OK)
+    {
+      ferr("ERROR: mmcsd_recv_r1 for CMD23 failed: %d\n", ret);
+    }
+
+  return ret;
+}
+#endif
+
 /****************************************************************************
  * Name: mmcsd_readsingle
  *
@@ -1367,9 +1521,13 @@ static int mmcsd_setblocklen(FAR struct mmcsd_state_s *priv,
  *
  ****************************************************************************/
 
-static ssize_t mmcsd_readsingle(FAR struct mmcsd_state_s *priv,
+static ssize_t mmcsd_readsingle(FAR struct mmcsd_part_s *part,
                                 FAR uint8_t *buffer, off_t startblock)
 {
+  FAR struct mmcsd_state_s *priv = part->priv;
+#ifdef CONFIG_MMCSD_MMCSUPPORT
+  uint32_t partnum = part - priv->part;
+#endif
   off_t offset;
   int ret;
 
@@ -1383,6 +1541,22 @@ static ssize_t mmcsd_readsingle(FAR struct mmcsd_state_s *priv,
       ferr("ERROR: Card is locked\n");
       return -EPERM;
     }
+
+#ifdef CONFIG_MMCSD_MMCSUPPORT
+  if (priv->partnum != partnum)
+    {
+      ret = mmcsd_switch(priv, MMC_CMD6_MODE(MMC_CMD6_MODE_WRITE_BYTE) |
+                               MMC_CMD6_INDEX(EXT_CSD_PART_CONF) |
+                               MMC_CMD6_VALUE(partnum));
+      if (ret != OK)
+        {
+          ferr("ERROR: mmcsd_switch failed: %d\n", ret);
+          return ret;
+        }
+
+      priv->partnum = partnum;
+    }
+#endif
 
 #if defined(CONFIG_SDIO_DMA) && defined(CONFIG_ARCH_HAVE_SDIO_PREFLIGHT)
   /* If we think we are going to perform a DMA transfer, make sure that we
@@ -1500,16 +1674,20 @@ static ssize_t mmcsd_readsingle(FAR struct mmcsd_state_s *priv,
  ****************************************************************************/
 
 #if MMCSD_MULTIBLOCK_LIMIT != 1
-static ssize_t mmcsd_readmultiple(FAR struct mmcsd_state_s *priv,
+static ssize_t mmcsd_readmultiple(FAR struct mmcsd_part_s *part,
                                   FAR uint8_t *buffer, off_t startblock,
                                   size_t nblocks)
 {
+  FAR struct mmcsd_state_s *priv = part->priv;
   size_t nbytes = nblocks << priv->blockshift;
+#ifdef CONFIG_MMCSD_MMCSUPPORT
+  uint32_t partnum = part - priv->part;
+#endif
   off_t  offset;
   int ret;
 
   finfo("startblock=%jd nblocks=%zu\n", (intmax_t)startblock, nblocks);
-  DEBUGASSERT(priv != NULL && buffer != NULL && nblocks > 1);
+  DEBUGASSERT(priv != NULL && buffer != NULL);
 
   /* Check if the card is locked */
 
@@ -1518,6 +1696,22 @@ static ssize_t mmcsd_readmultiple(FAR struct mmcsd_state_s *priv,
       ferr("ERROR: Card is locked\n");
       return -EPERM;
     }
+
+#ifdef CONFIG_MMCSD_MMCSUPPORT
+  if (priv->partnum != partnum)
+    {
+      ret = mmcsd_switch(priv, MMC_CMD6_MODE(MMC_CMD6_MODE_WRITE_BYTE) |
+                               MMC_CMD6_INDEX(EXT_CSD_PART_CONF) |
+                               MMC_CMD6_VALUE(partnum));
+      if (ret != OK)
+        {
+          ferr("ERROR: mmcsd_switch failed: %d\n", ret);
+          return ret;
+        }
+
+      priv->partnum = partnum;
+    }
+#endif
 
 #if defined(CONFIG_SDIO_DMA) && defined(CONFIG_ARCH_HAVE_SDIO_PREFLIGHT)
   /* If we think we are going to perform a DMA transfer, make sure that we
@@ -1598,6 +1792,19 @@ static ssize_t mmcsd_readmultiple(FAR struct mmcsd_state_s *priv,
       SDIO_RECVSETUP(priv->dev, buffer, nbytes);
     }
 
+#ifdef CONFIG_MMCSD_MMCSUPPORT
+  if (IS_MMC(priv->type) || (IS_SD(priv->type) && priv->cmd23support))
+#else
+  if (IS_SD(priv->type) && priv->cmd23support)
+#endif
+    {
+      ret = mmcsd_setblockcount(priv, nblocks);
+      if (ret != OK)
+        {
+          return ret;
+        }
+    }
+
   /* Send CMD18, READ_MULT_BLOCK: Read a block of the size selected by
    * the mmcsd_setblocklen() and verify that good R1 status is returned
    */
@@ -1620,13 +1827,16 @@ static ssize_t mmcsd_readmultiple(FAR struct mmcsd_state_s *priv,
       return ret;
     }
 
-  /* Send STOP_TRANSMISSION */
-
-  ret = mmcsd_stoptransmission(priv);
-
-  if (ret != OK)
+  if (IS_SD(priv->type) && !priv->cmd23support)
     {
-      ferr("ERROR: mmcsd_stoptransmission failed: %d\n", ret);
+      /* Send STOP_TRANSMISSION */
+
+      ret = mmcsd_stoptransmission(priv);
+
+      if (ret != OK)
+        {
+          ferr("ERROR: mmcsd_stoptransmission failed: %d\n", ret);
+        }
     }
 
   /* On success, return the number of blocks read */
@@ -1643,9 +1853,13 @@ static ssize_t mmcsd_readmultiple(FAR struct mmcsd_state_s *priv,
  *
  ****************************************************************************/
 
-static ssize_t mmcsd_writesingle(FAR struct mmcsd_state_s *priv,
+static ssize_t mmcsd_writesingle(FAR struct mmcsd_part_s *part,
                                  FAR const uint8_t *buffer, off_t startblock)
 {
+  FAR struct mmcsd_state_s *priv = part->priv;
+#ifdef CONFIG_MMCSD_MMCSUPPORT
+  uint32_t partnum = part - priv->part;
+#endif
   off_t offset;
   int ret;
 
@@ -1661,6 +1875,22 @@ static ssize_t mmcsd_writesingle(FAR struct mmcsd_state_s *priv,
       ferr("ERROR: Card is locked or write protected\n");
       return -EPERM;
     }
+
+#ifdef CONFIG_MMCSD_MMCSUPPORT
+  if (priv->partnum != partnum)
+    {
+      ret = mmcsd_switch(priv, MMC_CMD6_MODE(MMC_CMD6_MODE_WRITE_BYTE) |
+                               MMC_CMD6_INDEX(EXT_CSD_PART_CONF) |
+                               MMC_CMD6_VALUE(partnum));
+      if (ret != OK)
+        {
+          ferr("ERROR: mmcsd_switch failed: %d\n", ret);
+          return ret;
+        }
+
+      priv->partnum = partnum;
+    }
+#endif
 
 #if defined(CONFIG_SDIO_DMA) && defined(CONFIG_ARCH_HAVE_SDIO_PREFLIGHT)
   /* If we think we are going to perform a DMA transfer, make sure that we
@@ -1811,17 +2041,21 @@ static ssize_t mmcsd_writesingle(FAR struct mmcsd_state_s *priv,
  ****************************************************************************/
 
 #if MMCSD_MULTIBLOCK_LIMIT != 1
-static ssize_t mmcsd_writemultiple(FAR struct mmcsd_state_s *priv,
+static ssize_t mmcsd_writemultiple(FAR struct mmcsd_part_s *part,
                                    FAR const uint8_t *buffer,
                                    off_t startblock, size_t nblocks)
 {
+  FAR struct mmcsd_state_s *priv = part->priv;
   size_t nbytes = nblocks << priv->blockshift;
+#ifdef CONFIG_MMCSD_MMCSUPPORT
+  uint32_t partnum = part - priv->part;
+#endif
   off_t  offset;
   int ret;
   int evret = OK;
 
   finfo("startblock=%jd nblocks=%zu\n", (intmax_t)startblock, nblocks);
-  DEBUGASSERT(priv != NULL && buffer != NULL && nblocks > 1);
+  DEBUGASSERT(priv != NULL && buffer != NULL);
 
   /* Check if the card is locked or write protected (either via software or
    * via the mechanical write protect on the card)
@@ -1832,6 +2066,22 @@ static ssize_t mmcsd_writemultiple(FAR struct mmcsd_state_s *priv,
       ferr("ERROR: Card is locked or write protected\n");
       return -EPERM;
     }
+
+#ifdef CONFIG_MMCSD_MMCSUPPORT
+  if (priv->partnum != partnum)
+    {
+      ret = mmcsd_switch(priv, MMC_CMD6_MODE(MMC_CMD6_MODE_WRITE_BYTE) |
+                               MMC_CMD6_INDEX(EXT_CSD_PART_CONF) |
+                               MMC_CMD6_VALUE(partnum));
+      if (ret != OK)
+        {
+          ferr("ERROR: mmcsd_switch failed: %d\n", ret);
+          return ret;
+        }
+
+      priv->partnum = partnum;
+    }
+#endif
 
 #if defined(CONFIG_SDIO_DMA) && defined(CONFIG_ARCH_HAVE_SDIO_PREFLIGHT)
   /* If we think we are going to perform a DMA transfer, make sure that we
@@ -1919,6 +2169,33 @@ static ssize_t mmcsd_writemultiple(FAR struct mmcsd_state_s *priv,
         }
     }
 
+  /* Data to the RPMB is programmed with the WRITE_MULTIPLE_BLOCK(CMD25),
+   * in prior to the command CMD25 the block count is set by CMD23,
+   * with argument bit [31] set as 1 to indicate Reliable Write type of
+   * programming access.
+   */
+
+#ifdef CONFIG_MMCSD_MMCSUPPORT
+  if (IS_MMC(priv->type))
+    {
+      ret = mmcsd_setblockcount(priv, priv->partnum == MMCSD_PART_RPMB ?
+                                ((1 << 31) | nblocks) : nblocks);
+      if (ret != OK)
+        {
+          return ret;
+        }
+    }
+  else
+#endif
+  if (IS_SD(priv->type) && priv->cmd23support)
+    {
+      ret = mmcsd_setblockcount(priv, nblocks);
+      if (ret != OK)
+        {
+          return ret;
+        }
+    }
+
   /* If Controller does not need DMA setup before the write then send CMD25
    * now.
    */
@@ -1951,7 +2228,7 @@ static ssize_t mmcsd_writemultiple(FAR struct mmcsd_state_s *priv,
       ret = SDIO_DMASENDSETUP(priv->dev, buffer, nbytes);
       if (ret != OK)
         {
-          finfo("SDIO_DMASENDSETUP: error %d\n", ret);
+          ferr("SDIO_DMASENDSETUP: error %d\n", ret);
           SDIO_CANCEL(priv->dev);
           return ret;
         }
@@ -1994,18 +2271,28 @@ static ssize_t mmcsd_writemultiple(FAR struct mmcsd_state_s *priv,
        */
     }
 
-  /* Send STOP_TRANSMISSION */
-
-  ret = mmcsd_stoptransmission(priv);
-  if (evret != OK)
+  if (IS_SD(priv->type) && !priv->cmd23support)
     {
-      return evret;
+      /* Send STOP_TRANSMISSION */
+
+      ret = mmcsd_stoptransmission(priv);
+      if (evret != OK)
+        {
+          return evret;
+        }
+
+      if (ret != OK)
+        {
+          ferr("ERROR: mmcsd_stoptransmission failed: %d\n", ret);
+          return ret;
+        }
     }
-
-  if (ret != OK)
+  else
     {
-      ferr("ERROR: mmcsd_stoptransmission failed: %d\n", ret);
-      return ret;
+      if (evret != OK)
+        {
+          return evret;
+        }
     }
 
   /* Flag that a write transfer is pending that we will have to check for
@@ -2037,11 +2324,13 @@ static ssize_t mmcsd_writemultiple(FAR struct mmcsd_state_s *priv,
 static int mmcsd_open(FAR struct inode *inode)
 {
   FAR struct mmcsd_state_s *priv;
+  FAR struct mmcsd_part_s *part;
   int ret;
 
   finfo("Entry\n");
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct mmcsd_state_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  part = inode->i_private;
+  priv = part->priv;
 
   /* Just increment the reference count on the driver */
 
@@ -2068,11 +2357,13 @@ static int mmcsd_open(FAR struct inode *inode)
 static int mmcsd_close(FAR struct inode *inode)
 {
   FAR struct mmcsd_state_s *priv;
+  FAR struct mmcsd_part_s *part;
   int ret;
 
   finfo("Entry\n");
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct mmcsd_state_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  part = inode->i_private;
+  priv = part->priv;
 
   /* Decrement the reference count on the block driver */
 
@@ -2101,13 +2392,16 @@ static ssize_t mmcsd_read(FAR struct inode *inode, unsigned char *buffer,
                           blkcnt_t startsector, unsigned int nsectors)
 {
   FAR struct mmcsd_state_s *priv;
+  FAR struct mmcsd_part_s *part;
   size_t sector;
   size_t endsector;
   ssize_t nread;
   ssize_t ret = nsectors;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct mmcsd_state_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  part = inode->i_private;
+  priv = part->priv;
+
   finfo("startsector: %" PRIuOFF " nsectors: %u sectorsize: %d\n",
         startsector, nsectors, priv->blocksize);
 
@@ -2128,7 +2422,7 @@ static ssize_t mmcsd_read(FAR struct inode *inode, unsigned char *buffer,
 #if MMCSD_MULTIBLOCK_LIMIT == 1
           /* Read each block using only the single block transfer method */
 
-          nread = mmcsd_readsingle(priv, buffer, sector);
+          nread = mmcsd_readsingle(part, buffer, sector);
 #else
           nread = endsector - sector;
           if (nread > MMCSD_MULTIBLOCK_LIMIT)
@@ -2138,11 +2432,11 @@ static ssize_t mmcsd_read(FAR struct inode *inode, unsigned char *buffer,
 
           if (nread == 1)
             {
-              nread = mmcsd_readsingle(priv, buffer, sector);
+              nread = mmcsd_readsingle(part, buffer, sector);
             }
           else
             {
-              nread = mmcsd_readmultiple(priv, buffer, sector, nread);
+              nread = mmcsd_readmultiple(part, buffer, sector, nread);
             }
 
 #endif
@@ -2179,13 +2473,16 @@ static ssize_t mmcsd_write(FAR struct inode *inode,
                            blkcnt_t startsector, unsigned int nsectors)
 {
   FAR struct mmcsd_state_s *priv;
+  FAR struct mmcsd_part_s *part;
   size_t sector;
   size_t endsector;
   ssize_t nwrite;
   ssize_t ret = nsectors;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct mmcsd_state_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  part = inode->i_private;
+  priv = part->priv;
+
   finfo("startsector: %" PRIuOFF " nsectors: %u sectorsize: %d\n",
         startsector, nsectors, priv->blocksize);
 
@@ -2206,7 +2503,7 @@ static ssize_t mmcsd_write(FAR struct inode *inode,
 #if MMCSD_MULTIBLOCK_LIMIT == 1
           /* Write each block using only the single block transfer method */
 
-          nwrite = mmcsd_writesingle(priv, buffer, sector);
+          nwrite = mmcsd_writesingle(part, buffer, sector);
 #else
           nwrite = endsector - sector;
           if (nwrite > MMCSD_MULTIBLOCK_LIMIT)
@@ -2216,11 +2513,11 @@ static ssize_t mmcsd_write(FAR struct inode *inode,
 
           if (nwrite == 1)
             {
-              nwrite = mmcsd_writesingle(priv, buffer, sector);
+              nwrite = mmcsd_writesingle(part, buffer, sector);
             }
           else
             {
-              nwrite = mmcsd_writemultiple(priv, buffer, sector, nwrite);
+              nwrite = mmcsd_writemultiple(part, buffer, sector, nwrite);
             }
 
 #endif
@@ -2253,10 +2550,11 @@ static ssize_t mmcsd_write(FAR struct inode *inode,
 static int mmcsd_geometry(FAR struct inode *inode, struct geometry *geometry)
 {
   FAR struct mmcsd_state_s *priv;
+  FAR struct mmcsd_part_s *part;
   int ret = -EINVAL;
 
   finfo("Entry\n");
-  DEBUGASSERT(inode && inode->i_private);
+  DEBUGASSERT(inode->i_private);
 
   if (geometry)
     {
@@ -2264,7 +2562,9 @@ static int mmcsd_geometry(FAR struct inode *inode, struct geometry *geometry)
 
       /* Is there a (supported) card inserted in the slot? */
 
-      priv = (FAR struct mmcsd_state_s *)inode->i_private;
+      part = inode->i_private;
+      priv = part->priv;
+
       ret = mmcsd_lock(priv);
       if (ret < 0)
         {
@@ -2285,14 +2585,14 @@ static int mmcsd_geometry(FAR struct inode *inode, struct geometry *geometry)
           geometry->geo_available     = true;
           geometry->geo_mediachanged  = priv->mediachanged;
           geometry->geo_writeenabled  = !mmcsd_wrprotected(priv);
-          geometry->geo_nsectors      = priv->nblocks;
+          geometry->geo_nsectors      = part->nblocks;
           geometry->geo_sectorsize    = priv->blocksize;
 
           finfo("available: true mediachanged: %s writeenabled: %s\n",
                  geometry->geo_mediachanged ? "true" : "false",
                  geometry->geo_writeenabled ? "true" : "false");
-          finfo("nsectors: %lu sectorsize: %" PRIi16 "\n",
-                 (unsigned long)geometry->geo_nsectors,
+          finfo("nsectors: %" PRIuOFF " sectorsize: %" PRIi16 "\n",
+                 geometry->geo_nsectors,
                  geometry->geo_sectorsize);
 
           priv->mediachanged = false;
@@ -2315,11 +2615,13 @@ static int mmcsd_geometry(FAR struct inode *inode, struct geometry *geometry)
 static int mmcsd_ioctl(FAR struct inode *inode, int cmd, unsigned long arg)
 {
   FAR struct mmcsd_state_s *priv;
+  FAR struct mmcsd_part_s *part;
   int ret;
 
   finfo("Entry\n");
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct mmcsd_state_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  part = inode->i_private;
+  priv = part->priv;
 
   /* Process the IOCTL by command */
 
@@ -2367,7 +2669,7 @@ static int mmcsd_ioctl(FAR struct inode *inode, int cmd, unsigned long arg)
     case MMC_IOC_CMD: /* MMCSD device ioctl commands */
       {
         finfo("MMC_IOC_CMD\n");
-        ret = mmcsd_iocmd(priv, (FAR struct mmc_ioc_cmd *)arg);
+        ret = mmcsd_iocmd(part, (FAR struct mmc_ioc_cmd *)arg);
         if (ret != OK)
           {
             ferr("ERROR: mmcsd_iocmd failed: %d\n", ret);
@@ -2375,10 +2677,10 @@ static int mmcsd_ioctl(FAR struct inode *inode, int cmd, unsigned long arg)
       }
       break;
 
-    case MMC_IOC_MULTI_CMD: /* MMCSD device ioctl muti commands */
+    case MMC_IOC_MULTI_CMD: /* MMCSD device ioctl multi commands */
       {
         finfo("MMC_IOC_MULTI_CMD\n");
-        ret = mmcsd_multi_iocmd(priv, (FAR struct mmc_ioc_multi_cmd *)arg);
+        ret = mmcsd_multi_iocmd(part, (FAR struct mmc_ioc_multi_cmd *)arg);
         if (ret != OK)
           {
             ferr("ERROR: mmcsd_iocmd failed: %d\n", ret);
@@ -2542,16 +2844,23 @@ static int mmcsd_widebus(FAR struct mmcsd_state_s *priv)
     }
 #ifdef CONFIG_MMCSD_MMCSUPPORT
   else if (IS_MMC(priv->type) &&
-           ((priv->buswidth & MMCSD_SCR_BUSWIDTH_4BIT) != 0 &&
-           (priv->caps & SDIO_CAPS_1BIT_ONLY) == 0))
+           (priv->caps & SDIO_CAPS_1BIT_ONLY) == 0)
     {
-      /* SD card supports 4-bit BUS and host settings is not 1-bit only.
-       * Configuring MMC - Use MMC_SWITCH access modes.
+      /* Configuring MMC - Use MMC_SWITCH access modes.
+       * Select 8-bit if host supports it, otherwise 4-bit.
        */
 
-      mmcsd_sendcmdpoll(priv, MMCSD_CMD6,
-                        MMCSD_CMD6_MODE_WRITE_BYTE | MMCSD_CMD6_BUSWIDTH_RW |
-                        MMCSD_CMD6_BUS_WIDTH_4);
+      if (priv->caps & SDIO_CAPS_8BIT)
+        {
+          mmcsd_sendcmdpoll(priv, MMCSD_CMD6,
+                            MMC_CMD6_BUSWIDTH(EXT_CSD_BUS_WIDTH_8));
+        }
+      else
+        {
+          mmcsd_sendcmdpoll(priv, MMCSD_CMD6,
+                            MMC_CMD6_BUSWIDTH(EXT_CSD_BUS_WIDTH_4));
+        }
+
       ret = mmcsd_recv_r1(priv, MMCSD_CMD6);
 
       if (ret != OK)
@@ -2561,21 +2870,33 @@ static int mmcsd_widebus(FAR struct mmcsd_state_s *priv)
         }
     }
 #endif /* #ifdef CONFIG_MMCSD_MMCSUPPORT */
-  else
+  else if (!IS_SD(priv->type) && !IS_MMC(priv->type))
     {
+      /* Take this path when no MMC / SD is yet detected */
+
       fwarn("No card inserted.\n");
       SDIO_WIDEBUS(priv->dev, false);
       priv->widebus = false;
       SDIO_CLOCK(priv->dev, CLOCK_SDIO_DISABLED);
-      nxsig_usleep(MMCSD_CLK_DELAY);
+      MMCSD_USLEEP(MMCSD_CLK_DELAY);
 
       return OK;
     }
 
   /* Configure the SDIO peripheral */
 
-  if ((priv->buswidth & MMCSD_SCR_BUSWIDTH_4BIT) != 0)
+  if ((priv->caps & SDIO_CAPS_1BIT_ONLY) == 0 &&
+      (IS_MMC(priv->type) ||
+       (priv->buswidth & MMCSD_SCR_BUSWIDTH_4BIT) != 0))
     {
+      /* JEDEC specs: A.8.3 Changing the data bus width: 'Bus testing
+       * procedure' shows how mmc bus width may be detected.  This driver
+       * doesn't do it, so let the low level driver decide how to go with
+       * the widebus selection.  It may well be 1, 4 or 8 bits.
+       *
+       * For SD cards the priv->buswidth is set.
+       */
+
       finfo("Wide bus operation selected\n");
       SDIO_WIDEBUS(priv->dev, true);
       priv->widebus = true;
@@ -2601,12 +2922,97 @@ static int mmcsd_widebus(FAR struct mmcsd_state_s *priv)
 #ifdef CONFIG_MMCSD_MMCSUPPORT
   else
     {
+      if (priv->caps & SDIO_CAPS_MMC_HS_MODE)
+        {
+          mmcsd_sendcmdpoll(priv, MMCSD_CMD6,
+                            MMC_CMD6_HS_TIMING(EXT_CSD_HS_TIMING_HS));
+          ret = mmcsd_recv_r1(priv, MMCSD_CMD6);
+          if (ret != OK)
+            {
+              ferr("ERROR: (MMCSD_CMD6) Setting MMC speed mode: %d\n", ret);
+              return ret;
+            }
+
+          priv->mode = EXT_CSD_HS_TIMING_HS;
+        }
+
       SDIO_CLOCK(priv->dev, CLOCK_MMC_TRANSFER);
     }
 #endif /* #ifdef CONFIG_MMCSD_MMCSUPPORT */
 
-  nxsig_usleep(MMCSD_CLK_DELAY);
+  MMCSD_USLEEP(MMCSD_CLK_DELAY);
   return OK;
+}
+
+#ifdef CONFIG_MMCSD_MMCSUPPORT
+/****************************************************************************
+ * Name: mmcsd_decode_extcsd
+ *
+ * Description:
+ *   Get all partitions size in block numbers
+ *
+ ****************************************************************************/
+
+static void mmcsd_decode_extcsd(FAR struct mmcsd_state_s *priv,
+                                FAR const uint8_t *extcsd)
+{
+  uint8_t hc_erase_grp_sz;
+  uint8_t hc_wp_grp_sz;
+  int idx;
+
+  /* User data partition size = SEC_COUNT x 512B for densities greater
+   * than 2 GB
+   */
+
+  priv->part[0].nblocks = (extcsd[215] << 24) | (extcsd[214] << 16) |
+                          (extcsd[213] << 8) | extcsd[212];
+  finfo("MMC ext CSD read succsesfully, number of block %" PRIuOFF "\n",
+                                                priv->part[0].nblocks);
+
+  if (extcsd[MMCSD_EXTCSD_PARTITION_SUPPORT] & MMCSD_PART_SUPPORT_PART_EN)
+    {
+      /* Boot partition size = 128KB byte x BOOT_SIZE_MULT */
+
+      priv->part[MMCSD_PART_BOOT0].nblocks =
+            extcsd[MMCSD_EXTCSD_BOOT_SIZE_MULT] * MCSD_SZ_128K / MCSD_SZ_512;
+      priv->part[MMCSD_PART_BOOT1].nblocks =
+            extcsd[MMCSD_EXTCSD_BOOT_SIZE_MULT] * MCSD_SZ_128K / MCSD_SZ_512;
+
+      /* RPMB partition size = 128KB byte x RPMB_SIZE_MULT */
+
+      priv->part[MMCSD_PART_RPMB].nblocks =
+            extcsd[MMCSD_EXTCSD_RPMB_SIZE_MULT] * MCSD_SZ_128K / MCSD_SZ_512;
+
+      hc_erase_grp_sz = extcsd[MMCSD_EXTCSD_HC_ERASE_GRP_SIZE];
+      hc_wp_grp_sz = extcsd[MMCSD_EXTCSD_HC_WP_GRP_SIZE];
+
+      for (idx = 0; idx < 4; idx++)
+        {
+          if (!extcsd[MMCSD_EXTCSD_GP_SIZE_MULT + idx * 3] &&
+              !extcsd[MMCSD_EXTCSD_GP_SIZE_MULT + idx * 3 + 1] &&
+              !extcsd[MMCSD_EXTCSD_GP_SIZE_MULT + idx * 3 + 2])
+            {
+              continue;
+            }
+
+          if (extcsd[MMCSD_EXTCSD_PARTITION_SETTING_COMPLETED] == 0)
+            {
+              finfo("Partition size defined without setting complete!\n");
+              break;
+            }
+
+          /* General purpose partition size = (GP_SIZE_MULT_X_2 << 16 +
+           *  GP_SIZE_MULT_X_1 << 8 + GP_SIZE_MULT_X_0) x HC_WP_GRP_SIZE x
+           *  HC_ERASE_GRP_SIZE x 512kBytes
+           */
+
+          priv->part[MMCSD_PART_GENP0 + idx].nblocks =
+                ((extcsd[MMCSD_EXTCSD_GP_SIZE_MULT + idx * 3 + 2] << 16) +
+                 (extcsd[MMCSD_EXTCSD_GP_SIZE_MULT + idx * 3 + 1] << 8) +
+                 extcsd[MMCSD_EXTCSD_GP_SIZE_MULT + idx * 3]) *
+                hc_erase_grp_sz * hc_wp_grp_sz * MCSD_SZ_512K / MCSD_SZ_512;
+        }
+    }
 }
 
 /****************************************************************************
@@ -2618,11 +3024,9 @@ static int mmcsd_widebus(FAR struct mmcsd_state_s *priv)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_MMCSD_MMCSUPPORT
 static int mmcsd_mmcinitialize(FAR struct mmcsd_state_s *priv)
 {
-  uint32_t cid[4];
-  uint32_t csd[4];
+  uint8_t extcsd[512] aligned_data(16);
   int ret;
 
   /* At this point, slow, ID mode clocking has been supplied to the card
@@ -2641,14 +3045,14 @@ static int mmcsd_mmcinitialize(FAR struct mmcsd_state_s *priv)
   finfo("Initialising MMC card.\n");
 
   mmcsd_sendcmdpoll(priv, MMCSD_CMD2, 0);
-  ret = SDIO_RECVR2(priv->dev, MMCSD_CMD2, cid);
+  ret = SDIO_RECVR2(priv->dev, MMCSD_CMD2, priv->cid);
   if (ret != OK)
     {
       ferr("ERROR: SDIO_RECVR2 for MMC CID failed: %d\n", ret);
       return ret;
     }
 
-  mmcsd_decode_cid(priv, cid);
+  mmcsd_decode_cid(priv, priv->cid);
 
   /* Send CMD3, SET_RELATIVE_ADDR.  This command is used to assign a logical
    * address to the card.  For MMC, the host assigns the address. CMD3 causes
@@ -2693,7 +3097,7 @@ static int mmcsd_mmcinitialize(FAR struct mmcsd_state_s *priv)
    */
 
   mmcsd_sendcmdpoll(priv, MMCSD_CMD9, (uint32_t)priv->rca << 16);
-  ret = SDIO_RECVR2(priv->dev, MMCSD_CMD9, csd);
+  ret = SDIO_RECVR2(priv->dev, MMCSD_CMD9, priv->csd);
   if (ret != OK)
     {
       ferr("ERROR: Could not get SD CSD register: %d\n", ret);
@@ -2705,7 +3109,7 @@ static int mmcsd_mmcinitialize(FAR struct mmcsd_state_s *priv)
    * ext_csd commands.
    */
 
-  mmcsd_decode_csd(priv, csd);
+  mmcsd_decode_csd(priv, priv->csd);
 
   /* Set the Driver Stage Register (DSR) if (1) a CONFIG_MMCSD_DSR has been
    * provided and (2) the card supports a DSR register.  If no DSR value
@@ -2755,32 +3159,33 @@ static int mmcsd_mmcinitialize(FAR struct mmcsd_state_s *priv)
   if (IS_BLOCK(priv->type))
     {
       finfo("Card supports eMMC spec 4.0 (or greater). Reading ext_csd.\n");
-      ret = mmcsd_read_csd(priv);
+      ret = mmcsd_read_extcsd(priv, extcsd);
       if (ret != OK)
         {
           ferr("ERROR: Failed to determinate number of blocks: %d\n", ret);
           return ret;
         }
+
+      mmcsd_decode_extcsd(priv, extcsd);
     }
 
-  mmcsd_decode_csd(priv, csd);
+  mmcsd_decode_csd(priv, priv->csd);
 
-  if ((priv->caps & SDIO_CAPS_4BIT_ONLY) != 0)
+  /* It's up to the driver to act on the widebus request.  mmcsd_widebus()
+   * enables the CLOCK_MMC_TRANSFER, so call it here always.
+   */
+
+  ret = mmcsd_widebus(priv);
+  if (ret != OK)
     {
-      /* Select width (4-bit) bus operation (if the card supports it) */
-
-      ret = mmcsd_widebus(priv);
-      if (ret != OK)
-        {
-          ferr("ERROR: Failed to set wide bus operation: %d\n", ret);
-        }
+      ferr("ERROR: Failed to set wide bus operation: %d\n", ret);
     }
 
   return OK;
 }
 
 /****************************************************************************
- * Name: mmcsd_read_csd
+ * Name: mmcsd_read_extcsd
  *
  * Description:
  *   MMC card is detected with block addressing and this function will read
@@ -2791,9 +3196,9 @@ static int mmcsd_mmcinitialize(FAR struct mmcsd_state_s *priv)
  *
  ****************************************************************************/
 
-static int mmcsd_read_csd(FAR struct mmcsd_state_s *priv)
+static int mmcsd_read_extcsd(FAR struct mmcsd_state_s *priv,
+                             FAR uint8_t *extcsd)
 {
-  uint8_t buffer[512] aligned_data(16);
   int ret;
 
   DEBUGASSERT(priv != NULL);
@@ -2806,7 +3211,7 @@ static int mmcsd_read_csd(FAR struct mmcsd_state_s *priv)
       return -EPERM;
     }
 
-  memset(buffer, 0, sizeof(buffer));
+  memset(extcsd, 0, 512);
 
 #if defined(CONFIG_SDIO_DMA) && defined(CONFIG_ARCH_HAVE_SDIO_PREFLIGHT)
 
@@ -2816,7 +3221,7 @@ static int mmcsd_read_csd(FAR struct mmcsd_state_s *priv)
 
   if ((priv->caps & SDIO_CAPS_DMASUPPORTED) != 0)
     {
-      ret = SDIO_DMAPREFLIGHT(priv->dev, buffer, priv->blocksize);
+      ret = SDIO_DMAPREFLIGHT(priv->dev, extcsd, priv->blocksize);
       if (ret != OK)
         {
           return ret;
@@ -2858,10 +3263,10 @@ static int mmcsd_read_csd(FAR struct mmcsd_state_s *priv)
   if ((priv->caps & SDIO_CAPS_DMASUPPORTED) != 0)
     {
       finfo("Setting up for DMA transfer.\n");
-      ret = SDIO_DMARECVSETUP(priv->dev, buffer, 512);
+      ret = SDIO_DMARECVSETUP(priv->dev, extcsd, 512);
       if (ret != OK)
         {
-          finfo("SDIO_DMARECVSETUP: error %d\n", ret);
+          ferr("SDIO_DMARECVSETUP: error %d\n", ret);
           SDIO_CANCEL(priv->dev);
           return ret;
         }
@@ -2869,7 +3274,7 @@ static int mmcsd_read_csd(FAR struct mmcsd_state_s *priv)
   else
 #endif
     {
-      SDIO_RECVSETUP(priv->dev, buffer, 512);
+      SDIO_RECVSETUP(priv->dev, extcsd, 512);
     }
 
   /* Send CMD8 in data-transfer mode to obtain the
@@ -2895,13 +3300,7 @@ static int mmcsd_read_csd(FAR struct mmcsd_state_s *priv)
       return ret;
     }
 
-  priv->nblocks = (buffer[215] << 24) | (buffer[214] << 16) |
-                  (buffer[213] << 8) | buffer[212];
-
-  finfo("MMC ext CSD read succsesfully, number of block %" PRId32 "\n",
-        priv->nblocks);
-
-  SDIO_GOTEXTCSD(priv->dev, buffer);
+  SDIO_GOTEXTCSD(priv->dev, extcsd);
 
   /* Return value:  One sector read */
 
@@ -2909,6 +3308,7 @@ static int mmcsd_read_csd(FAR struct mmcsd_state_s *priv)
 }
 #endif
 
+#ifdef CONFIG_MMCSD_IOCSUPPORT
 /****************************************************************************
  * Name: mmcsd_general_cmd_write
  *
@@ -3169,7 +3569,6 @@ static int mmcsd_general_cmd_read(FAR struct mmcsd_state_s *priv,
   return OK;
 }
 
-#ifdef CONFIG_MMCSD_IOCSUPPORT
 /****************************************************************************
  * Name: mmcsd_iocmd
  *
@@ -3178,52 +3577,137 @@ static int mmcsd_general_cmd_read(FAR struct mmcsd_state_s *priv,
  *
  ****************************************************************************/
 
-static int mmcsd_iocmd(FAR struct mmcsd_state_s *priv,
+static int mmcsd_iocmd(FAR struct mmcsd_part_s *part,
                        FAR struct mmc_ioc_cmd *ic_ptr)
 {
-  int ret;
+  FAR struct mmcsd_state_s *priv = part->priv;
+  uint32_t opcode;
+  int ret = OK;
 
   DEBUGASSERT(priv != NULL && ic_ptr != NULL);
 
-  if (!ic_ptr->is_acmd)
+  opcode = ic_ptr->opcode & MMCSD_CMDIDX_MASK;
+  switch (opcode)
     {
-      uint32_t opcode = ic_ptr->opcode & MMCSD_CMDIDX_MASK;
-      switch (opcode)
-        {
-        case MMCSD_CMDIDX56: /* support general commands */
+    case MMCSD_CMDIDX0: /* Reset card to idle state */
+      {
+        mmcsd_sendcmdpoll(priv, MMCSD_CMD0, ic_ptr->arg);
+        MMCSD_USLEEP(MMCSD_IDLE_DELAY);
+      }
+      break;
+    case MMCSD_CMDIDX2: /* Get cid reg data */
+      {
+        memcpy((FAR void *)(uintptr_t)ic_ptr->data_ptr,
+               priv->cid, sizeof(priv->cid));
+      }
+      break;
+#ifdef CONFIG_MMCSD_MMCSUPPORT
+    case MMCSD_CMDIDX6: /* Switch commands */
+      {
+        ret = mmcsd_switch(priv, ic_ptr->arg);
+        if (ret != OK)
           {
-            if (ic_ptr->write_flag)
+            ferr("ERROR: mmcsd_switch failed: %d\n", ret);
+          }
+      }
+      break;
+    case MMC_CMDIDX8: /* Get extended csd reg data */
+      {
+        ret = mmcsd_read_extcsd(priv,
+                                (FAR uint8_t *)(uintptr_t)ic_ptr->data_ptr);
+      }
+      break;
+#endif
+    case MMCSD_CMDIDX13: /* Send status commands */
+      {
+        ret = mmcsd_get_r1(priv, ic_ptr->response);
+        if (ret != OK)
+          {
+            ferr("ERROR: mmcsd_get_r1 failed: %d\n", ret);
+          }
+      }
+      break;
+#if MMCSD_MULTIBLOCK_LIMIT != 1
+    case MMCSD_CMDIDX18: /* Read multi blocks commands */
+      {
+        if (ic_ptr->blocks > 0)
+          {
+            /* Address argument in CMD18, 25 will be ignored in rpmb case */
+
+            ret = mmcsd_readmultiple(part,
+                                  (FAR uint8_t *)(uintptr_t)ic_ptr->data_ptr,
+                                   ic_ptr->arg, ic_ptr->blocks);
+            if (ret != ic_ptr->blocks)
               {
-                ret = mmcsd_general_cmd_write(priv,
-                      (FAR uint8_t *)(uintptr_t)(ic_ptr->data_ptr),
-                      ic_ptr->arg);
-                if (ret != OK)
-                  {
-                    ferr("mmcsd_iocmd MMCSD_CMDIDX56 write failed.\n");
-                    return ret;
-                  }
+                ferr("ERROR: mmcsd_readmultiple failed: %d\n", ret);
               }
             else
               {
-                ret = mmcsd_general_cmd_read(priv,
-                      (FAR uint8_t *)(uintptr_t)(ic_ptr->data_ptr),
-                      ic_ptr->arg);
-                if (ret != OK)
-                  {
-                    ferr("mmcsd_iocmd MMCSD_CMDIDX56 read failed.\n");
-                    return ret;
-                  }
+                ret = OK;
               }
           }
-          break;
+      }
+      break;
+    case MMCSD_CMDIDX23: /* Set transfer block counts */
+      {
+        ret = mmcsd_setblockcount(priv,
+                              ic_ptr->blocks ? ic_ptr->blocks : ic_ptr->arg);
+      }
+      break;
+    case MMCSD_CMDIDX25: /* Write multi blocks commands */
+      {
+        if (ic_ptr->blocks > 0)
+          {
+            /* Address argument in CMD18, 25 will be ignored in rpmb case */
 
-        default:
-          ferr("mmcsd_iocmd opcode unsupported.\n");
-          return -EINVAL;
-        }
+            ret = mmcsd_writemultiple(part,
+                            (const FAR uint8_t *)(uintptr_t)ic_ptr->data_ptr,
+                             ic_ptr->arg, ic_ptr->blocks);
+            if (ret != ic_ptr->blocks)
+              {
+                ferr("ERROR: mmcsd_writemultiple failed: %d\n", ret);
+              }
+            else
+              {
+                ret = OK;
+              }
+          }
+      }
+      break;
+#endif
+    case MMCSD_CMDIDX56: /* General commands */
+      {
+        if (ic_ptr->write_flag)
+          {
+            ret = mmcsd_general_cmd_write(priv,
+                    (FAR uint8_t *)(uintptr_t)(ic_ptr->data_ptr),
+                    ic_ptr->arg);
+            if (ret != OK)
+              {
+                ferr("mmcsd_iocmd MMCSD_CMDIDX56 write failed.\n");
+              }
+          }
+        else
+          {
+            ret = mmcsd_general_cmd_read(priv,
+                    (FAR uint8_t *)(uintptr_t)(ic_ptr->data_ptr),
+                    ic_ptr->arg);
+            if (ret != OK)
+              {
+                ferr("mmcsd_iocmd MMCSD_CMDIDX56 read failed.\n");
+              }
+          }
+      }
+      break;
+    default:
+      {
+        ferr("mmcsd_iocmd opcode unsupported.\n");
+        ret = -EINVAL;
+      }
+      break;
     }
 
-  return OK;
+  return ret;
 }
 
 /****************************************************************************
@@ -3234,9 +3718,10 @@ static int mmcsd_iocmd(FAR struct mmcsd_state_s *priv,
  *
  ****************************************************************************/
 
-static int mmcsd_multi_iocmd(FAR struct mmcsd_state_s *priv,
+static int mmcsd_multi_iocmd(FAR struct mmcsd_part_s *part,
                              FAR struct mmc_ioc_multi_cmd *imc_ptr)
 {
+  FAR struct mmcsd_state_s *priv = part->priv;
   int ret;
   int i;
 
@@ -3250,7 +3735,7 @@ static int mmcsd_multi_iocmd(FAR struct mmcsd_state_s *priv,
 
   for (i = 0; i < imc_ptr->num_of_cmds; ++i)
     {
-      ret = mmcsd_iocmd(priv, &imc_ptr->cmds[i]);
+      ret = mmcsd_iocmd(part, &imc_ptr->cmds[i]);
       if (ret != OK)
         {
           ferr("cmds %d failed.\n", i);
@@ -3274,7 +3759,6 @@ static int mmcsd_multi_iocmd(FAR struct mmcsd_state_s *priv,
 static int mmcsd_sdinitialize(FAR struct mmcsd_state_s *priv)
 {
   uint32_t cid[4];
-  uint32_t csd[4];
   uint32_t scr[2];
   int ret;
 
@@ -3345,14 +3829,14 @@ static int mmcsd_sdinitialize(FAR struct mmcsd_state_s *priv)
    */
 
   mmcsd_sendcmdpoll(priv, MMCSD_CMD9, (uint32_t)priv->rca << 16);
-  ret = SDIO_RECVR2(priv->dev, MMCSD_CMD9, csd);
+  ret = SDIO_RECVR2(priv->dev, MMCSD_CMD9, priv->csd);
   if (ret != OK)
     {
       ferr("ERROR: Could not get SD CSD register(%d)\n", ret);
       return ret;
     }
 
-  mmcsd_decode_csd(priv, csd);
+  mmcsd_decode_csd(priv, priv->csd);
 
   /* Send CMD7 with the argument == RCA in order to select the card.
    * Since we are supporting only a single card, we just leave the
@@ -3377,7 +3861,7 @@ static int mmcsd_sdinitialize(FAR struct mmcsd_state_s *priv)
   /* Select high speed SD clocking (which may depend on the DSR setting) */
 
   SDIO_CLOCK(priv->dev, CLOCK_SD_TRANSFER_1BIT);
-  nxsig_usleep(MMCSD_CLK_DELAY);
+  MMCSD_USLEEP(MMCSD_CLK_DELAY);
 
   /* If the hardware only supports 4-bit transfer mode then we forced to
    * attempt to setup the card in this mode before checking the SCR register.
@@ -3410,7 +3894,7 @@ static int mmcsd_sdinitialize(FAR struct mmcsd_state_s *priv)
 
   mmcsd_decode_scr(priv, scr);
 
-  if ((priv->caps & SDIO_CAPS_4BIT_ONLY) != 0)
+  if ((priv->caps & SDIO_CAPS_4BIT) != 0)
     {
       /* Select width (4-bit) bus operation (if the card supports it) */
 
@@ -3465,16 +3949,16 @@ static int mmcsd_cardidentify(FAR struct mmcsd_state_s *priv)
       return -ENODEV;
     }
 
+  /* Set ID mode clocking (<400KHz) */
+
+  SDIO_CLOCK(priv->dev, CLOCK_IDMODE);
+
   /* For eMMC, Send CMD0 with argument 0xf0f0f0f0 as per JEDEC v4.41
    * for pre-idle. No effect for SD.
    */
 
   mmcsd_sendcmdpoll(priv, MMCSD_CMD0, 0xf0f0f0f0);
-  nxsig_usleep(MMCSD_IDLE_DELAY);
-
-  /* Set ID mode clocking (<400KHz) */
-
-  SDIO_CLOCK(priv->dev, CLOCK_IDMODE);
+  MMCSD_USLEEP(MMCSD_IDLE_DELAY);
 
   /* After power up at least 74 clock cycles are required prior to starting
    * bus communication
@@ -3485,7 +3969,7 @@ static int mmcsd_cardidentify(FAR struct mmcsd_state_s *priv)
   /* Then send CMD0 just once is standard procedure */
 
   mmcsd_sendcmdpoll(priv, MMCSD_CMD0, 0);
-  nxsig_usleep(MMCSD_IDLE_DELAY);
+  MMCSD_USLEEP(MMCSD_IDLE_DELAY);
 
 #ifdef CONFIG_MMCSD_MMCSUPPORT
   /* Send CMD1 which is supported only by MMC.  if there is valid response
@@ -3507,7 +3991,7 @@ static int mmcsd_cardidentify(FAR struct mmcsd_state_s *priv)
        */
 
       mmcsd_sendcmdpoll(priv, MMCSD_CMD0, 0);
-      nxsig_usleep(MMCSD_IDLE_DELAY);
+      MMCSD_USLEEP(MMCSD_IDLE_DELAY);
     }
   else
     {
@@ -3515,6 +3999,10 @@ static int mmcsd_cardidentify(FAR struct mmcsd_state_s *priv)
 
       finfo("MMC card detected\n");
       priv->type = MMCSD_CARDTYPE_MMC;
+      if ((priv->caps & SDIO_CAPS_4BIT_ONLY) != 0)
+        {
+          priv->buswidth |= MMCSD_SCR_BUSWIDTH_4BIT;
+        }
 
       /* Now, check if this is a MMC card/chip that supports block
        * addressing
@@ -3622,7 +4110,7 @@ static int mmcsd_cardidentify(FAR struct mmcsd_state_s *priv)
             {
               /* I am a little confused.. I think both SD and MMC cards
                * support CMD55 (but maybe only SD cards support CMD55).
-               * We'll make the the MMC vs. SD decision based on CMD1 and
+               * We'll make the MMC vs. SD decision based on CMD1 and
                * ACMD41.
                */
 
@@ -3807,7 +4295,9 @@ static int mmcsd_cardidentify(FAR struct mmcsd_state_s *priv)
 
 static int mmcsd_probe(FAR struct mmcsd_state_s *priv)
 {
+  char devname[32];
   int ret;
+  int i;
 
   finfo("type: %d probed: %d\n", priv->type, priv->probed);
 
@@ -3901,14 +4391,26 @@ static int mmcsd_probe(FAR struct mmcsd_state_s *priv)
             {
               /* Yes...  */
 
-              finfo("Capacity: %" PRIu32 " Kbytes\n",
-                    MMCSD_CAPACITY(priv->nblocks, priv->blockshift));
+              finfo("Capacity: %" PRIuOFF " Kbytes\n",
+                    MMCSD_CAPACITY(priv->part[0].nblocks,
+                                   priv->blockshift));
               priv->mediachanged = true;
             }
 
           /* When the card is identified, we have probed this card */
 
           priv->probed = true;
+          for (i = 0; i < MMCSD_PART_COUNT; i++)
+            {
+              priv->part[i].priv = priv;
+              if (priv->part[i].nblocks != 0)
+                {
+                  snprintf(devname, sizeof(devname), "/dev/mmcsd%d%s",
+                           priv->minor, g_partname[i]);
+                  register_blockdriver(devname, &g_bops, 0666,
+                                       &priv->part[i]);
+                }
+            }
         }
 
       /* Regardless of whether or not a card was successfully initialized,
@@ -3950,7 +4452,17 @@ static int mmcsd_probe(FAR struct mmcsd_state_s *priv)
 
 static int mmcsd_removed(FAR struct mmcsd_state_s *priv)
 {
+  char devname[32];
+  int i;
+
   finfo("type: %d present: %d\n", priv->type, SDIO_PRESENT(priv->dev));
+
+  for (i = 0; i < MMCSD_PART_COUNT; i++)
+    {
+      snprintf(devname, sizeof(devname), "/dev/mmcsd%d%s",
+               priv->minor, g_partname[i]);
+      unregister_blockdriver(devname);
+    }
 
   /* Forget the card geometry, pretend the slot is empty (it might not
    * be), and that the card has never been initialized.
@@ -3969,7 +4481,11 @@ static int mmcsd_removed(FAR struct mmcsd_state_s *priv)
   priv->buswidth     = MMCSD_SCR_BUSWIDTH_1BIT;
   SDIO_WIDEBUS(priv->dev, false);
   priv->widebus      = false;
-  mmcsd_widebus(priv);
+
+  if (mmcsd_widebus(priv) != OK)
+    {
+      ferr("ERROR: Failed to set wide bus operation\n");
+    }
 
   /* Disable clocking to the card */
 
@@ -4015,7 +4531,9 @@ static int mmcsd_hwinitialize(FAR struct mmcsd_state_s *priv)
    * removed from the slot (Initially all callbacks are disabled).
    */
 
+#if defined(CONFIG_SCHED_WORKQUEUE) && defined(CONFIG_SCHED_HPWORK)
   SDIO_REGISTERCALLBACK(priv->dev, mmcsd_mediachange, (FAR void *)priv);
+#endif
 
   /* Is there a card in the slot now? For an MMC/SD card, there are three
    * possible card detect mechanisms:
@@ -4040,7 +4558,7 @@ static int mmcsd_hwinitialize(FAR struct mmcsd_state_s *priv)
       ret = mmcsd_probe(priv);
       if (ret != OK)
         {
-          finfo("Slot not empty, but initialization failed: %d\n", ret);
+          ferr("Slot not empty, but initialization failed: %d\n", ret);
 
           /* NOTE: The failure to initialize a card does not mean that
            * initialization has failed! A card could be installed in the slot
@@ -4070,19 +4588,22 @@ static int mmcsd_hwinitialize(FAR struct mmcsd_state_s *priv)
   return ret;
 }
 
-/****************************************************************************
- * Name: mmcsd_hwuninitialize
- *
- * Description:
- *   Restore the MMC/SD slot to the uninitialized state.  Called only from
- *   sdio_slotinitialize on a failure to initialize.
- *
- ****************************************************************************/
-
-static void mmcsd_hwuninitialize(FAR struct mmcsd_state_s *priv)
+static FAR const char *mmc_get_mode_name(uint8_t mode)
 {
-  mmcsd_removed(priv);
-  SDIO_RESET(priv->dev);
+  switch (mode)
+    {
+      case EXT_CSD_HS_TIMING_BC:
+        return "backwards compatibility";
+      case EXT_CSD_HS_TIMING_HS:
+        return "high speed";
+      case EXT_CSD_HS_TIMING_HS200:
+        return "HS200";
+      case EXT_CSD_HS_TIMING_HS400:
+        return "HS400";
+      default:
+        ferr("Unknown mode: %u\n", mode);
+        return "Unknown";
+    }
 }
 
 /****************************************************************************
@@ -4137,6 +4658,7 @@ int mmcsd_slotinitialize(int minor, FAR struct sdio_dev_s *dev)
   /* Bind the MMCSD driver to the MMCSD state structure */
 
   priv->dev = dev;
+  priv->minor = minor;
 
   /* Initialize the hardware associated with the slot */
 
@@ -4171,23 +4693,21 @@ int mmcsd_slotinitialize(int minor, FAR struct sdio_dev_s *dev)
         }
     }
 
+#ifdef CONFIG_MMCSD_PROCFS
+  mmcsd_initialize_procfs();
+#endif
+
   /* Create a MMCSD device name */
 
-  snprintf(devname, 16, "/dev/mmcsd%d", minor);
+  snprintf(devname, sizeof(devname), "/dev/mmcsd%d", minor);
 
-  /* Inode private data is a reference to the MMCSD state structure */
-
-  ret = register_blockdriver(devname, &g_bops, 0, priv);
-  if (ret < 0)
-    {
-      ferr("ERROR: register_blockdriver failed: %d\n", ret);
-      goto errout_with_hwinit;
-    }
+  finfo("MMC: %s %" PRIu64 "KB %s %s mode\n", devname,
+         ((uint64_t)priv->part[0].nblocks << priv->blockshift) >> 10,
+         priv->widebus ? "4-bits" : "1-bit",
+         mmc_get_mode_name(priv->mode));
 
   return OK;
 
-errout_with_hwinit:
-  mmcsd_hwuninitialize(priv);
 errout_with_alloc:
   nxmutex_destroy(&priv->lock);
   kmm_free(priv);

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sparc/src/bm3803/bm3803_freerun.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -230,8 +232,8 @@ int bm3803_freerun_counter(struct bm3803_freerun_s *freerun,
   ts->tv_sec  = sec;
   ts->tv_nsec = (usec - (sec * USEC_PER_SEC)) * NSEC_PER_USEC;
 
-  tmrinfo("usec=%llu ts=(%u, %lu)\n",
-          usec, ts->tv_sec, (unsigned long)ts->tv_nsec);
+  tmrinfo("usec=%llu ts=(%jd, %ld)\n",
+          usec, (intmax_t)ts->tv_sec, ts->tv_nsec);
 
   return OK;
 }

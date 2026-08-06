@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/b-l475e-iot01a/src/stm32_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,7 +38,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_board_initialize
+ * Name: stm32_board_initialize
  *
  * Description:
  *   All STM32L4 architectures must provide the following entry point.  This
@@ -46,17 +48,17 @@
  *
  ****************************************************************************/
 
-void stm32l4_board_initialize(void)
+void stm32_board_initialize(void)
 {
-#if defined(CONFIG_STM32L4_SPI1) || defined(CONFIG_STM32L4_SPI2) || defined(CONFIG_STM32L4_SPI3)
+#if defined(CONFIG_STM32_SPI1) || defined(CONFIG_STM32_SPI2) || defined(CONFIG_STM32_SPI3)
   /* Configure SPI chip selects if
    * 1) SPI is not disabled, and 2) the weak function
-   * stm32l4_spidev_initialize() has been brought into the link.
+   * stm32_spidev_initialize() has been brought into the link.
    */
 
-  if (stm32l4_spidev_initialize)
+  if (stm32_spidev_initialize)
     {
-      stm32l4_spidev_initialize();
+      stm32_spidev_initialize();
     }
 #endif
 
@@ -86,6 +88,6 @@ void board_late_initialize(void)
 {
   /* Perform board initialization */
 
-  stm32l4_bringup();
+  stm32_bringup();
 }
 #endif /* CONFIG_BOARD_LATE_INITIALIZE */

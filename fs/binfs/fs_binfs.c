@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/binfs/fs_binfs.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -34,18 +36,19 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/lib/builtin.h>
 
 #include "inode/inode.h"
+#include "fs_heap.h"
 
 #if !defined(CONFIG_DISABLE_MOUNTPOINT) && defined(CONFIG_FS_BINFS)
 
 /****************************************************************************
- * Private Type
+ * Private Types
  ****************************************************************************/
 
 struct binfs_dir_s
@@ -58,11 +61,11 @@ struct binfs_dir_s
  * Private Function Prototypes
  ****************************************************************************/
 
-static int     binfs_open(FAR struct file *filep, const char *relpath,
+static int     binfs_open(FAR struct file *filep, FAR const char *relpath,
                           int oflags, mode_t mode);
 static int     binfs_close(FAR struct file *filep);
 static ssize_t binfs_read(FAR struct file *filep,
-                          char *buffer, size_t buflen);
+                          FAR char *buffer, size_t buflen);
 static int     binfs_ioctl(FAR struct file *filep,
                            int cmd, unsigned long arg);
 
@@ -110,6 +113,9 @@ const struct mountpt_operations g_binfs_operations =
   binfs_ioctl,       /* ioctl */
   NULL,              /* mmap */
   NULL,              /* truncate */
+  NULL,              /* poll */
+  NULL,              /* readv */
+  NULL,              /* writev */
 
   NULL,              /* sync */
   binfs_dup,         /* dup */
@@ -152,7 +158,7 @@ static int binfs_open(FAR struct file *filep, FAR const char *relpath,
    * access is not permitted.
    */
 
-  if ((oflags & O_WRONLY) != 0 || (oflags & O_RDONLY) == 0)
+  if ((oflags & O_ACCMODE) != O_RDONLY)
     {
       ferr("ERROR: Only O_RDONLY supported\n");
       return -EACCES;
@@ -190,7 +196,7 @@ static int binfs_close(FAR struct file *filep)
  ****************************************************************************/
 
 static ssize_t binfs_read(FAR struct file *filep,
-                          char *buffer, size_t buflen)
+                          FAR char *buffer, size_t buflen)
 {
   /* Reading is not supported.  Just return end-of-file */
 
@@ -271,7 +277,7 @@ static int binfs_dup(FAR const struct file *oldp, FAR struct file *newp)
 
 static int binfs_fstat(FAR const struct file *filep, FAR struct stat *buf)
 {
-  DEBUGASSERT(filep != NULL && buf != NULL);
+  DEBUGASSERT(buf != NULL);
 
   /* It's a execute-only file system */
 
@@ -304,7 +310,7 @@ static int binfs_opendir(FAR struct inode *mountpt, FAR const char *relpath,
       return -ENOENT;
     }
 
-  bdir = kmm_zalloc(sizeof(*bdir));
+  bdir = fs_heap_zalloc(sizeof(*bdir));
   if (bdir == NULL)
     {
       return -ENOMEM;
@@ -329,7 +335,7 @@ static int binfs_closedir(FAR struct inode *mountpt,
                           FAR struct fs_dirent_s *dir)
 {
   DEBUGASSERT(dir);
-  kmm_free(dir);
+  fs_heap_free(dir);
   return 0;
 }
 
@@ -449,7 +455,6 @@ static int binfs_statfs(struct inode *mountpt, struct statfs *buf)
 
   /* Fill in the statfs info */
 
-  memset(buf, 0, sizeof(struct statfs));
   buf->f_type    = BINFS_MAGIC;
   buf->f_bsize   = 0;
   buf->f_blocks  = 0;
@@ -466,10 +471,11 @@ static int binfs_statfs(struct inode *mountpt, struct statfs *buf)
  *
  ****************************************************************************/
 
-static int binfs_stat(struct inode *mountpt,
-                      const char *relpath, struct stat *buf)
+static int binfs_stat(FAR struct inode *mountpt, FAR const char *relpath,
+                      FAR struct stat *buf)
 {
   finfo("Entry\n");
+  int index;
 
   /* The requested directory must be the volume-relative "root" directory */
 
@@ -477,7 +483,8 @@ static int binfs_stat(struct inode *mountpt,
     {
       /* Check if there is a file with this name. */
 
-      if (builtin_isavail(relpath) < 0)
+      index = builtin_isavail(relpath);
+      if (index < 0)
         {
           return -ENOENT;
         }
@@ -485,6 +492,12 @@ static int binfs_stat(struct inode *mountpt,
       /* It's a execute-only file name */
 
       buf->st_mode = S_IFREG | S_IXOTH | S_IXGRP | S_IXUSR;
+
+#ifdef CONFIG_SCHED_USER_IDENTITY
+      buf->st_uid   = builtin_getuid(index);
+      buf->st_gid   = builtin_getgid(index);
+      buf->st_mode |= builtin_getmode(index);
+#endif
     }
   else
     {

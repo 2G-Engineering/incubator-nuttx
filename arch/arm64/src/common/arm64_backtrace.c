@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm64/src/common/arm64_backtrace.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -42,6 +44,19 @@
  * Description:
  *  backtrace() parsing the return address through frame pointer
  *
+ * Note:
+ *
+ *  The stack layout is as follows:
+ *
+ *    Stack (grows downward):
+ *                +--------------------+
+ *    high addr   |  locals of A       |
+ *                +--------------------+
+ *                | prev_fp(A)=0       | ← FP of A (first frame)
+ *                | saved_lr(A)        |
+ *                +--------------------+
+ *                | locals of B        |
+ *
  ****************************************************************************/
 
 nosanitize_address
@@ -55,7 +70,7 @@ static int backtrace(uintptr_t *base, uintptr_t *limit,
     {
       if ((*skip)-- <= 0)
         {
-          buffer[i++] = pc;
+          buffer[i++] = (void *)((uintptr_t)pc - sizeof(void *));
         }
     }
 
@@ -68,7 +83,7 @@ static int backtrace(uintptr_t *base, uintptr_t *limit,
 
       if ((*skip)-- <= 0)
         {
-          buffer[i++] = (void *)*(fp + 1);
+          buffer[i++] = (void *)(*(fp + 1) - sizeof(void *));
         }
     }
 
@@ -102,18 +117,20 @@ static int backtrace(uintptr_t *base, uintptr_t *limit,
  * Returned Value:
  *   up_backtrace() returns the number of addresses returned in buffer
  *
+ * Assumptions:
+ *   Have to make sure tcb keep safe during function executing, it means
+ *   1. Tcb have to be self or not-running.  In SMP case, the running task
+ *      PC & SP cannot be backtrace, as whose get from tcb is not the newest.
+ *   2. Tcb have to keep not be freed.  In task exiting case, have to
+ *      make sure the tcb get from pid and up_backtrace in one critical
+ *      section procedure.
+ *
  ****************************************************************************/
 
 int up_backtrace(struct tcb_s *tcb,
                  void **buffer, int size, int skip)
 {
-  struct tcb_s *rtcb = (struct tcb_s *)arch_get_current_tcb();
-  struct regs_context * p_regs;
-
-#if CONFIG_ARCH_INTERRUPTSTACK > 7
-  void *istacklimit;
-#endif
-  irqstate_t flags;
+  struct tcb_s *rtcb = running_task();
   int ret;
 
   if (size <= 0 || !buffer)
@@ -126,13 +143,9 @@ int up_backtrace(struct tcb_s *tcb,
       if (up_interrupt_context())
         {
 #if CONFIG_ARCH_INTERRUPTSTACK > 7
-#  ifdef CONFIG_SMP
-          istacklimit = (void *)arm64_intstack_top();
-#  else
-          istacklimit = g_interrupt_stack + INTSTACK_SIZE;
-#  endif /* CONFIG_SMP */
-          ret = backtrace(istacklimit - (CONFIG_ARCH_INTERRUPTSTACK & ~15),
-                          istacklimit,
+          void *istackbase = (void *)up_get_intstackbase(this_cpu());
+          ret = backtrace(istackbase,
+                          istackbase + INTSTACK_SIZE,
                           (void *)__builtin_frame_address(0),
                           NULL, buffer, size, &skip);
 #else
@@ -143,11 +156,10 @@ int up_backtrace(struct tcb_s *tcb,
 #endif /* CONFIG_ARCH_INTERRUPTSTACK > 7 */
           if (ret < size)
             {
-              p_regs = (struct regs_context *)CURRENT_REGS;
               ret += backtrace(rtcb->stack_base_ptr,
                                rtcb->stack_base_ptr + rtcb->adj_stack_size,
-                               (void *)p_regs->regs[REG_X29],
-                               (void *)p_regs->elr,
+                               running_regs()[REG_X29],
+                               running_regs()[REG_ELR],
                                &buffer[ret], size - ret, &skip);
             }
         }
@@ -161,16 +173,11 @@ int up_backtrace(struct tcb_s *tcb,
     }
   else
     {
-      flags = enter_critical_section();
-      p_regs = (struct regs_context *)CURRENT_REGS;
-
       ret = backtrace(tcb->stack_base_ptr,
                       tcb->stack_base_ptr + tcb->adj_stack_size,
-                      (void *)p_regs->regs[REG_X29],
-                      (void *)p_regs->elr,
+                      (void *)(tcb->xcp.regs)[REG_X29],
+                      (void *)(tcb->xcp.regs)[REG_ELR],
                       buffer, size, &skip);
-
-      leave_critical_section(flags);
     }
 
   return ret;

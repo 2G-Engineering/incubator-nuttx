@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/dm320/dm320_usbdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
@@ -1707,7 +1709,7 @@ static int dm320_ctlrinterrupt(int irq, void *context, void *arg)
  * Name: dm320_attachinterrupt
  *
  * Description:
- *   Attach GIO interrtup handler
+ *   Attach GIO interrupt handler
  *
  ****************************************************************************/
 
@@ -2025,7 +2027,7 @@ static struct usbdev_req_s *dm320_epallocreq(struct usbdev_ep_s *ep)
 
   usbtrace(TRACE_EPALLOCREQ, ((struct dm320_ep_s *)ep)->epphy);
 
-  privreq = (struct dm320_req_s *)kmm_malloc(sizeof(struct dm320_req_s));
+  privreq = kmm_malloc(sizeof(struct dm320_req_s));
   if (!privreq)
     {
       usbtrace(TRACE_DEVERROR(DM320_TRACEERR_ALLOCFAIL), 0);
@@ -2483,7 +2485,7 @@ void arm_usbinitialize(void)
   GIO_OUTPUT(CONFIG_DM320_GIO_USBDPPULLUP);
   GIO_SET_OUTPUT(CONFIG_DM320_GIO_USBDPPULLUP);
 
-  /* Initilialize USB attach GIO */
+  /* Initialize USB attach GIO */
 
   GIO_INTERRUPT(CONFIG_DM320_GIO_USBATTACH);
   GIO_BOTHEDGES(CONFIG_DM320_GIO_USBATTACH);

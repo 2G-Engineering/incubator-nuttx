@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/mm_heap/mm_foreach.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/mm/mm.h>
 
@@ -56,6 +58,7 @@ void mm_foreach(FAR struct mm_heap_s *heap, mm_node_handler_t handler,
 #endif
 
   DEBUGASSERT(handler);
+  mm_free_delaylist(heap);
 
   /* Visit each region */
 
@@ -78,22 +81,24 @@ void mm_foreach(FAR struct mm_heap_s *heap, mm_node_handler_t handler,
            node < heap->mm_heapend[region];
            node = (FAR struct mm_allocnode_s *)((FAR char *)node + nodesize))
         {
-          nodesize = SIZEOF_MM_NODE(node);
+          nodesize = MM_SIZEOF_NODE(node);
+          DEBUGASSERT(nodesize >= MM_SIZEOF_ALLOCNODE);
           minfo("region=%d node=%p size=%zu preceding=%u (%c %c)\n",
                 region, node, nodesize, (unsigned int)node->preceding,
-                (node->size & MM_PREVFREE_BIT) ? 'F' : 'A',
-                (node->size & MM_ALLOC_BIT) ? 'A' : 'F');
+                MM_PREVNODE_IS_FREE(node) ? 'F' : 'A',
+                MM_NODE_IS_ALLOC(node) ? 'A' : 'F');
 
           handler(node, arg);
 
-          DEBUGASSERT((node->size & MM_PREVFREE_BIT) == 0 ||
-                      SIZEOF_MM_NODE(prev) == node->preceding);
+          DEBUGASSERT(MM_PREVNODE_IS_ALLOC(node) ||
+                      MM_SIZEOF_NODE(prev) == node->preceding);
           prev = node;
         }
 
       minfo("region=%d node=%p heapend=%p\n",
             region, node, heap->mm_heapend[region]);
       DEBUGASSERT(node == heap->mm_heapend[region]);
+      handler(node, arg);
 
       mm_unlock(heap);
     }

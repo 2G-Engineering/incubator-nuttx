@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/tiva/lm3s6965-ek/kernel/lm_userspace.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -48,6 +50,15 @@
 #endif
 
 /****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+static struct userspace_data_s g_userspace_data =
+{
+  .us_heap = &g_mmheap,
+};
+
+/****************************************************************************
  * Public Data
  ****************************************************************************/
 
@@ -74,9 +85,9 @@ const struct userspace_s userspace locate_data(".userspace") =
   .us_bssstart      = (uintptr_t)_sbss,
   .us_bssend        = (uintptr_t)_ebss,
 
-  /* Memory manager heap structure */
+  /* User data memory structure */
 
-  .us_heap          = &g_mmheap,
+  .us_data          = &g_userspace_data,
 
   /* Task/thread startup routines */
 

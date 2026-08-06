@@ -1,10 +1,8 @@
 /****************************************************************************
  * libs/libc/stdlib/lib_strtold.c
- * Convert string to float and (long) double
  *
- * A pretty straight forward conversion of strtod():
- *
- *   Copyright © 2005-2020 Rich Felker, et al.
+ * SPDX-License-Identifier: MIT
+ * SPDX-FileCopyrightText:  Copyright © 2005-2020 Rich Felker, et al.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -78,13 +76,8 @@
 #  define ldbl_min_10_exp FLT_MIN_10_EXP
 #endif
 
-#ifdef CONFIG_HAVE_LONG_LONG
-#  define long_long long long
-#  define llong_min LLONG_MIN
-#else
-#  define long_long long
-#  define llong_min LONG_MIN
-#endif
+#define long_long long long
+#define llong_min LLONG_MIN
 
 #define shgetc(f) (*(f)++)
 #define shunget(f) ((f)--)
@@ -93,6 +86,8 @@
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+#ifdef CONFIG_HAVE_LONG_DOUBLE
 
 /****************************************************************************
  * Name: scanexp
@@ -399,11 +394,11 @@ static long_double decfloat(FAR char *ptr, FAR char **endptr)
     }
   else if (num_digit + num_decimal > ldbl_max_10_exp)
     {
-      errno = ERANGE;
+      set_errno(ERANGE);
     }
   else if (num_digit + num_decimal < ldbl_min_10_exp)
     {
-      errno = ERANGE;
+      set_errno(ERANGE);
     }
 
   if (k % 9)
@@ -432,7 +427,7 @@ static long_double decfloat(FAR char *ptr, FAR char **endptr)
  *   A long_double number about ptr
  *
  ****************************************************************************/
-
+#ifndef CONFIG_LIBC_DISABLE_HEXSTR_TO_FLOAT
 static long_double hexfloat(FAR char *ptr,
                             FAR char **endptr, int bits, int emin)
 {
@@ -561,13 +556,13 @@ static long_double hexfloat(FAR char *ptr,
 
   if (e2 > -emin)
     {
-      errno = ERANGE;
+      set_errno(ERANGE);
       return ldbl_max * ldbl_max;
     }
 
   if (e2 < emin - 2 * ldbl_mant_dig)
     {
-      errno = ERANGE;
+      set_errno(ERANGE);
       return ldbl_min * ldbl_min;
     }
 
@@ -613,11 +608,12 @@ static long_double hexfloat(FAR char *ptr,
 
   if (!y)
     {
-      errno = ERANGE;
+      set_errno(ERANGE);
     }
 
   return scalbnx(y, 2., e2);
 }
+#endif
 
 /****************************************************************************
  * Name: strtox
@@ -644,6 +640,7 @@ static long_double strtox(FAR const char *str, FAR char **endptr, int flag)
   long_double y = 0;
   int i = 0;
 
+#ifndef CONFIG_LIBC_DISABLE_HEXSTR_TO_FLOAT
   int bits;
   int emin;
 
@@ -664,6 +661,7 @@ static long_double strtox(FAR const char *str, FAR char **endptr, int flag)
       default:
         return 0;
     }
+#endif
 
   /* Skip leading whitespace */
 
@@ -712,12 +710,15 @@ static long_double strtox(FAR const char *str, FAR char **endptr, int flag)
   /* Process optional 0x prefix */
 
   s -= i;
+#ifndef CONFIG_LIBC_DISABLE_HEXSTR_TO_FLOAT
   if (*s == '0' && (*(s + 1) | 32) == 'x')
     {
       s += 2;
       y = hexfloat(s, endptr, bits, emin);
     }
-  else if (isdigit(*s) || (*s == '.' && isdigit(*(s + 1))))
+  else
+#endif
+  if (isdigit(*s) || (*s == '.' && isdigit(*(s + 1))))
     {
       y = decfloat(s, endptr);
     }
@@ -769,14 +770,10 @@ float strtof(FAR const char *str, FAR char **endptr)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_HAVE_DOUBLE
-
 double strtod(FAR const char *str, FAR char **endptr)
 {
   return strtox(str, endptr, 2);
 }
-
-#endif /* CONFIG_HAVE_DOUBLE */
 
 /****************************************************************************
  * Name: strtold
@@ -793,11 +790,8 @@ double strtod(FAR const char *str, FAR char **endptr)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_HAVE_LONG_DOUBLE
-
 long double strtold(FAR const char *str, FAR char **endptr)
 {
   return strtox(str, endptr, 3);
 }
-
 #endif /* CONFIG_HAVE_LONG_DOUBLE */

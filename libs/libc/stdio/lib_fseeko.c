@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_fseeko.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -69,10 +71,14 @@ int fseeko(FAR FILE *stream, off_t offset, int whence)
 #ifndef CONFIG_STDIO_DISABLE_BUFFERING
   /* Flush any valid read/write data in the buffer (also verifies stream) */
 
-  if (lib_rdflush(stream) < 0 || lib_wrflush(stream) < 0)
+  flockfile(stream);
+  if (lib_rdflush_unlocked(stream) < 0 || lib_wrflush_unlocked(stream) < 0)
     {
+      funlockfile(stream);
       return ERROR;
     }
+
+  funlockfile(stream);
 #endif
 
   /* On success or failure, discard any characters saved by ungetc() */
@@ -83,5 +89,14 @@ int fseeko(FAR FILE *stream, off_t offset, int whence)
 
   /* Perform the fseeko on the underlying file descriptor */
 
-  return lseek(stream->fs_fd, offset, whence) == (off_t)-1 ? ERROR : OK;
+  if (stream->fs_iofunc.seek != NULL)
+    {
+      return stream->fs_iofunc.seek(stream->fs_cookie, &offset,
+                                    whence) == (off_t)-1 ? ERROR : OK;
+    }
+  else
+    {
+      return lseek((int)(intptr_t)stream->fs_cookie, offset,
+                                    whence) == (off_t)-1 ? ERROR : OK;
+    }
 }

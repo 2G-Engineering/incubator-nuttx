@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/nucleo-l432kc/src/stm32_dac_wgen.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <math.h>
 #include <stdint.h>
@@ -64,19 +66,19 @@
 #  error "CONFIG_DAC is required"
 #endif
 
-#ifndef CONFIG_STM32L4_DAC1
-#  error "CONFIG_STM32L4_DAC1 is required"
+#ifndef CONFIG_STM32_DAC1
+#  error "CONFIG_STM32_DAC1 is required"
 #endif
 
-#ifndef CONFIG_STM32L4_DAC_LL_OPS
-#  error "CONFIG_STM32L4_DAC_LL_OPS is required"
+#ifndef CONFIG_STM32_DAC_LL_OPS
+#  error "CONFIG_STM32_DAC_LL_OPS is required"
 #endif
 
-#ifndef CONFIG_STM32L4_DAC1_DMA
-#  error "CONFIG_STM32L4_DAC1_DMA is required"
+#ifndef CONFIG_STM32_DAC1_DMA
+#  error "CONFIG_STM32_DAC1_DMA is required"
 #endif
 
-#if (CONFIG_STM32L4_DAC1_DMA_BUFFER_SIZE < CONFIG_NUCLEOL432KC_DAC_WGEN_SAMPLES)
+#if (CONFIG_STM32_DAC1_DMA_BUFFER_SIZE < CONFIG_NUCLEOL432KC_DAC_WGEN_SAMPLES)
 #  error "DMA buffer size should be equal or greater than the number of samples."
 #endif
 
@@ -102,7 +104,7 @@ struct dac_wgen_s
 static struct dac_wgen_s g_dac_wgen =
 {
   .dac           = NULL,
-  .dac_dmabuffer = stm32l4_dac1_dmabuffer,
+  .dac_dmabuffer = stm32_dac1_dmabuffer,
   .samples       = CONFIG_NUCLEOL432KC_DAC_WGEN_SAMPLES,
   .waveform_freq = ((float)CONFIG_NUCLEOL432KC_DAC_WGEN_FREQ)
 };
@@ -197,7 +199,7 @@ int dac_wgen_setup(struct dac_wgen_s *dac_wgen)
 
   int ret = OK;
 
-  dac = stm32l4_dacinitialize(0);
+  dac = stm32_dacinitialize(0);
   if (dac == NULL)
     {
       syslog(LOG_ERR, "Failed to get DAC interface\n");
@@ -275,7 +277,7 @@ int dac_wgen_main(int argc, char *argv[])
 
       /* Sleep */
 
-      nxsig_sleep(1);
+      nxsched_sleep(1);
     }
 
 errout:

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/samd5e5/metro-m4/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -386,7 +388,7 @@
 #define LED_SIGNAL       2 /* In a signal handler     N/C      */
 #define LED_ASSERTION    2 /* An assertion failed     N/C      */
 #define LED_PANIC        3 /* The system has crashed  FLASH    */
-#undef  LED_IDLE           /* MCU is is sleep mode    Not used */
+#undef  LED_IDLE           /* MCU is in sleep mode    Not used */
 
 /* Thus is LED is statically on, NuttX has successfully  booted and is,
  * apparently, running normally.  If LED is flashing at approximately
@@ -453,8 +455,8 @@
 #define BOARD_SERCOM5_PINMAP_PAD2    0                   /* PAD2: (not used) */
 #define BOARD_SERCOM5_PINMAP_PAD3    0                   /* PAD3: (not used) */
 
-#define BOARD_SERCOM5_GCLKGEN 		 1                   /* 48MHz Core clock */
-#define BOARD_SERCOM5_SLOW_GCLKGEN	 3
+#define BOARD_SERCOM5_GCLKGEN        1                   /* 48MHz Core clock */
+#define BOARD_SERCOM5_SLOW_GCLKGEN   3
 #define BOARD_SERCOM5_FREQUENCY      BOARD_GCLK1_FREQUENCY
 
 /* Tickless */

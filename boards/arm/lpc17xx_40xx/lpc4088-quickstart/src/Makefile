@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/lpc17xx_40xx/lpc4088-quickstart/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -35,10 +37,6 @@ endif
 
 ifeq ($(CONFIG_LPC17_40_EXTNAND),y)
   CSRCS += lpc17_40_nandinitialize.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-  CSRCS += lpc17_40_appinit.c
 endif
 
 ifeq ($(CONFIG_ARCH_LEDS),y)

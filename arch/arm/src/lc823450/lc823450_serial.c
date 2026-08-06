@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lc823450/lc823450_serial.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -34,8 +36,8 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/fs/ioctl.h>
@@ -602,7 +604,7 @@ static void up_shutdown(struct uart_dev_s *dev)
  * Description:
  *   Configure the UART to operation in interrupt driven mode.
  *   This method is called when the serial port is opened.
- *   Normally, this is just after the the setup() method is called,
+ *   Normally, this is just after the setup() method is called,
  *   however, the serial console may operate in a non-interrupt driven mode
  *   during the boot phase.
  *
@@ -1257,7 +1259,7 @@ retry:
  * Description:
  *   Performs the low level UART initialization early in
  *   debug so that the serial console will be available
- *   during bootup.  This must be called before arm_serialinit.
+ *   during boot up.  This must be called before arm_serialinit.
  *
  ****************************************************************************/
 
@@ -1358,7 +1360,7 @@ void arm_serialinit(void)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
   struct up_dev_s *priv = (struct up_dev_s *)CONSOLE_DEV.priv;
   uint32_t im;
@@ -1366,7 +1368,7 @@ int up_putc(int ch)
 #ifdef CONFIG_DEV_CONSOLE_SWITCH
   if (g_console_disable)
     {
-      return ch;
+      return;
     }
 #endif /* CONFIG_DEV_CONSOLE_SWITCH */
 
@@ -1374,19 +1376,8 @@ int up_putc(int ch)
   up_waittxnotfull(priv);
   up_serialout(priv, UART_USTF, (uint32_t)ch);
 
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      up_waittxnotfull(priv);
-      up_serialout(priv, UART_USTF, (uint32_t)'\r');
-    }
-
   up_waittxnotfull(priv);
   up_restoreuartint(priv, im);
-  return ch;
 }
 
 #else /* USE_SERIALDRIVER */
@@ -1399,19 +1390,9 @@ int up_putc(int ch)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      arm_lowputc('\r');
-    }
-
   arm_lowputc(ch);
-  return ch;
 }
 
 #endif /* USE_SERIALDRIVER */

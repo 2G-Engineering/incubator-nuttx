@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/risc-v/rv32m1/rv32m1-vega/src/rv32m1_autoleds.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,7 +25,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <arch/board/board.h>
 
 #include "rv32m1_gpio.h"

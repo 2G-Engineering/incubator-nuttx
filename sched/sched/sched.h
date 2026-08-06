@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/sched/sched.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -42,18 +44,32 @@
 
 #define PIDHASH(pid)             ((pid) & (g_npidhash - 1))
 
+/* The state of a task is indicated both by the task_state field of the TCB
+ * and by a series of task lists.  All of these tasks lists are declared
+ * below. Although it is not always necessary, most of these lists are
+ * prioritized so that common list handling logic can be used (only the
+ * g_readytorun, the g_pendingtasks, and the g_waitingforsemaphore lists
+ * need to be prioritized).
+ */
+
+#define list_readytorun()        (&g_readytorun)
+#ifndef CONFIG_SMP
+#define list_pendingtasks()      (&g_pendingtasks)
+#endif
+#define list_waitingforsignal()  (&g_waitingforsignal)
+#define list_waitingforfill()    (&g_waitingforfill)
+#define list_stoppedtasks()      (&g_stoppedtasks)
+#define list_inactivetasks()     (&g_inactivetasks)
+
 /* These are macros to access the current CPU and the current task on a CPU.
  * These macros are intended to support a future SMP implementation.
  * NOTE: this_task() for SMP is implemented in sched_thistask.c
  */
 
 #ifdef CONFIG_SMP
-#  define current_task(cpu)      ((FAR struct tcb_s *)g_assignedtasks[cpu].head)
-#  define this_cpu()             up_cpu_index()
+#  define current_task(cpu)      (g_assignedtasks[cpu])
 #else
-#  define current_task(cpu)      ((FAR struct tcb_s *)g_readytorun.head)
-#  define this_cpu()             (0)
-#  define this_task()            (current_task(this_cpu()))
+#  define current_task(cpu)      ((FAR struct tcb_s *)list_readytorun()->head)
 #endif
 
 #define is_idle_task(t)          ((t)->pid < CONFIG_SMP_NCPUS)
@@ -91,6 +107,18 @@
 #  define TLIST_BLOCKED(t)       __TLIST_HEAD(t)
 #endif
 
+#ifdef CONFIG_SCHED_CRITMONITOR_MAXTIME_PANIC
+#  define CRITMONITOR_PANIC(fmt, ...) \
+          do \
+            { \
+              _alert(fmt, ##__VA_ARGS__); \
+              PANIC(); \
+            } \
+          while(0)
+#else
+#  define CRITMONITOR_PANIC(fmt, ...) _alert(fmt, ##__VA_ARGS__)
+#endif
+
 /****************************************************************************
  * Public Type Definitions
  ****************************************************************************/
@@ -103,6 +131,17 @@ struct tasklist_s
 {
   DSEG dq_queue_t *list; /* Pointer to the task list */
   uint8_t attr;          /* List attribute flags */
+};
+
+/* This enumeration defines smp schedule task switch rule */
+
+enum task_deliver_e
+{
+  SWITCH_NONE   = 0, /* No schedule switch pending */
+  SWITCH_HIGHER = 1, /* Higher priority task needs to be scheduled in */
+  SWITCH_EQUAL       /* Higher or equal priority task needs to be scheduled
+                      * in
+                      */
 };
 
 /****************************************************************************
@@ -136,37 +175,31 @@ extern dq_queue_t g_readytorun;
  *    and
  *  - Tasks/threads that have not been assigned to a CPU.
  *
- * Otherwise, the TCB will be retained in an assigned task list,
- * g_assignedtasks.  As its name suggests, on 'g_assignedtasks queue for CPU
- * 'n' would contain only tasks/threads that are assigned to CPU 'n'.  Tasks/
- * threads would be assigned a particular CPU by one of two mechanisms:
+ * Otherwise, the TCB will be retained in an assigned task vector,
+ * g_assignedtasks.  As its name suggests, on 'g_assignedtasks vector for CPU
+ * 'n' would contain only the task/thread which is running on the CPU 'n'.
+ * Tasks/threads would be assigned a particular CPU by one of two
+ * mechanisms:
  *
  *  - (Semi-)permanently through an RTOS interfaces such as
  *    pthread_attr_setaffinity(), or
  *  - Temporarily through scheduling logic when a previously unassigned task
  *    is made to run.
- *
- * Tasks/threads that are assigned to a CPU via an interface like
- * pthread_attr_setaffinity() would never go into the g_readytorun list, but
- * would only go into the g_assignedtasks[n] list for the CPU 'n' to which
- * the thread has been assigned.  Hence, the g_readytorun list would hold
- * only unassigned tasks/threads.
- *
- * Like the g_readytorun list in in non-SMP case, each g_assignedtask[] list
- * is prioritized:  The head of the list is the currently active task on this
- * CPU.  Tasks after the active task are ready-to-run and assigned to this
- * CPU. The tail of this assigned task list, the lowest priority task, is
- * always the CPU's IDLE task.
  */
 
-extern dq_queue_t g_assignedtasks[CONFIG_SMP_NCPUS];
+extern FAR struct tcb_s *g_assignedtasks[CONFIG_SMP_NCPUS];
+
+/* g_delivertasks is used to indicate that a task switch is scheduled for
+ * another cpu to be processed.
+ */
+
+extern enum task_deliver_e g_delivertasks[CONFIG_SMP_NCPUS];
+
+/* This is the list of idle tasks */
+
+extern struct tcb_s g_idletcb[CONFIG_SMP_NCPUS];
+
 #endif
-
-/* g_running_tasks[] holds a references to the running task for each cpu.
- * It is valid only when up_interrupt_context() returns true.
- */
-
-extern FAR struct tcb_s *g_running_tasks[CONFIG_SMP_NCPUS];
 
 /* This is the list of all tasks that are ready-to-run, but cannot be placed
  * in the g_readytorun list because:  (1) They are higher priority than the
@@ -174,7 +207,9 @@ extern FAR struct tcb_s *g_running_tasks[CONFIG_SMP_NCPUS];
  * currently active task has disabled pre-emption.
  */
 
+#ifndef CONFIG_SMP
 extern dq_queue_t g_pendingtasks;
+#endif
 
 /* This is the list of all tasks that are blocked waiting for a signal */
 
@@ -182,7 +217,7 @@ extern dq_queue_t g_waitingforsignal;
 
 /* This is the list of all tasks that are blocking waiting for a page fill */
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 extern dq_queue_t g_waitingforfill;
 #endif
 
@@ -221,14 +256,14 @@ extern volatile int g_npidhash;
  * ordered list or not.
  */
 
-extern const struct tasklist_s g_tasklisttable[NUM_TASK_STATES];
+extern struct tasklist_s g_tasklisttable[NUM_TASK_STATES];
 
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
 /* This is the total number of clock tick counts.  Essentially the
  * 'denominator' for all CPU load calculations.
  */
 
-extern volatile uint32_t g_cpuload_total;
+extern volatile clock_t g_cpuload_total;
 #endif
 
 /* Declared in sched_lock.c *************************************************/
@@ -251,51 +286,16 @@ extern volatile uint32_t g_cpuload_total;
  */
 
 #ifdef CONFIG_SMP
-/* In the multiple CPU, SMP case, disabling context switches will not give a
- * task exclusive access to the (multiple) CPU resources (at least without
- * stopping the other CPUs): Even though pre-emption is disabled, other
- * threads will still be executing on the other CPUS.
- *
- * There are additional rules for this multi-CPU case:
- *
- * 1. There is a global lock count 'g_cpu_lockset' that includes a bit for
- *    each CPU: If the bit is '1', then the corresponding CPU has the
- *    scheduler locked; if '0', then the CPU does not have the scheduler
- *    locked.
- * 2. Scheduling logic would set the bit associated with the cpu in
- *    'g_cpu_lockset' when the TCB at the head of the g_assignedtasks[cpu]
- *    list transitions has 'lockcount' > 0. This might happen when
- *    sched_lock() is called, or after a context switch that changes the
- *    TCB at the head of the g_assignedtasks[cpu] list.
- * 3. Similarly, the cpu bit in the global 'g_cpu_lockset' would be cleared
- *    when the TCB at the head of the g_assignedtasks[cpu] list has
- *    'lockcount' == 0. This might happen when sched_unlock() is called, or
- *    after a context switch that changes the TCB at the head of the
- *    g_assignedtasks[cpu] list.
- * 4. Modification of the global 'g_cpu_lockset' must be protected by a
- *    spinlock, 'g_cpu_schedlock'. That spinlock would be taken when
- *    sched_lock() is called, and released when sched_unlock() is called.
- *    This assures that the scheduler does enforce the critical section.
- *    NOTE: Because of this spinlock, there should never be more than one
- *    bit set in 'g_cpu_lockset'; attempts to set additional bits should
- *    be cause the CPU to block on the spinlock.  However, additional bits
- *    could get set in 'g_cpu_lockset' due to the context switches on the
- *    various CPUs.
- * 5. Each the time the head of a g_assignedtasks[] list changes and the
- *    scheduler modifies 'g_cpu_lockset', it must also set 'g_cpu_schedlock'
- *    depending on the new state of 'g_cpu_lockset'.
- * 5. Logic that currently uses the currently running tasks lockcount
- *    instead uses the global 'g_cpu_schedlock'. A value of SP_UNLOCKED
- *    means that no CPU has pre-emption disabled; SP_LOCKED means that at
- *    least one CPU has pre-emption disabled.
+
+/* This is the spinlock that enforces critical sections when interrupts are
+ * disabled.
  */
 
-extern volatile spinlock_t g_cpu_schedlock;
+extern volatile spinlock_t g_cpu_irqlock;
 
 /* Used to keep track of which CPU(s) hold the IRQ lock. */
 
-extern volatile spinlock_t g_cpu_locksetlock;
-extern volatile cpu_set_t g_cpu_lockset;
+extern volatile cpu_set_t g_cpu_irqset;
 
 /* Used to lock tasklist to prevent from concurrent access */
 
@@ -314,15 +314,15 @@ int nxthread_create(FAR const char *name, uint8_t ttype, int priority,
 /* Task list manipulation functions */
 
 bool nxsched_add_readytorun(FAR struct tcb_s *rtrtcb);
-bool nxsched_remove_readytorun(FAR struct tcb_s *rtrtcb, bool merge);
-bool nxsched_add_prioritized(FAR struct tcb_s *tcb, DSEG dq_queue_t *list);
-void nxsched_merge_prioritized(FAR dq_queue_t *list1, FAR dq_queue_t *list2,
-                               uint8_t task_state);
-bool nxsched_merge_pending(void);
+bool nxsched_remove_readytorun(FAR struct tcb_s *rtrtcb);
+void nxsched_remove_self(FAR struct tcb_s *rtrtcb);
 void nxsched_add_blocked(FAR struct tcb_s *btcb, tstate_t task_state);
 void nxsched_remove_blocked(FAR struct tcb_s *btcb);
 int  nxsched_set_priority(FAR struct tcb_s *tcb, int sched_priority);
+#ifndef CONFIG_SMP
+bool nxsched_merge_pending(void);
 bool nxsched_reprioritize_rtr(FAR struct tcb_s *tcb, int priority);
+#endif
 
 /* Priority inheritance support */
 
@@ -336,20 +336,16 @@ int  nxsched_reprioritize(FAR struct tcb_s *tcb, int sched_priority);
 /* Support for tickless operation */
 
 #ifdef CONFIG_SCHED_TICKLESS
-unsigned int nxsched_cancel_timer(void);
-void nxsched_resume_timer(void);
 void nxsched_reassess_timer(void);
 #else
-#  define nxsched_cancel_timer() (0)
-#  define nxsched_resume_timer()
 #  define nxsched_reassess_timer()
 #endif
 
 /* Scheduler policy support */
 
 #if CONFIG_RR_INTERVAL > 0
-uint32_t nxsched_process_roundrobin(FAR struct tcb_s *tcb, uint32_t ticks,
-                                    bool noswitches);
+clock_t nxsched_process_roundrobin(FAR struct tcb_s *tcb, clock_t ticks,
+                                   bool noswitches);
 #endif
 
 #ifdef CONFIG_SCHED_SPORADIC
@@ -359,8 +355,8 @@ int  nxsched_stop_sporadic(FAR struct tcb_s *tcb);
 int  nxsched_reset_sporadic(FAR struct tcb_s *tcb);
 int  nxsched_resume_sporadic(FAR struct tcb_s *tcb);
 int  nxsched_suspend_sporadic(FAR struct tcb_s *tcb);
-uint32_t nxsched_process_sporadic(FAR struct tcb_s *tcb, uint32_t ticks,
-                                  bool noswitches);
+clock_t nxsched_process_sporadic(FAR struct tcb_s *tcb, clock_t ticks,
+                                 bool noswitches);
 void nxsched_sporadic_lowpriority(FAR struct tcb_s *tcb);
 #endif
 
@@ -368,45 +364,247 @@ void nxsched_sporadic_lowpriority(FAR struct tcb_s *tcb);
 void nxsched_suspend(FAR struct tcb_s *tcb);
 #endif
 
-#ifdef CONFIG_SMP
-FAR struct tcb_s *this_task(void);
-
-int  nxsched_select_cpu(cpu_set_t affinity);
-int  nxsched_pause_cpu(FAR struct tcb_s *tcb);
-
-#  define nxsched_islocked_global() spin_islocked(&g_cpu_schedlock)
-#  define nxsched_islocked_tcb(tcb) nxsched_islocked_global()
-
+#if defined(up_this_task)
+#  define this_task()            up_this_task()
+#elif !defined(CONFIG_SMP)
+#  define this_task()            ((FAR struct tcb_s *)g_readytorun.head)
 #else
-#  define nxsched_select_cpu(a)     (0)
-#  define nxsched_pause_cpu(t)      (-38)  /* -ENOSYS */
-#  define nxsched_islocked_tcb(tcb) ((tcb)->lockcount > 0)
+noinstrument_function
+static inline_function FAR struct tcb_s *this_task(void)
+{
+  FAR struct tcb_s *tcb;
+  irqstate_t flags;
+
+  /* If the CPU supports suppression of interprocessor interrupts, then
+   * simple disabling interrupts will provide sufficient protection for
+   * the following operations.
+   */
+
+  flags = up_irq_save();
+
+  /* Obtain the TCB which is current running on this CPU */
+
+  tcb = current_task(this_cpu());
+
+  /* Enable local interrupts */
+
+  up_irq_restore(flags);
+  return tcb;
+}
 #endif
 
-#ifndef CONFIG_SCHED_CPULOAD_EXTCLK
+#if defined(CONFIG_STACKCHECK_MARGIN) && \
+           (CONFIG_STACKCHECK_MARGIN != -1)
+void nxsched_checkstackoverflow(FAR struct tcb_s *tcb);
+#else
+#  define nxsched_checkstackoverflow(tcb)
+#endif
+
+#ifdef CONFIG_SMP
+bool nxsched_switch_running(int cpu, bool switch_equal);
+void nxsched_process_delivered(int cpu);
+#else
+#  define nxsched_select_cpu(a)     (0)
+#endif
+
+#define nxsched_islocked_tcb(tcb)   ((tcb)->lockcount > 0)
 
 /* CPU load measurement support */
 
-#  ifdef CONFIG_SCHED_CPULOAD
-void nxsched_process_cpuload_ticks(uint32_t ticks);
-#  else
-#    define nxsched_process_cpuload_ticks(ticks)
-#  endif
-
-#  define nxsched_process_cpuload() nxsched_process_cpuload_ticks(1)
+#if defined(CONFIG_SCHED_CPULOAD_SYSCLK) || \
+    defined (CONFIG_SCHED_CPULOAD_CRITMONITOR)
+void nxsched_process_taskload_ticks(FAR struct tcb_s *tcb, clock_t ticks);
+void nxsched_process_cpuload_ticks(clock_t ticks);
+#define nxsched_process_cpuload() nxsched_process_cpuload_ticks(1)
 #endif
 
 /* Critical section monitor */
 
+void nxsched_switch_context(FAR struct tcb_s *from, FAR struct tcb_s *to);
+
 #ifdef CONFIG_SCHED_CRITMONITOR
-void nxsched_critmon_preemption(FAR struct tcb_s *tcb, bool state);
-void nxsched_critmon_csection(FAR struct tcb_s *tcb, bool state);
-void nxsched_resume_critmon(FAR struct tcb_s *tcb);
-void nxsched_suspend_critmon(FAR struct tcb_s *tcb);
+void nxsched_switch_critmon(FAR struct tcb_s *from, FAR struct tcb_s *to);
+void nxsched_update_critmon(FAR struct tcb_s *tcb);
+#endif
+
+#if CONFIG_SCHED_CRITMONITOR_MAXTIME_PREEMPTION >= 0
+void nxsched_critmon_preemption(FAR struct tcb_s *tcb, bool state,
+                                FAR void *caller);
+#else
+#  define nxsched_critmon_preemption(t, s, c)
+#endif
+
+#if CONFIG_SCHED_CRITMONITOR_MAXTIME_CSECTION >= 0
+void nxsched_critmon_csection(FAR struct tcb_s *tcb, bool state,
+                              FAR void *caller);
 #endif
 
 /* TCB operations */
 
 bool nxsched_verify_tcb(FAR struct tcb_s *tcb);
 
+/* Obtain TLS from kernel */
+
+struct tls_info_s; /* Forward declare */
+FAR struct tls_info_s *nxsched_get_tls(FAR struct tcb_s *tcb);
+FAR char **nxsched_get_stackargs(FAR struct tcb_s *tcb);
+
+/****************************************************************************
+ * Inline functions
+ ****************************************************************************/
+
+static inline_function bool nxsched_add_prioritized(FAR struct tcb_s *tcb,
+                                                    DSEG dq_queue_t *list)
+{
+  FAR struct tcb_s *next;
+  FAR struct tcb_s *prev;
+  uint8_t sched_priority = tcb->sched_priority;
+  bool ret = false;
+
+  /* Lets do a sanity check before we get started. */
+
+  DEBUGASSERT(sched_priority >= SCHED_PRIORITY_MIN);
+
+  /* Search the list to find the location to insert the new Tcb.
+   * Each is list is maintained in descending sched_priority order.
+   */
+
+  for (next = (FAR struct tcb_s *)list->head;
+       (next && sched_priority <= next->sched_priority);
+       next = next->flink);
+
+  /* Add the tcb to the spot found in the list.  Check if the tcb
+   * goes at the end of the list. NOTE:  This could only happen if list
+   * is the g_pendingtasks list!
+   */
+
+  if (next == NULL)
+    {
+      /* The tcb goes at the end of the list. */
+
+      prev = (FAR struct tcb_s *)list->tail;
+      if (prev == NULL)
+        {
+          /* Special case:  The list is empty */
+
+          tcb->flink = NULL;
+          tcb->blink = NULL;
+          list->head = (FAR dq_entry_t *)tcb;
+          list->tail = (FAR dq_entry_t *)tcb;
+          ret = true;
+        }
+      else
+        {
+          /* The tcb goes at the end of a non-empty list */
+
+          tcb->flink = NULL;
+          tcb->blink = prev;
+          prev->flink = tcb;
+          list->tail = (FAR dq_entry_t *)tcb;
+        }
+    }
+  else
+    {
+      /* The tcb goes just before next */
+
+      prev = next->blink;
+      if (prev == NULL)
+        {
+          /* Special case:  Insert at the head of the list */
+
+          tcb->flink  = next;
+          tcb->blink  = NULL;
+          next->blink = tcb;
+          list->head  = (FAR dq_entry_t *)tcb;
+          ret = true;
+        }
+      else
+        {
+          /* Insert in the middle of the list */
+
+          tcb->flink = next;
+          tcb->blink = prev;
+          prev->flink = tcb;
+          next->blink = tcb;
+        }
+    }
+
+  return ret;
+}
+
+#  ifdef CONFIG_SMP
+
+/* Try to switch the head of the ready-to-run list to active on "target_cpu".
+ * "cpu" is "this_cpu()", and passed only for optimization.
+ */
+
+static inline_function bool
+nxsched_deliver_task(int cpu, int target_cpu,
+                     enum task_deliver_e priority)
+{
+  bool ret = false;
+
+  /* If there is already a schedule interrupt pending, there is
+   * no need to do anything now.
+   */
+
+  if (g_delivertasks[target_cpu] != priority)
+    {
+      if (cpu == target_cpu)
+        {
+          ret = nxsched_switch_running(cpu, priority == SWITCH_EQUAL);
+        }
+      else
+        {
+          g_delivertasks[target_cpu] = priority;
+          up_send_smp_sched(target_cpu);
+        }
+    }
+
+  return ret;
+}
+
+static inline_function int nxsched_select_cpu(cpu_set_t affinity)
+{
+  uint8_t minprio;
+  int cpu;
+  int i;
+
+  minprio = SCHED_PRIORITY_MAX;
+  cpu     = 0xff;
+
+  for (i = 0; i < CONFIG_SMP_NCPUS; i++)
+    {
+      /* Is the thread permitted to run on this CPU? */
+
+      if ((affinity & (1 << i)) != 0)
+        {
+          FAR struct tcb_s *rtcb = current_task(i);
+
+          /* If this CPU is executing its IDLE task, then use it.  The
+           * IDLE task is always the last task in the assigned task list.
+           */
+
+          if (is_idle_task(rtcb))
+            {
+              /* The IDLE task should always be assigned to this CPU and have
+               * a priority of zero.
+               */
+
+              DEBUGASSERT(rtcb->sched_priority == 0);
+              return i;
+            }
+          else if (rtcb->sched_priority <= minprio)
+            {
+              DEBUGASSERT(rtcb->sched_priority > 0);
+              minprio = rtcb->sched_priority;
+              cpu = i;
+            }
+        }
+    }
+
+  DEBUGASSERT(cpu != 0xff);
+  return cpu;
+}
+#  endif
 #endif /* __SCHED_SCHED_SCHED_H */

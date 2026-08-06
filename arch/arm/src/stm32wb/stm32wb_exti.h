@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32wb/stm32wb_exti.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -52,7 +54,7 @@ extern "C"
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32wb_gpiosetevent
+ * Name: stm32_gpiosetevent
  *
  * Description:
  *   Sets/clears GPIO based event and interrupt triggers.
@@ -71,11 +73,11 @@ extern "C"
  *
  ****************************************************************************/
 
-int stm32wb_gpiosetevent(uint32_t pinset, bool risingedge, bool fallingedge,
+int stm32_gpiosetevent(uint32_t pinset, bool risingedge, bool fallingedge,
                          bool event, xcpt_t func, void *arg);
 
 /****************************************************************************
- * Name: stm32wb_exti_alarm
+ * Name: stm32_exti_alarm
  *
  * Description:
  *   Sets/clears EXTI alarm interrupt.
@@ -93,12 +95,12 @@ int stm32wb_gpiosetevent(uint32_t pinset, bool risingedge, bool fallingedge,
  ****************************************************************************/
 
 #ifdef CONFIG_RTC_ALARM
-int stm32wb_exti_alarm(bool risingedge, bool fallingedge, bool event,
+int stm32_exti_alarm(bool risingedge, bool fallingedge, bool event,
                        xcpt_t func, void *arg);
 #endif
 
 /****************************************************************************
- * Name: stm32wb_exti_wakeup
+ * Name: stm32_exti_wakeup
  *
  * Description:
  *   Sets/clears EXTI wakeup interrupt.
@@ -116,7 +118,7 @@ int stm32wb_exti_alarm(bool risingedge, bool fallingedge, bool event,
  ****************************************************************************/
 
 #ifdef CONFIG_RTC_PERIODIC
-int stm32wb_exti_wakeup(bool risingedge, bool fallingedge, bool event,
+int stm32_exti_wakeup(bool risingedge, bool fallingedge, bool event,
                         xcpt_t func, void *arg);
 #endif
 

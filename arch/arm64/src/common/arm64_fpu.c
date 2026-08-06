@@ -1,6 +1,8 @@
 /***************************************************************************
  * arch/arm64/src/common/arm64_fpu.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,17 +34,18 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <nuttx/sched.h>
 #include <nuttx/arch.h>
 #include <nuttx/fs/procfs.h>
+#include <arch/barriers.h>
 #include <arch/irq.h>
 
 #include "sched/sched.h"
 #include "arm64_arch.h"
-#include "arm64_vfork.h"
+#include "arm64_fork.h"
 #include "arm64_internal.h"
 #include "arm64_fatal.h"
 #include "arm64_fpu.h"
@@ -77,10 +80,9 @@ struct arm64_fpu_procfs_file_s
  * Private Data
  ***************************************************************************/
 
-static struct fpu_reg g_idle_thread_fpu[CONFIG_SMP_NCPUS];
-static struct arm64_cpu_fpu_context g_cpu_fpu_ctx[CONFIG_SMP_NCPUS];
-
 #ifdef CONFIG_FS_PROCFS_REGISTER
+
+static struct arm64_cpu_fpu_context g_cpu_fpu_ctx[CONFIG_SMP_NCPUS];
 
 /* procfs methods */
 
@@ -102,6 +104,7 @@ const struct procfs_operations arm64_fpu_procfs_operations =
   arm64_fpu_procfs_close, /* close */
   arm64_fpu_procfs_read,  /* read */
   NULL,                   /* write */
+  NULL,                   /* poll */
   NULL,                   /* dup */
   NULL,                   /* opendir */
   NULL,                   /* closedir */
@@ -132,7 +135,7 @@ static void arm64_fpu_access_trap_enable(void)
   cpacr &= ~CPACR_EL1_FPEN_NOTRAP;
   write_sysreg(cpacr, cpacr_el1);
 
-  ARM64_ISB();
+  UP_ISB();
 }
 
 /* disable FPU access trap */
@@ -145,7 +148,7 @@ static void arm64_fpu_access_trap_disable(void)
   cpacr |= CPACR_EL1_FPEN_NOTRAP;
   write_sysreg(cpacr, cpacr_el1);
 
-  ARM64_ISB();
+  UP_ISB();
 }
 
 #ifdef CONFIG_FS_PROCFS_REGISTER
@@ -163,7 +166,7 @@ static int arm64_fpu_procfs_open(struct file *filep, const char *relpath,
    * REVISIT:  Write-able proc files could be quite useful.
    */
 
-  if (((oflags & O_WRONLY) != 0 || (oflags & O_RDONLY) == 0))
+  if ((oflags & O_ACCMODE) != O_RDONLY)
     {
       uerr("ERROR: Only O_RDONLY supported\n");
       return -EACCES;
@@ -171,8 +174,7 @@ static int arm64_fpu_procfs_open(struct file *filep, const char *relpath,
 
   /* Allocate the open file structure */
 
-  priv = (struct arm64_fpu_procfs_file_s *)kmm_zalloc(
-    sizeof(struct arm64_fpu_procfs_file_s));
+  priv = kmm_zalloc(sizeof(struct arm64_fpu_procfs_file_s));
   if (priv == NULL)
     {
       uerr("ERROR: Failed to allocate file attributes\n");
@@ -262,137 +264,6 @@ static int arm64_fpu_procfs_stat(const char *relpath, struct stat *buf)
 }
 #endif
 
-/***************************************************************************
- * Public Functions
- ***************************************************************************/
-
-void arm64_init_fpu(struct tcb_s *tcb)
-{
-  struct fpu_reg *fpu_reg;
-
-  if (tcb->pid < CONFIG_SMP_NCPUS)
-    {
-      memset(&g_cpu_fpu_ctx[this_cpu()], 0,
-             sizeof(struct arm64_cpu_fpu_context));
-      g_cpu_fpu_ctx[this_cpu()].idle_thread = tcb;
-
-      tcb->xcp.fpu_regs = (uint64_t *)&g_idle_thread_fpu[this_cpu()];
-    }
-
-  memset(tcb->xcp.fpu_regs, 0, sizeof(struct fpu_reg));
-  fpu_reg = (struct fpu_reg *)tcb->xcp.fpu_regs;
-  fpu_reg->fpu_trap = 0;
-}
-
-void arm64_destory_fpu(struct tcb_s * tcb)
-{
-  struct tcb_s * owner;
-
-  /* save current fpu owner's context */
-
-  owner = g_cpu_fpu_ctx[this_cpu()].fpu_owner;
-
-  if (owner == tcb)
-    {
-      g_cpu_fpu_ctx[this_cpu()].fpu_owner = NULL;
-    }
-}
-
-/***************************************************************************
- * Name: arm64_fpu_enter_exception
- *
- * Description:
- *   called at every time get into a exception
- *
- ***************************************************************************/
-
-void arm64_fpu_enter_exception(void)
-{
-}
-
-void arm64_fpu_exit_exception(void)
-{
-}
-
-void arm64_fpu_trap(struct regs_context * regs)
-{
-  struct tcb_s * owner;
-  struct fpu_reg *fpu_reg;
-
-  UNUSED(regs);
-
-  /* disable fpu trap access */
-
-  arm64_fpu_access_trap_disable();
-
-  /* save current fpu owner's context */
-
-  owner = g_cpu_fpu_ctx[this_cpu()].fpu_owner;
-
-  if (owner != NULL)
-    {
-      arm64_fpu_save((struct fpu_reg *)owner->xcp.fpu_regs);
-      ARM64_DSB();
-      g_cpu_fpu_ctx[this_cpu()].save_count++;
-      g_cpu_fpu_ctx[this_cpu()].fpu_owner = NULL;
-    }
-
-  if (arch_get_exception_depth() > 1)
-    {
-      /* if get_exception_depth > 1
-       * it means FPU access exception occurred in exception context
-       * switch FPU owner to idle thread
-       */
-
-      owner = g_cpu_fpu_ctx[this_cpu()].idle_thread;
-    }
-  else
-    {
-      owner = (struct tcb_s *)arch_get_current_tcb();
-    }
-
-  /* restore our context */
-
-  arm64_fpu_restore((struct fpu_reg *)owner->xcp.fpu_regs);
-  g_cpu_fpu_ctx[this_cpu()].restore_count++;
-
-  /* become new owner */
-
-  g_cpu_fpu_ctx[this_cpu()].fpu_owner   = owner;
-  fpu_reg = (struct fpu_reg *)owner->xcp.fpu_regs;
-  fpu_reg->fpu_trap = 0;
-}
-
-void arm64_fpu_context_restore(void)
-{
-  struct tcb_s *new_tcb = (struct tcb_s *)arch_get_current_tcb();
-  struct fpu_reg *fpu_reg = (struct fpu_reg *)new_tcb->xcp.fpu_regs;
-
-  arm64_fpu_access_trap_enable();
-
-  if (fpu_reg->fpu_trap == 0)
-    {
-      /* FPU trap hasn't happened at this task */
-
-      arm64_fpu_access_trap_enable();
-    }
-  else
-    {
-      /* FPU trap has happened at this task */
-
-      if (new_tcb == g_cpu_fpu_ctx[this_cpu()].fpu_owner)
-        {
-          arm64_fpu_access_trap_disable();
-        }
-      else
-        {
-          arm64_fpu_access_trap_enable();
-        }
-    }
-
-  g_cpu_fpu_ctx[this_cpu()].switch_count++;
-}
-
 void arm64_fpu_enable(void)
 {
   irqstate_t flags = up_irq_save();
@@ -426,14 +297,16 @@ void arm64_fpu_disable(void)
 
 bool up_fpucmp(const void *saveregs1, const void *saveregs2)
 {
-  const uint64_t *regs1  = saveregs1 + XCPTCONTEXT_GP_SIZE;
-  const uint64_t *regs2  = saveregs2 + XCPTCONTEXT_GP_SIZE;
+  const uint64_t *regs1 = (uint64_t *)((uintptr_t)saveregs1 +
+                                       ARM64_CONTEXT_SIZE);
+  const uint64_t *regs2 = (uint64_t *)((uintptr_t)saveregs2 +
+                                       ARM64_CONTEXT_SIZE);
 
   /* Only compare callee-saved registers, caller-saved registers do not
    * need to be preserved.
    */
 
-  return memcmp(&regs1[FPU_REG_Q4], &regs2[FPU_REG_Q4],
+  return memcmp(&regs1[REG_Q4], &regs2[REG_Q4],
                 8 * FPU_CALLEE_REGS) == 0;
 }
 

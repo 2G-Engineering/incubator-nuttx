@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/aio/aio_error.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -61,7 +63,7 @@
  *
  * Description:
  *   The aio_error() function returns the error status associated with the
- *   aiocb structure referenced by the aiocbp argument. The error status fo
+ *   aiocb structure referenced by the aiocbp argument. The error status for
  *   an asynchronous I/O operation is the errno value that would be set by
  *   the corresponding read(), write(), fdatasync(), or fsync() operation. If
  *   the operation has not yet completed, then the error status will be equal
@@ -88,6 +90,13 @@
 int aio_error(FAR const struct aiocb *aiocbp)
 {
   DEBUGASSERT(aiocbp);
+
+  /* the aio_reqprio field must be large or equal than 0 */
+
+  if (aiocbp->aio_reqprio < 0)
+    {
+      return EINVAL;
+    }
 
   if (aiocbp->aio_result < 0)
     {

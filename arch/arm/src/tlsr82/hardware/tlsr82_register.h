@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/tlsr82/hardware/tlsr82_register.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,6 +30,7 @@
 #include <nuttx/config.h>
 
 #include "arm_internal.h"
+#include <nuttx/bits.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -47,9 +50,7 @@
 
 /* Common macros definition */
 
-#define BIT(n)                  (1 << (n))
-#define BIT_MASK_LEN(len)       (BIT(len)-1)
-#define BIT_RNG(s, e)           (BIT_MASK_LEN((e) - (s) + 1) << (s))
+#define BIT_RNG(s, e)           (GENMASK(e, s))
 #define BM_SET(x, m)            ((x) |= (m))
 #define BM_CLR(x, m)            ((x) &= ~(m))
 #define BM_IS_SET(x, m)         ((x) & (m))
@@ -63,7 +64,7 @@
 #define RESET_RST2_REG          REG_ADDR8(0x62)
 #define RESET_PWDNEN_REG        REG_ADDR8(0x6f)
 
-/* Reset reson definition */
+/* Reset reason definition */
 
 #define RESET_RST0_SPI          BIT(0)
 #define RESET_RST0_I2C          BIT(1)

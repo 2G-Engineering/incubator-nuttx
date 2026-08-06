@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/sched.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -46,6 +48,8 @@
 #define SCHED_FIFO                1  /* FIFO priority scheduling policy */
 #define SCHED_RR                  2  /* Round robin scheduling policy */
 #define SCHED_SPORADIC            3  /* Sporadic scheduling policy */
+#define SCHED_BATCH               4  /* Batch scheduling policy */
+#define SCHED_IDLE                5  /* Idle scheduling policy */
 
 /* Maximum number of SCHED_SPORADIC replenishments */
 
@@ -71,112 +75,112 @@
 
 /* These are not standard but are defined for Linux compatibility */
 
-#ifdef CONFIG_SMP
+/* Maximum number of CPUs */
+
+#define CPU_SETSIZE CONFIG_SMP_NCPUS
 
 /* void CPU_ZERO(FAR cpu_set_t *set); */
 
-#  define CPU_ZERO(s) do { *(s) = 0; } while (0)
+#define CPU_ZERO(s) do { *(s) = 0; } while (0)
 
 /* void CPU_SET(int cpu, FAR cpu_set_t *set); */
 
-#  define CPU_SET(c,s) do { *(s) |= (1 << (c)); } while (0)
+#define CPU_SET(c,s) do { *(s) |= (1u << (c)); } while (0)
 
 /* void CPU_CLR(int cpu, FAR cpu_set_t *set); */
 
-#  define CPU_CLR(c,s) do { *(s) &= ~(1 << (c)); } while (0)
+#define CPU_CLR(c,s) do { *(s) &= ~(1u << (c)); } while (0)
 
 /* int  CPU_ISSET(int cpu, FAR const cpu_set_t *set); */
 
-#  define CPU_ISSET(c,s) ((*(s) & (1 << (c))) != 0)
+#define CPU_ISSET(c,s) ((*(s) & (1u << (c))) != 0)
 
 /* int CPU_COUNT(FAR const cpu_set_t *set); */
 
-#  define CPU_COUNT(s) popcountl(*s)
+#define CPU_COUNT(s) popcountl(*s)
 
 /* void CPU_AND(FAR cpu_set_t *destset, FAR const cpu_set_t *srcset1,
  *              FAR const cpu_set_t *srcset2);
  */
 
-#  define CPU_AND(d,s1,s2) do { *(d) = *(s1) & *(s2); } while (0)
+#define CPU_AND(d,s1,s2) do { *(d) = *(s1) & *(s2); } while (0)
 
 /* void CPU_OR(FAR cpu_set_t *destset, FAR const cpu_set_t *srcset1,
  *             FAR const cpu_set_t *srcset2);
  */
 
-#  define CPU_OR(d,s1,s2) do { *(d) = *(s1) | *(s2); } while (0)
+#define CPU_OR(d,s1,s2) do { *(d) = *(s1) | *(s2); } while (0)
 
 /* void CPU_XOR(FAR cpu_set_t *destset, FAR const cpu_set_t *srcset1,
  *              FAR const cpu_set_t *srcset2);
  */
 
-#  define CPU_XOR(d,s1,s2) do { *(d) = *(s1) ^ *(s2); } while (0)
+#define CPU_XOR(d,s1,s2) do { *(d) = *(s1) ^ *(s2); } while (0)
 
 /* int CPU_EQUAL(FAR const cpu_set_t *set1, FAR const cpu_set_t *set2); */
 
-#  define CPU_EQUAL(s1,s2) (*(s2) == *(s2))
+#define CPU_EQUAL(s1,s2) (*(s1) == *(s2))
 
 /* REVISIT: Variably sized CPU sets are not supported */
 
 /* FAR cpu_set_t *CPU_ALLOC(int num_cpus); */
 
-#  define CPU_ALLOC(n) (FAR cpu_set_t *)malloc(sizeof(cpu_set_t));
+#define CPU_ALLOC(n) (FAR cpu_set_t *)malloc(sizeof(cpu_set_t));
 
 /* void CPU_FREE(cpu_set_t *set); */
 
-#  define CPU_FREE(s) free(s)
+#define CPU_FREE(s) free(s)
 
 /* size_t CPU_ALLOC_SIZE(int num_cpus); */
 
-#  define CPU_ALLOC_SIZE(n) sizeof(cpu_set_t)
+#define CPU_ALLOC_SIZE(n) sizeof(cpu_set_t)
 
 /* void CPU_ZERO_S(size_t setsize, FAR cpu_set_t *set); */
 
-#  define CPU_ZERO_S(n,s) CPU_ZERO_S(s)
+#define CPU_ZERO_S(n,s) CPU_ZERO_S(s)
 
 /* void CPU_SET_S(int cpu, size_t setsize, FAR cpu_set_t *set); */
 
-#  define CPU_SET_S(c,n,s) CPU_SET(c,s)
+#define CPU_SET_S(c,n,s) CPU_SET(c,s)
 
 /* void CPU_CLR_S(int cpu, size_t setsize, FAR cpu_set_t *set); */
 
-#  define CPU_CLR_S(c,n,s) CPU_CLR(c,s)
+#define CPU_CLR_S(c,n,s) CPU_CLR(c,s)
 
 /* int CPU_ISSET_S(int cpu, size_t setsize, FAR const cpu_set_t *set); */
 
-#  define CPU_ISSET_S(c,n,s) CPU_ISSET(c,s)
+#define CPU_ISSET_S(c,n,s) CPU_ISSET(c,s)
 
 /* int CPU_COUNT_S(size_t setsize, FAR const cpu_set_t *set); */
 
-#  define CPU_COUNT_S(n,s) CPU_COUNT(s)
+#define CPU_COUNT_S(n,s) CPU_COUNT(s)
 
 /* void CPU_AND_S(size_t setsize, FAR cpu_set_t *destset,
  *                FAR const cpu_set_t *srcset1,
  *                FAR const cpu_set_t *srcset2);
  */
 
-#  define CPU_AND_S(n,d,s1,s2) CPU_AND(d,s1,s2)
+#define CPU_AND_S(n,d,s1,s2) CPU_AND(d,s1,s2)
 
 /* void CPU_OR_S(size_t setsize, FAR cpu_set_t *destset,
  *              FAR const cpu_set_t *srcset1,
  *              FAR const cpu_set_t *srcset2);
  */
 
-#  define CPU_OR_S(n,d,s1,s2) CPU_OR(d,s1,s2)
+#define CPU_OR_S(n,d,s1,s2) CPU_OR(d,s1,s2)
 
 /* void CPU_XOR_S(size_t setsize, FAR cpu_set_t *destset,
  *                FAR const cpu_set_t *srcset1,
  *                FAR const cpu_set_t *srcset2);
  */
 
-#  define CPU_XOR_S(n,d,s1,s2) CPU_XOR(d,s1,s2)
+#define CPU_XOR_S(n,d,s1,s2) CPU_XOR(d,s1,s2)
 
 /* int CPU_EQUAL_S(size_t setsize, FAR const cpu_set_t *set1,
  *                 FAR const cpu_set_t *set2);
  */
 
-#  define CPU_EQUAL_S(n,s1,s2) CPU_EQUAL(s1,s2)
-
-#endif /* CONFIG_SMP */
+#define CPU_EQUAL_S(n,s1,s2) CPU_EQUAL(s1,s2)
 
 /****************************************************************************
  * Public Type Definitions
@@ -235,6 +239,7 @@ void   task_testcancel(void);
 
 /* Task Scheduling Interfaces (based on POSIX APIs) */
 
+int    sched_getcpu(void);
 int    sched_setparam(pid_t pid, FAR const struct sched_param *param);
 int    sched_getparam(pid_t pid, FAR struct sched_param *param);
 int    sched_setscheduler(pid_t pid, int policy,
@@ -252,13 +257,16 @@ int    sched_setaffinity(pid_t pid, size_t cpusetsize,
                          FAR const cpu_set_t *mask);
 int    sched_getaffinity(pid_t pid, size_t cpusetsize, FAR cpu_set_t *mask);
 int    sched_cpucount(FAR const cpu_set_t *set);
-int    sched_getcpu(void);
+#else
+#  define sched_setaffinity(p, c, m) 0
+#  define sched_getaffinity(p, c, m) (*(m) |= (1 << 0), 0)
+#  define sched_cpucount(s) 1
 #endif /* CONFIG_SMP */
 
 /* Task Switching Interfaces (non-standard) */
 
-int    sched_lock(void);
-int    sched_unlock(void);
+void   sched_lock(void);
+void   sched_unlock(void);
 int    sched_lockcount(void);
 
 /* Queries */
@@ -267,8 +275,13 @@ bool   sched_idletask(void);
 
 /* Task Backtrace */
 
+#ifdef CONFIG_SCHED_BACKTRACE
 int    sched_backtrace(pid_t tid, FAR void **buffer, int size, int skip);
 void   sched_dumpstack(pid_t tid);
+#else
+#  define sched_backtrace(tid, buffer, size, skip) 0
+#  define sched_dumpstack(tid)
+#endif
 
 #undef EXTERN
 #if defined(__cplusplus)

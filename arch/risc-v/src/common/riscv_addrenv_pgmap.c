@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/common/riscv_addrenv_pgmap.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -38,6 +40,14 @@
 #include "riscv_mmu.h"
 
 #ifdef CONFIG_BUILD_KERNEL
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+#ifdef CONFIG_MM_KMAP
+static struct arch_addrenv_s g_kernel_addrenv;
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -139,7 +149,76 @@ bool up_addrenv_user_vaddr(uintptr_t vaddr)
   return riscv_uservaddr(vaddr);
 }
 
+/****************************************************************************
+ * Name: up_addrenv_page_wipe
+ *
+ * Description:
+ *   Wipe a page of physical memory, first mapping it into kernel virtual
+ *   memory.
+ *
+ * Input Parameters:
+ *   page - The page physical address.
+ *
+ * Returned Value:
+ *   None.
+ *
+ ****************************************************************************/
+
+void up_addrenv_page_wipe(uintptr_t page)
+{
+  riscv_pgwipe(page);
+}
+
 #ifdef CONFIG_MM_KMAP
+
+/****************************************************************************
+ * Name: up_addrenv_kmap_init
+ *
+ * Description:
+ *   Initialize the architecture specific part of the kernel mapping
+ *   interface.
+ *
+ * Input Parameters:
+ *   None.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; a negated errno value is returned
+ *   on failure.
+ *
+ ****************************************************************************/
+
+int up_addrenv_kmap_init(void)
+{
+  struct arch_addrenv_s *addrenv;
+  uintptr_t              next;
+  uintptr_t              vaddr;
+  int                    i;
+
+  /* Populate the static page tables one by one */
+
+  addrenv = &g_kernel_addrenv;
+  next    =  g_kernel_pgt_pbase;
+  vaddr   =  CONFIG_ARCH_KMAP_VBASE;
+
+  for (i = 0; i < ARCH_SPGTS; i++)
+    {
+      /* Connect the static page tables */
+
+      uintptr_t lnvaddr = riscv_pgvaddr(next);
+      addrenv->spgtables[i] = next;
+      next = mmu_pte_to_paddr(mmu_ln_getentry(i + 1, lnvaddr, vaddr));
+    }
+
+  /* Set the page directory root */
+
+  addrenv->satp = mmu_satp_reg(g_kernel_pgt_pbase, 0);
+
+  /* When all is set and done, flush the data caches */
+
+  UP_DMB();
+
+  return OK;
+}
 
 /****************************************************************************
  * Name: up_addrenv_kmap_pages
@@ -164,13 +243,11 @@ bool up_addrenv_user_vaddr(uintptr_t vaddr)
 int up_addrenv_kmap_pages(void **pages, unsigned int npages, uintptr_t vaddr,
                           int prot)
 {
-  struct tcb_s          *tcb     = nxsched_self();
-  struct arch_addrenv_s *addrenv = &tcb->addrenv_own->addrenv;
+  struct arch_addrenv_s *addrenv = &g_kernel_addrenv;
   int mask                       = 0;
 
   /* Sanity checks */
 
-  DEBUGASSERT(tcb && tcb->addrenv_own);
   DEBUGASSERT(pages != NULL && npages > 0);
   DEBUGASSERT(vaddr >= CONFIG_ARCH_KMAP_VBASE && vaddr < ARCH_KMAP_VEND);
   DEBUGASSERT(MM_ISALIGNED(vaddr));
@@ -202,7 +279,7 @@ int up_addrenv_kmap_pages(void **pages, unsigned int npages, uintptr_t vaddr,
 }
 
 /****************************************************************************
- * Name: riscv_unmap_pages
+ * Name: up_addrenv_kunmap_pages
  *
  * Description:
  *   Unmap a previously mapped virtual memory region.
@@ -220,12 +297,10 @@ int up_addrenv_kmap_pages(void **pages, unsigned int npages, uintptr_t vaddr,
 
 int up_addrenv_kunmap_pages(uintptr_t vaddr, unsigned int npages)
 {
-  struct tcb_s          *tcb     = nxsched_self();
-  struct arch_addrenv_s *addrenv = &tcb->addrenv_own->addrenv;
+  struct arch_addrenv_s *addrenv = &g_kernel_addrenv;
 
   /* Sanity checks */
 
-  DEBUGASSERT(tcb && tcb->addrenv_own);
   DEBUGASSERT(npages > 0);
   DEBUGASSERT(vaddr >= CONFIG_ARCH_KMAP_VBASE && vaddr < ARCH_KMAP_VEND);
   DEBUGASSERT(MM_ISALIGNED(vaddr));

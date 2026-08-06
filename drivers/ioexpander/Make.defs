@@ -1,6 +1,8 @@
 ############################################################################
 # drivers/ioexpander/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -32,12 +34,28 @@ ifeq ($(CONFIG_IOEXPANDER_DUMMY),y)
   CSRCS += ioe_dummy.c
 endif
 
+ifeq ($(CONFIG_IOEXPANDER_ICJX),y)
+  CSRCS += icjx.c
+endif
+
+ifeq ($(CONFIG_IOEXPANDER_ISO1H812G),y)
+  CSRCS += iso1h812g.c
+endif
+
+ifeq ($(CONFIG_IOEXPANDER_ISO1I813T),y)
+  CSRCS += iso1i813t.c
+endif
+
 ifeq ($(CONFIG_IOEXPANDER_PCA9555),y)
   CSRCS += pca9555.c
 endif
 
 ifeq ($(CONFIG_IOEXPANDER_PCA9538),y)
   CSRCS += pca9538.c
+endif
+
+ifeq ($(CONFIG_IOEXPANDER_PCA9557),y)
+  CSRCS += pca9557.c
 endif
 
 ifeq ($(CONFIG_IOEXPANDER_TCA64XX),y)
@@ -48,8 +66,24 @@ ifeq ($(CONFIG_IOEXPANDER_PCF8574),y)
   CSRCS += pcf8574.c
 endif
 
+ifeq ($(CONFIG_IOEXPANDER_PCF8575),y)
+  CSRCS += pcf8575.c
+endif
+
+ifeq ($(CONFIG_IOEXPANDER_MCP23X08),y)
+  CSRCS += mcp23x08.c
+endif
+
 ifeq ($(CONFIG_IOEXPANDER_MCP23X17),y)
   CSRCS += mcp23x17.c
+endif
+
+ifeq ($(CONFIG_IOEXPANDER_SX1509),y)
+  CSRCS += sx1509.c
+endif
+
+ifeq ($(CONFIG_IOEXPANDER_AW9523B),y)
+  CSRCS += aw9523b.c
 endif
 
 endif # CONFIG_IOEXPANDER

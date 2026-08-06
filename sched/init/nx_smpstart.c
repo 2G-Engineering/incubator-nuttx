@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/init/nx_smpstart.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,12 +29,13 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/sched.h>
 #include <nuttx/sched_note.h>
+#include <nuttx/init.h>
 
 #include "group/group.h"
 #include "sched/sched.h"
@@ -51,7 +54,7 @@
  *   This is the common start-up logic for the IDLE task for CPUs 1 through
  *   (CONFIG_SMP_NCPUS-1).  Having a start-up function such as this for the
  *   IDLE is not really an architectural necessity.  It is used only for
- *   symmetry with now other threads are started (see nxtask_start() and
+ *   symmetry with how other threads are started (see nxtask_start() and
  *   pthread_start()).
  *
  * Input Parameters:
@@ -64,13 +67,19 @@
 
 void nx_idle_trampoline(void)
 {
-#ifdef CONFIG_SCHED_INSTRUMENTATION
+#ifdef CONFIG_SCHED_INSTRUMENTATION_SWITCH
   FAR struct tcb_s *tcb = this_task();
 
   /* Announce that the IDLE task has started */
 
   sched_note_start(tcb);
 #endif
+
+  /* wait until cpu0 in idle() */
+
+  while (!OSINIT_IDLELOOP());
+
+  sched_unlock();
 
   /* Enter the IDLE loop */
 
@@ -110,6 +119,10 @@ int nx_smp_start(void)
 {
   int ret;
   int cpu;
+
+  /* Flush dcache before start other CPUs. */
+
+  up_flush_dcache_all();
 
   /* Start all of the other CPUs.  CPU0 is already running. */
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm64/a64/pinephone/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -66,6 +68,6 @@ typedef enum
 #define LED_SIGNAL         5 /* In a signal handler      ON     OFF   ON   */
 #define LED_ASSERTION      6 /* An assertion failed      OFF    ON    ON   */
 #define LED_PANIC          7 /* The system has crashed   FLASH  ON    ON   */
-#define LED_IDLE           8 /* MCU is is sleep mode     OFF    FLASH OFF  */
+#define LED_IDLE           8 /* MCU is in sleep mode     OFF    FLASH OFF  */
 
 #endif /* __BOARDS_ARM64_A64_PINEPHONE_INCLUDE_BOARD_H */

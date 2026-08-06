@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/sam34/sam3u-ek/scripts/memory.ld
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -66,15 +68,15 @@ MEMORY
 {
   /* 256Kb FLASH */
 
-  kflash (rx)  : ORIGIN = 0x00080000, LENGTH = 64K
-  uflash (rx)  : ORIGIN = 0x00090000, LENGTH = 64K
+  kflash (rx)  : ORIGIN = 0x00080000, LENGTH = 80K
+  uflash (rx)  : ORIGIN = 0x00094000, LENGTH = 48K
   xflash (rx)  : ORIGIN = 0x000a0000, LENGTH = 128K
 
   /* 32Kb SRAM */
 
-  ksram1 (rwx) : ORIGIN = 0x20000000, LENGTH = 4K
-  usram1 (rwx) : ORIGIN = 0x20001000, LENGTH = 4K
-  xsram1 (rwx) : ORIGIN = 0x20002000, LENGTH = 24K
+  ksram1 (rwx) : ORIGIN = 0x20000000, LENGTH = 6K
+  usram1 (rwx) : ORIGIN = 0x20001800, LENGTH = 4K
+  xsram1 (rwx) : ORIGIN = 0x20002800, LENGTH = 22K
 
   /* 16Kb SRAM */
 

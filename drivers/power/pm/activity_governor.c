@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/power/pm/activity_governor.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -54,7 +56,7 @@
 #define TIME_SLICE_TICKS ((CONFIG_PM_GOVERNOR_SLICEMS * CLOCKS_PER_SEC) /  1000)
 
 /****************************************************************************
- * Private Type Declarations
+ * Private Types
  ****************************************************************************/
 
 struct pm_domain_state_s
@@ -103,20 +105,23 @@ struct pm_domain_state_s
 
 struct pm_activity_governor_s
 {
-  /* Threshold time slice count to enter the next low power consdumption
-   * state. Indexing is next state 0:IDLE, 1: STANDBY, 2: SLEEP.
+  /* Threshold time slice count to enter the next lower power consumption
+   * state.  This array is indexed by next state:
+   * 0: IDLE, 1: STANDBY, 2: SLEEP.
    */
 
   const uint32_t pmcount[3];
 
-  /* Threshold activity values to enter into the next lower power consumption
-   * state. Indexing is next state 0:IDLE, 1:STANDBY, 2:SLEEP.
+  /* Threshold activity values to enter the next lower power consumption
+   * state.  This array is indexed by next state:
+   * 0: IDLE, 1: STANDBY, 2: SLEEP.
    */
 
   const int32_t pmenterthresh[3];
 
-  /* Threshold activity values to leave the current low power consdumption
-   * state. Indexing is current state 0:IDLE, 1: STANDBY, 2: SLEEP.
+  /* Threshold activity values to leave the current power consumption
+   * state.  This array is indexed by current state:
+   * 0: IDLE, 1: STANDBY, 2: SLEEP.
    */
 
   const int32_t pmexitthresh[3];
@@ -141,7 +146,7 @@ static void governor_initialize(void);
 static void governor_statechanged(int domain, enum pm_state_e newstate);
 static enum pm_state_e governor_checkstate(int domain);
 static void governor_activity(int domain, int count);
-static void governor_timer(int domain);
+static void governor_timer(int domain, enum pm_state_e newstate);
 static void governor_update(int domain, int16_t accum);
 
 /****************************************************************************
@@ -317,7 +322,7 @@ static void governor_update(int domain, int16_t accum)
 
   DEBUGASSERT(domain >= 0 && domain < CONFIG_PM_NDOMAINS);
   pdomstate = &g_pm_activity_governor.domain_states[domain];
-  state     = g_pmglobals.domain[domain].state;
+  state     = g_pmdomains[domain].state;
 
 #if CONFIG_PM_GOVERNOR_MEMORY > 1
   /* We won't bother to do anything until we have accumulated
@@ -469,7 +474,7 @@ static enum pm_state_e governor_checkstate(int domain)
   /* Get a convenience pointer to minimize all of the indexing */
 
   pdomstate = &g_pm_activity_governor.domain_states[domain];
-  pdom      = &g_pmglobals.domain[domain];
+  pdom      = &g_pmdomains[domain];
 
   /* Check for the end of the current time slice.  This must be performed
    * with interrupts disabled so that it does not conflict with the similar
@@ -526,7 +531,7 @@ static void governor_statechanged(int domain, enum pm_state_e newstate)
     {
       /* Start PM timer to decrease PM state */
 
-      governor_timer(domain);
+      governor_timer(domain, newstate);
     }
 }
 
@@ -543,18 +548,18 @@ static void governor_timer_cb(wdparm_t arg)
  *   state level.
  *
  * Input Parameters:
- *   domain - The PM domain associated with the accumulator
+ *   domain   - The PM domain associated with the accumulator
+ *   newstate - The PM domain newstate
  *
  * Returned Value:
  *   None.
  *
  ****************************************************************************/
 
-static void governor_timer(int domain)
+static void governor_timer(int domain, enum pm_state_e newstate)
 {
   FAR struct pm_domain_state_s *pdomstate;
   FAR struct pm_domain_s *pdom;
-  uint8_t state;
 
   static const int pmtick[3] =
   {
@@ -563,16 +568,15 @@ static void governor_timer(int domain)
     TIME_SLICE_TICKS * CONFIG_PM_GOVERNOR_SLEEPENTER_COUNT
   };
 
-  pdom      = &g_pmglobals.domain[domain];
+  pdom      = &g_pmdomains[domain];
   pdomstate = &g_pm_activity_governor.domain_states[domain];
-  state     = pdom->state;
 
-  if (state < PM_SLEEP && dq_empty(&pdom->wakelock[state]))
+  if (newstate < PM_SLEEP && dq_empty(&pdom->wakelock[newstate]))
     {
-      sclock_t delay = pmtick[state] +
-                       pdomstate->btime -
-                       clock_systime_ticks();
-      sclock_t left  = wd_gettime(&pdomstate->wdog);
+      clock_t delay = pmtick[newstate] +
+                      pdomstate->btime -
+                      clock_systime_ticks();
+      clock_t left  = wd_gettime(&pdomstate->wdog);
 
       if (delay <= 0)
         {

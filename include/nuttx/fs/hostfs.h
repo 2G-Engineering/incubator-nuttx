@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/fs/hostfs.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -74,20 +76,34 @@
 
 /* These must exactly match the definitions from include/fcntl.h: */
 
-#define NUTTX_O_RDONLY          (1 << 0)  /* Open for read access (only) */
-#define NUTTX_O_WRONLY          (1 << 1)  /* Open for write access (only) */
-#define NUTTX_O_CREAT           (1 << 2)  /* Create file/sem/mq object */
-#define NUTTX_O_EXCL            (1 << 3)  /* Name must not exist when opened  */
-#define NUTTX_O_APPEND          (1 << 4)  /* Keep contents, append to end */
-#define NUTTX_O_TRUNC           (1 << 5)  /* Delete contents */
-#define NUTTX_O_NONBLOCK        (1 << 6)  /* Don't wait for data */
-#define NUTTX_O_SYNC            (1 << 7)  /* Synchronize output on write */
-#define NUTTX_O_TEXT            (1 << 8)  /* Open the file in text (translated) mode. */
-#define NUTTX_O_DIRECT          (1 << 9)  /* Avoid caching, write directly to hardware */
-#define NUTTX_O_CLOEXEC         (1 << 10) /* Close on execute */
-#define NUTTX_O_DIRECTORY       (1 << 11) /* Must be a directory */
+#define NUTTX_O_RDONLY          (0 << 0)       /* Open for read access (only) */
+#define NUTTX_O_WRONLY          (1 << 0)       /* Open for write access (only) */
+#define NUTTX_O_RDWR            (2 << 0)       /* Open for both read & write access */
+#define NUTTX_O_ACCMODE         (3 << 0)       /* Mask for access mode */
+#define NUTTX_O_TEXT            (1 << 5)       /* Open the file in text (translated) mode. */
+#define NUTTX_O_CREAT           (1 << 6)       /* Create file/sem/mq object */
+#define NUTTX_O_EXCL            (1 << 7)       /* Name must not exist when opened  */
+#define NUTTX_O_NOCTTY          (1 << 8)       /* Don't assign a controlling terminal */
+#define NUTTX_O_TRUNC           (1 << 9)       /* Delete contents */
+#define NUTTX_O_APPEND          (1 << 10)      /* Keep contents, append to end */
+#define NUTTX_O_NONBLOCK        (1 << 11)      /* Don't wait for data */
+#define NUTTX_O_DSYNC           (1 << 12)      /* Synchronize data on write */
+#define NUTTX_O_ASYNC           (1 << 13)      /* Enable signal-driven I/O */
+#define NUTTX_O_DIRECT          (1 << 14)      /* Avoid caching, write directly to hardware */
+#define NUTTX_O_LARGEFILE       (1 << 15)      /* Large File */
+#define NUTTX_O_DIRECTORY       (1 << 16)      /* Must be a directory */
+#define NUTTX_O_NOFOLLOW        (1 << 17)      /* Don't follow links */
+#define NUTTX_O_NOATIME         (1 << 18)      /* Don't update the file last access time */
+#define NUTTX_O_CLOEXEC         (1 << 19)      /* Close on execute */
+#define NUTTX___O_SYNC          (1 << 20)      /* Synchronize file (data+metadata) */
+#define NUTTX_O_PATH            (1 << 21)      /* Obtain a path-only fd (no I/O) */
+#define NUTTX___O_TMPFILE       (1 << 22)      /* Create an unnamed temporary file */
 
-#define NUTTX_O_RDWR            (NUTTX_O_RDONLY | NUTTX_O_WRONLY)
+#define NUTTX_O_NDELAY          NUTTX_O_NONBLOCK                        /* Synonym for O_NONBLOCK */
+#define NUTTX_O_SYNC            (NUTTX___O_SYNC | NUTTX_O_DSYNC)        /* Synchronize output on write */
+#define NUTTX_O_RSYNC           NUTTX_O_SYNC                            /* Synchronize input on read */
+#define NUTTX_O_TMPFILE         (NUTTX___O_TMPFILE | NUTTX_O_DIRECTORY) /* Create a temporary file */
+#define NUTTX_O_BINARY          0                                       /* Open the file in binary mode */
 
 /* Should match definition in include/nuttx/fs/fs.h */
 
@@ -108,30 +124,38 @@
 /* These must match the definitions in include/sys/types.h */
 
 typedef int16_t      nuttx_blksize_t;
+#  ifdef CONFIG_SMALL_MEMORY
 typedef int16_t      nuttx_gid_t;
 typedef int16_t      nuttx_uid_t;
+typedef uint16_t     nuttx_size_t;
+typedef int16_t      nuttx_ssize_t;
+#  else /* CONFIG_SMALL_MEMORY */
+typedef unsigned int nuttx_gid_t;
+typedef unsigned int nuttx_uid_t;
+typedef uintptr_t    nuttx_size_t;
+typedef intptr_t     nuttx_ssize_t;
+#  endif /* CONFIG_SMALL_MEMORY */
 typedef uint32_t     nuttx_dev_t;
 typedef uint16_t     nuttx_ino_t;
 typedef uint16_t     nuttx_nlink_t;
-#ifdef CONFIG_FS_LARGEFILE
+#  ifdef CONFIG_FS_LARGEFILE
 typedef int64_t      nuttx_off_t;
 typedef uint64_t     nuttx_blkcnt_t;
-#else
+#  else
 typedef int32_t      nuttx_off_t;
 typedef uint32_t     nuttx_blkcnt_t;
-#endif
+#  endif
 typedef unsigned int nuttx_mode_t;
-typedef uintptr_t    nuttx_size_t;
-typedef intptr_t     nuttx_ssize_t;
+typedef int          nuttx_fsid_t[2];
 
 /* These must match the definition in include/time.h */
 
-typedef uint32_t     nuttx_time_t;
+typedef int64_t      nuttx_time_t;
 
 struct nuttx_timespec
 {
-    nuttx_time_t tv_sec;
-    long tv_nsec;
+  nuttx_time_t tv_sec;
+  long tv_nsec;
 };
 
 /* These must exactly match the definition from include/dirent.h: */
@@ -146,14 +170,15 @@ struct nuttx_dirent_s
 
 struct nuttx_statfs_s
 {
-  uint32_t     f_type;     /* Type of filesystem */
-  nuttx_size_t f_namelen;  /* Maximum length of filenames */
-  nuttx_size_t f_bsize;    /* Optimal block size for transfers */
-  nuttx_off_t  f_blocks;   /* Total data blocks in the file system of this size */
-  nuttx_off_t  f_bfree;    /* Free blocks in the file system */
-  nuttx_off_t  f_bavail;   /* Free blocks avail to non-superuser */
-  nuttx_off_t  f_files;    /* Total file nodes in the file system */
-  nuttx_off_t  f_ffree;    /* Free file nodes in the file system */
+  uint32_t       f_type;     /* Type of filesystem */
+  nuttx_size_t   f_namelen;  /* Maximum length of filenames */
+  nuttx_size_t   f_bsize;    /* Optimal block size for transfers */
+  nuttx_blkcnt_t f_blocks;   /* Total data blocks in the file system of this size */
+  nuttx_blkcnt_t f_bfree;    /* Free blocks in the file system */
+  nuttx_blkcnt_t f_bavail;   /* Free blocks avail to non-superuser */
+  nuttx_blkcnt_t f_files;    /* Total file nodes in the file system */
+  nuttx_blkcnt_t f_ffree;    /* Free file nodes in the file system */
+  nuttx_fsid_t   f_fsid;     /* Encode device type, not yet in use */
 };
 
 /* These must exactly match the definition from include/sys/stat.h: */
@@ -182,11 +207,12 @@ struct nuttx_stat_s
  ****************************************************************************/
 
 #ifdef __SIM__
-int           host_open(const char *pathname, int flags, nuttx_mode_t mode);
+int           host_open(const char *pathname, int flags, int mode);
 int           host_close(int fd);
 nuttx_ssize_t host_read(int fd, void *buf, nuttx_size_t count);
 nuttx_ssize_t host_write(int fd, const void *buf, nuttx_size_t count);
-nuttx_off_t   host_lseek(int fd, nuttx_off_t offset, int whence);
+nuttx_off_t   host_lseek(int fd, nuttx_off_t pos, nuttx_off_t offset,
+                         int whence);
 int           host_ioctl(int fd, int request, unsigned long arg);
 void          host_sync(int fd);
 int           host_dup(int fd);
@@ -200,7 +226,7 @@ void          host_rewinddir(void *dirp);
 int           host_closedir(void *dirp);
 int           host_statfs(const char *path, struct nuttx_statfs_s *buf);
 int           host_unlink(const char *pathname);
-int           host_mkdir(const char *pathname, nuttx_mode_t mode);
+int           host_mkdir(const char *pathname, int mode);
 int           host_rmdir(const char *pathname);
 int           host_rename(const char *oldpath, const char *newpath);
 int           host_stat(const char *path, struct nuttx_stat_s *buf);
@@ -211,7 +237,7 @@ int           host_open(const char *pathname, int flags, int mode);
 int           host_close(int fd);
 ssize_t       host_read(int fd, void *buf, size_t count);
 ssize_t       host_write(int fd, const void *buf, size_t count);
-off_t         host_lseek(int fd, off_t offset, int whence);
+off_t         host_lseek(int fd, off_t pos, off_t offset, int whence);
 int           host_ioctl(int fd, int request, unsigned long arg);
 void          host_sync(int fd);
 int           host_dup(int fd);

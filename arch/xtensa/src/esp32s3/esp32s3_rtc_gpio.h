@@ -31,7 +31,7 @@
 #include <stdint.h>
 
 #include "hardware/esp32s3_rtc_io.h"
-#include "hardware/esp32s3_rtccntl.h"
+#include "soc/rtc_cntl_reg.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -508,7 +508,7 @@ static const rtc_io_desc_t g_rtc_io_desc[RTC_GPIO_NUMBER] =
     RTCIO_RTC_PAD19_SLP_IE_M,
     RTCIO_RTC_PAD19_SLP_OE_M,
     0,
-    RTC_CNTL_RTC_PAD19_HOLD_M,
+    RTC_CNTL_PAD19_HOLD_M,
     RTCIO_RTC_PAD19_DRV_V,
     RTCIO_RTC_PAD19_DRV_S,
     RTCIO_CHANNEL_19_GPIO_NUM
@@ -524,7 +524,7 @@ static const rtc_io_desc_t g_rtc_io_desc[RTC_GPIO_NUMBER] =
     RTCIO_RTC_PAD20_SLP_IE_M,
     RTCIO_RTC_PAD20_SLP_OE_M,
     0,
-    RTC_CNTL_RTC_PAD20_HOLD_M,
+    RTC_CNTL_PAD20_HOLD_M,
     RTCIO_RTC_PAD20_DRV_V,
     RTCIO_RTC_PAD20_DRV_S,
     RTCIO_CHANNEL_20_GPIO_NUM
@@ -540,7 +540,7 @@ static const rtc_io_desc_t g_rtc_io_desc[RTC_GPIO_NUMBER] =
     RTCIO_RTC_PAD21_SLP_IE_M,
     RTCIO_RTC_PAD21_SLP_OE_M,
     0,
-    RTC_CNTL_RTC_PAD21_HOLD_M,
+    RTC_CNTL_PAD21_HOLD_M,
     RTCIO_RTC_PAD21_DRV_V,
     RTCIO_RTC_PAD21_DRV_S,
     RTCIO_CHANNEL_21_GPIO_NUM
@@ -576,7 +576,40 @@ static const rtc_io_desc_t g_rtc_io_desc[RTC_GPIO_NUMBER] =
 int esp32s3_configrtcio(int rtcio_num, rtcio_pinattr_t attr);
 
 /****************************************************************************
- * Name: esp32s3_rtcioirqinitialize
+ * Name: esp32s3_rtcioread
+ *
+ * Description:
+ *   Read one or zero from the selected RTC GPIO pin
+ *
+ * Input Parameters:
+ *   rtcio_num - RTCIO rtcio_num to be read.
+ *
+ * Returned Value:
+ *   The boolean representation of the input value (true/false).
+ *
+ ****************************************************************************/
+
+int esp32s3_rtcioread(int rtcio_num);
+
+/****************************************************************************
+ * Name: esp32s3_rtciowrite
+ *
+ * Description:
+ *   Write one or zero to the selected RTC GPIO pin
+ *
+ * Input Parameters:
+ *   rtcio_num - GPIO pin to be modified.
+ *   value     - The value to be written (0 or 1).
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+void esp32s3_rtciowrite(int rtcio_num, bool value);
+
+/****************************************************************************
+ * Name: esp_rtcioirqinitialize
  *
  * Description:
  *   Initialize logic to support a second level of interrupt decoding for
@@ -591,9 +624,9 @@ int esp32s3_configrtcio(int rtcio_num, rtcio_pinattr_t attr);
  ****************************************************************************/
 
 #ifdef CONFIG_ESP32S3_RTCIO_IRQ
-void esp32s3_rtcioirqinitialize(void);
+void esp_rtcioirqinitialize(void);
 #else
-#  define esp32s3_rtcioirqinitialize()
+#  define esp_rtcioirqinitialize()
 #endif
 
 /****************************************************************************
@@ -634,6 +667,49 @@ void esp32s3_rtcioirqenable(int irq);
 void esp32s3_rtcioirqdisable(int irq);
 #else
 #  define esp32s3_rtcioirqdisable(irq)
+#endif
+
+/****************************************************************************
+ * Name: esp32s3_rtcioirqattach
+ *
+ * Description:
+ *   Attach an interrupt handler to a specified RTC IRQ
+ *
+ * Input Parameters:
+ *   irq     - RTC IRQ number to attach the handler to
+ *   handler - Interrupt handler function
+ *   arg     - Argument to pass to the handler
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; A negated errno value is returned
+ *   to indicate the nature of any failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ESP32S3_RTCIO_IRQ
+int esp32s3_rtcioirqattach(int irq, xcpt_t handler, void *arg);
+#else
+#  define esp32s3_rtcioirqattach(irq, handler, arg) (-ENOSYS)
+#endif
+/****************************************************************************
+ * Name: esp32s3_rtcioirqdetach
+ *
+ * Description:
+ *   Detach an interrupt handler from a specified RTC IRQ
+ *
+ * Input Parameters:
+ *   irq - RTC IRQ number to detach the handler from
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; A negated errno value is returned
+ *   to indicate the nature of any failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ESP32S3_RTCIO_IRQ
+int esp32s3_rtcioirqdetach(int irq);
+#else
+#  define esp32s3_rtcioirqdetach(irq) (-ENOSYS)
 #endif
 
 #endif /* __ASSEMBLY__ */

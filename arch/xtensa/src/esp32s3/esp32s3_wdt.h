@@ -30,10 +30,31 @@
 #include <stdint.h>
 
 #include <nuttx/irq.h>
+#include <nuttx/timers/watchdog.h>
+
+#include "esp32s3_wdt_lowerhalf.h"
+#include "esp_irq.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+/* IOCTL Commands ***********************************************************/
+
+/* The watchdog driver uses a standard character driver framework.  However,
+ * since the watchdog driver is a device control interface and not a data
+ * transfer interface, the majority of the functionality is implemented in
+ * driver ioctl calls.
+ *
+ * See nuttx/timers/watchdog.h for the IOCTLs handled by the upper half.
+ *
+ * These are detected and handled by the "lower half" watchdog timer driver.
+ *
+ * WDIOC_RSTCLK     - Restores the xtal32k clock
+ *                    Argument: Ignored
+ */
+
+#define WDIOC_RSTCLK      _WDIOC(0x032)
 
 /* Helpers ******************************************************************/
 
@@ -42,27 +63,21 @@
 #define ESP32S3_WDT_LOCK(d)                   ((d)->ops->enablewp(d))
 #define ESP32S3_WDT_UNLOCK(d)                 ((d)->ops->disablewp(d))
 #define ESP32S3_MWDT_PRE(d, v)                ((d)->ops->pre(d, v))
+#define ESP32S3_XTWDT_PRE(d, v)               ((d)->ops->pre(d, v))
 #define ESP32S3_WDT_STO(d, v, s)              ((d)->ops->settimeout(d, v, s))
 #define ESP32S3_WDT_FEED(d)                   ((d)->ops->feed(d))
 #define ESP32S3_WDT_STG_CONF(d, s, c)         ((d)->ops->stg_conf(d, s, c))
 #define ESP32S3_RWDT_CLK(d)                   ((d)->ops->rtc_clk(d))
+#define ESP32S3_XTWDT_CLK(d)                  ((d)->ops->rtc_clk(d))
 #define ESP32S3_WDT_SETISR(d, hnd, arg)       ((d)->ops->setisr(d, hnd, arg))
 #define ESP32S3_WDT_ENABLEINT(d)              ((d)->ops->enableint(d))
 #define ESP32S3_WDT_DISABLEINT(d)             ((d)->ops->disableint(d))
 #define ESP32S3_WDT_ACKINT(d)                 ((d)->ops->ackint(d))
+#define ESP32S3_XTWDT_RST_CLK(d)              ((d)->ops->rstclk(d))
 
 /****************************************************************************
  * Public Types
  ****************************************************************************/
-
-/* Instances of Watchdog Timer  */
-
-enum esp32s3_wdt_inst_e
-{
-  ESP32S3_WDT_MWDT0 = 0,  /* Main System Watchdog Timer (MWDT) of Timer Group 0 */
-  ESP32S3_WDT_MWDT1,      /* Main System Watchdog Timer (MWDT) of Timer Group 1 */
-  ESP32S3_WDT_RWDT        /* RTC Watchdog Timer (RWDT) */
-};
 
 /* Stages of a Watchdog Timer. A WDT has 4 stages. */
 
@@ -74,10 +89,9 @@ enum esp32s3_wdt_stage_e
   ESP32S3_WDT_STAGE3 = 3      /* Stage 3 */
 };
 
-/**
- * Behavior of the WDT stage if it times out.
+/* Behavior of the WDT stage if it times out.
  *
- * @note These enum values should be compatible with the
+ * Note: These enum values should be compatible with the
  *       corresponding register field values.
  */
 
@@ -93,6 +107,15 @@ enum esp32s3_wdt_stage_action_e
   ESP32S3_WDT_STAGE_ACTION_RESET_RTC = 4      /* Reset the main system and the RTC when the stage expires.
                                                * ONLY AVAILABLE FOR RWDT.
                                                */
+};
+
+/* Type of the WDT Peripheral */
+
+enum wdt_peripheral_e
+{
+  RTC,
+  TIMER,
+  XTAL32K,
 };
 
 /* ESP32-S3 WDT device */
@@ -130,11 +153,13 @@ struct esp32s3_wdt_ops_s
 
   /* WDT interrupts */
 
-  int32_t (*setisr)(struct esp32s3_wdt_dev_s *dev, xcpt_t handler,
+  int32_t (*setisr)(struct esp32s3_wdt_dev_s *dev,
+                    xcpt_t handler,
                     void *arg);
   void (*enableint)(struct esp32s3_wdt_dev_s *dev);
   void (*disableint)(struct esp32s3_wdt_dev_s *dev);
   void (*ackint)(struct esp32s3_wdt_dev_s *dev);
+  void (*rstclk)(struct esp32s3_wdt_dev_s *dev);
 };
 
 /****************************************************************************

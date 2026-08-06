@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/risc-v/esp32c3/esp32c3-devkit/src/esp32c3-devkit.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,21 +27,24 @@
  * Included Files
  ****************************************************************************/
 
-#include <nuttx/compiler.h>
+#include <nuttx/config.h>
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* TIMERS */
+/* RMT gpio */
 
-#define TIMER0 0
-#define TIMER1 1
+#define RMT_RXCHANNEL       2
+#define RMT_TXCHANNEL       0
 
-/* ONESHOT */
-
-#define ONESHOT_TIMER         1
-#define ONESHOT_RESOLUTION_US 1
+#ifdef CONFIG_RMT_LOOP_TEST_MODE
+#  define RMT_INPUT_PIN     0
+#  define RMT_OUTPUT_PIN    0
+#else
+#  define RMT_INPUT_PIN     2
+#  define RMT_OUTPUT_PIN    8
+#endif
 
 /****************************************************************************
  * Public Types
@@ -56,27 +61,57 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: esp32c3_bringup
+ * Name: esp_bringup
  *
  * Description:
- *   Perform architecture-specific initialization
+ *   Perform architecture-specific initialization.
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=y && CONFIG_BOARDCTL=y :
- *     Called from the NSH library via board_app_initialize()
+ * Input Parameters:
+ *   None.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; A negated errno value is returned on
+ *   any failure.
  *
  ****************************************************************************/
 
-int esp32c3_bringup(void);
+int esp_bringup(void);
 
 /****************************************************************************
- * Name: esp32c3_gpio_init
+ * Name: board_twai_setup
+ *
+ * Description:
+ *  Initialize TWAI and register the TWAI device
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; A negated errno value is returned on
+ *   any failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ESPRESSIF_TWAI
+int board_twai_setup(void);
+#endif
+
+/****************************************************************************
+ * Name: esp_gpio_init
+ *
+ * Description:
+ *   Configure the GPIO driver.
+ *
+ * Returned Value:
+ *   Zero (OK).
+ *
  ****************************************************************************/
 
 #ifdef CONFIG_DEV_GPIO
-int esp32c3_gpio_init(void);
+int esp_gpio_init(void);
 #endif
 
 #endif /* __ASSEMBLY__ */

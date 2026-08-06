@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/udp/udp_wrbuffer.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,7 +37,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/queue.h>
 #include <nuttx/semaphore.h>
@@ -46,63 +48,18 @@
 #include "udp/udp.h"
 
 /****************************************************************************
- * Private Types
- ****************************************************************************/
-
-/* Package all globals used by this logic into a structure */
-
-struct wrbuffer_s
-{
-  /* The semaphore to protect the buffers */
-
-  sem_t sem;
-
-  /* This is the list of available write buffers */
-
-  sq_queue_t freebuffers;
-
-  /* These are the pre-allocated write buffers */
-
-  struct udp_wrbuffer_s buffers[CONFIG_NET_UDP_NWRBCHAINS];
-};
-
-/****************************************************************************
  * Private Data
  ****************************************************************************/
 
 /* This is the state of the global write buffer resource */
 
-static struct wrbuffer_s g_wrbuffer =
-{
-  SEM_INITIALIZER(CONFIG_NET_UDP_NWRBCHAINS)
-};
+NET_BUFPOOL_DECLARE(g_wrbuffer, sizeof(struct udp_wrbuffer_s),
+                    CONFIG_NET_UDP_NWRBCHAINS,
+                    CONFIG_NET_UDP_ALLOC_WRBCHAINS, 0);
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: udp_wrbuffer_initialize
- *
- * Description:
- *   Initialize the list of free write buffers
- *
- * Assumptions:
- *   Called once early initialization.
- *
- ****************************************************************************/
-
-void udp_wrbuffer_initialize(void)
-{
-  int i;
-
-  sq_init(&g_wrbuffer.freebuffers);
-
-  for (i = 0; i < CONFIG_NET_UDP_NWRBCHAINS; i++)
-    {
-      sq_addfirst(&g_wrbuffer.buffers[i].wb_node, &g_wrbuffer.freebuffers);
-    }
-}
 
 /****************************************************************************
  * Name: udp_wrbuffer_alloc
@@ -132,15 +89,8 @@ FAR struct udp_wrbuffer_s *udp_wrbuffer_alloc(void)
    * buffer
    */
 
-  net_sem_wait_uninterruptible(&g_wrbuffer.sem);
-
-  /* Now, we are guaranteed to have a write buffer structure reserved
-   * for us in the free list.
-   */
-
-  wrb = (FAR struct udp_wrbuffer_s *)sq_remfirst(&g_wrbuffer.freebuffers);
+  wrb = NET_BUFPOOL_ALLOC(g_wrbuffer);
   DEBUGASSERT(wrb);
-  memset(wrb, 0, sizeof(struct udp_wrbuffer_s));
 
   /* Now get the first I/O buffer for the write buffer structure */
 
@@ -176,7 +126,6 @@ FAR struct udp_wrbuffer_s *udp_wrbuffer_alloc(void)
 FAR struct udp_wrbuffer_s *udp_wrbuffer_timedalloc(unsigned int timeout)
 {
   FAR struct udp_wrbuffer_s *wrb;
-  int ret;
 
   /* We need to allocate two things:  (1) A write buffer structure and (2)
    * at least one I/O buffer to start the chain.
@@ -186,19 +135,11 @@ FAR struct udp_wrbuffer_s *udp_wrbuffer_timedalloc(unsigned int timeout)
    * buffer
    */
 
-  ret = net_sem_timedwait_uninterruptible(&g_wrbuffer.sem, timeout);
-  if (ret != OK)
+  wrb = NET_BUFPOOL_TIMEDALLOC(g_wrbuffer, timeout);
+  if (wrb == NULL)
     {
       return NULL;
     }
-
-  /* Now, we are guaranteed to have a write buffer structure reserved
-   * for us in the free list.
-   */
-
-  wrb = (FAR struct udp_wrbuffer_s *)sq_remfirst(&g_wrbuffer.freebuffers);
-  DEBUGASSERT(wrb);
-  memset(wrb, 0, sizeof(struct udp_wrbuffer_s));
 
   /* Now get the first I/O buffer for the write buffer structure */
 
@@ -236,7 +177,11 @@ FAR struct udp_wrbuffer_s *udp_wrbuffer_timedalloc(unsigned int timeout)
  *
  ****************************************************************************/
 
+#ifdef CONFIG_NET_JUMBO_FRAME
+FAR struct udp_wrbuffer_s *udp_wrbuffer_tryalloc(int len)
+#else
 FAR struct udp_wrbuffer_s *udp_wrbuffer_tryalloc(void)
+#endif
 {
   FAR struct udp_wrbuffer_s *wrb;
 
@@ -248,22 +193,20 @@ FAR struct udp_wrbuffer_s *udp_wrbuffer_tryalloc(void)
    * buffer
    */
 
-  if (nxsem_trywait(&g_wrbuffer.sem) != OK)
+  wrb = NET_BUFPOOL_TRYALLOC(g_wrbuffer);
+  if (wrb == NULL)
     {
       return NULL;
     }
 
-  /* Now, we are guaranteed to have a write buffer structure reserved
-   * for us in the free list.
-   */
-
-  wrb = (FAR struct udp_wrbuffer_s *)sq_remfirst(&g_wrbuffer.freebuffers);
-  DEBUGASSERT(wrb);
-  memset(wrb, 0, sizeof(struct udp_wrbuffer_s));
-
   /* Now get the first I/O buffer for the write buffer structure */
 
-  wrb->wb_iob = iob_tryalloc(false);
+  wrb->wb_iob =
+#ifdef CONFIG_NET_JUMBO_FRAME
+    iob_alloc_dynamic(len);
+#else
+    iob_tryalloc(false);
+#endif
   if (!wrb->wb_iob)
     {
       nerr("ERROR: Failed to allocate I/O buffer\n");
@@ -302,8 +245,7 @@ void udp_wrbuffer_release(FAR struct udp_wrbuffer_s *wrb)
 
   /* Then free the write buffer structure */
 
-  sq_addlast(&wrb->wb_node, &g_wrbuffer.freebuffers);
-  nxsem_post(&g_wrbuffer.sem);
+  NET_BUFPOOL_FREE(g_wrbuffer, wrb);
 }
 
 /****************************************************************************
@@ -320,7 +262,6 @@ void udp_wrbuffer_release(FAR struct udp_wrbuffer_s *wrb)
  *
  ****************************************************************************/
 
-#if CONFIG_NET_SEND_BUFSIZE > 0
 uint32_t udp_wrbuffer_inqueue_size(FAR struct udp_conn_s *conn)
 {
   FAR struct udp_wrbuffer_s *wrb;
@@ -338,7 +279,6 @@ uint32_t udp_wrbuffer_inqueue_size(FAR struct udp_conn_s *conn)
 
   return total;
 }
-#endif /* CONFIG_NET_SEND_BUFSIZE */
 
 /****************************************************************************
  * Name: udp_wrbuffer_test
@@ -353,9 +293,7 @@ uint32_t udp_wrbuffer_inqueue_size(FAR struct udp_conn_s *conn)
 
 int udp_wrbuffer_test(void)
 {
-  int val = 0;
-  nxsem_get_value(&g_wrbuffer.sem, &val);
-  return val > 0 ? OK : -ENOSPC;
+  return NET_BUFPOOL_TEST(g_wrbuffer);
 }
 
 #endif /* CONFIG_NET && CONFIG_NET_UDP && CONFIG_NET_UDP_WRITE_BUFFERS */

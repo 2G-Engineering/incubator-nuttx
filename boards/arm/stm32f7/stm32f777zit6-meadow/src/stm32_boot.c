@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f777zit6-meadow/src/stm32_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,8 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
+#include <assert.h>
 
 #include <nuttx/board.h>
 #include <arch/board/board.h>
@@ -33,8 +36,7 @@
 
 #include "stm32f777zit6-meadow.h"
 
-#ifdef CONFIG_STM32F7_QUADSPI
-#  include <nuttx/mtd/mtd.h>
+#ifdef CONFIG_STM32_QSPI
 #  include "stm32_qspi.h"
 
 #  ifdef CONFIG_FS_FAT
@@ -44,7 +46,7 @@
 
 /* MEADOW FIXME: header clash? */
 
-extern FAR struct qspi_dev_s *stm32f7_qspi_initialize(int intf);
+extern struct qspi_dev_s *stm32_qspi_initialize(int intf);
 #endif
 
 /****************************************************************************
@@ -70,15 +72,11 @@ extern FAR struct qspi_dev_s *stm32f7_qspi_initialize(int intf);
  *
  ****************************************************************************/
 
-void up_netinitialize(void)
-{
-}
-
 void stm32_boardinitialize(void)
 {
-#if defined(CONFIG_STM32F7_SPI1) || defined(CONFIG_STM32F7_SPI2) || \
-    defined(CONFIG_STM32F7_SPI3) || defined(CONFIG_STM32F7_SPI4) || \
-    defined(CONFIG_STM32F7_SPI5)
+#if defined(CONFIG_STM32_SPI1) || defined(CONFIG_STM32_SPI2) || \
+    defined(CONFIG_STM32_SPI3) || defined(CONFIG_STM32_SPI4) || \
+    defined(CONFIG_STM32_SPI5)
   /* Configure SPI chip selects if 1) SPI is not disabled, and 2) the weak
    * function stm32_spidev_initialize() has been brought into the link.
    */
@@ -104,7 +102,7 @@ void stm32_boardinitialize(void)
   board_autoled_initialize();
 #endif
 
-#ifdef CONFIG_STM32F7_FMC
+#ifdef CONFIG_STM32_FMC
   stm32_sdram_initialize();
 #endif
 }
@@ -126,50 +124,62 @@ void stm32_boardinitialize(void)
 #ifdef CONFIG_BOARD_LATE_INITIALIZE
 void board_late_initialize(void)
 {
-#ifdef CONFIG_STM32F7_QUADSPI
-  FAR struct qspi_dev_s *qspi;
-  FAR struct mtd_dev_s *mtd;
-#endif
-
-#ifdef CONFIG_STM32F7_QUADSPI
+#ifdef CONFIG_STM32_QSPI
+  struct qspi_dev_s *qspi;
+  struct mtd_dev_s *mtd;
 
   struct qspi_meminfo_s meminfo;
 
   int ret;
 
-  qspi = stm32f7_qspi_initialize(0);
+  qspi = stm32_qspi_initialize(0);
   if (!qspi)
     {
-      syslog(LOG_ERR, "ERROR: sam_qspi_initialize muiled\n");
-      return;
+      syslog(LOG_ERR, "ERROR: sam_qspi_initialize failed\n");
     }
 
-  mtd = s25fl5_initialize(qspi, true);
+  mtd = w25qxxxjv_initialize(qspi, true);
   if (!mtd)
     {
-      syslog(LOG_ERR, "ERROR: s25fl5_initialize failed\n");
+      syslog(LOG_ERR, "ERROR: w25qxxxjv_initialize failed\n");
     }
 
-  ret = ftl_initialize(0, mtd);
+  ret = register_mtddriver("/dev/mtdblock0", mtd, 0755, NULL);
   if (ret < 0)
     {
-      ferr("ERROR: Initialize the FTL layer\n");
+      syslog(LOG_ERR, "ERROR: Failed to register MTD /dev/mtdblock0: %d\n",
+             ret);
     }
 
-    meminfo.flags = QSPIMEM_READ | QSPIMEM_QUADIO;
-    meminfo.addrlen = 3;
-    meminfo.dummies = 6;
-    meminfo.cmd = 0xeb; /* S25FL1_FAST_READ_QUADIO; */
-    meminfo.addr = 0;
-    meminfo.buflen = 0;
-    meminfo.buffer = NULL;
+  meminfo.flags = QSPIMEM_READ | QSPIMEM_QUADIO;
+  meminfo.addrlen = 3;
+  meminfo.dummies = 6;
+  meminfo.cmd = 0xeb; /* S25FL1_FAST_READ_QUADIO; */
+  meminfo.addr = 0;
+  meminfo.buflen = 0;
+  meminfo.buffer = NULL;
 
-    stm32f7_qspi_enter_memorymapped(qspi, &meminfo, 80000000);
+  stm32_qspi_enter_memorymapped(qspi, &meminfo, 80000000);
 
-    stm32_mpu_uheap((uintptr_t)0x90000000, 0x4000000);
+  /* FIXME: stm32_mpu_uheap depends on PROTECTED && MPU
+   *
+   * stm32_mpu_uheap((uintptr_t)0x90000000, 0x4000000);
+   */
+
+#endif
+#if defined(MEADOW_OS)
+  /* Initialize Meadow HCOM nuttx */
+
+  int ret;
+  ret = hcom_nx_setup_mgr(mtd);
+  if (ret < 0)
+    {
+      syslog(LOG_EMERG, "ERROR: HCOM proxy initialization failed!\n");
+      PANIC();
     }
 
 #endif
-  stm32_bringup();
 
+  stm32_bringup();
+}
 #endif

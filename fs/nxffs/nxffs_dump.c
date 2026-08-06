@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/nxffs/nxffs_dump.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/crc32.h>
@@ -34,6 +36,7 @@
 #include <nuttx/mtd/mtd.h>
 
 #include "nxffs.h"
+#include "fs_heap.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -61,7 +64,7 @@ struct nxffs_blkinfo_s
 
 #if defined(CONFIG_DEBUG_FEATURES) && defined(CONFIG_DEBUG_FS)
 static const char g_hdrformat[] = "  BLOCK:OFFS  TYPE  STATE   LENGTH\n";
-static const char g_format[]    = "  %5d:%-5d %s %s %5d\n";
+static const char g_format[]    = "  %5"PRIiOFF":%-5d %s %s %5"PRIu32"\n";
 #endif
 
 /****************************************************************************
@@ -263,7 +266,8 @@ static inline ssize_t nxffs_analyzedata(FAR struct nxffs_blkinfo_s *blkinfo,
   if (crc != ecrc)
     {
       syslog(LOG_NOTICE, g_format,
-             blkinfo->block, offset, "DATA ", "CRC BAD", datlen);
+             blkinfo->block, offset, "DATA ", "CRC BAD",
+             (long unsigned int)datlen);
       return ERROR;
     }
 
@@ -272,7 +276,8 @@ static inline ssize_t nxffs_analyzedata(FAR struct nxffs_blkinfo_s *blkinfo,
   if (blkinfo->verbose)
     {
       syslog(LOG_NOTICE, g_format,
-             blkinfo->block, offset, "DATA ", "OK     ", datlen);
+             blkinfo->block, offset, "DATA ", "OK     ",
+             (long unsigned int)datlen);
     }
 
   return SIZEOF_NXFFS_DATA_HDR + datlen;
@@ -441,7 +446,7 @@ int nxffs_dump(FAR struct mtd_dev_s *mtd, bool verbose)
 
   /* Allocate a buffer to hold one block */
 
-  blkinfo.buffer = (FAR uint8_t *)kmm_malloc(blkinfo.geo.blocksize);
+  blkinfo.buffer = fs_heap_malloc(blkinfo.geo.blocksize);
   if (!blkinfo.buffer)
     {
       ferr("ERROR: Failed to allocate block cache\n");
@@ -468,7 +473,7 @@ int nxffs_dump(FAR struct mtd_dev_s *mtd, bool verbose)
           /* Read errors are fatal */
 
           ferr("ERROR: Failed to read block %d\n", blkinfo.block);
-          kmm_free(blkinfo.buffer);
+          fs_heap_free(blkinfo.buffer);
           return ret;
 #else
           /* A read error is probably fatal on all media but NAND.
@@ -489,9 +494,9 @@ int nxffs_dump(FAR struct mtd_dev_s *mtd, bool verbose)
         }
     }
 
-  syslog(LOG_NOTICE, "%d blocks analyzed\n", blkinfo.nblocks);
+  syslog(LOG_NOTICE, "%" PRIiOFF " blocks analyzed\n", blkinfo.nblocks);
 
-  kmm_free(blkinfo.buffer);
+  fs_heap_free(blkinfo.buffer);
   return OK;
 
 #else

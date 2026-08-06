@@ -30,9 +30,22 @@
 #include "chip_macros.h"
 #include "chip_memory.h"
 
+#if defined(CONFIG_ESP32_OPENETH) && !defined(__ASSEMBLY__)
+#include "hardware/esp32_soc.h"
+#include "esp_irq.h"
+#endif
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+#if defined(CONFIG_ESP32_OPENETH)
+#define OPENETH_PERIPH_MAC   ESP32_PERIPH_EMAC
+#define OPENETH_CPUINT_LEVEL ESP_IRQ_TRIGGER_LEVEL
+#define OPENETH_IRQ_MAC      ESP32_IRQ_EMAC
+#define OPENETH_SETUP_IRQ    esp_setup_irq
+#define RX_BUF_COUNT CONFIG_ESP32_OPENETH_DMA_RX_BUFFER_NUM
+#endif
 
 /****************************************************************************
  * Public Data

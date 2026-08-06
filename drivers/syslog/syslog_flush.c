@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/syslog/syslog_flush.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -76,16 +78,18 @@ int syslog_flush(void)
 
   for (i = 0; i < CONFIG_SYSLOG_MAX_CHANNELS; i++)
     {
-      if (g_syslog_channel[i] == NULL)
+      FAR syslog_channel_t *channel = g_syslog_channel[i];
+
+      if (channel == NULL)
         {
           break;
         }
 
       /* Then flush all of the buffered output to the SYSLOG device */
 
-      if (g_syslog_channel[i]->sc_ops->sc_flush != NULL)
+      if (channel->sc_ops->sc_flush != NULL)
         {
-          g_syslog_channel[i]->sc_ops->sc_flush(g_syslog_channel[i]);
+          channel->sc_ops->sc_flush(channel);
         }
     }
 

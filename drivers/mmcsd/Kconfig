@@ -40,6 +40,13 @@ config MMCSD_NSLOTS
 		Number of MMC/SD slots supported by the
 		driver. Default is one.
 
+config MMCSD_PROCFS
+	bool "MMCSD proc fs support"
+	default n
+	depends on FS_PROCFS_REGISTER
+	---help---
+		Enable procfs for mmcsd.
+
 config MMCSD_READONLY
 	bool "Disable MMC/SD write access"
 	default n
@@ -53,7 +60,7 @@ config MMCSD_MULTIBLOCK_LIMIT
 	---help---
 		The max block can be handled in single transfer.
 		Default to 0, means no limitation. Block count larger than this
-		limit will be splited to multiple multi-block transfer. Set it to 1 will
+		limit will be split to multiple multi-block transfer. Set it to 1 will
 		only use single-block transfer mode, and can be used to work around
 		buggy SDIO drivers that cannot handle multiple block transfers.
 
@@ -162,6 +169,26 @@ config SDIO_BLOCKSETUP
 		Some hardware needs to be informed of the selected blocksize and the
 		number of blocks.  Others just work on the byte stream.  This option
 		enables the block setup method in the SDIO vtable.
+
+config MMCSD_BLOCK_WDATADELAY
+	int "The wait timeout to write one data block"
+	default 260
+	---help---
+		Some hardware needs to configure this delay to write one data block, because
+		the hardware needs more time for wear leveling and bad block management.
+
+config MMCSD_CHECK_READY_STATUS_WITHOUT_SLEEP
+	bool "No sleep in ready-check function."
+	default n
+	---help---
+		Since nxsched_usleep returns at the tick after the next tick, when
+		CONFIG_USEC_PER_TICK is big, the real sleep time is much more than
+		desired in mmcsd_transferready(). As a result, write speed is
+		affected seriously.
+
+		When this configuration is enabled, the sleep in mmcsd_transferready
+		will be skipped. However, CPU will be hogged by the process during
+		this period of writing time.
 
 endif
 

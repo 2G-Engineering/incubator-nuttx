@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rp2040/rp2040_i2c.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,7 +32,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <assert.h>
 
 #include <nuttx/arch.h>
@@ -56,7 +58,7 @@
 #define I2C_TIMEOUT  (20*1000/CONFIG_USEC_PER_TICK) /* 20 mS */
 
 #define I2C_DEFAULT_FREQUENCY 400000
-#define I2C_FIFO_MAX_SIZE	    16
+#define I2C_FIFO_MAX_SIZE     16
 
 #define I2C_INTR_ENABLE ((RP2040_I2C_IC_INTR_STAT_R_STOP_DET) | \
                          (RP2040_I2C_IC_INTR_STAT_R_TX_ABRT)  | \
@@ -511,8 +513,9 @@ static int rp2040_i2c_send(struct rp2040_i2cdev_s *priv, int last)
  * Description:
  *   Perform a sequence of I2C transfers
  *
- * TODO: Multiple i2c_msg_s read operations with the same address are not
- * currently guaranteed.
+ *   TODO: Multiple i2c_msg_s read operations with the same address are not
+ *   currently guaranteed.
+ *
  ****************************************************************************/
 
 static int rp2040_i2c_transfer(struct i2c_master_s *dev,
@@ -754,7 +757,7 @@ out:
 
 out_without_reinit:
 
-  /* Release the port for re-use by other clients */
+  /* Release the port for reuse by other clients */
 
   nxmutex_unlock(&priv->lock);
   return ret;

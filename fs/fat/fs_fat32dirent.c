@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/fat/fs_fat32dirent.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -64,7 +66,7 @@
 #include <ctype.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/fat.h>
@@ -146,7 +148,7 @@ static int fat_putsfdirentry(FAR struct fat_mountpt_s *fs,
                              uint8_t attributes, uint32_t fattime);
 
 #if defined(CONFIG_FAT_LFN) && defined(CONFIG_FAT_LFN_UTF8)
-static int fat_utf8toucs(FAR const char **str, lfnchar *ucs);
+static int fat_utf8toucs(FAR const char **str, FAR lfnchar *ucs);
 static int fat_ucstoutf8(FAR uint8_t *dest, uint8_t offset, lfnchar ucs);
 #endif
 
@@ -162,7 +164,7 @@ static int fat_ucstoutf8(FAR uint8_t *dest, uint8_t offset, lfnchar ucs);
  *
  ****************************************************************************/
 #if defined(CONFIG_FAT_LFN) && defined(CONFIG_FAT_LFN_UTF8)
-static int fat_utf8toucs(FAR const char **str, lfnchar *ucs)
+static int fat_utf8toucs(FAR const char **str, FAR lfnchar *ucs)
 {
   uint8_t chr;
   lfnchar tucs;
@@ -286,7 +288,7 @@ static uint8_t fat_lfnchecksum(FAR const uint8_t *sfname)
  *     0x2a-0x2c = '*', '+', ','
  *     0x2e-0x2f = '.', '/'
  *     0x3a-0x3f = ':', ';', '<', '=', '>', '?'
- *     0x5b-0x5d = '[', '\\', ;]'
+ *     0x5b-0x5d = '[', '\\', ']'
  *     0x7c      = '|'
  *
  *   '.' May only occur once within string and only within the first 9
@@ -296,7 +298,7 @@ static uint8_t fat_lfnchecksum(FAR const uint8_t *sfname)
  *   Lower case characters are not allowed in directory names (without some
  *   poorly documented operations on the NTRes directory byte).  Lower case
  *   codes may represent different characters in other character sets ("DOS
- *   code pages".  The logic below does not, at present, support any other
+ *   code pages").  The logic below does not, at present, support any other
  *   character sets.
  *
  * Returned Value:
@@ -360,8 +362,26 @@ static inline int fat_parsesfname(FAR const char **path,
 #ifdef CONFIG_FAT_LCNAMES
           dirinfo->fd_ntflags = ntlcfound & ntlcenable;
 #endif
-          *terminator = ch;
-          *path       = node;
+          /* Ignore sequences of //... in the filename */
+
+          while (node && *node == '/')
+            {
+              node++;
+            }
+
+          if (terminator != NULL)
+            {
+              /* Don't update the variables if terminator is NULL
+               *
+               * Call with terminator == NULL is used to obtain short
+               * file name from already given long file name that fits
+               * into 8.3 format
+               */
+
+              *terminator = ch;
+              *path       = node;
+            }
+
           return OK;
         }
 
@@ -598,6 +618,13 @@ static inline int fat_parselfname(FAR const char **path,
 
           dirinfo->fd_lfname[ndx] = '\0';
 
+          /* Ignore sequences of //... in the filename */
+
+          while (node && *node == '/')
+            {
+              node++;
+            }
+
           /* Return the remaining sub-string and the terminating character. */
 
           *terminator = (char)ch;
@@ -669,14 +696,14 @@ errout:
 #ifdef CONFIG_FAT_LFN
 static inline int fat_createalias(FAR struct fat_dirinfo_s *dirinfo)
 {
-  uint8_t  ch;        /* Current character being processed */
-  lfnchar *ext;       /* Pointer to the extension substring */
-  lfnchar *src;       /* Pointer to the long file name source */
-  int      len;       /* Total length of the long file name */
-  int      namechars; /* Number of characters available in long name */
-  int      extchars;  /* Number of characters available in long name extension */
-  int      endndx;    /* Maximum index into the short name array */
-  int      ndx;       /* Index to store next character */
+  uint8_t      ch;        /* Current character being processed */
+  FAR lfnchar *ext;       /* Pointer to the extension substring */
+  FAR lfnchar *src;       /* Pointer to the long file name source */
+  int          len;       /* Total length of the long file name */
+  int          namechars; /* Number of characters available in long name */
+  int          extchars;  /* Number of characters available in long name extension */
+  int          endndx;    /* Maximum index into the short name array */
+  int          ndx;       /* Index to store next character */
 
   /* First, let's decide what is name and what is extension */
 
@@ -1093,6 +1120,12 @@ static inline int fat_uniquealias(FAR struct fat_mountpt_s *fs,
  * Description:  Convert a user filename into a properly formatted FAT
  *   (short 8.3) filename as it would appear in a directory entry.
  *
+ *   Long file name is returned if CONFIG_FAT_LFN is defined. This applies
+ *   even for entries that would fit standard short 8.3 format. These have
+ *   both long file name and short file name filled. This is done mainly
+ *   because of compatibility with Linux that creates long file name entries
+ *   even if the file name fits into 8.3 format.
+ *
  ****************************************************************************/
 
 static int fat_path2dirname(FAR const char **path,
@@ -1105,17 +1138,35 @@ static int fat_path2dirname(FAR const char **path,
   /* Assume no long file name */
 
   dirinfo->fd_lfname[0] = '\0';
+  dirinfo->fd_name[0] = '\0';
 
-  /* Then parse the (assumed) 8+3 short file name */
+  /* Parse long file name */
 
-  ret = fat_parsesfname(path, dirinfo, terminator);
+  ret = fat_parselfname(path, dirinfo, terminator);
   if (ret < 0)
     {
-      /* No, the name is not a valid short 8+3 file name. Try parsing
-       * the long file name.
+      return ret;
+    }
+  else
+    {
+      /* Does the long file name fit into short file name? This means
+       * this is actually a short file name.
+       *
+       * There are following possibilities:
+       *   - file was created on Linux and is written as long file name
+       *   - file was created on Windows and is written as short file name
+       *   - we are creating file on NuttX -> write it as short file name
        */
 
-      ret = fat_parselfname(path, dirinfo, terminator);
+      if (strlen((FAR const char *)dirinfo->fd_lfname) <= DIR_MAXFNAME)
+        {
+          /* Get short file name for given path */
+
+          char name[DIR_MAXFNAME];
+          memcpy(name, dirinfo->fd_lfname, DIR_MAXFNAME);
+          FAR const char *tmp = (FAR const char *)name;
+          fat_parsesfname(&tmp, dirinfo, NULL);
+        }
     }
 
   return ret;
@@ -1829,8 +1880,8 @@ static inline int fat_getsfname(FAR uint8_t *direntry, FAR char *buffer,
 
       /* In this version, we never write 0xe5 in the directory filenames
        * (because we do not handle any character sets where 0xe5 is valid
-       * in a filaname), but we could eencounter this in a filesystem
-       * written by some other system
+       * in a filename), but we could eencounter this in a filesystem
+       * written by some other system.
        */
 
       if (ndx == 0 && ch == DIR0_E5)
@@ -2556,7 +2607,7 @@ int fat_finddirentry(FAR struct fat_mountpt_s *fs,
     }
 
   /* fd_index is the index into the current directory table. It is set to the
-   * the first, entry in the root directory.
+   * the first entry in the root directory.
    */
 
   dirinfo->dir.fd_index = 0;
@@ -2593,20 +2644,25 @@ int fat_finddirentry(FAR struct fat_mountpt_s *fs,
           return ret;
         }
 
-      /* Is this a path segment a long or a short file.  Was a long file
-       * name parsed?
-       */
-
 #ifdef CONFIG_FAT_LFN
       if (dirinfo->fd_lfname[0] != '\0')
         {
-          /* Yes.. Search for the sequence of long file name directory
-           * entries. NOTE: As a side effect, this function returns with
-           * the sector containing the short file name directory entry
-           * in the cache.
+          /* We have to check for both LFN and SFN entry because of
+           * Linux/Windows differences
+           *
+           *  - file created on Linux is written as LFN even if it fits 8.3
+           *  - file created on Windows is written as SFN if it fits 8.3
            */
 
+          struct fat_dirinfo_s d = *dirinfo;
           ret = fat_findlfnentry(fs, dirinfo);
+          if (ret < 0)
+            {
+              /* There is no LFN entry for given file -> check SFN */
+
+              *dirinfo = d;
+              ret = fat_findsfnentry(fs, dirinfo);
+            }
         }
       else
 #endif
@@ -2641,7 +2697,7 @@ int fat_finddirentry(FAR struct fat_mountpt_s *fs,
 
       if (terminator == '\0')
         {
-          /* Return success meaning that the description the matching
+          /* Return success meaning that the description matching the
            * directory entry is in dirinfo.
            */
 
@@ -2736,7 +2792,7 @@ int fat_allocatedirentry(FAR struct fat_mountpt_s *fs,
        */
 
 #ifdef CONFIG_FAT_LFN
-      if (dirinfo->fd_lfname[0] != '\0')
+      if (dirinfo->fd_lfname[0] != '\0' && dirinfo->fd_name[0] == '\0')
         {
           /* Yes.. Allocate for the sequence of long file name directory
            * entries plus a short file name directory entry.
@@ -2992,7 +3048,7 @@ int fat_dirnamewrite(FAR struct fat_mountpt_s *fs,
 
   /* Is this a long file name? */
 
-  if (dirinfo->fd_lfname[0] != '\0')
+  if (dirinfo->fd_lfname[0] != '\0' && dirinfo->fd_name[0] == '\0')
     {
       /* Write the sequence of long file name directory entries (this
        * function also creates the short file name alias).
@@ -3038,7 +3094,7 @@ int fat_dirwrite(FAR struct fat_mountpt_s *fs,
 
   /* Does this directory entry have a long file name? */
 
-  if (dirinfo->fd_lfname[0] != '\0')
+  if (dirinfo->fd_lfname[0] != '\0' && dirinfo->fd_name[0] == '\0')
     {
       /* Write the sequence of long file name directory entries (this
        * function also creates the short file name alias).
@@ -3109,7 +3165,7 @@ int fat_remove(FAR struct fat_mountpt_s *fs, FAR const char *relpath,
 {
   struct fat_dirinfo_s dirinfo;
   uint32_t             dircluster;
-  uint8_t             *direntry;
+  FAR uint8_t         *direntry;
   int                  ret;
 
   /* Find the directory entry referring to the entry to be deleted */

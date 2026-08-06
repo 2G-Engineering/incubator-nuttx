@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l4/hardware/stm32l4x3xx_pinmap.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -585,7 +587,7 @@
 
 /* USB */
 
-#define GPIO_USB_DM_0(GPIO_ALT|GPIO_AF10|GPIO_PUSHPULL|GPIO_PORTA|GPIO_PIN11)
-#define GPIO_USB_DP_0(GPIO_ALT|GPIO_AF10|GPIO_PUSHPULL|GPIO_PORTA|GPIO_PIN12)
+#define GPIO_USB_DM_0          (GPIO_ALT|GPIO_AF10|GPIO_PUSHPULL|GPIO_PORTA|GPIO_PIN11)
+#define GPIO_USB_DP_0          (GPIO_ALT|GPIO_AF10|GPIO_PUSHPULL|GPIO_PORTA|GPIO_PIN12)
 
 #endif /* __ARCH_ARM_SRC_STM32L4_HARDWARE_STM32L4X3XX_PINMAP_H */

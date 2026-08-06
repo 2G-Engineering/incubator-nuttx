@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/spi/qspi_flash.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
 #include <nuttx/kmalloc.h>
@@ -200,6 +202,9 @@ static const struct qspi_ops_s g_qspiops =
   qspi_flash_setfrequency,      /* setfrequency */
   qspi_flash_setmode,           /* setmode */
   qspi_flash_setbits,           /* setbits */
+#ifdef CONFIG_QSPI_HWFEATURES
+  NULL,                         /* hwfeatures */
+#endif
   qspi_flash_command,           /* command */
   qspi_flash_memory,            /* memory */
   qspi_flash_alloc,             /* alloc */
@@ -570,7 +575,7 @@ static int qspi_flash_command(FAR struct qspi_dev_s *dev,
  *
  ****************************************************************************/
 
-FAR struct qspi_dev_s *qspi_flash_initialize()
+FAR struct qspi_dev_s *qspi_flash_initialize(void)
 {
   FAR struct qspi_flashdev_s *priv = NULL;
 

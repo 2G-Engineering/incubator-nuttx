@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_iwdg.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,8 +30,8 @@
 #include <stdint.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/clock.h>
 #include <nuttx/timers/watchdog.h>
@@ -39,7 +41,7 @@
 #include "stm32_rcc.h"
 #include "stm32_wdg.h"
 
-#if defined(CONFIG_WATCHDOG) && defined(CONFIG_STM32H7_IWDG)
+#if defined(CONFIG_WATCHDOG) && defined(CONFIG_STM32_IWDG)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -225,7 +227,7 @@ static uint16_t stm32_getreg(uint32_t addr)
 
   /* Show the register value read */
 
-  wdinfo("%08x->%04x\n", addr, val);
+  wdinfo("%08" PRIx32 "->%04x\n", addr, val);
   return val;
 }
 #endif
@@ -243,7 +245,7 @@ static void stm32_putreg(uint16_t val, uint32_t addr)
 {
   /* Show the register value being written */
 
-  wdinfo("%08x<-%04x\n", addr, val);
+  wdinfo("%08" PRIx32 "<-%04x\n", addr, val);
 
   /* Write the value */
 
@@ -679,9 +681,9 @@ void stm32_iwdginitialize(const char *devpath, uint32_t lsifreq)
    * on DBG_IWDG_STOP configuration bit in DBG module.
    */
 
-#if defined(CONFIG_STM32H7_JTAG_FULL_ENABLE) || \
-    defined(CONFIG_STM32H7_JTAG_NOJNTRST_ENABLE) || \
-    defined(CONFIG_STM32H7_JTAG_SW_ENABLE)
+#if defined(CONFIG_STM32_JTAG_FULL_ENABLE) || \
+    defined(CONFIG_STM32_JTAG_NOJNTRST_ENABLE) || \
+    defined(CONFIG_STM32_JTAG_SW_ENABLE)
     {
       uint32_t cr = getreg32(STM32_DBGMCU_APB4_FZ1);
       cr |= DBGMCU_APB4_WDGLSD1;
@@ -690,4 +692,4 @@ void stm32_iwdginitialize(const char *devpath, uint32_t lsifreq)
 #endif
 }
 
-#endif /* CONFIG_WATCHDOG && CONFIG_STM32H7_IWDG */
+#endif /* CONFIG_WATCHDOG && CONFIG_STM32_IWDG */

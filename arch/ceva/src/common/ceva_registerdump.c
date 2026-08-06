@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/ceva/src/common/ceva_registerdump.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
@@ -36,22 +38,12 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_getusrsp
- ****************************************************************************/
-
-uintptr_t up_getusrsp(void *regs)
-{
-  uint32_t *ptr = regs;
-  return ptr[REG_SP];
-}
-
-/****************************************************************************
  * Name: up_dump_register
  ****************************************************************************/
 
 void up_dump_register(void *dumpregs)
 {
-  volatile uint32_t *regs = dumpregs ? dumpregs : CURRENT_REGS;
+  volatile uint32_t *regs = dumpregs ? dumpregs : up_current_regs();
   int rx;
 
   /* Dump the interrupt registers */
