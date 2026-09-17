@@ -50,6 +50,13 @@ config ADC_NPOLLWAITERS
 	---help---
 		Maximum number of threads that can be waiting on poll.
 
+config ADC_ADS111X
+	bool "TI ADS1113/ADS1114/ADS1115 support"
+	default n
+	select I2C
+	---help---
+		Enable driver support for the ADS111x family of I2C ADCs
+
 config ADC_ADS1242
 	bool "TI ADS1242 support"
 	default n

@@ -104,6 +104,11 @@
 #define AN_MCP48XX_FIRST (AN_MAX1161X_FIRST + AN_MAX1161X_NCMDS)
 #define AN_MCP48XX_NCMDS 3
 
+/* See include/nuttx/analog/ads111x.h */
+
+#define AN_ADS111X_FIRST (AN_MCP48XX_FIRST + AN_MCP48XX_NCMDS)
+#define AN_ADS111X_NCMDS 3
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
