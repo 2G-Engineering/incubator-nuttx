@@ -67,6 +67,7 @@ extern "C"
 #if defined(CONFIG_CAN) && (defined(CONFIG_LPC17_40_CAN1) || defined(CONFIG_LPC17_40_CAN2))
 struct can_dev_s;
 struct can_dev_s *lpc17_40_caninitialize(int port);
+int can_preload_baud_rate(int port, uint32_t baud);
 #endif
 
 #ifdef __cplusplus

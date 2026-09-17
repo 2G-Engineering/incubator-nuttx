@@ -2520,7 +2520,7 @@ void can_configure_af_sections(uint16_t num_std_id, uint16_t num_std_grp, uint16
   dump_af_ram();
 }
 
-uint8_t get_can_tx_error_count(int port) {
+uint8_t get_can_rx_error_count(int port) {
   struct up_dev_s *priv;
   switch (port) {
     case 0:
@@ -2545,7 +2545,7 @@ uint8_t get_can_tx_error_count(int port) {
 
 }
 
-uint8_t get_can_rx_error_count(int port) {
+uint8_t get_can_tx_error_count(int port) {
   struct up_dev_s *priv;
   switch (port) {
     case 0:
@@ -2591,6 +2591,31 @@ uint8_t get_can_device_status(int port) {
       break;
   }
   return (can_getreg(priv, LPC17_40_CAN_GSR_OFFSET)  &  (CAN_GSR_ES | CAN_GSR_BS))  >> 6;
+}
+
+int can_preload_baud_rate(int port, uint32_t baud) {
+    struct up_dev_s *priv;
+    switch (port) {
+      case 1:
+  #ifdef CONFIG_LPC17_40_CAN1
+        priv = g_can1dev.cd_priv;
+  #else
+        return 0;
+  #endif
+        break;
+      case 2:
+  #ifdef CONFIG_LPC17_40_CAN2
+        priv = g_can2dev.cd_priv;
+  #else
+        return 0;
+  #endif
+        break;
+      default:
+        return 0;
+        break;
+    }
+    priv->baud = baud;
+    return OK;
 }
 
 /* Create the standard ID entry */
