@@ -883,6 +883,9 @@ static int bq769x0_setlimits(FAR struct bq769x0_dev_s *priv,
       batinfo("Using SCD_T %x\n", rsns_0_scd_idx);
       regval |= (rsns_0_scd_idx << BQ769X0_SCD_THRESH_SHIFT) &
                 BQ769X0_SCD_THRESH_MASK;
+      /* Convert mV to mA */
+      limits->shortcircuit_limit = (scd_t_rsns_0_limits[rsns_0_scd_idx] *
+                                    1000000UL) / priv->sense_r;
     }
   else if (rsns_1_ocd_found && rsns_1_scd_found)
     {
@@ -891,6 +894,8 @@ static int bq769x0_setlimits(FAR struct bq769x0_dev_s *priv,
       regval |= BQ769X0_RSNS;
       regval |= (rsns_1_scd_idx << BQ769X0_SCD_THRESH_SHIFT) &
                 BQ769X0_SCD_THRESH_MASK;
+      limits->shortcircuit_limit = (scd_t_rsns_1_limits[rsns_1_scd_idx] *
+                                    1000000UL) / priv->sense_r;
     }
   else
     {
@@ -1033,12 +1038,16 @@ static int bq769x0_setlimits(FAR struct bq769x0_dev_s *priv,
       batinfo("Using OCD_T %x\n", rsns_0_ocd_idx);
       regval |= (rsns_0_ocd_idx << BQ769X0_OCD_THRESH_SHIFT) &
                 BQ769X0_OCD_THRESH_MASK;
+      limits->overcurrent_limit = (ocd_t_rsns_0_limits[rsns_0_ocd_idx] *
+                                    1000000UL) / priv->sense_r;
     }
   else if (rsns_1_ocd_found)
     {
       batinfo("Using OCD_T %x\n", rsns_1_ocd_idx);
       regval |= (rsns_1_ocd_idx << BQ769X0_OCD_THRESH_SHIFT) &
                 BQ769X0_OCD_THRESH_MASK;
+      limits->overcurrent_limit = (ocd_t_rsns_1_limits[rsns_1_ocd_idx] *
+                                    1000000UL) / priv->sense_r;
     }
 
   ret = bq769x0_putreg8(priv, BQ769X0_REG_PROTECT2, regval);
