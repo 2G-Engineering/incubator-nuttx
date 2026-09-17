@@ -619,6 +619,13 @@ config LPC17_40_UART0_RS485_DIR_POLARITY
 		Polarity of DIR pin for RS-485 on UART0. Set to state on DIR pin which
 		enables TX (0 - low / nTXEN, 1 - high / TXEN).
 
+config LPC17_40_UART0_RXTRIG
+	int "UART0 RX FIFO trigger level"
+	depends on LPC17_40_UART0
+	default 8
+	---help---
+		Set default RX FIFO trigger level (allowable values are 0, 4, 8, 14)
+
 config LPC17_40_UART1_RINGINDICATOR
 	bool "UART1 ring indicator"
 	depends on LPC17_40_UART1
@@ -652,6 +659,13 @@ config LPC17_40_UART1_RS485_DIR_DTR
 		the GPIO_USART1_RS485_DIR pin specified in your board config. The DTR pin
 		will be used if selected, the RTS pin will be used otherwise.
 
+config LPC17_40_UART1_RXTRIG
+	int "UART1 RX FIFO trigger level"
+	depends on LPC17_40_UART1
+	default 8
+	---help---
+		Set default RX FIFO trigger level (allowable values are 0, 4, 8, 14)
+
 config LPC17_40_UART2_RS485
 	bool "RS-485 on UART2"
 	default n
@@ -669,6 +683,13 @@ config LPC17_40_UART2_RS485_DIR_POLARITY
 	---help---
 		Polarity of DIR pin for RS-485 on UART2. Set to state on DIR pin which
 		enables TX (0 - low / nTXEN, 1 - high / TXEN).
+
+config LPC17_40_UART2_RXTRIG
+	int "UART2 RX FIFO trigger level"
+	depends on LPC17_40_UART2
+	default 8
+	---help---
+		Set RX FIFO trigger level (allowable values are 0, 4, 8, 14)
 
 config LPC17_40_UART3_RS485
 	bool "RS-485 on UART3"
@@ -688,6 +709,13 @@ config LPC17_40_UART3_RS485_DIR_POLARITY
 		Polarity of DIR pin for RS-485 on UART3. Set to state on DIR pin which
 		enables TX (0 - low / nTXEN, 1 - high / TXEN).
 
+config LPC17_40_UART3_RXTRIG
+	int "UART2 RX FIFO trigger level"
+	depends on LPC17_40_UART3
+	default 8
+	---help---
+		Set default RX FIFO trigger level (allowable values are 0, 4, 8, 14)
+
 config LPC17_40_UART4_RS485
 	bool "RS-485 on UART4"
 	default n
@@ -705,6 +733,13 @@ config LPC17_40_UART4_RS485_DIR_POLARITY
 	---help---
 		Polarity of DIR pin for RS-485 on UART4. Set to state on DIR pin which
 		enables TX (0 - low / nTXEN, 1 - high / TXEN).
+
+config LPC17_40_UART4_RXTRIG
+	int "UART4 RX FIFO trigger level"
+	depends on LPC17_40_UART4
+	default 8
+	---help---
+		Set default RX FIFO trigger level (allowable values are 0, 4, 8, 14)
 
 config LPC17_40_UART_USE_FRACTIONAL_DIVIDER
 	bool "Use fractional divider for UART baud rate"

@@ -77,6 +77,7 @@ struct up_dev_s
 #ifdef LPC176x
   uint8_t  cclkdiv;   /* Divisor needed to get PCLK from CCLK */
 #endif
+  uint8_t  rxfifo;    /* RX FIFO trigger threshold (0, 4, 8, or 14) */
   bool     stopbits2; /* true: Configure with 2 stop bits instead of 1 */
 };
 
@@ -153,6 +154,7 @@ static struct up_dev_s g_uart0priv =
   .irq            = LPC17_40_IRQ_UART0,
   .parity         = CONFIG_UART0_PARITY,
   .bits           = CONFIG_UART0_BITS,
+  .rxfifo         = CONFIG_LPC17_40_UART0_RXTRIG,
   .stopbits2      = CONFIG_UART0_2STOP,
 };
 
@@ -183,6 +185,7 @@ static struct up_dev_s g_uart1priv =
   .irq            = LPC17_40_IRQ_UART1,
   .parity         = CONFIG_UART1_PARITY,
   .bits           = CONFIG_UART1_BITS,
+  .rxfifo         = CONFIG_LPC17_40_UART1_RXTRIG,
   .stopbits2      = CONFIG_UART1_2STOP,
 };
 
@@ -213,6 +216,7 @@ static struct up_dev_s g_uart2priv =
   .irq            = LPC17_40_IRQ_UART2,
   .parity         = CONFIG_UART2_PARITY,
   .bits           = CONFIG_UART2_BITS,
+  .rxfifo         = CONFIG_LPC17_40_UART2_RXTRIG,
   .stopbits2      = CONFIG_UART2_2STOP,
 };
 
@@ -243,6 +247,7 @@ static struct up_dev_s g_uart3priv =
   .irq            = LPC17_40_IRQ_UART3,
   .parity         = CONFIG_UART3_PARITY,
   .bits           = CONFIG_UART3_BITS,
+  .rxfifo         = CONFIG_LPC17_40_UART3_RXTRIG,
   .stopbits2      = CONFIG_UART3_2STOP,
 };
 
@@ -533,6 +538,64 @@ static inline void up_enablebreaks(struct up_dev_s *priv, bool enable)
     }
 
   up_serialout(priv, LPC17_40_UART_LCR_OFFSET, lcr);
+}
+
+/****************************************************************************
+ * Name: up_fifothreshold_to_fcr
+ *
+ * Description:
+ *   Convert a FIFO threshold value to the corresponding FCR register value.
+ *   Rounds down to the nearest supported threshold: 0, 4, 8, or 14.
+ *
+ ****************************************************************************/
+
+static inline uint32_t up_fifothreshold_to_fcr(uint8_t threshold)
+{
+  if (threshold >= 14)
+    {
+      return UART_FCR_RXTRIGGER_14;
+    }
+  else if (threshold >= 8)
+    {
+      return UART_FCR_RXTRIGGER_8;
+    }
+  else if (threshold >= 4)
+    {
+      return UART_FCR_RXTRIGGER_4;
+    }
+  else
+    {
+      return UART_FCR_RXTRIGGER_0;
+    }
+}
+
+/****************************************************************************
+ * Name: up_normalize_threshold
+ *
+ * Description:
+ *   Normalize a threshold value to the actual supported value (0, 4, 8, or 14).
+ *   Always round down.
+ *
+ ****************************************************************************/
+
+static inline uint8_t up_normalize_threshold(uint8_t threshold)
+{
+  if (threshold >= 14)
+    {
+      return 14;
+    }
+  else if (threshold >= 8)
+    {
+      return 8;
+    }
+  else if (threshold >= 4)
+    {
+      return 4;
+    }
+  else
+    {
+      return 0;
+    }
 }
 
 #ifdef CONFIG_LPC17_40_UART_USE_FRACTIONAL_DIVIDER
@@ -1089,7 +1152,7 @@ static int up_setup(struct uart_dev_s *dev)
   /* Set trigger */
 
   up_serialout(priv, LPC17_40_UART_FCR_OFFSET,
-               (UART_FCR_FIFOEN | UART_FCR_RXTRIGGER_8));
+               (UART_FCR_FIFOEN | up_fifothreshold_to_fcr(priv->rxfifo)));
 
   /* Set up the IER */
 
@@ -1161,8 +1224,8 @@ static int up_setup(struct uart_dev_s *dev)
   /* Configure the FIFOs */
 
   up_serialout(priv, LPC17_40_UART_FCR_OFFSET,
-               (UART_FCR_RXTRIGGER_8 | UART_FCR_TXRST | UART_FCR_RXRST |
-                UART_FCR_FIFOEN));
+               (up_fifothreshold_to_fcr(priv->rxfifo) | UART_FCR_TXRST |
+                UART_FCR_RXRST | UART_FCR_FIFOEN));
 
   /* Enable Auto-RTS and Auto-CS Flow Control in the Modem Control Register */
 
@@ -1492,6 +1555,50 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
       }
       break;
 #endif
+
+    case TIOCSFIFOTHRESHOLD:
+      {
+        irqstate_t flags;
+        int threshold = (int)arg;
+
+        if (threshold < 0 || threshold > 255)
+          {
+            ret = -EINVAL;
+            break;
+          }
+
+        flags = enter_critical_section();
+
+        /* Normalize the threshold to the nearest supported value */
+
+        priv->rxfifo = up_normalize_threshold((uint8_t)threshold);
+
+        /* Update the FIFO configuration. Reset FIFOs to ensure
+         * the new threshold takes effect.
+         */
+
+        up_serialout(priv, LPC17_40_UART_FCR_OFFSET,
+                     (up_fifothreshold_to_fcr(priv->rxfifo) |
+                      UART_FCR_TXRST | UART_FCR_RXRST |
+                      UART_FCR_FIFOEN));
+
+        leave_critical_section(flags);
+      }
+      break;
+
+    case TIOCGFIFOTHRESHOLD:
+      {
+        int *threshold = (int *)arg;
+
+        if (!threshold)
+          {
+            ret = -EINVAL;
+            break;
+          }
+
+        *threshold = (int)priv->rxfifo;
+      }
+      break;
 
     default:
       ret = -ENOTTY;
