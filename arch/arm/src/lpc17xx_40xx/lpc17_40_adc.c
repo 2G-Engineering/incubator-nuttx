@@ -89,6 +89,7 @@
 struct up_dev_s
 {
   const struct adc_callback_s *cb;
+  uint8_t  int_mask;
   uint8_t  mask;
   uint32_t sps;
   int      irq;
@@ -199,6 +200,7 @@ static void adc_reset(struct adc_dev_s *dev)
   irqstate_t flags;
   uint32_t clkdiv;
   uint32_t regval;
+  int i;
 
   flags = enter_critical_section();
 
@@ -220,28 +222,35 @@ static void adc_reset(struct adc_dev_s *dev)
 #endif
 
 #ifdef CONFIG_LPC17_40_ADC_BURSTMODE
-  clkdiv   = LPC17_40_CCLK / 3 / 65 / priv->sps;
+#ifdef LPC176x
+  clkdiv   = LPC17_40_CCLK / 8 / 65 / priv->sps;
+#else
+  clkdiv   = LPC17_40_CCLK / BOARD_PCLKDIV / 31 / priv->sps;
+#endif
 
-  /* putreg32(0x04, LPC17_40_ADC_INTEN);
-   *                                   Enable only last channel interrupt
-   */
+  priv->int_mask = 0;
+  /* Find the bit of the highest enabled channel */
 
-  putreg32(0x100, LPC17_40_ADC_INTEN);     /* Enable only global interrupt */
+  for (i = 7; i >= 0; i -= 1) {
+      if (priv->mask & (1 << i)) {
+          priv->int_mask = (1 << i);
+          break;
+      }
+  }
+  putreg32(priv->int_mask, LPC17_40_ADC_INTEN);
+
+  /* Enable only last channel interrupt */
 
   putreg32((priv->mask) |                  /* Select channels 0 to 7 on ADC0 */
 
-  /*       (clkdiv) << 8) |           CLKDIV = divisor to make the samples
-   *                                  per second conversion rate
-   */
-
-           ((32) << 8) |                        /* CLKDIV = divisor to make the faster
+           ((clkdiv & 0xFF) << 8) |             /* CLKDIV = divisor to make the faster
                                                  * conversion rate */
-           (0 << 16) |                          /* BURST = 0, BURST capture all selected
+           (1 << 16) |                          /* BURST = 1, BURST capture all selected
                                                  * channels */
-           (1 << 17) |                          /* Reserved bit = 0 */
+           (0 << 17) |                          /* Reserved bit = 0 */
            (1 << 21) |                          /* PDN = 1, normal operation */
-           (1 << 26) | (0 << 25) | (0 << 24) |  /* START = at MAT0 signal */
-           (1 << 27),                           /* EDGE = 1 (CAP/MAT signal rising
+           (0 << 26) | (0 << 25) | (0 << 24) |  /* START = at MAT0 signal */
+           (0 << 27),                           /* EDGE = 1 (CAP/MAT signal rising
                                                  * trigger A/D conversion) */
            LPC17_40_ADC_CR);
 
@@ -386,9 +395,9 @@ static void adc_rxint(struct adc_dev_s *dev, bool enable)
       putreg32(ADC_INTEN_GLOBAL, LPC17_40_ADC_INTEN);
 #endif
 #else /* CONFIG_LPC17_40_ADC_BURSTMODE */
-      /* Enable only global interrupt */
+      /* Enable interrupt on active channel */
 
-      putreg32(0x100, LPC17_40_ADC_INTEN);
+      putreg32(priv->int_mask, LPC17_40_ADC_INTEN);
 #endif /* CONFIG_LPC17_40_ADC_BURSTMODE */
     }
   else
@@ -625,21 +634,6 @@ static int adc_interrupt(int irq, void *context, void *arg)
 
 #endif /* CONFIG_ADC_WORKER_THREAD */
     }
-
-  reg_val3 = getreg32(LPC17_40_ADC_GDR);        /* Read ADGDR clear the DONE and OVERRUN bits */
-  putreg32((priv->mask) |                       /* Select channels 0 to 7 on ADC0 */
-           (32 << 8) |                          /* CLKDIV = 16 */
-           (0 << 16) |                          /* BURST = 1, BURST capture all selected channels */
-           (1 << 17) |                          /* Reserved bit = 0 */
-           (1 << 21) |                          /* PDN = 1, normal operation */
-           (1 << 26) | (0 << 25) | (0 << 24) |  /* START = at MAT0 signal */
-           (1 << 27),                           /* EDGE = 1 (CAP/MAT signal rising trigger A/D
-                                                 * conversion) */
-           LPC17_40_ADC_CR);
-
-  /* lpc17_40_gpiowrite(LPCXPRESSO_GPIO0_21, 0);  Reset pin P0.21 */
-
-  /* leave_critical_section(saved_state); */
 
   return OK;
 #endif /* CONFIG_LPC17_40_ADC_BURSTMODE */
