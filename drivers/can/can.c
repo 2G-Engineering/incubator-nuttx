@@ -989,6 +989,20 @@ static int can_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
                           (FAR struct canioc_rtr_s *)((uintptr_t)arg));
         break;
 
+        /* CANIOC_OFLUSH: Flush data written but not transmitted. No argument */
+
+        case CANIOC_OFLUSH:
+          {
+            /* Mark the FIFOs empty */
+
+            dev->cd_xmit.tx_head  = 0;
+            dev->cd_xmit.tx_queue = 0;
+            dev->cd_xmit.tx_tail  = 0;
+            ret = OK;
+          }
+          break;
+
+
       /* Not a "built-in" ioctl command.. perhaps it is unique to this
        * lower-half, device driver.
        */

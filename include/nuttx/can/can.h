@@ -236,9 +236,12 @@
 #define CANIOC_SET_NART           _CANIOC(11)
 #define CANIOC_SET_ABOM           _CANIOC(12)
 #define CANIOC_SET_BAUD           _CANIOC(13)
+#define CANIOC_IFLUSH             _CANIOC(14)
+#define CANIOC_OFLUSH             _CANIOC(15)
+#define CANIOC_IOFLUSH            _CANIOC(16)
 
 #define CAN_FIRST                 0x0001         /* First common command */
-#define CAN_NCMDS                 13             /* Ten common commands */
+#define CAN_NCMDS                 16             /* Ten common commands */
 
 /* User defined ioctl commands are also supported. These will be forwarded
  * by the upper-half CAN driver to the lower-half CAN driver via the
