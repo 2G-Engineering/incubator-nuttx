@@ -78,8 +78,10 @@ uint16_t ipv4_build_header(FAR struct ipv4_hdr_s *ipv4, uint16_t total_len,
   ++g_ipid;
   ipv4->ipid[0]     = g_ipid >> 8;
   ipv4->ipid[1]     = g_ipid & 0xff;
-  ipv4->ipoffset[0] = IP_FLAG_DONTFRAG >> 8;
-  ipv4->ipoffset[1] = IP_FLAG_DONTFRAG & 0xff;
+//  ipv4->ipoffset[0] = IP_FLAG_DONTFRAG >> 8;
+//  ipv4->ipoffset[1] = IP_FLAG_DONTFRAG & 0xff;
+  ipv4->ipoffset[0] = 0;
+  ipv4->ipoffset[1] = 0;
   ipv4->ttl         = ttl;
   ipv4->proto       = prot;
 
