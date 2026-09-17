@@ -259,6 +259,12 @@ static inline void rcc_enableapb1(void)
   regval |= RCC_APB1ENR_PWREN;
 #endif
 
+#ifdef CONFIG_STM32F0L0G0_CRS
+  /* Clock recovery system clock enable */
+
+  regval |= RCC_APB1ENR_CRSEN;
+#endif
+
 #ifdef CONFIG_STM32F0L0G0_DAC1
   /* DAC 1 interface clock enable */
 
