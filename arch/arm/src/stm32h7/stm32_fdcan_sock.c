@@ -526,6 +526,8 @@ static void fdcan_dumpregs(struct fdcan_driver_s *priv)
   printf("TXBC = 0x%lx\n", regval);
   regval = getreg32(priv->base + STM32_FDCAN_RXF0C_OFFSET);
   printf("RXF0C = 0x%lx\n", regval);
+  regval = getreg32(priv->base + STM32_FDCAN_RXF1C_OFFSET);
+  printf("RXF1C = 0x%lx\n", regval);
 
   regval = getreg32(priv->base + STM32_FDCAN_TXESC_OFFSET);
   printf("TXESC = 0x%lx\n", regval);
@@ -2080,7 +2082,7 @@ int fdcan_initialize(struct fdcan_driver_s *priv)
     }
 
 #ifdef CONFIG_STM32H7_FDCAN_REGDEBUG
-  const fdcan_bitseg *tim = &priv->arbi_timing;
+  const struct fdcan_bitseg *tim = &priv->arbi_timing;
   ninfo("[fdcan][arbi] Timings: presc=%u sjw=%u bs1=%u bs2=%u\r\n",
         tim->prescaler, tim->sjw, tim->bs1, tim->bs2);
 #endif
@@ -2224,6 +2226,10 @@ int fdcan_initialize(struct fdcan_driver_s *priv)
 
   const uint32_t iface_ram_base = (2560 / 2) * priv->iface_idx;
   const uint32_t gl_ram_base = STM32_CANRAM_BASE;
+
+  /* Zero out CAN configuration RAM to disable all filters initially */
+  memset((uint8_t*)STM32_CANRAM_BASE, 0, STM32_CANRAM_LENGTH);
+
   uint32_t ram_offset = iface_ram_base;
 
   /* Standard ID Filters: Allow space for 128 filters (128 words) */
@@ -3042,6 +3048,38 @@ static void fdcan_errint(struct fdcan_driver_s *priv, bool enable)
     }
 
   putreg32(regval, priv->base + STM32_FDCAN_IE_OFFSET);
+}
+
+int can_preload_baud_rate(int port, uint32_t baud) {
+    struct fdcan_driver_s *priv;
+    switch (port) {
+      case 0:
+  #ifdef CONFIG_STM32H7_FDCAN1
+        priv = &stm32_fdcan0_config;
+  #else
+        return 0;
+  #endif
+        break;
+      case 1:
+  #ifdef CONFIG_STM32H7_FDCAN2
+        priv = &stm32_fdcan1_config;
+  #else
+        return 0;
+  #endif
+        break;
+      case 2:
+  #ifdef CONFIG_STM32H7_FDCAN3
+        priv = &stm32_fdcan2_config;
+  #else
+        return 0;
+  #endif
+        break;
+      default:
+        return 0;
+        break;
+    }
+    priv->arbi_timing.bitrate = baud;
+    return OK;
 }
 #endif
 

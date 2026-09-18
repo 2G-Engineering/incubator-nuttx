@@ -119,6 +119,7 @@
 #define STM32_FDCAN3_BASE      0x4000D400     /* 0x4000D400 - 0x4000D7FF FDCAN3 Section */
 #define STM32_CANCCU_BASE      0x4000a800     /* 0x4000a800 - 0x4000abff CAN CCU Section */
 #define STM32_CANRAM_BASE      0x4000ac00     /* 0x4000ac00 - 0x4000d3ff CAN Message RAM */
+#define STM32_CANRAM_LENGTH    0x2800
 
 /* APB2 Base Addresses ******************************************************/
 
