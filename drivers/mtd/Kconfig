@@ -739,6 +739,21 @@ config MX25RXX_LXX
 	bool "Run MX25RXX driver in MX25LXX mode"
 	default n
 
+choice
+  prompt "MX25RXX Bus Width"
+  default M25RXX_QUADSPI
+
+config M25RXX_QUADSPI
+  bool "Quad SPI"
+
+config M25RXX_DUALSPI
+  bool "Dual SPI"
+
+config M25RXX_SINGLESPI
+  bool "Single SPI"
+
+endchoice # Bus Width
+
 endif # MTD_MX25RXX
 
 config MTD_SMART
