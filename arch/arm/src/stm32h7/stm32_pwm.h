@@ -808,6 +808,14 @@
         (dev)->llops->arr_update((struct pwm_lowerhalf_s *)dev, arr)
 #define PWM_ARR_GET(dev)                                                           \
         (dev)->llops->arr_get((struct pwm_lowerhalf_s *)dev)
+#define PWM_RCR_UPDATE(dev, rcr)                                                   \
+        (dev)->llops->rcr_update((struct pwm_lowerhalf_s *)dev, rcr)
+#define PWM_RCR_GET(dev)                                                           \
+        (dev)->llops->rcr_get((struct pwm_lowerhalf_s *)dev)
+#ifdef CONFIG_STM32H7_PWM_TRGO
+#  define PWM_TRGO_SET(dev, trgo)                                                  \
+        (dev)->llops->trgo_set((struct pwm_lowerhalf_s *)dev, trgo)
+#endif
 #define PWM_OUTPUTS_ENABLE(dev, out, state)                                        \
         (dev)->llops->outputs_enable((struct pwm_lowerhalf_s *)dev, out, state)
 #define PWM_SOFT_UPDATE(dev)                                                       \
@@ -827,7 +835,7 @@
 #  define PWM_DUMP_REGS(dev, msg)
 #endif
 #define PWM_DT_UPDATE(dev, dt)                                                     \
-        (dev)->llops->dt_update((struct pwm_lowerhalf_s *)dev, dt)
+        (dev)->llops->dt_update_ns((struct pwm_lowerhalf_s *)dev, dt)
 
 #endif
 
@@ -992,6 +1000,20 @@ struct stm32_pwm_ops_s
 
   uint32_t (*arr_get)(struct pwm_lowerhalf_s *dev);
 
+  /* Update RCR register */
+
+  int (*rcr_update)(struct pwm_lowerhalf_s *dev, uint16_t rcr);
+
+  /* Get RCR register */
+
+  uint16_t (*rcr_get)(struct pwm_lowerhalf_s *dev);
+
+#ifdef CONFIG_STM32H7_PWM_TRGO
+  /* Set TRGO/TRGO2 register */
+
+  int (*trgo_set)(struct pwm_lowerhalf_s *dev, uint8_t trgo);
+#endif
+
   /* Enable outputs */
 
   int (*outputs_enable)(struct pwm_lowerhalf_s *dev, uint16_t outputs,
@@ -1026,7 +1048,7 @@ struct stm32_pwm_ops_s
 #ifdef HAVE_PWM_COMPLEMENTARY
   /* Deadtime update */
 
-  int (*dt_update)(struct pwm_lowerhalf_s *dev, uint8_t dt);
+  int (*dt_update_ns)(struct pwm_lowerhalf_s *dev, uint32_t dt);
 #endif
 };
 
@@ -1069,6 +1091,9 @@ extern "C"
  ****************************************************************************/
 
 struct pwm_lowerhalf_s *stm32_pwminitialize(int timer);
+
+void pwm_dumpregs(struct pwm_lowerhalf_s *dev,
+                         const char *msg);
 
 #undef EXTERN
 #if defined(__cplusplus)

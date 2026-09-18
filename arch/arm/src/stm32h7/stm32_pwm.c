@@ -336,11 +336,16 @@ static int pwm_sync_configure(struct stm32_pwmtimer_s *priv,
                               uint8_t trgo);
 #endif
 #if defined(HAVE_PWM_COMPLEMENTARY) && defined(CONFIG_STM32H7_PWM_LL_OPS)
-static int pwm_deadtime_update(struct pwm_lowerhalf_s *dev, uint8_t dt);
+static int pwm_deadtime_ns_update(struct pwm_lowerhalf_s *dev, uint32_t dt);
 #endif
 #ifdef CONFIG_STM32H7_PWM_LL_OPS
 static uint32_t pwm_ccr_get(struct pwm_lowerhalf_s *dev, uint8_t index);
+static uint16_t pwm_rcr_get(struct pwm_lowerhalf_s *dev);
 #endif
+#ifdef HAVE_ADVTIM
+static int pwm_rcr_update(struct pwm_lowerhalf_s *dev, uint16_t rcr);
+#endif
+
 
 #ifdef CONFIG_PWM_PULSECOUNT
 static int pwm_pulsecount_configure(struct pwm_lowerhalf_s *dev);
@@ -410,6 +415,13 @@ static const struct stm32_pwm_ops_s g_llpwmops =
   .ccr_get         = pwm_ccr_get,
   .arr_update      = pwm_arr_update,
   .arr_get         = pwm_arr_get,
+#ifdef HAVE_ADVTIM
+  .rcr_update      = pwm_rcr_update,
+#endif
+  .rcr_get         = pwm_rcr_get,
+#ifdef HAVE_TRGO
+  .trgo_set        = pwm_sync_configure,
+#endif
   .outputs_enable  = pwm_outputs_enable,
   .soft_update     = pwm_soft_update,
   .freq_update     = pwm_frequency_update,
@@ -418,7 +430,7 @@ static const struct stm32_pwm_ops_s g_llpwmops =
   .dump_regs       = pwm_dumpregs,
 #  endif
 #  ifdef HAVE_PWM_COMPLEMENTARY
-  .dt_update       = pwm_deadtime_update,
+  .dt_update_ns    = pwm_deadtime_ns_update,
 #  endif
 };
 #endif
@@ -1961,6 +1973,36 @@ static uint32_t pwm_arr_get(struct pwm_lowerhalf_s *dev)
   return pwm_getreg(priv, STM32_GTIM_ARR_OFFSET);
 }
 
+#ifdef HAVE_ADVTIM
+/****************************************************************************
+ * Name: pwm_rcr_update
+ ****************************************************************************/
+
+static int pwm_rcr_update(struct pwm_lowerhalf_s *dev, uint16_t rcr)
+{
+  struct stm32_pwmtimer_s *priv = (struct stm32_pwmtimer_s *)dev;
+
+  /* Update RCR register */
+
+  pwm_putreg(priv, STM32_ATIM_RCR_OFFSET, rcr);
+
+  return OK;
+}
+#endif
+
+#ifdef CONFIG_STM32H7_PWM_LL_OPS
+/****************************************************************************
+ * Name: pwm_rcr_get
+ ****************************************************************************/
+
+static uint16_t pwm_rcr_get(struct pwm_lowerhalf_s *dev)
+{
+  struct stm32_pwmtimer_s *priv = (struct stm32_pwmtimer_s *)dev;
+
+  return pwm_getreg(priv, STM32_ATIM_RCR_OFFSET);
+}
+#endif
+
 /****************************************************************************
  * Name: pwm_duty_update
  *
@@ -2648,7 +2690,7 @@ static int pwm_outputs_enable(struct pwm_lowerhalf_s *dev,
 
   if (state == true)
     {
-      /* Enable outpus - set bits */
+      /* Enable outputs - set bits */
 
       ccer |= regval;
     }
@@ -2672,10 +2714,15 @@ static int pwm_outputs_enable(struct pwm_lowerhalf_s *dev,
  * Name: pwm_deadtime_update
  ****************************************************************************/
 
-static int pwm_deadtime_update(struct pwm_lowerhalf_s *dev, uint8_t dt)
+static int pwm_deadtime_ns_update(struct pwm_lowerhalf_s *dev, uint32_t dt_ns)
 {
   struct stm32_pwmtimer_s *priv = (struct stm32_pwmtimer_s *)dev;
+  uint32_t prescaler;
+  uint32_t resolution;
+  uint32_t timclk;
+  uint32_t dtg;
   uint32_t bdtr = 0;
+  uint32_t dt_ps;
   int      ret  = OK;
 
   /* Check if locked */
@@ -2686,6 +2733,48 @@ static int pwm_deadtime_update(struct pwm_lowerhalf_s *dev, uint8_t dt)
       goto errout;
     }
 
+  /* Get prescaler for actual clock calculation */
+  prescaler = pwm_getreg(priv, STM32_GTIM_PSC_OFFSET) + 1;
+
+  /* Actual timer clock in Hz.  Note that the dead time clock can be further divided
+   * using the CKD bits, but they are currently forced to 0 in this driver, which sets
+   * the divisor to 1.  This code will need to be updated if that changes! */
+  timclk = priv->pclk / prescaler;
+
+  /* Timer resolution in picosends to minimize rounding error */
+  resolution = 1000000000000ULL / timclk;
+
+  /* Convert input nanosecond value to picoseconds so it matches resolution */
+  dt_ps = dt_ns * 1000;
+
+  /* Check for overflow */
+  if (dt_ps < dt_ns) {
+      ret = -EINVAL;
+      goto errout;
+  }
+
+  /* Account for non-linear behavior of DTG register; always round up */
+  if (dt_ps == 0) {
+      dtg = 0;
+  } else if (dt_ps <= (127 * resolution)) {
+      dtg = (dt_ps + (resolution - 1)) / resolution;
+  } else if (dt_ps <= ((64 + 63) * 2 * resolution)) {
+      dtg = ((dt_ps + ((resolution * 2) - 1)) / (resolution * 2)) - 64;
+      dtg |= ATIM_BDTR_DTG_X2;
+  } else if (dt_ps <= ((32 + 31) * 8 * resolution)) {
+      dtg = ((dt_ps + ((resolution * 8) - 1)) / (resolution * 8)) - 32;
+      dtg |= ATIM_BDTR_DTG_X8;
+  } else if (dt_ps <= ((32 + 31) * 16 * resolution)) {
+      dtg = ((dt_ps + ((resolution * 16) - 1)) / (resolution * 16)) - 32;
+      dtg |= ATIM_BDTR_DTG_X16;
+  } else {
+      /* Error, cannot use this dead time value.  (Possibly could using prescaler, but that is not supported currently) */
+      ret = -EINVAL;
+      goto errout;
+  }
+
+  pwminfo("Requested dead time: %"PRIu32", DTG value: %"PRIu32"\n", dt_ns, dtg);
+
   /* Get current register state */
 
   bdtr = pwm_getreg(priv, STM32_ATIM_BDTR_OFFSET);
@@ -2695,7 +2784,7 @@ static int pwm_deadtime_update(struct pwm_lowerhalf_s *dev, uint8_t dt)
   /* Update deadtime */
 
   bdtr &= ~(ATIM_BDTR_DTG_MASK);
-  bdtr |= (dt << ATIM_BDTR_DTG_SHIFT);
+  bdtr |= (dtg << ATIM_BDTR_DTG_SHIFT);
 
   /* Write BDTR register */
 
@@ -2852,7 +2941,7 @@ static int pwm_break_dt_configure(struct stm32_pwmtimer_s *priv)
   uint32_t bdtr = 0;
 
   /* Set the clock division to zero for all (but the basic timers, but there
-   * should be no basic timers in this context
+   * should be no basic timers in this context)
    */
 
   pwm_modifyreg(priv, STM32_GTIM_CR1_OFFSET, GTIM_CR1_CKD_MASK,
