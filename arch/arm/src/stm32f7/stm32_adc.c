@@ -3012,7 +3012,7 @@ static void adc_llops_enable(struct stm32_adc_dev_s *dev, bool enable)
  *   chanlist are regular channels.
  *
  * Input Parameters:
- *   intf      - Could be {1,2,3,4} for ADC1, ADC2, ADC3
+ *   intf      - Could be {1,2,3} for ADC1, ADC2, ADC3
  *   chanlist  - The list of channels (regular + injected)
  *   channels  - Number of channels (regular + injected)
  *

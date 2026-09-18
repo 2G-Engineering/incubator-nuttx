@@ -230,6 +230,7 @@
 #define ADC_INT_AWD2                 (1 << 8)  /* Bit 8:  Analog watchdog 2 flag */
 #define ADC_INT_AWD3                 (1 << 9)  /* Bit 9:  Analog watchdog 3 flag */
 #define ADC_INT_JQOVF                (1 << 10) /* Bit 10: Injected context queue overflow */
+#define ADC_INT_LDORDY               (1 << 12) /* Bit 12: LDO ready */
                                                /* Bits 11-31: Reserved */
 
 #define ADC_INT_MASK                 (0x7ff)
@@ -553,30 +554,55 @@
 #define ADC_JSQR_JEXTSEL_MASK        (31 << ADC_JSQR_JEXTSEL_SHIFT)
 #  define ADC_JSQR_JEXTSEL(event)    ((event) << ADC_JSQR_JEXTSEL_SHIFT) /* Event = 0..31 */
 
-#define ADC_JSQR_JEXTEN_SHIFT        (7)       /* Bits 7-8: External trigger selection for injected greoup */
+#  define ADC_JSQR_JEXTSEL_T1TRGO     (0x00 << ADC_CFGR_EXTSEL_SHIFT) /* 00000: Timer 1 TRGO event */
+#  define ADC_JSQR_JEXTSEL_T1CC4      (0x01 << ADC_CFGR_EXTSEL_SHIFT) /* 00001: Timer 1 CC4 event */
+#  define ADC_JSQR_JEXTSEL_T2TRGO     (0x02 << ADC_CFGR_EXTSEL_SHIFT) /* 00010: Timer 2 TRGO event */
+#  define ADC_JSQR_JEXTSEL_T2CC1      (0x03 << ADC_CFGR_EXTSEL_SHIFT) /* 00011: Timer 2 CC1 event */
+#  define ADC_JSQR_JEXTSEL_T3CC4      (0x04 << ADC_CFGR_EXTSEL_SHIFT) /* 00100: Timer 3 CC4 event */
+#  define ADC_JSQR_JEXTSEL_T4TRGO     (0x05 << ADC_CFGR_EXTSEL_SHIFT) /* 00101: Timer 4 TRGO event */
+#  define ADC_JSQR_JEXTSEL_EXTI15     (0x06 << ADC_CFGR_EXTSEL_SHIFT) /* 00110: EXTI line 15 */
+#  define ADC_JSQR_JEXTSEL_T8CC4      (0x07 << ADC_CFGR_EXTSEL_SHIFT) /* 00111: Timer 8 CC4 event */
+#  define ADC_JSQR_JEXTSEL_T1TRGO2    (0x08 << ADC_CFGR_EXTSEL_SHIFT) /* 01000: Timer 1 TRGO2 event */
+#  define ADC_JSQR_JEXTSEL_T8TRGO     (0x09 << ADC_CFGR_EXTSEL_SHIFT) /* 01001: Timer 8 TRGO event */
+#  define ADC_JSQR_JEXTSEL_T8TRGO2    (0x0a << ADC_CFGR_EXTSEL_SHIFT) /* 01010: Timer 8 TRGO2 event */
+#  define ADC_JSQR_JEXTSEL_T3CC3      (0x0b << ADC_CFGR_EXTSEL_SHIFT) /* 01011: Timer 3 CC3 event */
+#  define ADC_JSQR_JEXTSEL_T3TRGO     (0x0c << ADC_CFGR_EXTSEL_SHIFT) /* 01100: Timer 3 TRGO event */
+#  define ADC_JSQR_JEXTSEL_T3CC1      (0x0d << ADC_CFGR_EXTSEL_SHIFT) /* 01101: Timer 3 CC1 event */
+#  define ADC_JSQR_JEXTSEL_T6TRGO     (0x0e << ADC_CFGR_EXTSEL_SHIFT) /* 01110: Timer 6 TRGO event */
+#  define ADC_JSQR_JEXTSEL_T15TRGO    (0x0f << ADC_CFGR_EXTSEL_SHIFT) /* 01111: Timer 15 TRGO event */
+#  define ADC_JSQR_JEXTSEL_HRTIM1TRG2 (0x10 << ADC_CFGR_EXTSEL_SHIFT) /* 10000: HRTIM1 ADC TRG2 event */
+#  define ADC_JSQR_JEXTSEL_HRTIM1TRG4 (0x11 << ADC_CFGR_EXTSEL_SHIFT) /* 10001: HRTIM1 ADC TRG4 event */
+#  define ADC_JSQR_JEXTSEL_LPTIM1_OUT (0x12 << ADC_CFGR_EXTSEL_SHIFT) /* 10010: LP TIM1 OUT event */
+#  define ADC_JSQR_JEXTSEL_LPTIM2_OUT (0x13 << ADC_CFGR_EXTSEL_SHIFT) /* 10011: LP TIM2 OUT event */
+#  define ADC_JSQR_JEXTSEL_LPTIM3_OUT (0x14 << ADC_CFGR_EXTSEL_SHIFT) /* 10100: LP TIM3 OUT event */
+
+#define ADC_JSQR_JEXTEN_SHIFT        (7)       /* Bits 7-8: External trigger selection for injected group */
 #define ADC_JSQR_JEXTEN_MASK         (3 << ADC_JSQR_JEXTEN_SHIFT)
 #  define ADC_JSQR_JEXTEN_NONE       (0 << ADC_JSQR_JEXTEN_SHIFT) /* 00: Trigger detection disabled */
 #  define ADC_JSQR_JEXTEN_RISING     (1 << ADC_JSQR_JEXTEN_SHIFT) /* 01: Trigger detection on the rising edge */
 #  define ADC_JSQR_JEXTEN_FALLING    (2 << ADC_JSQR_JEXTEN_SHIFT) /* 10: Trigger detection on the falling edge */
 #  define ADC_JSQR_JEXTEN_BOTH       (3 << ADC_JSQR_JEXTEN_SHIFT) /* 11: Trigger detection on both the rising and falling edges */
 
+#define ADC_JSQR_JSQ_SHIFT           (6) /* Distance between JSQ fields in JSQR register*/
+#define ADC_JSQR_JSQ_MASK            (0x1f)
+
 #define ADC_JSQR_JSQ1_SHIFT          (9)       /* Bits 9-13: 1st conversion in injected sequence */
-#define ADC_JSQR_JSQ1_MASK           (0x1f << ADC_JSQR_JSQ1_SHIFT)
+#define ADC_JSQR_JSQ1_MASK           (ADC_JSQR_JSQ_MASK << ADC_JSQR_JSQ1_SHIFT)
 #  define ADC_JSQR_JSQ1(ch)          ((ch) << ADC_JSQR_JSQ1_SHIFT) /* Channel number 0..19 */
 
                                                /* Bit 14: Reserved */
 #define ADC_JSQR_JSQ2_SHIFT          (15)      /* Bits 15-19: 2nd conversion in injected sequence */
-#define ADC_JSQR_JSQ2_MASK           (0x1f << ADC_JSQR_JSQ2_MASK)
+#define ADC_JSQR_JSQ2_MASK           (ADC_JSQR_JSQ_MASK << ADC_JSQR_JSQ1_SHIFT)
 #  define ADC_JSQR_JSQ2(ch)          ((ch) << ADC_JSQR_JSQ2_MASK) /* Channel number 0..19 */
 
                                                /* Bit 20: Reserved */
 #define ADC_JSQR_JSQ3_SHIFT          (21)      /* Bits 21-25: 3rd conversion in injected sequence */
-#define ADC_JSQR_JSQ3_MASK           (0x1f << ADC_JSQR_JSQ3_SHIFT)
+#define ADC_JSQR_JSQ3_MASK           (ADC_JSQR_JSQ_MASK << ADC_JSQR_JSQ3_SHIFT)
 #  define ADC_JSQR_JSQ3(ch)          ((ch) << ADC_JSQR_JSQ3_SHIFT) /* Channel number 0..19 */
 
                                                /* Bit 26: Reserved */
 #define ADC_JSQR_JSQ4_SHIFT          (27)      /* Bits 27-31: 4th conversion in injected sequence */
-#define ADC_JSQR_JSQ4_MASK           (0x1f << ADC_JSQR_JSQ4_SHIFT)
+#define ADC_JSQR_JSQ4_MASK           (ADC_JSQR_JSQ_MASK << ADC_JSQR_JSQ4_SHIFT)
 #  define ADC_JSQR_JSQ4(ch)          ((ch) << ADC_JSQR_JSQ4_SHIFT) /* Channel number 0..19 */
 
 /* ADC offset register 1, 2, 3, and 4 */
