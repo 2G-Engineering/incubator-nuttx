@@ -100,12 +100,12 @@
 
 /* Debug MCU APB2 freeze register */
 
-#define DBGMCU_APB2Z1_TIM1STOP     (1 << 0)   /* Bit 0:  TIM1 stopped when halted */
-#define DBGMCU_APB2Z1_TIM8STOP     (1 << 1)   /* Bit 1:  TIM8 stopped when halted */
-#define DBGMCU_APB2Z1_TIM15STOP    (1 << 16)  /* Bit 16: TIM15 stopped when halted */
-#define DBGMCU_APB2Z1_TIM16STOP    (1 << 17)  /* Bit 17: TIM16 stopped when halted */
-#define DBGMCU_APB2Z1_TIM17STOP    (1 << 18)  /* Bit 18: TIM17 stopped when halted */
-#define DBGMCU_APB2Z1_HRTIMSTOP    (1 << 29)  /* Bit 29: HRTIM stopped when halted */
+#define DBGMCU_APB2FZ1_TIM1STOP    (1 << 0)   /* Bit 0:  TIM1 stopped when halted */
+#define DBGMCU_APB2FZ1_TIM8STOP    (1 << 1)   /* Bit 1:  TIM8 stopped when halted */
+#define DBGMCU_APB2FZ1_TIM15STOP   (1 << 16)  /* Bit 16: TIM15 stopped when halted */
+#define DBGMCU_APB2FZ1_TIM16STOP   (1 << 17)  /* Bit 17: TIM16 stopped when halted */
+#define DBGMCU_APB2FZ1_TIM17STOP   (1 << 18)  /* Bit 18: TIM17 stopped when halted */
+#define DBGMCU_APB2FZ1_HRTIMSTOP   (1 << 29)  /* Bit 29: HRTIM stopped when halted */
 
 /* Debug MCU APB4 freeze register */
 
