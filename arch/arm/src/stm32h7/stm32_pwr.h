@@ -159,6 +159,45 @@ void stm32_pwr_configurewkup(uint32_t pin, bool en,
 
 void stm32_pwr_setvbatcharge(bool enable, bool resistor);
 
+/****************************************************************************
+ * Name: stm32_pwr_setpvd
+ *
+ * Description:
+ *   Sets power voltage detector for EnergyLite devices.
+ *
+ * Input Parameters:
+ *   pls - PVD level
+ *
+ * Returned Value:
+ *   None
+ *
+ * Assumptions:
+ *   At present, this function is called only from initialization logic.
+ *
+ ****************************************************************************/
+
+void stm32_pwr_setpvd(uint32_t pls);
+
+/****************************************************************************
+ * Name: stm32_pwr_enablepvd
+ *
+ * Description:
+ *   Enable the Programmable Voltage Detector
+ *
+ ****************************************************************************/
+
+void stm32_pwr_enablepvd(void);
+
+/****************************************************************************
+ * Name: stm32_pwr_disablepvd
+ *
+ * Description:
+ *   Disable the Programmable Voltage Detector
+ *
+ ****************************************************************************/
+
+void stm32_pwr_disablepvd(void);
+
 #undef EXTERN
 #if defined(__cplusplus)
 }
