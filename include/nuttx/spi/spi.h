@@ -434,6 +434,40 @@
 #  define SPI_TRIGGER(d) \
   (((d)->ops->trigger) ? ((d)->ops->trigger(d)) : -ENOSYS)
 
+/****************************************************************************
+ * Name: SPI_SENDWORD
+ *
+ * Description:
+ *   Put one word into the transmit buffer on the SPI interface.
+ *
+ * Input Parameters:
+ *   dev - Device-specific state data
+ *   wd  - The word to send.  The size of the data is determined by the
+ *         number of bits selected for the SPI interface.
+ *
+ * Returned Value:
+ *   Received value
+ *
+ ****************************************************************************/
+
+#define SPI_SENDWORD(d,wd) ((d)->ops->sendword(d,(uint16_t)(wd)))
+
+/****************************************************************************
+ * Name: SPI_RECVWORD
+ *
+ * Description:
+ *   Receives one word from the receive buffer on the SPI interface.
+ *
+ * Input Parameters:
+ *   dev - Device-specific state data
+ *
+ * Returned Value:
+ *   Received value
+ *
+ ****************************************************************************/
+
+#define SPI_RECVWORD(d) ((d)->ops->recvword(d))
+
 /* SPI Device Macros ********************************************************/
 
 /* This builds a SPI devid from its type and index */
@@ -564,6 +598,7 @@ struct spi_ops_s
                   bool cmd);
 #endif
   CODE uint32_t (*send)(FAR struct spi_dev_s *dev, uint32_t wd);
+  CODE uint32_t (*recv)(FAR struct spi_dev_s *dev);
 #ifdef CONFIG_SPI_EXCHANGE
   CODE void     (*exchange)(FAR struct spi_dev_s *dev,
                   FAR const void *txbuffer, FAR void *rxbuffer,
@@ -579,6 +614,8 @@ struct spi_ops_s
 #endif
   CODE int      (*registercallback)(FAR struct spi_dev_s *dev,
                   spi_mediachange_t callback, void *arg);
+  CODE void     (*sendword)(FAR struct spi_dev_s *dev, uint32_t wd);
+  CODE uint32_t (*recvword)(FAR struct spi_dev_s *dev);
 };
 
 /* SPI private data.  This structure only defines the initial fields of the

@@ -184,6 +184,8 @@
 #    define SPI123_KERNEL_CLOCK_FREQ STM32_PLL1Q_FREQUENCY
 #  elif STM32_RCC_D2CCIP1R_SPI123SRC == RCC_D2CCIP1R_SPI123SEL_PLL2
 #    define SPI123_KERNEL_CLOCK_FREQ STM32_PLL2P_FREQUENCY
+#  elif STM32_RCC_D2CCIP1R_SPI123SRC == RCC_D2CCIP1R_SPI123SEL_PLL3
+#    define SPI123_KERNEL_CLOCK_FREQ STM32_PLL3P_FREQUENCY
 #  else
 #    error Not supported yet
 #  endif
@@ -197,6 +199,8 @@
 #    define SPI45_KERNEL_CLOCK_FREQ STM32_PCLK2_FREQUENCY
 #  elif STM32_RCC_D2CCIP1R_SPI45SRC == RCC_D2CCIP1R_SPI45SEL_PLL2
 #    define SPI45_KERNEL_CLOCK_FREQ STM32_PLL2Q_FREQUENCY
+#  elif STM32_RCC_D2CCIP1R_SPI45SRC == RCC_D2CCIP1R_SPI45SEL_PLL3
+#    define SPI45_KERNEL_CLOCK_FREQ STM32_PLL3Q_FREQUENCY
 #  else
 #    error Not supported yet
 #  endif
@@ -210,6 +214,8 @@
 #    define SPI6_KERNEL_CLOCK_FREQ STM32_PCLK4_FREQUENCY
 #  elif STM32_RCC_D3CCIPR_SPI6SRC == RCC_D3CCIPR_SPI6SEL_PLL2
 #    define SPI6_KERNEL_CLOCK_FREQ STM32_PLL2Q_FREQUENCY
+#  elif STM32_RCC_D3CCIPR_SPI6SRC == RCC_D3CCIPR_SPI6SEL_PLL3
+#    define SPI6_KERNEL_CLOCK_FREQ STM32_PLL3Q_FREQUENCY
 #  else
 #    error Not supported yet
 #  endif
@@ -280,6 +286,9 @@ static inline void spi_putreg(struct stm32_spidev_s *priv,
 static inline uint32_t spi_readword(struct stm32_spidev_s *priv);
 static inline void spi_writeword(struct stm32_spidev_s *priv,
                                  uint32_t byte);
+static uint32_t spi_recvword(struct stm32_spidev_s *priv);
+static void spi_sendword(struct stm32_spidev_s *priv,
+                                 uint32_t byte);
 #ifdef CONFIG_DEBUG_SPI_INFO
 static inline void spi_dumpregs(struct stm32_spidev_s *priv);
 #endif
@@ -324,6 +333,7 @@ static int         spi_hwfeatures(struct spi_dev_s *dev,
                                   spi_hwfeatures_t features);
 #endif
 static uint32_t    spi_send(struct spi_dev_s *dev, uint32_t wd);
+static uint32_t    spi_receive(struct spi_dev_s *dev);
 static void        spi_exchange(struct spi_dev_s *dev,
                                 const void *txbuffer, void *rxbuffer,
                                 size_t nwords);
@@ -385,6 +395,8 @@ static const struct spi_ops_s g_sp1iops =
 #else
   .registercallback  = 0,                   /* Not implemented */
 #endif
+  .sendword          = spi_sendword,
+  .recvword          = spi_recvword,
 };
 
 #if defined(SPI1_DMABUFSIZE_ADJUSTED)
@@ -457,6 +469,8 @@ static const struct spi_ops_s g_sp2iops =
 #else
   .registercallback  = 0,  /* not implemented */
 #endif
+  .sendword          = spi_sendword,
+  .recvword          = spi_recvword,
 };
 
 #if defined(SPI2_DMABUFSIZE_ADJUSTED)
@@ -529,6 +543,8 @@ static const struct spi_ops_s g_sp3iops =
 #else
   .registercallback  = 0,                   /* not implemented */
 #endif
+  .sendword          = spi_sendword,
+  .recvword          = spi_recvword,
 };
 
 #if defined(SPI3_DMABUFSIZE_ADJUSTED)
@@ -601,6 +617,8 @@ static const struct spi_ops_s g_sp4iops =
 #else
   .registercallback  = 0,                   /* not implemented */
 #endif
+  .sendword          = spi_sendword,
+  .recvword          = spi_recvword,
 };
 
 #if defined(SPI4_DMABUFSIZE_ADJUSTED)
@@ -673,6 +691,8 @@ static const struct spi_ops_s g_sp5iops =
 #else
   .registercallback  = 0,                   /* not implemented */
 #endif
+  .sendword          = spi_sendword,
+  .recvword          = spi_recvword,
 };
 
 #if defined(SPI5_DMABUFSIZE_ADJUSTED)
@@ -745,6 +765,8 @@ static const struct spi_ops_s g_sp6iops =
 #else
   .registercallback  = 0,                   /* not implemented */
 #endif
+  .sendword          = spi_sendword,
+  .recvword          = spi_recvword,
 };
 
 #if defined(SPI6_DMABUFSIZE_ADJUSTED)
@@ -992,6 +1014,58 @@ static inline void spi_writeword(struct stm32_spidev_s *priv,
   /* Then send the 16 bit word */
 
   spi_putreg16(priv, STM32_SPI_TXDR_OFFSET, word);
+}
+
+/****************************************************************************
+ * Name: spi_recvword
+ *
+ * Description:
+ *   Read one word from SPI.  NON-BLOCKING.
+ *
+ * Input Parameters:
+ *   priv - Device-specific state data
+ *
+ * Returned Value:
+ *   Word as read
+ *
+ ****************************************************************************/
+
+static inline uint32_t spi_recvword(struct stm32_spidev_s *priv)
+{
+  /* Return the received 16 bit word */
+
+  return spi_getreg16(priv, STM32_SPI_RXDR_OFFSET);
+}
+
+/****************************************************************************
+ * Name: spi_writeword
+ *
+ * Description:
+ *   Write one word to SPI. NON_BLOCKING
+ *
+ * Input Parameters:
+ *   priv - Device-specific state data
+ *   word - Word to send
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+static inline void spi_sendword(struct stm32_spidev_s *priv,
+                                 uint32_t word)
+{
+    /* Clear suspend flag */
+
+    spi_modifyreg(priv, STM32_SPI_IFCR_OFFSET, 0, SPI_IFCR_SUSPC);
+
+    /* Master transfer start */
+
+    spi_modifyreg(priv, STM32_SPI_CR1_OFFSET, 0, SPI_CR1_CSTART);
+
+    /* send the 16 bit word */
+
+    spi_putreg16(priv, STM32_SPI_TXDR_OFFSET, word);
 }
 
 /****************************************************************************
