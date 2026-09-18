@@ -326,6 +326,24 @@ void stm32_gpiowrite(uint32_t pinset, bool value);
 bool stm32_gpioread(uint32_t pinset);
 
 /****************************************************************************
+ * Name: stm32_gpiodir
+ *
+ * Description:
+ *   Set the selected GPIO pin to either input or output
+ *
+ ****************************************************************************/
+void stm32_gpiodir(uint32_t pinset, uint32_t dir);
+
+/****************************************************************************
+ * Name: stm32_gpiowriteanddir
+ *
+ * Description:
+ *   Write one or zero to the selected GPIO pin and set the selected GPIO pin to either input or output
+ *
+ ****************************************************************************/
+void stm32_gpiowriteanddir(uint32_t pinset, bool value, uint32_t dir);
+
+/****************************************************************************
  * Name: stm32_iocompensation
  *
  * Description:

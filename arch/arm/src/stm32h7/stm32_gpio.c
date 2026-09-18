@@ -495,6 +495,141 @@ bool stm32_gpioread(uint32_t pinset)
 }
 
 /****************************************************************************
+ * Name: stm32_gpiodir
+ *
+ * Description:
+ *   Set the selected GPIO pin to either input or output
+ *
+ ****************************************************************************/
+
+void stm32_gpiodir(uint32_t pinset, uint32_t dir)
+{
+  uint32_t base;
+  uint32_t bit;
+  uint32_t regval;
+  unsigned int port;
+  unsigned int pin;
+  unsigned int pinmode;
+  irqstate_t flags;
+
+  port = (pinset & GPIO_PORT_MASK) >> GPIO_PORT_SHIFT;
+  if (port < STM32H7_NGPIO)
+    {
+      /* Get the port base address */
+
+      base = g_gpiobase[port];
+      if (base != 0)
+        {
+          /* Get the pin number  */
+
+          pin = (pinset & GPIO_PIN_MASK) >> GPIO_PIN_SHIFT;
+
+          switch (dir)
+            {
+              default:
+              case GPIO_INPUT:      /* Input mode */
+                pinmode = GPIO_MODER_INPUT;
+                break;
+
+              case GPIO_OUTPUT:     /* General purpose output mode */
+                pinmode = GPIO_MODER_OUTPUT;
+                break;
+
+              case GPIO_ALT:        /* Alternate function mode */
+                pinmode = GPIO_MODER_ALT;
+                break;
+
+              case GPIO_ANALOG:     /* Analog mode */
+                pinmode = GPIO_MODER_ANALOG;
+                break;
+            }
+
+          /* Now apply the configuration to the mode register */
+          flags = enter_critical_section();
+          regval  = getreg32(base + STM32_GPIO_MODER_OFFSET);
+          regval &= ~GPIO_MODER_MASK(pin);
+          regval |= ((uint32_t)pinmode << GPIO_MODER_SHIFT(pin));
+          putreg32(regval, base + STM32_GPIO_MODER_OFFSET);
+          leave_critical_section(flags);
+
+        }
+    }
+}
+
+/****************************************************************************
+ * Name: stm32_gpiowriteanddir
+ *
+ * Description:
+ *   Write one or zero to the selected GPIO pin and set the selected GPIO pin to either input or output
+ *
+ ****************************************************************************/
+
+void stm32_gpiowriteanddir(uint32_t pinset, bool value, uint32_t dir)
+{
+  uint32_t base;
+  uint32_t bit;
+  uint32_t regval;
+  unsigned int port;
+  unsigned int pin;
+  unsigned int pinmode;
+  irqstate_t flags;
+
+  port = (pinset & GPIO_PORT_MASK) >> GPIO_PORT_SHIFT;
+  if (port < STM32H7_NGPIO)
+    {
+      /* Get the port base address */
+
+      base = g_gpiobase[port];
+      if (base != 0)
+        {
+          /* Get the pin number  */
+
+          pin = (pinset & GPIO_PIN_MASK) >> GPIO_PIN_SHIFT;
+
+          switch (dir)
+            {
+              default:
+              case GPIO_INPUT:      /* Input mode */
+                pinmode = GPIO_MODER_INPUT;
+                break;
+
+              case GPIO_OUTPUT:     /* General purpose output mode */
+                pinmode = GPIO_MODER_OUTPUT;
+                break;
+
+              case GPIO_ALT:        /* Alternate function mode */
+                pinmode = GPIO_MODER_ALT;
+                break;
+
+              case GPIO_ANALOG:     /* Analog mode */
+                pinmode = GPIO_MODER_ANALOG;
+                break;
+            }
+
+            if (value)
+              {
+                bit = GPIO_BSRR_SET(pin);
+              }
+            else
+              {
+                bit = GPIO_BSRR_RESET(pin);
+              }
+
+          putreg32(bit, base + STM32_GPIO_BSRR_OFFSET);
+
+          /* Now apply the configuration to the mode register */
+          flags = enter_critical_section();
+          regval  = getreg32(base + STM32_GPIO_MODER_OFFSET);
+          regval &= ~GPIO_MODER_MASK(pin);
+          regval |= ((uint32_t)pinmode << GPIO_MODER_SHIFT(pin));
+          putreg32(regval, base + STM32_GPIO_MODER_OFFSET);
+          leave_critical_section(flags);
+
+        }
+    }
+}
+
+/****************************************************************************
  * Name: stm32_iocompensation
  *
  * Description:
