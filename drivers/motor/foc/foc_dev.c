@@ -223,7 +223,7 @@ static int foc_close(FAR struct file *filep)
  *                        synchronize the user space application with
  *                        a FOC worker.
  *
- *   MTRIOC_CLEAR_FAULT: Clear the FOC device fault state,
+ *   MTRIOC_CLEAR_FAULT:  Clear the FOC device fault state,
  *                        arg: none
  *
  *   MTRIOC_SET_PARAMS:   Set the FOC device operation parameters,
@@ -404,6 +404,7 @@ static int foc_lower_ops_assert(FAR struct foc_lower_ops_s *ops)
   DEBUGASSERT(ops->shutdown);
   DEBUGASSERT(ops->start);
   DEBUGASSERT(ops->pwm_off);
+  DEBUGASSERT(ops->info_get);
   DEBUGASSERT(ops->ioctl);
   DEBUGASSERT(ops->bind);
   DEBUGASSERT(ops->fault_clear);
@@ -558,7 +559,6 @@ static int foc_stop(FAR struct foc_dev_s *dev)
 
   DEBUGASSERT(dev);
 
-  mtrinfo("FOC STOP\n");
 
   /* Zero duty cycle */
 
@@ -587,6 +587,8 @@ static int foc_stop(FAR struct foc_dev_s *dev)
   /* Reset device data */
 
   memset(&dev->state, 0, sizeof(struct foc_state_s));
+
+  mtrinfo("FOC STOP\n");
 
   return ret;
 }
@@ -753,11 +755,9 @@ errout:
 static int foc_info_get(FAR struct foc_dev_s *dev,
                         FAR struct foc_info_s *info)
 {
-  /* Copy data from device */
+  /* Call lower-half logic */
 
-  memcpy(info, &dev->info, sizeof(struct foc_info_s));
-
-  return OK;
+  return FOC_OPS_INFOGET(dev, info);
 }
 
 /****************************************************************************
