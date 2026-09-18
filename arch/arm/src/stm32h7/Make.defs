@@ -73,7 +73,7 @@ ifeq ($(CONFIG_STM32H7_FMC),y)
 CHIP_CSRCS += stm32_fmc.c
 endif
 
-ifeq ($(filter y,$(CONFIG_STM32H7_IWDG) $(CONFIG_STM32H7_RTC_LSICLOCK)),y)
+ifeq ($(sort $(filter y,$(CONFIG_STM32H7_IWDG) $(CONFIG_STM32H7_RTC_LSICLOCK))),y)
 CHIP_CSRCS += stm32_lsi.c
 endif
 
@@ -170,4 +170,8 @@ endif
 
 ifeq ($(CONFIG_STM32H7_WWDG),y)
 CHIP_CSRCS += stm32_wwdg.c
+endif
+
+ifeq ($(CONFIG_STM32H7_FOC),y)
+CHIP_CSRCS += stm32_foc.c
 endif
