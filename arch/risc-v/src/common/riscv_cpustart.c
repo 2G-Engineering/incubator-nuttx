@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/common/riscv_cpustart.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -38,6 +40,8 @@
 #include "sched/sched.h"
 #include "init/init.h"
 #include "riscv_internal.h"
+#include "riscv_ipi.h"
+#include "riscv_percpu.h"
 
 #ifdef CONFIG_BUILD_KERNEL
 #  include "riscv_mmu.h"
@@ -67,7 +71,7 @@ void riscv_cpu_boot(int cpu)
 {
   /* Clear IPI for CPU(cpu) */
 
-  putreg32(0, (uintptr_t)RISCV_IPI + (4 * cpu));
+  riscv_ipi_clear(cpu);
 
   /* Enable machine software interrupt for IPI to boot */
 
@@ -75,20 +79,26 @@ void riscv_cpu_boot(int cpu)
 
   /* Wait interrupt */
 
-  asm("WFI");
+  do
+    {
+      asm("WFI");
+    }
+  while (!(READ_CSR(CSR_IP) & IP_SIP));
 
-#ifdef CONFIG_BUILD_KERNEL
+#ifdef CONFIG_RISCV_PERCPU_SCRATCH
   /* Initialize the per CPU areas */
 
-  riscv_percpu_add_hart((uintptr_t)cpu);
+  riscv_percpu_add_hart(riscv_cpuid_to_hartid(cpu));
+#endif
 
+#ifdef CONFIG_BUILD_KERNEL
   /* Enable MMU */
 
   binfo("mmu_enable: satp=%lx\n", g_kernel_pgt_pbase);
   mmu_enable(g_kernel_pgt_pbase, 0);
 #endif
 
-  _info("CPU%d Started\n", this_cpu());
+  sinfo("CPU%d Started\n", this_cpu());
 
 #ifdef CONFIG_STACK_COLORATION
   struct tcb_s *tcb = this_task();
@@ -105,7 +115,7 @@ void riscv_cpu_boot(int cpu)
 
   /* Clear machine software interrupt for CPU(cpu) */
 
-  putreg32(0, (uintptr_t)RISCV_IPI + (4 * cpu));
+  riscv_ipi_clear(cpu);
 
 #ifdef CONFIG_SCHED_INSTRUMENTATION
   /* Notify that this CPU has started */
@@ -149,7 +159,7 @@ void riscv_cpu_boot(int cpu)
 
 int up_cpu_start(int cpu)
 {
-  _info("CPU=%d\n", cpu);
+  sinfo("CPU=%d\n", cpu);
 
 #ifdef CONFIG_SCHED_INSTRUMENTATION
   /* Notify of the start event */
@@ -159,7 +169,7 @@ int up_cpu_start(int cpu)
 
   /* Send IPI to CPU(cpu) */
 
-  putreg32(1, (uintptr_t)RISCV_IPI + (cpu * 4));
+  riscv_ipi_send(cpu);
 
   return 0;
 }

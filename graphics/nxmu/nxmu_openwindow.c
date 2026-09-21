@@ -1,6 +1,8 @@
 /****************************************************************************
  * graphics/nxmu/nxmu_openwindow.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -132,7 +134,7 @@ void nxmu_openwindow(FAR struct nxbe_state_s *be,
        *      levels.
        */
 
-      wnd->fbmem = (FAR nxgl_mxpixel_t *)kumm_malloc(fbsize);
+      wnd->fbmem = kumm_malloc(fbsize);
       if (wnd->fbmem == NULL)
         {
           /* Fall back to no RAM back up */

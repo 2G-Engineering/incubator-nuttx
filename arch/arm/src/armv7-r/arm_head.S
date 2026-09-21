@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv7-r/arm_head.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,8 +26,9 @@
 
 #include <nuttx/config.h>
 
+#include <arch/irq.h>
+
 #include "arm.h"
-#include "cp15.h"
 #include "sctlr.h"
 #include "arm_internal.h"
 
@@ -76,11 +79,7 @@
  */
 
 #ifndef IDLE_STACK_BASE
-#  ifdef CONFIG_SMP
-#    define IDLE_STACK_BASE _enoinit
-#  else
-#    define IDLE_STACK_BASE _ebss
-#  endif
+#  define IDLE_STACK_BASE _ebss
 #endif
 
 #define IDLE_STACK_TOP  IDLE_STACK_BASE+CONFIG_IDLETHREAD_STACKSIZE
@@ -161,6 +160,7 @@ __cpu0_start:
 	/* Set up the stack pointer and clear the frame pointer. */
 
 	ldr		sp, .Lstackpointer
+	bic		sp, sp, #7			/* Get the stack pointer with 8-byte alignment */
 	mov		fp, #0
 
 	/* Invalidate caches and TLBs.
@@ -177,6 +177,7 @@ __cpu0_start:
 	 */
 
 	mov		r0, #0
+	mcr		CP15_TPIDRPRW(r0)	/* Initialize percpu reg TPIDRPRW */
 	mcr		CP15_BPIALL(r0)		/* Invalidate entire branch prediction array */
 	mcr		CP15_ICIALLU(r0)	/* Invalidate I-cache */
 	mcr		CP15_DCIALLU(r0)	/* Invalidate D-cache */

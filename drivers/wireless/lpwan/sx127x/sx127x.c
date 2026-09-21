@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/wireless/lpwan/sx127x/sx127x.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -738,11 +740,10 @@ static int sx127x_open(FAR struct file *filep)
 
   wlinfo("Opening sx127x dev\n");
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (FAR struct sx127x_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   /* Get exclusive access to the driver data structure */
 
@@ -792,11 +793,10 @@ static int sx127x_close(FAR struct file *filep)
   int ret = 0;
 
   wlinfo("Closing sx127x dev\n");
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (FAR struct sx127x_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   /* Get exclusive access to the driver data structure */
 
@@ -836,11 +836,10 @@ static ssize_t sx127x_read(FAR struct file *filep, FAR char *buffer,
   FAR struct inode        *inode = NULL;
   int ret = 0;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (FAR struct sx127x_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   ret = nxmutex_lock(&dev->dev_lock);
   if (ret < 0)
@@ -890,11 +889,10 @@ static ssize_t sx127x_write(FAR struct file *filep, FAR const char *buffer,
   FAR struct inode        *inode = NULL;
   int ret = 0;
 
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (FAR struct sx127x_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   ret = nxmutex_lock(&dev->dev_lock);
   if (ret < 0)
@@ -962,11 +960,10 @@ static int sx127x_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   int ret                      = 0;
 
   wlinfo("cmd: %d arg: %ld\n", cmd, arg);
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (FAR struct sx127x_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   /* Get exclusive access to the driver data structure */
 
@@ -1177,11 +1174,11 @@ static int sx127x_poll(FAR struct file *filep, FAR struct pollfd *fds,
   int ret = 0;
 
   wlinfo("setup: %d\n", (int)setup);
-  DEBUGASSERT(filep && fds);
+  DEBUGASSERT(fds);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  dev = (FAR struct sx127x_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  dev = inode->i_private;
 
   /* Exclusive access */
 
@@ -1225,7 +1222,7 @@ static int sx127x_poll(FAR struct file *filep, FAR struct pollfd *fds,
         {
           /* Data available for input */
 
-          poll_notify(&dev->pfd, 1, POLLIN);
+          poll_notify(&fds, 1, POLLIN);
         }
 
       nxmutex_unlock(&dev->rx_buffer_lock);

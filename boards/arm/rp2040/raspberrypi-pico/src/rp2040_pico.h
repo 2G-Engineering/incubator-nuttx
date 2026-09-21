@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/rp2040/raspberrypi-pico/src/rp2040_pico.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,6 +28,23 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+
+/* LEDs */
+
+#define GPIO_LED1       25 /* The board's LED is connected to this pin */
+
+/* Buttons */
+
+/* Buttons GPIO pins definition */
+
+#define GPIO_BTN_USER1     16
+#define GPIO_BTN_USER2     17
+
+/* Buttons IRQ definitions */
+
+#define MIN_IRQBUTTON     BUTTON_USER1
+#define MAX_IRQBUTTON     BUTTON_USER2
+#define NUM_IRQBUTTONS    (BUTTON_USER1 - BUTTON_USER2 + 1)
 
 int rp2040_bringup(void);
 

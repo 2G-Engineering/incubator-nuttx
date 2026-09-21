@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/driver/fs_mtdproxy.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,11 +35,12 @@
 #include <assert.h>
 #include <debug.h>
 
-#include <nuttx/kmalloc.h>
+#include <nuttx/lib/lib.h>
 #include <nuttx/mtd/mtd.h>
 #include <nuttx/mutex.h>
 
 #include "driver/driver.h"
+#include "fs_heap.h"
 
 /****************************************************************************
  * Private Data
@@ -96,7 +99,8 @@ static FAR char *unique_blkdev(void)
       /* Construct the full device number */
 
       devno &= 0xffffff;
-      snprintf(devbuf, 16, "/dev/tmpb%06lx", (unsigned long)devno);
+      snprintf(devbuf, sizeof(devbuf), "/dev/tmpb%06lx",
+               (unsigned long)devno);
 
       /* Make sure that file name is not in use */
 
@@ -104,7 +108,7 @@ static FAR char *unique_blkdev(void)
       if (ret < 0)
         {
           DEBUGASSERT(ret == -ENOENT);
-          return strdup(devbuf);
+          return fs_heap_strdup(devbuf);
         }
 
       /* It is in use, try again */
@@ -187,6 +191,6 @@ int mtd_proxy(FAR const char *mtddev, int mountflags,
 out_with_fltdev:
   nx_unlink(blkdev);
 out_with_blkdev:
-  kmm_free(blkdev);
+  fs_heap_free(blkdev);
   return ret;
 }

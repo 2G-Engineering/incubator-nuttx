@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/usbhost/usbhost_hidkbd.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -215,7 +217,7 @@ struct usbhost_state_s
    * retained in the f_priv field of the 'struct file'.
    */
 
-  struct pollfd *fds[CONFIG_HIDKBD_NPOLLWAITERS];
+  FAR struct pollfd      *fds[CONFIG_HIDKBD_NPOLLWAITERS];
 
   /* Buffer used to collect and buffer incoming keyboard characters */
 
@@ -263,23 +265,24 @@ static inline void usbhost_freeclass(FAR struct usbhost_state_s *usbclass);
 static int  usbhost_allocdevno(FAR struct usbhost_state_s *priv);
 static void usbhost_freedevno(FAR struct usbhost_state_s *priv);
 static inline void usbhost_mkdevname(FAR struct usbhost_state_s *priv,
-              FAR char *devname);
+                                     FAR char *devname);
 
 /* Keyboard polling thread */
 
 static void usbhost_destroy(FAR void *arg);
 static void usbhost_putbuffer(FAR struct usbhost_state_s *priv,
-              uint8_t keycode);
+                              uint8_t keycode);
 #ifdef CONFIG_HIDKBD_ENCODED
-static void usbhost_putstream(FAR struct lib_outstream_s *this, int ch);
+static void usbhost_putstream(FAR struct lib_outstream_s *self, int ch);
 #endif
 static inline uint8_t usbhost_mapscancode(uint8_t scancode,
-              uint8_t modifier);
+                                          uint8_t modifier);
 #ifdef CONFIG_HIDKBD_ENCODED
 static inline void usbhost_encodescancode(FAR struct usbhost_state_s *priv,
-              uint8_t scancode, uint8_t modifier);
+                                          uint8_t scancode,
+                                          uint8_t modifier);
 #endif
-static int  usbhost_kbdpoll(int argc, char *argv[]);
+static int  usbhost_kbdpoll(int argc, FAR char *argv[]);
 
 #ifdef CONFIG_HIDKBD_NOGETREPORT
 static void usbhost_kbd_work(FAR void *arg);
@@ -290,7 +293,8 @@ static int usbhost_extract_keys(FAR struct usbhost_state_s *priv);
 
 static int usbhost_send_request(FAR struct usbhost_state_s *priv,
                                 uint8_t dir, uint8_t req, uint16_t value,
-                                uint16_t index, uint16_t len, uint8_t *data);
+                                uint16_t index, uint16_t len,
+                                FAR uint8_t *data);
 
 static inline bool usbhost_get_capslock(void);
 static inline void usbhost_toggle_capslock(void);
@@ -298,13 +302,14 @@ static inline void usbhost_toggle_capslock(void);
 /* Helpers for usbhost_connect() */
 
 static inline int usbhost_cfgdesc(FAR struct usbhost_state_s *priv,
-              FAR const uint8_t *configdesc, int desclen);
+                                  FAR const uint8_t *configdesc,
+                                  int desclen);
 static inline int usbhost_devinit(FAR struct usbhost_state_s *priv);
 
 /* (Little Endian) Data helpers */
 
-static inline uint16_t usbhost_getle16(const uint8_t *val);
-static inline void usbhost_putle16(uint8_t *dest, uint16_t val);
+static inline uint16_t usbhost_getle16(FAR const uint8_t *val);
+static inline void usbhost_putle16(FAR uint8_t *dest, uint16_t val);
 
 /* Transfer descriptor memory management */
 
@@ -318,9 +323,9 @@ static int usbhost_crfree(FAR struct usbhost_state_s *priv);
 
 /* struct usbhost_registry_s methods */
 
-static FAR struct usbhost_class_s *usbhost_create(
-              FAR struct usbhost_hubport_s *hport,
-              FAR const struct usbhost_id_s *id);
+static FAR struct usbhost_class_s *
+usbhost_create(FAR struct usbhost_hubport_s *hport,
+               FAR const struct usbhost_id_s *id);
 
 /* struct usbhost_class_s methods */
 
@@ -333,11 +338,11 @@ static int  usbhost_disconnected(FAR struct usbhost_class_s *usbclass);
 static int  usbhost_open(FAR struct file *filep);
 static int  usbhost_close(FAR struct file *filep);
 static ssize_t usbhost_read(FAR struct file *filep,
-              FAR char *buffer, size_t len);
+                            FAR char *buffer, size_t len);
 static ssize_t usbhost_write(FAR struct file *filep,
-              FAR const char *buffer, size_t len);
+                             FAR const char *buffer, size_t len);
 static int  usbhost_poll(FAR struct file *filep, FAR struct pollfd *fds,
-              bool setup);
+                         bool setup);
 
 /****************************************************************************
  * Private Data
@@ -1363,7 +1368,7 @@ static void usbhost_kbd_callback(FAR void *arg, ssize_t nbytes)
  *
  ****************************************************************************/
 
-static int usbhost_kbdpoll(int argc, char *argv[])
+static int usbhost_kbdpoll(int argc, FAR char *argv[])
 {
   FAR struct usbhost_state_s *priv;
   irqstate_t flags;
@@ -1420,13 +1425,14 @@ static int usbhost_kbdpoll(int argc, char *argv[])
           priv->caps_lock = usbhost_get_capslock();
 
           leds = usbhost_get_capslock() ? USBHID_KBDOUT_CAPSLOCK : 0x00;
+          *priv->tbuffer = leds;
 
           /* Send a report request to change the LED */
 
           usbhost_send_request(priv, USB_REQ_DIR_OUT,
                                USBHID_REQUEST_SETREPORT,
                                USBHID_REPORTTYPE_OUTPUT << 8, 0, 1,
-                               &leds);
+                               priv->tbuffer);
 
 #ifdef CONFIG_HIDKBD_NOGETREPORT
           /* Setup to receive the next report */
@@ -1915,9 +1921,10 @@ static inline int usbhost_devinit(FAR struct usbhost_state_s *priv)
   priv->caps_lock = usbhost_get_capslock();
 
   leds = usbhost_get_capslock() ? USBHID_KBDOUT_CAPSLOCK : 0x00;
+  *priv->tbuffer = leds;
   usbhost_send_request(priv, USB_REQ_DIR_OUT, USBHID_REQUEST_SETREPORT,
                        USBHID_REPORTTYPE_OUTPUT << 8, 0, 1,
-                       &leds);
+                       priv->tbuffer);
 
 #ifdef CONFIG_HIDKBD_NOGETREPORT
 
@@ -1925,7 +1932,7 @@ static inline int usbhost_devinit(FAR struct usbhost_state_s *priv)
 
   if (priv->epin)
     {
-      /* Use interrupt tranfers to get reports. */
+      /* Use interrupt transfers to get reports. */
 
       uinfo("Start waiting for key reports\n");
       ret = DRVR_ASYNCH(hport->drvr, priv->epin,
@@ -1957,7 +1964,7 @@ static inline int usbhost_devinit(FAR struct usbhost_state_s *priv)
 
   uinfo("Start poll task\n");
 
-  /* The inputs to a task started by kthread_create() are very awkard for
+  /* The inputs to a task started by kthread_create() are very awkward for
    * this purpose.  They are really designed for command line tasks
    * (argc/argv).  So the following is kludge pass binary data when the
    * keyboard poll task is started.
@@ -2031,7 +2038,7 @@ errout:
  *
  ****************************************************************************/
 
-static inline uint16_t usbhost_getle16(const uint8_t *val)
+static inline uint16_t usbhost_getle16(FAR const uint8_t *val)
 {
   return (uint16_t)val[1] << 8 | (uint16_t)val[0];
 }
@@ -2051,7 +2058,7 @@ static inline uint16_t usbhost_getle16(const uint8_t *val)
  *
  ****************************************************************************/
 
-static void usbhost_putle16(uint8_t *dest, uint16_t val)
+static void usbhost_putle16(FAR uint8_t *dest, uint16_t val)
 {
   dest[0] = val & 0xff; /* Little endian means LS byte first in byte stream */
   dest[1] = val >> 8;
@@ -2137,7 +2144,7 @@ static int usbhost_cralloc(FAR struct usbhost_state_s *priv)
   FAR struct usbhost_hubport_s *hport;
 
   DEBUGASSERT(priv != NULL && priv->usbclass.hport != NULL &&
-              priv->tbuffer == NULL);
+              priv->ctrlreq == NULL);
   hport = priv->usbclass.hport;
 
   return DRVR_ALLOC(hport->drvr, &priv->ctrlreq, &priv->ctrllen);
@@ -2203,7 +2210,7 @@ static int usbhost_send_request(FAR struct usbhost_state_s *priv,
                                 uint16_t value,
                                 uint16_t index,
                                 uint16_t len,
-                                uint8_t *data)
+                                FAR uint8_t *data)
 {
   FAR struct usbhost_hubport_s *hport;
   int ret = OK;
@@ -2494,7 +2501,6 @@ static int usbhost_open(FAR struct file *filep)
   int ret;
 
   uinfo("Entry\n");
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -2553,7 +2559,6 @@ static int usbhost_close(FAR struct file *filep)
   int ret;
 
   uinfo("Entry\n");
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -2652,7 +2657,7 @@ static ssize_t usbhost_read(FAR struct file *filep, FAR char *buffer,
   int                         ret;
 
   uinfo("Entry\n");
-  DEBUGASSERT(filep && filep->f_inode && buffer);
+  DEBUGASSERT(buffer);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -2784,7 +2789,7 @@ static int usbhost_poll(FAR struct file *filep, FAR struct pollfd *fds,
   int                         i;
 
   uinfo("Entry\n");
-  DEBUGASSERT(filep && filep->f_inode && fds);
+  DEBUGASSERT(fds);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -2832,8 +2837,8 @@ static int usbhost_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
       if (i >= CONFIG_HIDKBD_NPOLLWAITERS)
         {
-          fds->priv    = NULL;
-          ret          = -EBUSY;
+          fds->priv = NULL;
+          ret       = -EBUSY;
           goto errout;
         }
 
@@ -2843,20 +2848,20 @@ static int usbhost_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
       if (priv->headndx != priv->tailndx)
         {
-          poll_notify(priv->fds, CONFIG_HIDKBD_NPOLLWAITERS, POLLIN);
+          poll_notify(&fds, 1, POLLIN);
         }
     }
   else
     {
       /* This is a request to tear down the poll. */
 
-      struct pollfd **slot = (struct pollfd **)fds->priv;
+      FAR struct pollfd **slot = (FAR struct pollfd **)fds->priv;
       DEBUGASSERT(slot);
 
       /* Remove all memory of the poll setup */
 
-      *slot                = NULL;
-      fds->priv            = NULL;
+      *slot     = NULL;
+      fds->priv = NULL;
     }
 
 errout:

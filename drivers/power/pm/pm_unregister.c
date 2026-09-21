@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/power/pm/pm_unregister.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -38,14 +40,15 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: pm_unregister
+ * Name: pm_domain_unregister
  *
  * Description:
  *   This function is called by a device driver in order to unregister
  *   previously registered power management event callbacks.
  *
  * Input parameters:
- *   callbacks - An instance of struct pm_callback_s providing the driver
+ *   domain - Target unregister domain.
+ *   cb     - An instance of struct pm_callback_s providing the driver
  *               callback functions.
  *
  * Returned Value:
@@ -53,19 +56,21 @@
  *
  ****************************************************************************/
 
-int pm_unregister(FAR struct pm_callback_s *callbacks)
+int pm_domain_unregister(int domain, FAR struct pm_callback_s *cb)
 {
+  FAR struct pm_domain_s *pdom;
   irqstate_t flags;
 
-  DEBUGASSERT(callbacks);
+  DEBUGASSERT(domain >= 0 && domain < CONFIG_PM_NDOMAINS);
+
+  pdom  = &g_pmdomains[domain];
+  flags = spin_lock_irqsave(&pdom->lock);
 
   /* Remove entry from the list of registered callbacks. */
 
-  flags = pm_lock(&g_pmglobals.reglock);
-  dq_rem(&callbacks->entry, &g_pmglobals.registry);
-  pm_unlock(&g_pmglobals.reglock, flags);
-
-  return 0;
+  dq_rem(&cb->entry, &pdom->registry);
+  spin_unlock_irqrestore(&pdom->lock, flags);
+  return OK;
 }
 
 #endif /* CONFIG_PM */

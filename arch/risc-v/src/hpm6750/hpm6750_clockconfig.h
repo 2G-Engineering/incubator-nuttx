@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/hpm6750/hpm6750_clockconfig.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,9 +37,7 @@
  * Public Types
  ****************************************************************************/
 
-/**
- * @brief Clock nodes
- */
+/* Clock nodes */
 
 typedef enum
 {
@@ -120,9 +120,7 @@ typedef enum
   clock_node_end,
 } clock_node_t;
 
-/**
- * @brief General clock sources
- */
+/* General clock sources */
 
 typedef enum
 {

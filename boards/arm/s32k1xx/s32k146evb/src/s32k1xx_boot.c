@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/s32k1xx/s32k146evb/src/s32k1xx_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -45,7 +47,7 @@
 
 void s32k1xx_board_initialize(void)
 {
-#ifdef CONFIG_SEGGER_SYSVIEW
+#ifdef CONFIG_ARCH_PERF_EVENTS
   up_perf_init((void *)S32K146EVB_RUN_SYSCLK_FREQUENCY);
 #endif
 

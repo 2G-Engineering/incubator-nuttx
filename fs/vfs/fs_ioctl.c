@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_ioctl.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,6 +33,7 @@
 #include <assert.h>
 
 #include "inode/inode.h"
+#include "lock.h"
 
 /****************************************************************************
  * Private Functions
@@ -43,9 +46,6 @@
 static int file_vioctl(FAR struct file *filep, int req, va_list ap)
 {
   FAR struct inode *inode;
-#ifdef CONFIG_FDSAN
-  FAR uint64_t *tag;
-#endif
   unsigned long arg;
   int ret = -ENOTTY;
 
@@ -112,16 +112,49 @@ static int file_vioctl(FAR struct file *filep, int req, va_list ap)
           }
         break;
 
+      case FIOC_GETLK:
+        if (ret == -ENOTTY)
+          {
+            ret = file_getlk(filep, (FAR struct flock *)(uintptr_t)arg);
+          }
+        break;
+
+      case FIOC_SETLK:
+        if (ret == -ENOTTY)
+          {
+            ret = file_setlk(filep, (FAR struct flock *)(uintptr_t)arg,
+                             true);
+          }
+        break;
+
+      case FIOC_SETLKW:
+        if (ret == -ENOTTY)
+          {
+            ret = file_setlk(filep, (FAR struct flock *)(uintptr_t)arg,
+                             false);
+          }
+        break;
+
 #ifdef CONFIG_FDSAN
-      case FIOC_SETTAG:
-        tag = (FAR uint64_t *)arg;
-        filep->f_tag = *tag;
+      case FIOC_SETTAG_FDSAN:
+        filep->f_tag_fdsan = *(FAR uint64_t *)arg;
         ret = OK;
         break;
 
-      case FIOC_GETTAG:
-        tag = (FAR uint64_t *)arg;
-        *tag = filep->f_tag;
+      case FIOC_GETTAG_FDSAN:
+        *(FAR uint64_t *)arg = filep->f_tag_fdsan;
+        ret = OK;
+        break;
+#endif
+
+#ifdef CONFIG_FDCHECK
+      case FIOC_SETTAG_FDCHECK:
+        filep->f_tag_fdcheck = *(FAR uint8_t *)arg;
+        ret = OK;
+        break;
+
+      case FIOC_GETTAG_FDCHECK:
+        *(FAR uint8_t *)arg = filep->f_tag_fdcheck;
         ret = OK;
         break;
 #endif
@@ -139,6 +172,22 @@ static int file_vioctl(FAR struct file *filep, int req, va_list ap)
                 *(FAR blksize_t *)(uintptr_t)arg = geo.geo_sectorsize;
               }
           }
+        break;
+
+      case BIOC_BLKGETSIZE:
+        if (ret == -ENOTTY && inode->u.i_ops != NULL &&
+            inode->u.i_ops->ioctl != NULL)
+          {
+            struct geometry geo;
+            ret = inode->u.i_ops->ioctl(filep, BIOC_GEOMETRY,
+                                        (unsigned long)(uintptr_t)&geo);
+            if (ret >= 0)
+              {
+                *(FAR blkcnt_t *)(uintptr_t)arg = geo.geo_nsectors;
+              }
+          }
+        break;
+
 #endif
     }
 
@@ -229,6 +278,7 @@ int ioctl(int fd, int req, ...)
   ret = file_vioctl(filep, req, ap);
   va_end(ap);
 
+  fs_putfilep(filep);
   if (ret < 0)
     {
       goto err;

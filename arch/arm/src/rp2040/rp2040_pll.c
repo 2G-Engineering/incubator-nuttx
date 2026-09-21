@@ -1,10 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rp2040/rp2040_pll.c
  *
- * Based upon the software originally developed by
- *   Raspberry Pi (Trading) Ltd.
- *
- * Copyright 2020 (c) 2020 Raspberry Pi (Trading) Ltd.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2020 Raspberry Pi (Trading) Ltd.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -91,11 +89,11 @@ void rp2040_pll_init(uint32_t base, uint32_t refdiv, uint32_t vco_freq,
 
   /* Check parameter ranges */
 
-  assert(fbdiv >= 16 && fbdiv <= 320);
-  assert((post_div1 >= 1 && post_div1 <= 7) &&
+  ASSERT(fbdiv >= 16 && fbdiv <= 320);
+  ASSERT((post_div1 >= 1 && post_div1 <= 7) &&
          (post_div2 >= 1 && post_div2 <= 7));
-  assert(post_div2 <= post_div1);
-  assert(ref_mhz <= (vco_freq / 16));
+  ASSERT(post_div2 <= post_div1);
+  ASSERT(ref_mhz <= (vco_freq / 16));
 
   /* Put calculated value into feedback divider */
 

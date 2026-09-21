@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/common/riscv_getnewintctx.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -67,6 +69,9 @@ uintptr_t riscv_get_newintctx(void)
   return (status | STATUS_PPP | STATUS_SUM | STATUS_PIE
 #ifdef CONFIG_ARCH_FPU
                  | MSTATUS_FS_INIT
+#endif
+#ifdef CONFIG_ARCH_RV_ISA_V
+                 | MSTATUS_VS_INIT
 #endif
   );
 }

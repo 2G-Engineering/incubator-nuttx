@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/cxd56xx/cxd56_start.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -163,6 +165,18 @@ void __start(void)
     {
       *dest++ = 0;
     }
+
+#ifdef CONFIG_CXD56_GNSS_RAM
+  /* Clear .gnssram.bss section. */
+
+  extern uint8_t _gnssramsbss[];
+  extern uint8_t _gnssramebss[];
+
+  for (dest = (uint32_t *)_gnssramsbss; dest < (uint32_t *)_gnssramebss; )
+    {
+      *dest++ = 0;
+    }
+#endif
 
   /* Initialize the FPU (if configured) */
 

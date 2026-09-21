@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32u5/stm32_allocateheap.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -94,7 +96,7 @@
 
 /* Set the range of system SRAM */
 
-#define SRAM1_START  STM32_SRAM_BASE
+#define SRAM1_START  STM32_SRAM1_BASE
 #define SRAM1_END    (SRAM1_START + STM32_SRAM1_SIZE)
 
 /* Set the range of SRAM2 as well, requires a second memory region */
@@ -109,6 +111,11 @@
 #  define SRAM3_END    (SRAM3_START + STM32_SRAM3_SIZE)
 #endif
 
+#ifdef STM32_SRAM5_SIZE
+#  define SRAM5_START  STM32_SRAM5_BASE
+#  define SRAM5_END    (SRAM3_START + STM32_SRAM5_SIZE)
+#endif
+
 /* Some sanity checking.  If multiple memory regions are defined, verify
  * that CONFIG_MM_REGIONS is set to match the number of memory regions
  * that we have been asked to add to the heap.
@@ -116,12 +123,14 @@
 
 #if CONFIG_MM_REGIONS < defined(CONFIG_STM32U5_SRAM2_HEAP) + \
                         defined(CONFIG_STM32U5_SRAM3_HEAP) + \
+                        defined(CONFIG_STM32U5_SRAM5_HEAP) + \
                         defined(CONFIG_STM32U5_FSMC_SRAM_HEAP) + 1
 #  error "You need more memory manager regions to support selected heap components"
 #endif
 
 #if CONFIG_MM_REGIONS > defined(CONFIG_STM32U5_SRAM2_HEAP) + \
                         defined(CONFIG_STM32U5_SRAM3_HEAP) + \
+                        defined(CONFIG_STM32U5_SRAM5_HEAP) + \
                         defined(CONFIG_STM32U5_FSMC_SRAM_HEAP) + 1
 #  warning "CONFIG_MM_REGIONS large enough but I do not know what some of the region(s) are"
 #endif
@@ -312,13 +321,13 @@ void arm_addregion(void)
 {
 #ifdef CONFIG_STM32U5_SRAM2_HEAP
 
-#if defined(CONFIG_BUILD_PROTECTED) && defined(CONFIG_MM_KERNEL_HEAP)
+#  if defined(CONFIG_BUILD_PROTECTED) && defined(CONFIG_MM_KERNEL_HEAP)
 
   /* Allow user-mode access to the SRAM2 heap */
 
   stm32_mpu_uheap((uintptr_t)SRAM2_START, SRAM2_END - SRAM2_START);
 
-#endif
+#  endif
 
   /* Colorize the heap for debug */
 
@@ -332,13 +341,13 @@ void arm_addregion(void)
 
 #ifdef CONFIG_STM32U5_SRAM3_HEAP
 
-#if defined(CONFIG_BUILD_PROTECTED) && defined(CONFIG_MM_KERNEL_HEAP)
+#  if defined(CONFIG_BUILD_PROTECTED) && defined(CONFIG_MM_KERNEL_HEAP)
 
   /* Allow user-mode access to the SRAM3 heap */
 
   stm32_mpu_uheap((uintptr_t)SRAM3_START, SRAM3_END - SRAM3_START);
 
-#endif
+#  endif
 
   /* Colorize the heap for debug */
 
@@ -350,14 +359,34 @@ void arm_addregion(void)
 
 #endif /* SRAM3 */
 
+#ifdef CONFIG_STM32U5_SRAM5_HEAP
+
+#  if defined(CONFIG_BUILD_PROTECTED) && defined(CONFIG_MM_KERNEL_HEAP)
+
+  /* Allow user-mode access to the SRAM5 heap */
+
+  stm32_mpu_uheap((uintptr_t)SRAM5_START, STM32_SRAM5_SIZE);
+
+#  endif
+
+  /* Colorize the heap for debug */
+
+  up_heap_color((void *)SRAM5_START, STM32_SRAM5_SIZE);
+
+  /* Add the SRAM5 user heap region. */
+
+  kumm_addregion((void *)SRAM5_START, STM32_SRAM5_SIZE);
+
+#endif /* SRAM5 */
+
 #ifdef CONFIG_STM32U5_FSMC_SRAM_HEAP
-#if defined(CONFIG_BUILD_PROTECTED) && defined(CONFIG_MM_KERNEL_HEAP)
+#  if defined(CONFIG_BUILD_PROTECTED) && defined(CONFIG_MM_KERNEL_HEAP)
 
   /* Allow user-mode access to the FSMC SRAM user heap memory */
 
   stm32_mpu_uheap((uintptr_t)CONFIG_HEAP2_BASE, CONFIG_HEAP2_SIZE);
 
-#endif
+#  endif
 
   /* Colorize the heap for debug */
 

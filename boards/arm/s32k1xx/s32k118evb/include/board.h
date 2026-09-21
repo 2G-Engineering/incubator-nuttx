@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/s32k1xx/s32k118evb/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -129,4 +131,4 @@
 #define PIN_CAN0_RX       PIN_CAN0_RX_3      /* PTE4 */
 #define PIN_CAN0_TX       PIN_CAN0_TX_3      /* PTE5 */
 
-#endif  /* __BOARDS_ARM_S32K1XX_S32K118EVB_INCLUDE_BOARD_H */
+#endif /* __BOARDS_ARM_S32K1XX_S32K118EVB_INCLUDE_BOARD_H */

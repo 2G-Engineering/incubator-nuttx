@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/sched/sched_get_stateinfo.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -53,7 +55,7 @@ static FAR const char * const g_statenames[] =
   , "Waiting,MQ empty"
   , "Waiting,MQ full"
 #endif
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
   , "Waiting,Paging fill"
 #endif
 #ifdef CONFIG_SIG_SIGSTOP_ACTION
@@ -99,7 +101,7 @@ void nxsched_get_stateinfo(FAR struct tcb_s *tcb, FAR char *state,
   if (tcb->task_state == TSTATE_WAIT_SEM &&
       ((FAR sem_t *)(tcb->waitobj))->flags & SEM_TYPE_MUTEX)
     {
-      pid_t holder = ((FAR mutex_t *)(tcb->waitobj))->holder;
+      pid_t holder = nxmutex_get_holder((FAR mutex_t *)tcb->waitobj);
       leave_critical_section(flags);
 
       snprintf(state, length, "Waiting,Mutex:%d", holder);

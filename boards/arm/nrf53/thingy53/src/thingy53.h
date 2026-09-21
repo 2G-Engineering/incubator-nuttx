@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nrf53/thingy53/src/thingy53.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -57,6 +59,8 @@
 #define GPIO_BUTTON1 (GPIO_INPUT | GPIO_PULLUP | GPIO_PORT1 | GPIO_PIN(14))
 #define GPIO_BUTTON2 (GPIO_INPUT | GPIO_PULLUP | GPIO_PORT1 | GPIO_PIN(13))
 
+/* Supported devices ********************************************************/
+
 /* nRF21540 front end module
  *   RX_EN - P1.11
  *   MODE  - P1.12
@@ -84,22 +88,28 @@
 
 #define GPIO_ADXL362_INT1 (GPIO_INPUT  | GPIO_PORT0 | GPIO_PIN(19))
 #define GPIO_ADXL362_CS   (GPIO_OUTPUT | GPIO_PORT0 | GPIO_PIN(22))
+#define ADXL362_SPIDEV    (1)
 
-/* BMI270
+/* BMI270 (I2C address: 0x68)
  *   INT1 - P0.23
  *   CS   - P1.04
  */
 
 #define GPIO_BMI270_INT1 (GPIO_INPUT  | GPIO_PORT0 | GPIO_PIN(23))
 #define GPIO_BMI270_CS   (GPIO_OUTPUT | GPIO_PORT1 | GPIO_PIN(4))
+#define BMI270_SPIDEV    (1)
 
-/* BMM150
+/* BMM150 (I2C address: 0x10)
  *   INT  - P0.20
  *   DRDY - P0.21
  */
 
 #define GPIO_BMM150_INT  (GPIO_INPUT  | GPIO_PORT0 | GPIO_PIN(20))
 #define GPIO_BMM150_DRDY (GPIO_INPUT  | GPIO_PORT0 | GPIO_PIN(21))
+
+/* BME688 (I2C address: 0x76)
+ *   No additional GPIO
+ */
 
 /* BH1749
  *   INT  - P1.05
@@ -152,6 +162,63 @@
  ****************************************************************************/
 
 int nrf53_bringup(void);
+
+/****************************************************************************
+ * Name: nrf53_sensors_init
+ *
+ * Description:
+ *   Initialize on-board sensors
+ *
+ ****************************************************************************/
+
+int nrf53_sensors_init(void);
+
+/****************************************************************************
+ * Name: nrf53_rgbled_initialize
+ *
+ * Description:
+ *   Configure the RGB LED.
+ *
+ ****************************************************************************/
+
+int nrf53_rgbled_initialize(void);
+
+/****************************************************************************
+ * Name: nrf53_i2c_register
+ *
+ * Description:
+ *   Register one I2C drivers for the I2C tool.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_I2C
+int nrf53_i2c_register(int bus);
+#endif
+
+/****************************************************************************
+ * Name: nrf53_i2ctool
+ *
+ * Description:
+ *   Register I2C drivers for the I2C tool.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_SYSTEM_I2CTOOL
+int nrf53_i2ctool(void);
+#endif
+
+/****************************************************************************
+ * Name: nrf53_spidev_initialize
+ *
+ * Description:
+ *   Called to configure SPI chip select GPIO pins for the
+ *   thingy53 board.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NRF53_SPI_MASTER
+void nrf53_spidev_initialize(void);
+#endif
 
 #endif /* __ASSEMBLY__ */
 #endif /* __BOARDS_ARM_NRF53_THINGY53_SRC_THINGY53_H */

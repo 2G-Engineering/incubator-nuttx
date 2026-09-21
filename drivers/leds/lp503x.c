@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/leds/lp503x.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -48,7 +50,7 @@
 #endif
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 enum lp503x_state
@@ -417,7 +419,7 @@ static int lp503x_open(struct file *filep)
 
   /* reset and enable the device */
 
-  /* means the device was possibly never regsitered? */
+  /* means the device was possibly never registered? */
 
   if (priv->state == LP503X_STATE_UNINIT)
     {
@@ -916,6 +918,7 @@ static int lp503x_ioctl(struct file *filep, int cmd,
 int lp503x_register(const char *devpath, struct i2c_master_s *i2c,
                     uint8_t const lp503x_i2c_addr, int const i2c_frequency)
 {
+  struct lp503x_dev_s *priv;
   int ret;
 
   /* Sanity check */
@@ -924,9 +927,7 @@ int lp503x_register(const char *devpath, struct i2c_master_s *i2c,
 
   /* Initialize the LP503X device structure */
 
-  struct lp503x_dev_s *priv =
-         (struct lp503x_dev_s *)kmm_malloc(sizeof(struct lp503x_dev_s));
-
+  priv = kmm_malloc(sizeof(struct lp503x_dev_s));
   if (priv == NULL)
     {
       lederr("ERROR: Failed to allocate instance of lp503x_dev_s\n");

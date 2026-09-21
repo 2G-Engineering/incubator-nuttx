@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/ctype.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,26 +33,24 @@
  ****************************************************************************/
 
 #include <nuttx/compiler.h>
+#include <langinfo.h>
 
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
+#ifdef CONFIG_LIBCXXTOOLCHAIN
 
-#define isalnum_l(c, l)  isalnum(c)
-#define isalpha_l(c, l)  isalpha(c)
-#define isascii_l(c, l)  isascii(c)
-#define isblank_l(c, l)  isblank(c)
-#define iscntrl_l(c, l)  iscntrl(c)
-#define isdigit_l(c, l)  isdigit(c)
-#define isgraph_l(c, l)  isgraph(c)
-#define islower_l(c, l)  islower(c)
-#define isprint_l(c, l)  isprint(c)
-#define ispunct_l(c, l)  ispunct(c)
-#define isspace_l(c, l)  isspace(c)
-#define isupper_l(c, l)  isupper(c)
-#define isxdigit_l(c, l) isxdigit(c)
-#define tolower_l(c, l)  tolower(c)
-#define toupper_l(c, l)  toupper(c)
+/* GNU libstdc++ is expecting ctype.h to define a few macros for
+ * locale related functions like C++ streams.
+ */
+
+#define _U  01
+#define _L  02
+#define _N  04
+#define _S  010
+#define _P  020
+#define _C  040
+#define _X  0100
+#define _B  0200
+
+#endif
 
 /****************************************************************************
  * Inline Functions
@@ -80,8 +80,14 @@ static inline int isspace(int c)
   return c == ' ' || c == '\t' || c == '\n' || c == '\r' ||
          c == '\f' || c == '\v';
 }
+
+static inline int isspace_l(int c, locale_t locale)
+{
+  return isspace(c);
+}
 #else
 int isspace(int c);
+int isspace_l(int c, locale_t locale);
 #endif
 
 /****************************************************************************
@@ -98,8 +104,14 @@ static inline int isascii(int c)
 {
   return c >= 0 && c <= 0x7f;
 }
+
+static inline int isascii_l(int c, locale_t locale)
+{
+  return isascii(c);
+}
 #else
 int isascii(int c);
+int isascii_l(int c, locale_t locale);
 #endif
 
 /****************************************************************************
@@ -115,8 +127,14 @@ static inline int isprint(int c)
 {
   return c >= 0x20 && c < 0x7f;
 }
+
+static inline int isprint_l(int c, locale_t locale)
+{
+  return isprint(c);
+}
 #else
 int isprint(int c);
+int isprint_l(int c, locale_t locale);
 #endif
 
 /****************************************************************************
@@ -132,8 +150,14 @@ static inline int isgraph(int c)
 {
   return c > 0x20 && c < 0x7f;
 }
+
+static inline int isgraph_l(int c, locale_t locale)
+{
+  return isgraph(c);
+}
 #else
 int isgraph(int c);
+int isgraph_l(int c, locale_t locale);
 #endif
 
 /****************************************************************************
@@ -149,8 +173,14 @@ static inline int iscntrl(int c)
 {
   return c < 0x20 || c == 0x7f;
 }
+
+static inline int iscntrl_l(int c, locale_t locale)
+{
+  return iscntrl(c);
+}
 #else
 int iscntrl(int c);
+int iscntrl_l(int c, locale_t locale);
 #endif
 
 /****************************************************************************
@@ -166,8 +196,14 @@ static inline int islower(int c)
 {
   return c >= 'a' && c <= 'z';
 }
+
+static inline int islower_l(int c, locale_t locale)
+{
+  return islower(c);
+}
 #else
 int islower(int c);
+int islower_l(int c, locale_t locale);
 #endif
 
 /****************************************************************************
@@ -183,8 +219,14 @@ static inline int isupper(int c)
 {
   return c >= 'A' && c <= 'Z';
 }
+
+static inline int isupper_l(int c, locale_t locale)
+{
+  return isupper(c);
+}
 #else
 int isupper(int c);
+int isupper_l(int c, locale_t locale);
 #endif
 
 /****************************************************************************
@@ -200,8 +242,14 @@ static inline int isalpha(int c)
 {
   return islower(c) || isupper(c);
 }
+
+static inline int isalpha_l(int c, locale_t locale)
+{
+  return isalpha(c);
+}
 #else
 int isalpha(int c);
+int isalpha_l(int c, locale_t locale);
 #endif
 
 /****************************************************************************
@@ -217,8 +265,14 @@ static inline int isblank(int c)
 {
   return c == ' ' || c == '\t';
 }
+
+static inline int isblank_l(int c, locale_t locale)
+{
+  return isblank(c);
+}
 #else
 int isblank(int c);
+int isblank_l(int c, locale_t locale);
 #endif
 
 /****************************************************************************
@@ -234,8 +288,14 @@ static inline int isdigit(int c)
 {
   return c >= '0' && c <= '9';
 }
+
+static inline int isdigit_l(int c, locale_t locale)
+{
+  return isdigit(c);
+}
 #else
 int isdigit(int c);
+int isdigit_l(int c, locale_t locale);
 #endif
 
 /****************************************************************************
@@ -251,8 +311,14 @@ static inline int isalnum(int c)
 {
   return isalpha(c) || isdigit(c);
 }
+
+static inline int isalnum_l(int c, locale_t locale)
+{
+  return isalnum(c);
+}
 #else
 int isalnum(int c);
+int isalnum_l(int c, locale_t locale);
 #endif
 
 /****************************************************************************
@@ -269,8 +335,14 @@ static inline int ispunct(int c)
 {
   return isgraph(c) && !isalnum(c);
 }
+
+static inline int ispunct_l(int c, locale_t locale)
+{
+  return ispunct(c);
+}
 #else
 int ispunct(int c);
+int ispunct_l(int c, locale_t locale);
 #endif
 
 /****************************************************************************
@@ -288,8 +360,14 @@ static inline int isxdigit(int c)
          (c >= 'a' && c <= 'f') ||
          (c >= 'A' && c <= 'F');
 }
+
+static inline int isxdigit_l(int c, locale_t locale)
+{
+  return isxdigit(c);
+}
 #else
 int isxdigit(int c);
+int isxdigit_l(int c, locale_t locale);
 #endif
 
 /****************************************************************************
@@ -305,8 +383,14 @@ static inline int toupper(int c)
 {
   return (c >= 'a' && c <= 'z') ? c - 'a' + 'A' : c;
 }
+
+static inline int toupper_l(int c, locale_t locale)
+{
+  return toupper(c);
+}
 #else
 int toupper(int c);
+int toupper_l(int c, locale_t locale);
 #endif
 
 /****************************************************************************
@@ -322,8 +406,14 @@ static inline int tolower(int c)
 {
   return (c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c;
 }
+
+static inline int tolower_l(int c, locale_t locale)
+{
+  return tolower(c);
+}
 #else
 int tolower(int c);
+int tolower_l(int c, locale_t locale);
 #endif
 
 #undef EXTERN

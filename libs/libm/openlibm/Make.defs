@@ -1,6 +1,7 @@
-
 ############################################################################
 # libs/libm/openlibm/Make.defs
+#
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -21,6 +22,7 @@
 
 OPENLIBM_VERSION=0.8.1
 
+ifeq ($(wildcard openlibm/openlibm/.git),)
 openlibm-$(OPENLIBM_VERSION).zip:
 	$(call DOWNLOAD,https://github.com/JuliaMath/openlibm/archive/refs/tags,v$(OPENLIBM_VERSION).zip,openlibm.zip)
 
@@ -29,16 +31,20 @@ openlibm/openlibm: openlibm-$(OPENLIBM_VERSION).zip
 	$(Q) mv openlibm-$(OPENLIBM_VERSION) openlibm/openlibm
 	$(Q) patch -p0 < openlibm/0001-fix-build-float_t-error-float_t-has-not-been-declare.patch
 	$(Q) patch -p0 < openlibm/0002-add-math.h-and-complex.h-to-openlibm.patch
+	$(Q) patch -p0 < openlibm/0003-nuttx-openlibm-Fix-openlibm-M_PI-undeclared-error.patch
+endif
 
-ifeq ($(wildcard openlibm/openlibm/.git),)
 distclean::
+	$(Q) $(DIRUNLINK) $(TOPDIR)/include/openlibm
+ifeq ($(wildcard openlibm/openlibm/.git),)
 	$(call DELFILE, openlibm.zip)
 	$(call DELDIR, openlibm/openlibm)
-context:: openlibm/openlibm
-else
-distclean::
-context::
 endif
+
+$(TOPDIR)/include/openlibm: openlibm/openlibm
+	$(Q) $(DIRLINK) $(CURDIR)/openlibm/openlibm/include $@
+
+context:: $(TOPDIR)/include/openlibm
 
 # OS-specific stuff
 # Get ARCH, it is used to read source code file list form $(ARCH)/Make.files
@@ -68,7 +74,7 @@ else
   ARCH = $(CONFIG_ARCH)
 endif
 
-# Get source code lits from Make.files,and append to variable SRCS
+# Get source code list from Make.files and append to variable SRCS
 # (1) Override CUR_SRCS to xxx_SRCS(for example src_SRCS etc.), then in xxx/Make.files CUR_SRCS is changed to xxx_SRCS.
 # (2) Include Make.files
 # (3) Get variable xxx_SRCS from Make.files, and append it to variable SRCS
@@ -102,12 +108,10 @@ VPATH += :openlibm/openlibm/bsdsrc
 CFLAGS += ${INCDIR_PREFIX}openlibm/openlibm
 CFLAGS += ${INCDIR_PREFIX}openlibm/openlibm/$(ARCH)
 CFLAGS += ${INCDIR_PREFIX}openlibm/openlibm/src
-CFLAGS += ${DEFINE_PREFIX}__BSD_VISIBLE
 
 AFLAGS += ${INCDIR_PREFIX}openlibm/openlibm
 AFLAGS += ${INCDIR_PREFIX}openlibm/openlibm/$(ARCH)
 AFLAGS += ${INCDIR_PREFIX}openlibm/openlibm/src
-AFLAGS += ${DEFINE_PREFIX}__BSD_VISIBLE
 
 CSRCS := $(sort $(filter %.c,$(SRCS)))
 ASRCS := $(sort $(filter %.S,$(SRCS)))

@@ -1,10 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rp2040/rp2040_clock.c
  *
- * Based upon the software originally developed by
- *   Raspberry Pi (Trading) Ltd.
- *
- * Copyright 2020 (c) 2020 Raspberry Pi (Trading) Ltd.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2020 Raspberry Pi (Trading) Ltd.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -63,8 +61,6 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define RESETS_RESET_BITS   0x01ffffff
-
 /****************************************************************************
  * Private Data
  ****************************************************************************/
@@ -81,13 +77,37 @@ static inline bool has_glitchless_mux(int clk_index)
          clk_index == RP2040_CLOCKS_NDX_REF;
 }
 
+#if defined(CONFIG_RP2040_CLK_GPOUT_ENABLE)
+static bool rp2040_clock_configure_gpout(int clk_index,
+                                        uint32_t src,
+                                        uint32_t div_int,
+                                        uint32_t div_frac)
+{
+  if (clk_index > RP2040_CLOCKS_NDX_GPOUT3 ||
+      clk_index < RP2040_CLOCKS_NDX_GPOUT0 ||
+      (src >> RP2040_CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_SHIFT) > 0xa)
+    {
+      return false;
+    }
+
+  putreg32((div_int << RP2040_CLOCKS_CLK_GPOUT0_DIV_INT_SHIFT) |
+            (div_frac & RP2040_CLOCKS_CLK_GPOUT0_DIV_FRAC_MASK),
+           (RP2040_CLOCKS_CLK_NDX_DIV(clk_index)));
+  putreg32((src << RP2040_CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_SHIFT) |
+            RP2040_CLOCKS_CLK_GPOUT0_CTRL_ENABLE,
+           (RP2040_CLOCKS_CLK_NDX_CTRL(clk_index)));
+
+  return true;
+}
+#endif
+
 bool rp2040_clock_configure(int clk_index,
                             uint32_t src, uint32_t auxsrc,
                             uint32_t src_freq, uint32_t freq)
 {
   uint32_t div;
 
-  assert(src_freq >= freq);
+  ASSERT(src_freq >= freq);
 
   if (freq > src_freq)
     {
@@ -274,6 +294,91 @@ void clocks_init(void)
                          RP2040_CLOCKS_CLK_PERI_CTRL_AUXSRC_CLK_SYS,
                          BOARD_SYS_FREQ,
                          BOARD_PERI_FREQ);
+
+#if defined(CONFIG_RP2040_CLK_GPOUT_ENABLE)
+  uint32_t src;
+
+  #if defined(CONFIG_RP2040_CLK_GPOUT0)
+    #if defined(CONFIG_RP2040_CLK_GPOUT0_SRC_REF)
+      src = RP2040_CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_CLK_REF;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT0_SRC_SYS)
+      src = RP2040_CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_CLK_SYS;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT0_SRC_USB)
+      src = RP2040_CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_CLK_USB;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT0_SRC_ADC)
+      src = RP2040_CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_CLK_ADC;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT0_SRC_RTC)
+      src = RP2040_CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_CLK_RTC;
+    #else
+      src = 0;
+    #endif
+    rp2040_clock_configure_gpout(RP2040_CLOCKS_NDX_GPOUT0,
+                                 src,
+                                 CONFIG_RP2040_CLK_GPOUT0_DIVINT,
+                                 CONFIG_RP2040_CLK_GPOUT0_DIVFRAC);
+  #endif
+
+  #if defined(CONFIG_RP2040_CLK_GPOUT1)
+    #if defined(CONFIG_RP2040_CLK_GPOUT1_SRC_REF)
+      src = RP2040_CLOCKS_CLK_GPOUT1_CTRL_AUXSRC_CLK_REF;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT1_SRC_SYS)
+      src = RP2040_CLOCKS_CLK_GPOUT1_CTRL_AUXSRC_CLK_SYS;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT1_SRC_USB)
+      src = RP2040_CLOCKS_CLK_GPOUT1_CTRL_AUXSRC_CLK_USB;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT1_SRC_ADC)
+      src = RP2040_CLOCKS_CLK_GPOUT1_CTRL_AUXSRC_CLK_ADC;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT1_SRC_RTC)
+      src = RP2040_CLOCKS_CLK_GPOUT1_CTRL_AUXSRC_CLK_RTC;
+    #else
+      src = 0;
+    #endif
+    rp2040_clock_configure_gpout(RP2040_CLOCKS_NDX_GPOUT1,
+                                 src,
+                                 CONFIG_RP2040_CLK_GPOUT1_DIVINT,
+                                 CONFIG_RP2040_CLK_GPOUT1_DIVFRAC);
+  #endif
+
+  #if defined(CONFIG_RP2040_CLK_GPOUT2)
+    #if defined(CONFIG_RP2040_CLK_GPOUT2_SRC_REF)
+      src = RP2040_CLOCKS_CLK_GPOUT2_CTRL_AUXSRC_CLK_REF;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT2_SRC_SYS)
+      src = RP2040_CLOCKS_CLK_GPOUT2_CTRL_AUXSRC_CLK_SYS;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT2_SRC_USB)
+      src = RP2040_CLOCKS_CLK_GPOUT2_CTRL_AUXSRC_CLK_USB;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT2_SRC_ADC)
+      src = RP2040_CLOCKS_CLK_GPOUT2_CTRL_AUXSRC_CLK_ADC;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT2_SRC_RTC)
+      src = RP2040_CLOCKS_CLK_GPOUT2_CTRL_AUXSRC_CLK_RTC;
+    #else
+      src = 0;
+    #endif
+    rp2040_clock_configure_gpout(RP2040_CLOCKS_NDX_GPOUT2,
+                                 src,
+                                 CONFIG_RP2040_CLK_GPOUT2_DIVINT,
+                                 CONFIG_RP2040_CLK_GPOUT2_DIVFRAC);
+  #endif
+
+  #if defined(CONFIG_RP2040_CLK_GPOUT3)
+    #if defined(CONFIG_RP2040_CLK_GPOUT3_SRC_REF)
+      src = RP2040_CLOCKS_CLK_GPOUT3_CTRL_AUXSRC_CLK_REF;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT3_SRC_SYS)
+      src = RP2040_CLOCKS_CLK_GPOUT3_CTRL_AUXSRC_CLK_SYS;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT3_SRC_USB)
+      src = RP2040_CLOCKS_CLK_GPOUT3_CTRL_AUXSRC_CLK_USB;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT3_SRC_ADC)
+      src = RP2040_CLOCKS_CLK_GPOUT3_CTRL_AUXSRC_CLK_ADC;
+    #elif defined(CONFIG_RP2040_CLK_GPOUT3_SRC_RTC)
+      src = RP2040_CLOCKS_CLK_GPOUT3_CTRL_AUXSRC_CLK_RTC;
+    #else
+      src = 0;
+    #endif
+    rp2040_clock_configure_gpout(RP2040_CLOCKS_NDX_GPOUT3,
+                                 src,
+                                 CONFIG_RP2040_CLK_GPOUT3_DIVINT,
+                                 CONFIG_RP2040_CLK_GPOUT3_DIVFRAC);
+  #endif
+
+#endif
 }
 
 /****************************************************************************
@@ -303,33 +408,33 @@ void rp2040_clockconfig(void)
    *   this boot
    */
 
-  setbits_reg32(RESETS_RESET_BITS & ~(RP2040_RESETS_RESET_IO_QSPI |
-                                      RP2040_RESETS_RESET_PADS_QSPI |
-                                      RP2040_RESETS_RESET_PLL_USB |
-                                      RP2040_RESETS_RESET_PLL_SYS),
+  setbits_reg32(RP2040_RESETS_RESET_MASK & ~(RP2040_RESETS_RESET_IO_QSPI |
+                                             RP2040_RESETS_RESET_PADS_QSPI |
+                                             RP2040_RESETS_RESET_PLL_USB |
+                                             RP2040_RESETS_RESET_PLL_SYS),
                 RP2040_RESETS_RESET);
 
   /* Remove reset from peripherals which are clocked only by clk_sys and
    * clk_ref. Other peripherals stay in reset until we've configured clocks.
    */
 
-  clrbits_reg32(RESETS_RESET_BITS & ~(RP2040_RESETS_RESET_ADC |
-                                      RP2040_RESETS_RESET_RTC |
-                                      RP2040_RESETS_RESET_SPI0 |
-                                      RP2040_RESETS_RESET_SPI1 |
-                                      RP2040_RESETS_RESET_UART0 |
-                                      RP2040_RESETS_RESET_UART1 |
-                                      RP2040_RESETS_RESET_USBCTRL),
+  clrbits_reg32(RP2040_RESETS_RESET_MASK & ~(RP2040_RESETS_RESET_ADC |
+                                             RP2040_RESETS_RESET_RTC |
+                                             RP2040_RESETS_RESET_SPI0 |
+                                             RP2040_RESETS_RESET_SPI1 |
+                                             RP2040_RESETS_RESET_UART0 |
+                                             RP2040_RESETS_RESET_UART1 |
+                                             RP2040_RESETS_RESET_USBCTRL),
                 RP2040_RESETS_RESET);
 
   while (~getreg32(RP2040_RESETS_RESET_DONE) &
-         (RESETS_RESET_BITS & ~(RP2040_RESETS_RESET_ADC |
-                                RP2040_RESETS_RESET_RTC |
-                                RP2040_RESETS_RESET_SPI0 |
-                                RP2040_RESETS_RESET_SPI1 |
-                                RP2040_RESETS_RESET_UART0 |
-                                RP2040_RESETS_RESET_UART1 |
-                                RP2040_RESETS_RESET_USBCTRL)))
+         (RP2040_RESETS_RESET_MASK & ~(RP2040_RESETS_RESET_ADC |
+                                       RP2040_RESETS_RESET_RTC |
+                                       RP2040_RESETS_RESET_SPI0 |
+                                       RP2040_RESETS_RESET_SPI1 |
+                                       RP2040_RESETS_RESET_UART0 |
+                                       RP2040_RESETS_RESET_UART1 |
+                                       RP2040_RESETS_RESET_USBCTRL)))
     ;
 
   /* After calling preinit we have enough runtime to do the exciting maths
@@ -340,7 +445,7 @@ void rp2040_clockconfig(void)
 
   /* Peripheral clocks should now all be running */
 
-  clrbits_reg32(RESETS_RESET_BITS, RP2040_RESETS_RESET);
-  while (~getreg32(RP2040_RESETS_RESET_DONE) & RESETS_RESET_BITS)
+  clrbits_reg32(RP2040_RESETS_RESET_MASK, RP2040_RESETS_RESET);
+  while (~getreg32(RP2040_RESETS_RESET_DONE) & RP2040_RESETS_RESET_MASK)
     ;
 }

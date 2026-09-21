@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/eoss3/eoss3_clockconfig.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -84,7 +86,7 @@ void eoss3_clockconfig(void)
 
   clk_cfg = getreg32(EOSS3_AIP_OSC_CTRL_1);
   clk_cfg &= ~AIP_OSC_CTRL_1_PROG_MASK;
-  clk_cfg |= 0x980 << AIP_OSC_CTRL_1_PROG_SHIFT;  /* (prog + 3) ∗ 32,768Hz */
+  clk_cfg |= 0x980 << AIP_OSC_CTRL_1_PROG_SHIFT;  /* (prog + 3) * 32,768Hz */
   putreg32(clk_cfg, EOSS3_AIP_OSC_CTRL_1);
 
   /* Wait for the lock, we need to wait for lock twice

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_otgdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -1582,7 +1584,7 @@ static void stm32_epout_complete(struct stm32_usbdev_s *priv,
       return;
     }
 
-  uinfo("EP%d: len=%d xfrd=%d\n",
+  uinfo("EP%d: len=%zu xfrd=%zu\n",
           privep->epphy, privreq->req.len, privreq->req.xfrd);
 
   /* Return the completed read request to the class driver and mark the
@@ -1714,7 +1716,7 @@ static inline void stm32_epout_receive(struct stm32_ep_s *privep,
       return;
     }
 
-  uinfo("EP%d: len=%d xfrd=%d\n", privep->epphy,
+  uinfo("EP%d: len=%zu xfrd=%zu\n", privep->epphy,
         privreq->req.len, privreq->req.xfrd);
   usbtrace(TRACE_READ(privep->epphy), bcnt);
 
@@ -2203,8 +2205,8 @@ static inline void stm32_ep0out_testmode(struct stm32_usbdev_s *priv,
  * Name: stm32_ep0out_stdrequest
  *
  * Description:
- *   Handle a stanard request on EP0.  Pick off the things of interest to the
- *   USB device controller driver; pass what is left to the class driver.
+ *   Handle a standard request on EP0.  Pick off the things of interest to
+ *   the USB device controller driver; pass what is left to the class driver.
  *
  ****************************************************************************/
 
@@ -3769,6 +3771,7 @@ static int stm32_usbinterrupt(int irq, void *context, void *arg)
         {
           usbtrace(TRACE_INTDECODE(STM32_TRACEINTID_SOF),
                   (uint16_t)regval);
+          usbdev_sof_irq(&priv->usbdev, stm32_getframe(&priv->usbdev));
         }
 #endif
 
@@ -4373,7 +4376,7 @@ static struct usbdev_req_s *stm32_ep_allocreq(struct usbdev_ep_s *ep)
 
   usbtrace(TRACE_EPALLOCREQ, ((struct stm32_ep_s *)ep)->epphy);
 
-  privreq = (struct stm32_req_s *)kmm_malloc(sizeof(struct stm32_req_s));
+  privreq = kmm_malloc(sizeof(struct stm32_req_s));
   if (!privreq)
     {
       usbtrace(TRACE_DEVERROR(STM32_TRACEERR_ALLOCFAIL), 0);
@@ -5702,7 +5705,7 @@ void arm_usbinitialize(void)
 
   arm_usbuninitialize();
 
-  /* Initialie the driver data structure */
+  /* Initialize the driver data structure */
 
   stm32_swinitialize(priv);
 

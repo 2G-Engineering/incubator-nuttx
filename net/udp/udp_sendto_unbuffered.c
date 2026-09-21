@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/udp/udp_sendto_unbuffered.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -101,11 +103,12 @@ static inline void sendto_ipselect(FAR struct net_driver_s *dev,
                                    FAR struct sendto_s *pstate)
 {
   FAR struct udp_conn_s *conn = pstate->st_conn;
-  DEBUGASSERT(conn);
 
   /* Which domain the socket support */
 
-  if (conn->domain == PF_INET)
+  if (conn->domain == PF_INET ||
+      (conn->domain == PF_INET6 &&
+       ip6_is_ipv4addr((FAR struct in6_addr *)conn->u.ipv6.raddr)))
     {
       /* Select the IPv4 domain */
 
@@ -266,7 +269,7 @@ ssize_t psock_udp_sendto(FAR struct socket *psock, FAR const void *buf,
 {
   FAR struct udp_conn_s *conn;
   struct sendto_s state;
-  int ret;
+  int ret = OK;
 
   /* Verify that the sockfd corresponds to valid, allocated socket */
 
@@ -313,9 +316,7 @@ ssize_t psock_udp_sendto(FAR struct socket *psock, FAR const void *buf,
    * the ARP table.
    */
 
-#ifdef CONFIG_NET_ICMPv6_NEIGHBOR
   if (psock->s_domain == PF_INET)
-#endif
     {
       in_addr_t destipaddr;
 
@@ -352,9 +353,7 @@ ssize_t psock_udp_sendto(FAR struct socket *psock, FAR const void *buf,
    * the neighbor table.
    */
 
-#ifdef CONFIG_NET_ARP_SEND
-  else
-#endif
+  if (psock->s_domain == PF_INET6)
     {
       FAR const uint16_t *destipaddr;
 
@@ -382,7 +381,7 @@ ssize_t psock_udp_sendto(FAR struct socket *psock, FAR const void *buf,
 
       /* Make sure that the IP address mapping is in the Neighbor Table */
 
-      ret = icmpv6_neighbor(destipaddr);
+      ret = icmpv6_neighbor(NULL, destipaddr);
     }
 #endif /* CONFIG_NET_ICMPv6_NEIGHBOR */
 

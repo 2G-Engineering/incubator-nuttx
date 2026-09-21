@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/ieee802154/ieee802154.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -156,20 +158,6 @@ struct sockaddr;              /* Forward reference */
 void ieee802154_initialize(void);
 
 /****************************************************************************
- * Name: ieee802154_conn_initialize
- *
- * Description:
- *   Initialize the IEEE 802.15.4 connection structure allocator.  Called
- *   once and only from ieee802154_initialize().
- *
- * Assumptions:
- *   Called early in the initialization sequence
- *
- ****************************************************************************/
-
-void ieee802154_conn_initialize(void);
-
-/****************************************************************************
  * Name: ieee802154_conn_alloc()
  *
  * Description:
@@ -249,7 +237,7 @@ FAR struct ieee802154_conn_s *
  *               appropriate, however.
  *   meta      - Meta data characterizing the received frame.
  *
- *               If there are multilple frames in the list, this metadata
+ *               If there are multiple frames in the list, this metadata
  *               must apply to all of the frames in the list.
  *
  * Returned Value:

@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_fclose.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -59,8 +61,6 @@
 int fclose(FAR FILE *stream)
 {
   FAR struct streamlist *slist;
-  FAR FILE *prev = NULL;
-  FAR FILE *next;
   int errcode = EINVAL;
   int ret = ERROR;
   int status;
@@ -75,7 +75,7 @@ int fclose(FAR FILE *stream)
 
       if ((stream->fs_oflags & O_WROK) != 0)
         {
-          ret = lib_fflush(stream, true);
+          ret = lib_fflush(stream);
           errcode = get_errno();
         }
 
@@ -91,56 +91,37 @@ int fclose(FAR FILE *stream)
       slist = lib_get_streams();
       nxmutex_lock(&slist->sl_lock);
 
-      for (next = slist->sl_head; next; prev = next, next = next->fs_next)
-        {
-          if (next == stream)
-            {
-              if (next == slist->sl_head)
-                {
-                  slist->sl_head = next->fs_next;
-                }
-              else
-                {
-                  prev->fs_next = next->fs_next;
-                }
-
-              if (next == slist->sl_tail)
-                {
-                  slist->sl_tail = prev;
-                }
-
-              break;
-            }
-        }
+      sq_rem(&stream->fs_entry, &slist->sl_queue);
 
       nxmutex_unlock(&slist->sl_lock);
 
-      /* Check that the underlying file descriptor corresponds to an an open
-       * file.
-       */
+      /* Call user custom callback if it is not NULL. */
 
-      if (stream->fs_fd >= 0)
+      if (stream->fs_iofunc.close != NULL)
         {
-          /* Close the file descriptor and save the return status */
-
+          status = stream->fs_iofunc.close(stream->fs_cookie);
+        }
+      else
+        {
+          int fd = (int)(intptr_t)stream->fs_cookie;
 #ifdef CONFIG_FDSAN
           uint64_t tag;
           tag = android_fdsan_create_owner_tag(ANDROID_FDSAN_OWNER_TYPE_FILE,
                                                (uintptr_t)stream);
-          status = android_fdsan_close_with_tag(stream->fs_fd, tag);
+          status = android_fdsan_close_with_tag(fd, tag);
 #else
-          status = close(stream->fs_fd);
+          status = close(fd);
 #endif
+        }
 
-          /* If close() returns an error but flush() did not then make sure
-           * that we return the close() error condition.
-           */
+      /* If close() returns an error but flush() did not then make sure
+       * that we return the close() error condition.
+       */
 
-          if (ret == OK)
-            {
-              ret = status;
-              errcode = get_errno();
-            }
+      if (ret == OK)
+        {
+          ret = status;
+          errcode = get_errno();
         }
 
 #ifndef CONFIG_STDIO_DISABLE_BUFFERING

@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/tcp/tcp_close.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -220,7 +222,6 @@ static inline int tcp_close_disconnect(FAR struct socket *psock)
   net_lock();
 
   conn = psock->s_conn;
-  DEBUGASSERT(conn != NULL);
 
   /* Discard our reference to the connection */
 

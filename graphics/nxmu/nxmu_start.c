@@ -1,6 +1,8 @@
 /****************************************************************************
  * graphics/nxmu/nxmu_start.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -40,6 +42,10 @@
 #include <nuttx/nx/nxmu.h>
 
 #include "nxmu.h"
+
+#ifdef CONFIG_VNCSERVER
+#  include <nuttx/video/vnc.h>
+#endif
 
 /****************************************************************************
  * Private Data
@@ -108,6 +114,22 @@ static int nx_server(int argc, char *argv[])
   dev->setpower(dev, ((3 * CONFIG_LCD_MAXPOWER + 3) / 4));
 
 #else /* CONFIG_NX_LCDDRIVER */
+#  ifdef CONFIG_VNCSERVER
+  /* Initialize the VNC server */
+  int display;
+
+  /* Get display parameters from the command line */
+
+  display = atoi(argv[1]);
+
+  ret = vnc_fb_register(display);
+  if (ret < 0)
+    {
+       gerr("ERROR: vnc_fb_register() failed: %d\n", ret);
+    }
+
+#  else /* CONFIG_VNCSERVER */
+
   /* Initialize the frame buffer device. */
 
   int display;
@@ -132,6 +154,7 @@ static int nx_server(int argc, char *argv[])
       return EXIT_FAILURE;
     }
 
+#  endif /* CONFIG_VNCSERVER */
 #endif /* CONFIG_NX_LCDDRIVER */
 
   /* Then start the server (nx_run does not normally return) */

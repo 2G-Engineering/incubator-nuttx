@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/bch/bchdev_unregister.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -70,7 +72,7 @@ int bchdev_unregister(FAR const char *chardev)
 
   /* Open the character driver associated with chardev */
 
-  ret = file_open(&filestruct, chardev, O_RDONLY);
+  ret = file_open(&filestruct, chardev, O_RDONLY | O_CLOEXEC);
   if (ret < 0)
     {
       _err("ERROR: Failed to open %s: %d\n", chardev, ret);
@@ -91,13 +93,6 @@ int bchdev_unregister(FAR const char *chardev)
       return ret;
     }
 
-  /* Lock out context switches.  If there are no other references
-   * and no context switches, then we can assume that we can safely
-   * teardown the driver.
-   */
-
-  sched_lock();
-
   /* Check if the internal structure is non-busy (we hold one reference). */
 
   if (bch->refs > 1)
@@ -117,8 +112,6 @@ int bchdev_unregister(FAR const char *chardev)
       goto errout_with_lock;
     }
 
-  sched_unlock();
-
   /* Release the internal structure */
 
   bch->refs = 0;
@@ -126,6 +119,5 @@ int bchdev_unregister(FAR const char *chardev)
 
 errout_with_lock:
   bch->refs--;
-  sched_unlock();
   return ret;
 }

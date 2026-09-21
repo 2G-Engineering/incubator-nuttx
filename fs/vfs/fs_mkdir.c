@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_mkdir.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,6 +34,7 @@
 
 #include <nuttx/fs/fs.h>
 
+#include "notify/notify.h"
 #include "inode/inode.h"
 
 /****************************************************************************
@@ -138,13 +141,7 @@ int mkdir(const char *pathname, mode_t mode)
        * count of zero.
        */
 
-      ret = inode_lock();
-      if (ret < 0)
-        {
-          errcode = -ret;
-          goto errout_with_search;
-        }
-
+      inode_lock();
       ret = inode_reserve(pathname, mode, &inode);
       inode_unlock();
 
@@ -165,6 +162,9 @@ int mkdir(const char *pathname, mode_t mode)
   /* Directory successfully created */
 
   RELEASE_SEARCH(&desc);
+#ifdef CONFIG_FS_NOTIFY
+  notify_mkdir(pathname);
+#endif
   return OK;
 
 errout_with_inode:

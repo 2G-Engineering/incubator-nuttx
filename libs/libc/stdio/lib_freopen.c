@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_freopen.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,6 +29,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <unistd.h>
 
 #include "libc.h"
 
@@ -100,13 +103,19 @@ FAR FILE *freopen(FAR const char *path, FAR const char *mode,
           return NULL;
         }
 
+      /* Make sure that we have exclusive access to the stream */
+
+      flockfile(stream);
+
       /* Flush the stream and invalidate the read buffer. */
 
-      fflush(stream);
+      lib_fflush_unlocked(stream);
 
 #ifndef CONFIG_STDIO_DISABLE_BUFFERING
-      lib_rdflush(stream);
+      lib_rdflush_unlocked(stream);
 #endif
+
+      funlockfile(stream);
 
       /* Duplicate the new fd to the stream. */
 

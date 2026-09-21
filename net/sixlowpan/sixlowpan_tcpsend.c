@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/sixlowpan/sixlowpan_tcpsend.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -213,7 +215,8 @@ static int sixlowpan_tcp_header(FAR struct tcp_conn_s *conn,
     }
   else
     {
-      net_ipv6addr_hdrcopy(ipv6tcp->ipv6.srcipaddr, dev->d_ipv6addr);
+      net_ipv6addr_hdrcopy(ipv6tcp->ipv6.srcipaddr,
+                           netdev_ipv6_srcaddr(dev, conn->u.ipv6.raddr));
     }
 
   ninfo("IPv6 length: %d\n",
@@ -591,8 +594,6 @@ static int sixlowpan_send_packet(FAR struct socket *psock,
   struct sixlowpan_send_s sinfo;
 
   ninfo("len=%lu timeout=%u\n", (unsigned long)len, timeout);
-  DEBUGASSERT(psock != NULL && dev != NULL && conn != NULL && buf != NULL &&
-              destmac != NULL);
 
   memset(&sinfo, 0, sizeof(struct sixlowpan_send_s));
 
@@ -718,7 +719,6 @@ ssize_t psock_6lowpan_tcp_send(FAR struct socket *psock, FAR const void *buf,
   ninfo("buflen %lu\n", (unsigned long)buflen);
   sixlowpan_dumpbuffer("Outgoing TCP payload", buf, buflen);
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
   DEBUGASSERT(psock->s_type == SOCK_STREAM);
 
   /* Make sure that this is a valid socket */
@@ -774,7 +774,7 @@ ssize_t psock_6lowpan_tcp_send(FAR struct socket *psock, FAR const void *buf,
 #ifdef CONFIG_NET_ICMPv6_NEIGHBOR
   /* Make sure that the IP address mapping is in the Neighbor Table */
 
-  ret = icmpv6_neighbor(conn->u.ipv6.raddr);
+  ret = icmpv6_neighbor(dev, conn->u.ipv6.raddr);
   if (ret < 0)
     {
       nerr("ERROR: Not reachable\n");
@@ -812,7 +812,7 @@ ssize_t psock_6lowpan_tcp_send(FAR struct socket *psock, FAR const void *buf,
  * Name: sixlowpan_tcp_send
  *
  * Description:
- *   TCP output comes through three different mechansims.  Either from:
+ *   TCP output comes through three different mechanisms.  Either from:
  *
  *   1. TCP socket output.  For the case of TCP output to an
  *      IEEE802.15.4, the TCP output is caught in the socket

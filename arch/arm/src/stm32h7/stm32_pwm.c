@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_pwm.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -2667,7 +2669,7 @@ static int pwm_outputs_enable(struct pwm_lowerhalf_s *dev,
   uint32_t ccer   = 0;
   uint32_t regval = 0;
 
-  /* Get curren register state */
+  /* Get current register state */
 
   ccer = pwm_getreg(priv, STM32_GTIM_CCER_OFFSET);
 
@@ -2800,7 +2802,7 @@ errout:
  * Name: pwm_sync_configure
  *
  * Description:
- *   Confiugre an output synchronisation event for PWM timer (TRGO/TRGO2)
+ *   Configure an output synchronisation event for PWM timer (TRGO/TRGO2)
  *
  ****************************************************************************/
 
@@ -2902,7 +2904,7 @@ static uint16_t pwm_outputs_from_channels(struct stm32_pwmtimer_s *priv)
 
       if (channel != 0)
         {
-          /* Enable output if confiugred */
+          /* Enable output if configured */
 
           if (priv->channels[i].out1.in_use == 1)
             {
@@ -4316,6 +4318,14 @@ static int pwm_stop(struct pwm_lowerhalf_s *dev)
 
   regval &= ~resetbit;
   putreg32(regval, regaddr);
+
+  /* Clear all channels */
+
+  pwm_putreg(priv, STM32_GTIM_CCR1_OFFSET, 0);
+  pwm_putreg(priv, STM32_GTIM_CCR2_OFFSET, 0);
+  pwm_putreg(priv, STM32_GTIM_CCR3_OFFSET, 0);
+  pwm_putreg(priv, STM32_GTIM_CCR4_OFFSET, 0);
+
   leave_critical_section(flags);
 
   pwminfo("regaddr: %08" PRIx32 " resetbit: %08" PRIx32 "\n",

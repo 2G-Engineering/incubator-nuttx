@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/sched/sched_mergepending.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -87,9 +89,9 @@ bool nxsched_merge_pending(void)
    * Do nothing if pre-emption is still disabled
    */
 
-  if (rtcb->lockcount == 0)
+  if (!nxsched_islocked_tcb(rtcb))
     {
-      for (ptcb = (FAR struct tcb_s *)g_pendingtasks.head;
+      for (ptcb = (FAR struct tcb_s *)list_pendingtasks()->head;
            ptcb;
            ptcb = pnext)
         {
@@ -128,9 +130,11 @@ bool nxsched_merge_pending(void)
               ptcb->flink       = rtcb;
               ptcb->blink       = NULL;
               rtcb->blink       = ptcb;
-              g_readytorun.head = (FAR dq_entry_t *)ptcb;
+              list_readytorun()->head
+                                = (FAR dq_entry_t *)ptcb;
               rtcb->task_state  = TSTATE_TASK_READYTORUN;
               ptcb->task_state  = TSTATE_TASK_RUNNING;
+              up_update_task(ptcb);
               ret               = true;
             }
           else
@@ -151,8 +155,8 @@ bool nxsched_merge_pending(void)
 
       /* Mark the input list empty */
 
-      g_pendingtasks.head = NULL;
-      g_pendingtasks.tail = NULL;
+      list_pendingtasks()->head = NULL;
+      list_pendingtasks()->tail = NULL;
     }
 
   return ret;
@@ -189,7 +193,6 @@ bool nxsched_merge_pending(void)
   FAR struct tcb_s *tcb;
   bool ret = false;
   int cpu;
-  int me;
 
   /* Remove and process every TCB in the g_pendingtasks list.
    *
@@ -197,12 +200,11 @@ bool nxsched_merge_pending(void)
    * some CPU other than this one is in a critical section.
    */
 
-  me = this_cpu();
-  if (!nxsched_islocked_global() && !irq_cpu_locked(me))
+  if (!nxsched_islocked_tcb(this_task()))
     {
       /* Find the CPU that is executing the lowest priority task */
 
-      ptcb = (FAR struct tcb_s *)dq_peek(&g_pendingtasks);
+      ptcb = (FAR struct tcb_s *)dq_peek(list_pendingtasks());
       if (ptcb == NULL)
         {
           /* The pending task list is empty */
@@ -226,7 +228,7 @@ bool nxsched_merge_pending(void)
         {
           /* Remove the task from the pending task list */
 
-          tcb = (FAR struct tcb_s *)dq_remfirst(&g_pendingtasks);
+          tcb = (FAR struct tcb_s *)dq_remfirst(list_pendingtasks());
 
           /* Add the pending task to the correct ready-to-run list. */
 
@@ -236,15 +238,15 @@ bool nxsched_merge_pending(void)
            * Check if that happened.
            */
 
-          if (nxsched_islocked_global() || irq_cpu_locked(me))
+          if (nxsched_islocked_tcb(this_task()))
             {
               /* Yes.. then we may have incorrectly placed some TCBs in the
                * g_readytorun list (unlikely, but possible).  We will have to
                * move them back to the pending task list.
                */
 
-              nxsched_merge_prioritized(&g_readytorun,
-                                        &g_pendingtasks,
+              nxsched_merge_prioritized(list_readytorun(),
+                                        list_pendingtasks(),
                                         TSTATE_TASK_PENDING);
 
               /* And return with the scheduler locked and tasks in the
@@ -256,7 +258,7 @@ bool nxsched_merge_pending(void)
 
           /* Set up for the next time through the loop */
 
-          ptcb = (FAR struct tcb_s *)dq_peek(&g_pendingtasks);
+          ptcb = (FAR struct tcb_s *)dq_peek(list_pendingtasks());
           if (ptcb == NULL)
             {
               /* The pending task list is empty */
@@ -272,8 +274,8 @@ bool nxsched_merge_pending(void)
        * tasks in the pending task list to the ready-to-run task list.
        */
 
-      nxsched_merge_prioritized(&g_pendingtasks,
-                                &g_readytorun,
+      nxsched_merge_prioritized(list_pendingtasks(),
+                                list_readytorun(),
                                 TSTATE_TASK_READYTORUN);
     }
 

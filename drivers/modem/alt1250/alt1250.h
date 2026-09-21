@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/modem/alt1250/alt1250.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -56,4 +58,4 @@
 uint64_t get_event_lapibuffer(FAR struct alt1250_dev_s *dev,
   uint32_t lapicmdid, alt_evtbuf_inst_t **inst);
 
-#endif  /* __DRIVERS_MODEM_ALT1250_ALT1250_H */
+#endif /* __DRIVERS_MODEM_ALT1250_ALT1250_H */

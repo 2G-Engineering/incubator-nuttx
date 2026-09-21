@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/gd32f4/gd32f4xx_progmem.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -72,11 +74,18 @@
 #    define FMC_PROGMEM_SECTOR_EADDR     (0x0810FFFF)
 
 #  elif defined(CONFIG_GD32F4_FLASH_CONFIG_K)
-
+#if defined(CONFIG_GD32F4_GD32F450)
 #    define FMC_PROGMEM_SECTOR_SIZES     {_K(16), _K(16), _K(16), _K(16)}
 #    define FMC_PROGMEM_SECTOR_NUM       (4)
 #    define FMC_PROGMEM_SECTOR_SADDR     (0x08100000)
 #    define FMC_PROGMEM_SECTOR_EADDR     (0x0810FFFF)
+#elif defined(CONFIG_GD32F4_GD32F470)
+#    define FMC_PROGMEM_SECTOR_SIZES     {_K(256), _K(256), _K(256), _K(256)}
+#    define FMC_PROGMEM_SECTOR_NUM       (256)
+#    define FMC_PROGMEM_SECTOR_SADDR     (0x08200000)
+#    define FMC_PROGMEM_SECTOR_EADDR     (0x082FFFFF)
+#    define FMC_PROGMEM_PAGESIZE         4096
+#endif
 
 #  endif
 
@@ -123,8 +132,10 @@ typedef struct
     uint32_t sector_end_addr;            /* the end address of the sector */
 } fmc_sector_info_struct;
 
+#if !defined(CONFIG_GD32F4_GD32F470)
 static const size_t sector_sizes[FMC_PROGMEM_SECTOR_NUM] =
                                                FMC_PROGMEM_SECTOR_SIZES;
+#endif
 
 static mutex_t g_gd32_progmem_lock = NXMUTEX_INITIALIZER;
 
@@ -294,7 +305,11 @@ size_t up_progmem_erasesize(size_t block)
     }
   else
     {
+    #ifdef CONFIG_GD32F4_GD32F470
+      return FMC_PROGMEM_PAGESIZE;
+    #else
       return sector_sizes[block];
+    #endif
     }
 }
 
@@ -429,10 +444,17 @@ ssize_t up_progmem_eraseblock(size_t block)
   gd32_fmc_unlock();
   gd32_fmc_flag_clear(FMC_STAT_PERR);
 
+#ifdef CONFIG_GD32F4_GD32F470
+  if (gd32_fmc_page_erase(addr))
+    {
+      return -EFAULT;
+    }
+#else
   if (gd32_fmc_sector_erase(sector_info.sector_num))
     {
       return -EFAULT;
     }
+#endif
 
   /* Verify */
 

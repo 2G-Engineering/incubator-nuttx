@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # tools/checkpatch.sh
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
@@ -19,12 +21,19 @@
 
 TOOLDIR=$(dirname $0)
 
+case "$OSTYPE" in
+  *bsd*) MAKECMD=gmake;;
+  *) MAKECMD=make;;
+esac
+
 check=check_patch
 fail=0
 range=0
 spell=0
 encoding=0
 message=0
+cmake_warning_once=0
+codespell_config_file_location_was_shown_once=0
 
 usage() {
   echo "USAGE: ${0} [options] [list|-]"
@@ -58,6 +67,15 @@ is_rust_file() {
   fi
 }
 
+is_cmake_file() {
+  file_name=$(basename $@)
+  if [ "$file_name" == "CMakeLists.txt" ] || [[ "$file_name" =~ \.cmake$ ]]; then
+    echo 1
+  else
+    echo 0
+  fi
+}
+
 check_file() {
   if [ -x $@ ]; then
     case $@ in
@@ -70,10 +88,37 @@ check_file() {
     esac
   fi
 
-  if [ "$(is_rust_file $@)" == "1" ]; then
+  if [ ${@##*.} == 'py' ]; then
+    setupcfg="${TOOLDIR}/../.github/linters/setup.cfg"
+    black --check "$@" || fail=1
+    flake8 --config "${setupcfg}" "$@" || fail=1
+    isort --diff --check-only --settings-path "${setupcfg}" "$@"
+    if [ $? -ne 0 ]; then
+      # Format in place
+      isort --settings-path "${setupcfg}" "$@"
+      fail=1
+    fi
+  elif [ "$(is_rust_file $@)" == "1" ]; then
     if ! command -v rustfmt &> /dev/null; then
       fail=1
     elif ! rustfmt --edition 2021 --check $@ 2>&1; then
+      fail=1
+    fi
+  elif [ "$(is_cmake_file $@)" == "1" ]; then
+    if ! command -v cmake-format &> /dev/null; then
+      if [ $cmake_warning_once == 0 ]; then
+        echo -e "\ncmake-format not found, run following command to install:"
+        echo "  $ pip install cmake-format"
+        cmake_warning_once=1
+      fi
+      fail=1
+    elif ! cmake-format --check $@ 2>&1; then
+      if [ $cmake_warning_once == 0 ]; then
+        echo -e "\ncmake-format check failed, run following command to update the style:"
+        echo -e "  $ cmake-format <src> -o <dst>\n"
+        cmake-format --check $@ 2>&1
+        cmake_warning_once=1
+      fi
       fail=1
     fi
   elif ! $TOOLDIR/nxstyle $@ 2>&1; then
@@ -81,7 +126,14 @@ check_file() {
   fi
 
   if [ $spell != 0 ]; then
-    if ! codespell -q 7 ${@: -1}; then
+    if [ "$codespell_config_file_location_was_shown_once" != "1" ]; then
+        # show the configuration file location just once during (not for each input file)
+        codespell_args="-q 7"
+        codespell_config_file_location_was_shown_once=1
+    else
+        codespell_args=""
+    fi
+    if ! codespell $codespell_args ${@: -1}; then
       fail=1
     fi
   fi
@@ -150,7 +202,7 @@ check_commit() {
   check_ranges <<< "$diffs"
 }
 
-make -C $TOOLDIR -f Makefile.host nxstyle 1>/dev/null
+$MAKECMD -C $TOOLDIR -f Makefile.host nxstyle 1>/dev/null
 
 if [ -z "$1" ]; then
   usage

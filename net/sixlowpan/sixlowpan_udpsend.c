@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/sixlowpan/sixlowpan_udpsend.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -157,7 +159,7 @@ ssize_t psock_6lowpan_udp_sendto(FAR struct socket *psock,
 
   ninfo("buflen %lu\n", (unsigned long)buflen);
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL && to != NULL);
+  DEBUGASSERT(to != NULL);
   DEBUGASSERT(psock->s_type == SOCK_DGRAM);
 
   sixlowpan_dumpbuffer("Outgoing UDP payload", buf, buflen);
@@ -213,7 +215,7 @@ ssize_t psock_6lowpan_udp_sendto(FAR struct socket *psock,
 #ifdef CONFIG_NET_ICMPv6_NEIGHBOR
   /* Make sure that the IP address mapping is in the Neighbor Table */
 
-  ret = icmpv6_neighbor(to6->sin6_addr.in6_u.u6_addr16);
+  ret = icmpv6_neighbor(dev, to6->sin6_addr.in6_u.u6_addr16);
   if (ret < 0)
     {
       nerr("ERROR: Not reachable\n");
@@ -227,7 +229,7 @@ ssize_t psock_6lowpan_udp_sendto(FAR struct socket *psock,
   ipv6udp.ipv6.tcf    = 0x00;
   ipv6udp.ipv6.flow   = 0x00;
   ipv6udp.ipv6.proto  = IP_PROTO_UDP;
-  ipv6udp.ipv6.ttl    = conn->sconn.ttl;
+  ipv6udp.ipv6.ttl    = conn->sconn.s_ttl;
 
   /* The IPv6 header length field does not include the size of IPv6 IP
    * header.
@@ -247,7 +249,8 @@ ssize_t psock_6lowpan_udp_sendto(FAR struct socket *psock,
     }
   else
     {
-      net_ipv6addr_hdrcopy(ipv6udp.ipv6.srcipaddr, dev->d_ipv6addr);
+      net_ipv6addr_hdrcopy(ipv6udp.ipv6.srcipaddr,
+                          netdev_ipv6_srcaddr(dev, ipv6udp.ipv6.destipaddr));
     }
 
   ninfo("IPv6 length: %d\n",
@@ -336,7 +339,6 @@ ssize_t psock_6lowpan_udp_send(FAR struct socket *psock, FAR const void *buf,
 
   ninfo("buflen %lu\n", (unsigned long)buflen);
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
   DEBUGASSERT(psock->s_type == SOCK_DGRAM);
 
   sixlowpan_dumpbuffer("Outgoing UDP payload", buf, buflen);

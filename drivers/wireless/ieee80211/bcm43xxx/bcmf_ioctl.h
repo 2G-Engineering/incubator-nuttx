@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/wireless/ieee80211/bcm43xxx/bcmf_ioctl.h
- * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: Copyright (c) 2015 Broadcom. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -21,7 +23,6 @@
  * be used as incorporated in your product or device that incorporates
  * Broadcom wireless connectivity products and solely for the purpose of
  * enabling the functionalities of such Broadcom products.
- *
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING,
@@ -85,7 +86,6 @@ end_packed_struct cnt_rx_t;
 
 #define MCSSET_LEN 16
 
-begin_packed_struct
 typedef struct wl_bss_info
 {
   uint32_t      version;                /* version field */
@@ -122,8 +122,7 @@ typedef struct wl_bss_info
   /* Add new fields here */
 
   /* variable length Information Elements */
-}
-end_packed_struct wl_bss_info_t;
+} wl_bss_info_t;
 
 #define DOT11_CAP_ESS     0x0001
 #define DOT11_CAP_IBSS    0x0002
@@ -179,15 +178,13 @@ end_packed_struct wl_iscan_params_t;
 
 #define WL_ISCAN_PARAMS_FIXED_SIZE (offsetof(wl_iscan_params_t, params) + sizeof(wlc_ssid_t))
 
-begin_packed_struct
 typedef struct wl_scan_results
 {
   uint32_t       buflen;
   uint32_t       version;
   uint32_t       count;
   wl_bss_info_t  bss_info[1];
-}
-end_packed_struct wl_scan_results_t;
+} wl_scan_results_t;
 
 #define WL_SCAN_RESULTS_FIXED_SIZE  (12)
 #define WL_SCAN_RESULTS_SUCCESS         (0)
@@ -209,7 +206,6 @@ end_packed_struct wl_escan_params_t;
 
 #define WL_ESCAN_PARAMS_FIXED_SIZE (offsetof(wl_escan_params_t, params) + sizeof(wlc_ssid_t))
 
-begin_packed_struct
 typedef struct wl_escan_result
 {
   uint32_t       buflen;
@@ -217,8 +213,7 @@ typedef struct wl_escan_result
   uint16_t       sync_id;
   uint16_t       bss_count;
   wl_bss_info_t  bss_info[1];
-}
-end_packed_struct wl_escan_result_t;
+} wl_escan_result_t;
 
 #define WL_ESCAN_RESULTS_FIXED_SIZE (sizeof(wl_escan_result_t) - sizeof(wl_bss_info_t))
 
@@ -267,7 +262,7 @@ typedef struct wl_join_scan_params
 }
 end_packed_struct wl_join_scan_params_t;
 
-/** used for association with a specific BSSID and chanspec list */
+/* used for association with a specific BSSID and chanspec list */
 
 begin_packed_struct
 typedef struct wl_assoc_params
@@ -285,11 +280,11 @@ typedef struct wl_assoc_params
 }
 end_packed_struct wl_assoc_params_t;
 
-/** used for association to a specific BSSID and channel */
+/* used for association to a specific BSSID and channel */
 
 typedef wl_assoc_params_t wl_join_assoc_params_t;
 
-/** extended join params */
+/* extended join params */
 
 begin_packed_struct
 typedef struct wl_extjoin_params
@@ -873,6 +868,7 @@ end_packed_struct wlc_iov_trx_t;
 #define IOVAR_STR_CCGPIOIN               "ccgpioin"
 #define IOVAR_STR_CCGPIOOUT              "ccgpioout"
 #define IOVAR_STR_CCGPIOPUTEN            "ccgpioputen"
+#define IOVAR_STR_COEX_PARA              "coex_para"
 
 #define WLC_IOCTL_MAGIC                    ( 0x14e46c77 )
 #define WLC_IOCTL_VERSION                  (          1 )
@@ -3025,6 +3021,14 @@ end_packed_struct;
 
 typedef struct edcf_acparam edcf_acparam_t;
 
+/* Packet Traffic Arbitration */
+
+typedef struct wl_pta
+{
+  uint16_t radio;
+  uint16_t duration;
+} wl_pta_t;
+
 /* Stop packing structures */
 
 #pragma pack()
@@ -3174,8 +3178,8 @@ typedef enum
 #define WLC_DOT11_SC_STATUS_OFFSET (512)
 
 /* Enumerated list of event status codes
- * @note : WLC_SUP values overlap other values, so it is necessary
- *         to check the event type
+ * Note : WLC_SUP values overlap other values, so it is necessary
+ *        to check the event type
  */
 
 typedef enum
@@ -3252,8 +3256,8 @@ typedef enum
 #define WLC_E_DOT11_RC_REASON_OFFSET (768)
 
 /* Enumerated list of event reason codes
- * @note : Several values overlap other values, so it is necessary
- *         to check the event type
+ * Note : Several values overlap other values, so it is necessary
+ *        to check the event type
  */
 
 typedef enum
@@ -3310,6 +3314,14 @@ typedef enum
   WLC_E_SUP_SEND_FAIL           = 13 + WLC_E_SUP_REASON_OFFSET,  /* message send failure */
   WLC_E_SUP_DEAUTH              = 14 + WLC_E_SUP_REASON_OFFSET,  /* received FC_DEAUTH */
   WLC_E_SUP_WPA_PSK_TMO         = 15 + WLC_E_SUP_REASON_OFFSET,  /* WPA PSK 4-way handshake timeout */
+
+  /* Reason codes for LINK */
+
+  WLC_E_LINK_BCN_LOSS           = 1,  /* Link down because of beacon loss */
+  WLC_E_LINK_DISASSOC           = 2,  /* Link down because of disassoc */
+  WLC_E_LINK_ASSOC_REC          = 3,  /* Link down because assoc recreate failed */
+  WLC_E_LINK_BSSCFG_DIS         = 4,  /* Link down due to bsscfg down */
+  WLC_E_LINK_ASSOC_FAIL         = 5,  /* Link down because assoc to new AP during roaming failed */
 
   DOT11_RC_RESERVED             =  0 + WLC_E_DOT11_RC_REASON_OFFSET, /* d11 RC reserved */
   DOT11_RC_UNSPECIFIED          =  1 + WLC_E_DOT11_RC_REASON_OFFSET, /* Unspecified reason */

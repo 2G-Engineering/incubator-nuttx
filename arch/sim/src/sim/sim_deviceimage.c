@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/sim_deviceimage.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -296,7 +298,7 @@ char *sim_deviceimage(void)
    * reallocate this a few times to get the size right.
    */
 
-  pbuffer = (char *)kmm_malloc(bufsize);
+  pbuffer = kmm_malloc(bufsize);
 
   /* Set up the input buffer */
 

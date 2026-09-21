@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/hardware/stm32f76xx77xx_flash.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,8 +20,8 @@
  *
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32F74XX75XX_FLASH_H
-#define __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32F74XX75XX_FLASH_H
+#ifndef __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32F76XX77XX_FLASH_H
+#define __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32F76XX77XX_FLASH_H
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -204,4 +206,4 @@
 #define FLASH_OPTCR1_BOOTADD1_MASK  (0xffff << FLASH_OPTCR1_BOOTADD1_SHIFT)
 #  define FLASH_OPTCR1_BOOTADD1(n)  ((uint32_t)(n) << FLASH_OPTCR1_BOOTADD1_SHIFT)
 
-#endif /* __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32F74XX75XX_FLASH_H */
+#endif /* __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32F76XX77XX_FLASH_H */

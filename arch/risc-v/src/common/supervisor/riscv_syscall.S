@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/common/supervisor/riscv_syscall.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -60,7 +62,7 @@
  *   Assumes the context to return is already set up
  *
  * Returned Value:
- *   Return value of system call is returned into contex
+ *   Return value of system call is returned into context
  *
  * Assumptions:
  *   Task is running in privileged mode
@@ -96,8 +98,13 @@ sys_call6:
   and        s0, s0, s1
   li         s1, STATUS_PIE            /* set PIE */
   or         s0, s0, s1
+  j          2f
 
- 1:
+1:
+  li         s1, ~STATUS_PIE           /* else: clear PIE */
+  and        s0, s0, s1
+
+2:
   /* Set previous privilege, we are in privileged mode now */
 
   li         s1, STATUS_PPP            /* set previous privilege */
@@ -109,8 +116,6 @@ sys_call6:
   addi       s0, sp, XCPTCONTEXT_SIZE
   REGSTORE   s0, REG_SP(sp)            /* original SP */
 
-  riscv_savefpu sp
-
   mv         a0, sp                    /* a0 = context */
 
 #if CONFIG_ARCH_INTERRUPTSTACK > 15
@@ -121,38 +126,8 @@ sys_call6:
 
   /* Run the handler */
 
-  jal        x1, riscv_perform_syscall
-
-  /* Restore (potentially new) context */
-
-  mv         sp, a0                    /* use sp, as a0 gets wiped */
-
-  riscv_loadfpu sp
-
-  REGLOAD    s0, REG_EPC(sp)           /* restore epc */
-  csrw       CSR_EPC, s0
-
-  /* Restore status register, but don't enable interrupts yet */
-
-  REGLOAD    s0, REG_INT_CTX(sp)       /* restore status */
-  li         s1, STATUS_IE             /* move IE -> PIE */
-  and        s1, s0, s1                /* if (STATUS & IE) */
-  beqz       s1, 1f
-  li         s1, ~STATUS_IE            /* clear IE */
-  and        s0, s0, s1
-  li         s1, STATUS_PIE            /* set PIE */
-  or         s0, s0, s1
-
-1:
-  csrw       CSR_STATUS, s0
-
-  load_ctx   sp
-
-  REGLOAD    sp, REG_SP(sp)            /* restore original sp */
-
-  /* return from exception, which updates the status register */
-
-  ERET
+  la         x1, return_from_exception
+  tail       riscv_perform_syscall
 
   .size sys_call0, .-sys_call0
   .size sys_call1, .-sys_call1

@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/fs/ioctl.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,6 +28,9 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+
+#include <stdbool.h>
+#include <sys/types.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -80,7 +85,7 @@
 #define _FBIOCBASE      (0x2800) /* Frame buffer character driver ioctl commands */
 #define _NXTERMBASE     (0x2900) /* NxTerm character driver ioctl commands */
 #define _RFIOCBASE      (0x2a00) /* RF devices ioctl commands */
-#define _RPTUNBASE      (0x2b00) /* Remote processor tunnel ioctl commands */
+#define _RPMSGBASE      (0x2b00) /* Remote processor message ioctl commands */
 #define _NOTECTLBASE    (0x2c00) /* Note filter control ioctl commands*/
 #define _NOTERAMBASE    (0x2d00) /* Noteram device ioctl commands*/
 #define _RCIOCBASE      (0x2e00) /* Remote Control device ioctl commands */
@@ -95,6 +100,15 @@
 #define _VIDIOCBASE     (0x3700) /* Video device ioctl commands */
 #define _CELLIOCBASE    (0x3800) /* Cellular device ioctl commands */
 #define _MIPIDSIBASE    (0x3900) /* Mipidsi device ioctl commands */
+#define _SEIOCBASE      (0x3a00) /* Secure element ioctl commands */
+#define _SYSLOGBASE     (0x3c00) /* Syslog device ioctl commands */
+#define _STEPIOBASE     (0x3d00) /* Stepper device ioctl commands */
+#define _FPGACFGBASE    (0x3e00) /* FPGA configuration ioctl commands */
+#define _FFIOCBASE      (0x3f00) /* Force feedback ioctl commands */
+#define _PINCTRLBASE    (0x4000) /* Pinctrl driver ioctl commands */
+#define _PCIBASE        (0x4100) /* Pci ioctl commands */
+#define _I3CBASE        (0x4200) /* I3C driver ioctl commands */
+#define _MSIOCBASE      (0x4300) /* Mouse ioctl commands */
 #define _WLIOCBASE      (0x8b00) /* Wireless modules ioctl network commands */
 
 /* boardctl() commands share the same number space */
@@ -185,16 +199,41 @@
                                            */
 
 #ifdef CONFIG_FDSAN
-#define FIOC_SETTAG     _FIOC(0x000e)     /* IN:  FAR uint64_t *
+#define FIOC_SETTAG_FDSAN _FIOC(0x000e)   /* IN:  FAR uint64_t *
                                            * Pointer to file tag
                                            * OUT: None
                                            */
 
-#define FIOC_GETTAG     _FIOC(0x000f)     /* IN:  FAR uint64_t *
+#define FIOC_GETTAG_FDSAN _FIOC(0x000f)   /* IN:  FAR uint64_t *
                                            * Pointer to file tag
                                            * OUT: None
                                            */
 #endif
+
+#ifdef CONFIG_FDCHECK
+#define FIOC_SETTAG_FDCHECK _FIOC(0x0010) /* IN:  FAR uint8_t *
+                                           * Pointer to file fdcheck tag
+                                           * OUT: None
+                                           */
+
+#define FIOC_GETTAG_FDCHECK _FIOC(0x0011) /* IN:  FAR uint8_t *
+                                           * Pointer to file fdcheck tag
+                                           * OUT: None
+                                           */
+#endif
+
+#define FIOC_SETLK          _FIOC(0x0012) /* IN:  Pointer to flock
+                                           * OUT: None
+                                           */
+#define FIOC_GETLK          _FIOC(0x0013) /* IN:  Pointer to flock
+                                           * OUT: None
+                                           */
+#define FIOC_SETLKW         _FIOC(0x0014) /* IN:  Pointer to flock
+                                           * OUT: None
+                                           */
+#define FIOC_XIPBASE        _FIOC(0x0015) /* IN:  uinptr_t *
+                                           * OUT: Current file xip base address
+                                           */
 
 /* NuttX file system ioctl definitions **************************************/
 
@@ -303,6 +342,16 @@
                                            *      to return sector size.
                                            * OUT: Data return in user-provided
                                            *      buffer. */
+#define BIOC_BLKGETSIZE _BIOC(0x0010)     /* Get block device sector numbers.
+                                           * IN:  Pointer to writable instance
+                                           *      of sector numbers in which
+                                           *      to return sector numbers.
+                                           * OUT: Data return in user-provided
+                                           *      buffer. */
+#define BIOC_DISCARD    _BIOC(0x0011)     /* Discards the block device read buffer
+                                           * IN:  None
+                                           * OUT: None (ioctl return value provides
+                                           *      success/failure indication). */
 
 /* NuttX MTD driver ioctl definitions ***************************************/
 
@@ -325,6 +374,11 @@
 
 #define _TSIOCVALID(c)    (_IOC_TYPE(c)==_TSIOCBASE)
 #define _TSIOC(nr)        _IOC(_TSIOCBASE,nr)
+
+/* NuttX mouse ioctl definitions (see nuttx/input/mouse.h) ******************/
+
+#define _MSIOCVALID(c)    (_IOC_TYPE(c)==_MSIOCBASE)
+#define _MSIOC(nr)        _IOC(_MSIOCBASE,nr)
 
 /* NuttX sensor ioctl definitions (see nuttx/sensor/ioctl.h) ****************/
 
@@ -446,6 +500,18 @@
                                                *     threshold.
                                                * OUT: None */
 
+#define PIPEIOC_PEEK        _PIPEIOC(0x0004)  /* Pipe peek interface
+                                               * IN: pipe_peek_s
+                                               * OUT: Length of data */
+
+#define PIPEIOC_SETSIZE     _PIPEIOC(0x0005)  /* Pipe get size interface
+                                               * IN: size_t
+                                               * OUT: None */
+
+#define PIPEIOC_GETSIZE     _PIPEIOC(0x0006)  /* Pipe get size interface
+                                               * IN: None
+                                               * OUT: int */
+
 /* RTC driver ioctl definitions *********************************************/
 
 /* (see nuttx/include/rtc.h */
@@ -564,10 +630,10 @@
 #define _RFIOCVALID(c)    (_IOC_TYPE(c)==_RFIOCBASE)
 #define _RFIOC(nr)        _IOC(_RFIOCBASE,nr)
 
-/* Rptun drivers ************************************************************/
+/* Rpmsg drivers ************************************************************/
 
-#define _RPTUNIOCVALID(c)   (_IOC_TYPE(c)==_RPTUNBASE)
-#define _RPTUNIOC(nr)       _IOC(_RPTUNBASE,nr)
+#define _RPMSGIOCVALID(c)   (_IOC_TYPE(c)==_RPMSGBASE)
+#define _RPMSGIOC(nr)       _IOC(_RPMSGBASE,nr)
 
 /* Notectl drivers **********************************************************/
 
@@ -598,6 +664,11 @@
 
 #define _MTRIOCVALID(c)     (_IOC_TYPE(c) == _MTRIOBASE)
 #define _MTRIOC(nr)         _IOC(_MTRIOBASE, nr)
+
+/* Stepper drivers **********************************************************/
+
+#define _STEPIOCVALID(c)    (_IOC_TYPE(c) == _STEPIOBASE)
+#define _STEPIOC(nr)        _IOC(_STEPIOBASE, nr)
 
 /* MATH drivers *************************************************************/
 
@@ -639,6 +710,18 @@
 #define _MIPIDSIIOCVALID(c)    (_IOC_TYPE(c)==_MIPIDSIBASE)
 #define _MIPIDSIIOC(nr)        _IOC(_MIPIDSIBASE,nr)
 
+/* Secure element ioctl definitions *****************************************/
+
+/* (see nuttx/include/crypto/se05x.h */
+
+#define _SEIOCVALID(c)     (_IOC_TYPE(c)==_SEIOCBASE)
+#define _SEIOC(nr)         _IOC(_SEIOCBASE,nr)
+
+/* syslog driver ioctl definitions ******************************************/
+
+#define _SYSLOGVALID(c) (_IOC_TYPE(c)==_SYSLOGBASE)
+#define _SYSLOGIOC(nr)  _IOC(_SYSLOGBASE,nr)
+
 /* Wireless driver network ioctl definitions ********************************/
 
 /* (see nuttx/include/wireless/wireless.h */
@@ -651,9 +734,74 @@
 #define _BOARDIOCVALID(c) (_IOC_TYPE(c)==_BOARDBASE)
 #define _BOARDIOC(nr)     _IOC(_BOARDBASE,nr)
 
+/* FPAG configuration ioctl definitions *************************************/
+
+#define _FPGACFGVALID(c) (_IOC_TYPE(c) == _FPGACFGBASE)
+#define _FPGACFGIOC(nr) _IOC(_FPGACFGBASE, nr)
+
+/* Pci controller drivers ***************************************************/
+
+#define _PCIIOCVALID(c)   (_IOC_TYPE(c)==_PCIBASE)
+#define _PCIIOC(nr)       _IOC(_PCIBASE,nr)
+
+/* I3C driver ioctl definitions *********************************************/
+
+/* see nuttx/include/i3c/i3c_driver.h */
+
+#define _I3CIOCVALID(c)   (_IOC_TYPE(c)==_I3CBASE)
+#define _I3CIOC(nr)       _IOC(_I3CBASE,nr)
+
+/* Force Feedback driver command definitions ********************************/
+
+/* see nuttx/include/input/ff.h */
+
+#define _FFIOCVALID(c) (_IOC_TYPE(c)==_FFIOCBASE)
+#define _FFIOC(nr)     _IOC(_FFIOCBASE,nr)
+
+/* Pinctrl driver command definitions ***************************************/
+
+/* see nuttx/include/pinctrl/pinctrl.h */
+
+#define _PINCTRLIOCVALID(c) (_IOC_TYPE(c)==_PINCTRLBASE)
+#define _PINCTRLIOC(nr)     _IOC(_PINCTRLBASE,nr)
+
 /****************************************************************************
  * Public Type Definitions
  ****************************************************************************/
+
+struct geometry
+{
+  bool      geo_available;    /* true: The device is available */
+  bool      geo_mediachanged; /* true: The media has changed since last query */
+  bool      geo_writeenabled; /* true: It is okay to write to this device */
+  blkcnt_t  geo_nsectors;     /* Number of sectors on the device */
+  blksize_t geo_sectorsize;   /* Size of one sector */
+
+  /* NULL-terminated string representing the device model */
+
+  char      geo_model[NAME_MAX + 1];
+};
+
+struct partition_info_s
+{
+  size_t    numsectors;   /* Number of sectors in the partition */
+  size_t    sectorsize;   /* Size in bytes of a single sector */
+  off_t     startsector;  /* Offset to the first section/block of the
+                           * managed sub-region */
+
+  /* NULL-terminated string representing the name of the parent node of the
+   * partition.
+   */
+
+  char      parent[NAME_MAX + 1];
+};
+
+struct pipe_peek_s
+{
+  FAR void *buf;
+  size_t offset;
+  size_t size;
+};
 
 /****************************************************************************
  * Public Data

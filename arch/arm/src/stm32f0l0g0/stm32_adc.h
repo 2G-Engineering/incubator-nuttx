@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f0l0g0/stm32_adc.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -92,9 +94,9 @@
 #  define ADC1_EXTSEL_T2TRGO  ADC12_CFGR1_EXTSEL_TRG2
 #  define ADC1_EXTSEL_T3TRGO  ADC12_CFGR1_EXTSEL_TRG3
 #  define ADC1_EXTSEL_T15TRGO ADC12_CFGR1_EXTSEL_TRG4
-#  define ADC1_EXTSEL_T6TRGO  ADC12_CFGR1_EXTSEL_TRG5
-                              /* TRG6 reserved */
+                              /* TRG5 and TRG6 reserved */
 #  define ADC1_EXTSEL_EXTI11  ADC12_CFGR1_EXTSEL_TRG7
+#elif defined(CONFIG_STM32F0L0G0_STM32C0)
 #else
 #  error
 #endif

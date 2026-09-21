@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/power/pm/pm_checkstate.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -73,9 +75,9 @@ enum pm_state_e pm_checkstate(int domain)
 {
   DEBUGASSERT(domain >= 0 && domain < CONFIG_PM_NDOMAINS);
 
-  if (g_pmglobals.domain[domain].governor->checkstate)
+  if (g_pmdomains[domain].governor->checkstate)
     {
-      return g_pmglobals.domain[domain].governor->checkstate(domain);
+      return g_pmdomains[domain].governor->checkstate(domain);
     }
 
   return PM_NORMAL;

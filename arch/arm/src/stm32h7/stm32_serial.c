@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_serial.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -37,6 +39,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/serial/serial.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/power/pm.h>
 
@@ -655,8 +658,7 @@ struct up_dev_s
 
 #ifdef SERIAL_HAVE_TXDMA
   const unsigned int txdma_channel; /* DMA channel assigned */
-  DMA_HANDLE        txdma;          /* currently-open trasnmit DMA stream */
-  sem_t             txdmasem;       /* Indicate TX DMA completion */
+  DMA_HANDLE        txdma;          /* currently-open transmit DMA stream */
 #endif
 
   /* RX DMA state */
@@ -683,6 +685,7 @@ struct up_dev_s
   const uint8_t     features;      /* Supported features on this USART */
   const uint8_t     unconfigure;   /* Unconfigure pins on close */
   const bool        use_idle_irq;  /* Idle interrupt is enabled on this USART */
+  spinlock_t        lock;
 };
 
 #ifdef CONFIG_PM
@@ -1016,7 +1019,6 @@ static struct up_dev_s g_usart1priv =
 #endif
 #ifdef CONFIG_USART1_TXDMA
   .txdma_channel = DMAMAP_USART1_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_USART1_RXDMA
   .rxdma_channel = DMAMAP_USART1_RX,
@@ -1046,6 +1048,7 @@ static struct up_dev_s g_usart1priv =
 #ifdef CONFIG_USART1_USE_IDLE_IRQ
   .use_idle_irq  = true,
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
@@ -1109,7 +1112,6 @@ static struct up_dev_s g_usart2priv =
 #endif
 #ifdef CONFIG_USART2_TXDMA
   .txdma_channel = DMAMAP_USART2_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_USART2_RXDMA
   .rxdma_channel = DMAMAP_USART2_RX,
@@ -1139,6 +1141,7 @@ static struct up_dev_s g_usart2priv =
 #ifdef CONFIG_USART2_USE_IDLE_IRQ
   .use_idle_irq  = true,
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
@@ -1202,7 +1205,6 @@ static struct up_dev_s g_usart3priv =
 #endif
 #ifdef CONFIG_USART3_TXDMA
   .txdma_channel = DMAMAP_USART3_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_USART3_RXDMA
   .rxdma_channel = DMAMAP_USART3_RX,
@@ -1232,6 +1234,7 @@ static struct up_dev_s g_usart3priv =
 #ifdef CONFIG_USART3_USE_IDLE_IRQ
   .use_idle_irq  = true,
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
@@ -1287,7 +1290,6 @@ static struct up_dev_s g_uart4priv =
   .rx_gpio       = GPIO_UART4_RX,
 #ifdef CONFIG_UART4_TXDMA
   .txdma_channel = DMAMAP_UART4_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_UART4_RXDMA
   .rxdma_channel = DMAMAP_UART4_RX,
@@ -1317,6 +1319,7 @@ static struct up_dev_s g_uart4priv =
 #ifdef CONFIG_UART4_USE_IDLE_IRQ
   .use_idle_irq  = true,
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
@@ -1372,7 +1375,6 @@ static struct up_dev_s g_uart5priv =
   .rx_gpio       = GPIO_UART5_RX,
 #ifdef CONFIG_UART5_TXDMA
   .txdma_channel = DMAMAP_UART5_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_UART5_RXDMA
   .rxdma_channel = DMAMAP_UART5_RX,
@@ -1402,6 +1404,7 @@ static struct up_dev_s g_uart5priv =
 #ifdef CONFIG_UART5_USE_IDLE_IRQ
   .use_idle_irq  = true,
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
@@ -1465,7 +1468,6 @@ static struct up_dev_s g_usart6priv =
 #endif
 #ifdef CONFIG_USART6_TXDMA
   .txdma_channel = DMAMAP_USART6_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_USART6_RXDMA
   .rxdma_channel = DMAMAP_USART6_RX,
@@ -1495,6 +1497,7 @@ static struct up_dev_s g_usart6priv =
 #ifdef CONFIG_USART6_USE_IDLE_IRQ
   .use_idle_irq  = true,
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
@@ -1550,7 +1553,6 @@ static struct up_dev_s g_uart7priv =
 #endif
 #ifdef CONFIG_UART7_TXDMA
   .txdma_channel = DMAMAP_UART7_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_UART7_RXDMA
   .rxdma_channel = DMAMAP_UART7_RX,
@@ -1580,6 +1582,7 @@ static struct up_dev_s g_uart7priv =
 #ifdef CONFIG_UART7_USE_IDLE_IRQ
   .use_idle_irq  = true,
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
@@ -1635,7 +1638,6 @@ static struct up_dev_s g_uart8priv =
 #endif
 #ifdef CONFIG_UART8_TXDMA
   .txdma_channel = DMAMAP_UART8_TX,
-  .txdmasem      = SEM_INITIALIZER(1),
 #endif
 #ifdef CONFIG_UART8_RXDMA
   .rxdma_channel = DMAMAP_UART8_RX,
@@ -1750,6 +1752,7 @@ static struct up_dev_s g_lpuartpriv =
 #ifdef CONFIG_LPUART_USE_IDLE_IRQ
   .use_idle_irq  = true,
 #endif
+  .lock               = SP_UNLOCKED,
 };
 #endif
 
@@ -1860,11 +1863,11 @@ static void up_restoreusartint(struct up_dev_s *priv, uint32_t ie)
 {
   irqstate_t flags;
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&priv->lock);
 
   up_setusartint(priv, ie);
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 #endif
 
@@ -1876,7 +1879,7 @@ static void up_disableusartint(struct up_dev_s *priv, uint32_t *ie)
 {
   irqstate_t flags;
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&priv->lock);
 
   if (ie)
     {
@@ -1920,7 +1923,7 @@ static void up_disableusartint(struct up_dev_s *priv, uint32_t *ie)
 
   up_setusartint(priv, 0);
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 
 /****************************************************************************
@@ -3965,8 +3968,9 @@ static bool up_dma_rxavailable(struct uart_dev_s *dev)
  * Name: up_dma_txcallback
  *
  * Description:
- *   This function clears dma buffer at complete of DMA transfer and wakes up
- *   threads waiting for space in buffer.
+ *   This function clears dma buffer at completion of DMA transfer. It wakes
+ *   up threads waiting for space in buffer and restarts the DMA if there is
+ *   more data to send.
  *
  ****************************************************************************/
 
@@ -3980,11 +3984,7 @@ static void up_dma_txcallback(DMA_HANDLE handle, uint8_t status, void *arg)
    * This is important to free TX buffer space by 'uart_xmitchars_done'.
    */
 
-  if (status & DMA_SCR_HTIE)
-    {
-      priv->dev.dmatx.nbytes += priv->dev.dmatx.length / 2;
-    }
-  else if (status & DMA_SCR_TCIE)
+  if (status & DMA_SCR_TCIE)
     {
       priv->dev.dmatx.nbytes += priv->dev.dmatx.length;
       if (priv->dev.dmatx.nlength)
@@ -4012,11 +4012,13 @@ static void up_dma_txcallback(DMA_HANDLE handle, uint8_t status, void *arg)
         }
     }
 
-  nxsem_post(&priv->txdmasem);
-
   /* Adjust the pointers */
 
   uart_xmitchars_done(&priv->dev);
+
+  /* Send more if available */
+
+  up_dma_txavailable(&priv->dev);
 }
 #endif
 
@@ -4032,12 +4034,18 @@ static void up_dma_txcallback(DMA_HANDLE handle, uint8_t status, void *arg)
 static void up_dma_txavailable(struct uart_dev_s *dev)
 {
   struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
+  irqstate_t flags =  enter_critical_section();
 
   /* Only send when the DMA is idle */
 
-  nxsem_wait(&priv->txdmasem);
+  if (priv->dev.dmatx.length == 0 &&
+      priv->dev.dmatx.nlength == 0 &&
+      stm32_dmaresidual(priv->txdma) == 0)
+    {
+      uart_xmitchars_dma(dev);
+    }
 
-  uart_xmitchars_dma(dev);
+  leave_critical_section(flags);
 }
 #endif
 
@@ -4491,7 +4499,7 @@ uart_dev_t *stm32_serial_get_uart(int uart_num)
  *
  * Description:
  *   Performs the low level USART initialization early in debug so that the
- *   serial console will be available during bootup.  This must be called
+ *   serial console will be available during boot up.  This must be called
  *   before arm_serialinit.
  *
  ****************************************************************************/
@@ -4685,28 +4693,17 @@ void stm32_serial_dma_poll(void)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #if CONSOLE_UART > 0
   struct up_dev_s *priv = g_uart_devs[CONSOLE_UART - 1];
   uint32_t ie;
 
   up_disableusartint(priv, &ie);
-
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      arm_lowputc('\r');
-    }
-
   arm_lowputc(ch);
   up_restoreusartint(priv, ie);
 
 #endif
-  return ch;
 }
 
 #else /* USE_SERIALDRIVER */
@@ -4719,21 +4716,11 @@ int up_putc(int ch)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #if CONSOLE_UART > 0
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      arm_lowputc('\r');
-    }
-
   arm_lowputc(ch);
 #endif
-  return ch;
 }
 
 #endif /* USE_SERIALDRIVER */

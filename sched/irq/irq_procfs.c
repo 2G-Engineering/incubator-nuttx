@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/irq/irq_procfs.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -119,6 +121,7 @@ const struct procfs_operations g_irq_operations =
   irq_close,      /* close */
   irq_read,       /* read */
   NULL,           /* write */
+  NULL,           /* poll */
 
   irq_dup,        /* dup */
 
@@ -159,15 +162,10 @@ static int irq_callback(int irq, FAR struct irq_info_s *info,
 
   flags = enter_critical_section();
   memcpy(&copy, info, sizeof(struct irq_info_s));
-  now           = clock_systime_ticks();
-  info->start   = now;
-#ifdef CONFIG_HAVE_LONG_LONG
-  info->count   = 0;
-#else
-  info->mscount = 0;
-  info->lscount = 0;
-#endif
-  info->time    = 0;
+  now         = clock_systime_ticks();
+  info->start = now;
+  info->time  = 0;
+  info->count = 0;
   leave_critical_section(flags);
 
   /* Don't bother if count == 0.
@@ -201,7 +199,7 @@ static int irq_callback(int irq, FAR struct irq_info_s *info,
    */
 
   elapsed = now - copy.start;
-  up_perf_convert(copy.time, &delta);
+  perf_convert(copy.time, &delta);
 
 #ifdef CONFIG_HAVE_LONG_LONG
   /* elapsed = <current-time> - <start-time>, units=clock ticks
@@ -289,7 +287,7 @@ static int irq_open(FAR struct file *filep, FAR const char *relpath,
 
   /* Allocate a container to hold the file attributes */
 
-  irqfile = (FAR struct irq_file_s *)kmm_zalloc(sizeof(struct irq_file_s));
+  irqfile = kmm_zalloc(sizeof(struct irq_file_s));
   if (!irqfile)
     {
       ferr("ERROR: Failed to allocate file attributes\n");
@@ -391,7 +389,7 @@ static int irq_dup(FAR const struct file *oldp, FAR struct file *newp)
 
   /* Allocate a new container to hold the task and attribute selection */
 
-  newattr = (FAR struct irq_file_s *)kmm_malloc(sizeof(struct irq_file_s));
+  newattr = kmm_malloc(sizeof(struct irq_file_s));
   if (!newattr)
     {
       ferr("ERROR: Failed to allocate file attributes\n");

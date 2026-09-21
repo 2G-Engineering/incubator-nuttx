@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samd2l2/sam_dmac.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,8 +32,6 @@
 #include <stdint.h>
 
 #include "chip.h"
-
-#include "hardware/sam_dmac.h"
 
 #ifdef CONFIG_SAMD2L2_DMAC
 

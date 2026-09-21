@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv7-a/arm_dataabort.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,7 +35,7 @@
 #include "sched/sched.h"
 #include "arm_internal.h"
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 #  include <nuttx/page.h>
 #  include "arm.h"
 #endif
@@ -48,8 +50,8 @@
  * Input Parameters:
  *   regs - The standard, ARM register save array.
  *
- * If CONFIG_PAGING is selected in the NuttX configuration file, then these
- * additional input values are expected:
+ * If CONFIG_LEGACY_PAGING is selected in the NuttX configuration file, then
+ * these additional input values are expected:
  *
  *   dfar - Fault address register.  On a data abort, the ARM MMU places the
  *     miss virtual address (MVA) into the DFAR register.  This is the
@@ -64,18 +66,17 @@
  *
  ****************************************************************************/
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 uint32_t *arm_dataabort(uint32_t *regs, uint32_t dfar, uint32_t dfsr)
 {
   struct tcb_s *tcb = this_task();
-  uint32_t *savestate;
+  uint32_t *saveregs;
+  bool savestate;
 
-  /* Save the saved processor context in CURRENT_REGS where it can be
-   * accessed for register dumps and possibly context switching.
-   */
-
-  savestate    = (uint32_t *)CURRENT_REGS;
-  CURRENT_REGS = regs;
+  savestate = up_interrupt_context();
+  saveregs = tcb->xcp.regs;
+  tcb->xcp.regs = regs;
+  up_set_interrupt_context(true);
 
   /* In the NuttX on-demand paging implementation, only the read-only, .text
    * section is paged.  However, the ARM compiler generated PC-relative data
@@ -129,37 +130,34 @@ uint32_t *arm_dataabort(uint32_t *regs, uint32_t dfar, uint32_t dfsr)
 
   pg_miss();
 
-  /* Restore the previous value of CURRENT_REGS.  NULL would indicate that
-   * we are no longer in an interrupt handler.  It will be non-NULL if we
-   * are returning from a nested interrupt.
-   */
+  /* Restore the previous value of saveregs. */
 
-  CURRENT_REGS = savestate;
+  up_set_interrupt_context(savestate);
+  tcb->xcp.regs = saveregs;
   return regs;
 
 segfault:
-  _alert("Data abort. PC: %08x DFAR: %08x DFSR: %08x\n",
-        regs[REG_PC], dfar, dfsr);
+  _alert("Data abort. PC: %08" PRIx32 " DFAR: %08" PRIx32 " DFSR: %08"
+         PRIx32 "\n", regs[REG_PC], dfar, dfsr);
   PANIC_WITH_REGS("panic", regs);
   return regs; /* To keep the compiler happy */
 }
 
-#else /* CONFIG_PAGING */
+#else /* CONFIG_LEGACY_PAGING */
 
 uint32_t *arm_dataabort(uint32_t *regs, uint32_t dfar, uint32_t dfsr)
 {
-  /* Save the saved processor context in CURRENT_REGS where it can be
-   * accessed for register dumps and possibly context switching.
-   */
+  struct tcb_s *tcb = this_task();
 
-  CURRENT_REGS = regs;
+  tcb->xcp.regs = regs;
+  up_set_interrupt_context(true);
 
   /* Crash -- possibly showing diagnostic debug information. */
 
-  _alert("Data abort. PC: %08x DFAR: %08x DFSR: %08x\n",
-        regs[REG_PC], dfar, dfsr);
+  _alert("Data abort. PC: %08" PRIx32 " DFAR: %08" PRIx32 " DFSR: %08"
+         PRIx32 "\n", regs[REG_PC], dfar, dfsr);
   PANIC_WITH_REGS("panic", regs);
   return regs; /* To keep the compiler happy */
 }
 
-#endif /* CONFIG_PAGING */
+#endif /* CONFIG_LEGACY_PAGING */

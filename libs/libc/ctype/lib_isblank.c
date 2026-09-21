@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/ctype/lib_isblank.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,4 +33,9 @@
 int isblank(int c)
 {
   return c == ' ' || c == '\t';
+}
+
+int isblank_l(int c, locale_t locale)
+{
+  return isblank(c);
 }

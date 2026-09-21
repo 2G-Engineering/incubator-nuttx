@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/fixedmath.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -124,8 +126,8 @@
 #define b8addi(a,i)     ((a)+itob8(i))                      /* Add integer from b16 */
 #define b8subb8(a,b)    ((a)-(b))                           /* Subtraction */
 #define b8subi(a,i)     ((a)-itob8(i))                      /* Subtract integer from b8 */
-#define b8mulb8(a,b)    (b16tob8((b16_t)(a)*(b16_t)(b))     /* Muliplication */
-#define ub8mulub8(a,b)  (ub16toub8((ub16_t)(a)*(ub16_t)(b)) /* Muliplication */
+#define b8mulb8(a,b)    (b16tob8((b16_t)(a)*(b16_t)(b))     /* Multiplication */
+#define ub8mulub8(a,b)  (ub16toub8((ub16_t)(a)*(ub16_t)(b)) /* Multiplication */
 #define b8muli(a,i)     ((a)*(i))                           /* Simple multiplication by integer */
 #define b8sqr(a)        b8mulb8(a,a)                        /* Square */
 #define ub8sqr(a)       ub8mulub8(a,a)                      /* Square */
@@ -133,6 +135,8 @@
 #define ub8divub8(a,b)  (ub8toub16(a)/(ub16_t)(b))          /* Division */
 #define b8divi(a,i)     ((a)/(i))                           /* Simple division by integer */
 #define b8idiv(i,j)     (((i)<<8)/j)                        /* Division of integer, b8 result */
+#define b8abs(b)        ((b < 0) ? (-b) : (b))              /* Get the absolute value */
+#define b8sign(b)       ((b > 0) ? (b8ONE) : (-b8ONE))      /* Get the sign */
 
 /* 32-bit values with 16 bits of precision **********************************/
 
@@ -161,6 +165,8 @@
 #define b16muli(a,i)    ((a)*(i))                /* Simple multiplication by integer */
 #define b16divi(a,i)    ((a)/(i))                /* Simple division by integer*/
 #define b16idiv(i,j)    (((i)<<16)/j)            /* Division of integer, b16 result */
+#define b16abs(b)       ((b < 0) ? (-b) : (b))   /* Get the absolute value */
+#define b16sign(b)      ((b > 0) ? (b16ONE) : (-b16ONE))
 
 #ifdef CONFIG_HAVE_LONG_LONG
 /* Multiplication operators */
@@ -198,6 +204,8 @@
 #define b32trunc(a)     ((a) & 0xffffffff00000000)    /* Truncate to integer */
 #define b32round(a)     (((a)+0x0000000080000000) & 0xffffffff00000000)
 #define b32frac(a)      ((a) & 0x00000000ffffffff)    /* Take fractional part */
+#define b32abs(b)       ((b < 0) ? (-b) : (b))        /* Get the absolute value */
+#define b32sign(b)      ((b > 0) ? (b32ONE) : (-b32ONE))
 #endif
 
 /****************************************************************************

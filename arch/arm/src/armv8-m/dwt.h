@@ -1,9 +1,11 @@
 /****************************************************************************
  * arch/arm/src/armv8-m/dwt.h
  *
- *   Copyright (c) 2009 - 2013 ARM LIMITED
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2014 Pierre-noel Bouteville. All rights reserved.
+ * SPDX-FileCopyrightText: 2009 - 2013 ARM LIMITED
+ * SPDX-FileContributor: Pierre-noel Bouteville <pnb990@gmail.com>
  *
- *  All rights reserved.
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions
  *  are met:
@@ -28,9 +30,6 @@
  *  LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
  *  NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- *   Copyright (C) 2014 Pierre-noel Bouteville . All rights reserved.
- *   Author: Pierre-noel Bouteville <pnb990@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -222,6 +221,13 @@
 #define DWT_FUNCTION_EMITRANGE_SHIFT  5
 #define DWT_FUNCTION_EMITRANGE_MASK   (0x1ul << DWT_FUNCTION_EMITRANGE_SHIFT)
 #define DWT_FUNCTION_FUNCTION_SHIFT   0
-#define DWT_FUNCTION_FUNCTION_MASK    (0xful << DWT_FUNCTION_FUNCTION_SHIFT)
+#define DWT_FUNCTION_FUNCTION_MASK    (0x1ful << DWT_FUNCTION_FUNCTION_SHIFT)
+
+/* Two comparator are consecutive flags */
+
+#define DWT_FUNCTION_WATCHPOINT_CO    (0x17ul << DWT_FUNCTION_FUNCTION_SHIFT)
+#define DWT_FUNCTION_WATCHPOINT_RO    (0x16ul << DWT_FUNCTION_FUNCTION_SHIFT)
+#define DWT_FUNCTION_WATCHPOINT_WO    (0x15ul << DWT_FUNCTION_FUNCTION_SHIFT)
+#define DWT_FUNCTION_WATCHPOINT_RW    (0x14ul << DWT_FUNCTION_FUNCTION_SHIFT)
 
 #endif /* __ARCH_ARM_SRC_ARMV8_M_DWT_H */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/xtensa/src/esp32/hardware/esp32_dport.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -199,13 +201,13 @@
 
 /* DPORT_CPUPERIOD_SEL : R/W ;bitpos:[1:0] ;default: 2'b0 ; */
 
-#define DPORT_CPUPERIOD_SEL  0x00000003
-#define DPORT_CPUPERIOD_SEL_M  ((DPORT_CPUPERIOD_SEL_V)<<(DPORT_CPUPERIOD_SEL_S))
-#define DPORT_CPUPERIOD_SEL_V  0x3
-#define DPORT_CPUPERIOD_SEL_S  0
+#define DPORT_CPUPERIOD_SEL     0x00000003
+#define DPORT_CPUPERIOD_SEL_M   ((DPORT_CPUPERIOD_SEL_V)<<(DPORT_CPUPERIOD_SEL_S))
+#define DPORT_CPUPERIOD_SEL_V   0x3
+#define DPORT_CPUPERIOD_SEL_S   0
 #define DPORT_CPUPERIOD_SEL_80  0
 #define DPORT_CPUPERIOD_SEL_160 1
-#define DPORT_CPUPERIOD_SEL_240	2
+#define DPORT_CPUPERIOD_SEL_240 2
 
 #define DPORT_PRO_CACHE_CTRL_REG          (DR_REG_DPORT_BASE + 0x040)
 

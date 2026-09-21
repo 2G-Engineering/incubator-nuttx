@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/string/lib_stpcpy.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -43,7 +45,8 @@
  *
  ****************************************************************************/
 
-#ifndef CONFIG_ARCH_STPCPY
+#ifndef CONFIG_LIBC_ARCH_STPCPY
+#undef stpcpy /* See mm/README.txt */
 FAR char *stpcpy(FAR char *dest, FAR const char *src)
 {
   while ((*dest++ = *src++) != '\0');

@@ -1,6 +1,8 @@
 /****************************************************************************
  * graphics/nxmu/nxmu_kbdin.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -61,7 +63,7 @@ void nxmu_kbdin(FAR struct nxmu_state_s *nxmu, uint8_t nch, FAR uint8_t *ch)
    */
 
   size   = sizeof(struct nxclimsg_kbdin_s) + nch - 1;
-  outmsg = (FAR struct nxclimsg_kbdin_s *)kmm_malloc(size);
+  outmsg = kmm_malloc(size);
   if (outmsg)
     {
       /* Give the keypad input only to the top child */

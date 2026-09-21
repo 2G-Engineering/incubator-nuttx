@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_fstat.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,6 +34,7 @@
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/mtd/mtd.h>
+#include <nuttx/net/net.h>
 #include "inode/inode.h"
 
 /****************************************************************************
@@ -109,12 +112,12 @@ static int proxy_fstat(FAR struct file *filep, FAR struct inode *inode,
         {
           memset(buf, 0, sizeof(struct stat));
           buf->st_mode = S_IFBLK;
-          if (inode->u.i_ops->read)
+          if (inode->u.i_ops->readv || inode->u.i_ops->read)
             {
               buf->st_mode |= S_IROTH | S_IRGRP | S_IRUSR;
             }
 
-          if (inode->u.i_ops->write)
+          if (inode->u.i_ops->writev || inode->u.i_ops->read)
             {
               buf->st_mode |= S_IWOTH | S_IWGRP | S_IWUSR;
             }
@@ -222,6 +225,27 @@ int file_fstat(FAR struct file *filep, FAR struct stat *buf)
   return ret;
 }
 
+int nx_fstat(int fd, FAR struct stat *buf)
+{
+  FAR struct file *filep;
+  int ret;
+
+  /* First, get the file structure.  Note that on failure,
+   * fs_getfilep() will return the errno.
+   */
+
+  ret = fs_getfilep(fd, &filep);
+  if (ret >= 0)
+    {
+      /* Perform the fstat operation */
+
+      ret = file_fstat(filep, buf);
+      fs_putfilep(filep);
+    }
+
+  return ret;
+}
+
 /****************************************************************************
  * Name: fstat
  *
@@ -246,33 +270,14 @@ int file_fstat(FAR struct file *filep, FAR struct stat *buf)
 
 int fstat(int fd, FAR struct stat *buf)
 {
-  FAR struct file *filep;
   int ret;
 
-  /* First, get the file structure.  Note that on failure,
-   * fs_getfilep() will return the errno.
-   */
-
-  ret = fs_getfilep(fd, &filep);
+  ret = nx_fstat(fd, buf);
   if (ret < 0)
     {
-      goto errout;
+      set_errno(-ret);
+      ret = ERROR;
     }
 
-  /* Perform the fstat operation */
-
-  ret = file_fstat(filep, buf);
-
-  /* Check if the fstat operation was successful */
-
-  if (ret >= 0)
-    {
-      /* Successfully fstat'ed the file */
-
-      return OK;
-    }
-
-errout:
-  set_errno(-ret);
-  return ERROR;
+  return ret;
 }

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/imxrt/imxrt1020-evk/src/imxrt_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -52,8 +54,6 @@
 #  include "nuttx/spi/spi_transfer.h"
 #  include <imxrt_lpspi.h>
 #endif
-
-#include "imxrt1020-evk.h"
 
 #include <arch/board/board.h>  /* Must always be included last */
 
@@ -173,7 +173,7 @@ int imxrt_bringup(void)
     struct i2c_master_s *i2c;
 
 #if defined(CONFIG_IMXRT_LPI2C1)
-  i2c = imxrt_i2c_register(1);
+  imxrt_i2c_register(1);
 #endif
 #if defined(CONFIG_IMXRT_LPI2C4)
   i2c = imxrt_i2cbus_initialize(4);

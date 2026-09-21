@@ -1,6 +1,8 @@
 ############################################################################
 # tools/espressif/Config.mk
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -46,43 +48,55 @@ else ifeq ($(CONFIG_ESPRESSIF_FLASH_MODE_QOUT),y)
 	FLASH_MODE := qout
 endif
 
-ifeq ($(CONFIG_ESPRESSIF_FLASH_FREQ_80M),y)
-	FLASH_FREQ := 80m
-else ifeq ($(CONFIG_ESPRESSIF_FLASH_FREQ_48M),y)
-	FLASH_FREQ := 48m
-else ifeq ($(CONFIG_ESPRESSIF_FLASH_FREQ_40M),y)
-	FLASH_FREQ := 40m
-else ifeq ($(CONFIG_ESPRESSIF_FLASH_FREQ_26M),y)
-	FLASH_FREQ := 26m
-else ifeq ($(CONFIG_ESPRESSIF_FLASH_FREQ_20M),y)
-	FLASH_FREQ := 20m
+FLASH_FREQ := $(CONFIG_ESPRESSIF_FLASH_FREQ)
+
+ifeq ($(CONFIG_ESPRESSIF_FLASH_DETECT),y)
+	ESPTOOL_WRITEFLASH_OPTS := -fs detect -fm dio -ff $(FLASH_FREQ)
+else
+	ESPTOOL_WRITEFLASH_OPTS := -fs $(FLASH_SIZE) -fm dio -ff $(FLASH_FREQ)
 endif
 
 # Configure the variables according to build environment
 
+ESPTOOL_MIN_VERSION := 4.8.0
+
 ifdef ESPTOOL_BINDIR
-	BL_OFFSET       := 0x0
-	PT_OFFSET       := $(CONFIG_ESPRESSIF_PARTITION_TABLE_OFFSET)
-	BOOTLOADER      := $(ESPTOOL_BINDIR)/bootloader-$(CHIP_SERIES).bin
-	PARTITION_TABLE := $(ESPTOOL_BINDIR)/partition-table-$(CHIP_SERIES).bin
-	FLASH_BL        := $(BL_OFFSET) $(BOOTLOADER)
-	FLASH_PT        := $(PT_OFFSET) $(PARTITION_TABLE)
-	ESPTOOL_BINS    := $(FLASH_BL) $(FLASH_PT)
+	ifeq ($(CONFIG_ESPRESSIF_BOOTLOADER_MCUBOOT),y)
+		BL_OFFSET       := 0x0000
+		BOOTLOADER      := $(ESPTOOL_BINDIR)/mcuboot-$(CHIP_SERIES).bin
+		FLASH_BL        := $(BL_OFFSET) $(BOOTLOADER)
+		ESPTOOL_BINS    := $(FLASH_BL)
+	endif
 endif
 
-APP_OFFSET := 0x10000
-APP_IMAGE  := nuttx.bin
-FLASH_APP  := $(APP_OFFSET) $(APP_IMAGE)
+ifeq ($(CONFIG_ESPRESSIF_BOOTLOADER_MCUBOOT),y)
+	ifeq ($(CONFIG_ESPRESSIF_ESPTOOL_TARGET_PRIMARY),y)
+		VERIFIED   := --confirm
+		APP_OFFSET := $(CONFIG_ESPRESSIF_OTA_PRIMARY_SLOT_OFFSET)
+	else ifeq ($(CONFIG_ESPRESSIF_ESPTOOL_TARGET_SECONDARY),y)
+		VERIFIED   :=
+		APP_OFFSET := $(CONFIG_ESPRESSIF_OTA_SECONDARY_SLOT_OFFSET)
+	endif
+
+	APP_IMAGE      := nuttx.bin
+	FLASH_APP      := $(APP_OFFSET) $(APP_IMAGE)
+	IMGTOOL_ALIGN_ARGS := --align 4
+	IMGTOOL_SIGN_ARGS  := --pad $(VERIFIED) $(IMGTOOL_ALIGN_ARGS) -v $(CONFIG_ESPRESSIF_MCUBOOT_SIGN_IMAGE_VERSION) -s auto \
+		-H $(CONFIG_ESPRESSIF_APP_MCUBOOT_HEADER_SIZE) --pad-header \
+		-S $(CONFIG_ESPRESSIF_OTA_SLOT_SIZE)
+else ifeq ($(CONFIG_ESPRESSIF_SIMPLE_BOOT),y)
+	APP_OFFSET     := 0x0000
+	APP_IMAGE      := nuttx.bin
+	FLASH_APP      := $(APP_OFFSET) $(APP_IMAGE)
+	ESPTOOL_BINDIR := .
+endif
 
 ESPTOOL_BINS += $(FLASH_APP)
-
-ifeq ($(CONFIG_BUILD_PROTECTED),y)
-	ESPTOOL_BINS += $(CONFIG_ESPRESSIF_USER_IMAGE_OFFSET) nuttx_user.bin
-endif
 
 # MERGEBIN -- Merge raw binary files into a single file
 
 define MERGEBIN
+	@python3 tools/espressif/check_esptool.py -v $(ESPTOOL_MIN_VERSION)
 	$(Q) if [ -z $(ESPTOOL_BINDIR) ]; then \
 		echo "MERGEBIN error: Missing argument for binary files directory."; \
 		echo "USAGE: make ESPTOOL_BINDIR=<dir>"; \
@@ -92,31 +106,41 @@ define MERGEBIN
 		echo "Missing Flash memory size configuration."; \
 		exit 1; \
 	fi
-	esptool.py -c $(CHIP_SERIES) merge_bin --output nuttx.merged.bin $(ESPTOOL_BINS)
+	esptool.py -c $(CHIP_SERIES) merge_bin --fill-flash-size $(FLASH_SIZE) --output nuttx.merged.bin $(ESPTOOL_BINS)
 	$(Q) echo nuttx.merged.bin >> nuttx.manifest
 	$(Q) echo "Generated: nuttx.merged.bin"
 endef
 
 # MKIMAGE -- Convert an ELF file into a compatible binary file
 
+ifeq ($(CONFIG_ESPRESSIF_BOOTLOADER_MCUBOOT),y)
 define MKIMAGE
 	$(Q) echo "MKIMAGE: NuttX binary"
-	$(Q) if ! esptool.py version 1>/dev/null 2>&1; then \
+	$(Q) if ! imgtool version 1>/dev/null 2>&1; then \
 		echo ""; \
-		echo "esptool.py not found.  Please run: \"pip install esptool\""; \
+		echo "imgtool not found.  Please run: \"pip install imgtool\""; \
 		echo ""; \
 		echo "Run make again to create the nuttx.bin image."; \
 		exit 1; \
 	fi
+	imgtool sign $(IMGTOOL_SIGN_ARGS) nuttx.hex nuttx.bin
+	$(Q) echo nuttx.bin >> nuttx.manifest
+	$(Q) echo "Generated: nuttx.bin (MCUboot compatible)"
+endef
+else
+define MKIMAGE
+	$(Q) echo "MKIMAGE: NuttX binary"
+	@python3 tools/espressif/check_esptool.py -v $(ESPTOOL_MIN_VERSION)
 	$(Q) if [ -z $(FLASH_SIZE) ]; then \
 		echo "Missing Flash memory size configuration."; \
 		exit 1; \
 	fi
-	$(eval ELF2IMAGE_OPTS := -fs $(FLASH_SIZE) -fm $(FLASH_MODE) -ff $(FLASH_FREQ))
+	$(eval ELF2IMAGE_OPTS := $(if $(CONFIG_ESPRESSIF_SIMPLE_BOOT),--ram-only-header) -fs $(FLASH_SIZE) -fm $(FLASH_MODE) -ff $(FLASH_FREQ))
 	esptool.py -c $(CHIP_SERIES) elf2image $(ELF2IMAGE_OPTS) -o nuttx.bin nuttx
 	$(Q) echo nuttx.bin >> nuttx.manifest
 	$(Q) echo "Generated: nuttx.bin"
 endef
+endif
 
 # POSTBUILD -- Perform post build operations
 
@@ -139,6 +163,6 @@ define FLASH
 	fi
 
 	$(eval ESPTOOL_OPTS := -c $(CHIP_SERIES) -p $(ESPTOOL_PORT) -b $(ESPTOOL_BAUD) $(if $(CONFIG_ESPRESSIF_ESPTOOLPY_NO_STUB),--no-stub))
-	$(eval WRITEFLASH_OPTS := $(if $(CONFIG_ESPRESSIF_MERGE_BINS),0x0 nuttx.merged.bin,$(if $(CONFIG_ESPRESSIF_FLASH_DETECT),-fs detect) -fm dio $(ESPTOOL_BINS)))
+	$(eval WRITEFLASH_OPTS := $(if $(CONFIG_ESPRESSIF_MERGE_BINS),0x0 nuttx.merged.bin,$(ESPTOOL_WRITEFLASH_OPTS) $(ESPTOOL_BINS)))
 	esptool.py $(ESPTOOL_OPTS) write_flash $(WRITEFLASH_OPTS)
 endef

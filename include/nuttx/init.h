@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/init.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -38,6 +40,7 @@
  * initialization.
  */
 
+#define OSINIT_TASK_READY()      (g_nx_initstate >= OSINIT_TASKLISTS)
 #define OSINIT_MM_READY()        (g_nx_initstate >= OSINIT_MEMORY)
 #define OSINIT_HW_READY()        (g_nx_initstate >= OSINIT_HARDWARE)
 #define OSINIT_OS_READY()        (g_nx_initstate >= OSINIT_OSREADY)
@@ -68,7 +71,8 @@ enum nx_initstate_e
                           * initialization. */
   OSINIT_OSREADY   = 5,  /* The OS is fully initialized and multi-tasking is
                           * active. */
-  OSINIT_IDLELOOP  = 6   /* The OS enter idle loop */
+  OSINIT_IDLELOOP  = 6,  /* The OS enter idle loop. */
+  OSINIT_PANIC     = 7   /* Fatal error happened. */
 };
 
 /****************************************************************************
@@ -88,7 +92,7 @@ extern "C"
  * hardware resources may not yet be available to the OS-internal logic.
  */
 
-EXTERN uint8_t g_nx_initstate;  /* See enum nx_initstate_e */
+EXTERN volatile uint8_t g_nx_initstate;  /* See enum nx_initstate_e */
 
 /****************************************************************************
  * Public Function Prototypes
@@ -98,7 +102,7 @@ EXTERN uint8_t g_nx_initstate;  /* See enum nx_initstate_e */
 
 /* OS entry point called by boot logic */
 
-void nx_start(void) noreturn_function;
+void nx_start(void);
 
 #undef EXTERN
 #ifdef __cplusplus

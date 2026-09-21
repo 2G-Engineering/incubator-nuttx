@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/xmc4/xmc4_irq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -143,8 +145,7 @@ static void xmc4_dump_nvic(const char *msg, int irq)
 #endif
 
 /****************************************************************************
- * Name: xmc4_nmi, xmc4_pendsv,
- *       xmc4_dbgmonitor, xmc4_pendsv, xmc4_reserved
+ * Name: xmc4_nmi, xmc4_pendsv, xmc4_pendsv, xmc4_reserved
  *
  * Description:
  *   Handlers for various exceptions.  None are handled and all are fatal
@@ -170,14 +171,6 @@ static int xmc4_pendsv(int irq, void *context, void *arg)
   return 0;
 }
 
-static int xmc4_dbgmonitor(int irq, void *context, void *arg)
-{
-  up_irq_save();
-  _err("PANIC!!! Debug Monitor received\n");
-  PANIC();
-  return 0;
-}
-
 static int xmc4_reserved(int irq, void *context, void *arg)
 {
   up_irq_save();
@@ -196,7 +189,6 @@ static int xmc4_reserved(int irq, void *context, void *arg)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ARMV7M_USEBASEPRI
 static inline void xmc4_prioritize_syscall(int priority)
 {
   uint32_t regval;
@@ -208,7 +200,6 @@ static inline void xmc4_prioritize_syscall(int priority)
   regval |= (priority << NVIC_SYSH_PRIORITY_PR11_SHIFT);
   putreg32(regval, NVIC_SYSH8_11_PRIORITY);
 }
-#endif
 
 /****************************************************************************
  * Name: xmc4_irqinfo
@@ -370,9 +361,8 @@ void up_irqinitialize(void)
 #ifdef CONFIG_ARCH_IRQPRIO
   /* up_prioritize_irq(XMC4_IRQ_PENDSV, NVIC_SYSH_PRIORITY_MIN); */
 #endif
-#ifdef CONFIG_ARMV7M_USEBASEPRI
+
   xmc4_prioritize_syscall(NVIC_SYSH_SVCALL_PRIORITY);
-#endif
 
   /* If the MPU is enabled, then attach and enable the Memory Management
    * Fault handler.
@@ -393,7 +383,8 @@ void up_irqinitialize(void)
   irq_attach(XMC4_IRQ_BUSFAULT, arm_busfault, NULL);
   irq_attach(XMC4_IRQ_USAGEFAULT, arm_usagefault, NULL);
   irq_attach(XMC4_IRQ_PENDSV, xmc4_pendsv, NULL);
-  irq_attach(XMC4_IRQ_DBGMONITOR, xmc4_dbgmonitor, NULL);
+  arm_enable_dbgmonitor();
+  irq_attach(XMC4_IRQ_DBGMONITOR, arm_dbgmonitor, NULL);
   irq_attach(XMC4_IRQ_RESERVED, xmc4_reserved, NULL);
 #endif
 

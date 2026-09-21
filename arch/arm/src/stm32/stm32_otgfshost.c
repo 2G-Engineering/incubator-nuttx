@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32/stm32_otgfshost.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -2772,7 +2774,7 @@ static inline void stm32_gint_hcoutisr(struct stm32_usbhost_s *priv,
 
   else if ((pending & OTGFS_HCINT_STALL) != 0)
     {
-      /* Clear the pending the STALL response receiv (STALL) interrupt */
+      /* Clear the pending the STALL response receive (STALL) interrupt */
 
       stm32_putreg(STM32_OTGFS_HCINT(chidx), OTGFS_HCINT_STALL);
 
@@ -4267,7 +4269,7 @@ static int stm32_alloc(struct usbhost_driver_s *drvr,
 
   /* There is no special memory requirement for the STM32. */
 
-  alloc = (uint8_t *)kmm_malloc(CONFIG_STM32_OTGFS_DESCSIZE);
+  alloc = kmm_malloc(CONFIG_STM32_OTGFS_DESCSIZE);
   if (!alloc)
     {
       return -ENOMEM;
@@ -4351,7 +4353,7 @@ static int stm32_ioalloc(struct usbhost_driver_s *drvr,
 
   /* There is no special memory requirement */
 
-  alloc = (uint8_t *)kmm_malloc(buflen);
+  alloc = kmm_malloc(buflen);
   if (!alloc)
     {
       return -ENOMEM;

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lc823450/lc823450_timer.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,6 +31,7 @@
 #include <time.h>
 #include <assert.h>
 #include <debug.h>
+#include <nuttx/nuttx.h>
 #include <nuttx/arch.h>
 #include <nuttx/spinlock.h>
 #include <arch/board/board.h>
@@ -145,6 +148,8 @@ static void hrt_usleep_add(struct hrt_s *phrt);
  * Private Data
  ****************************************************************************/
 
+static spinlock_t g_hrt_timer_queue_lock = SP_UNLOCKED;
+
 #ifdef CHECK_INTERVAL
 static bool _timer_val = true;
 #endif
@@ -182,7 +187,7 @@ static void hrt_queue_refresh(void)
   struct hrt_s *tmp;
   irqstate_t flags;
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_hrt_timer_queue_lock);
   elapsed = (uint64_t)getreg32(MT20CNT) * (1000 * 1000) * 10 / XT1OSC_CLK;
 
   for (pent = hrt_timer_queue.head; pent; pent = dq_next(pent))
@@ -193,7 +198,7 @@ static void hrt_queue_refresh(void)
 
 cont:
 
-  /* serch for expired */
+  /* search for expired */
 
   for (pent = hrt_timer_queue.head; pent; pent = dq_next(pent))
     {
@@ -201,9 +206,9 @@ cont:
       if (tmp->usec <= 0)
         {
           dq_rem(pent, &hrt_timer_queue);
-          spin_unlock_irqrestore(NULL, flags);
+          spin_unlock_irqrestore(&g_hrt_timer_queue_lock, flags);
           nxsem_post(&tmp->sem);
-          flags = spin_lock_irqsave(NULL);
+          flags = spin_lock_irqsave(&g_hrt_timer_queue_lock);
           goto cont;
         }
       else
@@ -212,7 +217,7 @@ cont:
         }
     }
 
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_hrt_timer_queue_lock, flags);
 }
 #endif
 
@@ -227,7 +232,7 @@ static void hrt_usleep_setup(void)
   struct hrt_s *head;
   irqstate_t flags;
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_hrt_timer_queue_lock);
   head = container_of(hrt_timer_queue.head, struct hrt_s, ent);
   if (head == NULL)
     {
@@ -235,7 +240,7 @@ static void hrt_usleep_setup(void)
 
       modifyreg32(MCLKCNTEXT1, MCLKCNTEXT1_MTM2C_CLKEN, 0x0);
       modifyreg32(MCLKCNTEXT1, MCLKCNTEXT1_MTM2_CLKEN, 0x0);
-      spin_unlock_irqrestore(NULL, flags);
+      spin_unlock_irqrestore(&g_hrt_timer_queue_lock, flags);
       return;
     }
 
@@ -257,7 +262,7 @@ static void hrt_usleep_setup(void)
   /* Enable MTM2-Ch0 */
 
   putreg32(1, MT2OPR);
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_hrt_timer_queue_lock, flags);
 }
 #endif
 
@@ -296,7 +301,7 @@ static void hrt_usleep_add(struct hrt_s *phrt)
 
   hrt_queue_refresh();
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_hrt_timer_queue_lock);
 
   /* add phrt to hrt_timer_queue */
 
@@ -318,7 +323,7 @@ static void hrt_usleep_add(struct hrt_s *phrt)
       dq_addlast(&phrt->ent, &hrt_timer_queue);
     }
 
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_hrt_timer_queue_lock, flags);
 
   hrt_usleep_setup();
 }
@@ -340,8 +345,8 @@ int up_proftimerisr(int irq, uint32_t *regs, void *arg)
     {
       if (profile_ptr != CONFIG_PROFILE_SAMPLES)
         {
-          DEBUGASSERT(current_regs);
-          profile_data[profile_ptr++] = current_regs[REG_R15];
+          DEBUGASSERT(regs);
+          profile_data[profile_ptr++] = regs[REG_R15];
         }
       else
         {
@@ -696,18 +701,18 @@ int up_rtc_gettime(struct timespec *tp)
   irqstate_t   flags;
   uint64_t f;
 
-  flags = spin_lock_irqsave(NULL);
+  flags = spin_lock_irqsave(&g_hrt_timer_queue_lock);
 
   /* Get the elapsed time */
 
   elapsed = NSEC_PER_TICK * (uint64_t)g_system_ticks;
 
-  /* Add the tiemr fraction in nanoseconds */
+  /* Add the timer fraction in nanoseconds */
 
   f = up_get_timer_fraction();
   elapsed += f;
 
-  spin_unlock_irqrestore(NULL, flags);
+  spin_unlock_irqrestore(&g_hrt_timer_queue_lock, flags);
 
   tmrinfo("elapsed = %lld\n", elapsed);
 

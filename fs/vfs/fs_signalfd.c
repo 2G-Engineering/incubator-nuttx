@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_signalfd.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -37,6 +39,7 @@
 #include <sys/signalfd.h>
 
 #include "inode/inode.h"
+#include "fs_heap.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -154,7 +157,7 @@ static int signalfd_file_close(FAR struct file *filep)
 
   nxmutex_unlock(&dev->mutex);
   nxmutex_destroy(&dev->mutex);
-  kmm_free(dev);
+  fs_heap_free(dev);
 
   return OK;
 }
@@ -175,8 +178,9 @@ static ssize_t signalfd_file_read(FAR struct file *filep,
       return -EINVAL;
     }
 
-  pendmask = nxsig_pendingset(NULL) & dev->sigmask;
-  if (pendmask == 0)
+  pendmask = nxsig_pendingset(NULL);
+  sigandset(&pendmask, &pendmask, &dev->sigmask);
+  if (sigisemptyset(&pendmask))
     {
       if (filep->f_oflags & O_NONBLOCK)
         {
@@ -208,9 +212,10 @@ static ssize_t signalfd_file_read(FAR struct file *filep,
       siginfo->ssi_int    = info.si_value.sival_int;
       siginfo->ssi_ptr    = (uint64_t)(uintptr_t)info.si_value.sival_ptr;
       siginfo++;
-      pendmask = nxsig_pendingset(NULL) & dev->sigmask;
+      pendmask = nxsig_pendingset(NULL);
+      sigandset(&pendmask, &pendmask, &dev->sigmask);
     }
-  while (--count != 0 && pendmask != 0);
+  while (--count != 0 && !sigisemptyset(&pendmask));
 
 errout:
   len = (FAR char *)siginfo - buffer;
@@ -221,6 +226,7 @@ static int signalfd_file_poll(FAR struct file *filep,
                               FAR struct pollfd *fds, bool setup)
 {
   FAR struct signalfd_priv_s *dev = filep->f_priv;
+  sigset_t mask;
   int ret = 0;
   int i;
 
@@ -264,9 +270,11 @@ static int signalfd_file_poll(FAR struct file *filep,
 
   /* Notify the POLLIN event if the counter is not zero */
 
-  if ((nxsig_pendingset(NULL) & dev->sigmask) != 0)
+  mask = nxsig_pendingset(NULL);
+  sigandset(&mask, &mask, &dev->sigmask);
+  if (!sigisemptyset(&mask))
     {
-      poll_notify(dev->fds, CONFIG_SIGNAL_FD_NPOLLWAITERS, POLLIN);
+      poll_notify(&fds, 1, POLLIN);
     }
 
 out:
@@ -323,6 +331,7 @@ out:
 int signalfd(int fd, FAR const sigset_t *mask, int flags)
 {
   FAR struct signalfd_priv_s *dev;
+  FAR struct file *filep = NULL;
   struct sigaction act;
   int ret = EINVAL;
   int signo;
@@ -334,7 +343,7 @@ int signalfd(int fd, FAR const sigset_t *mask, int flags)
 
   if (fd == -1)
     {
-      dev = kmm_zalloc(sizeof(*dev));
+      dev = fs_heap_zalloc(sizeof(*dev));
       if (dev == NULL)
         {
           ret = ENOMEM;
@@ -350,11 +359,11 @@ int signalfd(int fd, FAR const sigset_t *mask, int flags)
           ret = -fd;
           goto errout_with_dev;
         }
+
+      dev->crefs++;
     }
   else
     {
-      FAR struct file *filep;
-
       if (fs_getfilep(fd, &filep) < 0)
         {
           ret = EBADF;
@@ -363,6 +372,7 @@ int signalfd(int fd, FAR const sigset_t *mask, int flags)
 
       if (filep->f_inode->u.i_ops != &g_signalfd_fileops)
         {
+          fs_putfilep(filep);
           goto errout;
         }
 
@@ -390,11 +400,16 @@ int signalfd(int fd, FAR const sigset_t *mask, int flags)
         }
     }
 
+  if (filep != NULL)
+    {
+      fs_putfilep(filep);
+    }
+
   return fd;
 
 errout_with_dev:
   nxmutex_destroy(&dev->mutex);
-  kmm_free(dev);
+  fs_heap_free(dev);
 
 errout:
   set_errno(ret);

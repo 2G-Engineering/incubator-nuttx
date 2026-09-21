@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/mqueue/msginternal.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -42,7 +44,7 @@ static FAR struct msgq_s **g_msgqs; /* The pointer of two layer file descriptors
  * Public Data
  ****************************************************************************/
 
-struct list_node g_msgfreelist = LIST_INITIAL_VALUE(g_msgfreelist);
+struct list_node g_msgfreelist;
 
 /****************************************************************************
  * Private Functions
@@ -98,27 +100,6 @@ static FAR struct msgq_s *nxmsg_alloc_internal(void)
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: nxmsg_initialize
- ****************************************************************************/
-
-void nxmsg_initialize(void)
-{
-  FAR struct msgbuf_s *msg;
-
-  msg = (FAR struct msgbuf_s *)kmm_malloc(sizeof(*msg) *
-                                          CONFIG_PREALLOC_MQ_MSGS);
-  if (msg)
-    {
-      int i;
-      for (i = 0; i < CONFIG_PREALLOC_MQ_MSGS; i++)
-        {
-          list_add_tail(&g_msgfreelist, &msg->node);
-          msg++;
-        }
-    }
-}
 
 /****************************************************************************
  * Name: nxmsg_alloc

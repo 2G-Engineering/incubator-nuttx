@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdlib/lib_exit.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -45,7 +47,10 @@
  ****************************************************************************/
 
 extern FAR void *__dso_handle weak_data;
+
+#ifndef CONFIG_HOST_WINDOWS
 FAR void *__dso_handle = &__dso_handle;
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -96,17 +101,19 @@ void exit(int status)
 
   task_setcancelstate(TASK_CANCEL_DISABLE, NULL);
 
-#ifdef CONFIG_PTHREAD_CLEANUP
-  pthread_cleanup_popall(tls_get_info());
-#endif
+  tls_cleanup_popall(tls_get_info());
 
-#if CONFIG_TLS_NELEM > 0
+#if defined(CONFIG_TLS_NELEM) && CONFIG_TLS_NELEM > 0
   tls_destruct();
 #endif
 
   /* Run the registered exit functions */
 
   atexit_call_exitfuncs(status, false);
+
+#if defined(CONFIG_TLS_TASK_NELEM) && CONFIG_TLS_TASK_NELEM > 0
+  task_tls_destruct();
+#endif
 
 #ifdef CONFIG_FILE_STREAM
   /* Flush all streams */
@@ -145,11 +152,9 @@ void quick_exit(int status)
 
   task_setcancelstate(TASK_CANCEL_DISABLE, NULL);
 
-#ifdef CONFIG_PTHREAD_CLEANUP
-  pthread_cleanup_popall(tls_get_info());
-#endif
+  tls_cleanup_popall(tls_get_info());
 
-#if CONFIG_TLS_NELEM > 0
+#if defined(CONFIG_TLS_NELEM) && CONFIG_TLS_NELEM > 0
   tls_destruct();
 #endif
 

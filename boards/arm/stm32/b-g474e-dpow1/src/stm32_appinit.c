@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/b-g474e-dpow1/src/stm32_appinit.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  *  Licensed to the Apache Software Foundation (ASF) under one or more
  *  contributor license agreements.  See the NOTICE file distributed with
  *  this work for additional information regarding copyright ownership.  The
@@ -83,6 +85,16 @@ int board_app_initialize(uintptr_t arg)
     {
       syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n", ret);
       return ret;
+    }
+#endif
+
+#ifdef CONFIG_DRIVERS_SMPS
+  /* Initialize smps and register the smps driver */
+
+  ret = stm32_smps_setup();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: stm32_smps_setup failed: %d\n", ret);
     }
 #endif
 

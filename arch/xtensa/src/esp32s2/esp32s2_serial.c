@@ -45,6 +45,7 @@
 #include "esp32s2_config.h"
 #include "esp32s2_irq.h"
 #include "esp32s2_lowputc.h"
+#include "esp32s2_gpio.h"
 #include "hardware/esp32s2_uart.h"
 #include "hardware/esp32s2_system.h"
 
@@ -237,6 +238,18 @@ static int uart_handler(int irq, void *context, void *arg)
 
   int_status = getreg32(UART_INT_ST_REG(priv->id));
 
+#ifdef HAVE_RS485
+  if ((int_status & UART_TX_BRK_IDLE_DONE_INT_ST_M) != 0 &&
+      esp32s2_txempty(dev))
+    {
+      if (dev->xmit.tail == dev->xmit.head)
+        {
+          esp32s2_gpiowrite(priv->rs485_dir_gpio,
+                            !priv->rs485_dir_polarity);
+        }
+    }
+#endif
+
   /* TX FIFO empty interrupt or UART TX done int */
 
   if (int_status & tx_mask)
@@ -287,6 +300,8 @@ static int esp32s2_setup(struct uart_dev_s *dev)
   struct esp32s2_uart_s *priv = dev->priv;
 
   /* Initialize UART module */
+
+  esp32s2_lowputc_enable_sysclk(priv);
 
   /* Discard corrupt RX data */
 
@@ -358,7 +373,7 @@ static int esp32s2_setup(struct uart_dev_s *dev)
 
 #endif
 #ifdef CONFIG_SERIAL_OFLOWCONTROL
-  /* Configure the ouput flow control */
+  /* Configure the output flow control */
 
   if (priv->oflow)
     {
@@ -369,6 +384,21 @@ static int esp32s2_setup(struct uart_dev_s *dev)
       esp32s2_lowputc_set_oflow(priv, false);
     }
 #endif
+#ifdef HAVE_RS485
+
+  /* Configure the idle time between transfers */
+
+  if (priv->rs485_dir_gpio != 0)
+    {
+      esp32s2_lowputc_set_tx_idle_time(priv, 1);
+    }
+  else
+#endif
+    {
+      /* No Tx idle interval */
+
+      esp32s2_lowputc_set_tx_idle_time(priv, 0);
+    }
 
   /* Reset FIFOs */
 
@@ -513,6 +543,18 @@ static void esp32s2_txint(struct uart_dev_s *dev, bool enable)
 
   if (enable)
     {
+      /* After all bytes physically transmitted in the RS485 bus
+       * the TX_BRK_IDLE will indicate we can disable the TX pin.
+       */
+
+#ifdef HAVE_RS485
+      if (priv->rs485_dir_gpio != 0)
+        {
+          modifyreg32(UART_INT_ENA_REG(priv->id),
+                      0, UART_TX_BRK_IDLE_DONE_INT_ENA);
+        }
+#endif
+
       /* Set to receive an interrupt when the TX holding FIFO is empty or
        * a transmission is done.
        */
@@ -613,7 +655,7 @@ static bool esp32s2_rxavailable(struct uart_dev_s *dev)
 
 static bool esp32s2_txready(struct uart_dev_s *dev)
 {
-  return (esp32s2_lowputc_is_tx_fifo_full(dev->priv)) ? false : true;
+  return !esp32s2_lowputc_is_tx_fifo_full(dev->priv);
 }
 
 /****************************************************************************
@@ -639,10 +681,9 @@ static bool esp32s2_txempty(struct uart_dev_s *dev)
   struct esp32s2_uart_s *priv = dev->priv;
 
   reg = getreg32(UART_INT_RAW_REG(priv->id));
+  reg = REG_MASK(reg, UART_TX_DONE_INT_RAW);
 
-  reg =  REG_MASK(reg, UART_TXFIFO_EMPTY_INT_RAW);
-
-  return (reg > 0) ? true : false;
+  return reg > 0;
 }
 
 /****************************************************************************
@@ -659,7 +700,16 @@ static bool esp32s2_txempty(struct uart_dev_s *dev)
 
 static void esp32s2_send(struct uart_dev_s *dev, int ch)
 {
-  esp32s2_lowputc_send_byte(dev->priv, ch);
+  struct esp32s2_uart_s *priv = dev->priv;
+
+#ifdef HAVE_RS485
+  if (priv->rs485_dir_gpio != 0)
+    {
+      esp32s2_gpiowrite(priv->rs485_dir_gpio, priv->rs485_dir_polarity);
+    }
+#endif
+
+  esp32s2_lowputc_send_byte(priv, (char)ch);
 }
 
 /****************************************************************************
@@ -1008,7 +1058,7 @@ static bool esp32s2_rxflowcontrol(struct uart_dev_s *dev,
  *
  * Description:
  *   Performs the low level UART initialization early in debug so that the
- *   serial console will be available during bootup.  This must be called
+ *   serial console will be available during boot up.  This must be called
  *   before xtensa_serialinit.  NOTE:  This function depends on GPIO pin
  *   configuration performed in esp32s2_lowsetup.
  *
@@ -1028,7 +1078,7 @@ void xtensa_earlyserialinit(void)
 #endif
 
   /* Configure console in early step.
-   * Setup for other serials will be perfomed when the serial driver is
+   * Setup for other serials will be performed when the serial driver is
    * open.
    */
 
@@ -1058,7 +1108,7 @@ void xtensa_serialinit(void)
 
   uart_register("/dev/ttyS0", &TTYS0_DEV);
 
-#ifdef	TTYS1_DEV
+#ifdef TTYS1_DEV
   uart_register("/dev/ttyS1", &TTYS1_DEV);
 #endif
 }
@@ -1071,26 +1121,15 @@ void xtensa_serialinit(void)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef HAVE_SERIAL_CONSOLE
   uint32_t int_status;
 
   esp32s2_lowputc_disable_all_uart_int(CONSOLE_DEV.priv, &int_status);
-
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      xtensa_lowputc('\r');
-    }
-
   xtensa_lowputc(ch);
   esp32s2_lowputc_restore_all_uart_int(CONSOLE_DEV.priv, &int_status);
 #endif
-  return ch;
 }
 
 #else /* HAVE_UART_DEVICE */
@@ -1117,9 +1156,8 @@ void xtensa_serialinit(void)
 {
 }
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
-  return ch;
 }
 
 #endif /* HAVE_UART_DEVICE */
@@ -1135,23 +1173,13 @@ int up_putc(int ch)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef HAVE_SERIAL_CONSOLE
   uint32_t int_status;
 
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      xtensa_lowputc('\r');
-    }
-
   xtensa_lowputc(ch);
 #endif
-  return ch;
 }
 
 #endif /* USE_SERIALDRIVER */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l4/stm32l4_start.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -179,7 +181,11 @@ void __start(void)
 
   showprogress('C');
 
-#ifdef CONFIG_SCHED_IRQMONITOR
+#ifdef CONFIG_ARMV7M_STACKCHECK
+  arm_stack_check_init();
+#endif
+
+#ifdef CONFIG_ARCH_PERF_EVENTS
   up_perf_init((void *)STM32_SYSCLK_FREQUENCY);
 #endif
 

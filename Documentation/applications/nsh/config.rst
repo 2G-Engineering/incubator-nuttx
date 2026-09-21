@@ -42,7 +42,6 @@ Command                Depends on Configuration                    Can Be Disabl
 :ref:`cmdcmp`          ``CONFIG_NSH_DISABLE_CMP``                  .
 :ref:`cmdcp`           ``CONFIG_NSH_DISABLE_CP``                   .
 :ref:`cmddate`         ``CONFIG_NSH_DISABLE_DATE``                 .
-:ref:`cmddd`           ``CONFIG_NSH_DISABLE_DD``                   .
 :ref:`cmddelroute`     ``CONFIG_NET`` && ``CONFIG_NET_ROUTE``      ``CONFIG_NSH_DISABLE_DELROUTE``
 :ref:`cmddf`           ! ``CONFIG_DISABLE_MOUNTPOINT``             ``CONFIG_NSH_DISABLE_DF``
 :ref:`cmddirname`      ``CONFIG_NSH_DISABLE_DIRNAME``              .
@@ -202,9 +201,6 @@ Configuration                        Description
                                      setting is *y*. This setting depends upon the ``strerror()``
                                      having been enabled with ``CONFIG_LIBC_STRERROR``.
 
- ``CONFIG_NSH_LINELEN``              The maximum length of one command line and of one output line.
-                                     Default: 80
-
  ``CONFIG_NSH_DISABLE_SEMICOLON``    By default, you can enter multiple NSH commands on a line
                                      with each command separated by a semicolon. You can disable this
                                      feature to save a little memory on FLASH challenged platforms.
@@ -298,12 +294,6 @@ Configuration                        Description
                                      the MMC/SD minor number, i.e., the MMC/SD block driver will be
                                      registered as ``/dev/mmcsd``\ *N* where *N* is the minor number.
                                      Default is zero.
-
- ``CONFIG_NSH_ROMFSETC``             Mount a ROMFS file system at ``/etc`` and provide a system init
-                                     script at ``/etc/init.d.rc.sysinit`` and a startup script at
-                                     ``/etc/init.d/rcS``.
-                                     The default system init script will mount a FAT FS RAMDISK at
-                                     ``/tmp`` but the logic is `easily extensible <#startupscript>`__.
 
  ``CONFIG_NSH_CONSOLE``              If ``CONFIG_NSH_CONSOLE`` is set to *y*, then a serial console
                                      front-end is selected.
@@ -451,40 +441,29 @@ Configuration                                  Description
                                                is indicated.
 ============================================== ============================================================
 
-If ``CONFIG_NSH_ROMFSETC`` is selected, then the following additional
+If ``CONFIG_ETC_ROMFS`` is selected, then the following additional
 configuration setting apply:
 
 ============================== ==============================================================
 Configuration                  Description
 ============================== ==============================================================
-``CONFIG_NSH_ARCHROMFS``       May be defined to specify an alternative ROMFS image
-                               that can be found at ``boards/<arch>/<chip>/<board>/include/nsh_romfsimg.h``.
-``CONFIG_NSH_ROMFSMOUNTPT``    The default mountpoint for the ROMFS volume is ``"/etc"``,
-                               but that can be changed with this setting. This must be a
-                               absolute path beginning with '``/``' and enclosed in quotes.
 ``CONFIG_NSH_SYSINITSCRIPT``   This is the relative path to the system init script within the
                                mountpoint. The default is ``"init.d/rc.sysinit"``. This is a relative
                                path and must not start with '``/``' but must be enclosed in quotes.
 ``CONFIG_NSH_INITSCRIPT``      This is the relative path to the startup script within the
                                mountpoint. The default is ``"init.d/rcS"``. This is a relative
                                path and must not start with '``/``' but must be enclosed in quotes.
-``CONFIG_NSH_ROMFSDEVNO``      This is the minor number of the ROMFS block device.
-                               The default is '``0``' corresponding to ``/dev/ram0``.
-``CONFIG_NSH_ROMFSSECTSIZE``   This is the sector size to use with the ROMFS volume. Since the
-                               default volume is very small, this defaults to 64 but should
-                               be increased if the ROMFS volume were to be become large.
-                               Any value selected must be a power of 2.
 ============================== ==============================================================
 
-When the default ``rc.sysinit`` file used when ``CONFIG_NSH_ROMFSETC`` is
-selected, it will mount a FAT FS under ``/tmp``. The following
-selections describe that FAT FS.
+Common Problems
+===============
 
-============================== =======================================================
-Configuration                  Description
-============================== =======================================================
-``CONFIG_NSH_FATDEVNO``        This is the minor number of the FAT FS block device.
-                               The default is '``1``' corresponding to ``/dev/ram1``.
-``CONFIG_NSH_FATSECTSIZE``     This is the sector size use with the FAT FS. Default is 512.
-============================== =======================================================
+Problem::
 
+  The function 'readline' is undefined.
+
+Usual Cause:
+
+* The following is missing from your `defconfig` file::
+
+    CONFIG_SYSTEM_READLINE=y

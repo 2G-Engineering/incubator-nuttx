@@ -1,8 +1,8 @@
 /****************************************************************************
  * libs/libc/machine/arm64/gnu/arch_strnlen.S
  *
- * Copyright (c) 2013, Linaro Limited
- *  All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2013, Linaro Limited, All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,7 +35,7 @@
 
 #include "libc.h"
 
-#ifdef LIBC_BUILD_STRING
+#ifdef LIBC_BUILD_STRNLEN
 
 /* Assumptions:
  *
@@ -86,7 +86,7 @@
 	mov	len, limit
 	ret
 
-def_fn strnlen
+def_fn ARCH_LIBCFUN(strnlen)
 	cbz	limit, .Lhit_limit
 	mov	zeroones, #REP8_01
 	bic	src, srcin, #15
@@ -104,7 +104,7 @@ def_fn strnlen
 	   especially on cores with a high number of issue slots per
 	   cycle, as we get much better parallelism out of the operations.  */
 
-	/* Start of critial section -- keep to one 64Byte cache line.  */
+	/* Start of critical section -- keep to one 64Byte cache line.  */
 .Lloop:
 	ldp	data1, data2, [src], #16
 .Lrealigned:
@@ -189,6 +189,6 @@ def_fn strnlen
 	csinv	data1, data1, xzr, le
 	csel	data2, data2, data2a, le
 	b	.Lrealigned
-	.size	strnlen, . - .Lstart	/* Include pre-padding in size.  */
+	.size	ARCH_LIBCFUN(strnlen), . - .Lstart	/* Include pre-padding in size.  */
 
 #endif

@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/procfs/fs_procfsversion.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -43,8 +45,10 @@
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/procfs.h>
 
+#include "fs_heap.h"
+
 #if !defined(CONFIG_DISABLE_MOUNTPOINT) && defined(CONFIG_FS_PROCFS)
-#ifndef CONFIG_FS_PROCFS_EXCLUDE_PROCESS
+#ifndef CONFIG_FS_PROCFS_EXCLUDE_VERSION
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -101,6 +105,7 @@ const struct procfs_operations g_version_operations =
   version_close,      /* close */
   version_read,       /* read */
   NULL,               /* write */
+  NULL,               /* poll */
 
   version_dup,        /* dup */
 
@@ -142,7 +147,7 @@ static int version_open(FAR struct file *filep, FAR const char *relpath,
   /* Allocate a container to hold the file attributes */
 
   attr = (FAR struct version_file_s *)
-    kmm_zalloc(sizeof(struct version_file_s));
+    fs_heap_zalloc(sizeof(struct version_file_s));
 
   if (attr == NULL)
     {
@@ -171,7 +176,7 @@ static int version_close(FAR struct file *filep)
 
   /* Release the file attributes structure */
 
-  kmm_free(attr);
+  fs_heap_free(attr);
   filep->f_priv = NULL;
   return OK;
 }
@@ -200,8 +205,9 @@ static ssize_t version_read(FAR struct file *filep, FAR char *buffer,
     {
       uname(&name);
       linesize = procfs_snprintf(attr->line, VERSION_LINELEN,
-                                 "%s version %s %s\n",
-                                 name.sysname, name.release, name.version);
+                                 "%s version %s %s %s\n",
+                                 name.sysname, name.release, name.version,
+                                 CONFIG_BASE_DEFCONFIG);
 
       /* Save the linesize in case we are re-entered with f_pos > 0 */
 
@@ -244,7 +250,7 @@ static int version_dup(FAR const struct file *oldp, FAR struct file *newp)
   /* Allocate a new container to hold the task and attribute selection */
 
   newattr = (FAR struct version_file_s *)
-    kmm_malloc(sizeof(struct version_file_s));
+    fs_heap_malloc(sizeof(struct version_file_s));
 
   if (!newattr)
     {

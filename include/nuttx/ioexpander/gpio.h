@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/ioexpander/gpio.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -100,6 +102,12 @@ enum gpio_pintype_e
   GPIO_INTERRUPT_RISING_PIN,
   GPIO_INTERRUPT_FALLING_PIN,
   GPIO_INTERRUPT_BOTH_PIN,
+  GPIO_INTERRUPT_PIN_WAKEUP,
+  GPIO_INTERRUPT_HIGH_PIN_WAKEUP,
+  GPIO_INTERRUPT_LOW_PIN_WAKEUP,
+  GPIO_INTERRUPT_RISING_PIN_WAKEUP,
+  GPIO_INTERRUPT_FALLING_PIN_WAKEUP,
+  GPIO_INTERRUPT_BOTH_PIN_WAKEUP,
   GPIO_NPINTYPES
 };
 
@@ -150,17 +158,31 @@ struct gpio_dev_s
    * driver when gpio_pin_register() is called.
    */
 
-  uint8_t gp_pintype;  /* See enum gpio_pintype_e */;
+  uint8_t gp_pintype;  /* See enum gpio_pintype_e */
+
+  /* Number of times the device has been registered by ioctl */
+
+  uint8_t register_count;
+
+  /* Number of times interrupt occurred */
+
+  uintptr_t int_count;
 
   /* Writable storage used by the upper half driver */
 
+#if CONFIG_DEV_GPIO_NSIGNALS > 0
   struct gpio_signal_s gp_signals[CONFIG_DEV_GPIO_NSIGNALS];
+#endif
 
   /* Read-only pointer to GPIO device operations (also provided by the
    * lower half driver).
    */
 
   FAR const struct gpio_operations_s *gp_ops;
+
+#if CONFIG_DEV_GPIO_NPOLLWAITERS > 0
+  FAR struct pollfd *fds[CONFIG_DEV_GPIO_NPOLLWAITERS];
+#endif
 
   /* Device specific, lower-half information may follow. */
 };
@@ -270,6 +292,32 @@ int gpio_pin_unregister(FAR struct gpio_dev_s *dev, int minor);
 
 int gpio_pin_unregister_byname(FAR struct gpio_dev_s *dev,
                                FAR const char *pinname);
+
+/****************************************************************************
+ * Name: gpio_lower_half_byname
+ *
+ * Description:
+ *   Create a GPIO pin device driver instance for an I/O expander pin.
+ *   The I/O expander pin must have already been configured by the caller
+ *   for the particular pintype.
+ *
+ * Input Parameters:
+ *   ioe     - An instance of the I/O expander interface
+ *   pin     - The I/O expander pin number for the driver
+ *   pintype - See enum gpio_pintype_e
+ *   name    - gpio device name
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_GPIO_LOWER_HALF
+struct ioexpander_dev_s;
+int gpio_lower_half_byname(FAR struct ioexpander_dev_s *ioe,
+                           unsigned int pin, enum gpio_pintype_e pintype,
+                           FAR char *name);
+#endif
 
 /****************************************************************************
  * Name: gpio_lower_half

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samv7/sam_qspi_spi.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -741,7 +743,7 @@ static void qspi_spi_recvblock(struct spi_dev_s *dev, void *buffer,
 
   qspi_spi_exchange(dev, NULL, buffer, nwords);
 }
-#endif  /* CONFIG_SPI_EXCHANGE */
+#endif /* CONFIG_SPI_EXCHANGE */
 
 /****************************************************************************
  * Public Functions
@@ -771,11 +773,11 @@ struct spi_dev_s *sam_qspi_spi_initialize(int intf)
   /* The supported SAM parts have only a single QSPI port */
 
   spiinfo("intf: %d\n", intf);
-  DEBUGASSERT(intf >= 0 && intf < SAMV7_NQSPI_SPI);
+  DEBUGASSERT(intf >= 0 && intf < (SAMV7_NQSPI_SPI + SAMV7_NQSPI));
 
   /* Allocate a new state structure for this chip select. */
 
-  spics = (struct sam_spics_s *)kmm_zalloc(sizeof(struct sam_spics_s));
+  spics = kmm_zalloc(sizeof(struct sam_spics_s));
   if (!spics)
     {
       spierr("ERROR: Failed to allocate a chip select structure\n");

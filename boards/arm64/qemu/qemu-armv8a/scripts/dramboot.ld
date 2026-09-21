@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm64/qemu/qemu-armv8a/scripts/dramboot.ld
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,6 +20,8 @@
  *
  ****************************************************************************/
 
+#include <nuttx/config.h>
+
 OUTPUT_ARCH(aarch64)
 
 ENTRY(__start)
@@ -30,9 +34,26 @@ PHDRS
 SECTIONS
 {
   . = 0x40280000;  /* uboot load address */
+
+  /* where the global variable out-of-bounds detection information located */
+
+#ifdef CONFIG_MM_KASAN_GLOBAL
+  .kasan.unused : {
+    *(.data..LASANLOC*)
+  }
+  .kasan.global : {
+    KEEP (*(.data..LASAN0))
+    KEEP (*(.data.rel.local..LASAN0))
+  }
+  .kasan.shadows : {
+    *(.kasan.shadows)
+  }
+#endif
+
   _start = .;
   .text : {
         _stext = .;            /* Text section */
+       *(.start .start.*)      /* Place __start here */
        *(.text)
        *(.text.cold)
        *(.text.unlikely)
@@ -44,7 +65,8 @@ SECTIONS
 
   .init_section : {
         _sinit = ABSOLUTE(.);
-        *(.init_array .init_array.*)
+        KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
+        KEEP(*(.init_array EXCLUDE_FILE(*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o) .ctors))
         _einit = ABSOLUTE(.);
   }
 
@@ -60,6 +82,11 @@ SECTIONS
   . = ALIGN(4096);
   _etext = .; /* End_1 of .text */
   _sztext = _etext - _stext;
+
+  _sload = .;
+  . += 1048576;
+  _eload = .;
+  _szload = _eload - _sload;
 
   . = ALIGN(4096);
   .rodata : {
@@ -80,6 +107,11 @@ SECTIONS
        *(.data.page_aligned)
        *(.data)
        . = ALIGN(8);
+        __start_impls = .;
+        *(.impls)
+        KEEP(*(.impls))
+        . = ALIGN(4);
+        __stop_impls = .;
        *(.data.rel)
        *(.data.rel.*)
        CONSTRUCTORS
@@ -112,7 +144,6 @@ SECTIONS
        *(.exit.text)
        *(.exit.data)
        *(.exitcall.exit)
-       *(.eh_frame)
   }
 
   /* Stabs debugging sections.  */

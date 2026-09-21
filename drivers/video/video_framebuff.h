@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/video/video_framebuff.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,8 +27,10 @@
  * Included Files
  ****************************************************************************/
 
-#include <nuttx/video/video.h>
+#include <sys/videoio.h>
+
 #include <nuttx/mutex.h>
+#include <nuttx/spinlock.h>
 
 /****************************************************************************
  * Public Types
@@ -42,14 +46,14 @@ typedef struct vbuf_container_s vbuf_container_t;
 
 struct video_framebuff_s
 {
-  enum v4l2_buf_mode  mode;
+  enum v4l2_buf_mode mode;
+  spinlock_t lock_queue;
   mutex_t lock_empty;
   int container_size;
   vbuf_container_t *vbuf_alloced;
   vbuf_container_t *vbuf_empty;
   vbuf_container_t *vbuf_top;
   vbuf_container_t *vbuf_tail;
-  vbuf_container_t *vbuf_curr;
   vbuf_container_t *vbuf_next;
 };
 

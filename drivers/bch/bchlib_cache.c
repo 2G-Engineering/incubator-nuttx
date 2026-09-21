@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/bch/bchlib_cache.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,6 +25,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/kmalloc.h>
 
 #include <sys/types.h>
 #include <stdbool.h>
@@ -103,7 +106,7 @@ static int bch_cypher(FAR struct bchlib_s *bch, int encrypt)
  *
  ****************************************************************************/
 
-int bchlib_flushsector(FAR struct bchlib_s *bch)
+int bchlib_flushsector(FAR struct bchlib_s *bch, bool discard)
 {
   FAR struct inode *inode;
   ssize_t ret = OK;
@@ -112,7 +115,7 @@ int bchlib_flushsector(FAR struct bchlib_s *bch)
    * media.
    */
 
-  if (bch->dirty)
+  if (bch->dirty && bch->buffer != NULL)
     {
       inode = bch->inode;
 
@@ -144,6 +147,11 @@ int bchlib_flushsector(FAR struct bchlib_s *bch)
       bch->dirty = false;
     }
 
+  if (discard)
+    {
+      bch->sector = (size_t)-1;
+    }
+
   return (int)ret;
 }
 
@@ -151,7 +159,7 @@ int bchlib_flushsector(FAR struct bchlib_s *bch)
  * Name: bchlib_readsector
  *
  * Description:
- *   Flush the current contents of the sector buffer (if dirty)
+ *   Read the current sector contents into buffer
  *
  * Assumptions:
  *   Caller must assume mutual exclusion
@@ -163,18 +171,30 @@ int bchlib_readsector(FAR struct bchlib_s *bch, size_t sector)
   FAR struct inode *inode;
   ssize_t ret = OK;
 
+  if (bch->buffer == NULL)
+    {
+#if CONFIG_BCH_BUFFER_ALIGNMENT != 0
+      bch->buffer = kmm_memalign(CONFIG_BCH_BUFFER_ALIGNMENT, bch->sectsize);
+#else
+      bch->buffer = kmm_malloc(bch->sectsize);
+#endif
+      if (bch->buffer == NULL)
+        {
+          ferr("Failed to allocate sector buffer\n");
+          return -ENOMEM;
+        }
+    }
+
   if (bch->sector != sector)
     {
       inode = bch->inode;
 
-      ret = bchlib_flushsector(bch);
+      ret = bchlib_flushsector(bch, true);
       if (ret < 0)
         {
           ferr("Flush failed: %zd\n", ret);
           return (int)ret;
         }
-
-      bch->sector = (size_t)-1;
 
       ret = inode->u.i_bops->read(inode, bch->buffer, sector, 1);
       if (ret < 0)

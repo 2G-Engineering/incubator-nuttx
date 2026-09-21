@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/tcp/tcp_sendfile.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -417,7 +419,7 @@ ssize_t tcp_sendfile(FAR struct socket *psock, FAR struct file *infile,
   FAR struct tcp_conn_s *conn;
   struct sendfile_s state;
   off_t startpos;
-  int ret;
+  int ret = OK;
 
   conn = psock->s_conn;
   DEBUGASSERT(conn != NULL);
@@ -434,23 +436,20 @@ ssize_t tcp_sendfile(FAR struct socket *psock, FAR struct file *infile,
 
 #if defined(CONFIG_NET_ARP_SEND) || defined(CONFIG_NET_ICMPv6_NEIGHBOR)
 #ifdef CONFIG_NET_ARP_SEND
-#ifdef CONFIG_NET_ICMPv6_NEIGHBOR
   if (psock->s_domain == PF_INET)
-#endif
     {
       /* Make sure that the IP address mapping is in the ARP table */
 
       ret = arp_send(conn->u.ipv4.raddr);
     }
 #endif /* CONFIG_NET_ARP_SEND */
+
 #ifdef CONFIG_NET_ICMPv6_NEIGHBOR
-#ifdef CONFIG_NET_ARP_SEND
-  else
-#endif
+  if (psock->s_domain == PF_INET6)
     {
       /* Make sure that the IP address mapping is in the Neighbor Table */
 
-      ret = icmpv6_neighbor(conn->u.ipv6.raddr);
+      ret = icmpv6_neighbor(NULL, conn->u.ipv6.raddr);
     }
 #endif /* CONFIG_NET_ICMPv6_NEIGHBOR */
 

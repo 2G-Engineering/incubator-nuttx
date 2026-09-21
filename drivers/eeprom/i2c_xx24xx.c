@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/eeprom/i2c_xx24xx.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -121,23 +123,23 @@ struct ee24xx_dev_s
 {
   /* Bus management */
 
-  struct i2c_master_s *i2c;      /* I2C device where the EEPROM is attached */
-  uint32_t             freq;     /* I2C bus speed */
-  uint8_t              addr;     /* 7-bit unshifted I2C device address */
+  FAR struct i2c_master_s *i2c;      /* I2C device where the EEPROM is attached */
+  uint32_t                 freq;     /* I2C bus speed */
+  uint8_t                  addr;     /* 7-bit unshifted I2C device address */
 
   /* Driver management */
 
-  mutex_t              lock;     /* file write access serialization */
-  uint8_t              refs;     /* Nr of times the device has been opened */
-  bool                 readonly; /* Flags */
+  mutex_t                  lock;     /* file write access serialization */
+  uint8_t                  refs;     /* Nr of times the device has been opened */
+  bool                     readonly; /* Flags */
 
   /* Expanded from geometry */
 
-  uint32_t             size;       /* total bytes in device */
-  uint16_t             pgsize;     /* write block size, in bytes */
-  uint16_t             addrlen;    /* number of bytes in data addresses */
-  uint16_t             haddrbits;  /* Number of bits in high address part */
-  uint16_t             haddrshift; /* bit-shift of high address part */
+  uint32_t                 size;       /* total bytes in device */
+  uint16_t                 pgsize;     /* write block size, in bytes */
+  uint16_t                 addrlen;    /* number of bytes in data addresses */
+  uint16_t                 haddrbits;  /* Number of bits in high address part */
+  uint16_t                 haddrshift; /* bit-shift of high address part */
 };
 
 /****************************************************************************
@@ -322,7 +324,7 @@ static int ee24xx_writepage(FAR struct ee24xx_dev_s *eedev, uint32_t memaddr,
   msgs[1].frequency = msgs[0].frequency;
   msgs[1].addr      = msgs[0].addr;
   msgs[1].flags     = I2C_M_NOSTART;
-  msgs[1].buffer    = (uint8_t *)buffer;
+  msgs[1].buffer    = (FAR uint8_t *)buffer;
   msgs[1].length    = len;
 
   return I2C_TRANSFER(eedev->i2c, msgs, 2);
@@ -345,8 +347,8 @@ static int ee24xx_open(FAR struct file *filep)
   FAR struct ee24xx_dev_s *eedev;
   int ret = OK;
 
-  DEBUGASSERT(inode && inode->i_private);
-  eedev = (FAR struct ee24xx_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  eedev = inode->i_private;
 
   ret = nxmutex_lock(&eedev->lock);
   if (ret < 0)
@@ -382,8 +384,8 @@ static int ee24xx_close(FAR struct file *filep)
   FAR struct ee24xx_dev_s *eedev;
   int ret = OK;
 
-  DEBUGASSERT(inode && inode->i_private);
-  eedev = (FAR struct ee24xx_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  eedev = inode->i_private;
 
   ret = nxmutex_lock(&eedev->lock);
   if (ret < 0)
@@ -422,8 +424,8 @@ static off_t ee24xx_seek(FAR struct file *filep, off_t offset, int whence)
   int                     ret;
   FAR struct inode        *inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  eedev = (FAR struct ee24xx_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  eedev = inode->i_private;
 
   ret = nxmutex_lock(&eedev->lock);
   if (ret < 0)
@@ -498,8 +500,8 @@ static ssize_t ee24xx_read(FAR struct file *filep, FAR char *buffer,
   uint32_t                 addr_hi;
   int                      ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  eedev = (FAR struct ee24xx_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  eedev = inode->i_private;
 
   ret = nxmutex_lock(&eedev->lock);
   if (ret < 0)
@@ -543,7 +545,7 @@ static ssize_t ee24xx_read(FAR struct file *filep, FAR char *buffer,
   msgs[1].frequency = msgs[0].frequency;
   msgs[1].addr      = msgs[0].addr;
   msgs[1].flags     = I2C_M_READ;
-  msgs[1].buffer    = (uint8_t *)buffer;
+  msgs[1].buffer    = (FAR uint8_t *)buffer;
   msgs[1].length    = len;
 
   ret = I2C_TRANSFER(eedev->i2c, msgs, 2);
@@ -577,8 +579,8 @@ static ssize_t at24cs_read_uuid(FAR struct file *filep, FAR char *buffer,
   uint8_t                  regindx;
   int                      ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  eedev = (FAR struct ee24xx_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  eedev = inode->i_private;
 
   ret = nxmutex_lock(&eedev->lock);
   if (ret < 0)
@@ -618,7 +620,7 @@ static ssize_t at24cs_read_uuid(FAR struct file *filep, FAR char *buffer,
   msgs[1].frequency = msgs[0].frequency;
   msgs[1].addr      = msgs[0].addr;
   msgs[1].flags     = I2C_M_READ;
-  msgs[1].buffer    = (uint8_t *)buffer;
+  msgs[1].buffer    = (FAR uint8_t *)buffer;
   msgs[1].length    = len;
 
   ret = I2C_TRANSFER(eedev->i2c, msgs, 2);
@@ -653,8 +655,8 @@ static ssize_t ee24xx_write(FAR struct file *filep, FAR const char *buffer,
   int                      ret   = -EACCES;
   int                      savelen;
 
-  DEBUGASSERT(inode && inode->i_private);
-  eedev = (FAR struct ee24xx_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  eedev = inode->i_private;
 
   if (eedev->readonly)
     {
@@ -779,8 +781,8 @@ static int ee24xx_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   FAR struct inode        *inode = filep->f_inode;
   int                      ret   = 0;
 
-  DEBUGASSERT(inode && inode->i_private);
-  eedev = (FAR struct ee24xx_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  eedev = inode->i_private;
   UNUSED(eedev);
 
   switch (cmd)
@@ -873,7 +875,7 @@ int ee24xx_initialize(FAR struct i2c_master_s *bus, uint8_t devaddr,
         }
     }
 
-  finfo("EEPROM device %s, %d bytes, %d per page, addrlen %d, %s\n",
+  finfo("EEPROM device %s, %" PRIu32 " bytes, %d per page, addrlen %d, %s\n",
         devname, eedev->size, eedev->pgsize, eedev->addrlen,
         eedev->readonly ? "readonly" : "");
 

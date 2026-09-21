@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/ieee802154/ieee802154_sendmsg.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -176,8 +178,6 @@ static void ieee802154_meta_data(FAR struct radio_driver_s *radio,
               meta != NULL);
 
   psock    = pstate->is_sock;
-  DEBUGASSERT(psock->s_conn != NULL);
-
   conn     = psock->s_conn;
   srcaddr  = &conn->laddr;
   destaddr = &pstate->is_destaddr;
@@ -565,9 +565,7 @@ static ssize_t ieee802154_send(FAR struct socket *psock, FAR const void *buf,
   FAR struct ieee802154_conn_s *conn;
   ssize_t ret;
 
-  DEBUGASSERT(psock != NULL || buf != NULL);
   conn = psock->s_conn;
-  DEBUGASSERT(conn != NULL);
 
   /* Only SOCK_DGRAM is supported (because the MAC header is stripped) */
 

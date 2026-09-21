@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/stm32f103-minimum/src/stm32_hyt271.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,6 +33,7 @@
 #include <debug.h>
 
 #include <nuttx/board.h>
+#include <nuttx/signal.h>
 #include <arch/board/board.h>
 #ifdef CONFIG_SENSORS_HYT271
 #  include <nuttx/sensors/hyt271.h>
@@ -110,7 +113,7 @@ static int stm32_i2c_power_reset(struct hyt271_bus_s *bus)
     }
 
   stm32_gpiowrite(BOARD_HYT271_POWOUT, false);
-  usleep(250000);
+  nxsig_usleep(250000);
   stm32_gpiowrite(BOARD_HYT271_POWOUT, true);
 
   while (1)

@@ -8,6 +8,7 @@ menu "ARP Configuration"
 config NET_ARP
 	bool "Address Resolution Protocol"
 	default y
+	select MM_IOB
 	depends on NET_ETHERNET && NET_IPv4
 	---help---
 		This setting is currently overridden by logic in include/nuttx/net
@@ -42,7 +43,7 @@ config NET_ARP_IPIN
 
 config NET_ARP_SEND
 	bool "ARP send"
-	default n
+	default y
 	---help---
 		Enable logic to send ARP requests if the target IP address mapping
 		does not appear in the ARP table.
@@ -74,6 +75,13 @@ config NET_ARP_DUMP
 	depends on DEBUG_NET_INFO
 	---help---
 		Dump ARP packets to the SYSLOG device.
+
+config NET_ARP_ACD
+	bool "Support of ARP address Address Conflict Detection"
+	default n
+	depends on NET_ARP_SEND
+	---help---
+		Enable Support of ARP address Address Conflict Detection
 
 endif # NET_ARP
 endmenu # ARP Configuration

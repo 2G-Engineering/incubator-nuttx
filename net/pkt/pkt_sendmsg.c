@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/pkt/pkt_sendmsg.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -106,13 +108,14 @@ static uint16_t psock_send_eventhandler(FAR struct net_driver_s *dev,
           /* Copy the packet data into the device packet buffer and send it */
 
           int ret = devif_send(dev, pstate->snd_buffer,
-                               pstate->snd_buflen, 0);
+                               pstate->snd_buflen, -NET_LL_HDRLEN(dev));
           if (ret <= 0)
             {
               pstate->snd_sent = ret;
               goto end_wait;
             }
 
+          dev->d_len       = dev->d_sndlen;
           pstate->snd_sent = pstate->snd_buflen;
 
           /* Make sure no ARP request overwrites this ARP request.  This
@@ -194,7 +197,7 @@ ssize_t pkt_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 
   /* Only SOCK_RAW is supported */
 
-  if (psock->s_type == SOCK_RAW)
+  if (psock->s_type != SOCK_RAW)
     {
       /* EDESTADDRREQ.  Signifies that the socket is not connection-mode and
        * no peer address is set.

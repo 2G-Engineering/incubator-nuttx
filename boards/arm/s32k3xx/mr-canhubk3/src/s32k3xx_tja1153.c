@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/s32k3xx/mr-canhubk3/src/s32k3xx_tja1153.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,7 +41,6 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <nuttx/can.h>
-#include <netpacket/can.h>
 #include <nuttx/signal.h>
 
 #include "s32k3xx_pin.h"
@@ -317,7 +318,7 @@ int s32k3xx_tja1153_initialize(int bus)
 
   /* Bring down the interface */
 
-  ifr.ifr_flags = IFF_DOWN;
+  ifr.ifr_flags = 0;
   ret = ioctl(sock, SIOCSIFFLAGS, (unsigned long)&ifr);
   if (ret < 0)
     {

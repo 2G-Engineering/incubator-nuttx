@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/stdlib.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -132,6 +134,7 @@ extern "C"
 
 void      srand(unsigned int seed);
 int       rand(void);
+int       rand_r(FAR unsigned int *seedp);
 void      lcong48(FAR unsigned short int param[7]);
 FAR unsigned short int *seed48(FAR unsigned short int seed16v[3]);
 void      srand48(long int seedval);
@@ -149,10 +152,8 @@ double    erand48(FAR unsigned short int xsubi[3]);
 #define   srandom(s) srand(s)
 long      random(void);
 
-#ifdef CONFIG_CRYPTO_RANDOM_POOL
 void      arc4random_buf(FAR void *bytes, size_t nbytes);
 uint32_t  arc4random(void);
-#endif
 
 /* Environment variable support */
 
@@ -182,7 +183,7 @@ void      _Exit(int status) noreturn_function;
  * standards compatibility.
  */
 
-#ifndef __KERNEL__
+#if !defined(__KERNEL__) || defined(CONFIG_BUILD_FLAT)
 int       system(FAR const char *cmd);
 #endif
 
@@ -232,6 +233,7 @@ FAR void *malloc(size_t) malloc_like1(1);
 FAR void *valloc(size_t) malloc_like1(1);
 void      free(FAR void *);
 FAR void *realloc(FAR void *, size_t) realloc_like(2);
+FAR void *reallocarray(FAR void *, size_t, size_t) realloc_like2(2, 3);
 FAR void *memalign(size_t, size_t) malloc_like1(2);
 FAR void *zalloc(size_t) malloc_like1(1);
 FAR void *calloc(size_t, size_t) malloc_like2(1, 2);
@@ -290,6 +292,29 @@ FAR const char *getprogname(void);
 
 int __cxa_atexit(CODE void (*func)(FAR void *), FAR void *arg,
                  FAR void *dso_handle);
+
+#if CONFIG_FORTIFY_SOURCE > 0
+fortify_function(realpath) FAR char *realpath(FAR const char *path,
+                                              FAR char *resolved)
+{
+  FAR char *ret = __real_realpath(path, resolved);
+  if (ret != NULL && resolved != NULL)
+    {
+      size_t len = 1;
+      FAR char *p;
+
+      p = ret;
+      while (*p++ != '\0')
+        {
+          len++;
+        }
+
+      fortify_assert(len <= fortify_size(resolved, 0));
+    }
+
+  return ret;
+}
+#endif
 
 #undef EXTERN
 #if defined(__cplusplus)

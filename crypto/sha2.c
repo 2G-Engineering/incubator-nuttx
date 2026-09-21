@@ -1,11 +1,9 @@
 /****************************************************************************
  * crypto/sha2.c
- * $OpenBSD: sha2.c,v 1.19 2021/03/12 10:22:46 jsg Exp $
- * FILE: sha2.c
- * AUTHOR: Aaron D. Gifford <me@aarongifford.com>
  *
- * Copyright (c) 2000-2001, Aaron D. Gifford
- * All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2000-2001, Aaron D. Gifford
+ * SPDX-FileCopyrightText: Aaron D. Gifford <me@aarongifford.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,7 +29,6 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $From: sha2.c,v 1.1 2001/11/08 00:01:51 adg Exp adg $
  ****************************************************************************/
 
 /****************************************************************************
@@ -209,6 +206,20 @@ const static uint32_t sha256_initial_hash_value[8] =
   0x9b05688cul,
   0x1f83d9abul,
   0x5be0cd19ul
+};
+
+/* Initial hash value H for SHA-224: */
+
+const static uint32_t sha224_initial_hash_value[8] =
+{
+  0xc1059ed8ul,
+  0x367cd507ul,
+  0x3070dd17ul,
+  0xf70e5939ul,
+  0xffc00b31ul,
+  0x68581511ul,
+  0x64f98fa7ul,
+  0xbefa4fa4ul
 };
 
 /* Hash constant words K for SHA-384 and SHA-512: */
@@ -576,7 +587,7 @@ void sha256update(FAR SHA2_CTX *context,
   usedspace = freespace = 0;
 }
 
-void sha256final(FAR uint8_t *digest, FAR SHA2_CTX *context)
+void sha256last(FAR SHA2_CTX *context)
 {
   unsigned int usedspace;
 
@@ -638,6 +649,11 @@ void sha256final(FAR uint8_t *digest, FAR SHA2_CTX *context)
   /* Final transform: */
 
   sha256transform(context->state.st32, context->buffer);
+}
+
+void sha256final(FAR uint8_t *digest, FAR SHA2_CTX *context)
+{
+  sha256last(context);
 
 #if BYTE_ORDER == LITTLE_ENDIAN
     {
@@ -657,7 +673,47 @@ void sha256final(FAR uint8_t *digest, FAR SHA2_CTX *context)
   /* Clean up state data: */
 
   explicit_bzero(context, sizeof(*context));
-  usedspace = 0;
+}
+
+/* SHA-224: */
+
+void sha224init(FAR SHA2_CTX *context)
+{
+  memcpy(context->state.st32,
+         sha224_initial_hash_value,
+         SHA256_DIGEST_LENGTH);
+
+  memset(context->buffer, 0, SHA224_BLOCK_LENGTH);
+  context->bitcount[0] = 0;
+}
+
+void sha224update(FAR SHA2_CTX *context, FAR const void *data, size_t len)
+{
+  sha256update(context, data, len);
+}
+
+void sha224final(FAR uint8_t *digest, FAR SHA2_CTX *context)
+{
+  sha256last(context);
+
+#if BYTE_ORDER == LITTLE_ENDIAN
+    {
+      /* Convert TO host byte order */
+
+      int j;
+
+      for (j = 0; j < 8; j++)
+        {
+          context->state.st32[j] = swap32(context->state.st32[j]);
+        }
+    }
+#endif
+
+  memcpy(digest, context->state.st32, SHA224_DIGEST_LENGTH);
+
+  /* Clean up state data: */
+
+  explicit_bzero(context, sizeof(*context));
 }
 
 /* SHA-512: */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/net/slip.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -43,6 +45,7 @@
 #include <nuttx/signal.h>
 #include <nuttx/wdog.h>
 #include <nuttx/wqueue.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 
 #ifdef CONFIG_NET_SLIP
@@ -281,13 +284,15 @@ static void slip_transmit(FAR struct slip_driver_s *self)
 
   if (self->txlen > 0)
     {
+      int i;
+
       /* Transmission of previous packet is still pending.  This might happen
        * in the 'slip_receive' -> 'slip_reply' -> 'slip_transmit' case.  Try
        * to forward pending packet into UART's transmit buffer.  Timeout on
        * packet if not forwarded within a second.
        */
 
-      for (int i = 0; (i < 10) && (self->txsent != self->txlen); )
+      for (i = 0; (i < 10) && (self->txsent != self->txlen); )
         {
           ssz = file_write(&self->tty,
                            &self->txbuf[self->txsent],
@@ -819,11 +824,9 @@ static int slip_ifup(FAR struct net_driver_s *dev)
   FAR struct slip_driver_s *self =
       (FAR struct slip_driver_s *)dev->d_private;
 
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)dev->d_ipaddr & 0xff,
-        (int)(dev->d_ipaddr >> 8) & 0xff,
-        (int)(dev->d_ipaddr >> 16) & 0xff,
-        (int)dev->d_ipaddr >> 24);
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 
   /* Enable POLLIN and POLLOUT events on the TTY */
 
@@ -996,8 +999,7 @@ int slip_initialize(int intf, FAR const char *devname)
   self->dev.d_txavail = slip_txavail; /* New TX data callback */
   self->dev.d_private = self;         /* Used to recover SLIP I/F instance */
 
-  ret = file_open(&self->tty, devname, O_RDWR | O_NONBLOCK);
-
+  ret = file_open(&self->tty, devname, O_RDWR | O_NONBLOCK | O_CLOEXEC);
   if (ret < 0)
     {
       nerr("ERROR: Failed to open %s: %d\n", devname, ret);

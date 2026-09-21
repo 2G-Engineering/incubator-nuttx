@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/z80/src/common/z80_initialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -34,7 +36,7 @@
  ****************************************************************************/
 
 /* This holds a references to the current interrupt level register storage
- * structure.  If is non-NULL only during interrupt processing.
+ * structure.  It is non-NULL only during interrupt processing.
  */
 
 volatile FAR chipreg_t *g_current_regs;

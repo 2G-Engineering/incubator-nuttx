@@ -1,6 +1,7 @@
 /****************************************************************************
  * net/tcp/tcp_input.c
- * Handling incoming TCP input
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
  *
  *   Copyright (C) 2007-2014, 2017-2019, 2020 Gregory Nutt. All rights
  *     reserved.
@@ -254,9 +255,11 @@ static bool tcp_snd_wnd_update(FAR struct tcp_conn_s *conn,
 
       conn->snd_wl1 = seq;
       conn->snd_wl2 = ackseq;
-      conn->snd_wnd = wnd;
-
-      return true;
+      if (conn->snd_wnd != wnd)
+        {
+          conn->snd_wnd = wnd;
+          return true;
+        }
     }
 
   return false;
@@ -273,7 +276,7 @@ static bool tcp_snd_wnd_update(FAR struct tcp_conn_s *conn,
  * Input Parameters:
  *   conn   - The TCP connection of interest
  *   ofoseg - Pointer to incoming out-of-order segment
- *   start  - Index of start postion of segment pool
+ *   start  - Index of start position of segment pool
  *
  * Returned Value:
  *   True if incoming data has been consumed
@@ -315,7 +318,7 @@ static bool tcp_rebuild_ofosegs(FAR struct tcp_conn_s *conn,
 
           else if (ofoseg->left == seg->right)
             {
-              tcp_dataconcat(&seg->data, &ofoseg->data);
+              net_iob_concat(&seg->data, &ofoseg->data);
               seg->right = ofoseg->right;
             }
 
@@ -338,7 +341,7 @@ static bool tcp_rebuild_ofosegs(FAR struct tcp_conn_s *conn,
               ofoseg->data =
                 iob_trimhead(ofoseg->data,
                              TCP_SEQ_SUB(seg->right, ofoseg->left));
-              tcp_dataconcat(&seg->data, &ofoseg->data);
+              net_iob_concat(&seg->data, &ofoseg->data);
               seg->right = ofoseg->right;
             }
         }
@@ -355,7 +358,7 @@ static bool tcp_rebuild_ofosegs(FAR struct tcp_conn_s *conn,
 
           if (ofoseg->right == seg->left)
             {
-              tcp_dataconcat(&ofoseg->data, &seg->data);
+              net_iob_concat(&ofoseg->data, &seg->data);
               seg->data = ofoseg->data;
               seg->left = ofoseg->left;
               ofoseg->data = NULL;
@@ -390,7 +393,7 @@ static bool tcp_rebuild_ofosegs(FAR struct tcp_conn_s *conn,
               ofoseg->data =
                 iob_trimtail(ofoseg->data,
                              ofoseg->right - seg->left);
-              tcp_dataconcat(&ofoseg->data, &seg->data);
+              net_iob_concat(&ofoseg->data, &seg->data);
               seg->data = ofoseg->data;
               seg->left = ofoseg->left;
               ofoseg->data = NULL;
@@ -456,10 +459,9 @@ static void tcp_input_ofosegs(FAR struct net_driver_s *dev,
   dev->d_iob = iob_trimhead(dev->d_iob, len);
   if (dev->d_iob == NULL || dev->d_iob->io_pktlen == 0)
     {
-      /* No available data, clear device buffer */
+      /* No available data, prepare device iob */
 
-      iob_free_chain(dev->d_iob);
-      goto clear;
+      goto prepare;
     }
 
   ofoseg.data = dev->d_iob;
@@ -517,10 +519,11 @@ static void tcp_input_ofosegs(FAR struct net_driver_s *dev,
 
   if (rebuild)
     {
-clear:
       netdev_iob_clear(dev);
-      netdev_iob_prepare(dev, false, 0);
     }
+
+prepare:
+  netdev_iob_prepare(dev, false, 0);
 }
 #endif /* CONFIG_NET_TCP_OUT_OF_ORDER */
 
@@ -634,6 +637,40 @@ static void tcp_parse_option(FAR struct net_driver_s *dev,
 }
 
 /****************************************************************************
+ * Name: tcp_clear_zero_probe
+ *
+ * Description:
+ *   clear the TCP zero window probe
+ *
+ * Input Parameters:
+ *   conn   - The TCP connection of interest
+ *   tcp    - Header of TCP structure
+ *
+ * Returned Value:
+ *   None
+ *
+ * Assumptions:
+ *   The network is locked.
+ *
+ ****************************************************************************/
+
+static void tcp_clear_zero_probe(FAR struct tcp_conn_s *conn,
+                                 FAR struct tcp_hdr_s *tcp)
+{
+  /* If the receive window is not 0,
+   * the zero window probe timer needs to be cleared
+   */
+
+  if ((tcp->wnd[0] || tcp->wnd[1]) && conn->zero_probe &&
+      (tcp->flags & TCP_ACK) != 0)
+    {
+      conn->zero_probe = false;
+      conn->nrtx = 0;
+      conn->timer = 0;
+    }
+}
+
+/****************************************************************************
  * Name: tcp_input
  *
  * Description:
@@ -686,6 +723,7 @@ static void tcp_input(FAR struct net_driver_s *dev, uint8_t domain,
 
   tcpiplen = iplen + TCP_HDRLEN;
 
+#ifdef CONFIG_NET_TCP_CHECKSUMS
   /* Start of TCP input header processing code. */
 
   if (tcp_chksum(dev) != 0xffff)
@@ -699,6 +737,7 @@ static void tcp_input(FAR struct net_driver_s *dev, uint8_t domain,
       nwarn("WARNING: Bad TCP checksum\n");
       goto drop;
     }
+#endif
 
   /* Demultiplex this segment. First check any active connections. */
 
@@ -862,8 +901,6 @@ found:
 
   if ((tcp->flags & TCP_RST) != 0)
     {
-      FAR struct tcp_conn_s *listener = NULL;
-
       /* An RST received during the 3-way connection handshake requires
        * little more clean-up.
        */
@@ -872,33 +909,6 @@ found:
         {
           conn->tcpstateflags = TCP_CLOSED;
           nwarn("WARNING: RESET in TCP_SYN_RCVD\n");
-
-          /* Notify the listener for the connection of the reset event */
-
-#ifdef CONFIG_NET_IPv6
-#  ifdef CONFIG_NET_IPv4
-          if (domain == PF_INET6)
-#  endif
-            {
-              net_ipv6addr_copy(&uaddr.ipv6.laddr, IPv6BUF->destipaddr);
-            }
-#endif
-
-#ifdef CONFIG_NET_IPv4
-#  ifdef CONFIG_NET_IPv6
-          if (domain == PF_INET)
-#  endif
-            {
-              net_ipv4addr_copy(uaddr.ipv4.laddr,
-                                net_ip4addr_conv32(IPv4BUF->destipaddr));
-            }
-#endif
-
-#if defined(CONFIG_NET_IPv4) && defined(CONFIG_NET_IPv6)
-          listener = tcp_findlistener(&uaddr, conn->lport, domain);
-#else
-          listener = tcp_findlistener(&uaddr, conn->lport);
-#endif
 
           /* We must free this TCP connection structure; this connection
            * will never be established.  There should only be one reference
@@ -916,15 +926,10 @@ found:
 
           /* Notify this connection of the reset event */
 
-          listener = conn;
+          tcp_callback(dev, conn, TCP_ABORT);
         }
 
-      /* Perform the TCP_ABORT callback and drop the packet */
-
-      if (listener != NULL)
-        {
-          tcp_callback(dev, listener, TCP_ABORT);
-        }
+      /* Drop the packet */
 
       goto drop;
     }
@@ -983,55 +988,6 @@ found:
     }
 #endif
 
-  /* Check if the sequence number of the incoming packet is what we are
-   * expecting next.  If not, we send out an ACK with the correct numbers
-   * in, unless we are in the SYN_RCVD state and receive a SYN, in which
-   * case we should retransmit our SYNACK (which is done further down).
-   */
-
-  if (!((((conn->tcpstateflags & TCP_STATE_MASK) == TCP_SYN_SENT) &&
-        ((tcp->flags & TCP_CTL) == (TCP_SYN | TCP_ACK))) ||
-        (((conn->tcpstateflags & TCP_STATE_MASK) == TCP_SYN_RCVD) &&
-        ((tcp->flags & TCP_CTL) == TCP_SYN))))
-    {
-      uint32_t seq;
-      uint32_t rcvseq;
-
-      seq = tcp_getsequence(tcp->seqno);
-      rcvseq = tcp_getsequence(conn->rcvseq);
-
-      if (seq != rcvseq)
-        {
-          /* Trim the head of the segment */
-
-          if (TCP_SEQ_LT(seq, rcvseq))
-            {
-              uint32_t trimlen = TCP_SEQ_SUB(rcvseq, seq);
-
-              if (tcp_trim_head(dev, tcp, trimlen))
-                {
-                  /* The segment was completely out of the window.
-                   * E.g. a retransmit which was not necessary.
-                   * E.g. a keep-alive segment.
-                   */
-
-                  tcp_send(dev, conn, TCP_ACK, tcpiplen);
-                  return;
-                }
-            }
-          else
-            {
-#ifdef CONFIG_NET_TCP_OUT_OF_ORDER
-              /* Queue out-of-order segments. */
-
-              tcp_input_ofosegs(dev, conn, iplen);
-#endif
-              tcp_send(dev, conn, TCP_ACK, tcpiplen);
-              return;
-            }
-        }
-    }
-
   /* Check if the incoming segment acknowledges any outstanding data. If so,
    * we update the sequence number, reset the length of the outstanding
    * data, calculate RTT estimations, and reset the retransmission timer.
@@ -1041,6 +997,7 @@ found:
     {
       uint32_t unackseq;
       uint32_t ackseq;
+      int timeout;
 
       /* The next sequence number is equal to the current sequence
        * number (sndseq) plus the size of the outstanding, unacknowledged
@@ -1150,10 +1107,96 @@ found:
 
       flags |= TCP_ACKDATA;
 
+      /* Check if no packet need to retransmission, clear timer. */
+
+      if (conn->tx_unacked == 0 && conn->tcpstateflags == TCP_ESTABLISHED)
+        {
+          timeout = 0;
+        }
+      else
+        {
+          timeout = conn->rto;
+        }
+
       /* Reset the retransmission timer. */
 
-      tcp_update_retrantimer(conn, conn->rto);
+      tcp_update_retrantimer(conn, timeout);
     }
+
+  /* Check if the sequence number of the incoming packet is what we are
+   * expecting next.  If not, we send out an ACK with the correct numbers
+   * in, unless we are in the SYN_RCVD state and receive a SYN, in which
+   * case we should retransmit our SYNACK (which is done further down).
+   */
+
+  if (!((((conn->tcpstateflags & TCP_STATE_MASK) == TCP_SYN_SENT) &&
+        ((tcp->flags & TCP_CTL) == (TCP_SYN | TCP_ACK))) ||
+        (((conn->tcpstateflags & TCP_STATE_MASK) == TCP_SYN_RCVD) &&
+        ((tcp->flags & TCP_CTL) == TCP_SYN))))
+    {
+      uint32_t seq;
+      uint32_t rcvseq;
+
+      seq = tcp_getsequence(tcp->seqno);
+      rcvseq = tcp_getsequence(conn->rcvseq);
+
+      /* According to RFC793, Section 3.4, Page 33.
+       * In the SYN_SENT state, if receive a ACK without SYN,
+       * we should reset the connection and retransmit the SYN.
+       */
+
+      if (((conn->tcpstateflags & TCP_STATE_MASK) == TCP_SYN_SENT) &&
+          ((tcp->flags & TCP_SYN) == 0 && (tcp->flags & TCP_ACK) != 0))
+        {
+          /* Send the RST to close the half-open connection. */
+
+          tcp_reset(dev, conn);
+
+          /* Retransmit the SYN as soon as possible in order to establish
+           * the tcp connection.
+           */
+
+          tcp_update_retrantimer(conn, 1);
+
+          return;
+        }
+
+      if (seq != rcvseq)
+        {
+          /* Trim the head of the segment */
+
+          if (TCP_SEQ_LT(seq, rcvseq))
+            {
+              uint32_t trimlen = TCP_SEQ_SUB(rcvseq, seq);
+
+              if (tcp_trim_head(dev, tcp, trimlen))
+                {
+                  /* The segment was completely out of the window.
+                   * E.g. a retransmit which was not necessary.
+                   * E.g. a keep-alive segment.
+                   */
+
+                  tcp_send(dev, conn, TCP_ACK, tcpiplen);
+                  return;
+                }
+            }
+          else if ((conn->tcpstateflags & TCP_STATE_MASK) <= TCP_ESTABLISHED)
+            {
+#ifdef CONFIG_NET_TCP_OUT_OF_ORDER
+              /* Queue out-of-order segments. */
+
+              tcp_input_ofosegs(dev, conn, iplen);
+#endif
+              if ((conn->tcpstateflags & TCP_STATE_MASK) <= TCP_ESTABLISHED)
+                {
+                  tcp_send(dev, conn, TCP_ACK, tcpiplen);
+                  return;
+                }
+            }
+        }
+    }
+
+  tcp_clear_zero_probe(conn, tcp);
 
   /* Update the connection's window size */
 
@@ -1170,10 +1213,6 @@ found:
           /* Window updated, set the acknowledged flag. */
 
           flags |= TCP_ACKDATA;
-
-          /* Reset the retransmission timer. */
-
-          tcp_update_retrantimer(conn, conn->rto);
         }
     }
 
@@ -1578,6 +1617,12 @@ found:
              */
 
             conn->tcpstateflags = TCP_CLOSED;
+
+            /* In the TCP_FIN_WAIT_1, we need call tcp_close_eventhandler to
+             * release nofosegs, that we received in this state.
+             */
+
+            tcp_callback(dev, conn, TCP_CLOSE);
             tcp_reset(dev, conn);
             return;
           }
@@ -1611,6 +1656,12 @@ found:
              */
 
             conn->tcpstateflags = TCP_CLOSED;
+
+            /* In the TCP_FIN_WAIT_2, we need call tcp_close_eventhandler to
+             * release nofosegs, that we received in this state.
+             */
+
+            tcp_callback(dev, conn, TCP_CLOSE);
             tcp_reset(dev, conn);
             return;
           }

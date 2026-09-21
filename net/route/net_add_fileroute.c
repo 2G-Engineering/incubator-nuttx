@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/route/net_add_fileroute.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,6 +35,7 @@
 #include <nuttx/fs/fs.h>
 #include <nuttx/net/ip.h>
 
+#include "netlink/netlink.h"
 #include "route/fileroute.h"
 #include "route/route.h"
 
@@ -84,6 +87,8 @@ int net_addroute_ipv4(in_addr_t target, in_addr_t netmask, in_addr_t router)
   nwritten = net_writeroute_ipv4(&fshandle, &route);
 
   net_closeroute_ipv4(&fshandle);
+
+  netlink_route_notify(&route, RTM_NEWROUTE, AF_INET);
   return nwritten >= 0 ? 0 : (int)nwritten;
 }
 #endif
@@ -118,6 +123,8 @@ int net_addroute_ipv6(net_ipv6addr_t target, net_ipv6addr_t netmask,
   nwritten = net_writeroute_ipv6(&fshandle, &route);
 
   net_closeroute_ipv6(&fshandle);
+
+  netlink_route_notify(&route, RTM_NEWROUTE, AF_INET6);
   return nwritten >= 0 ? 0 : (int)nwritten;
 }
 #endif

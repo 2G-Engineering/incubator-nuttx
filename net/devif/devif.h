@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/devif/devif.h
  *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  *   Copyright (C) 2007-2009, 2013-2017 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
@@ -272,6 +274,7 @@ struct devif_callback_s
   FAR devif_callback_event_t event;
   FAR void *priv;
   uint16_t flags;
+  uint8_t free_flags;
 };
 
 /****************************************************************************
@@ -306,19 +309,6 @@ extern "C"
  ****************************************************************************/
 
 void devif_initialize(void);
-
-/****************************************************************************
- * Name: devif_callback_init
- *
- * Description:
- *   Configure the pre-allocated callback structures into a free list.
- *
- * Assumptions:
- *   This function must be called with the network locked.
- *
- ****************************************************************************/
-
-void devif_callback_init(void);
 
 /****************************************************************************
  * Name: devif_callback_alloc
@@ -465,7 +455,7 @@ uint16_t devif_dev_event(FAR struct net_driver_s *dev, uint16_t flags);
  ****************************************************************************/
 
 int devif_send(FAR struct net_driver_s *dev, FAR const void *buf,
-               int len, unsigned int offset);
+               int len, int offset);
 
 /****************************************************************************
  * Name: devif_iob_send

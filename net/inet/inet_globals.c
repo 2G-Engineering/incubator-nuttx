@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/inet/inet_globals.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -45,6 +47,12 @@
 const net_ipv6addr_t g_ipv6_unspecaddr =  /* An address of all zeroes */
 {
   0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+};
+
+const net_ipv6addr_t g_ipv6_loopback =    /* An address of loopback */
+{
+  0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+  HTONS(0x0001)
 };
 
 /* IPv6 Multi-cast IP addresses.  See RFC 2375 */

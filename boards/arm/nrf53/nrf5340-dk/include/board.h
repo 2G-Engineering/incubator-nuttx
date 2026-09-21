@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nrf53/nrf5340-dk/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,8 +33,6 @@
 #if defined(CONFIG_ARCH_IRQBUTTONS) && defined(CONFIG_NRF53_GPIOTE)
 #  include <nuttx/irq.h>
 #endif
-
-#include "hardware/nrf53_osc.h"
 
 /****************************************************************************
  * Pre-processor Definitions

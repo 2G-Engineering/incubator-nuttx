@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imxrt/hardware/rt102x/imxrt102x_xbar.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -19,6 +21,8 @@
  ****************************************************************************/
 
 /* XBAR Defines for IMXRT102x */
+
+#define IMXRT_XBAR_SEL_MASKS {0x7f, 0x3f}  /* The select masks A, B2 */
 
 /* XBARA1 Mux inputs (I values) *********************************************/
 

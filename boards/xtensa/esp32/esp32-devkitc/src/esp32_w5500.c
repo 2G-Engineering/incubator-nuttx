@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/esp32-devkitc/src/esp32_w5500.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -179,7 +181,7 @@ static void up_reset(const struct w5500_lower_s *lower, bool reset)
  * Name: arm_netinitialize
  ****************************************************************************/
 
-void up_netinitialize(void)
+void riscv_netinitialize(void)
 {
   struct spi_dev_s *spi;
   int ret;

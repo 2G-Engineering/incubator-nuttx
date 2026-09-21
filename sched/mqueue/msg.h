@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/mqueue/msg.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -82,16 +84,6 @@ EXTERN struct list_node g_msgfreelist;
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
-
-/****************************************************************************
- * Name: nxmsg_initialize
- *
- * Description:
- *   Initialize the message queue
- *
- ****************************************************************************/
-
-void nxmsg_initialize(void);
 
 /****************************************************************************
  * Name: nxmsg_alloc

@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/net/if.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -46,7 +48,6 @@
 
 /* Interface flag bits */
 
-#define IFF_DOWN           (1 << 0)  /* Interface is down */
 #define IFF_UP             (1 << 1)  /* Interface is up */
 #define IFF_RUNNING        (1 << 2)  /* Carrier is available */
 #define IFF_IPv6           (1 << 3)  /* Configured for IPv6 packet (vs ARP or IPv4) */
@@ -126,6 +127,19 @@
 #  define IFF_IS_IPv4(f)   (1)
 #endif
 
+/* RFC 2863 operational status */
+
+enum
+{
+  IF_OPER_UNKNOWN,
+  IF_OPER_NOTPRESENT,
+  IF_OPER_DOWN,
+  IF_OPER_LOWERLAYERDOWN,
+  IF_OPER_TESTING,
+  IF_OPER_DORMANT,
+  IF_OPER_UP,
+};
+
 /****************************************************************************
  * Public Type Definitions
  ****************************************************************************/
@@ -164,9 +178,9 @@ struct mii_ioctl_data_s
 
 struct can_ioctl_data_s
 {
-  uint16_t arbi_bitrate; /* Classic CAN / Arbitration phase bitrate kbit/s */
+  uint32_t arbi_bitrate; /* Classic CAN / Arbitration phase bitrate bit/s */
   uint16_t arbi_samplep; /* Classic CAN / Arbitration phase input % */
-  uint16_t data_bitrate; /* Data phase bitrate kbit/s */
+  uint32_t data_bitrate; /* Data phase bitrate bit/s */
   uint16_t data_samplep; /* Data phase sample point % */
 };
 
@@ -182,6 +196,22 @@ struct can_ioctl_filter_s
                    * upper address in address range  */
   uint8_t  ftype; /* See CAN_FILTER_* definitions */
   uint8_t  fprio; /* See CAN_MSGPRIO_* definitions */
+};
+
+/* Define an struct type that describes the CAN/LIN state */
+
+enum can_ioctl_state_e
+{
+  CAN_STATE_OPERATIONAL = 1, /* The can/lin controller is in the awake state */
+  CAN_STATE_SLEEP,           /* The can/lin controller is in the sleep state */
+  CAN_STATE_SPENDING,        /* The can/lin controller is preparing to enter sleep state */
+  CAN_STATE_BUSY             /* The can/lin bus is busy */
+};
+
+struct can_ioctl_state_s
+{
+  uintptr_t priv;             /* This is private data. */
+  enum can_ioctl_state_e state;
 };
 
 /* There are two forms of the I/F request structure.
@@ -210,6 +240,7 @@ struct lifreq
     struct mii_ioctl_data_s    lifru_mii_data;       /* MII request data */
     struct can_ioctl_data_s    lifru_can_data;       /* CAN bitrate request data */
     struct can_ioctl_filter_s  lifru_can_filter;     /* CAN filter request data */
+    struct can_ioctl_state_s   lifru_can_state;      /* CAN/LIN controller state */
   } lifr_ifru;
 };
 
@@ -263,6 +294,8 @@ struct ifreq
     struct mii_ioctl_data_s    ifru_mii_data;       /* MII request data */
     struct can_ioctl_data_s    ifru_can_data;       /* CAN bitrate request data */
     struct can_ioctl_filter_s  ifru_can_filter;     /* CAN filter request data */
+    struct can_ioctl_state_s   ifru_can_state;      /* CAN/LIN controller state */
+    FAR void                  *ifru_data;           /* For use by interface */
   } ifr_ifru;
 };
 
@@ -280,6 +313,7 @@ struct ifreq
 #define ifr_mii_reg_num       ifr_ifru.ifru_mii_data.reg_num /* PHY register address */
 #define ifr_mii_val_in        ifr_ifru.ifru_mii_data.val_in  /* PHY input data */
 #define ifr_mii_val_out       ifr_ifru.ifru_mii_data.val_out /* PHY output data */
+#define ifr_data              ifr_ifru.ifru_data             /* for use by interface  */
 
 /* Used only with the SIOCGIFCONF IOCTL command */
 

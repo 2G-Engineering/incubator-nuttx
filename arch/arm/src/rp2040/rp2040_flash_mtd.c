@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rp2040/rp2040_flash_mtd.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -93,7 +95,7 @@
                            / FLASH_SECTOR_SIZE
 
 #ifdef CONFIG_SMP
-#  define OTHER_CPU (up_cpu_index() == 0 ? 1 : 0)
+#  define OTHER_CPU (this_cpu() == 0 ? 1 : 0)
 #endif
 
 /****************************************************************************
@@ -494,8 +496,10 @@ static int rp2040_flash_ioctl(struct mtd_dev_s *dev,
 /****************************************************************************
  * Name: rp2040_flash_initialize
  *
- * Description: Bind a block mode driver that uses the built-in rp2040
- * flash programming commands for read/write access to unused flash.
+ * Description:
+ *   Bind a block mode driver that uses the built-in rp2040
+ *   flash programming commands for read/write access to unused flash.
+ *
  ****************************************************************************/
 
 struct mtd_dev_s *rp2040_flash_mtd_initialize(void)

@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdlib/lib_strtoull.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -104,6 +106,11 @@ unsigned long long strtoull(FAR const char *nptr,
                 }
 
               accum = accum * base + value;
+              nptr++;
+            }
+
+          while (lib_isbasedigit(*nptr, base, &value))
+            {
               nptr++;
             }
 

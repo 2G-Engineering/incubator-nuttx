@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/include/gd32f4/gd32f4xx_irq.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -96,7 +98,7 @@
 #define GD32_IRQ_TIMER7_CHANNEL             (GD32_IRQ_EXINT+46) /* 46: TIMER7 channel capture compare interrupt */
 #define GD32_IRQ_DMA0_CHANNEL7              (GD32_IRQ_EXINT+47) /* 47: DMA0 channel7 interrupt */
 
-#if defined(CONFIG_GD32F4_GD32F450)
+#if defined(CONFIG_GD32F4_GD32F450) || defined(CONFIG_GD32F4_GD32F470)
 #define GD32_IRQ_EXMC                       (GD32_IRQ_EXINT+48) /* 48: EXMC interrupt */
 #define GD32_IRQ_SDIO                       (GD32_IRQ_EXINT+49) /* 49: SDIO interrupt */
 #define GD32_IRQ_TIMER4                     (GD32_IRQ_EXINT+50) /* 50: TIMER4 interrupt */
@@ -207,10 +209,10 @@
 #define GD32_IRQ_FPU                        (GD32_IRQ_EXINT+81) /* 81: FPU interrupt */
 
 #else
-    #error "Unkonwn GD32F4xx chip."
+    #error "Unknown GD32F4xx chip."
 #endif /* CONFIG_GD32F4_GD32F450 */
 
-#if defined(CONFIG_GD32F4_GD32F450)
+#if defined(CONFIG_GD32F4_GD32F450) || defined(CONFIG_GD32F4_GD32F470)
 #  define GD32_IRQ_NEXTINT      (91)
 #  define NR_IRQS                (GD32_IRQ_EXINT + GD32_IRQ_NEXTINT)
 #elif defined(CONFIG_GD32F4_GD32F407)

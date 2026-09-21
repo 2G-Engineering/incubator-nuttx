@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/cxd56xx/common/src/cxd56_bcm20706.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,6 +27,7 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <string.h>
+#include <nuttx/signal.h>
 #include <arch/board/board.h>
 
 #include "cxd56_gpio.h"
@@ -116,9 +119,9 @@ int board_bluetooth_uart_pin_cfg(void)
 void board_bluetooth_reset(void)
 {
   cxd56_gpio_write(BCM20707_RST_N, false);
-  usleep(BCM20707_RST_DELAY);
+  nxsig_usleep(BCM20707_RST_DELAY);
   cxd56_gpio_write(BCM20707_RST_N, true);
-  usleep(BCM20707_RST_DELAY);
+  nxsig_usleep(BCM20707_RST_DELAY);
 }
 
 /****************************************************************************

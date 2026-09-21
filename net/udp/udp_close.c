@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/udp/udp_close.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -102,6 +104,8 @@ int udp_close(FAR struct socket *psock)
 
       nerr("ERROR: udp_txdrain() failed: %d\n", ret);
     }
+
+  udp_leavegroup(conn);
 
 #ifdef CONFIG_NET_UDP_WRITE_BUFFERS
   /* Free any semi-permanent write buffer callback in place. */

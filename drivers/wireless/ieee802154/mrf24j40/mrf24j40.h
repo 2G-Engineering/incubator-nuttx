@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/wireless/ieee802154/mrf24j40/mrf24j40.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -76,6 +78,8 @@
 
 #define MRF24J40_SYMBOL_DURATION_PS 16000000
 
+#define MRF24J40_SPIMODE SPIDEV_MODE0
+
 /* Clock configuration macros */
 
 #define MRF24J40_BEACONINTERVAL_NSEC(beaconorder) \
@@ -88,10 +92,6 @@
 
 #ifndef CONFIG_SCHED_HPWORK
 #  error High priority work queue required in this driver
-#endif
-
-#ifndef CONFIG_IEEE802154_MRF24J40_SPIMODE
-#  define CONFIG_IEEE802154_MRF24J40_SPIMODE SPIDEV_MODE0
 #endif
 
 #ifndef CONFIG_IEEE802154_MRF24J40_FREQUENCY
@@ -174,7 +174,7 @@ static inline void mrf24j40_spi_lock(FAR struct spi_dev_s *spi)
 {
   SPI_LOCK(spi, 1);
   SPI_SETBITS(spi, 8);
-  SPI_SETMODE(spi, CONFIG_IEEE802154_MRF24J40_SPIMODE);
+  SPI_SETMODE(spi, MRF24J40_SPIMODE);
   SPI_SETFREQUENCY(spi, CONFIG_IEEE802154_MRF24J40_FREQUENCY);
 }
 

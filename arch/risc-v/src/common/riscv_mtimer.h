@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/common/riscv_mtimer.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -40,7 +42,7 @@ extern "C"
 #endif
 
 struct oneshot_lowerhalf_s *
-riscv_mtimer_initialize(uintptr_t mtime, uintptr_t mtimecmp,
+riscv_mtimer_initialize(uintreg_t mtime, uintreg_t mtimecmp,
                         int irq, uint64_t freq);
 
 #undef EXTERN

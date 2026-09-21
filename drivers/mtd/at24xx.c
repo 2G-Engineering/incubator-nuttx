@@ -1,8 +1,9 @@
 /****************************************************************************
  * drivers/mtd/at24xx.c
  *
- *   Copyright (C) 2011 Li Zhuoyi. All rights reserved.
- *   Copyright (C) 2013, 2016 Gregory Nutt. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2013, 2016 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2011 Li Zhuoyi. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -698,7 +699,7 @@ FAR struct mtd_dev_s *at24c_initialize(FAR struct i2c_master_s *dev)
    * have to be extended to handle multiple FLASH parts on the same I2C bus.
    */
 
-  priv = (FAR struct at24c_dev_s *)kmm_zalloc(sizeof(struct at24c_dev_s));
+  priv = kmm_zalloc(sizeof(struct at24c_dev_s));
   if (priv == NULL)
     {
       ferr("ERROR: Failed to allocate device structure\n");

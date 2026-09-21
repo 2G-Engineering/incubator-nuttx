@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nrf52/nrf52832-dk/src/nrf52_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -41,6 +43,10 @@
 #  include <nuttx/input/buttons.h>
 #endif
 
+#ifdef CONFIG_TIMER
+#  include "nrf52_timer.h"
+#endif
+
 #ifdef CONFIG_NRF52_PROGMEM
 #  include "nrf52_progmem.h"
 #endif
@@ -49,7 +55,17 @@
 #  include "nrf52_sdc.h"
 #endif
 
+#ifdef CONFIG_IEEE802154_MRF24J40
+#  include "nrf52_mrf24j40.h"
+#endif
+
 #include "nrf52832-dk.h"
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#define NRF52_TIMER (1)
 
 /****************************************************************************
  * Public Functions
@@ -114,9 +130,20 @@ int nrf52_bringup(void)
     }
 #endif
 
+#if defined(CONFIG_TIMER) && defined(CONFIG_NRF52_TIMER)
+  /* Configure TIMER driver */
+
+  ret = nrf52_timer_driver_setup("/dev/timer0", NRF52_TIMER);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to initialize timer driver: %d\n",
+             ret);
+    }
+#endif
+
 #ifdef CONFIG_NRF52_SOFTDEVICE_CONTROLLER
   ret = nrf52_sdc_initialize();
-
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: nrf52_sdc_initialize() failed: %d\n", ret);
@@ -130,6 +157,17 @@ int nrf52_bringup(void)
       syslog(LOG_ERR, "ERROR: Failed to initialize MTD progmem: %d\n", ret);
     }
 #endif /* CONFIG_MTD */
+
+#ifdef CONFIG_IEEE802154_MRF24J40
+  /* Configure MRF24J40 wireless */
+
+  ret = nrf52_mrf24j40_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: nrf52_mrf24j40_initialize() failed: %d\n",
+             ret);
+    }
+#endif
 
   UNUSED(ret);
   return OK;

@@ -1,6 +1,8 @@
 /****************************************************************************
  * binfmt/binfmt.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -166,6 +168,53 @@ void binfmt_freeargv(FAR char * const *argv);
 #endif
 
 /****************************************************************************
+ * Name: binfmt_copyactions
+ *
+ * Description:
+ *   In the kernel build, the file actions will likely lie in the caller's
+ *   address environment and, hence, be inaccessible when we switch to the
+ *   address environment of the new process address environment.  So we
+ *   do not have any real option other than to copy the callers action list.
+ *
+ * Input Parameters:
+ *   copy     - Pointer of the copied output file actions
+ *   actions  - Pointer of file actions to be copy
+ *
+ * Returned Value:
+ *   A non-zero copy is returned on success.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
+int binfmt_copyactions(FAR const posix_spawn_file_actions_t **copy,
+                       FAR const posix_spawn_file_actions_t *actions);
+#else
+#  define binfmt_copyactions(copy, actp) \
+          (*(copy) = (FAR posix_spawn_file_actions_t *)(actp), 0)
+#endif
+
+/****************************************************************************
+ * Name: binfmt_freeactions
+ *
+ * Description:
+ *   Release the copied file action list.
+ *
+ * Input Parameters:
+ *   copy     - Pointer of file actions
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
+void binfmt_freeactions(FAR const posix_spawn_file_actions_t *copy);
+#else
+#  define binfmt_freeactions(copy)
+#endif
+
+#ifdef CONFIG_BUILTIN
+/****************************************************************************
  * Name: builtin_initialize
  *
  * Description:
@@ -179,9 +228,7 @@ void binfmt_freeargv(FAR char * const *argv);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_BUILTIN
 int builtin_initialize(void);
-#endif
 
 /****************************************************************************
  * Name: builtin_uninitialize
@@ -194,8 +241,70 @@ int builtin_initialize(void);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_BUILTIN
 void builtin_uninitialize(void);
+#endif
+
+#ifdef CONFIG_ELF
+/****************************************************************************
+ * Name: elf_initialize
+ *
+ * Description:
+ *   In order to use the ELF binary format, this function must be called
+ *   during system initialization to register the ELF binary format.
+ *
+ * Returned Value:
+ *   This is a NuttX internal function so it follows the convention that
+ *   0 (OK) is returned on success and a negated errno is returned on
+ *   failure.
+ *
+ ****************************************************************************/
+
+int elf_initialize(void);
+
+/****************************************************************************
+ * Name: elf_uninitialize
+ *
+ * Description:
+ *   Unregister the ELF binary loader
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+void elf_uninitialize(void);
+#endif
+
+#ifdef CONFIG_NXFLAT
+/****************************************************************************
+ * Name: nxflat_initialize
+ *
+ * Description:
+ *   In order to use the NxFLAT binary format, this function must be called
+ *   during system initialization to register the NXFLAT binary
+ *   format.
+ *
+ * Returned Value:
+ *   This is a NuttX internal function so it follows the convention that
+ *   0 (OK) is returned on success and a negated errno is returned on
+ *   failure.
+ *
+ ****************************************************************************/
+
+int nxflat_initialize(void);
+
+/****************************************************************************
+ * Name: nxflat_uninitialize
+ *
+ * Description:
+ *   Unregister the NXFLAT binary loader
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+void nxflat_uninitialize(void);
 #endif
 
 #undef EXTERN

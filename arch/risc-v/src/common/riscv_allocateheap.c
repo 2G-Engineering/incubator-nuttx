@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/common/riscv_allocateheap.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -64,7 +66,7 @@
  *
  ****************************************************************************/
 
-void up_allocate_heap(void **heap_start, size_t *heap_size)
+void weak_function up_allocate_heap(void **heap_start, size_t *heap_size)
 {
   board_autoled_on(LED_HEAPALLOCATE);
   *heap_start = (void *)g_idle_topstack;

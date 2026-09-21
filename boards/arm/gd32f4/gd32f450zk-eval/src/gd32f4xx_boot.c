@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/gd32f4/gd32f450zk-eval/src/gd32f4xx_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -78,13 +80,8 @@ void gd32_boardinitialize(void)
 #ifdef CONFIG_BOARD_LATE_INITIALIZE
 void board_late_initialize(void)
 {
-#if defined(CONFIG_NSH_LIBRARY) && !defined(CONFIG_BOARDCTL)
-  /* Perform NSH initialization here instead of from the NSH.  This
-   * alternative NSH initialization is necessary when NSH is ran in
-   * user-space but the initialization function must run in kernel space.
-   */
+  /* Perform board-specific initialization */
 
-  board_app_initialize(0);
-#endif
+  gd32_bringup();
 }
 #endif

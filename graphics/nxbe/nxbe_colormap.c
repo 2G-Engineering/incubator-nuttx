@@ -1,6 +1,8 @@
 /****************************************************************************
  * graphics/nxbe/nxbe_colormap.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -69,7 +71,7 @@ int nxbe_colormap(FAR NX_DRIVERTYPE *dev)
    */
 
   size  = 3 * CONFIG_NX_NCOLORS * sizeof(uint8_t);
-  alloc = (FAR uint8_t *)kmm_malloc(size);
+  alloc = kmm_malloc(size);
   if (alloc == NULL)
     {
       return -ENOMEM;

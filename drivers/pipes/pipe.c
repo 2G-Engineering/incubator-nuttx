@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/pipes/pipe.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,6 +33,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
+#include <sys/ioctl.h>
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/mutex.h>
@@ -47,7 +50,8 @@
  * Private Function Prototypes
  ****************************************************************************/
 
-static int pipe_close(FAR struct file *filep);
+static int pipe_mmap(FAR struct file *filep,
+                     FAR struct mm_map_entry_s *entry);
 
 /****************************************************************************
  * Private Data
@@ -56,12 +60,12 @@ static int pipe_close(FAR struct file *filep);
 static const struct file_operations g_pipe_fops =
 {
   pipecommon_open,     /* open */
-  pipe_close,          /* close */
+  pipecommon_close,    /* close */
   pipecommon_read,     /* read */
   pipecommon_write,    /* write */
   NULL,                /* seek */
   pipecommon_ioctl,    /* ioctl */
-  NULL,                /* mmap */
+  pipe_mmap,           /* mmap */
   NULL,                /* truncate */
   pipecommon_poll      /* poll */
 };
@@ -98,28 +102,16 @@ static inline int pipe_allocate(void)
 }
 
 /****************************************************************************
- * Name: pipe_close
+ * Name: pipe_mmap
  ****************************************************************************/
 
-static int pipe_close(FAR struct file *filep)
+static int pipe_mmap(FAR struct file *filep,
+                     FAR struct mm_map_entry_s *entry)
 {
-  FAR struct inode *inode    = filep->f_inode;
-  FAR struct pipe_dev_s *dev = inode->i_private;
-  int ret;
+  UNUSED(filep);
+  UNUSED(entry);
 
-  DEBUGASSERT(dev);
-
-  /* Perform common close operations */
-
-  ret = pipecommon_close(filep);
-  if (ret == 0 && inode->i_crefs == 1)
-    {
-      /* Release the pipe when there are no further open references to it. */
-
-      pipecommon_freedev(dev);
-    }
-
-  return ret;
+  return -ENODEV;
 }
 
 /****************************************************************************
@@ -153,9 +145,11 @@ static int pipe_register(size_t bufsize, int flags,
       return -ENOMEM;
     }
 
+  PIPE_UNLINK(dev->d_flags);
+
   /* Register the pipe device */
 
-  ret = register_driver(devname, &g_pipe_fops, 0666, (FAR void *)dev);
+  ret = register_pipedriver(devname, &g_pipe_fops, 0666, (FAR void *)dev);
   if (ret != 0)
     {
       pipecommon_freedev(dev);
@@ -191,8 +185,8 @@ static int pipe_register(size_t bufsize, int flags,
 int file_pipe(FAR struct file *filep[2], size_t bufsize, int flags)
 {
   char devname[32];
+  int nonblock = !!(flags & O_NONBLOCK);
   int ret;
-  bool blocking;
 
   /* Register a new pipe device */
 
@@ -201,10 +195,6 @@ int file_pipe(FAR struct file *filep[2], size_t bufsize, int flags)
     {
       return ret;
     }
-
-  /* Check for the O_NONBLOCK bit on flags */
-
-  blocking = (flags & O_NONBLOCK) == 0;
 
   /* Get a write file descriptor */
 
@@ -216,9 +206,9 @@ int file_pipe(FAR struct file *filep[2], size_t bufsize, int flags)
 
   /* Clear O_NONBLOCK if it was set previously */
 
-  if (blocking)
+  if (!nonblock)
     {
-      ret = file_fcntl(filep[1], F_SETFL, flags & (~O_NONBLOCK));
+      ret = file_ioctl(filep[1], FIONBIO, &nonblock);
       if (ret < 0)
         {
           goto errout_with_driver;
@@ -235,14 +225,14 @@ int file_pipe(FAR struct file *filep[2], size_t bufsize, int flags)
 
   /* Remove the pipe name from file system */
 
-  unregister_driver(devname);
+  unregister_pipedriver(devname);
   return OK;
 
 errout_with_wrfd:
   file_close(filep[1]);
 
 errout_with_driver:
-  unregister_driver(devname);
+  unregister_pipedriver(devname);
   return ret;
 }
 
@@ -268,8 +258,8 @@ errout_with_driver:
 int pipe2(int fd[2], int flags)
 {
   char devname[32];
+  int nonblock = !!(flags & O_NONBLOCK);
   int ret;
-  bool blocking;
 
   /* Register a new pipe device */
 
@@ -279,10 +269,6 @@ int pipe2(int fd[2], int flags)
       set_errno(-ret);
       return ERROR;
     }
-
-  /* Check for the O_NONBLOCK bit on flags */
-
-  blocking = (flags & O_NONBLOCK) == 0;
 
   /* Get a write file descriptor setting O_NONBLOCK temporarily */
 
@@ -294,9 +280,9 @@ int pipe2(int fd[2], int flags)
 
   /* Clear O_NONBLOCK if it was set previously */
 
-  if (blocking)
+  if (!nonblock)
     {
-      ret = fcntl(fd[1], F_SETFL, flags & (~O_NONBLOCK));
+      ret = ioctl(fd[1], FIONBIO, &nonblock);
       if (ret < 0)
         {
           goto errout_with_driver;
@@ -313,14 +299,14 @@ int pipe2(int fd[2], int flags)
 
   /* Remove the pipe name from file system */
 
-  unregister_driver(devname);
+  unregister_pipedriver(devname);
   return OK;
 
 errout_with_wrfd:
   nx_close(fd[1]);
 
 errout_with_driver:
-  unregister_driver(devname);
+  unregister_pipedriver(devname);
   return ERROR;
 }
 

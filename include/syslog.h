@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/syslog.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,6 +29,10 @@
 
 #include <nuttx/config.h>
 #include <nuttx/compiler.h>
+
+#ifdef CONFIG_SYSLOG_TO_SCHED_NOTE
+#include <nuttx/sched_note.h>
+#endif
 
 #include <stdint.h>
 #include <stdarg.h>
@@ -203,9 +209,16 @@ extern "C"
  *
  ****************************************************************************/
 
+#ifndef CONFIG_SYSLOG_TO_SCHED_NOTE
 void syslog(int priority, FAR const IPTR char *fmt, ...) syslog_like(2, 3);
 void vsyslog(int priority, FAR const IPTR char *fmt, va_list ap)
      syslog_like(2, 0);
+#else
+#  define syslog(priority, fmt, ...) \
+          sched_note_printf(NOTE_TAG_LOG + priority, fmt, ##__VA_ARGS__)
+#  define vsyslog(priority, fmt, ap) \
+          sched_note_vprintf(NOTE_TAG_LOG + priority, fmt, ap)
+#endif
 
 /****************************************************************************
  * Name: setlogmask
@@ -218,10 +231,6 @@ void vsyslog(int priority, FAR const IPTR char *fmt, va_list ap)
  *   LOG_WARNING, LOG_NOTICE, LOG_INFO, and LOG_DEBUG.  The bit corresponding
  *   to a priority p is LOG_MASK(p); LOG_UPTO(p) provides the mask of all
  *   priorities in the above list up to and including p.
- *
- *   Per OpenGroup.org "If the maskpri argument is 0, the current log mask
- *   is not modified."  In this implementation, the value zero is permitted
- *   in order to disable all syslog levels.
  *
  *   NOTE:  setlogmask is not a thread-safe, re-entrant function.  Concurrent
  *   use of setlogmask() will have undefined behavior.

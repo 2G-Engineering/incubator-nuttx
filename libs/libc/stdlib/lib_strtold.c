@@ -1,10 +1,8 @@
 /****************************************************************************
  * libs/libc/stdlib/lib_strtold.c
- * Convert string to float and (long) double
  *
- * A pretty straight forward conversion of strtod():
- *
- *   Copyright © 2005-2020 Rich Felker, et al.
+ * SPDX-License-Identifier: MIT
+ * SPDX-FileCopyrightText:  Copyright © 2005-2020 Rich Felker, et al.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -93,6 +91,8 @@
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+#ifdef CONFIG_HAVE_LONG_DOUBLE
 
 /****************************************************************************
  * Name: scanexp
@@ -399,11 +399,11 @@ static long_double decfloat(FAR char *ptr, FAR char **endptr)
     }
   else if (num_digit + num_decimal > ldbl_max_10_exp)
     {
-      errno = ERANGE;
+      set_errno(ERANGE);
     }
   else if (num_digit + num_decimal < ldbl_min_10_exp)
     {
-      errno = ERANGE;
+      set_errno(ERANGE);
     }
 
   if (k % 9)
@@ -561,13 +561,13 @@ static long_double hexfloat(FAR char *ptr,
 
   if (e2 > -emin)
     {
-      errno = ERANGE;
+      set_errno(ERANGE);
       return ldbl_max * ldbl_max;
     }
 
   if (e2 < emin - 2 * ldbl_mant_dig)
     {
-      errno = ERANGE;
+      set_errno(ERANGE);
       return ldbl_min * ldbl_min;
     }
 
@@ -613,7 +613,7 @@ static long_double hexfloat(FAR char *ptr,
 
   if (!y)
     {
-      errno = ERANGE;
+      set_errno(ERANGE);
     }
 
   return scalbnx(y, 2., e2);
@@ -769,14 +769,10 @@ float strtof(FAR const char *str, FAR char **endptr)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_HAVE_DOUBLE
-
 double strtod(FAR const char *str, FAR char **endptr)
 {
   return strtox(str, endptr, 2);
 }
-
-#endif /* CONFIG_HAVE_DOUBLE */
 
 /****************************************************************************
  * Name: strtold
@@ -793,11 +789,8 @@ double strtod(FAR const char *str, FAR char **endptr)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_HAVE_LONG_DOUBLE
-
 long double strtold(FAR const char *str, FAR char **endptr)
 {
   return strtox(str, endptr, 3);
 }
-
 #endif /* CONFIG_HAVE_LONG_DOUBLE */

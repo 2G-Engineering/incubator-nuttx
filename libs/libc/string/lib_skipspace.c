@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/string/lib_skipspace.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -44,9 +46,9 @@
  *
  ****************************************************************************/
 
-void lib_skipspace(const char **pptr)
+void lib_skipspace(FAR const char **pptr)
 {
-  const char *ptr = *pptr;
+  FAR const char *ptr = *pptr;
   while (isspace(*ptr)) ptr++;
   *pptr = ptr;
 }

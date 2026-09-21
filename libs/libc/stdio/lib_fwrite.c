@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_fwrite.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -37,8 +39,8 @@
  * Name: fwrite
  ****************************************************************************/
 
-size_t fwrite(FAR const void *ptr, size_t size, size_t n_items,
-              FAR FILE *stream)
+size_t fwrite_unlocked(FAR const void *ptr, size_t size, size_t n_items,
+                       FAR FILE *stream)
 {
   size_t  full_size = n_items * (size_t)size;
   ssize_t bytes_written;
@@ -46,7 +48,7 @@ size_t fwrite(FAR const void *ptr, size_t size, size_t n_items,
 
   /* Write the data into the stream buffer */
 
-  bytes_written = lib_fwrite(ptr, full_size, stream);
+  bytes_written = lib_fwrite_unlocked(ptr, full_size, stream);
   if (bytes_written > 0)
     {
       /* Return the number of full items written */
@@ -56,3 +58,16 @@ size_t fwrite(FAR const void *ptr, size_t size, size_t n_items,
 
   return items_written;
 }
+
+size_t fwrite(FAR const void *ptr, size_t size, size_t n_items,
+              FAR FILE *stream)
+{
+  size_t ret;
+
+  flockfile(stream);
+  ret = fwrite_unlocked(ptr, size, n_items, stream);
+  funlockfile(stream);
+
+  return ret;
+}
+

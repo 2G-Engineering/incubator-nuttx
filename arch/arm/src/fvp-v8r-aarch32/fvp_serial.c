@@ -1,6 +1,8 @@
 /***************************************************************************
  * arch/arm/src/fvp-v8r-aarch32/fvp_serial.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -56,7 +58,9 @@ void arm_earlyserialinit(void)
    * when they are first opened.
    */
 
+#ifdef CONFIG_UART_PL011
   pl011_earlyserialinit();
+#endif
 }
 
 /***************************************************************************
@@ -69,7 +73,15 @@ void arm_earlyserialinit(void)
 
 void arm_serialinit(void)
 {
+#ifdef CONFIG_UART_PL011
   pl011_serialinit();
+#endif
+}
+
+#else /* USE_SERIALDRIVER */
+
+void up_putc(int ch)
+{
 }
 
 #endif /* USE_SERIALDRIVER */

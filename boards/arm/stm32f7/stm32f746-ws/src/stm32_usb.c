@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f746-ws/src/stm32_usb.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -120,7 +122,7 @@ static int usbhost_waiter(int argc, char *argv[])
  * Name: stm32_usbinitialize
  *
  * Description:
- *   Called from stm32_usbinitialize very early in inialization to setup
+ *   Called from stm32_usbinitialize very early in initialization to setup
  *   USB-related GPIO pins for the STM32F4Discovery board.
  *
  ****************************************************************************/
@@ -228,8 +230,8 @@ int stm32_usbhost_initialize(void)
       uinfo("Start usbhost_waiter\n");
 
       ret = kthread_create("usbhost", CONFIG_STM32F7F4DISCO_USBHOST_PRIO,
-                        CONFIG_STM32F7F4DISCO_USBHOST_STACKSIZE,
-                        usbhost_waiter, NULL);
+                           CONFIG_STM32F7F4DISCO_USBHOST_STACKSIZE,
+                           usbhost_waiter, NULL);
       return ret < 0 ? -ENOEXEC : OK;
     }
 

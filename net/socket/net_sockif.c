@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/socket/net_sockif.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,6 +31,7 @@
 #include <debug.h>
 
 #include <nuttx/net/net.h>
+#include <nuttx/net/netconfig.h>
 
 #include "inet/inet.h"
 #include "local/local.h"
@@ -38,7 +41,6 @@
 #include "pkt/pkt.h"
 #include "bluetooth/bluetooth.h"
 #include "ieee802154/ieee802154.h"
-#include "usrsock/usrsock.h"
 #include "socket/socket.h"
 
 /****************************************************************************
@@ -75,7 +77,7 @@ net_sockif(sa_family_t family, int type, int protocol)
 
   switch (family)
     {
-#ifdef HAVE_INET_SOCKETS
+#if defined(HAVE_PFINET_SOCKETS) || defined(HAVE_PFINET6_SOCKETS)
 #  ifdef HAVE_PFINET_SOCKETS
     case PF_INET:
 #  endif
@@ -131,13 +133,6 @@ net_sockif(sa_family_t family, int type, int protocol)
     default:
       nerr("ERROR: Address family unsupported: %d\n", family);
     }
-
-#ifdef CONFIG_NET_USRSOCK
-  if (sockif == NULL)
-    {
-      sockif = &g_usrsock_sockif;
-    }
-#endif
 
   return sockif;
 }

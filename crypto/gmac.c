@@ -1,8 +1,8 @@
 /****************************************************************************
  * crypto/gmac.c
- * $OpenBSD: gmac.c,v 1.10 2017/05/02 11:44:32 mikeb Exp $
  *
- * Copyright (c) 2010 Mike Belopuhov
+ * SPDX-License-Identifier: ISC
+ * SPDX-FileCopyrightText: Copyright (c) 2010 Mike Belopuhov
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,7 +16,9 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- *
+ ****************************************************************************/
+
+/****************************************************************************
  *
  * This code implements the Message Authentication part of the
  * Galois/Counter Mode (as being described in the RFC 4543) using
@@ -152,7 +154,7 @@ void aes_gmac_reinit(FAR void *xctx, FAR const uint8_t *iv, uint16_t ivlen)
   bcopy(iv, ctx->J + AESCTR_NONCESIZE, ivlen);
 }
 
-int aes_gmac_update(FAR void *xctx, FAR const uint8_t *data, uint16_t len)
+int aes_gmac_update(FAR void *xctx, FAR const uint8_t *data, size_t len)
 {
   FAR AES_GMAC_CTX *ctx = xctx;
   uint32_t blk[4] =

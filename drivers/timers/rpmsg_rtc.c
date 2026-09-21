@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/timers/rpmsg_rtc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,16 +26,20 @@
 
 #include <nuttx/config.h>
 
+#include <nuttx/nuttx.h>
 #include <nuttx/list.h>
 #include <nuttx/clock.h>
 #include <nuttx/kmalloc.h>
-#include <nuttx/rptun/openamp.h>
+#include <nuttx/rpmsg/rpmsg.h>
 #include <nuttx/mutex.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/timers/rpmsg_rtc.h>
 #include <nuttx/timers/arch_rtc.h>
 
 #include <errno.h>
 #include <string.h>
+
+#include "clock/clock.h"
 
 /****************************************************************************
  * Pre-processor definitions
@@ -62,8 +68,10 @@ begin_packed_struct struct rpmsg_rtc_header_s
 begin_packed_struct struct rpmsg_rtc_set_s
 {
   struct rpmsg_rtc_header_s header;
+  int64_t                   base_sec;
   int64_t                   sec;
   int32_t                   nsec;
+  int32_t                   base_nsec;
 } end_packed_struct;
 
 #define rpmsg_rtc_get_s rpmsg_rtc_set_s
@@ -299,12 +307,22 @@ static int rpmsg_rtc_ept_cb(FAR struct rpmsg_endpoint *ept, FAR void *data,
     case RPMSG_RTC_SYNC:
         {
           struct rpmsg_rtc_set_s *msg = data;
+
+#ifdef CONFIG_RTC_RPMSG_SYNC_BASETIME
+          irqstate_t flags;
+
+          flags = spin_lock_irqsave(&g_basetime_lock);
+          g_basetime.tv_sec  = msg->base_sec;
+          g_basetime.tv_nsec = msg->base_nsec;
+          spin_unlock_irqrestore(&g_basetime_lock, flags);
+#else
           struct timespec tp;
 
           tp.tv_sec  = msg->sec;
           tp.tv_nsec = msg->nsec;
 
           clock_synchronize(&tp);
+#endif
         }
       break;
 
@@ -467,15 +485,34 @@ static int rpmsg_rtc_server_settime(FAR struct rtc_lowerhalf_s *lower,
   FAR struct rpmsg_rtc_client_s *client;
   FAR struct list_node *node;
   struct rpmsg_rtc_set_s msg;
+  irqstate_t flags;
   int ret;
 
   ret = server->lower->ops->settime(server->lower, rtctime);
   if (ret >= 0)
     {
-      nxmutex_lock(&server->lock);
       msg.sec  = timegm((FAR struct tm *)rtctime);
       msg.nsec = rtctime->tm_nsec;
       msg.header.command = RPMSG_RTC_SYNC;
+
+      if (ret == 0)
+        {
+          struct timespec tp;
+
+          tp.tv_sec  = msg.sec;
+          tp.tv_nsec = msg.nsec;
+          clock_synchronize(&tp);
+
+          ret = 1; /* Request the upper half skip clock synchronize */
+        }
+
+      flags = spin_lock_irqsave(&g_basetime_lock);
+      msg.base_sec = g_basetime.tv_sec;
+      msg.base_nsec = g_basetime.tv_nsec;
+      spin_unlock_irqrestore(&g_basetime_lock, flags);
+
+      nxmutex_lock(&server->lock);
+
       list_for_every(&server->list, node)
         {
           client = (FAR struct rpmsg_rtc_client_s *)node;
@@ -593,19 +630,6 @@ static int rpmsg_rtc_server_destroy(FAR struct rtc_lowerhalf_s *lower)
 }
 #endif
 
-static void rpmsg_rtc_server_ns_unbind(FAR struct rpmsg_endpoint *ept)
-{
-  FAR struct rpmsg_rtc_client_s *client = container_of(ept,
-                                            struct rpmsg_rtc_client_s, ept);
-  FAR struct rpmsg_rtc_server_s *server = ept->priv;
-
-  nxmutex_lock(&server->lock);
-  list_delete(&client->node);
-  nxmutex_unlock(&server->lock);
-  rpmsg_destroy_ept(&client->ept);
-  kmm_free(client);
-}
-
 #ifdef CONFIG_RTC_ALARM
 static void rpmsg_rtc_server_alarm_cb(FAR void *priv, int alarmid)
 {
@@ -649,16 +673,6 @@ static int rpmsg_rtc_server_ept_cb(FAR struct rpmsg_endpoint *ept,
         rtctime.tm_nsec = msg->nsec;
 
         header->result = rpmsg_rtc_server_settime(priv, &rtctime);
-        if (header->result >= 0)
-          {
-            struct timespec tp;
-
-            tp.tv_sec  = msg->sec;
-            tp.tv_nsec = msg->nsec;
-
-            clock_synchronize(&tp);
-          }
-
         return rpmsg_send(ept, msg, sizeof(*msg));
       }
 
@@ -703,6 +717,18 @@ static bool rpmsg_rtc_server_ns_match(FAR struct rpmsg_device *rdev,
   return !strcmp(name, RPMSG_RTC_EPT_NAME);
 }
 
+static void rpmsg_rtc_server_ept_release(FAR struct rpmsg_endpoint *ept)
+{
+  FAR struct rpmsg_rtc_client_s *client = container_of(ept,
+                                            struct rpmsg_rtc_client_s, ept);
+  FAR struct rpmsg_rtc_server_s *server = ept->priv;
+
+  nxmutex_lock(&server->lock);
+  list_delete(&client->node);
+  nxmutex_unlock(&server->lock);
+  kmm_free(client);
+}
+
 static void rpmsg_rtc_server_ns_bind(FAR struct rpmsg_device *rdev,
                                      FAR void *priv,
                                      FAR const char *name,
@@ -712,6 +738,7 @@ static void rpmsg_rtc_server_ns_bind(FAR struct rpmsg_device *rdev,
   FAR struct rpmsg_rtc_client_s *client;
   struct rpmsg_rtc_set_s msg;
   struct rtc_time rtctime;
+  irqstate_t flags;
 
   client = kmm_zalloc(sizeof(*client));
   if (client == NULL)
@@ -720,10 +747,12 @@ static void rpmsg_rtc_server_ns_bind(FAR struct rpmsg_device *rdev,
     }
 
   client->ept.priv = server;
+  client->ept.release_cb = rpmsg_rtc_server_ept_release;
+
   if (rpmsg_create_ept(&client->ept, rdev, RPMSG_RTC_EPT_NAME,
                        RPMSG_ADDR_ANY, dest,
                        rpmsg_rtc_server_ept_cb,
-                       rpmsg_rtc_server_ns_unbind) < 0)
+                       rpmsg_destroy_ept) < 0)
     {
       kmm_free(client);
       return;
@@ -733,6 +762,12 @@ static void rpmsg_rtc_server_ns_bind(FAR struct rpmsg_device *rdev,
     {
       msg.sec  = timegm((FAR struct tm *)&rtctime);
       msg.nsec = rtctime.tm_nsec;
+
+      flags = spin_lock_irqsave(&g_basetime_lock);
+      msg.base_sec = g_basetime.tv_sec;
+      msg.base_nsec = g_basetime.tv_nsec;
+      spin_unlock_irqrestore(&g_basetime_lock, flags);
+
       msg.header.command = RPMSG_RTC_SYNC;
       rpmsg_send(&client->ept, &msg, sizeof(msg));
     }

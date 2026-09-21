@@ -1216,17 +1216,17 @@ choice
 		ends with a number or letter that designates the FLASH size.
 
 				Designator  Size in KiB
-				   4   	16
-				   6   	32
-				   8   	64
-				   B   	128
-				   Z   	192
-				   C   	256
-				   D   	384
-				   E   	512
-				   F   	768
-				   G   	1024
-				   I   	2048
+				   4    16
+				   6    32
+				   8    64
+				   B    128
+				   Z    192
+				   C    256
+				   D    384
+				   E    512
+				   F    768
+				   G    1024
+				   I    2048
 
 		This configuration option defaults to using the configuration based
 		on that designator or the default smaller size if there is no last
@@ -1536,6 +1536,7 @@ config STM32_STM32F33XX
 	select ARCH_CORTEXM4
 	select ARCH_HAVE_FPU
 	select STM32_HAVE_HRTIM1
+	select STM32_HAVE_HRTIM1_PLLCLK
 	select STM32_HAVE_COMP2
 	select STM32_HAVE_COMP4
 	select STM32_HAVE_COMP6
@@ -2247,6 +2248,10 @@ config STM32_HAVE_IOCOMPENSATION
 	default n
 
 config STM32_HAVE_HRTIM1
+	bool
+	default n
+
+config STM32_HAVE_HRTIM1_PLLCLK
 	bool
 	default n
 
@@ -3028,6 +3033,7 @@ config STM32_LPUART1
 	bool "LPUART1"
 	default n
 	depends on STM32_HAVE_LPUART1
+	select STM32_USART
 
 config STM32_LTDC
 	bool "LTDC"
@@ -3693,7 +3699,7 @@ config STM32_FLASH_WORKAROUND_DATA_CACHE_CORRUPTION_ON_RWW
 
 config STM32_FLASH_PREFETCH
 	bool "Enable FLASH Pre-fetch"
-	default y if STM32_STM32F427 || STM32_STM32F429 || STM32_STM32F446
+	default STM32_STM32F427 || STM32_STM32F429 || STM32_STM32F446
 	default n
 	depends on STM32_STM32F20XX || STM32_STM32F4XXX
 	---help---
@@ -3764,7 +3770,7 @@ config STM32_I2SPLL
 
 config STM32_CCMEXCLUDE
 	bool "Exclude CCM SRAM from the heap"
-	default y if ARCH_DMA || LIBC_ARCH_ELF
+	default ARCH_DMA || LIBC_ARCH_ELF
 	depends on STM32_HAVE_CCM
 	---help---
 		Exclude CCM SRAM from the HEAP because (1) it cannot be used for DMA
@@ -3783,8 +3789,7 @@ config STM32_CCM_PROCFS
 config STM32_DMACAPABLE
 	bool "Workaround non-DMA capable memory"
 	depends on ARCH_DMA
-	default y if STM32_STM32F4XXX && !STM32_CCMEXCLUDE
-	default n if !STM32_STM32F4XXX || STM32_CCMEXCLUDE
+	default STM32_STM32F4XXX && !STM32_CCMEXCLUDE
 	---help---
 		This option enables the DMA interface stm32_dmacapable that can be
 		used to check if it is possible to do DMA from the selected address.
@@ -6806,10 +6811,10 @@ config STM32_TIM1_CHANNEL
 		channel {1,..,4}
 
 config STM32_TIM1_CLOCK
-	int "TIM1 work frequence for capture"
+	int "TIM1 work frequency for capture"
 	default 1000000
 	---help---
-		This clock frequence limiting the count rate at the expense of resolution.
+		This clock frequency limiting the count rate at the expense of resolution.
 
 endif # STM32_TIM1_CAP
 
@@ -6835,10 +6840,10 @@ config STM32_TIM2_CHANNEL
 		channel {1,..,4}
 
 config STM32_TIM2_CLOCK
-	int "TIM2 work frequence for capture"
+	int "TIM2 work frequency for capture"
 	default 1000000
 	---help---
-		This clock frequence limiting the count rate at the expense of resolution.
+		This clock frequency limiting the count rate at the expense of resolution.
 
 endif # STM32_TIM2_CAP
 
@@ -6864,10 +6869,10 @@ config STM32_TIM3_CHANNEL
 		channel {1,..,4}
 
 config STM32_TIM3_CLOCK
-	int "TIM3 work frequence for capture"
+	int "TIM3 work frequency for capture"
 	default 1000000
 	---help---
-		This clock frequence limiting the count rate at the expense of resolution.
+		This clock frequency limiting the count rate at the expense of resolution.
 
 endif # STM32_TIM3_CAP
 
@@ -6893,10 +6898,10 @@ config STM32_TIM4_CHANNEL
 		channel {1,..,4}
 
 config STM32_TIM4_CLOCK
-	int "TIM4 work frequence for capture"
+	int "TIM4 work frequency for capture"
 	default 1000000
 	---help---
-		This clock frequence limiting the count rate at the expense of resolution.
+		This clock frequency limiting the count rate at the expense of resolution.
 
 endif # STM32_TIM4_CAP
 
@@ -6922,10 +6927,10 @@ config STM32_TIM5_CHANNEL
 		channel {1,..,4}
 
 config STM32_TIM5_CLOCK
-	int "TIM5 work frequence for capture"
+	int "TIM5 work frequency for capture"
 	default 1000000
 	---help---
-		This clock frequence limiting the count rate at the expense of resolution.
+		This clock frequency limiting the count rate at the expense of resolution.
 
 endif # STM32_TIM5_CAP
 
@@ -6951,10 +6956,10 @@ config STM32_TIM8_CHANNEL
 		channel {1,..,4}
 
 config STM32_TIM8_CLOCK
-	int "TIM8 work frequence for capture"
+	int "TIM8 work frequency for capture"
 	default 1000000
 	---help---
-		This clock frequence limiting the count rate at the expense of resolution.
+		This clock frequency limiting the count rate at the expense of resolution.
 
 endif # STM32_TIM8_CAP
 
@@ -6980,10 +6985,10 @@ config STM32_TIM9_CHANNEL
 		channel {1,..,4}
 
 config STM32_TIM9_CLOCK
-	int "TIM9 work frequence for capture"
+	int "TIM9 work frequency for capture"
 	default 1000000
 	---help---
-		This clock frequence limiting the count rate at the expense of resolution.
+		This clock frequency limiting the count rate at the expense of resolution.
 
 endif # STM32_TIM9_CAP
 
@@ -7009,10 +7014,10 @@ config STM32_TIM10_CHANNEL
 		channel {1,..,4}
 
 config STM32_TIM10_CLOCK
-	int "TIM10 work frequence for capture"
+	int "TIM10 work frequency for capture"
 	default 1000000
 	---help---
-		This clock frequence limiting the count rate at the expense of resolution.
+		This clock frequency limiting the count rate at the expense of resolution.
 
 endif # STM32_TIM10_CAP
 
@@ -7038,10 +7043,10 @@ config STM32_TIM11_CHANNEL
 		channel {1,..,4}
 
 config STM32_TIM11_CLOCK
-	int "TIM11 work frequence for capture"
+	int "TIM11 work frequency for capture"
 	default 1000000
 	---help---
-		This clock frequence limiting the count rate at the expense of resolution.
+		This clock frequency limiting the count rate at the expense of resolution.
 
 endif # STM32_TIM11_CAP
 
@@ -7067,10 +7072,10 @@ config STM32_TIM12_CHANNEL
 		channel {1,..,4}
 
 config STM32_TIM12_CLOCK
-	int "TIM12 work frequence for capture"
+	int "TIM12 work frequency for capture"
 	default 1000000
 	---help---
-		This clock frequence limiting the count rate at the expense of resolution.
+		This clock frequency limiting the count rate at the expense of resolution.
 
 endif # STM32_TIM12_CAP
 
@@ -7096,10 +7101,10 @@ config STM32_TIM13_CHANNEL
 		channel {1,..,4}
 
 config STM32_TIM13_CLOCK
-	int "TIM13 work frequence for capture"
+	int "TIM13 work frequency for capture"
 	default 1000000
 	---help---
-		This clock frequence limiting the count rate at the expense of resolution.
+		This clock frequency limiting the count rate at the expense of resolution.
 
 endif # STM32_TIM13_CAP
 
@@ -7125,10 +7130,10 @@ config STM32_TIM14_CHANNEL
 		channel {1,..,4}
 
 config STM32_TIM14_CLOCK
-	int "TIM14 work frequence for capture"
+	int "TIM14 work frequency for capture"
 	default 1000000
 	---help---
-		This clock frequence limiting the count rate at the expense of resolution.
+		This clock frequency limiting the count rate at the expense of resolution.
 
 endif # STM32_TIM14_CAP
 
@@ -8108,6 +8113,7 @@ endif # STM32_HRTIM_FAULTS
 config STM32_HRTIM_CLK_FROM_PLL
 	bool "HRTIM Clock from PLL"
 	default n
+	depends on STM32_HAVE_HRTIM1_PLLCLK
 	---help---
 		Set PLL as the clock source for HRTIM.
 		This configuration requires the following conditions:
@@ -8577,7 +8583,7 @@ config STM32_ADC1_DMA
 config STM32_ADC1_SCAN
 	bool "ADC1 scan mode"
 	depends on STM32_ADC1 && STM32_HAVE_IP_ADC_V1
-	default y if STM32_ADC1_DMA
+	default STM32_ADC1_DMA
 	default n
 
 config STM32_ADC1_DMA_CFG
@@ -8610,7 +8616,7 @@ config STM32_ADC2_DMA
 config STM32_ADC2_SCAN
 	bool "ADC2 scan mode"
 	depends on STM32_ADC2 && STM32_HAVE_IP_ADC_V1
-	default y if STM32_ADC2_DMA
+	default STM32_ADC2_DMA
 	default n
 
 config STM32_ADC2_DMA_CFG
@@ -8643,7 +8649,7 @@ config STM32_ADC3_DMA
 config STM32_ADC3_SCAN
 	bool "ADC3 scan mode"
 	depends on STM32_ADC3 && STM32_HAVE_IP_ADC_V1
-	default y if STM32_ADC3_DMA
+	default STM32_ADC3_DMA
 	default n
 
 config STM32_ADC3_DMA_CFG
@@ -9554,10 +9560,6 @@ config STM32_USART
 	bool
 	default n
 
-config STM32_USART_RXDMA
-	bool
-	default n
-
 config STM32_SERIALDRIVER
 	bool
 	default n
@@ -9624,7 +9626,6 @@ config USART1_RXDMA
 	bool "USART1 Rx DMA"
 	default n
 	depends on (((STM32_STM32F10XX || STM32_STM32L15XX) && STM32_DMA1) || (!STM32_STM32F10XX && STM32_DMA2))
-	select STM32_USART_RXDMA
 	---help---
 		In high data rate usage, Rx DMA may eliminate Rx overrun errors
 
@@ -9632,7 +9633,6 @@ config USART1_TXDMA
 	bool "USART1 Tx DMA"
 	default n
 	depends on (((STM32_STM32F10XX || STM32_STM32L15XX) && STM32_DMA1) || (!STM32_STM32F10XX && STM32_DMA2))
-	select STM32_USART_TXDMA
 	---help---
 		In high data rate usage, Tx DMA may reduce CPU load
 
@@ -9719,7 +9719,6 @@ config USART2_RXDMA
 	bool "USART2 Rx DMA"
 	default n
 	depends on STM32_DMA1
-	select STM32_USART_RXDMA
 	---help---
 		In high data rate usage, Rx DMA may eliminate Rx overrun errors
 
@@ -9727,7 +9726,6 @@ config USART2_TXDMA
 	bool "USART2 Tx DMA"
 	default n
 	depends on STM32_DMA1
-	select STM32_USART_TXDMA
 	---help---
 		In high data rate usage, Tx DMA may reduce CPU load
 
@@ -9814,7 +9812,6 @@ config USART3_RXDMA
 	bool "USART3 Rx DMA"
 	default n
 	depends on STM32_DMA1
-	select STM32_USART_RXDMA
 	---help---
 		In high data rate usage, Rx DMA may eliminate Rx overrun errors
 
@@ -9822,7 +9819,6 @@ config USART3_TXDMA
 	bool "USART3 Tx DMA"
 	default n
 	depends on STM32_DMA1
-	select STM32_USART_TXDMA
 	---help---
 		In high data rate usage, Tx DMA may reduce CPU load
 
@@ -9904,7 +9900,6 @@ config UART4_RXDMA
 	bool "UART4 Rx DMA"
 	default n
 	depends on STM32_DMA1
-	select STM32_USART_RXDMA
 	---help---
 		In high data rate usage, Rx DMA may eliminate Rx overrun errors
 
@@ -9912,7 +9907,6 @@ config UART4_TXDMA
 	bool "UART4 Tx DMA"
 	default n
 	depends on STM32_DMA1
-	select STM32_USART_TXDMA
 	---help---
 		In high data rate usage, Tx DMA may reduce CPU load
 
@@ -9958,7 +9952,6 @@ config UART5_RXDMA
 	bool "UART5 Rx DMA"
 	default n
 	depends on STM32_DMA1
-	select STM32_USART_RXDMA
 	---help---
 		In high data rate usage, Rx DMA may eliminate Rx overrun errors
 
@@ -9966,7 +9959,6 @@ config UART5_TXDMA
 	bool "UART5 Tx DMA"
 	default n
 	depends on STM32_DMA1
-	select STM32_USART_TXDMA
 	---help---
 		In high data rate usage, Tx DMA may reduce CPU load
 
@@ -10017,7 +10009,6 @@ config USART6_RXDMA
 	bool "USART6 Rx DMA"
 	default n
 	depends on STM32_DMA2
-	select STM32_USART_RXDMA
 	---help---
 		In high data rate usage, Rx DMA may eliminate Rx overrun errors
 
@@ -10025,7 +10016,6 @@ config USART6_TXDMA
 	bool "USART6 Tx DMA"
 	default n
 	depends on STM32_DMA2
-	select STM32_USART_TXDMA
 	---help---
 		In high data rate usage, Tx DMA may reduce CPU load
 
@@ -10112,7 +10102,6 @@ config UART7_RXDMA
 	bool "UART7 Rx DMA"
 	default n
 	depends on STM32_DMA1
-	select STM32_USART_RXDMA
 	---help---
 		In high data rate usage, Rx DMA may eliminate Rx overrun errors
 
@@ -10120,7 +10109,6 @@ config UART7_TXDMA
 	bool "UART7 Tx DMA"
 	default n
 	depends on STM32_DMA1
-	select STM32_USART_TXDMA
 	---help---
 		In high data rate usage, Tx DMA may reduce CPU load
 
@@ -10207,7 +10195,6 @@ config UART8_RXDMA
 	bool "UART8 Rx DMA"
 	default n
 	depends on STM32_DMA1
-	select STM32_USART_RXDMA
 	---help---
 		In high data rate usage, Rx DMA may eliminate Rx overrun errors
 
@@ -10215,7 +10202,6 @@ config UART8_TXDMA
 	bool "UART8 Tx DMA"
 	default n
 	depends on STM32_DMA1
-	select STM32_USART_TXDMA
 	---help---
 		In high data rate usage, Tx DMA may reduce CPU load
 
@@ -10257,6 +10243,54 @@ config STM32_HCIUART8_RXDMA
 
 endif # STM32_UART8_HCIUART
 
+choice
+	prompt "LPUART1 Driver Configuration"
+	default STM32_LPUART1_SERIALDRIVER
+	depends on STM32_LPUART1
+
+config STM32_LPUART1_SERIALDRIVER
+	bool "Standard serial driver"
+	select LPUART1_SERIALDRIVER
+	select ARCH_HAVE_SERIAL_TERMIOS
+	select STM32_SERIALDRIVER
+
+endchoice # LPUART1 Driver Configuration
+
+if STM32_LPUART1_SERIALDRIVER
+
+config LPUART1_RS485
+	bool "RS-485 on LPUART1"
+	default n
+	---help---
+		Enable RS-485 interface on LPUART1. Your board config will have to
+		provide GPIO_LPUART1_RS485_DIR pin definition. Currently it cannot be
+		used with LPUART1_RXDMA.
+
+config LPUART1_RS485_DIR_POLARITY
+	int "LPUART1 RS-485 DIR pin polarity"
+	default 1
+	range 0 1
+	depends on LPUART1_RS485
+	---help---
+		Polarity of DIR pin for RS-485 on LPUART1. Set to state on DIR pin which
+		enables TX (0 - low / nTXEN, 1 - high / TXEN).
+
+config LPUART1_RXDMA
+	bool "LPUART1 Rx DMA"
+	default n
+	depends on STM32_DMA1
+	---help---
+		In high data rate usage, Rx DMA may eliminate Rx overrun errors
+
+config LPUART1_TXDMA
+	bool "LPUART1 Tx DMA"
+	default n
+	depends on STM32_DMA1
+	---help---
+		In high data rate usage, Tx DMA may reduce CPU load
+
+endif # STM32_LPUART1_SERIALDRIVER
+
 menu "Serial Driver Configuration"
 	depends on STM32_SERIALDRIVER
 
@@ -10264,7 +10298,6 @@ config STM32_SERIAL_RXDMA_BUFFER_SIZE
 	int "Rx DMA buffer size"
 	default 32
 	range 32 4096
-	depends on STM32_USART_RXDMA
 	---help---
 		The DMA buffer size when using RX DMA to emulate a FIFO.
 
@@ -10582,8 +10615,7 @@ menu "I2C Configuration"
 
 config STM32_I2C_ALT
 	bool "Alternate I2C implementation"
-	default n if !STM32_PERFORMANCELINE
-	default y if STM32_PERFORMANCELINE
+	default STM32_PERFORMANCELINE
 	depends on !STM32_STM32F30XX
 	---help---
 		This selection enables an alternative I2C driver.  This alternate
@@ -10659,8 +10691,7 @@ config STM32_SDIO_PULLUP
 
 config STM32_SDIO_DMA
 	bool "Support DMA data transfers"
-	default y if STM32_DMA2
-	default n if !STM32_DMA2
+	default STM32_DMA2
 	select SDIO_DMA
 	depends on STM32_DMA2
 	---help---
@@ -10718,7 +10749,7 @@ menu "RTC Configuration"
 config STM32_RTC_MAGIC_REG
 	int "BKP register"
 	default 0
-	range  0 19
+	range 0 19
 	depends on !STM32_HAVE_RTC_COUNTER
 	---help---
 		The BKP register used to store/check the Magic value to determine if
@@ -10923,16 +10954,49 @@ config STM32_PHYSR_100FD
 		This must be provided if STM32_AUTONEG is defined.  This is the value
 		under the bit mask that represents the 100Mbps, full duplex setting.
 
+config STM32_ETH_ENHANCEDDESC
+	bool "Enable enhanced RX/TX descriptors"
+	default n
+	---help---
+		Enables double-length DMA descriptors that have space for packet
+		timestamps and checksum offloading.
+
 config STM32_ETH_PTP
 	bool "Precision Time Protocol (PTP)"
 	default n
 	---help---
-		Precision Time Protocol (PTP).  Not supported but some hooks are indicated
-		with this condition.
+		Enables Precision Time Protocol (PTP) hardware timer.
+
+config STM32_ETH_PTP_GPIO
+	bool "PTP pulse-per-second output signal"
+	depends on STM32_ETH_PTP
+	default n
+	---help---
+		Enables pulse-per-second output on GPIO pin.
+
+config STM32_ETH_PTP_RTC_HIRES
+	bool "Use PTP timer as system high-resolution RTC"
+	depends on STM32_ETH_PTP
+	default n
+	---help---
+		Uses the Ethernet peripheral PTP timer as the CONFIG_RTC_HIRES source.
+		This provides high resolution timestamps to clock_gettime().
+		Note that PTP timer is disabled when Ethernet interface is down or
+		being reset. During this time g_rtc_enabled is set to false and system
+		uses the lower resolution system tick counter.
+
+config STM32_ETH_TIMESTAMP_RX
+	bool "Hardware timestamping of received packets"
+	depends on STM32_ETH_PTP && NET_TIMESTAMP && STM32_ETH_ENHANCEDDESC
+	select ARCH_HAVE_NETDEV_TIMESTAMP
+	default n
+	---help---
+		Timestamp all received Ethernet packets.
+		Timestamp is available to application through SO_TIMESTAMP socket option.
 
 config STM32_RMII
 	bool
-	default y if !STM32_MII
+	default !STM32_MII
 
 choice
 	prompt "RMII clock configuration"
@@ -11115,8 +11179,7 @@ endmenu
 
 config STM32_USB_ITRMP
 	bool "Re-map USB interrupt"
-	default n if !STM32_CAN1
-	default y if STM32_CAN1
+	default STM32_CAN1
 	depends on STM32_USB && STM32_STM32F30XX
 	---help---
 		The legacy USB in the F1 series shared interrupt lines with USB
@@ -11236,7 +11299,7 @@ choice
 config STM32_FDCAN1_CLASSIC
 	bool "Classic CAN"
 	---help---
-		Enable Clasic CAN mode
+		Enable Classic CAN mode
 
 config STM32_FDCAN1_FD
 	bool "CAN FD"
@@ -11350,7 +11413,7 @@ choice
 config STM32_FDCAN2_CLASSIC
 	bool "Classic CAN"
 	---help---
-		Enable Clasic CAN mode
+		Enable Classic CAN mode
 
 config STM32_FDCAN2_FD
 	bool "CAN FD"
@@ -11464,7 +11527,7 @@ choice
 config STM32_FDCAN3_CLASSIC
 	bool "Classic CAN"
 	---help---
-		Enable Clasic CAN mode
+		Enable Classic CAN mode
 
 config STM32_FDCAN3_FD
 	bool "CAN FD"
@@ -12212,6 +12275,7 @@ config STM32_FOC_USE_ADC4
 config STM32_FOC_G4_ADCCHAN0_WORKAROUND
 	bool "FOC G4 ADC channel 0 unwanted conversion workaround"
 	default n
+	depends on STM32_STM32G4XXX
 	---help---
 		Some STM32G4 family chips have an issue that causes unwanted ADC channel 0
 		conversion when a regular conversion is interrupted by an injected conversion.

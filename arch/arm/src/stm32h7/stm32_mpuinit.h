@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_mpuinit.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -22,7 +24,6 @@
 #define __ARCH_ARM_SRC_STM32H7_STM32_MPUINIT_H
 
 /****************************************************************************
- * Name: stm32_mpuinitialize
  * Included Files
  ****************************************************************************/
 
@@ -31,27 +32,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 
-/****************************************************************************
- * Name: stm32_mpuinitialize
- * Pre-processor Definitions
- ****************************************************************************/
-
-/****************************************************************************
- * Name: stm32_mpuinitialize
- * Public Types
- ****************************************************************************/
-
-/****************************************************************************
- * Name: stm32_mpuinitialize
- * Inline Functions
- ****************************************************************************/
-
 #ifndef __ASSEMBLY__
-
-/****************************************************************************
- * Name: stm32_mpuinitialize
- * Public Data
- ****************************************************************************/
 
 #undef EXTERN
 #if defined(__cplusplus)
@@ -70,12 +51,11 @@ extern "C"
  * Name: stm32_mpuinitialize
  *
  * Description:
- *   Configure the MPU to permit user-space access to only unrestricted
- *   STM32H7 resources.
+ *   Configure the MPU.
  *
  ****************************************************************************/
 
-#ifdef CONFIG_BUILD_PROTECTED
+#ifdef CONFIG_ARM_MPU
 void stm32_mpuinitialize(void);
 #else
 #  define stm32_mpuinitialize()

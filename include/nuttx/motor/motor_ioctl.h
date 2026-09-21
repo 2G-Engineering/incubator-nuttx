@@ -1,6 +1,7 @@
 /****************************************************************************
  * include/nuttx/motor/motor_ioctl.h
- * NuttX Motor-Related IOCTLs definitions
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -53,5 +54,7 @@
 #define MTRIOC_CALIBRATE      _MTRIOC(13)
 #define MTRIOC_SELFTEST       _MTRIOC(14)
 #define MTRIOC_SET_CALIBDATA  _MTRIOC(15)
+#define MTRIOC_SET_BOARDCFG   _MTRIOC(16)
+#define MTRIOC_GET_BOARDCFG   _MTRIOC(17)
 
 #endif /* __INCLUDE_NUTTX_MOTOR_MOTOR_IOCTL_H */

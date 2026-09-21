@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/risc-v/qemu-rv/rv-virt/scripts/ld.script
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -18,9 +20,28 @@
  *
  ****************************************************************************/
 
+#include <nuttx/config.h>
+
+#define TEXT_ADDR     CONFIG_RAM_START
+
 SECTIONS
 {
-  . = 0x80000000;
+  . = TEXT_ADDR;
+
+  /* where the global variable out-of-bounds detection information located */
+
+#ifdef CONFIG_MM_KASAN_GLOBAL
+  .kasan.unused : {
+    *(.data..LASANLOC*)
+  }
+  .kasan.global : {
+    KEEP (*(.data..LASAN0))
+    KEEP (*(.data.rel.local..LASAN0))
+  }
+  .kasan.shadows : {
+    *(.kasan.shadows)
+  }
+#endif
 
   .text :
     {
@@ -43,6 +64,14 @@ SECTIONS
       _etext = . ;
     }
 
+  .init_section :
+    {
+      _sinit = ABSOLUTE(.);
+      KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
+      KEEP(*(.init_array .ctors))
+      _einit = ABSOLUTE(.);
+    }
+
   .rodata :
     {
       _srodata = . ;
@@ -53,17 +82,19 @@ SECTIONS
       _erodata = . ;
     }
 
-  .tdata : {
+  .tdata :
+    {
       _stdata = ABSOLUTE(.);
       *(.tdata .tdata.* .gnu.linkonce.td.*);
       _etdata = ABSOLUTE(.);
-  }
+    }
 
-  .tbss : {
+  .tbss :
+    {
       _stbss = ABSOLUTE(.);
       *(.tbss .tbss.* .gnu.linkonce.tb.* .tcommon);
       _etbss = ABSOLUTE(.);
-  }
+    }
 
   _eronly = ABSOLUTE(.);
 
@@ -78,30 +109,6 @@ SECTIONS
       _edata = . ;
     }
 
-  /* C++ support. For each global and static local C++ object,
-   * GCC creates a small subroutine to construct the object. Pointers
-   * to these routines (not the routines themselves) are stored as
-   * simple, linear arrays in the .ctors section of the object file.
-   * Similarly, pointers to global/static destructor routines are
-   * stored in .dtors.
-   */
-
-  .ctors :
-    {
-      _sctors = . ;
-      *(.ctors)       /* Old ABI:  Unallocated */
-      *(.init_array)  /* New ABI:  Allocated */
-      _edtors = . ;
-    }
-
-  .dtors :
-    {
-      _sdtors = . ;
-      *(.dtors)       /* Old ABI:  Unallocated */
-      *(.fini_array)  /* New ABI:  Allocated */
-      _edtors = . ;
-    }
-
   .bss :
     {
       _sbss = . ;
@@ -111,21 +118,22 @@ SECTIONS
       *(.sbss.*)
       *(.gnu.linkonce.b*)
       *(COMMON)
+      . = ALIGN(32);
       _ebss = . ;
     }
 
-    /* Stabs debugging sections.    */
+  /* Stabs debugging sections.    */
 
-    .stab 0 : { *(.stab) }
-    .stabstr 0 : { *(.stabstr) }
-    .stab.excl 0 : { *(.stab.excl) }
-    .stab.exclstr 0 : { *(.stab.exclstr) }
-    .stab.index 0 : { *(.stab.index) }
-    .stab.indexstr 0 : { *(.stab.indexstr) }
-    .comment 0 : { *(.comment) }
-    .debug_abbrev 0 : { *(.debug_abbrev) }
-    .debug_info 0 : { *(.debug_info) }
-    .debug_line 0 : { *(.debug_line) }
-    .debug_pubnames 0 : { *(.debug_pubnames) }
-    .debug_aranges 0 : { *(.debug_aranges) }
+  .stab 0 : { *(.stab) }
+  .stabstr 0 : { *(.stabstr) }
+  .stab.excl 0 : { *(.stab.excl) }
+  .stab.exclstr 0 : { *(.stab.exclstr) }
+  .stab.index 0 : { *(.stab.index) }
+  .stab.indexstr 0 : { *(.stab.indexstr) }
+  .comment 0 : { *(.comment) }
+  .debug_abbrev 0 : { *(.debug_abbrev) }
+  .debug_info 0 : { *(.debug_info) }
+  .debug_line 0 : { *(.debug_line) }
+  .debug_pubnames 0 : { *(.debug_pubnames) }
+  .debug_aranges 0 : { *(.debug_aranges) }
 }

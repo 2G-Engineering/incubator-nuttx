@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imxrt/imxrt_daisy.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -38,6 +40,8 @@
 #  include "imxrt105x_daisy.c"
 #elif defined(CONFIG_ARCH_FAMILY_IMXRT106x)
 #  include "imxrt106x_daisy.c"
+#elif defined(CONFIG_ARCH_FAMILY_IMXRT117x)
+#  include "imxrt117x_daisy.c"
 #else
 #  error Unrecognized i.MX RT architecture
 #endif
@@ -53,7 +57,7 @@
 /****************************************************************************
  * Name: imxrt_daisy_select
  ****************************************************************************/
-
+#if !defined(IMXRT_DAISY_SELECT_PROVIDED)
 void imxrt_daisy_select(unsigned int index, unsigned int alt)
 {
   uintptr_t address;
@@ -67,3 +71,4 @@ void imxrt_daisy_select(unsigned int index, unsigned int alt)
       putreg32(alt, address);
     }
 }
+#endif

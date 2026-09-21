@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nrf52/nrf52840-dk/src/nrf52_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -57,13 +59,22 @@
 #  include "nrf52_sdc.h"
 #endif
 
+#ifdef CONFIG_SENSORS_LSM9DS1
+#  include "nrf52_lsm9ds1.h"
+#endif
+
+#ifdef CONFIG_NRF52_RADIO_IEEE802154
+#  include "nrf52_ieee802154.h"
+#endif
+
 #include "nrf52840-dk.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define NRF52_TIMER (0)
+#define NRF52_TIMER    (2)
+#define LMS9DS1_I2CBUS (0)
 
 /****************************************************************************
  * Public Functions
@@ -159,6 +170,15 @@ int nrf52_bringup(void)
       syslog(LOG_ERR,
              "ERROR: userled_lower_initialize() failed: %d\n",
              ret);
+    }
+#endif
+
+#ifdef CONFIG_NRF52840DK_BTNLEDS_GPIO
+  ret = nrf52_gpioleds_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: nrf52_gpioleds_initialize() failed: %d\n", ret);
     }
 #endif
 
@@ -294,6 +314,24 @@ int nrf52_bringup(void)
       syslog(LOG_ERR, "ERROR: Failed to initialize MTD progmem: %d\n", ret);
     }
 #endif /* CONFIG_MTD */
+
+#ifdef CONFIG_SENSORS_LSM9DS1
+  ret = nrf52_lsm9ds1_initialize(LMS9DS1_I2CBUS);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize LSM9DS1 driver: %d\n",
+             ret);
+    }
+#endif /* CONFIG_SENSORS_LSM6DSL */
+
+#ifdef CONFIG_NRF52_RADIO_IEEE802154
+  ret = nrf52_ieee802154_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize IEE802154 radio: %d\n",
+             ret);
+    }
+#endif
 
   UNUSED(ret);
   return OK;

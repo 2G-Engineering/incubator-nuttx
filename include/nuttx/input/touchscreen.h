@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/input/touchscreen.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,7 +38,7 @@
 
 #include <nuttx/config.h>
 #include <nuttx/fs/ioctl.h>
-#include <nuttx/mm/circbuf.h>
+#include <nuttx/circbuf.h>
 #include <nuttx/semaphore.h>
 #include <time.h>
 #include <inttypes.h>
@@ -76,9 +78,30 @@
                                              * struct g_tscaldata_s
                                              */
 #define TSIOC_USESCALED      _TSIOC(0x0009) /* arg: bool, yes/no */
+#define TSIOC_GETOFFSETX     _TSIOC(0x000a) /* arg: Pointer to
+                                             * int X offset value
+                                             */
+#define TSIOC_GETOFFSETY     _TSIOC(0x000b) /* arg: Pointer to
+                                             * int Y offset value
+                                             */
+#define TSIOC_GETTHRESHX     _TSIOC(0x000c) /* arg: Pointer to
+                                             * int X threshold value
+                                             */
+#define TSIOC_GETTHRESHY     _TSIOC(0x000d) /* arg: Pointer to
+                                             * int Y threshold value
+                                             */
+
+#define TSIOC_GRAB           _TSIOC(0x000e) /* arg: Pointer to
+                                             * int for enable grab
+                                             */
 
 #define TSC_FIRST            0x0001          /* First common command */
-#define TSC_NCMDS            6               /* Six common commands */
+#define TSC_NCMDS            14              /* Fourteen common commands */
+
+/* Backward compatible IOCTL */
+
+#define TSIOC_SETCALIB       TSIOC_SETXRCAL
+#define TSIOC_GETCALIB       TSIOC_GETXRCAL
 
 /* User defined ioctl commands are also supported.  However, the
  * TSC driver must reserve a block of commands as follows in order
@@ -311,7 +334,7 @@ int touch_register(FAR struct touch_lowerhalf_s *lower,
  *   release the occupied resources.
  *
  * Arguments:
- *   lower     - A pointer to an insatnce of touchscreen lower half driver.
+ *   lower     - A pointer to an instance of touchscreen lower half driver.
  *   path      - The path of touchscreen device. such as "/dev/input0"
  ****************************************************************************/
 

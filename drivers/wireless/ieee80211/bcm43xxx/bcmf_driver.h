@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/wireless/ieee80211/bcm43xxx/bcmf_driver.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -82,6 +84,9 @@ struct bcmf_dev_s
   uint16_t control_rxdata_len; /* Received control frame out buffer length */
   FAR uint8_t *control_rxdata; /* Received control frame out buffer */
   uint32_t control_status;     /* Last received frame status */
+#ifdef CONFIG_NETDEV_IOCTL
+  mutex_t ioctl_mutex;         /* Avoid handle multiple ioctl requests */
+#endif
 
   /* AP Scan state machine.
    * During scan, control_mutex is locked to prevent control requests
@@ -102,6 +107,9 @@ struct bcmf_dev_s
   struct work_s lp_work_dtim;   /* Low power work to work queue */
   int           lp_dtim;        /* Listen interval Delivery Traffic Indication Message */
   sclock_t      lp_ticks;       /* Ticks of last tx time */
+#endif
+#ifdef CONFIG_IEEE80211_BROADCOM_PTA_PRIORITY
+  int pta_priority; /* Current priority of Packet Traffic Arbitration */
 #endif
 };
 
@@ -187,7 +195,7 @@ int bcmf_wl_get_ssid(FAR struct bcmf_dev_s *priv, FAR struct iwreq *iwr);
 int bcmf_wl_set_bssid(FAR struct bcmf_dev_s *priv, FAR struct iwreq *iwr);
 int bcmf_wl_get_bssid(FAR struct bcmf_dev_s *priv, FAR struct iwreq *iwr);
 
-int bcmf_wl_get_channel(FAR struct bcmf_dev_s *priv, FAR struct iwreq *iwr);
+int bcmf_wl_get_frequency(FAR struct bcmf_dev_s *priv, struct iwreq *iwr);
 
 int bcmf_wl_get_rate(FAR struct bcmf_dev_s *priv, FAR struct iwreq *iwr);
 
@@ -199,5 +207,18 @@ int bcmf_wl_get_iwrange(FAR struct bcmf_dev_s *priv, FAR struct iwreq *iwr);
 
 int bcmf_wl_set_country(FAR struct bcmf_dev_s *priv, FAR struct iwreq *iwr);
 int bcmf_wl_get_country(FAR struct bcmf_dev_s *priv, FAR struct iwreq *iwr);
+
+int bcmf_wl_get_channel(FAR struct bcmf_dev_s *priv, int interface);
+
+#ifdef CONFIG_IEEE80211_BROADCOM_PTA_PRIORITY
+int bcmf_wl_get_pta(FAR struct bcmf_dev_s *priv, struct iwreq *iwr);
+int bcmf_wl_set_pta(FAR struct bcmf_dev_s *priv, struct iwreq *iwr);
+
+int bcmf_wl_set_pta_priority(FAR struct bcmf_dev_s *priv, uint32_t prio);
+#else
+# define bcmf_wl_get_pta(...)
+# define bcmf_wl_set_pta(...)
+# define bcmf_wl_set_pta_priority(...)
+#endif
 
 #endif /* __DRIVERS_WIRELESS_IEEE80211_BCM43XXX_BCMF_DRIVER_H */

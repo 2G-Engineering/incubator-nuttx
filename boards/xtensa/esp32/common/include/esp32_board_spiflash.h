@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/common/include/esp32_board_spiflash.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -43,7 +45,7 @@ extern "C"
  ****************************************************************************/
 
 /****************************************************************************
- * Name: esp32_spiflash_init
+ * Name: board_spiflash_init
  *
  * Description:
  *   Initialize the SPI Flash and register the MTD.
@@ -57,7 +59,7 @@ extern "C"
  *
  ****************************************************************************/
 
-int esp32_spiflash_init(void);
+int board_spiflash_init(void);
 
 #undef EXTERN
 #if defined(__cplusplus)

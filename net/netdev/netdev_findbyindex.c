@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/netdev/netdev_findbyindex.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -61,7 +63,6 @@ FAR struct net_driver_s *netdev_findbyindex(int ifindex)
    * POSIX to mean no interface index.
    */
 
-  DEBUGASSERT(ifindex > 0 && ifindex <= MAX_IFINDEX);
   if (ifindex < 1 || ifindex > MAX_IFINDEX)
     {
       return NULL;

@@ -33,6 +33,7 @@
 #include <errno.h>
 #include <debug.h>
 
+#include <nuttx/nuttx.h>
 #include <nuttx/irq.h>
 #include <nuttx/kthread.h>
 #include <nuttx/kmalloc.h>
@@ -262,7 +263,7 @@ static void delete_rt_timer(struct rt_timer_s *timer)
   irqstate_t flags;
   struct esp32_rt_priv_s *priv = &g_rt_priv;
 
-  flags = spin_lock_irqsave(&priv->lock);
+  flags = enter_critical_section();
 
   if (timer->state == RT_TIMER_READY)
     {
@@ -281,7 +282,7 @@ static void delete_rt_timer(struct rt_timer_s *timer)
   timer->state = RT_TIMER_DELETE;
 
 exit:
-  spin_unlock_irqrestore(&priv->lock, flags);
+  leave_critical_section(flags);
 }
 
 /****************************************************************************
@@ -316,7 +317,7 @@ static int rt_timer_thread(int argc, char *argv[])
       if (ret)
         {
           tmrerr("ERROR: Wait priv->toutsem error=%d\n", ret);
-          assert(0);
+          ASSERT(0);
         }
 
       flags = spin_lock_irqsave(&priv->lock);
@@ -411,8 +412,7 @@ static int rt_timer_isr(int irq, void *context, void *arg)
 
   if (!list_is_empty(&priv->runlist))
     {
-      /**
-       * When stop/delete timer, in the same time the hardware timer
+      /* When stop/delete timer, in the same time the hardware timer
        * interrupt triggers, function "stop/delete" remove the timer
        * from running list, so the 1st timer is not which triggers.
        */
@@ -477,7 +477,7 @@ int rt_timer_create(const struct rt_timer_args_s *args,
 {
   struct rt_timer_s *timer;
 
-  timer = (struct rt_timer_s *)kmm_malloc(sizeof(*timer));
+  timer = kmm_malloc(sizeof(*timer));
   if (!timer)
     {
       tmrerr("ERROR: Failed to allocate %d bytes\n", sizeof(*timer));
@@ -709,7 +709,7 @@ int esp32_rt_timer_init(void)
   priv->timer = tim;
   priv->pid   = (pid_t)pid;
 
-  flags = spin_lock_irqsave(&priv->lock);
+  flags = enter_critical_section();
 
   /* ESP32 hardware timer configuration:
    *   - 1 counter = 1us
@@ -727,7 +727,7 @@ int esp32_rt_timer_init(void)
 
   ESP32_TIM_START(tim);
 
-  spin_unlock_irqrestore(&priv->lock, flags);
+  leave_critical_section(flags);
 
   return 0;
 }

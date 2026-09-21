@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lpc31xx/lpc31_ehci.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -1734,7 +1736,7 @@ static struct lpc31_qh_s *lpc31_qh_create(struct lpc31_rhport_s *rhport,
    * FIELD    DESCRIPTION                     VALUE/SOURCE
    * -------- ------------------------------- --------------------
    * DEVADDR  Device address                  Endpoint structure
-   * I        Inactivate on Next Transaction  0
+   * I        Deactivate on Next Transaction  0
    * ENDPT    Endpoint number                 Endpoint structure
    * EPS      Endpoint speed                  Endpoint structure
    * DTC      Data toggle control             1
@@ -4017,7 +4019,7 @@ static int lpc31_epalloc(struct usbhost_driver_s *drvr,
  * Input Parameters:
  *   drvr - The USB host driver instance obtained as a parameter from the
  *           call to the class create() method.
- *   ep   - The endpint to be freed.
+ *   ep   - The endpoint to be freed.
  *
  * Returned Value:
  *   On success, zero (OK) is returned. On a failure, a negated errno value
@@ -4175,7 +4177,7 @@ static int lpc31_ioalloc(struct usbhost_driver_s *drvr,
    */
 
   buflen  = (buflen + DCACHE_LINEMASK) & ~DCACHE_LINEMASK;
-  *buffer = (uint8_t *)kumm_memalign(ARM_DCACHE_LINESIZE, buflen);
+  *buffer = kumm_memalign(ARM_DCACHE_LINESIZE, buflen);
   return *buffer ? OK : -ENOMEM;
 }
 

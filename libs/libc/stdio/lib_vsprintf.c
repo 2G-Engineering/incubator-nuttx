@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_vsprintf.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -22,11 +24,7 @@
  * Included Files
  ****************************************************************************/
 
-#include <nuttx/config.h>
-
-#include <stdio.h>
-
-#include "libc.h"
+#include <nuttx/streams.h>
 
 /****************************************************************************
  * Public Functions
@@ -44,8 +42,6 @@ int vsprintf(FAR char *dest, FAR const IPTR char *src, va_list ap)
    * libs/libc/stdio/lib_vsprintf do the work.
    */
 
-  lib_memoutstream((FAR struct lib_memoutstream_s *)&memoutstream, dest,
-                   LIB_BUFLEN_UNKNOWN);
-  return lib_vsprintf((FAR struct lib_outstream_s *)&memoutstream.public,
-                      src, ap);
+  lib_memoutstream(&memoutstream, dest, INT_MAX);
+  return lib_vsprintf(&memoutstream.common, src, ap);
 }

@@ -1,8 +1,8 @@
 /****************************************************************************
  * libs/libc/machine/arm64/gnu/arch_strcmp.S
  *
- * Copyright (c) 2012-2018, Linaro Limited
- *  All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2012-2018, Linaro Limited, All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,7 +35,7 @@
 
 #include "libc.h"
 
-#ifdef LIBC_BUILD_STRING
+#ifdef LIBC_BUILD_STRCMP
 
 /* Assumptions:
  *
@@ -76,7 +76,7 @@
 #define pos		x11
 
 	/* Start of performance-critical section  -- one 64B cache line.  */
-def_fn strcmp p2align=6
+def_fn ARCH_LIBCFUN(strcmp) p2align=6
 	eor	tmp1, src1, src2
 	mov	zeroones, #REP8_01
 	tst	tmp1, #7
@@ -152,7 +152,7 @@ L(end):
 L(mutual_align):
 	/* Sources are mutually aligned, but are not currently at an
 	   alignment boundary.  Round down the addresses and then mask off
-	   the bytes that preceed the start point.  */
+	   the bytes that preceded the start point.  */
 	bic	src1, src1, #7
 	bic	src2, src2, #7
 	lsl	tmp1, tmp1, #3		/* Bytes beyond alignment -> bits.  */
@@ -206,6 +206,6 @@ L(loop_misaligned):
 L(done):
 	sub	result, data1, data2
 	ret
-	.size	strcmp, .-strcmp
+	.size	ARCH_LIBCFUN(strcmp), .-ARCH_LIBCFUN(strcmp)
 
 #endif

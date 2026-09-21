@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/sgp30.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -53,16 +55,12 @@
 #  define sgp30_dbg(x, ...)    sninfo(x, ##__VA_ARGS__)
 #endif
 
-#ifndef CONFIG_SGP30_I2C_FREQUENCY
-#  define CONFIG_SGP30_I2C_FREQUENCY 100000
-#endif
-
 #define SGP30_I2C_RETRIES 3
 #define SGP30_INIT_RETRIES 5
 #define SGP30_INIT_LIMIT_MS 10
 
 /****************************************************************************
- * Private
+ * Private Types
  ****************************************************************************/
 
 struct sgp30_dev_s
@@ -161,7 +159,9 @@ static const struct file_operations g_sgp30fops =
   sgp30_ioctl,    /* ioctl */
   NULL,           /* mmap */
   NULL,           /* truncate */
-  NULL            /* poll */
+  NULL,           /* poll */
+  NULL,           /* readv */
+  NULL            /* writev */
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
   , sgp30_unlink /* unlink */
 #endif
@@ -989,8 +989,8 @@ static int sgp30_unlink(FAR struct inode *inode)
   FAR struct sgp30_dev_s *priv;
   int ret;
 
-  DEBUGASSERT(inode != NULL && inode->i_private != NULL);
-  priv = (FAR struct sgp30_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private != NULL);
+  priv = inode->i_private;
 
   /* Get exclusive access */
 
@@ -1053,7 +1053,7 @@ int sgp30_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
 
   /* Initialize the device structure */
 
-  priv = (FAR struct sgp30_dev_s *)kmm_zalloc(sizeof(struct sgp30_dev_s));
+  priv = kmm_zalloc(sizeof(struct sgp30_dev_s));
   if (priv == NULL)
     {
       sgp30_dbg("ERROR: Failed to allocate instance\n");

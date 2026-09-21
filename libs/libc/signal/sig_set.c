@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/signal/sig_set.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -101,7 +103,7 @@ _sa_handler_t sigset(int signo, _sa_handler_t func)
   sigset_t set;
   int ret = -EINVAL;
 
-  if (signo == SIGKILL || signo == SIGSTOP || !GOOD_SIGNO(signo))
+  if (!GOOD_SIGNO(signo) || UNCAUGHT_SIGNO(signo))
     {
       goto err;
     }

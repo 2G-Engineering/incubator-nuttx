@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/spi/qspi.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -114,6 +116,48 @@
 #define QSPI_SETBITS(d,b) (d)->ops->setbits(d,b)
 
 /****************************************************************************
+ * Name: QSPI_HWFEATURES
+ *
+ * Description:
+ *   Set hardware-specific feature flags.
+ *
+ * Input Parameters:
+ *   dev      - Device-specific state data
+ *   features - H/W feature flags
+ *
+ * Returned Value:
+ *   Zero (OK) if the selected H/W features are enabled; A negated errno
+ *   value if any H/W feature is not supportable.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_QSPI_HWFEATURES
+  /* If there are multiple QSPI drivers, some may not support hardware
+   * feature selection.
+   */
+
+#  define QSPI_HWFEATURES(d,f) \
+  (((d)->ops->hwfeatures) ? (d)->ops->hwfeatures(d,f) : ((f) == 0 ? OK : -ENOSYS))
+
+#  ifdef CONFIG_QSPI_BITORDER
+#    define QSPI_HWFEAT_MSBFIRST                          (0 << 0)
+#    define QSPI_HWFEAT_LSBFIRST                          (1 << 0)
+#  endif
+
+#  ifdef CONFIG_QSPI_WORD_REVERSE
+#    define QSPI_HWFEAT_WORD_REVERSE_DISABLE              (0 << 1)
+#    define QSPI_HWFEAT_WORD_REVERSE_ENABLE               (1 << 1)
+#  endif
+
+#else
+  /* Any attempt to select hardware features with CONFIG_QSPI_HWFEATURES
+   * deselected will return an -ENOSYS error.
+   */
+
+#  define QSPI_HWFEATURES(d,f) (((f) == 0) ? OK : -ENOSYS)
+#endif
+
+/****************************************************************************
  * Name: QSPI_COMMAND
  *
  * Description:
@@ -164,14 +208,14 @@
 
 /* QSPI Memory Transfer Flags */
 
-#define QSPIMEM_READ          (0)       /* Bit 2: 0=Memory read data transfer */
+#define QSPIMEM_READ          (0)       /* Bit 2: 0=Memory read data transfer  */
 #define QSPIMEM_WRITE         (1 << 2)  /* Bit 2: 1=Memory write data transfer */
-#define QSPIMEM_DUALIO        (1 << 3)  /* Bit 3: Use Dual I/O (READ only) */
-#define QSPIMEM_QUADIO        (1 << 4)  /* Bit 4: Use Quad I/O (READ only) */
-#define QSPIMEM_SCRAMBLE      (1 << 5)  /* Bit 5: Scramble data */
-#define QSPIMEM_RANDOM        (1 << 6)  /* Bit 6: Use random key in scrambler */
-#define QSPIMEM_IDUAL         (1 << 7)  /* Bit 7: Instruction on two lines */
-#define QSPIMEM_IQUAD         (1 << 0)  /* Bit 0: Instruction on four lines */
+#define QSPIMEM_DUALIO        (1 << 3)  /* Bit 3: Use Dual I/O (READ only)     */
+#define QSPIMEM_QUADIO        (1 << 4)  /* Bit 4: Use Quad I/O (READ only)     */
+#define QSPIMEM_SCRAMBLE      (1 << 5)  /* Bit 5: Scramble data                */
+#define QSPIMEM_RANDOM        (1 << 6)  /* Bit 6: Use random key in scrambler  */
+#define QSPIMEM_IDUAL         (1 << 7)  /* Bit 7: Instruction on two lines     */
+#define QSPIMEM_IQUAD         (1 << 0)  /* Bit 0: Instruction on four lines    */
 
 #define QSPIMEM_ISREAD(f)     (((f) & QSPIMEM_WRITE) == 0)
 #define QSPIMEM_ISWRITE(f)    (((f) & QSPIMEM_WRITE) != 0)
@@ -260,6 +304,12 @@ struct qspi_meminfo_s
   FAR void *buffer;      /* Data buffer */
 };
 
+#ifdef CONFIG_QSPI_HWFEATURES
+/* This is a type wide enough to support all hardware features */
+
+typedef uint8_t qspi_hwfeatures_t;
+#endif
+
 /* The QSPI vtable */
 
 struct qspi_dev_s;
@@ -271,6 +321,10 @@ struct qspi_ops_s
   CODE void      (*setmode)(FAR struct qspi_dev_s *dev,
                     enum qspi_mode_e mode);
   CODE void      (*setbits)(FAR struct qspi_dev_s *dev, int nbits);
+#ifdef CONFIG_QSPI_HWFEATURES
+  CODE int       (*hwfeatures)(FAR struct qspi_dev_s *dev,
+                    qspi_hwfeatures_t features);
+#endif
   CODE int       (*command)(FAR struct qspi_dev_s *dev,
                     FAR struct qspi_cmdinfo_s *cmdinfo);
   CODE int       (*memory)(FAR struct qspi_dev_s *dev,

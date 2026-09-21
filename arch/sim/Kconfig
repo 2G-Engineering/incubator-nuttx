@@ -34,6 +34,20 @@ config ARCH_CHIP
 	string
 	default "sim"
 
+choice
+	prompt "Toolchain Selection"
+	default SIM_TOOLCHAIN_GCC
+
+config SIM_TOOLCHAIN_GCC
+	bool "Generic GNU toolchain"
+	select ARCH_TOOLCHAIN_GCC
+
+config SIM_TOOLCHAIN_CLANG
+	bool "LLVM Clang toolchain"
+	select ARCH_TOOLCHAIN_CLANG
+
+endchoice
+
 config SIM_M32
 	bool "Build 32-bit simulation on 64-bit machine"
 	default n
@@ -66,7 +80,7 @@ config SIM_CYGWIN_DECORATED
 config SIM_ASAN
 	bool "Address Sanitizer"
 	default n
-	depends on MM_CUSTOMIZE_MANAGER && FRAME_POINTER
+	depends on !MM_KASAN && MM_CUSTOMIZE_MANAGER && FRAME_POINTER
 	---help---
 		AddressSanitizer (ASan) is a fast compiler-based tool for detecting memory
 		bugs in native code.
@@ -74,10 +88,24 @@ config SIM_ASAN
 config SIM_UBSAN
 	bool "Undefined Behaviour Sanitizer"
 	default n
-	depends on FRAME_POINTER
+	depends on !MM_UBSAN && FRAME_POINTER
 	---help---
 		Compile-time instrumentation is used to detect various undefined behaviours
 		at runtime.
+
+config SIM_UBSAN_DUMMY
+	bool "Bypass Undefined Behaviour Sanitizer"
+	default n
+	depends on SIM_UBSAN
+	---help---
+		Keep SIM_UBSAN compile time but disable runtime actions.
+
+config SIM_PROFILE
+	bool "Enable gprof"
+	depends on PROFILE_NONE
+	default n
+	---help---
+		Enable support gprof profiling tool.
 
 choice
 	prompt "X64_64 ABI"
@@ -140,6 +168,13 @@ config SIM_WALLTIME_SIGNAL
 
 endchoice
 
+config SIM_LOOPTASK_PRIORITY
+	int "looptask priority"
+	default SCHED_HPWORKPRIORITY if SCHED_HPWORK
+	default 255 if !SCHED_HPWORK
+	---help---
+		Looptask priority
+
 config SIM_LOOPTASK_INTERVAL
 	int "looptask interval in us"
 	default 10000
@@ -192,6 +227,30 @@ config SIM_NETUSRSOCK
 
 endchoice
 
+config SIM_CANDEV
+	bool "Simulated CAN Device"
+	depends on HOST_LINUX
+	default n
+	---help---
+		Build in support for a simulated CAN device.
+
+if SIM_CANDEV
+
+config SIM_CANDEV_CHAR
+	bool "Simulated CAN Device as CAN character driver"
+	default n
+	depends on CAN
+	select ARCH_HAVE_CAN_ERRORS
+
+config SIM_CANDEV_SOCK
+	bool "Simulated CAN Device as SocketCAN"
+	default n
+	depends on NET_CAN
+	select NET_CAN_HAVE_ERRORS
+	select NET_CAN_HAVE_CANFD
+
+endif # SIM_CANDEV
+
 if SIM_NETDEV
 
 choice
@@ -212,17 +271,35 @@ config SIM_NETDEV_VPNKIT
 
 endchoice
 
+config SIM_NETDEV_MTU
+	int "The MTU of Simulated Network Device"
+	default 1500
+	range 1280 65535 if NET_IPv6
+	range 576 65535 if !NET_IPv6
+	---help---
+		The MTU of the network devices.
+
 config SIM_NETDEV_NUMBER
 	int "Number of Simulated Network Device"
 	default 1
 	range 1 8
-	depends on SIM_NETDEV_TAP
+	depends on SIM_NETDEV
 	---help---
 		The number of simulated network devices.
 
 		Note that only one network device will be brought up by netinit automatically,
 		others will be kept in DOWN state by default.
 
+config SIM_WIFIDEV_NUMBER
+	int "Number of Simulated WiFi Device"
+	default 0
+	range 0 SIM_NETDEV_NUMBER
+	depends on SIM_NETDEV && DRIVERS_IEEE80211 && NETDEV_WIRELESS_HANDLER
+	---help---
+		The number of simulated wifi network devices.
+
+		Note that only one network device will be brought up by netinit automatically,
+		others will be kept in DOWN state by default.
 endif
 
 config SIM_NETDEV_VPNKIT_PATH
@@ -278,37 +355,87 @@ choice
 config SIM_SOUND_ALSA
 	bool "alsa support on sim"
 	depends on HOST_LINUX
+	depends on AUDIOUTILS_LIBMAD
+	depends on AUDIOUTILS_LAME
 
 endchoice
 
 endif
 
-config SIM_VIDEO
-	bool "Simulated video support"
+config SIM_OFFLOAD_NUM_BUFFERS
+	int "Number of offload buffers for audio processing"
+	default 2
+	---help---
+		Specifies the number of offload buffers to allocate for audio processing.
+		If Driver Specified buffer sizes is enabled (below), then the
+		low-level drivers will have the opportunity to override this
+		value.
+
+config SIM_OFFLOAD_BUFFER_NUMBYTES
+	int "Size of each offload buffer for audio processing"
+	default 32767
+	---help---
+		Specifies the allocation size for each offload buffer
+		If Driver Specified buffer sizes is enabled (below), then the
+		low-level drivers will have the opportunity to override this
+		value.
+
+config SIM_CAMERA
+	bool "Simulated camera support"
 	depends on VIDEO
 	default y
 
-if SIM_VIDEO
+if SIM_CAMERA
 
 choice
-	prompt "Simulated video device type"
-	default SIM_VIDEO_V4L2
+	prompt "Simulated camera device type"
+	default SIM_CAMERA_V4L2
 
-config SIM_VIDEO_V4L2
+config SIM_CAMERA_V4L2
 	bool "V4L2 camera support on sim"
 	depends on HOST_LINUX
 
 endchoice
 
-config HOST_VIDEO_DEV_PATH
-	string "Host video device path"
+config HOST_CAMERA_DEV_PATH
+	string "Host camera device path"
 	default "/dev/video0"
 
-config SIM_VIDEO_DEV_PATH
+config SIM_CAMERA_DEV_PATH
 	string "NuttX video device path"
 	default "/dev/video"
 
 endif
+
+menu "Simulated v4l2m2m support"
+
+config SIM_VIDEO_DECODER
+	bool "Video decoder support on sim"
+	depends on VIDEO
+	depends on VIDEOUTILS_OPENH264
+	default n
+	---help---
+		v4l2m2m simlator decoder, dependent on videoutils_openh264.
+
+config SIM_VIDEO_DECODER_DEV_PATH
+	string "Video decoder device path"
+	depends on SIM_VIDEO_DECODER
+	default "/dev/video1"
+
+config SIM_VIDEO_ENCODER
+	bool "Video encoder support on sim"
+	depends on VIDEO
+	depends on VIDEOUTILS_LIBX264
+	default n
+	---help---
+		v4l2m2m simlator encoder, dependent on videoutils_libx264.
+
+config SIM_VIDEO_ENCODER_DEV_PATH
+	string "Video encoder device path"
+	depends on SIM_VIDEO_ENCODER
+	default "/dev/video2"
+
+endmenu
 
 menu "Simulated Graphics/Input"
 
@@ -319,10 +446,10 @@ config SIM_X11FB
 	---help---
 		Use X11 to provide graphics and input emulation to interact with host.
 
+if SIM_X11FB
 config SIM_X11NOSHM
 	bool "Don't use shared memory with X11"
 	default n
-	depends on SIM_X11FB
 	---help---
 		Don't use shared memory with the X11 graphics device emulation.
 
@@ -342,11 +469,29 @@ config SIM_FBWIDTH
 
 config SIM_FBBPP
 	int "Pixel depth in bits"
-	default 8
+	default 32
 	---help---
 		Pixel depth in bits.  Valid choices are 4, 8, 16, 24, or 32.
 		If you use the X11 display emulation, the selected BPP must match the BPP
-		of your graphics hardware (probably 32 bits).  Default: 8
+		of your graphics hardware (probably 32 bits).  Default: 32
+
+config SIM_FRAMEBUFFER_COUNT
+	int "Framebuffer count"
+	depends on SIM_FRAMEBUFFER
+	default 2
+	---help---
+		Framebuffer count.
+		Simulated framebuffer count.  Default: 2
+
+config SIM_FB_INTERVAL_LINE
+	int "The line between non-consecutive framebuffers"
+	depends on SIM_FRAMEBUFFER && SIM_FRAMEBUFFER_COUNT > 1
+	default 0
+	---help---
+		When SIM_FB_INTERVAL_LINE = 0, the framebuffers are consecutive.
+		When SIM_FB_INTERVAL_LINE > 0, the first buffer is not consecutive with
+		the second buffer, and the interval between discontinuous buffers is
+		SIM_FB_INTERVAL_LINE * stride.  Default: 0
 
 endmenu
 
@@ -368,13 +513,9 @@ config SIM_FRAMEBUFFER
 	---help---
 		Emulate a framebuffer
 
-config SIM_VNCSERVER
-	bool "VNC server"
-	depends on VNCSERVER
-	---help---
-		Serve a VNC server
-
 endchoice
+
+endif # SIM_X11FB
 
 if INPUT
 choice
@@ -427,7 +568,7 @@ endmenu
 config SIM_HCISOCKET
 	bool "Attach Host Bluetooth"
 	default false
-	depends on HOST_LINUX && (UART_BTH4 || WIRELESS_BLUETOOTH)
+	depends on HOST_LINUX && (UART_BTH4 || UART_BTH5 || WIRELESS_BLUETOOTH)
 	---help---
 		Attached the local bluetooth device to the simulation
 		target via HCI_CHANNEL_USER. This gives NuttX full
@@ -543,7 +684,7 @@ config SIM_UART_NUMBER
 		the same name that the host is using for this port (e.g.
 		/dev/ttyUSB0).
 
-		Alternativelly, a "simulated" host port may be used to.
+		Alternatively, a "simulated" host port may be used to.
 		This is useful if you need to also simulate the external
 		hardware, or to have NuttX communicate with any other
 		software in your system.
@@ -614,6 +755,55 @@ config SIM_UART3_NAME
 		A UART port must also exist on the host system
 		with the exact same name specified here.
 
+config SIM_RAM_UART
+	bool "SIM RAM UART Device"
+	depends on RAM_UART
+	default n
+	---help---
+		SIM RAM UART. It emulates a UART device but using a RAM memory
+		instead a physical peripheral.
+
+if SIM_RAM_UART
+config SIM_RAM_UART0
+	bool "SIM RAM UART Device 0"
+	default n
+	---help---
+		sim ram uart device 0
+
+config SIM_RAM_UART0_SLAVE
+	bool "SIM_RAM_UART0 is slave"
+	depends on SIM_RAM_UART0
+	default n
+	---help---
+		The sim ram uart0 is slave
+
+config SIM_RAM_UART1
+	bool "SIM RAM UART Device 1"
+	default n
+	---help---
+		sim ram uart device 1
+
+config SIM_RAM_UART1_SLAVE
+	bool "SIM_RAM_UART1 is slave"
+	depends on SIM_RAM_UART1
+	default n
+	---help---
+		The sim ram uart1 is slave
+
+config SIM_RAM_UART2
+	bool "SIM RAM UART Device 2"
+	default n
+	---help---
+		sim ram uart device 2
+
+config SIM_RAM_UART2_SLAVE
+	bool "SIM_RAM_UART2 is slave"
+	depends on SIM_RAM_UART2
+	default n
+	---help---
+		The sim ram uart2 is slave
+endif
+
 endmenu
 
 config SIM_USB_DEV
@@ -639,7 +829,7 @@ config SIM_USB_RAW_GADGET
 		Make Raw Gadget:
 		Run make in the raw_gadget and dummy_hcd directory. If raw_gadget
 		build fail, you need to check which register interface meets your
-		kenel version, usb_gadget_probe_driver or usb_gadget_register_driver.
+		kernel version, usb_gadget_probe_driver or usb_gadget_register_driver.
 
 		Install Raw Gadget:
 		Run ./insmod.sh in the raw_gadget and dummy_hcd directory.
@@ -680,5 +870,12 @@ config SIM_USB_PRIO
 	default 100
 
 endif
+
+config SIM_CUSTOM_DATA_SECTION
+	string "Custom data section name for Simulator"
+	default ""
+	---help---
+		Custom data section name for Simulator to allow
+		developer to define special data sections.
 
 endif # ARCH_SIM

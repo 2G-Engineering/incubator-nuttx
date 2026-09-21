@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/umm_heap/umm_initialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,6 +28,7 @@
 
 #include <assert.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/mm/mm.h>
 
 #include "umm_heap/umm_heap.h"
@@ -84,9 +87,9 @@
 void umm_initialize(FAR void *heap_start, size_t heap_size)
 {
 #ifdef CONFIG_BUILD_KERNEL
-  USR_HEAP = mm_initialize(NULL, heap_start, heap_size);
+  USR_HEAP = mm_initialize_pool(NULL, heap_start, heap_size, NULL);
 #else
-  USR_HEAP = mm_initialize("Umem", heap_start, heap_size);
+  USR_HEAP = mm_initialize_pool("Umem", heap_start, heap_size, NULL);
 #endif
 }
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/common/src/esp32_ssd1306.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -117,18 +119,6 @@ int board_lcd_initialize(void)
   /* And turn the OLED on */
 
   g_lcddev->setpower(g_lcddev, CONFIG_LCD_MAXPOWER);
-
-#if defined(CONFIG_VIDEO_FB) && defined(CONFIG_LCD_FRAMEBUFFER)
-
-  /* Initialize and register the simulated framebuffer driver */
-
-  ret = fb_register(0, 0);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: fb_register() failed: %d\n", ret);
-      return -ENODEV;
-    }
-#endif
 
   return ret;
 }

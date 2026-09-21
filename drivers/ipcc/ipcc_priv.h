@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/ipcc/ipcc_priv.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -53,9 +55,9 @@ int ipcc_close(FAR struct file *filep);
 int ipcc_ioctl(FAR struct file *filep, int cmd, unsigned long arg);
 ssize_t ipcc_read(FAR struct file *filep, FAR char *buffer, size_t buflen);
 ssize_t ipcc_write(FAR struct file *filep, FAR const char *buffer,
-                          size_t buflen);
+                   size_t buflen);
 int ipcc_poll(FAR struct file *filep, FAR struct pollfd *fds,
-                  bool setup);
+              bool setup);
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
 int ipcc_unlink(FAR struct inode *inode);
 #endif

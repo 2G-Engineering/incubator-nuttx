@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv6-m/arm_tcbinfo.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,10 +26,9 @@
 
 #include <nuttx/config.h>
 
-#ifdef CONFIG_DEBUG_TCBINFO
-
 #include <nuttx/sched.h>
 #include <arch/irq.h>
+#include <sys/param.h>
 
 /****************************************************************************
  * Private Data
@@ -52,36 +53,35 @@ static const uint16_t g_reg_offs[] =
   TCB_REG_OFF(REG_R14),
   TCB_REG_OFF(REG_R15),
   TCB_REG_OFF(REG_XPSR),
-
+#if 0
   UINT16_MAX,                     /* msp */
   TCB_REG_OFF(REG_R13),
   TCB_REG_OFF(REG_PRIMASK),
   UINT16_MAX,                     /* basepri */
   UINT16_MAX,                     /* faultmask */
   UINT16_MAX,                     /* control */
+#endif
 };
 
 /****************************************************************************
  * Public Data
  ****************************************************************************/
 
-const struct tcbinfo_s g_tcbinfo =
+const struct tcbinfo_s g_tcbinfo used_data =
 {
-  .pid_off   = TCB_PID_OFF,
-  .state_off = TCB_STATE_OFF,
-  .pri_off   = TCB_PRI_OFF,
-  .name_off  = TCB_NAME_OFF,
-  .regs_off  = TCB_REGS_OFF,
-  .basic_num = 17,
-  .total_num = sizeof(g_reg_offs) / sizeof(g_reg_offs[0]),
+  .pid_off        = TCB_PID_OFF,
+  .state_off      = TCB_STATE_OFF,
+  .pri_off        = TCB_PRI_OFF,
+  .name_off       = TCB_NAME_OFF,
+  .stack_off      = TCB_STACK_OFF,
+  .stack_size_off = TCB_STACK_SIZE_OFF,
+  .regs_off       = TCB_REGS_OFF,
+  .regs_num       = nitems(g_reg_offs),
   {
     .p = g_reg_offs,
   },
 };
 
-#endif
-
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
-

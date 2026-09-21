@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/stm32_ethernet.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -34,6 +36,7 @@
 #include <debug.h>
 #include <errno.h>
 
+#include <arch/barriers.h>
 #include <arpa/inet.h>
 
 #include <nuttx/arch.h>
@@ -43,6 +46,7 @@
 #include <nuttx/wqueue.h>
 #include <nuttx/signal.h>
 #include <nuttx/net/mii.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/crc64.h>
 
@@ -51,7 +55,6 @@
 #endif
 
 #include "arm_internal.h"
-#include "barriers.h"
 
 #include "hardware/stm32_syscfg.h"
 #include "hardware/stm32_pinmap.h"
@@ -72,10 +75,6 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-/* Memory synchronization */
-
-#define MEMORY_SYNC() do { ARM_DSB(); ARM_ISB(); } while (0)
 
 /* Configuration ************************************************************/
 
@@ -572,11 +571,7 @@
 #define ETH_DMAINT_XMIT_ENABLE    (ETH_DMAINT_NIS | ETH_DMAINT_TI)
 #define ETH_DMAINT_XMIT_DISABLE   (ETH_DMAINT_TI)
 
-#ifdef CONFIG_DEBUG_NET
-#  define ETH_DMAINT_ERROR_ENABLE (ETH_DMAINT_AIS | ETH_DMAINT_ABNORMAL)
-#else
-#  define ETH_DMAINT_ERROR_ENABLE (0)
-#endif
+#define ETH_DMAINT_ERROR_ENABLE (ETH_DMAINT_AIS | ETH_DMAINT_ABNORMAL)
 
 /* Helpers ******************************************************************/
 
@@ -773,9 +768,6 @@ static inline void stm32_ethgpioconfig(struct stm32_ethmac_s *priv);
 static void stm32_ethreset(struct stm32_ethmac_s *priv);
 static int  stm32_macconfig(struct stm32_ethmac_s *priv);
 static void stm32_macaddress(struct stm32_ethmac_s *priv);
-#ifdef CONFIG_NET_ICMPv6
-static void stm32_ipv6multicast(struct stm32_ethmac_s *priv);
-#endif
 static int  stm32_macenable(struct stm32_ethmac_s *priv);
 static int  stm32_ethconfig(struct stm32_ethmac_s *priv);
 
@@ -1229,7 +1221,7 @@ static int stm32_transmit(struct stm32_ethmac_s *priv)
 
   /* Check if the TX Buffer unavailable flag is set */
 
-  MEMORY_SYNC();
+  UP_MB();
 
   if ((stm32_getreg(STM32_ETH_DMASR) & ETH_DMAINT_TBUI) != 0)
     {
@@ -1580,7 +1572,7 @@ static int stm32_recvframe(struct stm32_ethmac_s *priv)
    *   3) All of the TX descriptors are in flight.
    *
    * This last case is obscure.  It is due to that fact that each packet
-   * that we receive can generate an unstoppable transmisson.  So we have
+   * that we receive can generate an unstoppable transmission.  So we have
    * to stop receiving when we can not longer transmit.  In this case, the
    * transmit logic should also have disabled further RX interrupts.
    */
@@ -1866,7 +1858,7 @@ static void stm32_receive(struct stm32_ethmac_s *priv)
         }
 
       /* We are finished with the RX buffer.  NOTE:  If the buffer is
-       * re-used for transmission, the dev->d_buf field will have been
+       * reused for transmission, the dev->d_buf field will have been
        * nullified.
        */
 
@@ -1901,7 +1893,6 @@ static void stm32_receive(struct stm32_ethmac_s *priv)
 static void stm32_freeframe(struct stm32_ethmac_s *priv)
 {
   struct eth_txdesc_s *txdesc;
-  int i;
 
   ninfo("txhead: %p txtail: %p inflight: %d\n",
         priv->txhead, priv->txtail, priv->inflight);
@@ -1918,7 +1909,7 @@ static void stm32_freeframe(struct stm32_ethmac_s *priv)
       up_invalidate_dcache((uintptr_t)txdesc,
                            (uintptr_t)txdesc + sizeof(struct eth_txdesc_s));
 
-      for (i = 0; (txdesc->tdes0 & ETH_TDES0_OWN) == 0; i++)
+      while ((txdesc->tdes0 & ETH_TDES0_OWN) == 0)
         {
           /* There should be a buffer assigned to all in-flight
            * TX descriptors.
@@ -2133,21 +2124,27 @@ static void stm32_interrupt_work(void *arg)
 
       stm32_putreg(ETH_DMAINT_AIS, STM32_ETH_DMASR);
 
-      /* As per the datasheet's recommendation, the MAC
-       * needs to be reset for all abnormal events. The
-       * scheduled job will take the interface down and
-       * up again.
-       */
+      /* In case of any error that stops the DMA, reset the MAC. */
 
-      work_queue(ETHWORK, &priv->irqwork, stm32_txtimeout_work, priv, 0);
+      if (dmasr & (ETH_DMAINT_FBEI | ETH_DMAINT_RPSI |
+          ETH_DMAINT_TJTI | ETH_DMAINT_TPSI))
+        {
+          /* As per the datasheet's recommendation, the MAC
+           * needs to be reset for all fatal errors. The
+           * scheduled job will take the interface down and
+           * up again.
+           */
 
-      /* Interrupts need to remain disabled, no other
-       * processing will take place. After reset
-       * everything will be restored.
-       */
+          work_queue(ETHWORK, &priv->irqwork, stm32_txtimeout_work, priv, 0);
 
-      net_unlock();
-      return;
+          /* Interrupts need to remain disabled, no other
+           * processing will take place. After reset
+           * everything will be restored.
+           */
+
+          net_unlock();
+          return;
+        }
     }
 
   net_unlock();
@@ -2309,11 +2306,9 @@ static int stm32_ifup(struct net_driver_s *dev)
   int ret;
 
 #ifdef CONFIG_NET_IPv4
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff),
-        (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff),
-        (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 #endif
 #ifdef CONFIG_NET_IPv6
   ninfo("Bringing up: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -3732,79 +3727,6 @@ static void stm32_macaddress(struct stm32_ethmac_s *priv)
 }
 
 /****************************************************************************
- * Function: stm32_ipv6multicast
- *
- * Description:
- *   Configure the IPv6 multicast MAC address.
- *
- * Input Parameters:
- *   priv - A reference to the private driver state structure
- *
- * Returned Value:
- *   OK on success; Negated errno on failure.
- *
- * Assumptions:
- *
- ****************************************************************************/
-
-#ifdef CONFIG_NET_ICMPv6
-static void stm32_ipv6multicast(struct stm32_ethmac_s *priv)
-{
-  struct net_driver_s *dev;
-  uint16_t tmp16;
-  uint8_t mac[6];
-
-  /* For ICMPv6, we need to add the IPv6 multicast address
-   *
-   * For IPv6 multicast addresses, the Ethernet MAC is derived by
-   * the four low-order octets OR'ed with the MAC 33:33:00:00:00:00,
-   * so for example the IPv6 address FF02:DEAD:BEEF::1:3 would map
-   * to the Ethernet MAC address 33:33:00:01:00:03.
-   *
-   * NOTES:  This appears correct for the ICMPv6 Router Solicitation
-   * Message, but the ICMPv6 Neighbor Solicitation message seems to
-   * use 33:33:ff:01:00:03.
-   */
-
-  mac[0] = 0x33;
-  mac[1] = 0x33;
-
-  dev    = &priv->dev;
-  tmp16  = dev->d_ipv6addr[6];
-  mac[2] = 0xff;
-  mac[3] = tmp16 >> 8;
-
-  tmp16  = dev->d_ipv6addr[7];
-  mac[4] = tmp16 & 0xff;
-  mac[5] = tmp16 >> 8;
-
-  ninfo("IPv6 Multicast: %02x:%02x:%02x:%02x:%02x:%02x\n",
-        mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
-  stm32_addmac(dev, mac);
-
-#ifdef CONFIG_NET_ICMPv6_AUTOCONF
-  /* Add the IPv6 all link-local nodes Ethernet address.  This is the
-   * address that we expect to receive ICMPv6 Router Advertisement
-   * packets.
-   */
-
-  stm32_addmac(dev, g_ipv6_ethallnodes.ether_addr_octet);
-
-#endif /* CONFIG_NET_ICMPv6_AUTOCONF */
-#ifdef CONFIG_NET_ICMPv6_ROUTER
-  /* Add the IPv6 all link-local routers Ethernet address.  This is the
-   * address that we expect to receive ICMPv6 Router Solicitation
-   * packets.
-   */
-
-  stm32_addmac(dev, g_ipv6_ethallrouters.ether_addr_octet);
-
-#endif /* CONFIG_NET_ICMPv6_ROUTER */
-}
-#endif /* CONFIG_NET_ICMPv6 */
-
-/****************************************************************************
  * Function: stm32_macenable
  *
  * Description:
@@ -3827,12 +3749,6 @@ static int stm32_macenable(struct stm32_ethmac_s *priv)
   /* Set the MAC address */
 
   stm32_macaddress(priv);
-
-#ifdef CONFIG_NET_ICMPv6
-  /* Set up the IPv6 multicast address */
-
-  stm32_ipv6multicast(priv);
-#endif
 
   /* Enable transmit state machine of the MAC for transmission on the MII */
 
@@ -4018,7 +3934,7 @@ int stm32_ethinitialize(int intf)
   stm32_get_uniqueid(uid);
   crc = crc64(uid, 12);
 
-  /* Specify as localy administrated address */
+  /* Specify as locally administrated address */
 
   priv->dev.d_mac.ether.ether_addr_octet[0]  = (crc >> 0) | 0x02;
   priv->dev.d_mac.ether.ether_addr_octet[0] &= ~0x1;

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/ipcc/ipcc_open.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -47,7 +49,7 @@
  *   filep - pointer to a file structure to open.
  *
  * Returned Value:
- *   OK on successfull open, or negated errno on failure.
+ *   OK on successful open, or negated errno on failure.
  *
  * Assumptions/Limitations:
  *
@@ -60,7 +62,6 @@ int ipcc_open(FAR struct file *filep)
 
   /* Get our private data structure */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   priv = filep->f_inode->i_private;
 
   /* Get exclusive access to the IPCC driver state structure */

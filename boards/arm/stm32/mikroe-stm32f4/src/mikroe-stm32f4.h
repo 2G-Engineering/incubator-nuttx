@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/mikroe-stm32f4/src/mikroe-stm32f4.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,6 +30,8 @@
 #include <nuttx/config.h>
 #include <nuttx/compiler.h>
 #include <stdint.h>
+
+#include "stm32.h"
 
 /****************************************************************************
  * Pre-processor Definitions

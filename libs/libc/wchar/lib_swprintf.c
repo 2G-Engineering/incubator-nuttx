@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/wchar/lib_swprintf.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -50,7 +52,7 @@ int vswprintf(FAR wchar_t *buf, size_t maxlen, FAR const wchar_t *fmt,
 
   /* Then let lib_vsprintf do the real work */
 
-  return lib_vsprintf((FAR struct lib_outstream_s *)&memoutstream.public,
+  return lib_vsprintf((FAR struct lib_outstream_s *)&memoutstream.common,
                       (FAR const char *)fmt, ap);
 }
 

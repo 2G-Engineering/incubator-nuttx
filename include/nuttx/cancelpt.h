@@ -1,6 +1,7 @@
 /****************************************************************************
  * include/nuttx/cancelpt.h
- * Definitions related to cancellation points
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -33,14 +34,14 @@
  * clock_nanosleep() msgsnd()                 read()          sigwaitinfo()
  * close()           msync()                  readv()         sleep()
  * connect()         nanosleep()              recv()          system()
- * creat()           open()                   recvfrom()      tcdrain()
- * fcntl()           pause()                  recvmsg()       usleep()
- * fdatasync()       poll()                   select()        wait()
- * fsync()           pread()                  sem_timedwait() waitid()
- * getmsg()          pselect()                sem_wait()      waitpid()
- * getpmsg()         pthread_cond_timedwait() send()          write()
- * lockf()           pthread_cond_wait()      sendmsg()       writev()
- * mq_receive()      pthread_join()           sendto()
+ * creat()           open()                   recvfrom()      syncfs()
+ * fcntl()           pause()                  recvmsg()       tcdrain()
+ * fdatasync()       poll()                   select()        usleep()
+ * fsync()           pread()                  sem_timedwait() wait()
+ * getmsg()          pselect()                sem_wait()      waitid()
+ * getpmsg()         pthread_cond_timedwait() send()          waitpid()
+ * lockf()           pthread_cond_wait()      sendmsg()       write()
+ * mq_receive()      pthread_join()           sendto()        writev()
  * mq_send()         pthread_testcancel()     sigpause()
  * mq_timedreceive() putmsg()                 sigsuspend()
  *
@@ -57,6 +58,14 @@
 #include <nuttx/config.h>
 
 #include <stdbool.h>
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#define CANCEL_FLAG_NONCANCELABLE   (1 << 0) /* Pthread is non-cancelable */
+#define CANCEL_FLAG_CANCEL_ASYNC    (1 << 1) /* Async (vs deferred) cancellation type */
+#define CANCEL_FLAG_CANCEL_PENDING  (1 << 2) /* Pthread cancel is pending */
 
 /****************************************************************************
  * Public Function Prototypes

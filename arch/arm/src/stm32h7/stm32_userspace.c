@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_userspace.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -87,10 +89,6 @@ void stm32_userspace(void)
     {
       *dest++ = *src++;
     }
-
-  /* Configure the MPU to permit user-space access to its FLASH and RAM */
-
-  stm32_mpuinitialize();
 }
 
 #endif /* CONFIG_BUILD_PROTECTED */

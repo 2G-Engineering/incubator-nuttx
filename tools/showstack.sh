@@ -2,6 +2,8 @@
 ############################################################################
 # tools/showstack.sh
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -29,10 +31,17 @@ function analyse()
 }
 
 if [[ $# == 0 ]]; then
-  echo "usage: $0 <dir>..."
+  echo "usage: $0 <rank> <dir>..."
   exit
 fi
 
+rank=20
+
+if [[ "$1" =~ ^[0-9]+$ ]]; then
+  rank=$1
+  shift
+fi
+
 for dir in $@; do
-  analyse $dir 20
+  analyse $dir $rank
 done

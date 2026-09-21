@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_ungetc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -52,7 +54,7 @@ int ungetc(int c, FAR FILE *stream)
 
   /* Stream must be open for read access */
 
-  if ((stream->fs_fd < 0) || ((stream->fs_oflags & O_RDOK) == 0))
+  if ((stream->fs_oflags & O_RDOK) == 0)
     {
       return EOF;
     }

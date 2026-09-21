@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lc823450/lc823450_ipl2.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -187,7 +189,7 @@ static int install_recovery(const char *srcpath)
       return -1;
     }
 
-  ret = file_open(&rfile, srcpath, O_RDONLY, 0444);
+  ret = file_open(&rfile, srcpath, O_RDONLY | O_CLOEXEC, 0444);
 
   if (file_read(&rfile, &upg_image, sizeof(upg_image)) != sizeof(upg_image))
     {

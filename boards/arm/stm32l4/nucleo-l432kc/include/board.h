@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32l4/nucleo-l432kc/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -63,8 +65,14 @@
 
 /* Analog pin selections ****************************************************/
 
+/* ADC
+ * Build time configurable pins are defined in ../src/stm32_adc.c.
+ * ADC1 with DMA: GPIO_ADC1_IN11 (PA6/A5), GPIO_ADC1_IN12 (PA7/A6).
+ * ADC1 no DMA  : GPIO_ADC1_IN11 (PA6/A5).
+ */
+
 /* DAC
- * Default is PA4 (same as ADC, do not use both at the same time)
+ * DAC1: GPIO_DAC1_OUT_1 (PA4/A3).
  */
 
 #define GPIO_DAC1_OUT            GPIO_DAC1_OUT_1
@@ -126,10 +134,10 @@
  * but are normally-high GPIOs.
  */
 
-#define GPIO_I2C1_D4 \
-   (GPIO_INPUT | GPIO_FLOAT | GPIO_PORTB | GPIO_PIN7)
-#define GPIO_I2C1_D5 \
-   (GPIO_INPUT | GPIO_FLOAT | GPIO_PORTB | GPIO_PIN6)
+#define GPIO_I2C1_A4 \
+   (GPIO_INPUT | GPIO_FLOAT | GPIO_PORTA | GPIO_PIN5)
+#define GPIO_I2C1_A5 \
+   (GPIO_INPUT | GPIO_FLOAT | GPIO_PORTA | GPIO_PIN6)
 #define GPIO_I2C1_SCL \
    (GPIO_I2C1_SCL_1 | GPIO_OPENDRAIN | GPIO_SPEED_50MHz | GPIO_OUTPUT_SET)
 #define GPIO_I2C1_SDA \

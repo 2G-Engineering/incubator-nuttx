@@ -1,6 +1,8 @@
 ############################################################################
 # arch/xtensa/src/lx7/Toolchain.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -43,8 +45,16 @@ endif
 
 ARCHCPUFLAGS = -mlongcalls
 
-ifeq ($(CONFIG_MM_KASAN_ALL),y)
+ifeq ($(CONFIG_MM_KASAN_INSTRUMENT_ALL),y)
   ARCHOPTIMIZATION += -fsanitize=kernel-address
+endif
+
+ifeq ($(CONFIG_MM_KASAN_DISABLE_READS_CHECK),y)
+  ARCHOPTIMIZATION += --param asan-instrument-reads=0
+endif
+
+ifeq ($(CONFIG_MM_KASAN_DISABLE_WRITES_CHECK),y)
+  ARCHOPTIMIZATION += --param asan-instrument-writes=0
 endif
 
 ifeq ($(CONFIG_MM_UBSAN_ALL),y)
@@ -58,7 +68,11 @@ endif
 ifeq ($(CONFIG_DEBUG_CUSTOMOPT),y)
   ARCHOPTIMIZATION += $(CONFIG_DEBUG_OPTLEVEL)
 else ifeq ($(CONFIG_DEBUG_FULLOPT),y)
-  ARCHOPTIMIZATION += -Os
+  ifeq ($(CONFIG_ARCH_TOOLCHAIN_CLANG),y)
+    ARCHOPTIMIZATION += -Oz
+  else
+    ARCHOPTIMIZATION += -Os
+  endif
 endif
 
 ifneq ($(CONFIG_DEBUG_NOOPT),y)
@@ -79,15 +93,34 @@ ifeq ($(CONFIG_STACK_USAGE),y)
   ARCHOPTIMIZATION += -fstack-usage
 endif
 
-ifeq ($(CONFIG_ARCH_COVERAGE_ALL),y)
-  ARCHOPTIMIZATION += -fprofile-generate -ftest-coverage
+ifneq ($(CONFIG_STACK_USAGE_WARNING),0)
+  ARCHOPTIMIZATION += -Wstack-usage=$(CONFIG_STACK_USAGE_WARNING)
+endif
+
+# Instrumentation options
+
+ifeq ($(CONFIG_ARCH_INSTRUMENT_ALL),y)
+  ARCHOPTIMIZATION += -finstrument-functions
 endif
 
 ARCHCFLAGS += -fno-common
-ARCHCXXFLAGS += -fno-common -nostdinc++
+ARCHCXXFLAGS += -fno-common
 
-ARCHCFLAGS += -Wall -Wstrict-prototypes -Wshadow -Wundef
-ARCHCXXFLAGS += -Wall -Wshadow -Wundef
+ARCHCFLAGS += -Wall -Wstrict-prototypes -Wshadow -Wundef -Wno-attributes -Wno-unknown-pragmas
+ARCHCXXFLAGS += -Wall -Wshadow -Wundef -Wno-attributes -Wno-unknown-pragmas
+
+# When all C++ code is built using GCC 7.1 or a higher version,
+# we can safely disregard warnings of the type "parameter passing for X changed in GCC 7.1."
+# Refer to : https://stackoverflow.com/questions/48149323/what-does-the-gcc-warning-project-parameter-passing-for-x-changed-in-gcc-7-1-m
+
+ifneq ($(CONFIG_LIBCXXTOOLCHAIN),y)
+  ARCHCXXFLAGS += -nostdinc++
+endif
+
+ifneq ($(CONFIG_ARCH_TOOLCHAIN_CLANG),y)
+  ARCHCFLAGS += -Wno-psabi
+  ARCHCXXFLAGS += -Wno-psabi
+endif
 
 ifneq ($(CONFIG_CXX_STANDARD),)
   ARCHCXXFLAGS += -std=$(CONFIG_CXX_STANDARD)
@@ -103,11 +136,19 @@ endif
 
 LDFLAGS += -nostdlib
 
+SHMODULEFLAGS = -Bsymbolic -G -Bdynamic --entry=__start
+
 # Optimization of unused sections
 
 ifeq ($(CONFIG_DEBUG_OPT_UNUSED_SECTIONS),y)
   LDFLAGS          += --gc-sections
   ARCHOPTIMIZATION += -ffunction-sections -fdata-sections
+endif
+
+# Debug --whole-archive
+
+ifeq ($(CONFIG_DEBUG_LINK_WHOLE_ARCHIVE),y)
+  LDFLAGS += --whole-archive
 endif
 
 # Debug link map
@@ -117,7 +158,7 @@ ifeq ($(CONFIG_DEBUG_LINK_MAP),y)
 endif
 
 ifeq ($(CONFIG_DEBUG_SYMBOLS),y)
-  ARCHOPTIMIZATION += -g
+  ARCHOPTIMIZATION += $(CONFIG_DEBUG_SYMBOLS_LEVEL)
 endif
 
 # Default toolchain
@@ -144,6 +185,16 @@ NM = $(CROSSDEV)nm
 OBJCOPY = $(CROSSDEV)objcopy
 OBJDUMP = $(CROSSDEV)objdump
 
+LDFLAGS += --print-memory-usage
+
+ifeq ($(CONFIG_ARCH_TOOLCHAIN_GNU),y)
+  ifeq ($(CONFIG_ARCH_TOOLCHAIN_CLANG),)
+    ifeq ($(GCCVER),)
+      export GCCVER := $(shell $(CC) --version | grep gcc | sed -E "s/.* ([0-9]+\.[0-9]+).*/\1/" | cut -d'.' -f1)
+    endif
+  endif
+endif
+
 # Add the builtin library
 
 EXTRA_LIBS += $(wildcard $(shell $(CC) $(ARCHCPUFLAGS) --print-libgcc-file-name))
@@ -152,10 +203,29 @@ ifeq ($(CONFIG_LIBM_TOOLCHAIN),y)
   EXTRA_LIBS += $(wildcard $(shell $(CC) $(ARCHCPUFLAGS) --print-file-name=libm.a))
 endif
 
-ifeq ($(CONFIG_LIBSUPCXX),y)
+ifeq ($(CONFIG_LIBSUPCXX_TOOLCHAIN),y)
   EXTRA_LIBS += $(wildcard $(shell $(CC) $(ARCHCPUFLAGS) --print-file-name=libsupc++.a))
 endif
 
-ifeq ($(CONFIG_ARCH_COVERAGE),y)
+ifeq ($(CONFIG_COVERAGE_TOOLCHAIN),y)
   EXTRA_LIBS += $(wildcard $(shell $(CC) $(ARCHCPUFLAGS) --print-file-name=libgcov.a))
+endif
+
+# Loadable module definitions
+
+CMODULEFLAGS = $(CFLAGS) -fvisibility=hidden -mtext-section-literals
+LDMODULEFLAGS = -r -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/elf/gnu-elf.ld)
+
+# ELF module definitions
+
+CELFFLAGS = $(CFLAGS) -fvisibility=hidden -mtext-section-literals
+CXXELFFLAGS = $(CXXFLAGS) -fvisibility=hidden -mtext-section-literals
+
+LDELFFLAGS = -r -e __start
+LDELFFLAGS += -T $(call CONVERT_PATH,$(TOPDIR)$(DELIM)libs$(DELIM)libc$(DELIM)elf$(DELIM)gnu-elf.ld)
+ifneq ($(CONFIG_BUILD_KERNEL),y)
+  # Flat build and protected elf entry point use crt0,
+  # Kernel build will use apps/import/scripts/crt0
+
+  LDELFFLAGS += $(TOPDIR)$(DELIM)arch$(DELIM)xtensa$(DELIM)src$(DELIM)crt0.o
 endif

@@ -1,10 +1,11 @@
 /****************************************************************************
  * arch/arm/src/stm32/stm32_tickless.c
  *
- *   Copyright (C) 2016-2017 Gregory Nutt. All rights reserved.
- *   Copyright (C) 2017 Ansync Labs. All rights reserved.
- *   Authors: Gregory Nutt <gnutt@nuttx.org>
- *            Konstantin Berezenko <kpberezenko@gmail.com>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2016-2017 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2017 Ansync Labs. All rights reserved.
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.org>
+ * SPDX-FileContributor: Konstantin Berezenko <kpberezenko@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -614,7 +615,16 @@ int up_timer_gettime(struct timespec *ts)
   int pending;
   irqstate_t flags;
 
-  DEBUGASSERT(g_tickless.tch && ts);
+  DEBUGASSERT(ts);
+
+  /* Timer not initialized yet, return zero */
+
+  if (g_tickless.tch == 0)
+    {
+      ts->tv_nsec = 0;
+      ts->tv_sec  = 0;
+      return OK;
+    }
 
   /* Temporarily disable the overflow counter.  NOTE that we have to be
    * careful here because  stm32_tc_getpending() will reset the pending
@@ -938,6 +948,7 @@ int up_timer_start(const struct timespec *ts)
   /* Set interval compare value. Rollover is fine,
    * channel will trigger on the next period.
    */
+
 #ifdef HAVE_32BIT_TICKLESS
   DEBUGASSERT(period <= UINT32_MAX);
   g_tickless.period = (uint32_t)(period + count);

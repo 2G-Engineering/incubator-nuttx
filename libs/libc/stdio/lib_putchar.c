@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_putchar.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,6 +35,16 @@ int putchar(int c)
 {
 #ifdef CONFIG_FILE_STREAM
   return fputc(c, stdout);
+#else
+  unsigned char tmp = c;
+  return write(STDOUT_FILENO, &tmp, 1) == 1 ? c : EOF;
+#endif
+}
+
+int putchar_unlocked(int c)
+{
+#ifdef CONFIG_FILE_STREAM
+  return fputc_unlocked(c, stdout);
 #else
   unsigned char tmp = c;
   return write(STDOUT_FILENO, &tmp, 1) == 1 ? c : EOF;

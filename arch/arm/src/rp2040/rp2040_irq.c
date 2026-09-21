@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rp2040/rp2040_irq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -276,8 +278,8 @@ void up_disable_irq(int irq)
   DEBUGASSERT((unsigned)irq < NR_IRQS);
 
 #ifdef CONFIG_SMP
-  if (irq >= RP2040_IRQ_EXTINT && irq != RP2040_SIO_IRQ_PROC1 &&
-      up_cpu_index() != 0)
+  if (irq >= RP2040_IRQ_EXTINT && irq != RP2040_SMP_CALL_PROC1 &&
+      this_cpu() != 0)
     {
       /* Must be handled by Core 0 */
 
@@ -324,8 +326,8 @@ void up_enable_irq(int irq)
   DEBUGASSERT((unsigned)irq < NR_IRQS);
 
 #ifdef CONFIG_SMP
-  if (irq >= RP2040_IRQ_EXTINT && irq != RP2040_SIO_IRQ_PROC1 &&
-      up_cpu_index() != 0)
+  if (irq >= RP2040_IRQ_EXTINT && irq != RP2040_SMP_CALL_PROC1 &&
+      this_cpu() != 0)
     {
       /* Must be handled by Core 0 */
 
@@ -438,23 +440,7 @@ int up_prioritize_irq(int irq, int priority)
 #endif
 
 /****************************************************************************
- * Name: arm_intstack_top
- *
- * Description:
- *   Return a pointer to the top the correct interrupt stack allocation
- *   for the current CPU.
- *
- ****************************************************************************/
-
-#if defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
-uintptr_t arm_intstack_top(void)
-{
-  return g_cpu_intstack_top[up_cpu_index()];
-}
-#endif
-
-/****************************************************************************
- * Name: arm_intstack_alloc
+ * Name: up_get_intstackbase
  *
  * Description:
  *   Return a pointer to the "alloc" the correct interrupt stack allocation
@@ -463,8 +449,8 @@ uintptr_t arm_intstack_top(void)
  ****************************************************************************/
 
 #if defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
-uintptr_t arm_intstack_alloc(void)
+uintptr_t up_get_intstackbase(int cpu)
 {
-  return g_cpu_intstack_top[up_cpu_index()] - INTSTACK_SIZE;
+  return g_cpu_intstack_top[cpu] - INTSTACK_SIZE;
 }
 #endif

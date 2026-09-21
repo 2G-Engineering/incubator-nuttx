@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/s32k3xx/mr-canhubk3/src/s32k3xx_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -181,7 +183,7 @@ int s32k3xx_bringup(void)
 #  ifdef CONFIG_FS_LITTLEFS
   else
     {
-      _info("register_mtddriver() succesful\n");
+      _info("register_mtddriver() successful\n");
 
       ret = nx_mount("/dev/progmem0", "/mnt/progmem", "littlefs", 0, NULL);
 
@@ -196,7 +198,7 @@ int s32k3xx_bringup(void)
             }
           else
             {
-              _info("nx_mount() succesful\n");
+              _info("nx_mount() successful\n");
             }
         }
     }

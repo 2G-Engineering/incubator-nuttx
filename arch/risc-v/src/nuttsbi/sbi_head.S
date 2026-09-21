@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/nuttsbi/sbi_head.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -42,25 +44,25 @@ __start:
 
   /* Disable all interrupts (i.e. timer, external) in mie */
 
-  csrw mie, zero
-  csrw mip, zero
+  csrw CSR_MIE, zero
+  csrw CSR_MIP, zero
 
   /* Initialize the Machine Trap Vector */
 
   la   t0, __mtrap_vec
-  csrw mtvec, t0
+  csrw CSR_MTVEC, t0
 
   /* Make sure that mtvec is updated before continuing */
 
 1:
-  csrr t1, mtvec
+  csrr t1, CSR_MTVEC
   bne  t0, t1, 1b
 
   /* mscratch must be init to zero- we are not using scratch memory */
 
-  csrw mscratch, zero
-  csrw mcause, zero
-  csrw mepc, zero
+  csrw CSR_MSCRATCH, zero
+  csrw CSR_MCAUSE, zero
+  csrw CSR_MEPC, zero
   li   x1,  0
   li   x2,  0
   li   x3,  0
@@ -95,12 +97,12 @@ __start:
 
   /* Delegation registers must be explicitly reset */
 
-  csrw mideleg, 0
-  csrw medeleg, 0
+  csrw CSR_MIDELEG, 0
+  csrw CSR_MEDELEG, 0
 
   /* Remove MMU mappings (if any) */
 
-  csrw satp, zero
+  csrw CSR_SATP, zero
   fence
 
   /* Flush TLB (does not make a difference really) */
@@ -109,8 +111,8 @@ __start:
 
   /* Clear PMP */
 
-  csrw pmpcfg0, 0
-  csrw pmpcfg2, 0
+  csrw CSR_PMPCFG0, zero
+  csrw CSR_PMPCFG2, zero
 
   /* Set up a temporary stack */
 

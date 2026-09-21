@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/lpc31xx/ea3131/src/lpc31_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -108,7 +110,7 @@ void lpc31_boardinitialize(void)
 
   /* Set up mass storage device to support on demand paging */
 
-#if defined(CONFIG_PAGING)
+#if defined(CONFIG_LEGACY_PAGING)
   if (lpc31_pginitialize)
     {
       lpc31_pginitialize();

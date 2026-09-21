@@ -1,7 +1,8 @@
 /****************************************************************************
  * libs/libc/machine/risc-v/gnu/arch_memset.S
  *
- * Copyright (c) 2017  SiFive Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-FileCopyrightText: 2017  SiFive Inc. All rights reserved.
  *
  * This copyrighted material is made available to anyone wishing to use,
  * modify, copy, or redistribute it subject to the terms and conditions
@@ -15,12 +16,12 @@
 
 #include "libc.h"
 
-#ifdef LIBC_BUILD_STRING
+#ifdef LIBC_BUILD_MEMSET
 
 .text
-.global memset
-.type	memset, @function
-memset:
+.global ARCH_LIBCFUN(memset)
+.type	ARCH_LIBCFUN(memset), @function
+ARCH_LIBCFUN(memset):
 	li t1, 15
 	move a4, a0
 	bleu a2, t1, .Ltiny
@@ -107,6 +108,6 @@ memset:
 	add a2, a2, a5
 	bleu a2, t1, .Ltiny
 	j .Laligned
-	.size	memset, .-memset
+	.size	ARCH_LIBCFUN(memset), .-ARCH_LIBCFUN(memset)
 
 #endif

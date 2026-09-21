@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/mount/fs_foreachmountpoint.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -100,6 +102,7 @@ static int mountpoint_filter(FAR struct inode *node,
 
       /* Get the status of the file system */
 
+      memset(&statbuf, 0, sizeof(struct statfs));
       if (node->u.i_mops->statfs(node, &statbuf) == OK)
         {
           /* And pass the full path and file system status to the handler */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/phy62xx/log.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -19,11 +21,11 @@
  ****************************************************************************/
 
 /****************************************************************************
- *    @file     log.h
- *    @brief    Contains all functions support for uart driver
- *    @version  0.0
- *    @date     31. Jan. 2018
- *    @author   eagle.han
+ * log.h
+ * Contains all functions support for uart driver
+ * 0.0
+ * 31. Jan. 2018
+ * eagle.han
  ****************************************************************************/
 
 #ifndef ENABLE_LOG_ROM

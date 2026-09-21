@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/sama5/sam_classd.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -38,6 +40,7 @@
 #include <arch/board/board.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/mqueue.h>
+#include <nuttx/signal.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/audio/audio.h>
@@ -334,7 +337,7 @@ static void classd_putreg(uint32_t regaddr, uint32_t regval);
 static void classd_dump_registers(const char *msg);
 #else
 #  define classd_dump_registers(msg);
-#endif 
+#endif
 
 /* Audio lower half functions */
 
@@ -500,9 +503,9 @@ static struct sam_classd_config_s sam_classd_const =
 
 #if defined(CONFIG_SAMA5D2_CLASSD_EQ_FLAT)
   .eq_mode = CLASSD_EQ_FLAT,
-#  elif defined(CONFIG_SAMA5D2_CLASSD_EQ_BB12)  
+#  elif defined(CONFIG_SAMA5D2_CLASSD_EQ_BB12)
   .eq_mode = CLASSD_EQ_BASS_BOOST_12DB,
-#  elif defined(CONFIG_SAMA5D2_CLASSD_EQ_BB6)  
+#  elif defined(CONFIG_SAMA5D2_CLASSD_EQ_BB6)
   .eq_mode = CLASSD_EQ_BASS_BOOST_6DB,
 #  elif defined(CONFIG_SAMA5D2_CLASSD_EQ_BC12)
   .eq_mode = CLASSD_EQ_BASS_CUT_12DB,
@@ -665,7 +668,7 @@ void classd_enable_audio(struct classd_dev_s *priv, bool pmc_clock_enable)
 
   /* wait for Audio PLL startup time */
 
-  usleep(100);
+  nxsig_usleep(100);
 #endif
 }
 
@@ -1309,7 +1312,7 @@ static void classd_reset(struct classd_dev_s *priv)
  *   Calculate the right and left attenuation values based on the
  *   volume and balance settings.
  *
- *   The range is limited to 0..78 since any value <77 wil be treated as
+ *   The range is limited to 0..78 since any value <77 will be treated as
  *   mutes.
  *
  *  Input Parameters:
@@ -1785,8 +1788,7 @@ static void classd_returnbuffers(struct classd_dev_s *priv)
       apb = (struct ap_buffer_s *)dq_remfirst(&priv->doneq);
       leave_critical_section(flags);
 
-      audinfo("Returning: apb=%p curbyte=%" PRId32 " nbytes=%" PRId32 \
-              " flags=%04x\n",
+      audinfo("Returning: apb=%p curbyte=%d nbytes=%d flags=%04x\n",
               apb, apb->curbyte, apb->nbytes, apb->flags);
 
       /* Are we returning the final buffer in the stream? */
@@ -1900,7 +1902,7 @@ static int classd_sendbuffer(struct classd_dev_s *priv)
       /* Take next buffer from the queue of pending transfers */
 
       apb = (struct ap_buffer_s *)dq_remfirst(&priv->pendq);
-      audinfo("Sending apb=%p, size=%" PRId32 " inflight=%d\n",
+      audinfo("Sending apb=%p, size=%d inflight=%d\n",
               apb, apb->nbytes, priv->inflight);
 
       /* Increment the number of buffers in-flight before sending in order
@@ -2342,7 +2344,7 @@ static int classd_enqueuebuffer(struct audio_lowerhalf_s *dev,
 
   DEBUGASSERT(priv && apb && priv->dev.upper);
 
-  audinfo("Enqueuing: apb=%p curbyte=%" PRId32 " nbytes=%" PRId32 "\n",
+  audinfo("Enqueuing: apb=%p curbyte=%d nbytes=%d\n",
            apb, apb->curbyte, apb->nbytes);
 
   /* Take a reference on the new audio buffer */
@@ -2390,7 +2392,7 @@ static int classd_enqueuebuffer(struct audio_lowerhalf_s *dev,
 static int classd_cancelbuffer(struct audio_lowerhalf_s *dev,
                                struct ap_buffer_s *apb)
 {
-  audinfo("apb=%p curbyte=%" PRId32 " nbytes=%" PRId32 ", return OK\n",
+  audinfo("apb=%p curbyte=%d nbytes=%d, return OK\n",
           apb, apb->curbyte, apb->nbytes);
 
   return OK;

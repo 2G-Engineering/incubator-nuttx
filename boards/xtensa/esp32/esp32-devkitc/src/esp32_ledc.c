@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/esp32-devkitc/src/esp32_ledc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,7 +35,6 @@
 
 #include <arch/board/board.h>
 
-#include "chip.h"
 #include "esp32_ledc.h"
 
 /****************************************************************************

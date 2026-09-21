@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/sensors/bh1749nuc.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -46,6 +48,12 @@ struct bh1749nuc_data_s
   uint16_t green2;
 };
 
+struct bh1749nuc_config_s
+{
+  FAR struct i2c_master_s *i2c;
+  uint8_t addr;
+};
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
@@ -75,8 +83,13 @@ extern "C"
  *
  ****************************************************************************/
 
+#ifndef CONFIG_SENSORS_BH1749NUC_UORB
 int bh1749nuc_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
                        uint8_t addr);
+#else
+int bh1749nuc_register_uorb(int devno,
+                            FAR struct bh1749nuc_config_s *config);
+#endif
 
 #undef EXTERN
 #ifdef __cplusplus

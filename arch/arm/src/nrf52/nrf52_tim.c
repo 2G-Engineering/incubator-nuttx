@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/nrf52/nrf52_tim.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -657,7 +659,7 @@ static int nrf52_tim_checkint(struct nrf52_tim_dev_s *dev, uint8_t s)
 
       case NRF52_TIM_INT_COMPARE1:
         {
-          ret = nrf52_tim_getreg(dev, NRF52_TIM_EVENTS_COMPARE_OFFSET(0));
+          ret = nrf52_tim_getreg(dev, NRF52_TIM_EVENTS_COMPARE_OFFSET(1));
           break;
         }
 

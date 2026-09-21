@@ -1,6 +1,8 @@
 ############################################################################
 # net/arp/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -33,6 +35,10 @@ endif
 
 ifeq ($(CONFIG_NET_ARP_DUMP),y)
 NET_CSRCS += arp_dump.c
+endif
+
+ifeq ($(CONFIG_NET_ARP_ACD),y)
+NET_CSRCS += arp_acd.c
 endif
 
 # Include arp build support

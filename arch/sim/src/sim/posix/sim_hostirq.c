@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/posix/sim_hostirq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -87,6 +89,7 @@ uint64_t up_irq_flags(void)
  *
  ****************************************************************************/
 
+__attribute__((no_sanitize_address))
 uint64_t up_irq_save(void)
 {
   union sigset_u nmask;
@@ -119,6 +122,19 @@ void up_irq_restore(uint64_t flags)
 }
 
 /****************************************************************************
+ * Name: up_irq_enable
+ *
+ * Description:
+ *   Enable interrupts.
+ *
+ ****************************************************************************/
+
+void up_irq_enable(void)
+{
+  up_irq_restore(0);
+}
+
+/****************************************************************************
  * Name: up_irqinitialize
  ****************************************************************************/
 
@@ -128,6 +144,7 @@ void up_irqinitialize(void)
   /* Register the pause handler */
 
   sim_init_ipi(SIGUSR1);
+  sim_init_func_call_ipi(SIGUSR2);
 #endif
 }
 

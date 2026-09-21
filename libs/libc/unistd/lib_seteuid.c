@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/unistd/lib_seteuid.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -49,13 +51,6 @@
 
 int seteuid(uid_t uid)
 {
-#ifdef CONFIG_SCHED_USER_IDENTITY
-  /* If we have real UID/GID support, then treat the effective user ID as
-   * the real user ID.
-   */
-
-  return setuid(uid);
-#else
   /* NuttX only supports the user identity 'root' with a uid value of 0. */
 
   if (uid == 0)
@@ -69,5 +64,4 @@ int seteuid(uid_t uid)
 
   set_errno(EINVAL);
   return -1;
-#endif
 }

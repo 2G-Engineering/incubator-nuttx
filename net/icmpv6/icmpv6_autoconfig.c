@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/icmpv6/icmpv6_autoconfig.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -40,6 +42,7 @@
 #include "netdev/netdev.h"
 #include "inet/inet.h"
 #include "icmpv6/icmpv6.h"
+#include "utils/utils.h"
 
 #ifdef CONFIG_NET_ICMPv6_AUTOCONF
 
@@ -139,9 +142,11 @@ static uint16_t icmpv6_router_eventhandler(FAR struct net_driver_s *dev,
 
       if (state->snd_advertise)
         {
-          /* Send the ICMPv6 Neighbor Advertisement message */
+          /* Send the ICMPv6 Neighbor Advertisement message, we should
+           * already have link-local address by previous logic.
+           */
 
-          icmpv6_advertise(dev, g_ipv6_allnodes);
+          icmpv6_advertise(dev, netdev_ipv6_lladdr(dev), g_ipv6_allnodes);
         }
       else
         {
@@ -311,6 +316,11 @@ int icmpv6_autoconfig(FAR struct net_driver_s *dev)
    *    will be derived from the link layer (MAC) address.
    */
 
+  if (netdev_ipv6_lladdr(dev) != NULL)
+    {
+      goto got_lladdr;
+    }
+
   icmpv6_linkipaddr(dev, lladdr);
 
   ninfo("lladdr=%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -332,17 +342,21 @@ int icmpv6_autoconfig(FAR struct net_driver_s *dev)
    *    method must be employed.
    */
 
-  ret = icmpv6_neighbor(lladdr);
-  if (ret >= 0)
+  if (dev->d_lltype == NET_LL_ETHERNET ||
+      dev->d_lltype == NET_LL_IEEE80211)
     {
-      /* Hmmm... someone else responded to our Neighbor Solicitation.  We
-       * have no back-up plan in place.  Just bail.
-       */
+      ret = icmpv6_neighbor(dev, lladdr);
+      if (ret >= 0)
+        {
+          /* Hmmm... someone else responded to our Neighbor Solicitation.  We
+           * have no back-up plan in place.  Just bail.
+           */
 
-      nerr("ERROR: IP conflict\n");
+          nerr("ERROR: IP conflict\n");
 
-      net_unlock();
-      return -EEXIST;
+          net_unlock();
+          return -EEXIST;
+        }
     }
 #endif
 
@@ -352,8 +366,14 @@ int icmpv6_autoconfig(FAR struct net_driver_s *dev)
    *    on the wider Internet (since link-local addresses are not routed).
    */
 
-  net_ipv6addr_copy(dev->d_ipv6addr, lladdr);
+  ret = netdev_ipv6_add(dev, lladdr, net_ipv6_mask2pref(g_ipv6_llnetmask));
+  if (ret < 0)
+    {
+      net_unlock();
+      return ret;
+    }
 
+got_lladdr:
   /* 4. Router Contact: The node next attempts to contact a local router for
    *    more information on continuing the configuration. This is done either
    *    by listening for Router Advertisement messages sent periodically by
@@ -374,6 +394,12 @@ int icmpv6_autoconfig(FAR struct net_driver_s *dev)
       ret = icmpv6_send_message(dev, false);
       if (ret < 0)
         {
+          /* Remove our wait structure from the list (we may no longer be
+           *  at the head of the list).
+           */
+
+          icmpv6_rwait_cancel(&notify);
+
           nerr("ERROR: Failed send router solicitation: %d\n", ret);
           break;
         }
@@ -413,13 +439,12 @@ int icmpv6_autoconfig(FAR struct net_driver_s *dev)
           nerr("ERROR: Failed send neighbor advertisement: %d\n", senderr);
         }
 
-      /* No off-link communications; No router address. */
+      if (ret != -EADDRNOTAVAIL)
+        {
+          /* No off-link communications; No router address. */
 
-      net_ipv6addr_copy(dev->d_ipv6draddr, g_ipv6_unspecaddr);
-
-      /* Set a netmask for the local link address */
-
-      net_ipv6addr_copy(dev->d_ipv6netmask, g_ipv6_llnetmask);
+          net_ipv6addr_copy(dev->d_ipv6draddr, g_ipv6_unspecaddr);
+        }
     }
 
   /* 5. Router Direction: The router provides direction to the node on how

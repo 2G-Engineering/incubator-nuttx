@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/bl602/bl602_serial.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -37,6 +39,7 @@
 #include <nuttx/serial/serial.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/serial/tioctl.h>
+#include <nuttx/spinlock.h>
 
 #include "bl602_lowputc.h"
 #include "bl602_gpio.h"
@@ -148,6 +151,8 @@ static bool bl602_txempty(struct uart_dev_s *dev);
 /****************************************************************************
  * Private Data
  ****************************************************************************/
+
+static spinlock_t g_bl602_serial_lock = SP_UNLOCKED;
 
 static const struct uart_ops_s g_uart_ops =
 {
@@ -815,7 +820,7 @@ static bool bl602_txempty(struct uart_dev_s *dev)
  *
  * Description:
  *   Performs the low level UART initialization early in debug so that the
- *   serial console will be available during bootup.  This must be called
+ *   serial console will be available during boot up.  This must be called
  *   before riscv_serialinit.  NOTE:  This function depends on GPIO pin
  *   configuration performed in up_consoleinit() and main clock
  *   initialization performed in up_clkinitialize().
@@ -885,24 +890,14 @@ void riscv_serialinit(void)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef HAVE_SERIAL_CONSOLE
-  irqstate_t flags = enter_critical_section();
-
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      riscv_lowputc('\r');
-    }
+  irqstate_t flags = spin_lock_irqsave(&g_bl602_serial_lock);
 
   riscv_lowputc(ch);
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_bl602_serial_lock, flags);
 #endif
-  return ch;
 }
 
 /****************************************************************************
@@ -925,9 +920,8 @@ void riscv_serialinit(void)
 {
 }
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
-  return ch;
 }
 
 #endif /* HAVE_UART_DEVICE */
@@ -941,21 +935,11 @@ int up_putc(int ch)
  *
  ****************************************************************************/
 
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef HAVE_SERIAL_CONSOLE
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      riscv_lowputc('\r');
-    }
-
   riscv_lowputc(ch);
 #endif
-  return ch;
 }
 
 #endif /* USE_SERIALDRIVER */

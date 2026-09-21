@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/route/net_del_ramroute.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,6 +34,7 @@
 #include <arpa/inet.h>
 #include <nuttx/net/ip.h>
 
+#include "netlink/netlink.h"
 #include "route/ramroute.h"
 #include "route/route.h"
 
@@ -64,10 +67,10 @@ struct route_match_ipv6_s
  ****************************************************************************/
 
 /****************************************************************************
- * Name: net_match_ipv4
+ * Name: net_del_ipv4route
  *
  * Description:
- *   Return 1 if the route is available
+ *   Return 1 if the route is available, and delete the match route
  *
  * Input Parameters:
  *   route - The next route to examine
@@ -79,7 +82,8 @@ struct route_match_ipv6_s
  ****************************************************************************/
 
 #ifdef CONFIG_ROUTE_IPv4_RAMROUTE
-static int net_match_ipv4(FAR struct net_route_ipv4_s *route, FAR void *arg)
+static int net_del_ipv4route(FAR struct net_route_ipv4_s *route,
+                             FAR void *arg)
 {
   FAR struct route_match_ipv4_s *match =
                     (FAR struct route_match_ipv4_s *)arg;
@@ -109,6 +113,8 @@ static int net_match_ipv4(FAR struct net_route_ipv4_s *route, FAR void *arg)
           ramroute_ipv4_remfirst(&g_ipv4_routes);
         }
 
+      netlink_route_notify(route, RTM_DELROUTE, AF_INET);
+
       /* And free the routing table entry by adding it to the free list */
 
       net_freeroute_ipv4(route);
@@ -126,8 +132,8 @@ static int net_match_ipv4(FAR struct net_route_ipv4_s *route, FAR void *arg)
 #endif
 
 #ifdef CONFIG_ROUTE_IPv6_RAMROUTE
-static int net_match_ipv6(
-               FAR struct net_route_ipv6_s *route, FAR void *arg)
+static int net_del_ipv6route(FAR struct net_route_ipv6_s *route,
+                             FAR void *arg)
 {
   FAR struct route_match_ipv6_s *match =
                      (FAR struct route_match_ipv6_s *)arg;
@@ -164,6 +170,8 @@ static int net_match_ipv6(
         {
           ramroute_ipv6_remfirst(&g_ipv6_routes);
         }
+
+      netlink_route_notify(route, RTM_DELROUTE, AF_INET6);
 
       /* And free the routing table entry by adding it to the free list */
 
@@ -211,7 +219,7 @@ int net_delroute_ipv4(in_addr_t target, in_addr_t netmask)
 
   /* Then remove the entry from the routing table */
 
-  return net_foreachroute_ipv4(net_match_ipv4, &match) ? OK : -ENOENT;
+  return net_foreachroute_ipv4(net_del_ipv4route, &match) ? OK : -ENOENT;
 }
 #endif
 
@@ -228,7 +236,7 @@ int net_delroute_ipv6(net_ipv6addr_t target, net_ipv6addr_t netmask)
 
   /* Then remove the entry from the routing table */
 
-  return net_foreachroute_ipv6(net_match_ipv6, &match) ? OK : -ENOENT;
+  return net_foreachroute_ipv6(net_del_ipv6route, &match) ? OK : -ENOENT;
 }
 #endif
 

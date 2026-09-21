@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/esp32-wrover-kit/src/esp32-wrover-kit.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -56,6 +58,9 @@
 
 #define ONESHOT_TIMER         1
 #define ONESHOT_RESOLUTION_US 1
+
+/* Zero Cross */
+#define GPIO_ZERO_CROSS_IRQ 22
 
 /****************************************************************************
  * Public Types

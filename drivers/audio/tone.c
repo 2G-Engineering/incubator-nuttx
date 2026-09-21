@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/audio/tone.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,7 +38,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <stdlib.h>
 #include <ctype.h>
 #include <unistd.h>
 #include <string.h>
@@ -127,8 +128,8 @@ static const uint16_t g_notes_freq[84] =
 
 /* Global variable used by the tone generator */
 
-static const char *g_tune;
-static const char *g_next;
+static FAR const char *g_tune;
+static FAR const char *g_next;
 static uint8_t g_tempo;
 static uint8_t g_note_mode;
 static uint32_t g_note_length;
@@ -939,10 +940,7 @@ int tone_register(FAR const char *path, FAR struct pwm_lowerhalf_s *tone,
 
   /* Allocate the upper-half data structure */
 
-  upper =
-    (FAR struct tone_upperhalf_s *)kmm_zalloc(
-                              sizeof(struct tone_upperhalf_s));
-
+  upper = kmm_zalloc(sizeof(struct tone_upperhalf_s));
   if (!upper)
     {
       auderr("ERROR: Allocation failed\n");

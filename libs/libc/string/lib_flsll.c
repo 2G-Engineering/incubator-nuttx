@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/string/lib_flsll.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -17,13 +19,6 @@
  * under the License.
  *
  ****************************************************************************/
-
-/****************************************************************************
- * Included Files
- ****************************************************************************/
-
-#include <nuttx/compiler.h>
-#include <strings.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -57,11 +52,6 @@ int flsll(long long j)
 
   if (j != 0)
     {
-#ifdef CONFIG_HAVE_BUILTIN_CLZ
-      /* Count leading zeros function can be used to implement fls. */
-
-      ret = NBITS - __builtin_clzll(j);
-#else
       unsigned long long value = (unsigned long long)j;
       int bitno;
 
@@ -73,10 +63,8 @@ int flsll(long long j)
               break;
             }
         }
-#endif
     }
 
   return ret;
 }
-
 #endif

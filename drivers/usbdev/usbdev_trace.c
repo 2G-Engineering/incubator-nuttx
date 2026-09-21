@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/usbdev/usbdev_trace.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -82,7 +84,7 @@ static usbtrace_idset_t g_maskedidset = CONFIG_USBDEV_TRACE_INITIALIDSET;
 
 #if !defined(CONFIG_USBDEV_TRACE) && \
     (defined(CONFIG_DEBUG_FEATURES) && defined(CONFIG_DEBUG_USB))
-static int usbtrace_syslog(const char *fmt, ...)
+static int usbtrace_syslog(FAR const char *fmt, ...)
 {
   va_list ap;
 

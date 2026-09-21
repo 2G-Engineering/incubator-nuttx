@@ -1,6 +1,8 @@
 ############################################################################
 # arch/arm/src/tlsr82/Toolchain.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -21,7 +23,7 @@
 # Clang Configuration files
 
 ifeq ($(CONFIG_ARM_TOOLCHAIN_CLANG),y)
-  TOOLCHAIN_MARCH := --config armv6m_soft_nofp_nosys
+  TOOLCHAIN_CLANG_CONFIG = armv6m_soft_nofp
 endif
 
 # Generic GNU EABI toolchain

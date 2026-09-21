@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/phy62xx/gpio.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -19,11 +21,11 @@
  ****************************************************************************/
 
 /****************************************************************************
- *    @file     gpio.h
- *    @brief    Contains all functions support for gpio and iomux driver
- *    @version  0.0
- *    @date     19. Oct. 2017
- *    @author   qing.han
+ * gpio.h
+ * Contains all functions support for gpio and iomux driver
+ * 0.0
+ * 19. Oct. 2017
+ * qing.han
  ****************************************************************************/
 
 #ifndef __ARCH_ARM_SRC_PHY62XX_GPIO_H

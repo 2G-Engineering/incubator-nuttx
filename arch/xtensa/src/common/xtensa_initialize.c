@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/xtensa/src/common/xtensa_initialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,17 +34,9 @@
  * Public Data
  ****************************************************************************/
 
-/* g_current_regs[] holds a reference to the current interrupt level
- * register storage structure.  It is non-NULL only during interrupt
- * processing.  Access to g_current_regs[] must be through the macro
- * CURRENT_REGS for portability.
- */
+/* g_interrupt_context store irq status */
 
-/* For the case of architectures with multiple CPUs, then there must be one
- * such value for each processor that can receive an interrupt.
- */
-
-volatile uint32_t *g_current_regs[CONFIG_SMP_NCPUS];
+volatile bool g_interrupt_context[CONFIG_SMP_NCPUS];
 
 /****************************************************************************
  * Private Functions
@@ -60,17 +54,11 @@ volatile uint32_t *g_current_regs[CONFIG_SMP_NCPUS];
 #if defined(CONFIG_STACK_COLORATION) && CONFIG_ARCH_INTERRUPTSTACK > 15
 static inline void xtensa_color_intstack(void)
 {
-#ifdef CONFIG_SMP
-  uint32_t *ptr = (uint32_t *)xtensa_intstack_alloc();
-#else
-  uint32_t *ptr = (uint32_t *)g_intstackalloc;
-#endif
-  ssize_t size;
+  int cpu;
 
-  for (size = INTSTACK_SIZE * CONFIG_SMP_NCPUS;
-       size > 0; size -= sizeof(uint32_t))
+  for (cpu = 0; cpu < CONFIG_SMP_NCPUS; cpu++)
     {
-      *ptr++ = INTSTACK_COLOR;
+      xtensa_stack_color((void *)up_get_intstackbase(cpu), INTSTACK_SIZE);
     }
 }
 #else

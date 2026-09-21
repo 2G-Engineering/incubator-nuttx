@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/icmpv6/icmpv6_ioctl.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,6 +27,7 @@
 #include <nuttx/config.h>
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdbool.h>
 #include <debug.h>
 #include <errno.h>
@@ -76,6 +79,12 @@ int icmpv6_ioctl(FAR struct socket *psock, int cmd, unsigned long arg)
         break;
       case FIONSPACE:
         *(FAR int *)((uintptr_t)arg) = MIN_UDP_MSS;
+        break;
+      case FIOC_FILEPATH:
+        snprintf((FAR char *)(uintptr_t)arg, PATH_MAX,
+                 "icmp6:[dev %s, id %" PRIu16 ", flg %" PRIx8 "]",
+                 conn->dev ? conn->dev->d_ifname : "NULL",
+                 NTOHS(conn->id), conn->sconn.s_flags);
         break;
       default:
         ret = -ENOTTY;

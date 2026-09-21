@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/tls/task_tls.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,7 @@
 #include <errno.h>
 #include <nuttx/tls.h>
 
-#if CONFIG_TLS_TASK_NELEM > 0
+#if defined(CONFIG_TLS_TASK_NELEM) && CONFIG_TLS_TASK_NELEM > 0
 
 /****************************************************************************
  * Public Functions

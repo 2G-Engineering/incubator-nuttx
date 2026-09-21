@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32/stm32_hrtim.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,9 +41,9 @@
 
 #if defined(CONFIG_STM32_HRTIM1)
 
-/* Only STM32F33XXX  */
+/* Only STM32F33XXX and STM32G47XXX */
 
-#if defined(CONFIG_STM32_STM32F33XX)
+#if defined(CONFIG_STM32_STM32F33XX) || defined(CONFIG_STM32_STM32G47XX)
 
 #if defined(CONFIG_STM32_HRTIM_TIMA_PWM) || defined(CONFIG_STM32_HRTIM_TIMA_DAC) || \
     defined(CONFIG_STM32_HRTIM_TIMA_CAP) || defined(CONFIG_STM32_HRTIM_TIMA_IRQ) || \
@@ -6017,5 +6019,5 @@ int hrtim_register(const char *path, struct hrtim_dev_s *dev)
 }
 #endif /* CONFIG_STM32_HRTIM_DISABLE_CHARDRV */
 
-#endif /* CONFIG_STM32_STM32F33XX */
+#endif /* CONFIG_STM32_STM32F33XX || CONFIG_STM32_STM32G47XX */
 #endif /* CONFIG_STM32_HRTIM1 */

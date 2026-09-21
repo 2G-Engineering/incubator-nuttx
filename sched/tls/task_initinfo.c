@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/tls/task_initinfo.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,12 +25,76 @@
  ****************************************************************************/
 
 #include <errno.h>
+#include <fcntl.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
-#include <nuttx/lib/lib.h>
 
 #include "tls.h"
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+/****************************************************************************
+ * Name: task_init_stream
+ *
+ * Description:
+ *   This function is called when a new task is allocated.  It initializes
+ *   the streamlist instance that is stored in the task group.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_FILE_STREAM
+static void task_init_stream(FAR struct streamlist *list)
+{
+  FAR struct file_struct *stream = list->sl_std;
+  int i;
+
+  /* Initialize the list access mutex */
+
+  nxmutex_init(&list->sl_lock);
+  sq_init(&list->sl_queue);
+
+  /* Initialize stdin, stdout and stderr stream */
+
+  for (i = 0; i < 3; i++)
+    {
+      nxrmutex_init(&stream[i].fs_lock);
+
+#if !defined(CONFIG_STDIO_DISABLE_BUFFERING) && CONFIG_STDIO_BUFFER_SIZE > 0
+      /* Set up pointers */
+
+      stream[i].fs_bufstart = stream[i].fs_buffer;
+      stream[i].fs_bufend   = stream[i].fs_bufstart +
+                              CONFIG_STDIO_BUFFER_SIZE;
+      stream[i].fs_bufpos   = stream[i].fs_bufstart;
+      stream[i].fs_bufread  = stream[i].fs_bufstart;
+      stream[i].fs_flags    = __FS_FLAG_UBF; /* Fake setvbuf and fclose */
+#  ifdef CONFIG_STDIO_LINEBUFFER
+      /* Setup buffer flags */
+
+      stream[i].fs_flags   |= __FS_FLAG_LBF; /* Line buffering */
+
+#  endif /* CONFIG_STDIO_LINEBUFFER */
+
+      /* Save the file description and open flags.  Setting the
+       * file descriptor locks this stream.
+       */
+
+      stream[i].fs_cookie   = (FAR void *)(intptr_t)i;
+      stream[i].fs_oflags   = i ? O_WROK : O_RDONLY;
+
+      /* Assign custom callbacks to NULL. */
+
+      stream[i].fs_iofunc.read  = NULL;
+      stream[i].fs_iofunc.write = NULL;
+      stream[i].fs_iofunc.seek  = NULL;
+      stream[i].fs_iofunc.close = NULL;
+#endif /* !CONFIG_STDIO_DISABLE_BUFFERING && CONFIG_STDIO_BUFFER_SIZE > 0 */
+    }
+}
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -54,21 +120,29 @@ int task_init_info(FAR struct task_group_s *group)
 
   /* Allocate task info for group */
 
+#ifdef CONFIG_MM_KERNEL_HEAP
   info = group_zalloc(group, sizeof(struct task_info_s));
   if (info == NULL)
     {
       return -ENOMEM;
     }
+#else
+  info = &group->tg_info_;
+#endif
 
   /* Initialize user space mutex */
 
   nxmutex_init(&info->ta_lock);
   group->tg_info = info;
 
+#ifdef CONFIG_PTHREAD_ATFORK
+  list_initialize(&info->ta_atfork);
+#endif
+
 #ifdef CONFIG_FILE_STREAM
   /* Initialize file streams for the task group */
 
-  lib_stream_initialize(group);
+  task_init_stream(&info->ta_streamlist);
 #endif
 
   return OK;

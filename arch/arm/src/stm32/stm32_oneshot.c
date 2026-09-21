@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32/stm32_oneshot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -127,7 +129,6 @@ static inline int stm32_allocate_handler(struct stm32_oneshot_s *oneshot)
 
   /* Search for an unused handler */
 
-  sched_lock();
   for (i = 0; i < CONFIG_STM32_ONESHOT_MAXTIMERS; i++)
     {
       /* Is this handler available? */
@@ -143,7 +144,6 @@ static inline int stm32_allocate_handler(struct stm32_oneshot_s *oneshot)
         }
     }
 
-  sched_unlock();
   return ret;
 
 #else

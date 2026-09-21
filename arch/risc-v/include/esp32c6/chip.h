@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/include/esp32c6/chip.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -20,5 +22,13 @@
 
 #ifndef __ARCH_RISCV_INCLUDE_ESP32C6_CHIP_H
 #define __ARCH_RISCV_INCLUDE_ESP32C6_CHIP_H
+
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
 
 #endif /* __ARCH_RISCV_INCLUDE_ESP32C6_CHIP_H */

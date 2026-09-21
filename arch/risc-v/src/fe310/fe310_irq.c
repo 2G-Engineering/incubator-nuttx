@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/fe310/fe310_irq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -104,7 +106,7 @@ void up_disable_irq(int irq)
     {
       /* Read mstatus & clear machine timer interrupt enable in mie */
 
-      CLEAR_CSR(mie, MIE_MTIE);
+      CLEAR_CSR(CSR_MIE, MIE_MTIE);
     }
   else if (irq > RISCV_IRQ_MEXT)
     {
@@ -140,7 +142,7 @@ void up_enable_irq(int irq)
     {
       /* Read mstatus & set machine timer interrupt enable in mie */
 
-      SET_CSR(mie, MIE_MTIE);
+      SET_CSR(CSR_MIE, MIE_MTIE);
     }
   else if (irq > RISCV_IRQ_MEXT)
     {
@@ -190,11 +192,11 @@ irqstate_t up_irq_enable(void)
 
   /* TODO: should move to up_enable_irq() */
 
-  SET_CSR(mie, MIE_MEIE);
+  SET_CSR(CSR_MIE, MIE_MEIE);
 #endif
 
   /* Read mstatus & set machine interrupt enable (MIE) in mstatus */
 
-  oldstat = READ_AND_SET_CSR(mstatus, MSTATUS_MIE);
+  oldstat = READ_AND_SET_CSR(CSR_MSTATUS, MSTATUS_MIE);
   return oldstat;
 }

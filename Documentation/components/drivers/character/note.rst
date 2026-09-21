@@ -48,7 +48,7 @@ Notectl Device (``/dev/notectl``)
 
     .. c:macro:: NOTE_FILTER_MODE_FLAG_IRQ
 
-      Enable IRQ instrumentaiton
+      Enable IRQ instrumentation
 
   - ``cpuset`` : (SMP only) Monitor only CPUs in the bitset. Bit 0=CPU0, Bit1=CPU1, etc.
 
@@ -236,15 +236,6 @@ Noteram Device (``/dev/note``)
 
   :return: If success, 0 (``OK``) is returned and the given overwriter mode is set as the current settings.
     If failed, a negated ``errno`` is returned.
-
-.. c:macro:: NOTERAM_GETTASKNAME
-
-  Get task name string
-
-  :argument: A writable pointer to :c:struct:`noteram_get_taskname_s`
-
-  :return: If success, 0 (``OK``) is returned and the task name corresponding to given pid is stored into the given pointer.
-           If failed, a negated ``errno`` is returned.
 
 Filter control APIs
 ===================

@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/netdev/netdev.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -493,6 +495,42 @@ void netdown_notifier_teardown(int key);
 
 #ifdef CONFIG_NETDOWN_NOTIFIER
 void netdown_notifier_signal(FAR struct net_driver_s *dev);
+#endif
+
+/****************************************************************************
+ * Name: netdev_ipv6_addmcastmac/removemcastmac
+ *
+ * Description:
+ *   Add / Remove an MAC address corresponds to the IPv6 address to / from
+ *   the device's MAC filter table.
+ *
+ * Input Parameters:
+ *   dev  - The device driver structure to be modified
+ *   addr - The IPv6 address whose related MAC will be added or removed
+ *
+ * Returned Value:
+ *   None
+ *
+ * Assumptions:
+ *   The caller has locked the network.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_ICMPv6
+void netdev_ipv6_addmcastmac(FAR struct net_driver_s *dev,
+                             const net_ipv6addr_t addr);
+void netdev_ipv6_removemcastmac(FAR struct net_driver_s *dev,
+                                const net_ipv6addr_t addr);
+#else
+#  define netdev_ipv6_addmcastmac(dev,addr)
+#  define netdev_ipv6_removemcastmac(dev,addr)
+#endif
+
+#ifdef CONFIG_NETDEV_RSS
+void netdev_notify_recvcpu(FAR struct net_driver_s *dev,
+                           int cpu, uint8_t domain,
+                           FAR const void *src_addr, uint16_t src_port,
+                           FAR const void *dst_addr, uint16_t dst_port);
 #endif
 
 #undef EXTERN

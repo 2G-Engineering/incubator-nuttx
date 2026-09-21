@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sparc/src/bm3803/bm3803-irq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -87,7 +89,7 @@ void up_irqinitialize(void)
 
   /* And finally, enable interrupts */
 
-  /* Interrupts are enabled by setting the te bit in the psr status
+  /* Interrupts are enabled by setting the the bit in the psr status
    * register
    */
 
@@ -236,7 +238,7 @@ void sparc_clrpend_irq(int irq)
     {
       if (irq <= BM3803_IRQ_LAST_INTERRUPT)
         {
-      /* written with a ‘1’, in Interrupt Clear Register
+      /* written with a '1', in Interrupt Clear Register
        * will clear the corresponding bit(s) in the interrupt pending
        * register
        */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/local/local_listen.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,7 +25,6 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#if defined(CONFIG_NET) && defined(CONFIG_NET_LOCAL_STREAM)
 
 #include <assert.h>
 #include <errno.h>
@@ -66,7 +67,7 @@
 
 int local_listen(FAR struct socket *psock, int backlog)
 {
-  FAR struct local_conn_s *server;
+  FAR struct local_conn_s *server = psock->s_conn;
 
   /* Verify that the sockfd corresponds to a connected SOCK_STREAM in this
    * address family.
@@ -81,13 +82,10 @@ int local_listen(FAR struct socket *psock, int backlog)
 
   net_lock();
 
-  server = psock->s_conn;
-
   /* Some sanity checks */
 
   if (server->lc_proto != SOCK_STREAM ||
-      server->lc_state == LOCAL_STATE_UNBOUND ||
-      server->lc_type != LOCAL_TYPE_PATHNAME)
+      server->lc_state == LOCAL_STATE_UNBOUND)
     {
       net_unlock();
       return -EOPNOTSUPP;
@@ -120,5 +118,3 @@ int local_listen(FAR struct socket *psock, int backlog)
 
   return OK;
 }
-
-#endif /* CONFIG_NET && CONFIG_NET_LOCAL_STREAM */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/udp/udp_netpoll.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -186,9 +188,9 @@ int udp_pollsetup(FAR struct socket *psock, FAR struct pollfd *fds)
    * callback processing.
    */
 
-  cb->flags    = NETDEV_DOWN;
-  cb->priv     = (FAR void *)info;
-  cb->event    = udp_poll_eventhandler;
+  cb->flags = NETDEV_DOWN;
+  cb->priv  = info;
+  cb->event = udp_poll_eventhandler;
 
   if ((fds->events & POLLOUT) != 0)
     {
@@ -204,11 +206,11 @@ int udp_pollsetup(FAR struct socket *psock, FAR struct pollfd *fds)
    * for use during poll teardown as well.
    */
 
-  fds->priv = (FAR void *)info;
+  fds->priv = info;
 
   /* Check for read data availability now */
 
-  if (!IOB_QEMPTY(&conn->readahead))
+  if (conn->readahead != NULL)
     {
       /* Normal data may be read without blocking. */
 

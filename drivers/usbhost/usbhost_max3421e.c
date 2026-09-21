@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/usbhost/usbhost_max3421e.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -1081,7 +1083,7 @@ static void max3421e_sndblock(FAR struct max3421e_usbhost_s *priv,
 
   SPI_SELECT(spi, SPIDEV_USBHOST(lower->devid), true);
 
-  /* Send the wrte command byte */
+  /* Send the write command byte */
 
   cmd = max3421e_fmtcmd(priv, addr, MAX3421E_DIR_WRITE);
   SPI_SEND(spi, cmd);
@@ -3781,7 +3783,7 @@ static int max3421e_alloc(FAR struct usbhost_driver_s *drvr,
 
   /* There is no special memory requirement for the MAX3421E. */
 
-  alloc = (FAR uint8_t *)kmm_malloc(CONFIG_MAX3421E_DESCSIZE);
+  alloc = kmm_malloc(CONFIG_MAX3421E_DESCSIZE);
   if (!alloc)
     {
       return -ENOMEM;
@@ -3866,7 +3868,7 @@ static int max3421e_ioalloc(FAR struct usbhost_driver_s *drvr,
 
   /* There is no special memory requirement */
 
-  alloc = (FAR uint8_t *)kmm_malloc(buflen);
+  alloc = kmm_malloc(buflen);
   if (!alloc)
     {
       return -ENOMEM;

@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/mm_gran/mm_grancritical.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -57,7 +59,7 @@
 int gran_enter_critical(FAR struct gran_s *priv)
 {
 #ifdef CONFIG_GRAN_INTR
-  priv->irqstate = enter_critical_section();
+  priv->irqstate = spin_lock_irqsave(&priv->lock);
   return OK;
 #else
   return nxmutex_lock(&priv->lock);
@@ -67,7 +69,7 @@ int gran_enter_critical(FAR struct gran_s *priv)
 void gran_leave_critical(FAR struct gran_s *priv)
 {
 #ifdef CONFIG_GRAN_INTR
-  leave_critical_section(priv->irqstate);
+  spin_unlock_irqrestore(&priv->lock, priv->irqstate);
 #else
   nxmutex_unlock(&priv->lock);
 #endif

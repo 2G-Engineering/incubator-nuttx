@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/can/can_recvmsg.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,6 +41,7 @@
 #include <nuttx/semaphore.h>
 #include <nuttx/net/net.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/net/netstats.h>
 
 #include "netdev/netdev.h"
 #include "devif/devif.h"
@@ -71,6 +74,10 @@ struct can_recvfrom_s
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+#ifdef CONFIG_NET_CANPROTO_OPTIONS
+static int can_recv_filter(FAR struct can_conn_s *conn, canid_t id);
+#endif
 
 /****************************************************************************
  * Name: can_add_recvlen
@@ -125,9 +132,10 @@ static size_t can_recvfrom_newdata(FAR struct net_driver_s *dev,
 {
   unsigned int offset;
   size_t recvlen;
-
 #ifdef CONFIG_NET_TIMESTAMP
-  if (pstate->pr_conn->timestamp &&
+  FAR struct can_conn_s *conn = pstate->pr_conn;
+
+  if (_SO_GETOPT(conn->sconn.s_options, SO_TIMESTAMP) &&
       pstate->pr_msglen == sizeof(struct timeval))
     {
       iob_copyout(pstate->pr_msgbuf, dev->d_iob, sizeof(struct timeval),
@@ -192,7 +200,13 @@ static inline void can_newdata(FAR struct net_driver_s *dev,
 
   if (recvlen < dev->d_len)
     {
-      can_datahandler(dev, pstate->pr_conn);
+      if (can_datahandler(dev, pstate->pr_conn) < dev->d_len)
+        {
+          ninfo("Dropped %d bytes\n", dev->d_len);
+#ifdef CONFIG_NET_STATISTICS
+          g_netstats.can.drop++;
+#endif
+        }
     }
 
   /* Indicate no data in the buffer */
@@ -234,8 +248,34 @@ static inline int can_readahead(struct can_recvfrom_s *pstate)
     {
       DEBUGASSERT(iob->io_pktlen > 0);
 
+#ifdef CONFIG_NET_CANPROTO_OPTIONS
+      /* Check receive filters */
+
+      canid_t can_id;
+      iob_copyout((uint8_t *)&can_id, iob, sizeof(canid_t), 0);
+
+      if (can_recv_filter(conn, can_id) == 0)
+        {
+          FAR struct iob_s *tmp;
+
+          /* Remove the I/O buffer chain from the head of the read-ahead
+           * buffer queue.
+           */
+
+          tmp = iob_remove_queue(&conn->readahead);
+          DEBUGASSERT(tmp == iob);
+          UNUSED(tmp);
+
+          /* And free the I/O buffer chain */
+
+          iob_free_chain(iob);
+          return 0;
+        }
+#endif
+
 #ifdef CONFIG_NET_TIMESTAMP
-      if (conn->timestamp && pstate->pr_msglen == sizeof(struct timeval))
+      if (_SO_GETOPT(conn->sconn.s_options, SO_TIMESTAMP) &&
+          pstate->pr_msglen == sizeof(struct timeval))
         {
           iob_copyout(pstate->pr_msgbuf, iob, sizeof(struct timeval),
                       -CONFIG_NET_LL_GUARDSIZE);
@@ -282,7 +322,7 @@ static inline int can_readahead(struct can_recvfrom_s *pstate)
 
       /* do not pass frames with DLC > 8 to a legacy socket */
 #if defined(CONFIG_NET_CANPROTO_OPTIONS) && defined(CONFIG_NET_CAN_CANFD)
-      if (!conn->fd_frames)
+      if (!_SO_GETOPT(conn->sconn.s_options, CAN_RAW_FD_FRAMES))
 #endif
         {
           if (recvlen > sizeof(struct can_frame))
@@ -298,16 +338,26 @@ static inline int can_readahead(struct can_recvfrom_s *pstate)
 }
 
 #ifdef CONFIG_NET_CANPROTO_OPTIONS
-static int can_recv_filter(struct can_conn_s *conn, canid_t id)
+static int can_recv_filter(FAR struct can_conn_s *conn, canid_t id)
 {
   uint32_t i;
+
+#ifdef CONFIG_NET_CAN_ERRORS
+  /* error message frame */
+
+  if ((id & CAN_ERR_FLAG) != 0)
+    {
+      return id & conn->err_mask ? 1 : 0;
+    }
+#endif
+
   for (i = 0; i < conn->filter_count; i++)
     {
       if (conn->filters[i].can_id & CAN_INV_FILTER)
         {
           if ((id & conn->filters[i].can_mask) !=
                 ((conn->filters[i].can_id & ~CAN_INV_FILTER) &
-                conn->filters[i].can_mask))
+                 conn->filters[i].can_mask))
             {
               return 1;
             }
@@ -330,21 +380,25 @@ static uint16_t can_recvfrom_eventhandler(FAR struct net_driver_s *dev,
                                           FAR void *pvpriv, uint16_t flags)
 {
   struct can_recvfrom_s *pstate = pvpriv;
-#if defined(CONFIG_NET_CANPROTO_OPTIONS) || defined(CONFIG_NET_TIMESTAMP)
-  struct can_conn_s *conn = pstate->pr_conn;
-#endif
 
   /* 'priv' might be null in some race conditions (?) */
 
   if (pstate)
     {
+#if defined(CONFIG_NET_CANPROTO_OPTIONS) || defined(CONFIG_NET_TIMESTAMP)
+      struct can_conn_s *conn = pstate->pr_conn;
+#endif
+
       if ((flags & CAN_NEWDATA) != 0)
         {
           /* If a new packet is available, check receive filters
            * when is valid then complete the read action.
            */
 #ifdef CONFIG_NET_CANPROTO_OPTIONS
-          if (can_recv_filter(conn, (canid_t) *dev->d_appdata) == 0)
+          canid_t can_id;
+          memcpy(&can_id, dev->d_appdata, sizeof(canid_t));
+
+          if (can_recv_filter(conn, can_id) == 0)
             {
               flags &= ~CAN_NEWDATA;
               return flags;
@@ -353,14 +407,15 @@ static uint16_t can_recvfrom_eventhandler(FAR struct net_driver_s *dev,
 
           /* do not pass frames with DLC > 8 to a legacy socket */
 #if defined(CONFIG_NET_CANPROTO_OPTIONS) && defined(CONFIG_NET_CAN_CANFD)
-          if (!conn->fd_frames)
+          if (!_SO_GETOPT(conn->sconn.s_options, CAN_RAW_FD_FRAMES))
 #endif
             {
 #ifdef CONFIG_NET_TIMESTAMP
-              if ((conn->timestamp && (dev->d_len >
-                  sizeof(struct can_frame) + sizeof(struct timeval)))
-                  || (!conn->timestamp && (dev->d_len >
-                   sizeof(struct can_frame))))
+              if ((_SO_GETOPT(conn->sconn.s_options, SO_TIMESTAMP) &&
+                   dev->d_len > sizeof(struct can_frame) +
+                   sizeof(struct timeval)) ||
+                  (!_SO_GETOPT(conn->sconn.s_options, SO_TIMESTAMP) &&
+                   dev->d_len > sizeof(struct can_frame)))
 #else
               if (dev->d_len > sizeof(struct can_frame))
 #endif
@@ -470,14 +525,17 @@ ssize_t can_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
   struct can_recvfrom_s state;
   int ret;
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
-
   conn = psock->s_conn;
 
   if (psock->s_type != SOCK_RAW)
     {
       nerr("ERROR: Unsupported socket type: %d\n", psock->s_type);
-      ret = -ENOSYS;
+      return -ENOSYS;
+    }
+
+  if (msg->msg_iovlen != 1)
+    {
+      return -ENOTSUP;
     }
 
   net_lock();
@@ -491,7 +549,7 @@ ssize_t can_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
   state.pr_buffer = msg->msg_iov->iov_base;
 
 #ifdef CONFIG_NET_TIMESTAMP
-  if (conn->timestamp)
+  if (_SO_GETOPT(conn->sconn.s_options, SO_TIMESTAMP))
     {
       state.pr_msgbuf = cmsg_append(msg, SOL_SOCKET, SO_TIMESTAMP,
                                     NULL, sizeof(struct timeval));

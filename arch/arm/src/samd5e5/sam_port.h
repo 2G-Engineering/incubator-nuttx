@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samd5e5/sam_port.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -70,13 +72,13 @@
  *   Peripheral:  MM.. .... .... .... .... ....
  */
 
-#define PORT_MODE_SHIFT            (22)        						/* Bits 22-23: PORT mode */
+#define PORT_MODE_SHIFT            (22)        /* Bits 22-23: PORT mode */
 #define PORT_MODE_MASK             (3 << PORT_MODE_SHIFT)
 #  define PORT_INPUT               (0 << PORT_MODE_SHIFT) /* PORT Input */
 #  define PORT_OUTPUT              (1 << PORT_MODE_SHIFT) /* PORT Output */
 #  define PORT_PERIPHERAL          (2 << PORT_MODE_SHIFT) /* Controlled by peripheral */
 #  define PORT_INTERRUPT           (3 << PORT_MODE_SHIFT) /* Interrupting input */
-#define PORT_MODE(n)			   ((uint8_t)(n) << PORT_MODE_SHIFT)
+#define PORT_MODE(n)               ((uint8_t)(n) << PORT_MODE_SHIFT)
 
 /* Pull-up/down resistor control for inputs
  *

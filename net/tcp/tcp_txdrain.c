@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/tcp/tcp_txdrain.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -92,7 +94,6 @@ int tcp_txdrain(FAR struct socket *psock, unsigned int timeout)
   sem_t waitsem;
   int ret;
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
   DEBUGASSERT(psock->s_type == SOCK_STREAM);
 
   conn = psock->s_conn;

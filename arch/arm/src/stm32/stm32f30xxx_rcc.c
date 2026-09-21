@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32/stm32f30xxx_rcc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -476,6 +478,13 @@ static void stm32_stdclockconfig(void)
 
 #endif
 
+  /* Enable FLASH prefetch buffer and set FLASH wait states */
+
+  regval  = getreg32(STM32_FLASH_ACR);
+  regval &= ~FLASH_ACR_LATENCY_MASK;
+  regval |= (FLASH_ACR_LATENCY_SETTING | FLASH_ACR_PRTFBE);
+  putreg32(regval, STM32_FLASH_ACR);
+
   /* Set the HCLK source/divider */
 
   regval = getreg32(STM32_RCC_CFGR);
@@ -541,7 +550,7 @@ static void stm32_stdclockconfig(void)
 #endif
 
 #if defined(CONFIG_STM32_RTC_LSECLOCK)
-  /* Normally peripheral clocks are enabled later in bootup, but we need
+  /* Normally peripheral clocks are enabled later in boot up, but we need
    * clock on PWR *now* as without this setting registers that enable LSE
    * won't work.
    *

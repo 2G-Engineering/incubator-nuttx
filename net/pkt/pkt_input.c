@@ -1,6 +1,7 @@
 /****************************************************************************
  * net/pkt/pkt_input.c
- * Handling incoming packet input
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -131,10 +132,9 @@ errout:
 static int pkt_in(FAR struct net_driver_s *dev)
 {
   FAR struct pkt_conn_s *conn;
-  FAR struct eth_hdr_s  *pbuf = ETHBUF;
   int ret = OK;
 
-  conn = pkt_active(pbuf);
+  conn = pkt_active(dev);
   if (conn)
     {
       uint16_t flags;

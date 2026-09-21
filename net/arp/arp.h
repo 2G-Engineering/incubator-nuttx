@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/arp/arp.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -128,9 +130,12 @@ struct arp_iphdr_s
  * operated upon from the network driver poll.
  */
 
+typedef CODE void (*arp_send_finish_cb_t)(FAR struct net_driver_s *dev,
+                                          int result);
 struct arp_send_s
 {
   FAR struct devif_callback_s *snd_cb; /* Reference to callback instance */
+  FAR arp_send_finish_cb_t finish_cb;  /* Reference to send finish callback */
   sem_t     snd_sem;                   /* Used to wake up the waiting thread */
   uint8_t   snd_retries;               /* Retry count */
   volatile bool snd_sent;              /* True: if request sent */
@@ -223,7 +228,7 @@ void arp_ipin(FAR struct net_driver_s *dev);
  *   If the destination IPv4 address is in the local network (determined
  *   by logical ANDing of netmask and our IPv4 address), the function
  *   checks the ARP cache to see if an entry for the destination IPv4
- *   address is found.  If so, an Ethernet header is pre-pended at the
+ *   address is found.  If so, an Ethernet header is prepended at the
  *   beginning of the packet and the function returns.
  *
  *   If no ARP cache entry is found for the destination IIPv4P address, the
@@ -273,6 +278,33 @@ void arp_out(FAR struct net_driver_s *dev);
 int arp_send(in_addr_t ipaddr);
 #else
 #  define arp_send(i) (0)
+#endif
+
+/****************************************************************************
+ * Name: arp_send_async
+ *
+ * Description:
+ *   The arp_send_async() call may be to send an ARP request asyncly to
+ *   resolve an IPv4 address.
+ *
+ * Input Parameters:
+ *   ipaddr   The IP address to be queried.
+ *   cb       The callback when ARP send is finished, should not be NULL.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success the arp been sent to the driver.
+ *   On error a negated errno value is returned:
+ *
+ *     -ETIMEDOUT:    The number or retry counts has been exceed.
+ *     -EHOSTUNREACH: Could not find a route to the host
+ *
+ * Assumptions:
+ *   This function is called from the normal tasking context.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_ARP_SEND
+int arp_send_async(in_addr_t ipaddr, arp_send_finish_cb_t cb);
 #endif
 
 /****************************************************************************
@@ -522,6 +554,58 @@ void arp_dump(FAR struct arp_hdr_s *arp);
 #else
 #  define arp_dump(arp)
 #endif
+
+#ifdef CONFIG_NET_ARP_ACD
+
+/****************************************************************************
+ * Name: arp_acd_update
+ *
+ * Description:
+ *   interface of ARP Address Conflict Detection monitor
+ *
+ * Input Parameters:
+ *   dev - The device driver structure to use in the send operation
+ *
+ * Returned Value:
+ *   none
+ *
+ ****************************************************************************/
+
+void arp_acd_update(FAR struct net_driver_s *dev);
+
+/****************************************************************************
+ * Name: arp_acd_set_addr
+ *
+ * Description:
+ *   setting address interface of ARP Address Conflict Detection
+ *
+ * Input Parameters:
+ *   dev - The device driver structure to use in the send operation
+ *
+ * Returned Value:
+ *   none
+ *
+ ****************************************************************************/
+
+void arp_acd_set_addr(FAR struct net_driver_s *dev);
+
+/****************************************************************************
+ * Name: arp_acd_setup
+ *
+ * Description:
+ *   set up interface of ARP Address Conflict Detection
+ *
+ * Input Parameters:
+ *   dev - The device driver structure to use in the send operation
+ *
+ * Returned Value:
+ *   none
+ *
+ ****************************************************************************/
+
+void arp_acd_setup(FAR struct net_driver_s *dev);
+
+#endif /* CONFIG_NET_ARP_ACD */
 
 #else /* CONFIG_NET_ARP */
 

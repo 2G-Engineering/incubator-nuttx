@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lpc31xx/lpc31_allocateheap.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -37,7 +39,7 @@
 #include "arm_internal.h"
 #include "lpc31_memorymap.h"
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 #  include <nuttx/page.h>
 #  include "pg_macros.h"
 #endif
@@ -134,7 +136,7 @@
  * will let the heap run all the way to the end of SRAM.
  */
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 #  ifdef PGTABLE_IN_HIGHSRAM
 #    define LPC31_HEAP_VEND (PG_LOCKED_VBASE + PG_TOTAL_VSIZE - PGTABLE_SIZE)
 #  else

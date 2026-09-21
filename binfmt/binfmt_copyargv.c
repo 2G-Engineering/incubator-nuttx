@@ -1,6 +1,8 @@
 /****************************************************************************
  * binfmt/binfmt_copyargv.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -108,7 +110,7 @@ int binfmt_copyargv(FAR char * const **copy, FAR char * const *argv)
       if (argsize > 0)
         {
           argvsize = (nargs + 1) * sizeof(FAR char *);
-          ptr      = (FAR char *)kmm_malloc(argvsize + argsize);
+          ptr      = kmm_malloc(argvsize + argsize);
           if (!ptr)
             {
               berr("ERROR: Failed to allocate the argument buffer\n");

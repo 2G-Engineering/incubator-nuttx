@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/sama5/sama5d2-xult/src/sama5d2-xult.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  *  Licensed to the Apache Software Foundation (ASF) under one or more
  *  contributor license agreements.  See the NOTICE file distributed with
  *  this work for additional information regarding copyright ownership.  The
@@ -42,13 +44,15 @@
 
 /* Configuration ************************************************************/
 
-#define HAVE_SDMMC      1
-#define HAVE_AT25       1
-#define HAVE_NAND       1
-#define HAVE_USBHOST    1
-#define HAVE_USBDEV     1
-#define HAVE_USBMONITOR 1
-#define HAVE_NETWORK    1
+#define HAVE_SDMMC         1
+#define HAVE_AT25          1
+#define HAVE_NAND          1
+#define HAVE_USBHOST       1
+#define HAVE_USBDEV        1
+#define HAVE_USBMONITOR    1
+#define HAVE_NETWORK       1
+#define HAVE_MX25RXX       1
+#define HAVE_MX25RXX_NXFFS 1
 
 /* SDMMC */
 
@@ -167,6 +171,17 @@
 
 #ifdef HAVE_AT25
 #  define AT25_MINOR  _AT25_MINOR
+#endif
+
+/* MX25RXX QuadSPI flash */
+
+#if !defined(CONFIG_MTD_MX25RXX) || !defined(CONFIG_SAMA5_QSPI0)
+#  undef HAVE_MX25RXX
+#  undef HAVE_MX25RXX_NXFFS
+#endif
+
+#ifndef CONFIG_FS_NXFFS
+#  undef HAVE_MX25RXX_NXFFS
 #endif
 
 /* MMC/SD minor numbers:  The NSH device minor extended is extended to

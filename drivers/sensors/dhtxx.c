@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/dhtxx.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,7 +35,6 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/signal.h>
-#include <nuttx/time.h>
 #include <nuttx/clock.h>
 #include <nuttx/mutex.h>
 #include <nuttx/sensors/dhtxx.h>
@@ -70,7 +71,7 @@
 #define DHT22_MAX_TEMP                    80.0F
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Type
  ****************************************************************************/
 
 struct dhtxx_dev_s
@@ -546,7 +547,7 @@ int dhtxx_register(FAR const char *devpath,
 
   /* Initialize the Dhtxx device structure */
 
-  priv = (FAR struct dhtxx_dev_s *)kmm_malloc(sizeof(struct dhtxx_dev_s));
+  priv = kmm_malloc(sizeof(struct dhtxx_dev_s));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");

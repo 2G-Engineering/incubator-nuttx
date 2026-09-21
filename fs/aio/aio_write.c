@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/aio/aio_write.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -246,8 +248,43 @@ int aio_write(FAR struct aiocb *aiocbp)
 {
   FAR struct aio_container_s *aioc;
   int ret;
+  int flags;
 
   DEBUGASSERT(aiocbp);
+
+  if (aiocbp->aio_reqprio < 0)
+    {
+      set_errno(EINVAL);
+      return ERROR;
+    }
+
+  if (aiocbp->aio_offset < 0)
+    {
+      aiocbp->aio_result = -EINVAL;
+      return OK;
+    }
+
+  if (aiocbp->aio_fildes < 0)
+    {
+      /* for EBADF, the aio_write do not return error directly, but using
+       * aio_error to return this error code
+       */
+
+      aiocbp->aio_result = -EBADF;
+      return OK;
+    }
+
+  /* the aio_fildes that transferred in may be opened with O_RDONLY, for this
+   * case, we need to return OK directly, and using the aio_error to collect
+   * the EBADF error code
+   */
+
+  flags = fcntl(aiocbp->aio_fildes, F_GETFL);
+  if ((flags & O_WRONLY) == 0)
+    {
+      aiocbp->aio_result = -EBADF;
+      return OK;
+    }
 
   /* The result -EINPROGRESS means that the transfer has not yet completed */
 

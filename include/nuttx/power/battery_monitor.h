@@ -1,6 +1,7 @@
 /****************************************************************************
  * include/nuttx/power/battery_monitor.h
- * NuttX Battery battery manager & monitor interfaces
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -296,7 +297,7 @@ struct battery_monitor_operations_s
 
   /* Get chip id */
 
-  CODE int (*chipid)(FAR struct battery_charger_dev_s *dev,
+  CODE int (*chipid)(FAR struct battery_monitor_dev_s *dev,
                      FAR unsigned int *value);
 };
 

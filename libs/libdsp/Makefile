@@ -1,6 +1,8 @@
 ############################################################################
 # libs/libdsp/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -21,6 +23,7 @@
 include $(TOPDIR)/Make.defs
 
 ifeq ($(CONFIG_LIBDSP),y)
+CSRCS += lib_avg.c
 CSRCS += lib_pid.c
 CSRCS += lib_svm.c
 CSRCS += lib_transform.c

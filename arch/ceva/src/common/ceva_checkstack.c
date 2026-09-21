@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/ceva/src/common/ceva_checkstack.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -143,7 +145,7 @@ size_t up_check_tcbstack(struct tcb_s *tcb)
                           tcb->adj_stack_size);
 }
 
-size_t up_check_intstack(void)
+size_t up_check_intstack(int cpu)
 {
   return ceva_stack_check((uintptr_t)g_intstackalloc,
                           g_intstackbase - g_intstackalloc);

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/common/riscv_addrenv_utils.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -63,13 +65,22 @@ uintptr_t riscv_get_pgtable(arch_addrenv_t *addrenv, uintptr_t vaddr)
   uintptr_t paddr;
   uintptr_t ptprev;
   uint32_t  ptlevel;
+  uint32_t  flags;
 
   /* Get the current level MAX_LEVELS-1 entry corresponding to this vaddr */
 
   ptlevel = ARCH_SPGTS;
   ptprev  = riscv_pgvaddr(addrenv->spgtables[ARCH_SPGTS - 1]);
-  paddr   = mmu_pte_to_paddr(mmu_ln_getentry(ptlevel, ptprev, vaddr));
+  if (!ptprev)
+    {
+      /* Something is very wrong */
 
+      return 0;
+    }
+
+  /* Find the physical address of the final level page table */
+
+  paddr = mmu_pte_to_paddr(mmu_ln_getentry(ptlevel, ptprev, vaddr));
   if (!paddr)
     {
       /* No page table has been allocated... allocate one now */
@@ -77,16 +88,27 @@ uintptr_t riscv_get_pgtable(arch_addrenv_t *addrenv, uintptr_t vaddr)
       paddr = mm_pgalloc(1);
       if (paddr)
         {
+          /* Determine page table flags */
+
+          if (riscv_uservaddr(vaddr))
+            {
+              flags = MMU_UPGT_FLAGS;
+            }
+          else
+            {
+              flags = MMU_KPGT_FLAGS;
+            }
+
           /* Wipe the page and assign it */
 
           riscv_pgwipe(paddr);
-          mmu_ln_setentry(ptlevel, ptprev, paddr, vaddr, MMU_UPGT_FLAGS);
+          mmu_ln_setentry(ptlevel, ptprev, paddr, vaddr, flags);
         }
     }
 
   /* Flush the data cache, so the changes are committed to memory */
 
-  __DMB();
+  UP_DMB();
 
   return paddr;
 }
@@ -142,7 +164,7 @@ int riscv_map_pages(arch_addrenv_t *addrenv, uintptr_t *pages,
 
   /* Flush the data cache, so the changes are committed to memory */
 
-  __DMB();
+  UP_DMB();
 
   return OK;
 }
@@ -203,7 +225,7 @@ int riscv_unmap_pages(arch_addrenv_t *addrenv, uintptr_t vaddr,
 
   /* Flush the data cache, so the changes are committed to memory */
 
-  __DMB();
+  UP_DMB();
 
   return OK;
 }

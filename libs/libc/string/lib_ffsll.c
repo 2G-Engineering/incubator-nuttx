@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/string/lib_ffsll.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -17,13 +19,6 @@
  * under the License.
  *
  ****************************************************************************/
-
-/****************************************************************************
- * Included Files
- ****************************************************************************/
-
-#include <nuttx/compiler.h>
-#include <strings.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -57,13 +52,6 @@ int ffsll(long long j)
 
   if (j != 0)
     {
-#ifdef CONFIG_HAVE_BUILTIN_FFSLL
-      ret = __builtin_ffsll(j);
-#elif defined (CONFIG_HAVE_BUILTIN_CTZ)
-      /* Count trailing zeros function can be used to implement ffs. */
-
-      ret = __builtin_ctzll(j) + 1;
-#else
       unsigned long long value = (unsigned long long)j;
       int bitno;
 
@@ -75,10 +63,8 @@ int ffsll(long long j)
               break;
             }
         }
-#endif
     }
 
   return ret;
 }
-
 #endif

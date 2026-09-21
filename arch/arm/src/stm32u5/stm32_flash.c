@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32u5/stm32_flash.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -49,6 +51,8 @@
 #include "arm_internal.h"
 
 #if !defined(CONFIG_STM32U5_STM32U585XX)
+#elif !defined(CONFIG_STM32U5_STM32U5A5XX)
+#else
 #  error "Unrecognized STM32 chip"
 #endif
 

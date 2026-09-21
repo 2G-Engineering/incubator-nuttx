@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/usrsock/usrsock_listen.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -147,8 +149,6 @@ int usrsock_listen(FAR struct socket *psock, int backlog)
   };
 
   int ret;
-
-  DEBUGASSERT(conn);
 
   net_lock();
 

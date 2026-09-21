@@ -1,5 +1,7 @@
 *.a
 *.adb
+*.dba
+*.dbo
 *.asm
 *.bin
 *.d
@@ -12,6 +14,7 @@
 *.hex
 *.i
 *.ihx
+*.inf
 *.lib
 *.lod
 *.lst
@@ -28,14 +31,23 @@
 *.ddc
 *.dds
 *.su
+*.pyc
+*.mapfile
+*.SystemMap
 *~
+\#*\#
+.\#*
 .depend
+/.cache
 /.config
 /.config.*
 /.config-*
 /.config\ *
 /.cproject
+/.cache
+/.clang-format
 /.gdbinit
+/.gdb_history
 /.project
 /.version
 /_SAVED_APPS_config
@@ -43,8 +55,10 @@
 /defconfig
 /Make.defs
 /nuttx
+/nuttx32
 /nuttx-*
 /nuttx.*
+/nuttx_user*
 /staging
 /tags
 /TAGS
@@ -57,6 +71,18 @@ uImage
 .context\ *
 # $(TOPDIR)/Makefile.[unix|win]::$(DIRLINKS_EXTERNAL_DIRS)
 .dirlinks
+.fakelnk
 .vscode
 .DS_Store
 /build_configs/*
+tools/gdb/__pycache__
+/build
+.ccls-cache
+compile_commands.json
+imx9-sdimage.img
+kwarning
+SAVEMake.defs
+SAVEconfig
+.aider*
+imx9-norimage.img
+config.txt

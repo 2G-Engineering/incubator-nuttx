@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/xtensa/src/common/xtensa_getintstack.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,13 +38,9 @@
  * Name: up_get_intstackbase
  ****************************************************************************/
 
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
-uintptr_t up_get_intstackbase(void)
+#if !defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 3
+uintptr_t up_get_intstackbase(int cpu)
 {
-#ifdef CONFIG_SMP
-  return (uintptr_t)xtensa_intstack_alloc();
-#else
   return (uintptr_t)g_intstackalloc;
-#endif
 }
 #endif

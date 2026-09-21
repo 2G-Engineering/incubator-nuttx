@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sparc/src/common/sparc_internal.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -194,13 +196,6 @@ int sparc_swint1(int irq, void *context, void *arg);
 /* Signals */
 
 void sparc_sigdeliver(void);
-
-/* Interrupt handling *******************************************************/
-
-#if CONFIG_ARCH_INTERRUPTSTACK > 7
-uintptr_t sparc_intstack_alloc(void);
-uintptr_t sparc_intstack_top(void);
-#endif
 
 /* Chip-specific functions **************************************************/
 

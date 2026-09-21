@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/include/samv7/samv71_irq.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -153,11 +155,11 @@
 #define SAM_IRQ_MCAN01        (SAM_IRQ_EXTINT+SAM_PID_MCAN01) /* CAN0 IRQ line 1 */
 #define SAM_IRQ_MCAN10        (SAM_IRQ_EXTINT+SAM_PID_MCAN10) /* CAN1 IRQ line 0 */
 #define SAM_IRQ_MCAN11        (SAM_IRQ_EXTINT+SAM_PID_MCAN11) /* CAN1 IRQ line 1 */
-#define SAM_IRQ_EMAC0         (SAM_IRQ_EXTINT+SAM_PID_EMAC0)  /*  Ethernet MAC */
+#define SAM_IRQ_EMAC0         (SAM_IRQ_EXTINT+SAM_PID_EMAC0)  /* Ethernet MAC */
 #define SAM_IRQ_AFEC1         (SAM_IRQ_EXTINT+SAM_PID_AFEC1)  /* Analog Front End 1 */
 #define SAM_IRQ_TWIHS2        (SAM_IRQ_EXTINT+SAM_PID_TWIHS2) /* Two-Wire Interface 2 */
 #define SAM_IRQ_SPI1          (SAM_IRQ_EXTINT+SAM_PID_SPI1)   /* Serial Peripheral Interface 1 */
-#define SAM_IRQ_QSPI          (SAM_IRQ_EXTINT+SAM_PID_QSPI)   /*  Quad I/O Serial Peripheral Interface */
+#define SAM_IRQ_QSPI          (SAM_IRQ_EXTINT+SAM_PID_QSPI)   /* Quad I/O Serial Peripheral Interface */
 #define SAM_IRQ_UART2         (SAM_IRQ_EXTINT+SAM_PID_UART2)  /* Universal Asynchronous Receiver Transmitter 2 */
 #define SAM_IRQ_UART3         (SAM_IRQ_EXTINT+SAM_PID_UART3)  /* Universal Asynchronous Receiver Transmitter 3 */
 #define SAM_IRQ_UART4         (SAM_IRQ_EXTINT+SAM_PID_UART4)  /* Universal Asynchronous Receiver Transmitter 4 */

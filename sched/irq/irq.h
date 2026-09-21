@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/irq/irq.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -44,6 +46,15 @@
 #  error CONFIG_ARCH_NUSER_INTERRUPTS is not defined
 #endif
 
+#if defined(CONFIG_ARCH_MINIMAL_VECTORTABLE_DYNAMIC)
+#  define IRQ_TO_NDX(irq) (g_irqmap[irq] ? g_irqmap[irq] : irq_to_ndx(irq))
+#elif defined(CONFIG_ARCH_MINIMAL_VECTORTABLE)
+#  define IRQ_TO_NDX(irq) \
+  (g_irqmap[(irq)] < CONFIG_ARCH_NUSER_INTERRUPTS ? g_irqmap[(irq)] : -EINVAL)
+#else
+#  define IRQ_TO_NDX(irq) (irq)
+#endif
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/
@@ -60,13 +71,8 @@ struct irq_info_s
   FAR void *arg;     /* The argument provided to the interrupt handler. */
 #ifdef CONFIG_SCHED_IRQMONITOR
   clock_t start;     /* Time interrupt attached */
-#ifdef CONFIG_HAVE_LONG_LONG
-  uint64_t count;    /* Number of interrupts on this IRQ */
-#else
-  uint32_t mscount;  /* Number of interrupts on this IRQ (MS) */
-  uint32_t lscount;  /* Number of interrupts on this IRQ (LS) */
-#endif
-  uint32_t time;     /* Maximum execution time on this IRQ */
+  clock_t time;      /* Maximum execution time on this IRQ */
+  uint32_t count;    /* Number of interrupts on this IRQ */
 #endif
 };
 
@@ -92,7 +98,6 @@ extern struct irq_info_s g_irqvector[CONFIG_ARCH_NUSER_INTERRUPTS];
 extern struct irq_info_s g_irqvector[NR_IRQS];
 #endif
 
-#ifdef CONFIG_ARCH_MINIMAL_VECTORTABLE
 /* This is the interrupt vector mapping table.  This must be provided by
  * architecture specific logic if CONFIG_ARCH_MINIMAL_VECTORTABLE is define
  * in the configuration.
@@ -102,6 +107,10 @@ extern struct irq_info_s g_irqvector[NR_IRQS];
  * declaration is here for the time being.
  */
 
+#if defined(CONFIG_ARCH_MINIMAL_VECTORTABLE_DYNAMIC)
+extern irq_mapped_t g_irqmap[NR_IRQS];
+int irq_to_ndx(int irq);
+#elif defined(CONFIG_ARCH_MINIMAL_VECTORTABLE)
 extern const irq_mapped_t g_irqmap[NR_IRQS];
 #endif
 
@@ -114,7 +123,6 @@ extern volatile spinlock_t g_cpu_irqlock;
 
 /* Used to keep track of which CPU(s) hold the IRQ lock. */
 
-extern volatile spinlock_t g_cpu_irqsetlock;
 extern volatile cpu_set_t g_cpu_irqset;
 
 /* Handles nested calls to enter_critical section from interrupt handlers */
@@ -154,33 +162,6 @@ void irq_initialize(void);
  ****************************************************************************/
 
 int irq_unexpected_isr(int irq, FAR void *context, FAR void *arg);
-
-/****************************************************************************
- * Name:  irq_cpu_locked
- *
- * Description:
- *   Test if the IRQ lock set OR if this CPU holds the IRQ lock
- *   There is an interaction with pre-emption controls and IRQ locking:
- *   Even if the pre-emption is enabled, tasks will be forced to pend if
- *   the IRQ lock is also set UNLESS the CPU starting the task is the
- *   holder of the IRQ lock.
- *
- * Input Parameters:
- *   rtcb - Points to the blocked TCB that is ready-to-run
- *
- * Returned Value:
- *   true  - IRQs are locked by a different CPU.
- *   false - IRQs are unlocked OR if they are locked BUT this CPU
- *           is the holder of the lock.
- *
- *   Warning: This values are volatile at only valid at the instance that
- *   the CPU set was queried.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_SMP
-bool irq_cpu_locked(int cpu);
-#endif
 
 /****************************************************************************
  * Name: irq_foreach

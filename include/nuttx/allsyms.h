@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/allsyms.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,9 +26,6 @@
 /****************************************************************************
  * Included Files
  ****************************************************************************/
-
-#include <nuttx/compiler.h>
-#include <nuttx/symtab.h>
 
 #include <stddef.h>
 
@@ -55,6 +54,7 @@ extern "C"
  *
  ****************************************************************************/
 
+struct symtab_s;
 FAR const struct symtab_s *allsyms_findbyname(FAR const char *name,
                                               FAR size_t *size);
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/misc/dev_null.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,11 +41,11 @@
  ****************************************************************************/
 
 static ssize_t devnull_read(FAR struct file *filep, FAR char *buffer,
-                 size_t buflen);
+                            size_t buflen);
 static ssize_t devnull_write(FAR struct file *filep, FAR const char *buffer,
-                 size_t buflen);
+                             size_t buflen);
 static int     devnull_poll(FAR struct file *filep, FAR struct pollfd *fds,
-                 bool setup);
+                            bool setup);
 
 /****************************************************************************
  * Private Data
@@ -59,7 +61,9 @@ static const struct file_operations g_devnull_fops =
   NULL,          /* ioctl */
   NULL,          /* mmap */
   NULL,          /* truncate */
-  devnull_poll   /* poll */
+  devnull_poll,  /* poll */
+  NULL,          /* readv */
+  NULL           /* writev */
 };
 
 /****************************************************************************

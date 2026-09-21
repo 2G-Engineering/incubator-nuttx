@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv7-m/nvic.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -185,7 +187,7 @@
 #define NVIC_CPUID_BASE_OFFSET          0x0d00 /* CPUID base register */
 #define NVIC_INTCTRL_OFFSET             0x0d04 /* Interrupt control state register */
 #define NVIC_VECTAB_OFFSET              0x0d08 /* Vector table offset register */
-#define NVIC_AIRCR_OFFSET               0x0d0c /* Application interrupt/reset control registr */
+#define NVIC_AIRCR_OFFSET               0x0d0c /* Application interrupt/reset control register */
 #define NVIC_SYSCON_OFFSET              0x0d10 /* System control register */
 #define NVIC_CFGCON_OFFSET              0x0d14 /* Configuration control register */
 #define NVIC_SYSH_PRIORITY_OFFSET(n)    (0x0d14 + 4*((n) >> 2))
@@ -417,11 +419,11 @@
 #define NVIC_DEMCR                      (ARMV7M_NVIC_BASE + NVIC_DEMCR_OFFSET)
 #define NVIC_STIR                       (ARMV7M_NVIC_BASE + NVIC_STIR_OFFSET)
 #define NVIC_FPCCR                      (ARMV7M_NVIC_BASE + NVIC_FPCCR_OFFSET)
-#define NVIC_FPCAR                      (ARMV8M_NVIC_BASE + NVIC_FPCAR_OFFSET)
-#define NVIC_FPDSCR                     (ARMV8M_NVIC_BASE + NVIC_FPDSCR_OFFSET)
-#define NVIC_MVFR0                      (ARMV8M_NVIC_BASE + NVIC_MVFR0_OFFSET)
-#define NVIC_MVFR1                      (ARMV8M_NVIC_BASE + NVIC_MVFR1_OFFSET)
-#define NVIC_MVFR2                      (ARMV8M_NVIC_BASE + NVIC_MVFR2_OFFSET)
+#define NVIC_FPCAR                      (ARMV7M_NVIC_BASE + NVIC_FPCAR_OFFSET)
+#define NVIC_FPDSCR                     (ARMV7M_NVIC_BASE + NVIC_FPDSCR_OFFSET)
+#define NVIC_MVFR0                      (ARMV7M_NVIC_BASE + NVIC_MVFR0_OFFSET)
+#define NVIC_MVFR1                      (ARMV7M_NVIC_BASE + NVIC_MVFR1_OFFSET)
+#define NVIC_MVFR2                      (ARMV7M_NVIC_BASE + NVIC_MVFR2_OFFSET)
 #define NVIC_ICIALLU                    (ARMV7M_NVIC_BASE + NVIC_ICIALLU_OFFSET)
 #define NVIC_ICIMVAU                    (ARMV7M_NVIC_BASE + NVIC_ICIMVAU_OFFSET)
 #define NVIC_DCIMVAU                    (ARMV7M_NVIC_BASE + NVIC_DCIMVAU_OFFSET)
@@ -635,6 +637,14 @@
 #define NVIC_HFAULTS_FORCED             (1 << 30) /* Bit 30: FORCED Mask */
 #define NVIC_HFAULTS_DEBUGEVT           (1 << 31) /* Bit 31: DEBUGEVT Mask */
 
+/* Debug Fault Status Register */
+
+#define NVIC_DFAULTS_HALTED             (1 << 0)  /* Bit 0:  Halted Mask */
+#define NVIC_DFAULTS_BKPT               (1 << 1)  /* Bit 1:  BKPT or FPB Mask */
+#define NVIC_DFAULTS_DWTTRAP            (1 << 2)  /* Bit 2:  DWT Mask */
+#define NVIC_DFAULTS_VCATCH             (1 << 3)  /* Bit 3:  Vector catch Mask */
+#define NVIC_DFAULTS_EXTERNAL           (1 << 4)  /* Bit 4:  External debug request Mask */
+
 /* Cache Level ID register (Cortex-M7) */
 
 #define NVIC_CLIDR_L1CT_SHIFT           (0)      /* Bits 0-2: Level 1 cache type */
@@ -679,8 +689,8 @@
 /* Cache Size Selection Register (Cortex-M7) */
 
 #define NVIC_CSSELR_IND                 (1 << 0)  /* Bit 0: Selects either instruction or data cache */
-#  define NVIC_CSSELR_IND_ICACHE        (0 << 0)  /*   0=Instruction Cache */
-#  define NVIC_CSSELR_IND_DCACHE        (1 << 0)  /*   1=Data Cache */
+#  define NVIC_CSSELR_IND_ICACHE        (1 << 0)  /*   1=Instruction Cache */
+#  define NVIC_CSSELR_IND_DCACHE        (0 << 0)  /*   0=Data Cache */
 
 #define NVIC_CSSELR_LEVEL_SHIFT         (1)       /* Bit 1-3: Selects cache level */
 #define NVIC_CSSELR_LEVEL_MASK          (7 << NVIC_CSSELR_LEVEL_SHIFT)

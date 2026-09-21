@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/environ/env_putenv.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
 #include <string.h>
 #include <errno.h>
 
-#include <nuttx/kmalloc.h>
+#include <nuttx/lib/lib.h>
 
 /****************************************************************************
  * Public Functions
@@ -61,8 +63,8 @@
 
 int putenv(FAR const char *string)
 {
-  char *pname;
-  char *pequal;
+  FAR char *pname;
+  FAR char *pequal;
   int ret = OK;
 
   /* Verify that a string was passed */
@@ -91,7 +93,7 @@ int putenv(FAR const char *string)
       ret = setenv(pname, pequal + 1, TRUE);
     }
 
-  kmm_free(pname);
+  lib_free(pname);
   return ret;
 
 errout:

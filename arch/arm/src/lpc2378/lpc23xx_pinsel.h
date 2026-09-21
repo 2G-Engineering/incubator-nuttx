@@ -1,13 +1,11 @@
 /****************************************************************************
  * arch/arm/src/lpc2378/lpc23xx_pinsel.h
  *
- *   Copyright (C) 2010 Rommel Marcelo. All rights reserved.
- *   Author: Rommel Marcelo
- *
- * This file is part of the NuttX RTOS and based on the lpc2148 port:
- *
- *   Copyright (C) 2010 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2010 Rommel Marcelo. All rights reserved.
+ * SPDX-FileCopyrightText: 2010 Gregory Nutt. All rights reserved.
+ * SPDX-FileContributor: Rommel Marcelo
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -596,7 +594,7 @@
 #define PSEL6_P3_5_MASK      (0x00000c00)
 
 #define PSEL6_P3_6_GPIO      (0x00000000)
-#define PSEL6_P3_6_D6 		  (0x00001000)
+#define PSEL6_P3_6_D6        (0x00001000)
 #define PSEL6_P3_6_RSVD2     (0x00002000)
 #define PSEL6_P3_6_RSVD3     (0x00003000)
 #define PSEL6_P3_6_MASK      (0x00003000)

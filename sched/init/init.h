@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/init/init.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -97,8 +99,8 @@ void nx_idle_trampoline(void);
  *   the conclusion of basic OS initialization.  These initial system tasks
  *   may include:
  *
- *   - pg_worker:   The page-fault worker thread (only if CONFIG_PAGING is
- *                  defined.
+ *   - pg_worker:   The page-fault worker thread (if CONFIG_LEGACY_PAGING is
+ *                  defined).
  *   - work_thread: The work thread.  This general thread can be used to
  *                  perform most any kind of queued work.  Its primary
  *                  function is to serve as the "bottom half" of device

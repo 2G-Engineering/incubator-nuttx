@@ -1,6 +1,8 @@
 /****************************************************************************
  * mm/umm_heap/umm_malloc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,7 +28,7 @@
 
 #include <stdlib.h>
 #include <unistd.h>
-
+#include <errno.h>
 #include <nuttx/mm/mm.h>
 
 #include "umm_heap/umm_heap.h"
@@ -57,8 +59,21 @@ FAR void *malloc(size_t size)
 
   return memalign(sizeof(FAR void *), size);
 #else
+  FAR void *ret;
+
   /* Use mm_malloc() because it implements the clear */
 
-  return mm_malloc(USR_HEAP, size);
+  ret = mm_malloc(USR_HEAP, size);
+  if (ret == NULL)
+    {
+      set_errno(ENOMEM);
+    }
+  else
+    {
+      mm_notify_pressure(mm_heapfree(USR_HEAP),
+                         mm_heapfree_largest(USR_HEAP));
+    }
+
+  return ret;
 #endif
 }

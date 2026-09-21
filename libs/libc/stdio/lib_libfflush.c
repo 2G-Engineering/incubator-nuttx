@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_libfflush.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -48,7 +50,6 @@
  *
  * Input Parameters:
  *  stream - the stream to flush
- *  bforce - flush must be complete.
  *
  * Returned Value:
  *  A negated errno value on failure, otherwise the number of bytes remaining
@@ -56,24 +57,19 @@
  *
  ****************************************************************************/
 
-ssize_t lib_fflush(FAR FILE *stream, bool bforce)
+ssize_t lib_fflush_unlocked(FAR FILE *stream)
 {
 #ifndef CONFIG_STDIO_DISABLE_BUFFERING
-  FAR const unsigned char *src;
+  FAR const char *src;
   ssize_t bytes_written;
   ssize_t nbuffer;
-  int ret;
 
   /* Return EBADF if the file is not opened for writing */
 
-  if (stream->fs_fd < 0 || (stream->fs_oflags & O_WROK) == 0)
+  if ((stream->fs_oflags & O_WROK) == 0)
     {
       return -EBADF;
     }
-
-  /* Make sure that we have exclusive access to the stream */
-
-  flockfile(stream);
 
   /* Check if there is an allocated I/O buffer */
 
@@ -81,8 +77,7 @@ ssize_t lib_fflush(FAR FILE *stream, bool bforce)
     {
       /* No, then there can be nothing remaining in the buffer. */
 
-      ret = 0;
-      goto errout_with_lock;
+      return 0;
     }
 
   /* Make sure that the buffer holds valid data */
@@ -99,8 +94,7 @@ ssize_t lib_fflush(FAR FILE *stream, bool bforce)
            * remaining in the buffer."
            */
 
-          ret = 0;
-          goto errout_with_lock;
+          return 0;
         }
 
       /* How many bytes of write data are used in the buffer now */
@@ -114,7 +108,18 @@ ssize_t lib_fflush(FAR FILE *stream, bool bforce)
         {
           /* Perform the write */
 
-          bytes_written = _NX_WRITE(stream->fs_fd, src, nbuffer);
+          if (stream->fs_iofunc.write != NULL)
+            {
+              bytes_written = stream->fs_iofunc.write(stream->fs_cookie,
+                                                      src,
+                                                      nbuffer);
+            }
+          else
+            {
+              bytes_written = _NX_WRITE((int)(intptr_t)stream->fs_cookie,
+                                        src, nbuffer);
+            }
+
           if (bytes_written < 0)
             {
               /* Write failed.  The cause of the failure is in 'errno'.
@@ -122,8 +127,7 @@ ssize_t lib_fflush(FAR FILE *stream, bool bforce)
                */
 
               stream->fs_flags |= __FS_FLAG_ERROR;
-              ret = _NX_GETERRVAL(bytes_written);
-              goto errout_with_lock;
+              return _NX_GETERRVAL(bytes_written);
             }
 
           /* Handle partial writes.  fflush() must either return with
@@ -134,7 +138,7 @@ ssize_t lib_fflush(FAR FILE *stream, bool bforce)
           src     += bytes_written;
           nbuffer -= bytes_written;
         }
-      while (bforce && nbuffer > 0);
+      while (nbuffer > 0);
 
       /* Reset the buffer position to the beginning of the buffer */
 
@@ -156,16 +160,23 @@ ssize_t lib_fflush(FAR FILE *stream, bool bforce)
    * remaining in the buffer.
    */
 
-  funlockfile(stream);
   return stream->fs_bufpos - stream->fs_bufstart;
-
-errout_with_lock:
-  funlockfile(stream);
-  return ret;
 
 #else
   /* Return no bytes remaining in the buffer */
 
   return 0;
 #endif
+}
+
+ssize_t lib_fflush(FAR FILE *stream)
+{
+  ssize_t ret;
+
+  /* Make sure that we have exclusive access to the stream */
+
+  flockfile(stream);
+  ret = lib_fflush_unlocked(stream);
+  funlockfile(stream);
+  return ret;
 }

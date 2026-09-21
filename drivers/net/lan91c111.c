@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/net/lan91c111.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,9 +35,13 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/wqueue.h>
 
-#include <nuttx/net/lan91c111.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
-#include <nuttx/net/pkt.h>
+#include <nuttx/net/lan91c111.h>
+
+#ifdef CONFIG_NET_PKT
+#  include <nuttx/net/pkt.h>
+#endif
 
 #include "lan91c111.h"
 
@@ -124,9 +130,6 @@ static int  lan91c111_addmac(FAR struct net_driver_s *dev,
 #ifdef CONFIG_NET_MCASTGROUP
 static int  lan91c111_rmmac(FAR struct net_driver_s *dev,
               FAR const uint8_t *mac);
-#endif
-#ifdef CONFIG_NET_ICMPv6
-static void lan91c111_ipv6multicast(FAR struct net_driver_s *dev);
 #endif
 #endif
 #ifdef CONFIG_NETDEV_IOCTL
@@ -934,9 +937,9 @@ static int lan91c111_ifup(FAR struct net_driver_s *dev)
   FAR struct lan91c111_driver_s *priv = dev->d_private;
 
 #ifdef CONFIG_NET_IPv4
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 #endif
 #ifdef CONFIG_NET_IPv6
   ninfo("Bringing up: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -969,12 +972,6 @@ static int lan91c111_ifup(FAR struct net_driver_s *dev)
   /* Instantiate the MAC address from dev->d_mac.ether.ether_addr_octet */
 
   copyto16(priv, ADDR0_REG, &dev->d_mac.ether, sizeof(dev->d_mac.ether));
-
-#ifdef CONFIG_NET_ICMPv6
-  /* Set up IPv6 multicast address filtering */
-
-  lan91c111_ipv6multicast(dev);
-#endif
 
   net_unlock();
 
@@ -1245,76 +1242,6 @@ static int lan91c111_rmmac(FAR struct net_driver_s *dev,
 #endif
 
 /****************************************************************************
- * Name: lan91c111_ipv6multicast
- *
- * Description:
- *   Configure the IPv6 multicast MAC address.
- *
- * Parameters:
- *   dev  - Reference to the NuttX driver state structure
- *
- * Returned Value:
- *   Zero (OK) on success; a negated errno value on failure.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_NET_ICMPv6
-static void lan91c111_ipv6multicast(FAR struct net_driver_s *dev)
-{
-  uint16_t tmp16;
-  uint8_t mac[6];
-
-  /* For ICMPv6, we need to add the IPv6 multicast address
-   *
-   * For IPv6 multicast addresses, the Ethernet MAC is derived by
-   * the four low-order octets OR'ed with the MAC 33:33:00:00:00:00,
-   * so for example the IPv6 address FF02:DEAD:BEEF::1:3 would map
-   * to the Ethernet MAC address 33:33:00:01:00:03.
-   *
-   * NOTES:  This appears correct for the ICMPv6 Router Solicitation
-   * Message, but the ICMPv6 Neighbor Solicitation message seems to
-   * use 33:33:ff:01:00:03.
-   */
-
-  mac[0] = 0x33;
-  mac[1] = 0x33;
-
-  tmp16  = dev->d_ipv6addr[6];
-  mac[2] = 0xff;
-  mac[3] = tmp16 >> 8;
-
-  tmp16  = dev->d_ipv6addr[7];
-  mac[4] = tmp16 & 0xff;
-  mac[5] = tmp16 >> 8;
-
-  ninfo("IPv6 Multicast: %02x:%02x:%02x:%02x:%02x:%02x\n",
-        mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
-  lan91c111_addmac(dev, mac);
-
-#ifdef CONFIG_NET_ICMPv6_AUTOCONF
-  /* Add the IPv6 all link-local nodes Ethernet address.  This is the
-   * address that we expect to receive ICMPv6 Router Advertisement
-   * packets.
-   */
-
-  lan91c111_addmac(dev, g_ipv6_ethallnodes.ether_addr_octet);
-
-#endif /* CONFIG_NET_ICMPv6_AUTOCONF */
-
-#ifdef CONFIG_NET_ICMPv6_ROUTER
-  /* Add the IPv6 all link-local routers Ethernet address.  This is the
-   * address that we expect to receive ICMPv6 Router Solicitation
-   * packets.
-   */
-
-  lan91c111_addmac(dev, g_ipv6_ethallrouters.ether_addr_octet);
-
-#endif /* CONFIG_NET_ICMPv6_ROUTER */
-}
-#endif /* CONFIG_NET_ICMPv6 */
-
-/****************************************************************************
  * Name: lan91c111_ioctl
  *
  * Description:
@@ -1338,7 +1265,7 @@ static int lan91c111_ioctl(FAR struct net_driver_s *dev, int cmd,
                            unsigned long arg)
 {
   FAR struct lan91c111_driver_s *priv = dev->d_private;
-  struct mii_ioctl_data_s *req = (void *)arg;
+  FAR struct mii_ioctl_data_s *req = (FAR void *)arg;
   int ret = OK;
 
   net_lock();

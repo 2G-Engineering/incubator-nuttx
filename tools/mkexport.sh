@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # tools/mkexport.sh
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -180,9 +182,18 @@ fi
 cp "${TOPDIR}/tools/mkdeps.c" "${EXPORTDIR}/tools/."
 cp "${TOPDIR}/tools/incdir.c" "${EXPORTDIR}/tools/."
 
-# Copy the default linker script
+# Copy the board specific linker if found, or use the default when not.
 
-cp -f "${TOPDIR}/binfmt/libelf/gnu-elf.ld" "${EXPORTDIR}/scripts/."
+APPLD=gnu-elf.ld
+if [ -f "${BOARDDIR}/scripts/${APPLD}" ]; then
+  cp -f "${BOARDDIR}/scripts/${APPLD}" "${EXPORTDIR}/scripts/."
+else
+  cp -f "${TOPDIR}/libs/libc/elf/${APPLD}" "${EXPORTDIR}/scripts/."
+fi
+
+if [ "${NUTTX_BUILD}" = "kernel" ]; then
+  LDNAME=${APPLD}
+fi
 
 # Copy the board config script
 
@@ -220,6 +231,14 @@ if [ "X${USRONLY}" != "Xy" ]; then
   done
 fi
 
+# Drop kernel folder elf/gnu-elf.ld as the exported script shall suffice
+
+LDELFFLAGS=$(echo "$LDELFFLAGS" | sed -e 's:-T.*ld::')
+
+# Set LDMODULEFLAGS so that kernel modules can build in kernel mode
+
+LDMODULEFLAGS="-r"
+
 # Save the compilation options
 
 echo "ARCHCFLAGS       = ${ARCHCFLAGS}" >"${EXPORTDIR}/scripts/Make.defs"
@@ -239,6 +258,12 @@ echo "NM               = ${NM}" >>"${EXPORTDIR}/scripts/Make.defs"
 echo "STRIP            = ${STRIP}" >>"${EXPORTDIR}/scripts/Make.defs"
 echo "OBJCOPY          = ${OBJCOPY}" >>"${EXPORTDIR}/scripts/Make.defs"
 echo "OBJDUMP          = ${OBJDUMP}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "ZIG              = ${ZIG}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "ZIGFLAGS         = ${ZIGFLAGS}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "DC               = ${DC}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "DFLAGS           = ${DFLAGS}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "SWIFTC           = ${SWIFTC}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "SWIFTFLAGS       = ${SWIFTFLAGS}" >>"${EXPORTDIR}/scripts/Make.defs"
 echo "NXFLATLDFLAGS1   = ${NXFLATLDFLAGS1}" >>"${EXPORTDIR}/scripts/Make.defs"
 echo "NXFLATLDFLAGS2   = ${NXFLATLDFLAGS2}" >>"${EXPORTDIR}/scripts/Make.defs"
 echo "OBJEXT           = ${OBJEXT}" >>"${EXPORTDIR}/scripts/Make.defs"
@@ -251,6 +276,51 @@ echo "HOSTLDFLAGS      = ${HOSTLDFLAGS}" >>"${EXPORTDIR}/scripts/Make.defs"
 echo "HOSTEXEEXT       = ${HOSTEXEEXT}" >>"${EXPORTDIR}/scripts/Make.defs"
 echo "LDNAME           = ${LDNAME}" >>"${EXPORTDIR}/scripts/Make.defs"
 echo "LDELFFLAGS       = ${LDELFFLAGS}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "LDMODULEFLAGS    = ${LDMODULEFLAGS}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "NUTTX_ARCH       = ${NUTTX_ARCH}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "NUTTX_ARCH_CHIP  = ${NUTTX_ARCH_CHIP}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "NUTTX_BOARD      = ${NUTTX_BOARD}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "NUTTX_BUILD      = ${NUTTX_BUILD}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "NUTTX_CXX        = ${NUTTX_CXX}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "LLVM_ARCHTYPE    = ${LLVM_ARCHTYPE}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "LLVM_CPUTYPE     = ${LLVM_CPUTYPE}" >>"${EXPORTDIR}/scripts/Make.defs"
+echo "LLVM_ABITYPE     = ${LLVM_ABITYPE}" >>"${EXPORTDIR}/scripts/Make.defs"
+
+echo "set(ARCHCFLAGS          \"${ARCHCFLAGS}\")"       > "${EXPORTDIR}/scripts/target.cmake"
+echo "set(ARCHCPUFLAGS        \"${ARCHCPUFLAGS}\")"     >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(ARCHCXXFLAGS        \"${ARCHCXXFLAGS}\")"     >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(ARCHPICFLAGS        \"${ARCHPICFLAGS}\")"     >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(ARCHWARNINGS        \"${ARCHWARNINGS}\")"     >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(ARCHWARNINGSXX      \"${ARCHWARNINGSXX}\")"   >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(ARCHOPTIMIZATION    \"${ARCHOPTIMIZATION}\")" >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(CROSSDEV            \"${CROSSDEV}\")"         >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(CMAKE_C_COMPILER    \"${CC}\")"               >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(CMAKE_CXX_COMPILER  \"${CXX}\")"              >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(CMAKE_LINKER        \"${LD}\")"               >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(CMAKE_OBJCOPY       \"${OBJCOPY}\")"          >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(CMAKE_OBJDUMP       \"${OBJDUMP}\")"          >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(NXFLATLDFLAGS1      \"${NXFLATLDFLAGS1}\")"   >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(NXFLATLDFLAGS2      \"${NXFLATLDFLAGS2}\")"   >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(OBJEXT              \"${OBJEXT}\")"           >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(LIBEXT              \"${LIBEXT}\")"           >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(EXEEXT              \"${EXEEXT}\")"           >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(HOSTCC              \"${HOSTCC}\")"           >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(HOSTINCLUDES        \"${HOSTINCLUDES}\")"     >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(HOSTCFLAGS          \"${HOSTCFLAGS}\")"       >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(HOSTLDFLAGS         \"${HOSTLDFLAGS}\")"      >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(HOSTEXEEXT          \"${HOSTEXEEXT}\")"       >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(LDNAME              \"${LDNAME}\")"           >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(LDELFFLAGS          \"${LDELFFLAGS}\")"       >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(LDMODULEFLAGS       \"${LDMODULEFLAGS}\")"    >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(NUTTX_ARCH          \"${NUTTX_ARCH}\")"       >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(NUTTX_ARCH_CHIP     \"${NUTTX_ARCH_CHIP}\")"  >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(NUTTX_BOARD         \"${NUTTX_BOARD}\")"      >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(NUTTX_BUILD         \"${NUTTX_BUILD}\")"      >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(NUTTX_CXX           \"${NUTTX_CXX}\")"        >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(LLVM_ARCHTYPE       \"${LLVM_ARCHTYPE}\")"    >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(LLVM_CPUTYPE        \"${LLVM_CPUTYPE}\")"     >>"${EXPORTDIR}/scripts/target.cmake"
+echo "set(LLVM_ABITYPE        \"${LLVM_ABITYPE}\")"     >>"${EXPORTDIR}/scripts/target.cmake"
+
 
 # Additional compilation options when the kernel is built
 
@@ -261,7 +331,18 @@ if [ "X${USRONLY}" != "Xy" ]; then
   echo "LDENDGROUP       = ${LDENDGROUP}" >>"${EXPORTDIR}/scripts/Make.defs"
   echo "LDFLAGS          = ${LDFLAGS}" >>"${EXPORTDIR}/scripts/Make.defs"
   echo "LDSTARTGROUP     = ${LDSTARTGROUP}" >>"${EXPORTDIR}/scripts/Make.defs"
+
+  echo "set(EXTRA_LIBS       \"${EXTRA_LIBS}\")"   >>"${EXPORTDIR}/scripts/target.cmake"
+  echo "set(EXTRA_OBJS       \"${EXTRA_OBJS}\")"   >>"${EXPORTDIR}/scripts/target.cmake"
+  echo "set(HEAD_OBJ         \"${HEAD_OBJ}\")"     >>"${EXPORTDIR}/scripts/target.cmake"
+  echo "set(LDENDGROUP       \"${LDENDGROUP}\")"   >>"${EXPORTDIR}/scripts/target.cmake"
+  echo "set(LDFLAGS          \"${LDFLAGS}\")"      >>"${EXPORTDIR}/scripts/target.cmake"
+  echo "set(LDSTARTGROUP     \"${LDSTARTGROUP}\")" >>"${EXPORTDIR}/scripts/target.cmake"
 fi
+
+# Copy the CMake toolchain file
+
+cp "${TOPDIR}/tools/toolchain.cmake.export" "${EXPORTDIR}/scripts/toolchain.cmake"
 
 # Copy the system map file(s)
 
@@ -355,7 +436,9 @@ fi
 LDLIBS=`basename -a ${LIBLIST} | sed -e "s/lib/-l/g" -e "s/\.${LIBEXT:1}//g" | tr "\n" " "`
 
 if [ "X${USRONLY}" != "Xy" ]; then
-  echo "LDLIBS           = ${LDLIBS}" >>"${EXPORTDIR}/scripts/Make.defs"
+  echo "LDLIBS           = ${LDLIBS}" >> "${EXPORTDIR}/scripts/Make.defs"
+
+  echo "set(LDLIBS     \"${LDLIBS}\")" >>"${EXPORTDIR}/scripts/target.cmake"
 fi
 
 # Then process each library
@@ -377,6 +460,11 @@ for lib in ${EXTRA_LIBS}; do
 
   if [ ${lib:0:2} = "-l" ]; then
     lib=`echo "${lib}" | sed -e "s/-l/lib/" -e "s/$/${LIBEXT}/"`
+  fi
+
+  if [ -f "${lib}" ]; then
+    cp -a ${lib} ${EXPORTDIR}/libs
+    continue
   fi
 
   for path in ${EXTRA_LIBPATHS}; do

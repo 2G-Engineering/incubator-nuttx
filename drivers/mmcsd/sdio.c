@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/mmcsd/sdio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -252,12 +254,12 @@ int sdio_io_rw_extended(FAR struct sdio_dev_s *dev, bool write,
   arg.cmd53.function_number  = function & 7;
   arg.cmd53.rw_flag          = write;
 
-  if (nblocks == 0 && blocklen < 512)
+  if (nblocks == 0)
     {
       /* Use byte mode */
 
       arg.cmd53.block_mode = 0;
-      arg.cmd53.byte_block_count = blocklen;
+      arg.cmd53.byte_block_count = (blocklen == 512) ? 0 : blocklen;
       nblocks = 1;
     }
   else
@@ -380,6 +382,7 @@ int sdio_set_wide_bus(FAR struct sdio_dev_s *dev)
 int sdio_probe(FAR struct sdio_dev_s *dev)
 {
   int ret;
+  int bit;
   uint32_t data = 0;
 
   nxmutex_init(&dev->mutex);
@@ -407,6 +410,26 @@ int sdio_probe(FAR struct sdio_dev_s *dev)
   /* Receive R4 response */
 
   ret = SDIO_RECVR4(dev, SDIO_CMD5, &data);
+  if (ret != OK)
+    {
+      goto err;
+    }
+
+  /* Get the maximum and minimum values for VDD */
+
+  bit = ffs(data);
+  if (bit)
+    {
+      bit -= 1;
+      data &= 3 << bit;
+    }
+  else
+    {
+      ret = -EINVAL;
+      goto err;
+    }
+
+  ret = sdio_sendcmdpoll(dev, SDIO_CMD5, data);
   if (ret != OK)
     {
       goto err;

@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/pthread/pthread_sigmask.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -64,6 +66,19 @@
 
 int pthread_sigmask(int how, FAR const sigset_t *set, FAR sigset_t *oset)
 {
-  int ret = nxsig_procmask(how, set, oset);
+  sigset_t nset;
+  int ret;
+
+  /* SIGKILL and SIGSTOP should not be added to signal mask */
+
+  if (set != NULL)
+    {
+      nset = *set;
+      nxsig_delset(&nset, SIGKILL);
+      nxsig_delset(&nset, SIGSTOP);
+      set = &nset;
+    }
+
+  ret = nxsig_procmask(how, set, oset);
   return ret < 0 ? -ret : OK;
 }

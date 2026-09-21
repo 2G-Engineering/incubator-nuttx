@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/avr/src/common/avr_initialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,6 +29,10 @@
 #include <arch/board/board.h>
 
 #include "avr_internal.h"
+
+#ifdef CONFIG_ARCH_CHIP_AVRDX
+#  include "avrdx.h"
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -58,6 +64,15 @@
  */
 
 #if !defined(USE_SERIALDRIVER) && defined(CONFIG_STANDARD_SERIAL)
+#  define USE_SERIALDRIVER 1
+#endif
+
+/* For AVR DA/DB devices, the decision making is altered - serial driver
+ * is compiled in based on its actual use, not based on if the /dev/console
+ * is enabled.
+ */
+#if !defined(USE_SERIALDRIVER) && \
+     (defined(CONFIG_ARCH_CHIP_AVRDX) && defined(CONFIG_MCU_SERIAL))
 #  define USE_SERIALDRIVER 1
 #endif
 
@@ -140,6 +155,10 @@ void up_initialize(void)
    */
 
   up_pminitialize();
+#endif
+
+#ifdef CONFIG_ARCH_CHIP_AVRDX
+  avrdx_up_initialize();
 #endif
 
 #ifdef CONFIG_ARCH_DMA

@@ -1,6 +1,8 @@
 ############################################################################
 # arch/xtensa/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -18,7 +20,7 @@
 #
 ############################################################################
 
-include $(TOPDIR)/Make.defs
+include $(TOPDIR)/tools/Make.defs
 include chip/Make.defs
 
 ifeq ($(CONFIG_ARCH_FAMILY_LX6),y)
@@ -98,10 +100,18 @@ EXTRA_LIBS := $(filter-out $(NAMEFULL_LIBS) $(NAMESPEC_LIBS),$(EXTRA_LIBS))
 EXTRA_LIBS += $(wildcard $(APPDIR)$(DELIM)staging$(DELIM)*$(LIBEXT))
 
 ifeq ($(LD),$(CC))
+  ifeq ($(CONFIG_STACK_CANARIES),y)
+    # filter out ssp(Stack Smashing Protector) related flags:
+    #  -fstack-protector
+    #  -fstack-protector-all
+    #  -fstack-protector-strong
+    #  -fstack-protector-explicit
+    STRIPCFLAGS = $(filter -fstack-protector%,$(CFLAGS))
+  endif
   LDSTARTGROUP ?= -Wl,--start-group
   LDENDGROUP   ?= -Wl,--end-group
   LDFLAGS      := $(addprefix -Xlinker ,$(LDFLAGS))
-  LDFLAGS      += $(CFLAGS)
+  LDFLAGS      += $(filter-out $(STRIPCFLAGS),$(CFLAGS))
 else
   LDSTARTGROUP ?= --start-group
   LDENDGROUP   ?= --end-group
@@ -121,6 +131,7 @@ endif
 
 VPATH += chip
 VPATH += common
+VPATH += common/espressif
 VPATH += $(ARCH_SUBDIR)
 VPATH += $(CHIP_DIR)
 
@@ -134,11 +145,14 @@ $(AOBJS) $(UAOBJS) $(HEAD_AOBJ): %$(OBJEXT): %.S
 $(COBJS) $(UCOBJS) $(HEAD_COBJ): %$(OBJEXT): %.c
 	$(call COMPILE, $<, $@)
 
+$(STARTUP_ELF_OBJS): %$(OBJEXT): %.c
+	$(Q) $(CC) $(CELFFLAGS) -c common$(DELIM)crt0.c -o crt0$(OBJEXT)
+
 ifeq ($(CONFIG_BUILD_FLAT),y)
-$(BIN): $(OBJS)
+$(BIN): $(STARTUP_ELF_OBJS) $(OBJS)
 	$(call ARCHIVE, $@, $(OBJS))
 else
-$(BIN): $(UOBJS)
+$(BIN): $(STARTUP_ELF_OBJS) $(UOBJS)
 	$(call ARCHIVE, $@, $(UOBJS))
 endif
 
@@ -149,7 +163,7 @@ board/libboard$(LIBEXT):
 	$(Q) $(MAKE) -C board libboard$(LIBEXT) EXTRAFLAGS="$(EXTRAFLAGS)"
 
 define LINK_ALLSYMS
-	$(Q) $(TOPDIR)/tools/mkallsyms.py $(NUTTX) allsyms.tmp
+	$(Q) $(TOPDIR)/tools/mkallsyms.py $(NUTTX) allsyms.tmp --orderbyname $(CONFIG_SYMTAB_ORDEREDBYNAME)
 	$(Q) $(call COMPILE, allsyms.tmp, allsyms$(OBJEXT), -x c)
 	$(Q) $(LD) --entry=__start $(LDFLAGS) $(LIBPATHS) $(EXTRA_LIBPATHS) \
 		-o $(NUTTX) $(STARTUP_OBJS) allsyms$(OBJEXT) $(EXTRA_OBJS) \

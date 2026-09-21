@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32/hardware/stm32f37xxx_pinmap_legacy.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -232,7 +234,7 @@
 
 /* MCO */
 
-#define GPIO_MCO       	     (GPIO_ALT|GPIO_AF0|GPIO_SPEED_50MHz|GPIO_PUSHPULL|GPIO_PORTA|GPIO_PIN8)
+#define GPIO_MCO            (GPIO_ALT|GPIO_AF0|GPIO_SPEED_50MHz|GPIO_PUSHPULL|GPIO_PORTA|GPIO_PIN8)
 
 /* SPI */
 

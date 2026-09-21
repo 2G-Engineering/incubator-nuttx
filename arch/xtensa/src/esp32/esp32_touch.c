@@ -203,7 +203,7 @@ static void touch_restore_irq(void *arg)
 {
   if (touch_last_irq > 0 && touch_release_cb != NULL)
     {
-      /* Call the button interrup handler again so we can detect touch pad
+      /* Call the button interrupt handler again so we can detect touch pad
        * releases
        */
 
@@ -232,7 +232,7 @@ static void touch_init(void)
 {
   if (touch_mux == NULL)
     {
-      touch_mux = (mutex_t *) kmm_zalloc(sizeof(mutex_t));
+      touch_mux = kmm_zalloc(sizeof(mutex_t));
 
       if (touch_mux == NULL)
         {
@@ -281,7 +281,7 @@ static void touch_init(void)
  *
  * Input Parameters:
  *   in_now - Raw value to be filtered;
- *   out_last - Last value outputed;
+ *   out_last - Last value outputted;
  *   k - The filter coefficient.
  *
  * Returned Value:

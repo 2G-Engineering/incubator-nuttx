@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/mpl115a.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -41,11 +43,7 @@
 #if defined(CONFIG_SPI) && defined(CONFIG_SENSORS_MPL115A)
 
 /****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/****************************************************************************
- * Private
+ * Private Types
  ****************************************************************************/
 
 struct mpl115a_dev_s

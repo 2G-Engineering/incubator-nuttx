@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/mikroe-stm32f4/src/stm32_appinit.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -291,7 +293,7 @@ int board_app_initialize(uintptr_t arg)
 #if defined(CONFIG_RAMMTD) && defined(CONFIG_MIKROE_RAMMTD)
     {
       uint8_t *start =
-          (uint8_t *) kmm_malloc(CONFIG_MIKROE_RAMMTD_SIZE * 1024);
+          kmm_malloc(CONFIG_MIKROE_RAMMTD_SIZE * 1024);
       mtd = rammtd_initialize(start, CONFIG_MIKROE_RAMMTD_SIZE * 1024);
       mtd->ioctl(mtd, MTDIOC_BULKERASE, 0);
 

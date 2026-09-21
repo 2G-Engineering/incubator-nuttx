@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lpc43xx/lpc43_ehci.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -1628,7 +1630,7 @@ static struct lpc43_qh_s *lpc43_qh_create(struct lpc43_rhport_s *rhport,
    * FIELD    DESCRIPTION                     VALUE/SOURCE
    * -------- ------------------------------- --------------------
    * DEVADDR  Device address                  Endpoint structure
-   * I        Inactivate on Next Transaction  0
+   * I        Deactivate on Next Transaction  0
    * ENDPT    Endpoint number                 Endpoint structure
    * EPS      Endpoint speed                  Endpoint structure
    * DTC      Data toggle control             1
@@ -3854,7 +3856,7 @@ static int lpc43_epalloc(struct usbhost_driver_s *drvr,
  * Input Parameters:
  *   drvr - The USB host driver instance obtained as a parameter from the
  *           call to the class create() method.
- *   ep   - The endpint to be freed.
+ *   ep   - The endpoint to be freed.
  *
  * Returned Value:
  *   On success, zero (OK) is returned. On a failure, a negated errno value
@@ -3920,7 +3922,7 @@ static int lpc43_alloc(struct usbhost_driver_s *drvr,
 
   /* There is no special requirements for transfer/descriptor buffers. */
 
-  *buffer = (uint8_t *)kmm_malloc(CONFIG_LPC43_EHCI_BUFSIZE);
+  *buffer = kmm_malloc(CONFIG_LPC43_EHCI_BUFSIZE);
   if (*buffer)
     {
       *maxlen = CONFIG_LPC43_EHCI_BUFSIZE;
@@ -4005,7 +4007,7 @@ static int lpc43_ioalloc(struct usbhost_driver_s *drvr,
    * buffering).
    */
 
-  *buffer = (uint8_t *)kumm_malloc(buflen);
+  *buffer = kumm_malloc(buflen);
   return *buffer ? OK : -ENOMEM;
 }
 

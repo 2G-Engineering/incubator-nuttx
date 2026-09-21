@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/bl602/bl602_allocateheap.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,13 +30,13 @@
 #include <nuttx/arch.h>
 
 #include "chip.h"
+#include "riscv_internal.h"
 
 /****************************************************************************
  * Public Variables
  ****************************************************************************/
 
-extern uint8_t _heap_start[];
-extern uint8_t _heap_size[];
+extern uint8_t __heap_end[];
 extern uint8_t _heap_wifi_start[];
 extern uint8_t _heap_wifi_size[];
 
@@ -59,8 +61,8 @@ extern uint8_t _heap_wifi_size[];
 
 void up_allocate_heap(void **heap_start, size_t *heap_size)
 {
-  *heap_start = (void *)_heap_start;
-  *heap_size  = (size_t)_heap_size;
+  *heap_start = (void *)g_idle_topstack;
+  *heap_size  = (size_t)((uintptr_t)__heap_end - g_idle_topstack);
 }
 
 /****************************************************************************

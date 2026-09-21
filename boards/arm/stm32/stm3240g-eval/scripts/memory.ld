@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/stm3240g-eval/scripts/memory.ld
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -79,7 +81,7 @@ MEMORY
 
   /* 112Kb of contiguous SRAM */
 
-  ksram (rwx)      : ORIGIN = 0x20000000, LENGTH = 4K
-  usram (rwx)      : ORIGIN = 0x20001000, LENGTH = 4K
-  xsram (rwx)      : ORIGIN = 0x20002000, LENGTH = 104K
+  ksram (rwx)      : ORIGIN = 0x20000000, LENGTH = 6K
+  usram (rwx)      : ORIGIN = 0x20001800, LENGTH = 4K
+  xsram (rwx)      : ORIGIN = 0x20002800, LENGTH = 102K
 }

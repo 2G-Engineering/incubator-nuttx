@@ -26,7 +26,6 @@
 
 #include <nuttx/arch.h>
 #include <nuttx/mm/mm.h>
-#include <malloc.h>
 
 #include "esp32s3_rtcheap.h"
 
@@ -76,6 +75,9 @@ void esp32s3_rtcheap_initialize(void)
  * Parameters:
  *   size - Size (in bytes) of the memory region to be allocated.
  *
+ * Return Value:
+ *   Address of the allocated memory space. NULL, if allocation fails.
+ *
  ****************************************************************************/
 
 void *esp32s3_rtcheap_malloc(size_t size)
@@ -87,8 +89,15 @@ void *esp32s3_rtcheap_malloc(size_t size)
  * Name: esp32s3_rtcheap_calloc
  *
  * Description:
- *   Calculates the size of the allocation and allocate memory from
+ *   Calculates the size of the allocation and allocates memory from
  *   the RTC heap.
+ *
+ * Parameters:
+ *   n         - Size (in types) of the memory region to be allocated.
+ *   elem_size - Size (in bytes) of the type to be allocated.
+ *
+ * Return Value:
+ *   Address of the allocated memory space. NULL, if allocation fails.
  *
  ****************************************************************************/
 
@@ -103,6 +112,13 @@ void *esp32s3_rtcheap_calloc(size_t n, size_t elem_size)
  * Description:
  *   Reallocate memory from the RTC heap.
  *
+ * Parameters:
+ *   ptr  - Address to be reallocated.
+ *   size - Size (in bytes) to be reallocated.
+ *
+ * Return Value:
+ *   Address of the possibly moved memory space. NULL, if allocation fails.
+ *
  ****************************************************************************/
 
 void *esp32s3_rtcheap_realloc(void *ptr, size_t size)
@@ -116,6 +132,12 @@ void *esp32s3_rtcheap_realloc(void *ptr, size_t size)
  * Description:
  *   Allocate and zero memory from the RTC heap.
  *
+ * Parameters:
+ *   size - Size (in bytes) of the memory region to be allocated.
+ *
+ * Return Value:
+ *   Address of the allocated memory space. NULL, if allocation fails.
+ *
  ****************************************************************************/
 
 void *esp32s3_rtcheap_zalloc(size_t size)
@@ -128,6 +150,9 @@ void *esp32s3_rtcheap_zalloc(size_t size)
  *
  * Description:
  *   Free memory from the RTC heap.
+ *
+ * Parameters:
+ *   mem - Address to be freed.
  *
  ****************************************************************************/
 
@@ -150,6 +175,9 @@ void esp32s3_rtcheap_free(void *mem)
  * Parameters:
  *   alignment - Requested alignment.
  *   size - Size (in bytes) of the memory region to be allocated.
+ *
+ * Return Value:
+ *   Address of the allocated address. NULL, if allocation fails.
  *
  ****************************************************************************/
 
@@ -185,11 +213,14 @@ bool esp32s3_rtcheap_heapmember(void *mem)
  *   user heap.
  *
  * Parameters:
+ *   None.
+ *
+ * Return Value:
  *   info - Where memory information will be copied.
  *
  ****************************************************************************/
 
-int esp32s3_rtcheap_mallinfo(struct mallinfo *info)
+struct mallinfo esp32s3_rtcheap_mallinfo(void)
 {
-  return mm_mallinfo(g_rtcheap, info);
+  return mm_mallinfo(g_rtcheap);
 }

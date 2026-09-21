@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stream/lib_lzfcompress.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,10 +37,10 @@
  * Name: lzfoutstream_flush
  ****************************************************************************/
 
-static int lzfoutstream_flush(FAR struct lib_outstream_s *this)
+static int lzfoutstream_flush(FAR struct lib_outstream_s *self)
 {
   FAR struct lib_lzfoutstream_s *stream =
-                                 (FAR struct lib_lzfoutstream_s *)this;
+                                 (FAR struct lib_lzfoutstream_s *)self;
   FAR struct lzf_header_s *header;
   size_t outlen;
 
@@ -62,29 +64,29 @@ static int lzfoutstream_flush(FAR struct lib_outstream_s *this)
  * Name: lzfoutstream_puts
  ****************************************************************************/
 
-static int lzfoutstream_puts(FAR struct lib_outstream_s *this,
-                             FAR const void *buf, int len)
+static ssize_t lzfoutstream_puts(FAR struct lib_outstream_s *self,
+                                 FAR const void *buf, size_t len)
 {
   FAR struct lib_lzfoutstream_s *stream =
-                                 (FAR struct lib_lzfoutstream_s *)this;
+                                 (FAR struct lib_lzfoutstream_s *)self;
   FAR struct lzf_header_s *header;
   FAR const char *ptr = buf;
   size_t total = len;
-  size_t copyin;
+  size_t copying;
   size_t outlen;
-  int ret;
+  ssize_t ret;
 
   while (total > 0)
     {
-      copyin = stream->offset + total > LZF_STREAM_BLOCKSIZE ?
-               LZF_STREAM_BLOCKSIZE - stream->offset : total;
+      copying = stream->offset + total > LZF_STREAM_BLOCKSIZE ?
+                LZF_STREAM_BLOCKSIZE - stream->offset : total;
 
-      memcpy(stream->in + stream->offset, ptr, copyin);
+      memcpy(stream->in + stream->offset, ptr, copying);
 
-      ptr            += copyin;
-      stream->offset += copyin;
-      this->nput     += copyin;
-      total          -= copyin;
+      ptr            += copying;
+      stream->offset += copying;
+      self->nput     += copying;
+      total          -= copying;
 
       if (stream->offset == LZF_STREAM_BLOCKSIZE)
         {
@@ -137,7 +139,7 @@ void lib_lzfoutstream(FAR struct lib_lzfoutstream_s *stream,
     }
 
   memset(stream, 0, sizeof(*stream));
-  stream->public.puts  = lzfoutstream_puts;
-  stream->public.flush = lzfoutstream_flush;
+  stream->common.puts  = lzfoutstream_puts;
+  stream->common.flush = lzfoutstream_flush;
   stream->backend      = backend;
 }

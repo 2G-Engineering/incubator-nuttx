@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/utils/net_snoop.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,6 +34,8 @@
 
 #include <sys/param.h>
 
+#include <nuttx/arch.h>
+#include <nuttx/irq.h>
 #include <nuttx/net/snoop.h>
 
 /****************************************************************************
@@ -47,7 +51,7 @@
                               + (tv).tv_usec + 0x00e03ab44a676000ll)
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 /* The availability of tools to capture, display and interpret packets
@@ -361,7 +365,8 @@ int snoop_open(FAR struct snoop_s *snoop, FAR const char *filename,
         }
     }
 
-  ret = file_open(&snoop->filep, filename, O_RDWR | O_CREAT);
+  ret = file_open(&snoop->filep, filename, O_RDWR | O_CREAT | O_CLOEXEC,
+                  0666);
   if (ret < 0)
     {
       return ret;

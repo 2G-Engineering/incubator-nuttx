@@ -21,12 +21,6 @@ config FS_PROCFS_REGISTER
 		Support run-time registration of the new entries in the procfs file
 		system.
 
-config FS_PROCFS_MAX_TASKS
-	int "The maximum number of active tasks for procfs snapshot"
-	default 128
-	---help---
-		The maximum number of active tasks for procfs snapshot.
-
 menu "Exclude individual procfs entries"
 
 config FS_PROCFS_EXCLUDE_BLOCKS
@@ -45,7 +39,7 @@ config FS_PROCFS_EXCLUDE_CPUINFO
 
 config FS_PROCFS_EXCLUDE_CPULOAD
 	bool "Exclude CPU load"
-	depends on SCHED_CPULOAD
+	depends on !SCHED_CPULOAD_NONE
 	default DEFAULT_SMALL
 
 config FS_PROCFS_EXCLUDE_ENVIRON
@@ -54,6 +48,14 @@ config FS_PROCFS_EXCLUDE_ENVIRON
 	default DEFAULT_SMALL
 	---help---
 		Causes the environment variable information to be excluded from the
+		procfs system.  This will reduce code space slightly.
+
+config FS_PROCFS_EXCLUDE_FDT
+	bool "Exclude flattened device tree blob"
+	depends on DEVICE_TREE
+	default DEFAULT_SMALL
+	---help---
+		Causes the flatted device tree information to be excluded from the
 		procfs system.  This will reduce code space slightly.
 
 config FS_PROCFS_EXCLUDE_IOBINFO
@@ -126,7 +128,7 @@ config FS_PROCFS_EXCLUDE_SMARTFS
 
 config FS_PROCFS_EXCLUDE_TCBINFO
 	bool "Exclude tcbinfo procfs"
-	depends on DEBUG_TCBINFO
+	depends on ARCH_HAVE_TCBINFO
 	default DEFAULT_SMALL
 
 config FS_PROCFS_EXCLUDE_UPTIME
@@ -145,6 +147,10 @@ config FS_PROCFS_EXCLUDE_USAGE
 config FS_PROCFS_EXCLUDE_VERSION
 	bool "Exclude version"
 	default DEFAULT_SMALL
+
+config FS_PROCFS_INCLUDE_PRESSURE
+	bool "Include memory pressure notification"
+	default n
 
 endmenu # Exclude individual procfs entries
 endif # FS_PROCFS

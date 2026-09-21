@@ -29,22 +29,24 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include <nuttx/nuttx.h>
 #include <nuttx/userspace.h>
 
 #include <arch/board/board_memorymap.h>
 
 #include "chip.h"
 #include "xtensa.h"
-#include "xtensa_attr.h"
+#include "esp_attr.h"
 #include "esp32s3_irq.h"
 #include "esp32s3_userspace.h"
 #include "hardware/esp32s3_apb_ctrl.h"
 #include "hardware/esp32s3_cache_memory.h"
-#include "hardware/esp32s3_extmem.h"
 #include "hardware/esp32s3_rom_layout.h"
 #include "hardware/esp32s3_sensitive.h"
 #include "hardware/esp32s3_soc.h"
 #include "hardware/esp32s3_wcl_core.h"
+
+#include "soc/extmem_reg.h"
 
 #ifdef CONFIG_BUILD_PROTECTED
 
@@ -52,7 +54,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define USER_IMAGE_OFFSET   CONFIG_ESP32S3_USER_IMAGE_OFFSET
+#define USER_IMAGE_OFFSET   CONFIG_ESP32S3_KERNEL_OFFSET + CONFIG_ESP32S3_KERNEL_IMAGE_SIZE
 
 #define MMU_BLOCK0_VADDR    SOC_DROM_LOW
 #define MMU_SIZE            0x3f0000
@@ -79,9 +81,6 @@
  */
 
 #define WCL_SEQ_LAST_VAL    6
-
-#define I_D_SRAM_OFFSET           (SOC_DIRAM_IRAM_LOW - SOC_DIRAM_DRAM_LOW)
-#define MAP_IRAM_TO_DRAM(addr)    ((addr) - I_D_SRAM_OFFSET)
 
 /* Categories bits for split line configuration */
 
@@ -111,14 +110,6 @@
 
 #define PIF_PMS_MAX_REG_ENTRY     16
 #define PIF_PMS_V                 3
-
-#ifndef ALIGN_UP
-#  define ALIGN_UP(num, align) (((num) + ((align) - 1)) & ~((align) - 1))
-#endif
-
-#ifndef ALIGN_DOWN
-#  define ALIGN_DOWN(num, align)  ((num) & ~((align) - 1))
-#endif
 
 /****************************************************************************
  * Private Types

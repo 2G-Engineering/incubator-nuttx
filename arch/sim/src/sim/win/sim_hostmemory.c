@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/win/sim_hostmemory.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,6 +26,8 @@
 
 #include <windows.h>
 
+#include "sim_internal.h"
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -36,9 +40,9 @@
  *
  ****************************************************************************/
 
-void *host_allocheap(size_t sz)
+void *host_allocheap(size_t size, bool exec)
 {
-  return _aligned_malloc(sz, 8);
+  return _aligned_malloc(size, 8);
 }
 
 /****************************************************************************
@@ -54,7 +58,7 @@ void host_freeheap(void *mem)
   _aligned_free(mem);
 }
 
-void *host_allocshmem(const char *name, size_t size, int master)
+void *host_allocshmem(const char *name, size_t size)
 {
   HANDLE handle;
   void *mem;
@@ -95,8 +99,4 @@ void host_free(void *mem)
 void *host_realloc(void *oldmem, size_t size)
 {
   return _aligned_realloc(oldmem, size, 8);
-}
-
-void host_mallinfo(int *aordblks, int *uordblks)
-{
 }

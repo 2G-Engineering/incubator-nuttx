@@ -1,14 +1,9 @@
 /****************************************************************************
  * crypto/crypto.c
- * $OpenBSD: crypto.c,v 1.65 2014/07/13 23:24:47 deraadt Exp  $
  *
- * The author of this code is Angelos D. Keromytis (angelos@cis.upenn.edu)
- *
- * This code was written by Angelos D. Keromytis in Athens, Greece, in
- * February 2000. Network Security Technologies Inc. (NSTI) kindly
- * supported the development of this code.
- *
- * Copyright (c) 2000, 2001 Angelos D. Keromytis
+ * SPDX-License-Identifier: OAR
+ * SPDX-FileCopyrightText: Copyright (c) 2000, 2001 Angelos D. Keromytis
+ * SPDX-FileContributor: Angelos D. Keromytis (angelos@cis.upenn.edu)
  *
  * Permission to use, copy, and modify this software with or without fee
  * is hereby granted, provided that this entire notice is included in
@@ -20,6 +15,11 @@
  * REPRESENTATION OR WARRANTY OF ANY KIND CONCERNING THE
  * MERCHANTABILITY OF THIS SOFTWARE OR ITS FITNESS FOR ANY PARTICULAR
  * PURPOSE.
+ *
+ * This code was written by Angelos D. Keromytis in Athens, Greece, in
+ * February 2000. Network Security Technologies Inc. (NSTI) kindly
+ * supported the development of this code.
+ *
  ****************************************************************************/
 
 /****************************************************************************
@@ -435,9 +435,7 @@ int crypto_unregister(uint32_t driverid, int alg)
   /* Sanity checks. */
 
   if (driverid >= crypto_drivers_num || crypto_drivers == NULL ||
-      ((alg <= 0 || alg > CRYPTO_ALGORITHM_MAX) &&
-      alg != CRYPTO_ALGORITHM_MAX + 1) ||
-      crypto_drivers[driverid].cc_alg[alg] == 0)
+      alg <= 0 || alg > (CRYPTO_ALGORITHM_MAX + 1))
     {
       nxmutex_unlock(&g_crypto_lock);
       return -EINVAL;
@@ -445,6 +443,12 @@ int crypto_unregister(uint32_t driverid, int alg)
 
   if (alg != CRYPTO_ALGORITHM_MAX + 1)
     {
+      if (crypto_drivers[driverid].cc_alg[alg] == 0)
+        {
+          nxmutex_unlock(&g_crypto_lock);
+          return -EINVAL;
+        }
+
       crypto_drivers[driverid].cc_alg[alg] = 0;
 
       /* Was this the last algorithm ? */

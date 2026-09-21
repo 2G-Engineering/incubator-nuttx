@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/segger/config/SEGGER_RTT_Conf.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,6 +31,14 @@
 
 #ifndef __ASSEMBLY__
 #  include <nuttx/spinlock.h>
+#endif
+
+/****************************************************************************
+ * Public Data
+ ****************************************************************************/
+
+#ifndef __ASSEMBLY__
+extern spinlock_t g_segger_lock;
 #endif
 
 /****************************************************************************
@@ -65,7 +75,7 @@
 
 #if defined(CONFIG_SEGGER_RTT_MODE_NO_BLOCK_TRIM)
 #  define SEGGER_RTT_MODE_DEFAULT       SEGGER_RTT_MODE_NO_BLOCK_TRIM
-#elif defined(SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
+#elif defined(CONFIG_SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
 #  define SEGGER_RTT_MODE_DEFAULT       SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
 #else
 #  define SEGGER_RTT_MODE_DEFAULT       SEGGER_RTT_MODE_NO_BLOCK_SKIP
@@ -79,14 +89,39 @@
 
 /* Lock RTT (nestable)   (i.e. disable interrupts) */
 
-#define SEGGER_RTT_LOCK()               irqstate_t __flags = spin_lock_irqsave(NULL)
+#define SEGGER_RTT_LOCK()               irqstate_t __flags = spin_lock_irqsave_notrace(&g_segger_lock)
 
 /* Unlock RTT (nestable) (i.e. enable previous interrupt lock state) */
 
-#define SEGGER_RTT_UNLOCK()             spin_unlock_irqrestore(NULL, __flags)
+#define SEGGER_RTT_UNLOCK()             spin_unlock_irqrestore_notrace(&g_segger_lock, __flags)
 
 /* Disable RTT SEGGER_RTT_WriteSkipNoLock */
 
 #define RTT_USE_ASM                     0
+
+#define SEGGER_RTT_FLAG_UP(ch)          (((FAR SEGGER_RTT_BUFFER_UP *)((FAR char *) \
+                                         &_SEGGER_RTT.aUp[ch] + SEGGER_RTT_UNCACHED_OFF))->Flags)
+#define SEGGER_RTT_RDOFF_UP(ch)         (((FAR SEGGER_RTT_BUFFER_UP *)((FAR char *) \
+                                         &_SEGGER_RTT.aUp[ch] + SEGGER_RTT_UNCACHED_OFF))->RdOff)
+
+#define SEGGER_RTT_IS_CONNECTED(ch)     (SEGGER_RTT_RDOFF_UP(ch) != 0)
+#define SEGGER_RTT_IS_FIFO_MODE(ch)     (SEGGER_RTT_FLAG_UP(ch) == SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
+
+/* Determine whether JLink is connected, and use FIFO mode
+  * after connection to ensure that data is not lost.
+  */
+
+#define SEGGER_RTT_BLOCK_IF_FIFO_FULL(ch) \
+  do \
+    { \
+      if (!SEGGER_RTT_IS_FIFO_MODE(ch) && SEGGER_RTT_IS_CONNECTED(ch)) \
+        { \
+          SEGGER_RTT_SetFlagsUpBuffer(ch, SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL); \
+          SEGGER_RTT_SetFlagsDownBuffer(ch, SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL); \
+        } \
+    } \
+  while (0)
+
+#define SEGGER_SYSVIEW_PRINTF_IMPLICIT_FORMAT 1
 
 #endif /* __DRIVERS_SEGGER_CONFIG_SEGGER_RTT_CONF_H */

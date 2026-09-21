@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/k210/k210_fpioa.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,5 +41,5 @@ void k210_fpioa_config(uint32_t io, uint32_t ioflags)
 {
   uint32_t *fpioa = (uint32_t *)K210_FPIOA_BASE;
   DEBUGASSERT(io < K210_IO_NUMBER);
-  putreg32(ioflags, &fpioa[io]);
+  putreg32(ioflags, (uintptr_t)&fpioa[io]);
 }

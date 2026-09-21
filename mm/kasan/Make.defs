@@ -1,6 +1,8 @@
 ############################################################################
 # mm/kasan/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -18,18 +20,17 @@
 #
 ############################################################################
 
+CSRCS += hook.c
+
 ifeq ($(CONFIG_MM_KASAN),y)
-
-CSRCS += kasan.c
-
-# Disable kernel-address in mm subsystem
-
-CFLAGS += -fno-sanitize=kernel-address
-CFLAGS += -fno-lto
+  CFLAGS += -fno-lto
+  CFLAGS += -fno-builtin
+  CFLAGS += -fno-sanitize=kernel-address
+endif
 
 # Add the core heap directory to the build
 
 DEPPATH += --dep-path kasan
 VPATH += :kasan
 
-endif
+

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/samd5e5/metro-m4/src/metro-m4.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -55,7 +57,7 @@
 
 #define PORT_RED_LED (PORT_OUTPUT  | PORT_PULL_NONE | PORT_OUTPUT_SET | PORTA | PORT_PIN16)
 
-#define PORT_D8	  (PORT_OUTPUT     | PORT_PULL_NONE | PORT_OUTPUT_SET | PORTA | PORT_PIN21)
+#define PORT_D8   (PORT_OUTPUT     | PORT_PULL_NONE | PORT_OUTPUT_SET | PORTA | PORT_PIN21)
 #define PORT_D9   (PORT_INTERRUPT  | PORT_PULL_NONE | PORT_INT_RISING | PORTA | PORT_PIN20)
 #define PORT_D10  (PORT_INPUT      | PORT_PULL_NONE | PORT_INT_CHANGE | PORTA | PORT_PIN18)
 

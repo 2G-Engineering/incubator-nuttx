@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/include/setjmp.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,6 +29,7 @@
 
 #include <nuttx/config.h>
 #include <nuttx/compiler.h>
+#include <sys/types.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -49,7 +52,7 @@
 #    define JB_R13            (4*8)
 #    define JB_R14            (5*8)
 #    define JB_R15            (6*8)
-#    define JB_RSI            (7*8)
+#    define JB_RIP            (7*8)
 #    define JB_FLAG           (8*8)
 
 #  else
@@ -61,7 +64,7 @@
 #    define JB_R13            (4)
 #    define JB_R14            (5)
 #    define JB_R15            (6)
-#    define JB_RSI            (7)
+#    define JB_RIP            (7)
 #    define JB_FLAG           (8)
 
 #  endif /* __ASSEMBLY__ */
@@ -70,7 +73,7 @@
 
 #  define JB_FP               JB_RBP
 #  define JB_SP               JB_RSP
-#  define JB_PC               JB_RSI
+#  define JB_PC               JB_RIP
 
 #elif defined(CONFIG_HOST_X86) || defined(CONFIG_SIM_M32)
   /* Storage order: %ebx, %esi, %edi, %ebp, sp, and return PC */
@@ -84,8 +87,8 @@
 #    define JB_ESI            (1*4)
 #    define JB_EDI            (2*4)
 #    define JB_EBP            (3*4)
-#    define JB_SP             (4*4)
-#    define JB_PC             (5*4)
+#    define JB_ESP            (4*4)
+#    define JB_EIP            (5*4)
 #    define JB_FLAG           (6*4)
 #    define JB_FLAG1          (7*4)
 
@@ -95,8 +98,8 @@
 #    define JB_ESI            (1)
 #    define JB_EDI            (2)
 #    define JB_EBP            (3)
-#    define JB_SP             (4)
-#    define JB_PC             (5)
+#    define JB_ESP            (4)
+#    define JB_EIP            (5)
 #    define JB_FLAG           (6)
 #    define JB_FLAG1          (7)
 
@@ -105,6 +108,8 @@
 /* Compatibility definitions */
 
 #  define JB_FP               JB_EBP
+#  define JB_SP               JB_ESP
+#  define JB_PC               JB_EIP
 
 #elif defined(CONFIG_HOST_ARM)
 
@@ -154,7 +159,7 @@
 
 #ifndef __ASSEMBLY__
 
-typedef unsigned long xcpt_reg_t;
+typedef size_t xcpt_reg_t;
 typedef xcpt_reg_t jmp_buf[XCPTCONTEXT_REGS];
 
 #endif

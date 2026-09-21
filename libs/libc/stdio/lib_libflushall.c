@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_libflushall.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,6 +30,7 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#include <nuttx/nuttx.h>
 #include <nuttx/fs/fs.h>
 
 #include "libc.h"
@@ -45,14 +48,66 @@
  *
  ****************************************************************************/
 
-int lib_flushall(FAR struct streamlist *list)
+int lib_flushall_unlocked(FAR struct streamlist *list)
 {
+  FAR sq_entry_t *entry;
   int lasterrno = OK;
   int ret;
 
   /* Make sure that there are streams associated with this thread */
 
-  if (list)
+  if (list != NULL)
+    {
+      FAR FILE *stream;
+      int i;
+
+      /* Process each stream in the thread's stream list */
+
+      for (i = 0; i < 3; i++)
+        {
+          lib_fflush_unlocked(&list->sl_std[i]);
+        }
+
+      sq_for_every(&list->sl_queue, entry)
+        {
+          stream = container_of(entry, struct file_struct, fs_entry);
+
+          /* If the stream is opened for writing, then flush all of
+           * the pending write data in the stream.
+           */
+
+          if ((stream->fs_oflags & O_WROK) != 0)
+            {
+              /* Flush the writable FILE */
+
+              ret = lib_fflush_unlocked(stream);
+              if (ret < 0)
+                {
+                  /* An error occurred during the flush AND/OR we were unable
+                   * to flush all of the buffered write data.  Remember the
+                   * last errcode.
+                   */
+
+                  lasterrno = ret;
+                }
+            }
+        }
+    }
+
+  /* If any flush failed, return the errorcode of the last failed flush */
+
+  return lasterrno;
+}
+
+int lib_flushall(FAR struct streamlist *list)
+{
+  FAR sq_entry_t *entry;
+  int lasterrno = OK;
+  int ret;
+
+  /* Make sure that there are streams associated with this thread */
+
+  if (list != NULL)
     {
       FAR FILE *stream;
       int i;
@@ -63,12 +118,13 @@ int lib_flushall(FAR struct streamlist *list)
 
       for (i = 0; i < 3; i++)
         {
-          lib_fflush(&list->sl_std[i], true);
+          lib_fflush(&list->sl_std[i]);
         }
 
-      stream = list->sl_head;
-      for (; stream != NULL; stream = stream->fs_next)
+      sq_for_every(&list->sl_queue, entry)
         {
+          stream = container_of(entry, struct file_struct, fs_entry);
+
           /* If the stream is opened for writing, then flush all of
            * the pending write data in the stream.
            */
@@ -77,7 +133,7 @@ int lib_flushall(FAR struct streamlist *list)
             {
               /* Flush the writable FILE */
 
-              ret = lib_fflush(stream, true);
+              ret = lib_fflush(stream);
               if (ret < 0)
                 {
                   /* An error occurred during the flush AND/OR we were unable

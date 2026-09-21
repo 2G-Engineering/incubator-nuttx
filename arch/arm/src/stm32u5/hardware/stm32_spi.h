@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32u5/hardware/stm32_spi.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,10 +30,13 @@
 #include <nuttx/config.h>
 #include "chip.h"
 
-#if defined(CONFIG_STM32U5_STM32U585XX)
-#  include "hardware/stm32u585xx_spi.h"
+#if defined(CONFIG_STM32U5_STM32U535XX) || defined(CONFIG_STM32U5_STM32U545XX) || \
+    defined(CONFIG_STM32U5_STM32U575XX) || defined(CONFIG_STM32U5_STM32U585XX) || \
+    defined(CONFIG_STM32U5_STM32U59XX) || defined(CONFIG_STM32U5_STM32U59AXX)  || \
+    defined(CONFIG_STM32U5_STM32U5A5XX) || defined(CONFIG_STM32U5_STM32U5A9XX)
+#  include "hardware/stm32u5xx_spi.h"
 #else
-#  error "Unsupported STM32 U5 sub family"
+#  error "Unsupported STM32U5 chip"
 #endif
 
 #endif /* __ARCH_ARM_SRC_STM32U5_HARDWARE_STM32_SPI_H */

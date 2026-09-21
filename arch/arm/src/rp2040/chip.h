@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rp2040/chip.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -56,27 +58,6 @@
  ****************************************************************************/
 
 #ifdef __ASSEMBLY__
-
-/****************************************************************************
- * Name: setintstack
- *
- * Description:
- *   Set the current stack pointer to the  "top" the correct interrupt stack
- *   for the current CPU.
- *
- ****************************************************************************/
-
-#if defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 3
-  .macro  setintstack, tmp1, tmp2
-  ldr  \tmp1, =RP2040_SIO_CPUID
-  ldr  \tmp1, [\tmp1, #0]
-  lsls  \tmp1, \tmp1, #2
-  ldr  \tmp2, =g_cpu_intstack_top
-  add  \tmp2, \tmp2, \tmp1
-  ldr  \tmp2, [\tmp2, #0]
-  mov  sp, \tmp2 /* sp = g_cpu_intstack_top[cpuid] */
-  .endm
-#endif /* CONFIG_SMP && CONFIG_ARCH_INTERRUPTSTACK > 7 */
 
 #endif /* __ASSEMBLY__  */
 #endif /* __ARCH_ARM_SRC_RP2040_CHIP_H */

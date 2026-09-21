@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/video/mipidsi/mipi_dsi_device.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -66,7 +68,7 @@
  *   msg - Message to transfer
  *
  * Returned Value:
- *   The number of bytes successfully transfered or a negative error code on
+ *   The number of bytes successfully transferred or a negative error code on
  *   failure.
  *
  ****************************************************************************/
@@ -1031,7 +1033,7 @@ mipi_dsi_device_register(FAR struct mipi_dsi_host *host,
           kmm_free(dev);
           dev = NULL;
         }
-#endif // CONFIG_MIPI_DSI_DRIVER
+#endif /* CONFIG_MIPI_DSI_DRIVER */
     }
 
   return dev;

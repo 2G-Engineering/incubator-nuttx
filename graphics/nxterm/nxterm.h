@@ -1,6 +1,8 @@
 /****************************************************************************
  * graphics/nxterm/nxterm.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -157,7 +159,7 @@ struct nxterm_state_s
    * retained in the f_priv field of the 'struct file'.
    */
 
-  struct pollfd *fds[CONFIG_NXTERM_NPOLLWAITERS];
+  FAR struct pollfd *fds[CONFIG_NXTERM_NPOLLWAITERS];
 #endif /* CONFIG_NXTERM_NXKBDIN */
 };
 
@@ -175,10 +177,11 @@ extern const struct file_operations g_nxterm_drvrops;
 
 /* Common device registration/un-registration */
 
-FAR struct nxterm_state_s *nxterm_register(NXTERM handle,
-    FAR struct nxterm_window_s *wndo,
-    FAR const struct nxterm_operations_s *ops,
-    int minor);
+FAR struct nxterm_state_s *
+nxterm_register(NXTERM handle,
+                FAR struct nxterm_window_s *wndo,
+                FAR const struct nxterm_operations_s *ops,
+                int minor);
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
 void nxterm_unregister(FAR struct nxterm_state_s *priv);
 #endif
@@ -213,7 +216,7 @@ FAR const
 struct nxterm_bitmap_s *nxterm_addchar(FAR struct nxterm_state_s *priv,
                                        uint8_t ch);
 int nxterm_hidechar(FAR struct nxterm_state_s *priv,
-    FAR const struct nxterm_bitmap_s *bm);
+                    FAR const struct nxterm_bitmap_s *bm);
 int nxterm_backspace(FAR struct nxterm_state_s *priv);
 void nxterm_fillchar(FAR struct nxterm_state_s *priv,
                      FAR const struct nxgl_rect_s *rect,

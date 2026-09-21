@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/posix/sim_linuxi2c.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -216,7 +218,7 @@ static int linux_i2cbus_transfer(struct i2c_master_s *dev,
         }
       else
         {
-          /* Many busses cannot handle more than 2 messages */
+          /* Many buses cannot handle more than 2 messages */
 
           return -1;
         }
@@ -269,7 +271,7 @@ struct i2c_master_s *sim_i2cbus_initialize(int bus)
   struct linux_i2cbus_master_s *priv;
   char filename[20];
 
-  priv = (struct linux_i2cbus_master_s *)malloc(sizeof(*priv));
+  priv = malloc(sizeof(*priv));
   if (priv == NULL)
     {
       ERROR("Failed to allocate private i2c master driver");

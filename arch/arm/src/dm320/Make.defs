@@ -1,6 +1,8 @@
 ############################################################################
 # arch/arm/src/dm320/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -19,6 +21,8 @@
 ############################################################################
 
 include arm/Make.defs
+
+CFLAGS += -Wno-array-bounds
 
 CHIP_ASRCS  = dm320_lowputc.S dm320_restart.S
 

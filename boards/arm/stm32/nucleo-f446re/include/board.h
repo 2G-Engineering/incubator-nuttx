@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/nucleo-f446re/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,8 +31,6 @@
 #ifndef __ASSEMBLY__
 #  include <stdint.h>
 #endif
-
-#include <stm32.h>
 
 /****************************************************************************
  * Pre-processor Definitions

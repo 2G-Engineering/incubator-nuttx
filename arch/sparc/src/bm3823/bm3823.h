@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sparc/src/bm3823/bm3823.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -399,7 +401,7 @@ static __inline__ int bsp_irq_fixup(int irq)
     INTER_REG.Interrupt_Force = (1 << (_source)); \
   } while (0)
 
-#define BM3823_Is_int										   errupt_pending( _source ) \
+#define BM3823_Is_interrupt_pending( _source ) \
   (INTER_REG.Interrupt_Pending & (1 << (_source)))
 
 #define BM3823_Is_interrupt_masked( _source ) \
@@ -517,7 +519,7 @@ static inline unsigned int bm3823_r32_no_cache(uintptr_t addr)
  * Name: up_clkinit
  *
  * Description:
- *   Initialiaze clock/PLL settings per the definitions in the board.h file.
+ *   Initialize clock/PLL settings per the definitions in the board.h file.
  *
  ****************************************************************************/
 

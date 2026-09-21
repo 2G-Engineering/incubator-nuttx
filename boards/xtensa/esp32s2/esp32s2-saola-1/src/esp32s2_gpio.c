@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s2/esp32s2-saola-1/src/esp32s2_gpio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -40,6 +42,10 @@
 #include "esp32s2_gpio.h"
 #include "hardware/esp32s2_gpio_sigmap.h"
 
+#ifdef CONFIG_ESPRESSIF_DEDICATED_GPIO
+#include "espressif/esp_dedic_gpio.h"
+#endif
+
 #if defined(CONFIG_DEV_GPIO) && !defined(CONFIG_GPIO_LOWER_HALF)
 
 /****************************************************************************
@@ -61,6 +67,14 @@
  */
 
 #define GPIO_IRQPIN  9
+
+/* Dedicated GPIO pins. GPIO4 and GPIO5 is used as an example, any other
+ * GPIOs could be used.
+ */
+
+#define GPIO_DEDIC1       6
+#define GPIO_DEDIC2       5
+#define GPIO_DEDIC_COUNT  2
 
 /****************************************************************************
  * Private Types
@@ -157,6 +171,33 @@ static const uint32_t g_gpiointinputs[BOARD_NGPIOINT] =
 };
 
 static struct esp32s2gpint_dev_s g_gpint[BOARD_NGPIOINT];
+#endif
+
+/* This array maps the GPIO pins used as Dedicated GPIO */
+
+#ifdef CONFIG_ESPRESSIF_DEDICATED_GPIO
+static const int g_gpioidedic[GPIO_DEDIC_COUNT] =
+{
+  GPIO_DEDIC1, GPIO_DEDIC2
+};
+
+static struct esp_dedic_gpio_flags_s dedic_gpio_flags =
+{
+  .input_enable = 1,
+  .invert_input_enable = 0,
+  .output_enable = 1,
+  .invert_output_enable = 0
+};
+
+struct esp_dedic_gpio_config_s dedic_gpio_conf =
+{
+  .gpio_array = g_gpioidedic,
+  .array_size = GPIO_DEDIC_COUNT,
+  .flags = &dedic_gpio_flags,
+  .path = "/dev/dedic_gpio0"
+};
+
+struct file *dedicated_gpio = NULL;
 #endif
 
 /****************************************************************************
@@ -374,7 +415,7 @@ static int gpint_enable(struct gpio_dev_s *dev, bool enable)
 
           /* Configure the interrupt for rising edge */
 
-          esp32s2_gpioirqenable(irq, GPIO_INTR_POSEDGE);
+          esp32s2_gpioirqenable(irq, RISING);
         }
     }
   else
@@ -461,6 +502,12 @@ int esp32s2_gpio_init(void)
 
       pincount++;
     }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_DEDICATED_GPIO
+  dedicated_gpio = esp_dedic_gpio_new_bundle(&dedic_gpio_conf);
+
+  pincount++;
 #endif
 
   return OK;

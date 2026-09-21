@@ -1,15 +1,12 @@
 /****************************************************************************
  * arch/arm/src/imxrt/imxrt_edma.h
  *
- *   Copyright (C) 2018 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
- *
- * Portions of the eDMA logic derive from NXP sample code which has a
- * compatible BSD 3-clause license:
- *
- *   Copyright (c) 2015, Freescale Semiconductor, Inc.
- *   Copyright 2016-2017 NXP
- *   All rights reserved
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2018 Gregory Nutt. All rights reserved.
+ * SPDX-FileCopyrightText: 2016-2017 NXP
+ * SPDX-FileCopyrightText: 2015, Freescale Semiconductor, Inc.
+ * SPDX-FileContributor: Gregory Nutt <gnutt@nuttx.org>
+ * All rights reserved
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -83,7 +80,7 @@
  *     i mxrt_dmach_stop(handle);
  *
  * 7. The callback will be received when the DMA completes (or an error
- *    occurs). After that, you may free  the DMA channel, or re-use it on
+ *    occurs). After that, you may free  the DMA channel, or reuse it on
  *    subsequent DMAs.
  *
  *      imxrt_dmach_free(handle);
@@ -410,6 +407,20 @@ void imxrt_dmach_stop(DMACH_HANDLE handle);
  ****************************************************************************/
 
 unsigned int imxrt_dmach_getcount(DMACH_HANDLE handle);
+
+/****************************************************************************
+ * Name: imxrt_dmach_idle
+ *
+ * Description:
+ *   This function checks if the dma is idle
+ *
+ * Returned Value:
+ *   0  - if idle
+ *   !0 - not
+ *
+ ****************************************************************************/
+
+unsigned int imxrt_dmach_idle(DMACH_HANDLE handle);
 
 /****************************************************************************
  * Name: imxrt_dmasample

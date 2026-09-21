@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/netfilter/ipt_nat.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -60,12 +62,12 @@ static int adjust_nat(FAR struct net_driver_s *dev, FAR void *arg)
       if (strcmp(target->u.user.name, XT_MASQUERADE_TARGET) == 0 &&
           strcmp(dev->d_ifname, entry->ip.outiface) == 0)
         {
-          ipv4_nat_enable(dev);
+          nat_enable(dev);
           return 0;
         }
     }
 
-  ipv4_nat_disable(dev);
+  nat_disable(dev);
   return 0;
 }
 

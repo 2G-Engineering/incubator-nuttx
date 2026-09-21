@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/analog/ioctl.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -104,9 +106,29 @@
 #define AN_MCP48XX_FIRST (AN_MAX1161X_FIRST + AN_MAX1161X_NCMDS)
 #define AN_MCP48XX_NCMDS 3
 
+/* See arch/arm/src/samv7/sam_afec.h */
+
+#define AN_SAMV7_AFEC_FIRST (AN_MCP48XX_FIRST + AN_MCP48XX_NCMDS)
+#define AN_SAMV7_AFEC_NCMDS 1
+
+/* See include/nuttx/analog/mcp3008.h */
+
+#define AN_MCP3008_FIRST (AN_SAMV7_AFEC_FIRST + AN_SAMV7_AFEC_NCMDS)
+#define AN_MCP3008_NCMDS 1
+
+/* See include/nuttx/analog/ads1115.h */
+
+#define AN_ADS1115_FIRST (AN_MCP3008_FIRST + AN_MCP3008_NCMDS)
+#define AN_ADS1115_NCMDS 10
+
+/* See include/nuttx/analog/mcp47x6.h */
+
+#define AN_MCP47X6_FIRST (AN_ADS1115_FIRST + AN_ADS1115_NCMDS)
+#define AN_MCP47X6_NCMDS 3
+
 /* See include/nuttx/analog/ads111x.h */
 
-#define AN_ADS111X_FIRST (AN_MCP48XX_FIRST + AN_MCP48XX_NCMDS)
+#define AN_ADS111X_FIRST (AN_MCP47X6_FIRST + AN_MCP47X6_NCMDS)
 #define AN_ADS111X_NCMDS 3
 
 /****************************************************************************

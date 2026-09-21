@@ -1,11 +1,10 @@
 /****************************************************************************
  * drivers/sensors/as726x.c
- * Character driver for the AS7263 6-Ch NIR Spectral Sensing Engine
- * and AS7262 Consumer Grade Smart 6-Channel VIS Sensor
  *
- *   Copyright (C) 2019 Fabian Justi. All rights reserved.
- *   Author: Fabian Justi <Fabian.Justi@gmx.de> and
- *           Andreas Kurz <andreas.kurz@methodpark.de>
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2019 Fabian Justi. All rights reserved.
+ * SPDX-FileContributor: Fabian Justi <Fabian.Justi@gmx.de> and
+ * SPDX-FileContributor: Andreas Kurz <andreas.kurz@methodpark.de>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -60,10 +59,6 @@
 /****************************************************************************
  * Pre-process Definitions
  ****************************************************************************/
-
-#ifndef CONFIG_AS726X_I2C_FREQUENCY
-#  define CONFIG_AS726X_I2C_FREQUENCY 100000
-#endif
 
 #define AS726X_INTEGRATION_TIME 50
 #define AS726X_GAIN             0b01   /* Set gain to 64x */
@@ -141,7 +136,7 @@ static float as726x_getcalibrated(FAR struct as726x_dev_s *priv,
   colourdata |= ((uint32_t) byte2 << (8 * 1));
   colourdata |= ((uint32_t) byte3 << (8 * 0));
 
-  return *((float *)(&colourdata));
+  return *((FAR float *)(&colourdata));
 }
 
 /****************************************************************************
@@ -387,6 +382,7 @@ static ssize_t as726x_write(FAR struct file *filep,
 
 int as726x_register(FAR const char *devpath, FAR struct i2c_master_s *i2c)
 {
+  FAR struct as726x_dev_s *priv;
   uint8_t _sensor_version;
   uint8_t value;
   int ret;
@@ -397,9 +393,7 @@ int as726x_register(FAR const char *devpath, FAR struct i2c_master_s *i2c)
 
   /* Initialize the AS726X device structure */
 
-  FAR struct as726x_dev_s *priv =
-    (FAR struct as726x_dev_s *)kmm_malloc(sizeof(struct as726x_dev_s));
-
+  priv = kmm_malloc(sizeof(struct as726x_dev_s));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");

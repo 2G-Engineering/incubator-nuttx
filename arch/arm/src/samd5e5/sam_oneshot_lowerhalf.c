@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samd5e5/sam_oneshot_lowerhalf.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -146,7 +148,7 @@ static void sam_oneshot_handler(void *arg)
  *   lower   An instance of the lower-half oneshot state structure.  This
  *           structure must have been previously initialized via a call to
  *           oneshot_initialize();
- *   ts      The location in which to return the maxumum delay.
+ *   ts      The location in which to return the maximum delay.
  *
  * Returned Value:
  *   Zero (OK) is returned on success; a negated errno value is returned

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/olimex-stm32-e407/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,12 +32,6 @@
 #ifndef __ASSEMBLY__
 #  include <stdint.h>
 #  include <stdbool.h>
-#endif
-
-#ifdef __KERNEL__
-#  include "stm32_rcc.h"
-#  include "stm32_sdio.h"
-#  include "stm32.h"
 #endif
 
 /****************************************************************************

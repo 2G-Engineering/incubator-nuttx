@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/power/pm/pm_governor.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -75,17 +77,17 @@ int pm_set_governor(int domain, FAR const struct pm_governor_s *gov)
       return -EINVAL;
     }
 
-  if (g_pmglobals.domain[domain].governor &&
-      g_pmglobals.domain[domain].governor->deinitialize)
+  if (g_pmdomains[domain].governor &&
+      g_pmdomains[domain].governor->deinitialize)
     {
-      g_pmglobals.domain[domain].governor->deinitialize();
+      g_pmdomains[domain].governor->deinitialize();
     }
 
-  g_pmglobals.domain[domain].governor = gov;
+  g_pmdomains[domain].governor = gov;
 
-  if (g_pmglobals.domain[domain].governor->initialize)
+  if (g_pmdomains[domain].governor->initialize)
     {
-      g_pmglobals.domain[domain].governor->initialize();
+      g_pmdomains[domain].governor->initialize();
     }
 
   return 0;

@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/usrsock/usrsock_poll.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -174,17 +176,17 @@ static int usrsock_pollsetup(FAR struct socket *psock,
    * callback processing.
    */
 
-  cb->flags  = USRSOCK_EVENT_ABORT | USRSOCK_EVENT_CONNECT_READY |
-               USRSOCK_EVENT_SENDTO_READY | USRSOCK_EVENT_RECVFROM_AVAIL |
-               USRSOCK_EVENT_REMOTE_CLOSED;
-  cb->priv   = (FAR void *)info;
-  cb->event  = poll_event;
+  cb->flags = USRSOCK_EVENT_ABORT | USRSOCK_EVENT_CONNECT_READY |
+              USRSOCK_EVENT_SENDTO_READY | USRSOCK_EVENT_RECVFROM_AVAIL |
+              USRSOCK_EVENT_REMOTE_CLOSED;
+  cb->priv  = info;
+  cb->event = poll_event;
 
   /* Save the reference in the poll info structure as fds private as well
    * for use during poll teardown as well.
    */
 
-  fds->priv  = (FAR void *)info;
+  fds->priv = info;
 
   /* Check if socket is in error state */
 

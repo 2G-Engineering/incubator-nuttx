@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/task/task_init.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,6 +35,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/queue.h>
 #include <nuttx/sched.h>
+#include <nuttx/trace.h>
 
 #include "sched/sched.h"
 #include "environ/environ.h"
@@ -85,10 +88,13 @@
 int nxtask_init(FAR struct task_tcb_s *tcb, const char *name, int priority,
                 FAR void *stack, uint32_t stack_size,
                 main_t entry, FAR char * const argv[],
-                FAR char * const envp[])
+                FAR char * const envp[],
+                FAR const posix_spawn_file_actions_t *actions)
 {
   uint8_t ttype = tcb->cmn.flags & TCB_FLAG_TTYPE_MASK;
   int ret;
+
+  sched_trace_begin();
 
 #ifndef CONFIG_DISABLE_PTHREAD
   /* Only tasks and kernel threads can be initialized in this way */
@@ -99,7 +105,7 @@ int nxtask_init(FAR struct task_tcb_s *tcb, const char *name, int priority,
 #ifdef CONFIG_ARCH_ADDRENV
   /* Kernel threads do not own any address environment */
 
-  if ((ttype & TCB_FLAG_TTYPE_MASK) == TCB_FLAG_TTYPE_KERNEL)
+  if (ttype == TCB_FLAG_TTYPE_KERNEL)
     {
       tcb->cmn.addrenv_own = NULL;
     }
@@ -107,11 +113,22 @@ int nxtask_init(FAR struct task_tcb_s *tcb, const char *name, int priority,
 
   /* Create a new task group */
 
-  ret = group_allocate(tcb, tcb->cmn.flags);
+  ret = group_initialize(tcb, tcb->cmn.flags);
   if (ret < 0)
     {
+      sched_trace_end();
       return ret;
     }
+
+#ifndef CONFIG_DISABLE_PTHREAD
+  /* Initialize the task join */
+
+  nxtask_joininit(&tcb->cmn);
+#endif
+
+#ifndef CONFIG_PTHREAD_MUTEX_UNSAFE
+  spin_lock_init(&tcb->cmn.mutex_lock);
+#endif
 
   /* Duplicate the parent tasks environment */
 
@@ -123,11 +140,15 @@ int nxtask_init(FAR struct task_tcb_s *tcb, const char *name, int priority,
 
   /* Associate file descriptors with the new task */
 
-  ret = group_setuptaskfiles(tcb);
+  ret = group_setuptaskfiles(tcb, actions, true);
   if (ret < 0)
     {
       goto errout_with_group;
     }
+
+  /* Set the task name */
+
+  nxtask_setup_name(tcb, name);
 
   if (stack)
     {
@@ -147,14 +168,6 @@ int nxtask_init(FAR struct task_tcb_s *tcb, const char *name, int priority,
       goto errout_with_group;
     }
 
-  /* Initialize thread local storage */
-
-  ret = tls_init_info(&tcb->cmn);
-  if (ret < OK)
-    {
-      goto errout_with_group;
-    }
-
   /* Initialize the task control block */
 
   ret = nxtask_setup_scheduler(tcb, priority, nxtask_start,
@@ -164,9 +177,17 @@ int nxtask_init(FAR struct task_tcb_s *tcb, const char *name, int priority,
       goto errout_with_group;
     }
 
+  /* Initialize thread local storage */
+
+  ret = tls_init_info(&tcb->cmn);
+  if (ret < OK)
+    {
+      goto errout_with_group;
+    }
+
   /* Setup to pass parameters to the new task */
 
-  ret = nxtask_setup_arguments(tcb, name, argv);
+  ret = nxtask_setup_stackargs(tcb, name, argv);
   if (ret < OK)
     {
       goto errout_with_group;
@@ -174,7 +195,8 @@ int nxtask_init(FAR struct task_tcb_s *tcb, const char *name, int priority,
 
   /* Now we have enough in place that we can join the group */
 
-  group_initialize(tcb);
+  group_postinitialize(tcb);
+  sched_trace_end();
   return ret;
 
 errout_with_group:
@@ -187,7 +209,7 @@ errout_with_group:
        * user memory region that will be destroyed anyway (and the
        * address environment has probably already been destroyed at
        * this point.. so we would crash if we even tried it).  But if
-       * this is a privileged group, when we still have to release the
+       * this is a privileged group, then we still have to release the
        * memory using the kernel allocator.
        */
 
@@ -198,8 +220,11 @@ errout_with_group:
         }
     }
 
+  nxtask_joindestroy(&tcb->cmn);
+
   group_leave(&tcb->cmn);
 
+  sched_trace_end();
   return ret;
 }
 
@@ -209,8 +234,8 @@ errout_with_group:
  * Description:
  *   Undo all operations on a TCB performed by task_init() and release the
  *   TCB by calling kmm_free().  This is intended primarily to support
- *   error recovery operations after a successful call to task_init() such
- *   was when a subsequent call to task_activate fails.
+ *   error recovery operations after a successful call to task_init()
+ *   when a subsequent call to task_activate fails.
  *
  *   Caution:  Freeing of the TCB itself might be an unexpected side-effect.
  *
@@ -228,7 +253,7 @@ void nxtask_uninit(FAR struct task_tcb_s *tcb)
    * nxtask_setup_scheduler().
    */
 
-  dq_rem((FAR dq_entry_t *)tcb, &g_inactivetasks);
+  dq_rem((FAR dq_entry_t *)tcb, list_inactivetasks());
 
   /* Release all resources associated with the TCB... Including the TCB
    * itself.

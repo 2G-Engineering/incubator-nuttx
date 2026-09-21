@@ -1,6 +1,8 @@
 ############################################################################
 # arch/arm/src/sama5/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -90,6 +92,14 @@ else
 ifeq ($(CONFIG_SAMA5_SPI1),y)
 CHIP_CSRCS += sam_spi.c
 else
+endif
+endif
+
+ifeq ($(CONFIG_SAMA5_QSPI0),y)
+CHIP_CSRCS += sam_qspi.c
+else
+ifeq ($(CONFIG_SAMA5_QSPI1),y)
+CHIP_CSRCS += sam_qspi.c
 endif
 endif
 

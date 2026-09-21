@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/inet/inet_sockif.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,6 +34,7 @@
 #include <debug.h>
 
 #include <nuttx/net/net.h>
+#include <nuttx/net/netconfig.h>
 #include <nuttx/net/tcp.h>
 #include <nuttx/kmalloc.h>
 
@@ -46,7 +49,7 @@
 #ifdef HAVE_INET_SOCKETS
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 union sockaddr_u
@@ -66,42 +69,50 @@ static int        inet_setup(FAR struct socket *psock);
 static sockcaps_t inet_sockcaps(FAR struct socket *psock);
 static void       inet_addref(FAR struct socket *psock);
 static int        inet_bind(FAR struct socket *psock,
-                    FAR const struct sockaddr *addr, socklen_t addrlen);
+                            FAR const struct sockaddr *addr,
+                            socklen_t addrlen);
 static int        inet_getsockname(FAR struct socket *psock,
-                    FAR struct sockaddr *addr, FAR socklen_t *addrlen);
+                                   FAR struct sockaddr *addr,
+                                   FAR socklen_t *addrlen);
 static int        inet_getpeername(FAR struct socket *psock,
-                    FAR struct sockaddr *addr, FAR socklen_t *addrlen);
+                                   FAR struct sockaddr *addr,
+                                   FAR socklen_t *addrlen);
 static int        inet_listen(FAR struct socket *psock, int backlog);
 static int        inet_connect(FAR struct socket *psock,
-                    FAR const struct sockaddr *addr, socklen_t addrlen);
+                               FAR const struct sockaddr *addr,
+                               socklen_t addrlen);
 static int        inet_accept(FAR struct socket *psock,
-                    FAR struct sockaddr *addr, FAR socklen_t *addrlen,
-                    FAR struct socket *newsock, int flags);
+                              FAR struct sockaddr *addr,
+                              FAR socklen_t *addrlen,
+                              FAR struct socket *newsock, int flags);
 static int        inet_poll(FAR struct socket *psock,
-                    FAR struct pollfd *fds, bool setup);
+                            FAR struct pollfd *fds, bool setup);
 static ssize_t    inet_send(FAR struct socket *psock, FAR const void *buf,
-                    size_t len, int flags);
+                            size_t len, int flags);
 static ssize_t    inet_sendto(FAR struct socket *psock, FAR const void *buf,
-                    size_t len, int flags, FAR const struct sockaddr *to,
-                    socklen_t tolen);
+                              size_t len, int flags,
+                              FAR const struct sockaddr *to,
+                              socklen_t tolen);
 static ssize_t    inet_sendmsg(FAR struct socket *psock,
-                    FAR struct msghdr *msg, int flags);
+                               FAR struct msghdr *msg, int flags);
 static ssize_t    inet_recvmsg(FAR struct socket *psock,
-                    FAR struct msghdr *msg, int flags);
+                               FAR struct msghdr *msg, int flags);
 static int        inet_ioctl(FAR struct socket *psock,
-                    int cmd, unsigned long arg);
+                             int cmd, unsigned long arg);
 static int        inet_socketpair(FAR struct socket *psocks[2]);
 static int        inet_shutdown(FAR struct socket *psock, int how);
 #ifdef CONFIG_NET_SOCKOPTS
 static int        inet_getsockopt(FAR struct socket *psock, int level,
-                    int option, FAR void *value, FAR socklen_t *value_len);
+                                  int option, FAR void *value,
+                                  FAR socklen_t *value_len);
 static int        inet_setsockopt(FAR struct socket *psock, int level,
-                    int option, FAR const void *value, socklen_t value_len);
+                                  int option, FAR const void *value,
+                                  socklen_t value_len);
 #endif
 #ifdef CONFIG_NET_SENDFILE
 static ssize_t    inet_sendfile(FAR struct socket *psock,
-                    FAR struct file *infile, FAR off_t *offset,
-                    size_t count);
+                                FAR struct file *infile, FAR off_t *offset,
+                                size_t count);
 #endif
 
 /****************************************************************************
@@ -328,7 +339,7 @@ static int inet_setup(FAR struct socket *psock)
  *           queried.
  *
  * Returned Value:
- *   The non-negative set of socket cababilities is returned.
+ *   The non-negative set of socket capabilities is returned.
  *
  ****************************************************************************/
 
@@ -747,6 +758,27 @@ static int inet_get_socketlevel_option(FAR struct socket *psock, int option,
         }
 #endif
 
+#ifdef CONFIG_NET_TIMESTAMP
+      case SO_TIMESTAMP:
+        {
+          if (*value_len != sizeof(int))
+            {
+              return -EINVAL;
+            }
+
+          if (psock->s_type == SOCK_DGRAM)
+            {
+              FAR struct udp_conn_s *conn = psock->s_conn;
+              *(FAR int *)value = (conn->timestamp != 0);
+            }
+          else
+            {
+              return -ENOPROTOOPT;
+            }
+        }
+        break;
+#endif
+
       default:
         return -ENOPROTOOPT;
     }
@@ -929,6 +961,10 @@ static int inet_set_socketlevel_option(FAR struct socket *psock, int option,
               return -EINVAL;
             }
 
+#if CONFIG_NET_MAX_RECV_BUFSIZE > 0
+          buffersize = MIN(buffersize, CONFIG_NET_MAX_RECV_BUFSIZE);
+#endif
+
           net_lock();
 
 #ifdef NET_TCP_HAVE_STACK
@@ -986,6 +1022,10 @@ static int inet_set_socketlevel_option(FAR struct socket *psock, int option,
               return -EINVAL;
             }
 
+#if CONFIG_NET_MAX_SEND_BUFSIZE > 0
+          buffersize = MIN(buffersize, CONFIG_NET_MAX_SEND_BUFSIZE);
+#endif
+
           net_lock();
 
 #ifdef NET_TCP_HAVE_STACK
@@ -1019,6 +1059,36 @@ static int inet_set_socketlevel_option(FAR struct socket *psock, int option,
         }
         break;
 #endif
+
+#ifdef CONFIG_NET_TIMESTAMP
+      case SO_TIMESTAMP: /* Report receive timestamps as cmsg */
+        {
+          if (value_len < sizeof(int))
+            {
+              return -EINVAL;
+            }
+
+          if (psock->s_type == SOCK_DGRAM)
+            {
+              net_lock();
+
+              /* For now the timestamp enable is just boolean.
+               * If SO_TIMESTAMPING support is added in future, it can be
+               * expanded to flags field for rx/tx timestamps.
+               */
+
+              FAR struct udp_conn_s *conn = psock->s_conn;
+              conn->timestamp = (*((FAR int *)value) != 0);
+
+              net_unlock();
+            }
+          else
+            {
+              return -ENOPROTOOPT;
+            }
+        }
+        break;
+  #endif
 
       default:
         return -ENOPROTOOPT;
@@ -1129,9 +1199,37 @@ static int inet_listen(FAR struct socket *psock, int backlog)
 #ifdef NET_TCP_HAVE_STACK
   conn = psock->s_conn;
 
-  if (conn->lport <= 0)
+  if (conn->lport == 0)
     {
-      return -EOPNOTSUPP;
+#ifdef CONFIG_NET_IPv4
+#ifdef CONFIG_NET_IPv6
+      if (conn->domain == PF_INET)
+#endif
+        {
+          /* Select a port that is unique for this IPv4 local address
+           * (network order).
+           */
+
+          conn->lport = tcp_selectport(PF_INET,
+                                (FAR const union ip_addr_u *)
+                                &conn->u.ipv4.laddr, 0);
+        }
+#endif /* CONFIG_NET_IPv4 */
+
+#ifdef CONFIG_NET_IPv6
+#ifdef CONFIG_NET_IPv4
+      else
+#endif
+        {
+          /* Select a port that is unique for this IPv6 local address
+           * (network order).
+           */
+
+          conn->lport = tcp_selectport(PF_INET6,
+                                (FAR const union ip_addr_u *)
+                                conn->u.ipv6.laddr, 0);
+        }
+#endif /* CONFIG_NET_IPv6 */
     }
 
 #ifdef CONFIG_NET_TCPBACKLOG
@@ -1231,6 +1329,9 @@ static int inet_connect(FAR struct socket *psock,
       break;
 #endif
 
+    case AF_UNSPEC:
+      break;
+
     default:
       DEBUGPANIC();
       return -EAFNOSUPPORT;
@@ -1286,7 +1387,7 @@ static int inet_connect(FAR struct socket *psock,
 
           conn = psock->s_conn;
 #if defined(CONFIG_NET_IPv4) && defined(CONFIG_NET_IPv6)
-          if (conn->domain != addr->sa_family)
+          if (addr != NULL && conn->domain != addr->sa_family)
             {
               nerr("conn's domain must be the same as addr's family!\n");
               return -EPROTOTYPE;
@@ -1298,12 +1399,14 @@ static int inet_connect(FAR struct socket *psock,
             {
               /* Failed to connect or explicitly disconnected */
 
+              conn->sconn.s_flags &= ~_SF_CONNECTED;
               conn->flags &= ~_UDP_FLAG_CONNECTMODE;
             }
           else
             {
               /* Successfully connected */
 
+              conn->sconn.s_flags |= _SF_CONNECTED;
               conn->flags |= _UDP_FLAG_CONNECTMODE;
             }
 
@@ -1782,11 +1885,9 @@ static ssize_t inet_sendto(FAR struct socket *psock, FAR const void *buf,
     }
 
 #ifdef CONFIG_NET_UDP
-  /* If this is a connected socket, then return EISCONN */
-
   if (psock->s_type != SOCK_DGRAM)
     {
-      nerr("ERROR: Connected socket\n");
+      nerr("ERROR: Inappropriate socket type %d\n", psock->s_type);
       return -EBADF;
     }
 
@@ -1870,6 +1971,11 @@ static ssize_t inet_sendmsg(FAR struct socket *psock,
 
   for (len = 0, iov = msg->msg_iov; iov != end; iov++)
     {
+      if (iov->iov_len == 0 || iov->iov_base == NULL)
+        {
+          continue;
+        }
+
       memcpy(((unsigned char *)buf) + len, iov->iov_base, iov->iov_len);
       len += iov->iov_len;
     }
@@ -2400,8 +2506,8 @@ inet_sockif(sa_family_t family, int type, int protocol)
 #if defined(HAVE_PFINET_SOCKETS) && defined(CONFIG_NET_ICMP_SOCKET)
   /* PF_INET, ICMP data gram sockets are a special case of raw sockets */
 
-  if (family == PF_INET && (type == SOCK_DGRAM || type == SOCK_CTRL) &&
-      protocol == IPPROTO_ICMP)
+  if (family == PF_INET && (type == SOCK_DGRAM || type == SOCK_CTRL ||
+      type == SOCK_RAW) && protocol == IPPROTO_ICMP)
     {
       return &g_icmp_sockif;
     }

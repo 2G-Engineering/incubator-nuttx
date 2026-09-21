@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/romfs/fs_romfs.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,6 +28,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/list.h>
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -106,7 +109,7 @@
 #define SEC_NSECTORS(r,o)    ((o) / (r)->rm_hwsectorsize)
 #define SEC_ALIGN(r,o)       ((o) & ~SEC_NDXMASK(r))
 
-/* Maximum numbr of links that will be followed before we decide that there
+/* Maximum number of links that will be followed before we decide that there
  * is a problem.
  */
 
@@ -115,6 +118,20 @@
 /****************************************************************************
  * Public Types
  ****************************************************************************/
+
+#ifdef CONFIG_FS_ROMFS_WRITEABLE
+/* This structure represents the spare list.  An instance of this
+ * structure is retained as file header and file data size on each mountpoint
+ * that is mounted with a romfs filesystem.
+ */
+
+struct romfs_sparenode_s
+{
+  struct list_node node;
+  uint32_t start;
+  uint32_t end;
+};
+#endif
 
 /* This structure represents the overall mountpoint state.  An instance of
  * this structure is retained as inode private data on each mountpoint that
@@ -139,6 +156,11 @@ struct romfs_mountpt_s
   uint32_t rm_cachesector;        /* Current sector in the rm_buffer */
   FAR uint8_t *rm_xipbase;        /* Base address of directly accessible media */
   FAR uint8_t *rm_buffer;         /* Device sector buffer, allocated if rm_xipbase==0 */
+  FAR uint8_t *rm_devbuffer;      /* Device sector buffer, allocated for write if rm_xipbase != 0 */
+#ifdef CONFIG_FS_ROMFS_WRITEABLE
+  struct list_node rm_sparelist;  /* The list of spare space */
+  sem_t            rm_sem;        /* The semaphore to assume write safe */
+#endif
 };
 
 /* This structure represents on open file under the mountpoint.  An instance
@@ -160,14 +182,13 @@ struct romfs_file_s
 
 struct romfs_nodeinfo_s
 {
-#ifdef CONFIG_FS_ROMFS_CACHE_NODE
-  FAR struct romfs_nodeinfo_s **rn_child;  /* The node array for link to lower level */
-  uint16_t rn_count;                       /* The count of node in rn_child level */
-#endif
   uint32_t rn_offset;                      /* Offset of real file header */
   uint32_t rn_next;                        /* Offset of the next file header+flags */
   uint32_t rn_size;                        /* Size (if file) */
 #ifdef CONFIG_FS_ROMFS_CACHE_NODE
+  uint32_t rn_origoffset;                  /* Offset of origin file header */
+  FAR struct romfs_nodeinfo_s **rn_child;  /* The node array for link to lower level */
+  uint16_t rn_count;                       /* The count of node in rn_child level */
   uint8_t  rn_namesize;                    /* The length of name of the entry */
   char     rn_name[1];                     /* The name to the entry */
 #endif
@@ -195,7 +216,7 @@ int  romfs_hwread(FAR struct romfs_mountpt_s *rm, FAR uint8_t *buffer,
 int  romfs_filecacheread(FAR struct romfs_mountpt_s *rm,
                          FAR struct romfs_file_s *rf, uint32_t sector);
 int  romfs_hwconfigure(FAR struct romfs_mountpt_s *rm);
-int  romfs_fsconfigure(FAR struct romfs_mountpt_s *rm);
+int  romfs_fsconfigure(FAR struct romfs_mountpt_s *rm, FAR const void *data);
 int  romfs_fileconfigure(FAR struct romfs_mountpt_s *rm,
                          FAR struct romfs_file_s *rf);
 int  romfs_checkmount(FAR struct romfs_mountpt_s *rm);
@@ -212,6 +233,10 @@ int  romfs_datastart(FAR struct romfs_mountpt_s *rm,
                      FAR uint32_t *start);
 #ifdef CONFIG_FS_ROMFS_CACHE_NODE
 void romfs_freenode(FAR struct romfs_nodeinfo_s *node);
+#endif
+#ifdef CONFIG_FS_ROMFS_WRITEABLE
+int romfs_mkfs(FAR struct romfs_mountpt_s *rm);
+void romfs_free_sparelist(FAR struct list_node *list);
 #endif
 
 #undef EXTERN

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/nucleo-f446re/src/stm32_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,7 +37,6 @@
 #include <nuttx/mmcsd.h>
 
 #include <stm32.h>
-#include <stm32_romfs.h>
 
 #include <arch/board/board.h>
 
@@ -55,6 +56,11 @@
 #  include <nuttx/video/fb.h>
 #endif
 
+#ifdef CONFIG_USERLED
+#  include <nuttx/leds/userled.h>
+#endif
+
+#include "stm32_romfs.h"
 #include "nucleo-f446re.h"
 
 /****************************************************************************
@@ -247,6 +253,16 @@ int stm32_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_gpio_initialize() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_USERLED
+  /* Register the LED driver */
+
+  ret = userled_lower_initialize("/dev/userleds");
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n", ret);
     }
 #endif
 

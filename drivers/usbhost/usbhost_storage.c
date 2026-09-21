@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/usbhost/usbhost_storage.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -685,7 +687,7 @@ static inline int usbhost_testunitready(FAR struct usbhost_state_s *priv)
   DEBUGASSERT(priv->usbclass.hport);
   hport = priv->usbclass.hport;
 
-  /* Initialize a CBW (re-using the allocated transfer buffer) */
+  /* Initialize a CBW (reusing the allocated transfer buffer) */
 
   cbw = usbhost_cbwalloc(priv);
   if (!cbw)
@@ -723,7 +725,7 @@ static inline int usbhost_requestsense(FAR struct usbhost_state_s *priv)
   DEBUGASSERT(priv->usbclass.hport);
   hport = priv->usbclass.hport;
 
-  /* Initialize a CBW (re-using the allocated transfer buffer) */
+  /* Initialize a CBW (reusing the allocated transfer buffer) */
 
   cbw = usbhost_cbwalloc(priv);
   if (!cbw)
@@ -769,7 +771,7 @@ static inline int usbhost_readcapacity(FAR struct usbhost_state_s *priv)
   DEBUGASSERT(priv->usbclass.hport);
   hport = priv->usbclass.hport;
 
-  /* Initialize a CBW (re-using the allocated transfer buffer) */
+  /* Initialize a CBW (reusing the allocated transfer buffer) */
 
   cbw = usbhost_cbwalloc(priv);
   if (!cbw)
@@ -821,7 +823,7 @@ static inline int usbhost_inquiry(FAR struct usbhost_state_s *priv)
   DEBUGASSERT(priv->usbclass.hport);
   hport = priv->usbclass.hport;
 
-  /* Initialize a CBW (re-using the allocated transfer buffer) */
+  /* Initialize a CBW (reusing the allocated transfer buffer) */
 
   cbw = usbhost_cbwalloc(priv);
   if (!cbw)
@@ -998,7 +1000,7 @@ static inline int usbhost_cfgdesc(FAR struct usbhost_state_s *priv,
   configdesc += cfgdesc->len;
   remaining  -= cfgdesc->len;
 
-  /* Loop where there are more dscriptors to examine */
+  /* Loop where there are more descriptors to examine */
 
   while (remaining >= sizeof(struct usb_desc_s))
     {
@@ -1612,7 +1614,7 @@ static inline int usbhost_tfree(FAR struct usbhost_state_s *priv)
  * Name: usbhost_cbwalloc
  *
  * Description:
- *   Initialize a CBW (re-using the allocated transfer buffer). Upon
+ *   Initialize a CBW (reusing the allocated transfer buffer). Upon
  *   successful return, the CBW is cleared and has the CBW signature in
  *   place.
  *
@@ -1875,8 +1877,8 @@ static int usbhost_open(FAR struct inode *inode)
   int ret;
 
   uinfo("Entry\n");
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct usbhost_state_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   /* Make sure that we have exclusive access to the private data structure */
 
@@ -1929,8 +1931,8 @@ static int usbhost_close(FAR struct inode *inode)
   irqstate_t flags;
 
   uinfo("Entry\n");
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct usbhost_state_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   /* Decrement the reference count on the block driver */
 
@@ -1987,8 +1989,8 @@ static ssize_t usbhost_read(FAR struct inode *inode, unsigned char *buffer,
   ssize_t nbytes = 0;
   int ret;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct usbhost_state_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   DEBUGASSERT(priv->usbclass.hport);
   hport = priv->usbclass.hport;
@@ -2021,7 +2023,7 @@ static ssize_t usbhost_read(FAR struct inode *inode, unsigned char *buffer,
 
       nbytes = -ENOMEM;
 
-      /* Initialize a CBW (re-using the allocated transfer buffer) */
+      /* Initialize a CBW (reusing the allocated transfer buffer) */
 
       cbw = usbhost_cbwalloc(priv);
       if (cbw)
@@ -2102,8 +2104,8 @@ static ssize_t usbhost_write(FAR struct inode *inode,
 
   uinfo("sector: %" PRIuOFF " nsectors: %u\n", startsector, nsectors);
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct usbhost_state_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   DEBUGASSERT(priv->usbclass.hport);
   hport = priv->usbclass.hport;
@@ -2133,7 +2135,7 @@ static ssize_t usbhost_write(FAR struct inode *inode,
 
       nbytes = -ENOMEM;
 
-      /* Initialize a CBW (re-using the allocated transfer buffer) */
+      /* Initialize a CBW (reusing the allocated transfer buffer) */
 
       cbw = usbhost_cbwalloc(priv);
       if (cbw)
@@ -2199,11 +2201,11 @@ static int usbhost_geometry(FAR struct inode *inode,
   int ret = -EINVAL;
 
   uinfo("Entry\n");
-  DEBUGASSERT(inode && inode->i_private);
+  DEBUGASSERT(inode->i_private);
 
   /* Check if the mass storage device is still connected */
 
-  priv = (FAR struct usbhost_state_s *)inode->i_private;
+  priv = inode->i_private;
   if (priv->disconnected)
     {
       /* No... the block driver is no longer bound to the class.  That means
@@ -2250,8 +2252,8 @@ static int usbhost_ioctl(FAR struct inode *inode, int cmd, unsigned long arg)
   int ret;
 
   uinfo("Entry\n");
-  DEBUGASSERT(inode && inode->i_private);
-  priv = (FAR struct usbhost_state_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv = inode->i_private;
 
   /* Check if the mass storage device is still connected */
 

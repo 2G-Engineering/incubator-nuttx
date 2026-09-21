@@ -1,6 +1,8 @@
 ############################################################################
 # fs/partition/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -34,6 +36,10 @@ endif
 
 ifeq ($(CONFIG_GPT_PARTITION),y)
 CSRCS += fs_gpt.c
+endif
+
+ifeq ($(CONFIG_TXTABLE_PARTITION),y)
+CSRCS += fs_txtable.c
 endif
 
 # Include partition build support

@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_fgets.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -44,7 +46,7 @@
  *
  ****************************************************************************/
 
-char *fgets(FAR char *buf, int buflen, FAR FILE *stream)
+FAR char *fgets_unlocked(FAR char *buf, int buflen, FAR FILE *stream)
 {
   /* Handle negative buffer size */
 
@@ -57,6 +59,17 @@ char *fgets(FAR char *buf, int buflen, FAR FILE *stream)
 
   else
     {
-      return lib_fgets(buf, buflen, stream, true, false);
+      return lib_fgets_unlocked(buf, buflen, stream, true, false);
     }
+}
+
+FAR char *fgets(FAR char *buf, int buflen, FAR FILE *stream)
+{
+  FAR char *ret;
+
+  flockfile(stream);
+  ret = fgets_unlocked(buf, buflen, stream);
+  funlockfile(stream);
+
+  return ret;
 }

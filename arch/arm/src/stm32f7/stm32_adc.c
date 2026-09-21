@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/stm32_adc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,7 +38,6 @@
 #include <errno.h>
 #include <assert.h>
 #include <debug.h>
-#include <unistd.h>
 
 #include <arch/board/board.h>
 #include <nuttx/irq.h>
@@ -1798,6 +1799,7 @@ static int adc_setup(struct adc_dev_s *dev)
 
   if (priv->initialized > 0)
     {
+      priv->initialized += 1;
       return OK;
     }
 

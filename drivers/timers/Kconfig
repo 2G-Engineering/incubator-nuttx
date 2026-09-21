@@ -57,7 +57,7 @@ config PWM_DEADTIME
 	---help---
 		Some hardware will support deadtime generators that automatically
 		insert output activation delay for complementary PWM outputs. This
-		is usefull for H-bridge motor control for example. The deadtime
+		is useful for H-bridge motor control for example. The deadtime
 		values are set from application level via the same IOCTL that sets
 		up duty cycle and frequency.
 
@@ -182,6 +182,16 @@ config RTC_FREQUENCY
 		If RTC_HIRES is defined, then the frequency of the high resolution RTC
 		must be provided.  If RTC_HIRES is not defined, RTC_FREQUENCY is
 		assumed to be one Hz.
+
+config RTC_ADJTIME
+	bool "RTC Adjustment Support"
+	default N
+	depends on RTC_HIRES
+	---help---
+		Enable support for adjtime() to adjust RTC run rate. The following
+		interface must be provided by RTC driver:
+
+			int up_rtc_adjtime(long ppb);
 
 endif # !RTC_DATETIME
 
@@ -314,6 +324,10 @@ config PCF85263_I2C_FREQUENCY
 
 endif # RTC_PCF85263
 
+config RTC_PL031
+	bool "PL031 RTC Support"
+	default n
+
 config RTC_MCP794XX
 	bool "MCP794XX RTC Driver"
 	default n
@@ -324,6 +338,13 @@ config RTC_MCP794XX
 		Enables support for the Microchip MCP794XX I2C RTC timer.
 
 if RTC_MCP794XX
+
+config MCP794XX_DATETIME_UTC
+	bool "Store datetime in UTC"
+	default n
+	---help---
+		If set, the datetime is stored in UTC timezone instead of timezone
+		defined by local time.
 
 config MCP794XX_I2C_FREQUENCY
 	int "MCP794XX I2C frequency"
@@ -351,21 +372,28 @@ config RX8010SJ_I2C_FREQUENCY
 endif # RTC_RX8010SJ
 
 config RTC_RPMSG
-	bool "Rpmsg RTC Driver"
+	bool "RPMSG RTC Driver"
 	default n
-	depends on RPTUN
+	depends on RPMSG
 	select ARCH_HAVE_RTC_SUBSECONDS
 
 config RTC_RPMSG_SERVER
-	bool "The RTC Rpmsg Role"
-	depends on RPTUN
+	bool "The RTC RPMSG Role"
+	depends on RPMSG
 
 config RTC_RPMSG_SERVER_NAME
-	string "The name of RTC Rpmsg Server"
+	string "The name of RTC RPMSG Server"
 	depends on RTC_RPMSG
 	---help---
-		The proc name of rtc server. Client requests time from
+		The proc name of RTC server. Client requests time from
 		specified name of remote proc.
+
+config RTC_RPMSG_SYNC_BASETIME
+	bool "Update g_basetime from rpmsg."
+	default n
+	depends on !RTC_RPMSG_SERVER && !CLOCK_TIMEKEEPING
+	---help---
+		Prevent g_basetime differences in multi-core situations.
 
 endif # RTC
 
@@ -392,6 +420,13 @@ config WATCHDOG_MAGIC_V
 	---help---
 		The watchdog can be stopped by writing 'V' to the watchdog's device node
 
+config WATCHDOG_PANIC_NOTIFIER
+	bool "Enable watchdog panic notifier"
+	default n
+	---help---
+		When system PANIC, wdog_notifier() will be called to disable the watchdog,
+		this is an useful option for debug if you want to keep crash scene.
+
 menuconfig WATCHDOG_AUTOMONITOR
 	bool "Auto-monitor"
 	---help---
@@ -403,6 +438,14 @@ menuconfig WATCHDOG_AUTOMONITOR
 		now on.
 
 if WATCHDOG_AUTOMONITOR
+
+config WATCHDOG_TIMEOUT_NOTIFIER
+	bool "Enable watchdog timeout notifier"
+	default n
+	---help---
+		The watchdog timeout notifier chain mechanism supports users registering
+		custom callback functions, which will be called when the watchdog timer
+		managed by Auto-monitor times out.
 
 choice
 	prompt "Auto-monitor keepalive by"
@@ -445,8 +488,8 @@ config WATCHDOG_AUTOMONITOR_BY_IDLE
 endchoice
 
 config WATCHDOG_AUTOMONITOR_TIMEOUT
-	int "Auto-monitor reset timeout(second)"
-	default 60
+	int "Auto-monitor reset timeout(millisecond)"
+	default 60000
 
 if !WATCHDOG_AUTOMONITOR_BY_CAPTURE && !WATCHDOG_AUTOMONITOR_BY_IDLE
 
@@ -480,4 +523,13 @@ config CS2100CP_REGDEBUG
 	depends on DEBUG_FEATURES
 
 endif # TIMERS_CS2100CP
+
+config GOLDFISH_TIMER
+	bool "Enable GOLDFISH_TIMER"
+	default n
+	---help---
+		Goldfish timer is a virtual timer device that is used in the Android
+		emulator. It is used to provide a virtual timer to the guest OS.
+		See: https://android.googlesource.com/platform/external/qemu/+/master/docs/GOLDFISH-VIRTUAL-HARDWARE.TXT
+
 endmenu # Timer Driver Support

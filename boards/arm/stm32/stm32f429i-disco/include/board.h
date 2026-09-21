@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/stm32f429i-disco/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -202,6 +204,13 @@
 
 #define GPIO_USART1_RX GPIO_USART1_RX_1
 #define GPIO_USART1_TX GPIO_USART1_TX_1
+
+#define GPIO_USART3_RX GPIO_USART3_RX_1
+#define GPIO_USART3_TX GPIO_USART3_TX_1
+
+/* CAN: */
+#define GPIO_CAN1_RX GPIO_CAN1_RX_2
+#define GPIO_CAN1_TX GPIO_CAN1_TX_2
 
 /* PWM
  *

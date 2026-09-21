@@ -1,6 +1,8 @@
 ############################################################################
 # libs/libc/machine/arm/armv8-m/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -40,6 +42,10 @@ endif
 
 ifeq ($(CONFIG_ARMV8M_STRCMP),y)
 ASRCS += arch_strcmp.S
+endif
+
+ifeq ($(CONFIG_ARMV8M_STRCPY),y)
+ASRCS += arch_strcpy.S
 endif
 
 ifeq ($(CONFIG_ARMV8M_STRLEN),y)

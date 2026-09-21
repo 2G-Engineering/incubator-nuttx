@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/usrsock/usrsock_devif.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -52,7 +54,7 @@ struct usrsock_req_s
   mutex_t  lock;              /* Request mutex (only one outstanding
                                * request) */
   sem_t    acksem;            /* Request acknowledgment notification */
-  uint32_t newxid;            /* New transcation Id */
+  uint32_t newxid;            /* New transaction Id */
   uint32_t ackxid;            /* Exchange id for which waiting ack */
   uint16_t nbusy;             /* Number of requests blocked from different
                                * threads */

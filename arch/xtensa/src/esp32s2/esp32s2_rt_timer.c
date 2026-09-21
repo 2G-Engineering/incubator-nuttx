@@ -33,13 +33,14 @@
 #include <errno.h>
 #include <debug.h>
 
+#include <nuttx/nuttx.h>
 #include <nuttx/irq.h>
 #include <nuttx/kthread.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/semaphore.h>
 
 #include "xtensa.h"
-#include "xtensa_attr.h"
+#include "esp_attr.h"
 
 #include "hardware/esp32s2_soc.h"
 #include "hardware/esp32s2_system.h"
@@ -350,7 +351,7 @@ static int rt_timer_thread(int argc, char *argv[])
       if (ret)
         {
           tmrerr("ERROR: Wait priv->toutsem error=%d\n", ret);
-          assert(0);
+          ASSERT(0);
         }
 
       flags = enter_critical_section();
@@ -444,8 +445,7 @@ static int rt_timer_isr(int irq, void *context, void *arg)
 
   if (!list_is_empty(&priv->runlist))
     {
-      /**
-       * When stop/delete timer, in the same time the hardware timer
+      /* When stop/delete timer, in the same time the hardware timer
        * interrupt triggers, function "stop/delete" remove the timer
        * from running list, so the 1st timer is not which triggers.
        */
@@ -527,7 +527,7 @@ int rt_timer_create(const struct rt_timer_args_s *args,
 {
   struct rt_timer_s *timer;
 
-  timer = (struct rt_timer_s *)kmm_malloc(sizeof(*timer));
+  timer = kmm_malloc(sizeof(*timer));
   if (!timer)
     {
       tmrerr("ERROR: Failed to allocate %d bytes\n", sizeof(*timer));

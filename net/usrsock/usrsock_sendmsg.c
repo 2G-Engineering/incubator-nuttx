@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/usrsock/usrsock_sendmsg.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -208,8 +210,6 @@ ssize_t usrsock_sendmsg(FAR struct socket *psock,
   };
 
   ssize_t ret;
-
-  DEBUGASSERT(conn);
 
   net_lock();
 

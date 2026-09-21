@@ -1,8 +1,8 @@
 /****************************************************************************
  * include/crypto/gmac.h
- * $OpenBSD: gmac.h,v 1.6 2017/05/02 11:44:32 mikeb Exp $
  *
- * Copyright (c) 2010 Mike Belopuhov
+ * SPDX-License-Identifier: ISC
+ * SPDX-FileCopyrightText: 2010 Mike Belopuhov
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -51,7 +51,7 @@ extern void (*ghash_update)(FAR GHASH_CTX *, FAR uint8_t *, size_t);
 void aes_gmac_init(FAR void *);
 void aes_gmac_setkey(FAR void *, FAR const uint8_t *, uint16_t);
 void aes_gmac_reinit(FAR void *, FAR const uint8_t *, uint16_t);
-int aes_gmac_update(FAR void *, FAR const uint8_t *, uint16_t);
+int aes_gmac_update(FAR void *, FAR const uint8_t *, size_t);
 void aes_gmac_final(FAR uint8_t *, FAR void *);
 
 #endif /* __INCLUDE_CRYPTO_GMAC_H */

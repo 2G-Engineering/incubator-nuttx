@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/sama5/sam_dmac.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -315,6 +317,7 @@
 #    define DMACH_FLAG_PERIPHPID_MAX          DMACH_FLAG_PERIPHPID_MASK
 #  define DMACH_FLAG_PERIPHH2SEL              (0)       /* No HW handshaking */
 #  define DMACH_FLAG_PERIPHISPERIPH           (1 << 7)  /* Bit 7:  0=memory; 1=peripheral */
+#  define DMACH_FLAG_PERIPHISMEMORY           (0 << 7)  /* Bit 7:  0 = Memory */
 #  define DMACH_FLAG_PERIPHAHB_MASK           (1 << 8)  /* Bit 8:  Peripheral ABH layer 1 */
 #    define DMACH_FLAG_PERIPHAHB_AHB_IF0      (0)
 #    define DMACH_FLAG_PERIPHAHB_AHB_IF1      DMACH_FLAG_PERIPHAHB_MASK

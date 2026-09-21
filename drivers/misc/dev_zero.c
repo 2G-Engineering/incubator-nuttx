@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/misc/dev_zero.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,11 +41,11 @@
  ****************************************************************************/
 
 static ssize_t devzero_read(FAR struct file *filep, FAR char *buffer,
-                 size_t buflen);
+                            size_t buflen);
 static ssize_t devzero_write(FAR struct file *filep, FAR const char *buffer,
-                 size_t buflen);
+                             size_t buflen);
 static int     devzero_poll(FAR struct file *filep, FAR struct pollfd *fds,
-                 bool setup);
+                            bool setup);
 
 /****************************************************************************
  * Private Data
@@ -59,7 +61,9 @@ static const struct file_operations g_devzero_fops =
   NULL,          /* ioctl */
   NULL,          /* mmap */
   NULL,          /* truncate */
-  devzero_poll   /* poll */
+  devzero_poll,  /* poll */
+  NULL,          /* readv */
+  NULL           /* writev */
 };
 
 /****************************************************************************

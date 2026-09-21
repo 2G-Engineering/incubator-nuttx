@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/xmc4/xmc4700-relax/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -30,6 +32,10 @@ ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += xmc4_autoleds.c
 else
 CSRCS += xmc4_userleds.c
+endif
+
+ifeq ($(CONFIG_XMC4_USCI_SPI),y)
+CSRCS += xmc4_spi.c
 endif
 
 ifeq ($(CONFIG_BOARDCTL),y)

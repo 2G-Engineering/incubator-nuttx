@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s3/esp32s3-devkit/src/esp32s3-devkit.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -44,6 +46,26 @@
 
 #define BUTTON_BOOT  0
 
+/* RMT gpio */
+
+#define RMT_RXCHANNEL       4
+#define RMT_TXCHANNEL       0
+
+#ifdef CONFIG_RMT_LOOP_TEST_MODE
+#  define RMT_INPUT_PIN       0
+#  define RMT_OUTPUT_PIN      0
+#else
+#  define RMT_INPUT_PIN       2
+
+/* The on-board RGB LED pin differs depending on the board version */
+
+#  ifdef CONFIG_ESP32S3_DEVKITC_1_V10
+#    define RMT_OUTPUT_PIN      48
+#  else
+#    define RMT_OUTPUT_PIN      38
+#  endif
+#endif
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/
@@ -73,6 +95,22 @@
  ****************************************************************************/
 
 int esp32s3_bringup(void);
+
+/****************************************************************************
+ * Name: esp32s3_gpio_init
+ *
+ * Description:
+ *   Configure the GPIO driver.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; A negated errno value is returned
+ *   to indicate the nature of any failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_DEV_GPIO
+int esp32s3_gpio_init(void);
+#endif
 
 /****************************************************************************
  * Name: board_spiflash_init
@@ -122,6 +160,51 @@ int board_bmp180_initialize(int devno, int busno);
 #endif
 
 /****************************************************************************
+ * Name: board_i2sdev_initialize
+ *
+ * Description:
+ *   This function is called by platform-specific, setup logic to configure
+ *   and register the generic I2S audio driver.  This function will register
+ *   the driver as /dev/audio/pcm[x] where x is determined by the I2S port
+ *   number.
+ *
+ * Input Parameters:
+ *   port       - The I2S port used for the device
+ *   enable_tx  - Register device as TX if true
+ *   enable_rx  - Register device as RX if true
+ *
+ * Returned Value:
+ *   Zero is returned on success.  Otherwise, a negated errno value is
+ *   returned to indicate the nature of the failure.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ESPRESSIF_I2S)
+int board_i2sdev_initialize(int port, bool enable_tx, bool enable_rx);
+#endif
+
+/****************************************************************************
+ * Name: esp32s3_cs4344_initialize
+ *
+ * Description:
+ *   This function is called by platform-specific, setup logic to configure
+ *   and register the CS4344 device.  This function will register the driver
+ *   as /dev/audio/pcm[x] where x is determined by the I2S port number.
+ *
+ * Input Parameters:
+ *   port - The I2S port used for the device
+ *
+ * Returned Value:
+ *   Zero is returned on success.  Otherwise, a negated errno value is
+ *   returned to indicate the nature of the failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_AUDIO_CS4344
+int esp32s3_cs4344_initialize(int port);
+#endif
+
+/****************************************************************************
  * Name: esp32s3_djoy_initialize
  *
  * Description:
@@ -133,16 +216,51 @@ int board_bmp180_initialize(int devno, int busno);
 int esp32s3_djoy_initialize(void);
 #endif
 
+#ifdef CONFIG_ESP32S3_TWAI
+int esp32s3_twai_setup(void);
+#endif
+
+#ifdef CONFIG_NET_LAN9250
 /****************************************************************************
- * Name: esp32s3_ledc_setup
+ * Name: esp32s3_lan9250_initialize
  *
  * Description:
- *   Initialize LEDC PWM and register the PWM device.
+ *   This function is called by platform-specific setup logic to initialize
+ *   the LAN9250 device. This function will register the driver
+ *   as a network device.
+ *
+ * Input Parameters:
+ *   port - The SPI port used for the device
+ *
+ * Returned Value:
+ *   Zero is returned on success. Otherwise, a negated errno value is
+ *   returned to indicate the nature of the failure.
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ESP32S3_LEDC
-int esp32s3_pwm_setup(void);
+int esp32s3_lan9250_initialize(int port);
+
+/****************************************************************************
+ * Name: esp32s3_lan9250_uninitialize
+ *
+ * Description:
+ *   This function is called by platform-specific setup logic to uninitialize
+ *   the LAN9250 device. This function will unregister the network device.
+ *
+ * Input Parameters:
+ *   port - The SPI port used for the device
+ *
+ * Returned Value:
+ *   Zero is returned on success. Otherwise, a negated errno value is
+ *   returned to indicate the nature of the failure.
+ *
+ ****************************************************************************/
+
+int esp32s3_lan9250_uninitialize(int port);
+#endif
+
+#ifdef CONFIG_ESP32S3_OPENETH
+int esp_openeth_initialize(void);
 #endif
 
 #endif /* __ASSEMBLY__ */

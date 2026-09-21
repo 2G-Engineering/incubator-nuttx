@@ -755,7 +755,7 @@ static void esp32_spislv_rx(struct esp32_spislv_priv_s *priv)
 
   if (recv_n < priv->rxlen)
     {
-      /** If upper layer does not receive all data of receive
+      /* If upper layer does not receive all data of receive
        *  buffer, move the rest data to head of the buffer
        */
 
@@ -831,7 +831,7 @@ static int esp32_spislv_interrupt(int irq, void *context, void *arg)
 
   if (!priv->dma_chan)
     {
-      /** With DMA, software should copy data from register
+      /* With DMA, software should copy data from register
        *  to receive buffer
        */
 
@@ -840,6 +840,8 @@ static int esp32_spislv_interrupt(int irq, void *context, void *arg)
           tmp = esp32_spi_get_reg(priv, SPI_W0_OFFSET + i);
           memcpy(priv->rxbuffer + priv->rxlen + i, &tmp, 4);
         }
+
+      SPIS_DEV_NOTIFY(priv->dev, SPISLAVE_RX_COMPLETE);
     }
 
   priv->rxlen += n;
@@ -861,6 +863,8 @@ static int esp32_spislv_interrupt(int irq, void *context, void *arg)
           priv->txlen = 0;
           priv->txen = false;
         }
+
+      SPIS_DEV_NOTIFY(priv->dev, SPISLAVE_TX_COMPLETE);
     }
 
   if (priv->txlen)
@@ -1402,7 +1406,7 @@ struct spi_slave_ctrlr_s *esp32_spislv_ctrlr_initialize(int port)
 
   /* Set up to receive peripheral interrupts on the current CPU */
 
-  priv->cpu = up_cpu_index();
+  priv->cpu = this_cpu();
   priv->cpuint = esp32_setup_irq(priv->cpu, priv->config->periph,
                                  1, ESP32_CPUINT_LEVEL);
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/x86_64/src/intel64/intel64_createstack.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -161,7 +163,7 @@ int up_create_stack(struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
 
       if (!tcb->stack_alloc_ptr)
         {
-          serr("ERROR: Failed to allocate stack, size %d\n", stack_size);
+          serr("ERROR: Failed to allocate stack, size %zu\n", stack_size);
         }
 #endif
     }
@@ -173,15 +175,6 @@ int up_create_stack(struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
       uintptr_t top_of_stack;
       size_t size_of_stack;
 
-      /* Yes.. If stack debug is enabled, then fill the stack with a
-       * recognizable value that we can use later to test for high
-       * water marks.
-       */
-
-#ifdef CONFIG_STACK_COLORATION
-      memset(tcb->stack_alloc_ptr, 0xaa, stack_size);
-#endif
-
       /* The x86_64 uses a push-down stack:  the stack grows toward lower
        * addresses in memory.  The stack pointer register, points to the
        * lowest, valid work address (the "top" of the stack).  Items on
@@ -192,8 +185,9 @@ int up_create_stack(struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
 
       /* The intel64 stack must be aligned at word (16 byte) boundaries. If
        * necessary top_of_stack must be rounded down to the next boundary.
-       * We intentionally align at 8 byte boundary, because at task_start,
-       * only frame pointer will be pushed, not instruction pointer.
+       * We intentionally align at 8 byte boundary (look at up_stack_frame())
+       * , because at task_start, only frame pointer will be pushed, not
+       * instruction pointer.
        */
 
       top_of_stack &= ~0x0f;
@@ -204,6 +198,15 @@ int up_create_stack(struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
       tcb->stack_base_ptr = tcb->stack_alloc_ptr;
       tcb->adj_stack_size = size_of_stack;
       tcb->flags |= TCB_FLAG_FREE_STACK;
+
+      /* Yes.. If stack debug is enabled, then fill the stack with a
+       * recognizable value that we can use later to test for high
+       * water marks.
+       */
+
+#ifdef CONFIG_STACK_COLORATION
+      x86_64_stack_color(tcb->stack_base_ptr, tcb->adj_stack_size);
+#endif
 
       board_autoled_on(LED_STACKCREATED);
       return OK;

@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_snprintf.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -22,12 +24,7 @@
  * Included Files
  ****************************************************************************/
 
-#include <nuttx/config.h>
-
-#include <sys/types.h>
-#include <stdio.h>
-
-#include "libc.h"
+#include <nuttx/streams.h>
 
 /****************************************************************************
  * Public Functions
@@ -60,7 +57,7 @@ int snprintf(FAR char *buf, size_t size, FAR const IPTR char *format, ...)
       /* Initialize a memory stream to write to the buffer */
 
       lib_memoutstream(&u.memoutstream, buf, size);
-      stream = &u.memoutstream.public;
+      stream = &u.memoutstream.common;
     }
   else
     {

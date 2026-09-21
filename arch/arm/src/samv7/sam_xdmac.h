@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samv7/sam_xdmac.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -239,6 +241,19 @@ extern "C"
 size_t sam_destaddr(DMA_HANDLE handle);
 
 /****************************************************************************
+ * Name: sam_dmaresidual
+ *
+ * Description:
+ *   Returns the number of bytes remaining to be transferred
+ *
+ * Assumptions:
+ *   - DMA handle allocated by sam_dmachannel()
+ *
+ ****************************************************************************/
+
+size_t sam_dmaresidual(DMA_HANDLE handle);
+
+/****************************************************************************
  * Name: sam_dmachannel
  *
  * Description:
@@ -335,7 +350,7 @@ int sam_dmarxsetup(DMA_HANDLE handle, uint32_t paddr,
  *   maddr - array of memory addresses (i.e. destination addresses)
  *   paddr - peripheral address (i.e. source address)
  *   nbytes - number of bytes to transfer
- *   ndescrs - number of descriptors (i.e. the lenght of descr array)
+ *   ndescrs - number of descriptors (i.e. the length of descr array)
  *
  ****************************************************************************/
 

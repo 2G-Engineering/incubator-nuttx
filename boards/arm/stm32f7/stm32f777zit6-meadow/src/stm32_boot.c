@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f777zit6-meadow/src/stm32_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -25,6 +27,7 @@
 #include <nuttx/config.h>
 
 #include <debug.h>
+#include <assert.h>
 
 #include <nuttx/board.h>
 #include <arch/board/board.h>
@@ -34,7 +37,6 @@
 #include "stm32f777zit6-meadow.h"
 
 #ifdef CONFIG_STM32F7_QUADSPI
-#  include <nuttx/mtd/mtd.h>
 #  include "stm32_qspi.h"
 
 #  ifdef CONFIG_FS_FAT
@@ -44,7 +46,7 @@
 
 /* MEADOW FIXME: header clash? */
 
-extern FAR struct qspi_dev_s *stm32f7_qspi_initialize(int intf);
+extern struct qspi_dev_s *stm32f7_qspi_initialize(int intf);
 #endif
 
 /****************************************************************************
@@ -69,10 +71,6 @@ extern FAR struct qspi_dev_s *stm32f7_qspi_initialize(int intf);
  *   initialized.
  *
  ****************************************************************************/
-
-void up_netinitialize(void)
-{
-}
 
 void stm32_boardinitialize(void)
 {
@@ -127,11 +125,8 @@ void stm32_boardinitialize(void)
 void board_late_initialize(void)
 {
 #ifdef CONFIG_STM32F7_QUADSPI
-  FAR struct qspi_dev_s *qspi;
-  FAR struct mtd_dev_s *mtd;
-#endif
-
-#ifdef CONFIG_STM32F7_QUADSPI
+  struct qspi_dev_s *qspi;
+  struct mtd_dev_s *mtd;
 
   struct qspi_meminfo_s meminfo;
 
@@ -140,14 +135,13 @@ void board_late_initialize(void)
   qspi = stm32f7_qspi_initialize(0);
   if (!qspi)
     {
-      syslog(LOG_ERR, "ERROR: sam_qspi_initialize muiled\n");
-      return;
+      syslog(LOG_ERR, "ERROR: sam_qspi_initialize failed\n");
     }
 
-  mtd = s25fl5_initialize(qspi, true);
+  mtd = w25qxxxjv_initialize(qspi, true);
   if (!mtd)
     {
-      syslog(LOG_ERR, "ERROR: s25fl5_initialize failed\n");
+      syslog(LOG_ERR, "ERROR: w25qxxxjv_initialize failed\n");
     }
 
   ret = ftl_initialize(0, mtd);
@@ -156,20 +150,43 @@ void board_late_initialize(void)
       ferr("ERROR: Initialize the FTL layer\n");
     }
 
-    meminfo.flags = QSPIMEM_READ | QSPIMEM_QUADIO;
-    meminfo.addrlen = 3;
-    meminfo.dummies = 6;
-    meminfo.cmd = 0xeb; /* S25FL1_FAST_READ_QUADIO; */
-    meminfo.addr = 0;
-    meminfo.buflen = 0;
-    meminfo.buffer = NULL;
+  meminfo.flags = QSPIMEM_READ | QSPIMEM_QUADIO;
+  meminfo.addrlen = 3;
+  meminfo.dummies = 6;
+  meminfo.cmd = 0xeb; /* S25FL1_FAST_READ_QUADIO; */
+  meminfo.addr = 0;
+  meminfo.buflen = 0;
+  meminfo.buffer = NULL;
 
-    stm32f7_qspi_enter_memorymapped(qspi, &meminfo, 80000000);
+  stm32f7_qspi_enter_memorymapped(qspi, &meminfo, 80000000);
 
-    stm32_mpu_uheap((uintptr_t)0x90000000, 0x4000000);
+  /* FIXME: stm32_mpu_uheap depends on PROTECTED && MPU
+   *
+   * stm32_mpu_uheap((uintptr_t)0x90000000, 0x4000000);
+   */
+
+#endif
+#if defined(MEADOW_OS)
+  /* Initialize Meadow HCOM nuttx */
+
+  int ret;
+  ret = hcom_nx_setup_mgr(mtd);
+  if (ret < 0)
+    {
+      syslog(LOG_EMERG, "ERROR: HCOM proxy initialization failed!\n");
+      PANIC();
     }
 
 #endif
-  stm32_bringup();
+#if defined(CONFIG_NSH_LIBRARY) && !defined(CONFIG_BOARDCTL)
+  /* Perform NSH initialization here instead of from the NSH.  This
+   * alternative NSH initialization is necessary when NSH is ran in
+   * user-space but the initialization function must run in kernel space.
+   */
 
+  board_app_initialize();
+#else
+  stm32_bringup();
+#endif
+}
 #endif

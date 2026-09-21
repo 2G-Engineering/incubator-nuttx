@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/net/rpmsgdrv.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,10 +37,11 @@
 #include <nuttx/wqueue.h>
 
 #include <nuttx/net/dns.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/pkt.h>
 #include <nuttx/net/rpmsg.h>
-#include <nuttx/rptun/openamp.h>
+#include <nuttx/rpmsg/rpmsg.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -130,9 +133,6 @@ static int  net_rpmsg_drv_addmac(FAR struct net_driver_s *dev,
 static int  net_rpmsg_drv_rmmac(FAR struct net_driver_s *dev,
               FAR const uint8_t *mac);
 #endif
-#ifdef CONFIG_NET_ICMPv6
-static void net_rpmsg_drv_ipv6multicast(FAR struct net_driver_s *dev);
-#endif
 #endif
 #ifdef CONFIG_NETDEV_IOCTL
 static int  net_rpmsg_drv_ioctl(FAR struct net_driver_s *dev, int cmd,
@@ -216,6 +216,11 @@ static int net_rpmsg_drv_transmit(FAR struct net_driver_s *dev, bool nocopy)
 
   if (ret < 0)
     {
+      if (nocopy)
+        {
+          rpmsg_release_tx_buffer(&priv->ept, msg);
+        }
+
       NETDEV_TXERRORS(dev);
       return ret;
     }
@@ -332,8 +337,8 @@ static int net_rpmsg_drv_sockioctl_task(int argc, FAR char *argv[])
 
   /* Restore pointers from argv */
 
-  ept = (FAR struct rpmsg_endpoint *)strtoul(argv[1], NULL, 0);
-  msg = (FAR struct net_rpmsg_ioctl_s *)strtoul(argv[2], NULL, 0);
+  ept = (FAR struct rpmsg_endpoint *)strtoul(argv[1], NULL, 16);
+  msg = (FAR struct net_rpmsg_ioctl_s *)strtoul(argv[2], NULL, 16);
 
   /* We need a temporary sock for ioctl here */
 
@@ -659,9 +664,9 @@ static int net_rpmsg_drv_ifup(FAR struct net_driver_s *dev)
   int ret;
 
 #ifdef CONFIG_NET_IPv4
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 #endif
 #ifdef CONFIG_NET_IPv6
   ninfo("Bringing up: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -712,12 +717,6 @@ static int net_rpmsg_drv_ifup(FAR struct net_driver_s *dev)
   net_ipv6addr_copy(dev->d_ipv6addr, msg.ipv6addr);
   net_ipv6addr_copy(dev->d_ipv6draddr, msg.ipv6draddr);
   net_ipv6addr_copy(dev->d_ipv6netmask, msg.ipv6netmask);
-#endif
-
-#ifdef CONFIG_NET_ICMPv6
-  /* Set up IPv6 multicast address filtering */
-
-  net_rpmsg_drv_ipv6multicast(dev);
 #endif
 
   net_unlock();
@@ -960,77 +959,6 @@ static int net_rpmsg_drv_rmmac(FAR struct net_driver_s *dev,
 #endif
 
 /****************************************************************************
- * Name: net_rpmsg_drv_ipv6multicast
- *
- * Description:
- *   Configure the IPv6 multicast MAC address.
- *
- * Parameters:
- *   dev  - Reference to the NuttX driver state structure
- *
- * Returned Value:
- *   Zero (OK) on success; a negated errno value on failure.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_NET_ICMPv6
-static void net_rpmsg_drv_ipv6multicast(FAR struct net_driver_s *dev)
-{
-  if (dev->d_lltype == NET_LL_ETHERNET || dev->d_lltype == NET_LL_IEEE80211)
-    {
-      uint16_t tmp16;
-      uint8_t mac[6];
-
-      /* For ICMPv6, we need to add the IPv6 multicast address
-       *
-       * For IPv6 multicast addresses, the Ethernet MAC is derived by
-       * the four low-order octets OR'ed with the MAC 33:33:00:00:00:00,
-       * so for example the IPv6 address FF02:DEAD:BEEF::1:3 would map
-       * to the Ethernet MAC address 33:33:00:01:00:03.
-       *
-       * NOTES:  This appears correct for the ICMPv6 Router Solicitation
-       * Message, but the ICMPv6 Neighbor Solicitation message seems to
-       * use 33:33:ff:01:00:03.
-       */
-
-      mac[0] = 0x33;
-      mac[1] = 0x33;
-
-      tmp16  = dev->d_ipv6addr[6];
-      mac[2] = 0xff;
-      mac[3] = tmp16 >> 8;
-
-      tmp16  = dev->d_ipv6addr[7];
-      mac[4] = tmp16 & 0xff;
-      mac[5] = tmp16 >> 8;
-
-      ninfo("IPv6 Multicast: %02x:%02x:%02x:%02x:%02x:%02x\n",
-            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
-      net_rpmsg_drv_addmac(dev, mac);
-
-#if defined(CONFIG_NET_ETHERNET) && defined(CONFIG_NET_ICMPv6_AUTOCONF)
-      /* Add the IPv6 all link-local nodes Ethernet address.  This is the
-       * address that we expect to receive ICMPv6 Router Advertisement
-       * packets.
-       */
-
-      net_rpmsg_drv_addmac(dev, g_ipv6_ethallnodes.ether_addr_octet);
-#endif /* CONFIG_NET_ETHERNET && CONFIG_NET_ICMPv6_AUTOCONF */
-
-#if defined(CONFIG_NET_ETHERNET) && defined(CONFIG_NET_ICMPv6_ROUTER)
-      /* Add the IPv6 all link-local routers Ethernet address.  This is the
-       * address that we expect to receive ICMPv6 Router Solicitation
-       * packets.
-       */
-
-      net_rpmsg_drv_addmac(dev, g_ipv6_ethallrouters.ether_addr_octet);
-#endif /* CONFIG_NET_ETHERNET && CONFIG_NET_ICMPv6_ROUTER */
-    }
-}
-#endif /* CONFIG_NET_ICMPv6 */
-
-/****************************************************************************
  * Name: net_rpmsg_drv_ioctl
  *
  * Description:
@@ -1056,7 +984,7 @@ static int net_rpmsg_drv_ioctl(FAR struct net_driver_s *dev, int cmd,
   ssize_t len;
   int ret;
 
-  len = net_ioctl_arglen(cmd);
+  len = net_ioctl_arglen(PF_RPMSG, cmd);
   if (len >= 0)
     {
       FAR struct net_rpmsg_ioctl_s *msg;
@@ -1112,6 +1040,7 @@ int net_rpmsg_drv_init(FAR const char *cpuname,
 {
   FAR struct net_rpmsg_drv_s *priv;
   FAR struct net_driver_s *dev;
+  int ret;
 
   /* Allocate the interface structure */
 
@@ -1143,14 +1072,30 @@ int net_rpmsg_drv_init(FAR const char *cpuname,
 
   /* Register the device with the openamp */
 
-  rpmsg_register_callback(dev,
+  ret = rpmsg_register_callback(dev,
                           net_rpmsg_drv_device_created,
                           net_rpmsg_drv_device_destroy,
                           NULL,
                           NULL);
 
+  if (ret < 0)
+    {
+      kmm_free(priv);
+      return ret;
+    }
+
   /* Register the device with the OS so that socket IOCTLs can be performed */
 
-  netdev_register(dev, lltype);
-  return OK;
+  ret = netdev_register(dev, lltype);
+  if (ret < 0)
+    {
+      rpmsg_unregister_callback(dev,
+                          net_rpmsg_drv_device_created,
+                          net_rpmsg_drv_device_destroy,
+                          NULL,
+                          NULL);
+      kmm_free(priv);
+    }
+
+  return ret;
 }

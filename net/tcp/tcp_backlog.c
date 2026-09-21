@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/tcp/tcp_backlog.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -97,7 +99,7 @@ int tcp_backlogcreate(FAR struct tcp_conn_s *conn, int nblg)
 
       /* Then allocate that much */
 
-      bls = (FAR struct tcp_backlog_s *)kmm_zalloc(size);
+      bls = kmm_zalloc(size);
       if (!bls)
         {
           nerr("ERROR: Failed to allocate backlog\n");

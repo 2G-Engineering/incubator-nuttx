@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/xen1210.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -101,11 +103,10 @@ static ssize_t xen1210_read(FAR struct file *filep, FAR char *buffer,
   int                       ret;
 
   sninfo("len=%d\n", len);
-  DEBUGASSERT(filep);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  priv  = (FAR struct xen1210_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  priv  = inode->i_private;
 
   /* Verify that the caller has provided a buffer large enough to receive
    * the magnetometer data.
@@ -138,7 +139,7 @@ static ssize_t xen1210_read(FAR struct file *filep, FAR char *buffer,
 
   /* Return read sample */
 
-  buffer = (FAR char *) &priv->sample;
+  buffer = (FAR char *)&priv->sample;
 
   nxmutex_unlock(&priv->lock);
   return sizeof(struct xen1210_sample_s);

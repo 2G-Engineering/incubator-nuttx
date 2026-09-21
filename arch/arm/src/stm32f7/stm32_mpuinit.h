@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32f7/stm32_mpuinit.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -22,7 +24,6 @@
 #define __ARCH_ARM_SRC_STM32F7_STM32_MPUINIT_H
 
 /****************************************************************************
- * Name: stm32_mpuinitialize
  * Included Files
  ****************************************************************************/
 
@@ -31,27 +32,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 
-/****************************************************************************
- * Name: stm32_mpuinitialize
- * Pre-processor Definitions
- ****************************************************************************/
-
-/****************************************************************************
- * Name: stm32_mpuinitialize
- * Public Types
- ****************************************************************************/
-
-/****************************************************************************
- * Name: stm32_mpuinitialize
- * Inline Functions
- ****************************************************************************/
-
 #ifndef __ASSEMBLY__
-
-/****************************************************************************
- * Name: stm32_mpuinitialize
- * Public Data
- ****************************************************************************/
 
 #undef EXTERN
 #if defined(__cplusplus)

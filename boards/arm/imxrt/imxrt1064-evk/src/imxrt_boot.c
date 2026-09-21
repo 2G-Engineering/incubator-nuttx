@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/imxrt/imxrt1064-evk/src/imxrt_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -62,7 +64,7 @@ void imxrt_ocram_initialize(void)
 
   putreg32(0xaa555555, IMXRT_IOMUXC_GPR_GPR17);
   regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
-  putreg32(regval | GPR_GPR16_FLEXRAM_BANK_CFG_SELF, IMXRT_IOMUXC_GPR_GPR16);
+  putreg32(regval | GPR_GPR16_FLEXRAM_BANK_CFG_SEL, IMXRT_IOMUXC_GPR_GPR16);
 
   src = (uint32_t *) (LOCATE_IN_SRC(g_boot_data.start) + g_boot_data.size);
   dest = (uint32_t *) (g_boot_data.start + g_boot_data.size);

@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/can/can_sockif.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -52,9 +54,9 @@ static int  can_setup(FAR struct socket *psock);
 static sockcaps_t can_sockcaps(FAR struct socket *psock);
 static void can_addref(FAR struct socket *psock);
 static int  can_bind(FAR struct socket *psock,
-              FAR const struct sockaddr *addr, socklen_t addrlen);
+                     FAR const struct sockaddr *addr, socklen_t addrlen);
 static int  can_poll_local(FAR struct socket *psock, FAR struct pollfd *fds,
-              bool setup);
+                           bool setup);
 static int can_close(FAR struct socket *psock);
 
 /****************************************************************************
@@ -220,6 +222,16 @@ static int can_setup(FAR struct socket *psock)
 
       conn->crefs = 1;
 
+      /* If Can Socket Stack receive can frame and pending on the readahead,
+       * but the application layer did not read the frame. This will cause
+       * a memory leak, and it is necessary to limit the readahead.
+       */
+
+#if CONFIG_NET_RECV_BUFSIZE > 0
+      conn->recv_buffnum = (CONFIG_NET_RECV_BUFSIZE + CONFIG_IOB_BUFSIZE - 1)
+                            / CONFIG_IOB_BUFSIZE;
+#endif
+
       /* Attach the connection instance to the socket */
 
       psock->s_conn = conn;
@@ -270,8 +282,6 @@ static void can_addref(FAR struct socket *psock)
 {
   FAR struct can_conn_s *conn;
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
-
   conn = psock->s_conn;
   DEBUGASSERT(conn->crefs > 0 && conn->crefs < 255);
   conn->crefs++;
@@ -312,7 +322,7 @@ static int can_bind(FAR struct socket *psock,
 {
   FAR struct sockaddr_can *canaddr;
   FAR struct can_conn_s *conn;
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL && addr != NULL &&
+  DEBUGASSERT(addr != NULL &&
               addrlen >= sizeof(struct sockaddr_can));
 
   /* Save the address information in the connection structure */
@@ -365,7 +375,6 @@ static int can_poll_local(FAR struct socket *psock, FAR struct pollfd *fds,
   pollevent_t eventset = 0;
   int ret = OK;
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
   conn = psock->s_conn;
   info = conn->pollinfo;
 
@@ -397,9 +406,9 @@ static int can_poll_local(FAR struct socket *psock, FAR struct pollfd *fds,
        * during callback processing.
        */
 
-      cb->flags   = NETDEV_DOWN;
-      cb->priv    = (FAR void *)info;
-      cb->event   = can_poll_eventhandler;
+      cb->flags = NETDEV_DOWN;
+      cb->priv  = info;
+      cb->event = can_poll_eventhandler;
 
       if ((fds->events & POLLOUT) != 0)
         {
@@ -415,7 +424,7 @@ static int can_poll_local(FAR struct socket *psock, FAR struct pollfd *fds,
        * for use during poll teardown as well.
        */
 
-      fds->priv = (FAR void *)info;
+      fds->priv = info;
 
       /* Check for read data availability now */
 

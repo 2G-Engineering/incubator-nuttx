@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/hwspinlock/hwspinlock.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -104,18 +106,16 @@ hwspin_lock_irqsave(FAR struct hwspinlock_dev_s *dev,
   return flags;
 }
 
-static inline void hwspin_unlock(FAR struct hwspinlock_dev_s *dev,
-                                 int id, int priority)
+static inline void hwspin_unlock(FAR struct hwspinlock_dev_s *dev, int id)
 {
   dev->ops->unlock(dev, id);
 }
 
 static inline void hwspin_unlock_restore(FAR struct hwspinlock_dev_s *dev,
-                                         int id, int priority,
-                                         irqstate_t flags)
+                                         int id, irqstate_t flags)
 {
   hwspin_unlock(dev, id);
-  spin_lock_restore(&dev->lock, flags);
+  spin_unlock_irqrestore(&dev->lock, flags);
 }
 
 #ifdef __cplusplus

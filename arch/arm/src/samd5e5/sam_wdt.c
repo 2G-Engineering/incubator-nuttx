@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samd5e5/sam_wdt.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -54,7 +56,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/** N clock cycles */
+/* N clock cycles */
 
 #define WDT_CLK_8CYCLE      8
 #define WDT_CLK_16CYCLE     16
@@ -69,9 +71,7 @@
 #define WDT_CLK_8192CYCLE   8192
 #define WDT_CLK_16384CYCLE  16384
 
-/**
- * \brief Macro is used to indicate the rate of second/millisecond
- */
+/* Macro is used to indicate the rate of second/millisecond */
 
 #define WDT_PERIOD_RATE 1000
 
@@ -79,8 +79,7 @@
  * Private Types
  ****************************************************************************/
 
-/**
- * This structure provides the private representation of the "lower-half"
+/* This structure provides the private representation of the "lower-half"
  * driver state structure.  This structure must be cast-compatible with the
  * well-known watchdog_lowerhalf_s structure.
  */

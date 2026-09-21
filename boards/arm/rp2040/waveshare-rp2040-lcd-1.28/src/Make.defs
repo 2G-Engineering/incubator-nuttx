@@ -1,5 +1,7 @@
 ############################################################################
-# boards/arm/rp2040/raspberrypi-pico/src/Make.defs
+# boards/arm/rp2040/waveshare-rp2040-lcd-1.28/src/Make.defs
+#
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -30,4 +32,4 @@ endif
 
 DEPPATH += --dep-path board
 VPATH += :board
-CFLAGS += $(shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board)
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm64/include/a64/chip.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,7 +33,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Number of bytes in @p x kibibytes/mebibytes/gibibytes */
+/* Number of bytes in x kibibytes/mebibytes/gibibytes */
 
 #define KB(x)           ((x) << 10)
 #define MB(x)           (KB(x) << 10)
@@ -53,5 +55,18 @@
 /* U-Boot loads NuttX at this address (kernel_addr_r) */
 
 #define CONFIG_LOAD_BASE          0x40080000
+
+/****************************************************************************
+ * Assembly Macros
+ ****************************************************************************/
+
+#ifdef __ASSEMBLY__
+
+.macro  get_cpu_id xreg0
+  mrs    \xreg0, mpidr_el1
+  ubfx   \xreg0, \xreg0, #0, #8
+.endm
+
+#endif /* __ASSEMBLY__ */
 
 #endif /* __ARCH_ARM64_INCLUDE_A64_CHIP_H */

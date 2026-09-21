@@ -34,6 +34,7 @@
 /* Offset relative to each watchdog timer instance memory base */
 
 #define RWDT_CONFIG0_OFFSET         0x0094
+#define XTWDT_CONFIG0_OFFSET        0x0060
 
 /* RWDT */
 
@@ -45,6 +46,12 @@
 #define RWDT_WP_REG                 0x00ac
 #define RWDT_INT_ENA_REG_OFFSET     0x0040
 #define RWDT_INT_CLR_REG_OFFSET     0x004c
+
+/* XTWDT */
+
+#define XTWDT_TIMEOUT_OFFSET        0x00f4
+#define XTWDT_CLK_PRESCALE_OFFSET   0x00f0
+#define XTWDT_INT_ENA_REG_OFFSET    0x0040
 
 /* The value that needs to be written to RTC_CNTL_WDT_WKEY to
  * write-enable the wdt registers
@@ -58,9 +65,16 @@
 
 #define RTC_CNTL_SWD_WKEY_VALUE     0x8f1d312a
 
+#define RTC_CNTL_TIME0_REG      RTC_CNTL_TIME_LOW0_REG
+#define RTC_CNTL_TIME1_REG      RTC_CNTL_TIME_HIGH0_REG
+
 #define DPORT_CPUPERIOD_SEL_80          0
 #define DPORT_CPUPERIOD_SEL_160         1
 #define DPORT_CPUPERIOD_SEL_240         2
+
+#define DPORT_SOC_CLK_SEL_XTAL          0
+#define DPORT_SOC_CLK_SEL_PLL           1
+#define DPORT_SOC_CLK_SEL_8M            2
 
 #define RTC_APB_FREQ_REG            RTC_CNTL_STORE5_REG
 
@@ -813,7 +827,7 @@
 #define RTC_CNTL_INT_ENA_RTC_REG (DR_REG_RTCCNTL_BASE + 0x40)
 
 /* RTC_CNTL_GLITCH_DET_INT_ENA : R/W; bitpos: [19]; default: 0;
- * enbale gitch det interrupt
+ * enable gitch det interrupt
  */
 
 #define RTC_CNTL_GLITCH_DET_INT_ENA    (BIT(19))
@@ -3397,7 +3411,7 @@
 #define RTC_CNTL_SWD_AUTO_FEED_EN_S  31
 
 /* RTC_CNTL_SWD_DISABLE : R/W; bitpos: [30]; default: 0;
- * disabel SWD
+ * disable SWD
  */
 
 #define RTC_CNTL_SWD_DISABLE    (BIT(30))
@@ -4254,7 +4268,7 @@
 #define RTC_CNTL_XTAL32K_RESTART_WAIT_S  4
 
 /* RTC_CNTL_XTAL32K_RETURN_WAIT : R/W; bitpos: [3:0]; default: 0;
- * cycles to wait to return noral xtal 32k
+ * cycles to wait to return normal xtal 32k
  */
 
 #define RTC_CNTL_XTAL32K_RETURN_WAIT    0x0000000F

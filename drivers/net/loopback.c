@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/net/loopback.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,8 +41,8 @@
 #include <nuttx/irq.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/netdev.h>
 #include <nuttx/net/ip.h>
+#include <nuttx/net/netdev.h>
 #include <nuttx/net/loopback.h>
 
 #ifdef CONFIG_NET_PKT
@@ -124,9 +126,9 @@ static int lo_ifup(FAR struct net_driver_s *dev)
   FAR struct lo_driver_s *priv = (FAR struct lo_driver_s *)dev->d_private;
 
 #ifdef CONFIG_NET_IPv4
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 #endif
 #ifdef CONFIG_NET_IPv6
   ninfo("Bringing up: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -357,7 +359,7 @@ int localhost_initialize(void)
 
   /* Put the network in the UP state */
 
-  priv->lo_dev.d_flags = IFF_UP;
+  IFF_SET_UP(priv->lo_dev.d_flags);
   return lo_ifup(&priv->lo_dev);
 }
 

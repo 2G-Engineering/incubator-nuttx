@@ -1,6 +1,8 @@
 /****************************************************************************
  * crypto/random_pool.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -213,7 +215,7 @@ static void addentropy(FAR const uint32_t *buf, size_t n, bool inc_new)
 
 static void initentropy(FAR blake2s_state *S)
 {
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
   struct cpuload_s load;
 #endif
   uint32_t tmp;
@@ -231,7 +233,7 @@ static void initentropy(FAR blake2s_state *S)
 
   tmp = sizeof(entropy_pool.pool);
   tmp <<= 27;
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
   clock_cpuload(0, &load);
   tmp += load.total ^ ROTL_32(load.active, 23);
 #endif
@@ -508,15 +510,10 @@ void up_randompool_initialize(void)
 }
 
 /****************************************************************************
- * Name: arc4random_buf
+ * Name: up_rngbuf
  *
  * Description:
- *   Fill a buffer of arbitrary length with randomness. This is the
- *   preferred interface for getting random numbers. The traditional
- *   /dev/random approach is susceptible for things like the attacker
- *   exhausting file descriptors on purpose.
- *
- *   Note that this function cannot fail, other than by asserting.
+ *   Fill a buffer of arbitrary length with randomness.
  *
  * Input Parameters:
  *   bytes  - Buffer for returned random bytes
@@ -527,33 +524,9 @@ void up_randompool_initialize(void)
  *
  ****************************************************************************/
 
-void arc4random_buf(FAR void *bytes, size_t nbytes)
+void up_rngbuf(FAR void *bytes, size_t nbytes)
 {
   nxmutex_lock(&g_rng.rd_lock);
   rng_buf_internal(bytes, nbytes);
   nxmutex_unlock(&g_rng.rd_lock);
-}
-
-/****************************************************************************
- * Name: arc4random
- *
- * Description:
- *   Returns a single 32-bit value. This is the preferred interface for
- *   getting random numbers. The traditional /dev/random approach is
- *   susceptible for things like the attacker exhausting file
- *   descriptors on purpose.
- *
- *   Note that this function cannot fail, other than by asserting.
- *
- * Returned Value:
- *   a random 32-bit value.
- *
- ****************************************************************************/
-
-uint32_t arc4random(void)
-{
-  uint32_t ret;
-
-  arc4random_buf(&ret, sizeof(ret));
-  return ret;
 }

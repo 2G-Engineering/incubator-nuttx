@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32/ttgo_eink5_v2/src/esp32_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,9 +33,7 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
-#include <syslog.h>
 #include <debug.h>
-#include <stdio.h>
 
 #include <errno.h>
 
@@ -75,15 +75,15 @@
 #  include "esp32_board_spiflash.h"
 #endif
 
-#ifdef CONFIG_ESP32_BLE
+#ifdef CONFIG_ESPRESSIF_BLE
 #  include "esp32_ble.h"
 #endif
 
-#ifdef CONFIG_ESP32_WIRELESS
+#ifdef CONFIG_ESPRESSIF_WLAN
 #  include "esp32_board_wlan.h"
 #endif
 
-#ifdef CONFIG_ESP32_WIFI_BT_COEXIST
+#ifdef CONFIG_ESPRESSIF_WIFI_BT_COEXIST
 #  include "esp32_wifi_adapter.h"
 #endif
 
@@ -103,7 +103,7 @@
 #  include "esp32_sht3x.h"
 #endif
 
-#ifdef CONFIG_SENSORS_MS5611
+#ifdef CONFIG_SENSORS_MS56XX
 #  include "esp32_ms5611.h"
 #endif
 
@@ -231,7 +231,7 @@ int esp32_bringup(void)
 #endif
 
 #ifdef CONFIG_ESP32_SPIFLASH
-  ret = esp32_spiflash_init();
+  ret = board_spiflash_init();
   if (ret)
     {
       syslog(LOG_ERR, "ERROR: Failed to initialize SPI Flash\n");
@@ -274,7 +274,7 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESP32_WIFI_BT_COEXIST
+#ifdef CONFIG_ESPRESSIF_WIFI_BT_COEXIST
   ret = esp32_wifi_bt_coexist_init();
   if (ret)
     {
@@ -283,7 +283,7 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESP32_BLE
+#ifdef CONFIG_ESPRESSIF_BLE
   ret = esp32_ble_initialize();
   if (ret)
     {
@@ -291,11 +291,11 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESP32_WIRELESS
+#ifdef CONFIG_ESPRESSIF_WLAN
   ret = board_wlan_init();
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: Failed to initialize wireless subsystem=%d\n",
+      syslog(LOG_ERR, "ERROR: Failed to initialize wlan subsystem=%d\n",
              ret);
     }
 #endif
@@ -459,7 +459,7 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_SENSORS_MS5611
+#ifdef CONFIG_SENSORS_MS56XX
   /* Try to register MS5611 device in I2C0 as device 0: I2C addr 0x77 */
 
   ret = board_ms5611_initialize(0, 0);

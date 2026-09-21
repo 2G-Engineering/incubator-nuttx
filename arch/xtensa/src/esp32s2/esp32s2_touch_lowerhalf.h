@@ -1244,9 +1244,9 @@ static inline void touch_lh_timeout_disable(void)
 
 static inline void touch_lh_timeout_set_threshold(uint32_t threshold)
 {
-  return REG_SET_FIELD(RTC_CNTL_TOUCH_TIMEOUT_CTRL_REG,
-                       RTC_CNTL_TOUCH_TIMEOUT_NUM,
-                       threshold);
+  REG_SET_FIELD(RTC_CNTL_TOUCH_TIMEOUT_CTRL_REG,
+                RTC_CNTL_TOUCH_TIMEOUT_NUM,
+                threshold);
 }
 
 /****************************************************************************
@@ -1862,7 +1862,7 @@ static inline enum touch_pad_e touch_lh_waterproof_get_guard_pad(void)
  * Name: touch_lh_waterproof_set_sheild_driver
  *
  * Description:
- *   Set max equivalent capacitance for sheild channel.
+ *   Set max equivalent capacitance for shield channel.
  *   The equivalent capacitance of the shielded channel can be calculated
  *   from the reading of denoise channel.
  *
@@ -1886,7 +1886,7 @@ static inline void
  * Name: touch_lh_waterproof_get_sheild_driver
  *
  * Description:
- *   Set max equivalent capacitance for sheild channel.
+ *   Set max equivalent capacitance for shield channel.
  *   The equivalent capacitance of the shielded channel can be calculated
  *   from the reading of denoise channel.
  *
@@ -2195,9 +2195,9 @@ static inline enum touch_pad_e touch_lh_sleep_get_channel_num(void)
 
 static inline void touch_lh_sleep_set_threshold(uint32_t touch_thres)
 {
-  return REG_SET_FIELD(RTC_CNTL_TOUCH_SLP_THRES_REG,
-                       RTC_CNTL_TOUCH_SLP_TH,
-                       touch_thres);
+  REG_SET_FIELD(RTC_CNTL_TOUCH_SLP_THRES_REG,
+                RTC_CNTL_TOUCH_SLP_TH,
+                touch_thres);
 }
 
 /****************************************************************************

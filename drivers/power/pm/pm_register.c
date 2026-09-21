@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/power/pm/pm_register.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,14 +41,15 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: pm_register
+ * Name: pm_domain_register
  *
  * Description:
  *   This function is called by a device driver in order to register to
  *   receive power management event callbacks.
  *
  * Input Parameters:
- *   callbacks - An instance of struct pm_callback_s providing the driver
+ *   domain - Target register domain.
+ *   cb     - An instance of struct pm_callback_s providing the driver
  *               callback functions.
  *
  * Returned Value:
@@ -54,19 +57,24 @@
  *
  ****************************************************************************/
 
-int pm_register(FAR struct pm_callback_s *callbacks)
+int pm_domain_register(int domain, FAR struct pm_callback_s *cb)
 {
+  FAR struct pm_domain_s *pdom;
   irqstate_t flags;
 
-  DEBUGASSERT(callbacks);
+  DEBUGASSERT(domain >= 0 && domain < CONFIG_PM_NDOMAINS);
+
+  pdom  = &g_pmdomains[domain];
+  flags = spin_lock_irqsave(&pdom->lock);
 
   /* Add the new entry to the end of the list of registered callbacks */
 
-  flags = pm_lock(&g_pmglobals.reglock);
-  dq_addlast(&callbacks->entry, &g_pmglobals.registry);
-  pm_unlock(&g_pmglobals.reglock, flags);
-
-  return 0;
+  dq_addlast(&cb->entry, &pdom->registry);
+#if defined (CONFIG_PM_PROCFS)
+  cb->preparefail.state = PM_RESTORE;
+#endif
+  spin_unlock_irqrestore(&pdom->lock, flags);
+  return OK;
 }
 
 #endif /* CONFIG_PM */

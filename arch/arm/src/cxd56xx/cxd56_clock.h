@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/cxd56xx/cxd56_clock.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -723,6 +725,26 @@ int cxd56_hostseq_clock_enable(void);
  ****************************************************************************/
 
 int cxd56_hostseq_clock_disable(void);
+
+/****************************************************************************
+ * Name: cxd56_gnssram_clock_enable
+ *
+ * Description:
+ *   Enable clock of the GNSS RAM
+ *
+ ****************************************************************************/
+
+int cxd56_gnssram_clock_enable(void);
+
+/****************************************************************************
+ * Name: cxd56_gnssram_clock_disable
+ *
+ * Description:
+ *   Disable clock of the GNSS RAM
+ *
+ ****************************************************************************/
+
+int cxd56_gnssram_clock_disable(void);
 
 #undef EXTERN
 #if defined(__cplusplus)

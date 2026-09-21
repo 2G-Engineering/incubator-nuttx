@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/s32k1xx/ucans32k146/src/s32k1xx_i2c.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -32,11 +34,17 @@
 
 #include <nuttx/i2c/i2c_master.h>
 
+#ifdef CONFIG_S32K1XX_LPI2C0
 #include "s32k1xx_lpi2c.h"
+#endif
+
+#ifdef CONFIG_S32K1XX_FLEXIO_I2C
+#include "s32k1xx_flexio_i2c.h"
+#endif
 
 #include "ucans32k146.h"
 
-#ifdef CONFIG_S32K1XX_LPI2C
+#ifdef CONFIG_I2C_DRIVER
 
 /****************************************************************************
  * Public Functions
@@ -54,7 +62,7 @@ int weak_function s32k1xx_i2cdev_initialize(void)
 {
   int ret = OK;
 
-#if defined(CONFIG_S32K1XX_LPI2C0) && defined(CONFIG_I2C_DRIVER)
+#ifdef CONFIG_S32K1XX_LPI2C0
   /* LPI2C0 *****************************************************************/
 
   /* Initialize the I2C driver for LPI2C0 */
@@ -73,9 +81,25 @@ int weak_function s32k1xx_i2cdev_initialize(void)
       s32k1xx_i2cbus_uninitialize(lpi2c0);
       return ret;
     }
-#endif /* CONFIG_S32K1XX_LPI2C0 && CONFIG_I2C_DRIVER */
+
+#elif defined(CONFIG_S32K1XX_FLEXIO_I2C)
+
+  struct i2c_master_s *flexio_i2c0 = s32k1xx_flexio_i2cbus_initialize(0);
+  if (flexio_i2c0 == NULL)
+    {
+      i2cerr("ERROR: FAILED to initialize FlexIO I2C\n");
+      return -ENODEV;
+    }
+
+  ret = i2c_register(flexio_i2c0, 0);
+  if (ret < 0)
+    {
+      i2cerr("ERROR: FAILED to register LPI2C0 driver\n");
+      return ret;
+    }
+#endif
 
   return ret;
 }
 
-#endif /* CONFIG_S32K1XX_LPSPI */
+#endif /* CONFIG_I2C_DRIVER */

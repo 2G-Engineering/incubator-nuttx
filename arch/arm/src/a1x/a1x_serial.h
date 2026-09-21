@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/a1x/a1x_serial.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,12 +28,6 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#include <arch/board/board.h>
-
-#include "hardware/a1x_uart.h"
-
-#include "a1x_config.h"
-#include "a1x_pio.h"
 
 /****************************************************************************
  * Pre-processor Definitions

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imxrt/imxrt_usbdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -46,7 +48,9 @@
 #include "arm_internal.h"
 #include "hardware/imxrt_usbotg.h"
 #include "hardware/imxrt_usbphy.h"
-#include "hardware/rt106x/imxrt106x_ccm.h"
+#ifdef CONFIG_ARCH_FAMILY_IMXRT106x
+#  include "hardware/rt106x/imxrt106x_ccm.h"
+#endif
 #include "imxrt_periphclks.h"
 
 /****************************************************************************
@@ -218,7 +222,7 @@ const struct trace_msg_t g_usb_trace_strings_intdecode[] =
 
 struct imxrt_dtd_s
 {
-  volatile uint32_t       nextdesc;      /* Address of the next DMA descripto in RAM */
+  volatile uint32_t       nextdesc;      /* Address of the next DMA descriptor in RAM */
   volatile uint32_t       config;        /* Misc. bit encoded configuration information */
   uint32_t                buffer0;       /* Buffer start address */
   uint32_t                buffer1;       /* Buffer start address */
@@ -299,7 +303,7 @@ struct imxrt_dqh_s
 #define IMXRT_EP0MAXPACKET           (64)         /* EP0 max packet size (1-64) */
 #define IMXRT_BULKMAXPACKET          (512)        /* Bulk endpoint max packet (8/16/32/64/512) */
 #define IMXRT_INTRMAXPACKET          (1024)       /* Interrupt endpoint max packet (1 to 1024) */
-#define IMXRT_ISOCMAXPACKET          (512)        /* Acutally 1..1023 */
+#define IMXRT_ISOCMAXPACKET          (512)        /* Actually 1..1023 */
 
 /* Endpoint bit position in SETUPSTAT, PRIME, FLUSH, STAT, COMPLETE
  * registers
@@ -1220,7 +1224,7 @@ static void imxrt_usbreset(struct imxrt_usbdev_s *priv)
 
   imxrt_set_address(priv, 0);
 
-  /* Initialise the Enpoint List Address */
+  /* Initialise the Endpoint List Address */
 
   imxrt_putreg((uint32_t)g_qh, IMXRT_USBDEV_ENDPOINTLIST);
 
@@ -2281,7 +2285,7 @@ static struct usbdev_req_s *imxrt_epallocreq(struct usbdev_ep_s *ep)
 
   usbtrace(TRACE_EPALLOCREQ, ((struct imxrt_ep_s *)ep)->epphy);
 
-  privreq = (struct imxrt_req_s *)kmm_malloc(sizeof(struct imxrt_req_s));
+  privreq = kmm_malloc(sizeof(struct imxrt_req_s));
   if (!privreq)
     {
       usbtrace(TRACE_DEVERROR(IMXRT_TRACEERR_ALLOCFAIL), 0);
@@ -2880,6 +2884,32 @@ void arm_usbinitialize(void)
   /* Clock run */
 
   imxrt_clockall_usboh3();
+
+#ifdef CONFIG_ARCH_FAMILY_IMXRT117x
+  up_mdelay(1);
+
+  putreg32(USBPHY1_PLL_SIC_PLL_POWER |
+           USBPHY1_PLL_SIC_PLL_REG_ENABLE,
+           IMXRT_USBPHY1_PLL_SIC_SET);
+
+  putreg32(USBPHY1_PLL_SIC_PLL_DIV_SEL_MASK,
+           IMXRT_USBPHY1_PLL_SIC_CLR);
+
+  putreg32(USBPHY1_PLL_SIC_PLL_DIV_SEL(3),
+           IMXRT_USBPHY1_PLL_SIC_SET);
+
+  putreg32(USBPHY1_PLL_SIC_PLL_BYPASS,
+           IMXRT_USBPHY1_PLL_SIC_CLR);
+
+  putreg32(USBPHY1_PLL_SIC_PLL_EN_USB_CLKS,
+           IMXRT_USBPHY1_PLL_SIC_SET);
+
+  putreg32(USBPHY_CTRL_CLKGATE,
+           IMXRT_USBPHY1_CTRL_CLR);
+
+  while ((getreg32(IMXRT_USBPHY1_PLL_SIC) & USBPHY1_PLL_SIC_PLL_LOCK) == 0);
+
+#endif
 
   /* Disable USB interrupts */
 

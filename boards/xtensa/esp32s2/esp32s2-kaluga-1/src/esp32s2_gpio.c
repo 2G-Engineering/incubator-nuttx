@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s2/esp32s2-kaluga-1/src/esp32s2_gpio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -374,7 +376,7 @@ static int gpint_enable(struct gpio_dev_s *dev, bool enable)
 
           /* Configure the interrupt for rising edge */
 
-          esp32s2_gpioirqenable(irq, GPIO_INTR_POSEDGE);
+          esp32s2_gpioirqenable(irq, RISING);
         }
     }
   else

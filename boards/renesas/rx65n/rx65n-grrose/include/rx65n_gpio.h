@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/renesas/rx65n/rx65n-grrose/include/rx65n_gpio.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,7 +30,7 @@
   #define PHY_STS_BIT_MASK             (0x4)
   #define PHY_STS_SHIFT_COUNT          (0x02)
 #else
-  #define PHY_STS_REG			       0x10
+  #define PHY_STS_REG                  0x10
   #define PHY_STS_REG_LINK             (1 << 0)
   #define PHY_STS_READ_REG             PHY_STS_REG
   #define PHY_STS_BIT_MASK             (0x1)

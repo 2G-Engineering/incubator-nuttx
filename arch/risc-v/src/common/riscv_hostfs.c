@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/common/riscv_hostfs.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -76,6 +78,8 @@ static ssize_t host_flen(long fd)
 
 static int host_flags_to_mode(int flags)
 {
+  static const int modemasks = O_RDONLY | O_WRONLY | O_TEXT | O_RDWR |
+                               O_CREAT | O_TRUNC | O_APPEND;
   static const int modeflags[] =
   {
     O_RDONLY | O_TEXT,
@@ -96,7 +100,7 @@ static int host_flags_to_mode(int flags)
   int i;
   for (i = 0; modeflags[i] != 0; i++)
     {
-      if (modeflags[i] == flags)
+      if ((modemasks & flags) == modeflags[i])
         {
           return i;
         }
@@ -185,7 +189,7 @@ ssize_t host_write(int fd, const void *buf, size_t count)
   return ret < 0 ? ret : count - ret;
 }
 
-off_t host_lseek(int fd, off_t offset, int whence)
+off_t host_lseek(int fd, off_t pos, off_t offset, int whence)
 {
   off_t ret = -ENOSYS;
 
@@ -197,6 +201,11 @@ off_t host_lseek(int fd, off_t offset, int whence)
           offset += ret;
           whence = SEEK_SET;
         }
+    }
+  else if (whence == SEEK_CUR)
+    {
+      offset += pos;
+      whence = SEEK_SET;
     }
 
   if (whence == SEEK_SET)

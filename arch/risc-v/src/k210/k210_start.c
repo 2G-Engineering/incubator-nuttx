@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/k210/k210_start.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -47,12 +49,6 @@
 /****************************************************************************
  * Public Data
  ****************************************************************************/
-
-/* NOTE: g_idle_topstack needs to point the top of the idle stack
- * for CPU0 and this value is used in up_initial_state()
- */
-
-uintptr_t g_idle_topstack = K210_IDLESTACK0_TOP;
 
 /****************************************************************************
  * Public Functions

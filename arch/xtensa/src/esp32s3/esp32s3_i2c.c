@@ -24,7 +24,7 @@
 
 #include <nuttx/config.h>
 
-#ifdef CONFIG_ESP32S3_I2C
+#ifdef CONFIG_ESPRESSIF_I2C_PERIPH_MASTER_MODE
 
 #include <assert.h>
 #include <debug.h>
@@ -257,9 +257,9 @@ static int i2c_sem_waitdone(struct esp32s3_i2c_priv_s *priv);
 #ifdef CONFIG_I2C_POLLED
 static int i2c_polling_waitdone(struct esp32s3_i2c_priv_s *priv);
 #endif
-static void i2c_clear_bus(struct esp32s3_i2c_priv_s *priv);
 static void i2c_reset_fsmc(struct esp32s3_i2c_priv_s *priv);
 #ifdef CONFIG_I2C_RESET
+static void i2c_clear_bus(struct esp32s3_i2c_priv_s *priv);
 static int i2c_reset(struct i2c_master_s *dev);
 #endif
 
@@ -662,12 +662,15 @@ static void i2c_init_clock(struct esp32s3_i2c_priv_s *priv,
 
   /* According to the Technical Reference Manual, the following timings must
    * be subtracted by 1.
-   * Moreover, the frequency calculation also shows that we must subtract 3
-   * to the total SCL.
+   * However, according to the practical measurement and some hardware
+   * behaviour, if wait_high_period and scl_high minus one. The SCL frequency
+   * would be a little higher than expected. Therefore, the solution here is
+   * not to minus scl_high as well as scl_wait_high, and the frequency will
+   * be absolutely accurate to all frequency to some extent.
    */
 
   scl_low       = half_cycle;
-  putreg32(scl_low - 1 - 2, I2C_SCL_LOW_PERIOD_REG(priv->id));
+  putreg32(scl_low - 1, I2C_SCL_LOW_PERIOD_REG(priv->id));
 
   /* By default, scl_wait_high must be less than scl_high.
    * A time compensation is needed for when the bus frequency is higher
@@ -678,8 +681,8 @@ static void i2c_init_clock(struct esp32s3_i2c_priv_s *priv,
                                         (half_cycle / 5 * 4 + 4);
   scl_wait_high = half_cycle - scl_high;
 
-  reg_value     = VALUE_TO_FIELD(scl_high - 1 - 1, I2C_SCL_HIGH_PERIOD);
-  reg_value    |= VALUE_TO_FIELD(scl_wait_high - 1 - 1,
+  reg_value     = VALUE_TO_FIELD(scl_high, I2C_SCL_HIGH_PERIOD);
+  reg_value    |= VALUE_TO_FIELD(scl_wait_high,
                                  I2C_SCL_WAIT_HIGH_PERIOD);
   putreg32(reg_value, I2C_SCL_HIGH_PERIOD_REG(priv->id));
 
@@ -820,8 +823,6 @@ static void i2c_reset_fsmc(struct esp32s3_i2c_priv_s *priv)
   /* Reset FSM machine */
 
   modifyreg32(I2C_CTR_REG(priv->id), 0, I2C_FSM_RST);
-
-  i2c_clear_bus(priv);
 }
 
 /****************************************************************************
@@ -861,7 +862,7 @@ static int i2c_sem_waitdone(struct esp32s3_i2c_priv_s *priv)
  *   priv          - Pointer to the internal driver state structure.
  *
  * Returned Values:
- *   Zero (OK) is returned on successfull transfer. -ETIMEDOUT is returned
+ *   Zero (OK) is returned on successful transfer. -ETIMEDOUT is returned
  *   in case a transfer didn't finish within the timeout interval. And ERROR
  *   is returned in case of any I2C error during the transfer has happened.
  *
@@ -1119,15 +1120,16 @@ static int i2c_transfer(struct i2c_master_s *dev, struct i2c_msg_s *msgs,
  *
  ****************************************************************************/
 
+#ifdef CONFIG_I2C_RESET
 static void i2c_clear_bus(struct esp32s3_i2c_priv_s *priv)
 {
   modifyreg32(I2C_SCL_SP_CONF_REG(priv->id),
               I2C_SCL_RST_SLV_EN | I2C_SCL_RST_SLV_NUM_M,
               VALUE_TO_FIELD(I2C_SCL_CYC_NUM_DEF, I2C_SCL_RST_SLV_NUM));
 
-  modifyreg32(I2C_CTR_REG(priv->id), 0, I2C_CONF_UPGATE);
-
   modifyreg32(I2C_SCL_SP_CONF_REG(priv->id), 0, I2C_SCL_RST_SLV_EN);
+
+  modifyreg32(I2C_CTR_REG(priv->id), 0, I2C_CONF_UPGATE);
 }
 
 /****************************************************************************
@@ -1144,7 +1146,6 @@ static void i2c_clear_bus(struct esp32s3_i2c_priv_s *priv)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_I2C_RESET
 static int i2c_reset(struct i2c_master_s *dev)
 {
   struct esp32s3_i2c_priv_s *priv = (struct esp32s3_i2c_priv_s *)dev;
@@ -1299,8 +1300,8 @@ static void i2c_traceevent(struct esp32s3_i2c_priv_s *priv,
 
       /* Initialize the new trace entry */
 
-      trace->event  = event;
-      trace->parm   = parm;
+      trace->event = event;
+      trace->parm  = parm;
 
       /* Bump up the trace index (unless we are out of trace entries) */
 
@@ -1569,7 +1570,7 @@ struct i2c_master_s *esp32s3_i2cbus_initialize(int port)
 
   /* Set up to receive peripheral interrupts on the current CPU */
 
-  priv->cpu = up_cpu_index();
+  priv->cpu = this_cpu();
   priv->cpuint = esp32s3_setup_irq(priv->cpu, config->periph,
                                    1, ESP32S3_CPUINT_LEVEL);
   if (priv->cpuint < 0)
@@ -1646,4 +1647,4 @@ int esp32s3_i2cbus_uninitialize(struct i2c_master_s *dev)
   return OK;
 }
 
-#endif /* CONFIG_ESP32S3_I2C */
+#endif /* CONFIG_ESPRESSIF_I2C_PERIPH_MASTER_MODE */

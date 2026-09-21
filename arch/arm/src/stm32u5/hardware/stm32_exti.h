@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32u5/hardware/stm32_exti.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -49,9 +51,9 @@
 #define STM32_EXTI_SECCFGR2_OFFSET   0x0034  /* Security Configuration 2         */
 #define STM32_EXTI_PRIVCFGR2_OFFSET  0x0038  /* Privilege Configuration 2        */
 #define STM32_EXTI_EXTICR1_OFFSET    0x0060  /* External Interrupt Selection 1   */
-#define STM32_EXTI_EXTICR2_OFFSET    0x0060  /* External Interrupt Selection 2   */
-#define STM32_EXTI_EXTICR3_OFFSET    0x0060  /* External Interrupt Selection 3   */
-#define STM32_EXTI_EXTICR4_OFFSET    0x0060  /* External Interrupt Selection 4   */
+#define STM32_EXTI_EXTICR2_OFFSET    0x0064  /* External Interrupt Selection 2   */
+#define STM32_EXTI_EXTICR3_OFFSET    0x0068  /* External Interrupt Selection 3   */
+#define STM32_EXTI_EXTICR4_OFFSET    0x006C  /* External Interrupt Selection 4   */
 #define STM32_EXTI_LOCKR_OFFSET      0x0070  /* Lock                             */
 #define STM32_EXTI_IMR1_OFFSET       0x0080  /* CPU Wakeup with Interrupt Mask 1 */
 #define STM32_EXTI_EMR1_OFFSET       0x0084  /* CPU Wakeup with Event Mask 1     */

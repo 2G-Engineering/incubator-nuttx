@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samv7/hardware/sam_pwm.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -463,4 +465,4 @@
 #define LEBR_PWMHFEN            (1 << 18) /* Bit 17: PWMH Falling Edge Enable */
 #define LEBR_PWMHREN            (1 << 19) /* Bit 18: PWMH Rising Edge Enable */
 
-#endif  /* CONFIG_SAMV7_PWM */
+#endif /* CONFIG_SAMV7_PWM */

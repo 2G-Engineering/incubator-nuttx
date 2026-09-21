@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/include/imxrt/irq.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -38,6 +40,8 @@
 #  include <arch/imxrt/imxrt105x_irq.h>
 #elif defined(CONFIG_ARCH_FAMILY_IMXRT106x)
 #  include <arch/imxrt/imxrt106x_irq.h>
+#elif defined(CONFIG_ARCH_FAMILY_IMXRT117x)
+#  include <arch/imxrt/imxrt117x_irq.h>
 #else
 #  error Unrecognized i.MX RT architecture
 #endif

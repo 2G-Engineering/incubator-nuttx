@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/obstack/lib_obstack_malloc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -66,6 +68,7 @@ FAR void *lib_obstack_malloc(size_t size)
 
   obstack_alloc_failed_handler();
   PANIC();
+  return NULL;
 }
 
 FAR void *lib_obstack_realloc(FAR void *ptr, size_t size)
@@ -79,4 +82,5 @@ FAR void *lib_obstack_realloc(FAR void *ptr, size_t size)
 
   obstack_alloc_failed_handler();
   PANIC();
+  return NULL;
 }

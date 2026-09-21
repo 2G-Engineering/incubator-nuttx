@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/nrf52/nrf52_lowputc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -201,6 +203,12 @@ static void nrf52_setbaud(uintptr_t base, const struct uart_config_s *config)
       case 921600:
         {
           br = UART_BAUDRATE_921600;
+          break;
+        }
+
+      case 1000000:
+        {
+          br = UART_BAUDRATE_1000000;
           break;
         }
 

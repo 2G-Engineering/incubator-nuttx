@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/task/task_activate.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -80,9 +82,12 @@ void nxtask_activate(FAR struct tcb_s *tcb)
   sched_note_start(tcb);
 #endif
 
-  /* Remove the task from waitting list */
+  /* Remove the task from waiting list */
 
   nxsched_remove_blocked(tcb);
+
+  sinfo("%s pid=%d,TCB=%p\n", get_task_name(tcb),
+        tcb->pid, tcb);
 
   /* Add the task to ready-to-run task list, and
    * perform the context switch if one is needed

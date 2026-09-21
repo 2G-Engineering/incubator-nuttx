@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/x86_64/src/common/x86_64_getintstack.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -37,8 +39,8 @@
  ****************************************************************************/
 
 #if CONFIG_ARCH_INTERRUPTSTACK > 3
-uintptr_t up_get_intstackbase(void)
+uintptr_t up_get_intstackbase(int cpu)
 {
-  return (uintptr_t)g_intstackalloc;
+  return (uintptr_t)(g_intstackalloc + (cpu * IRQ_STACK_SIZE));
 }
 #endif

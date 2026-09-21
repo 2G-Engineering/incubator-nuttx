@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/lpc43xx/lpc43_spifi.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -1238,7 +1240,7 @@ struct mtd_dev_s *lpc43_spifi_initialize(void)
 
   /* Allocate a buffer for the erase block cache */
 
-  priv->cache = (uint8_t *)kmm_malloc(SPIFI_BLKSIZE);
+  priv->cache = kmm_malloc(SPIFI_BLKSIZE);
   if (!priv->cache)
     {
       /* Allocation failed!

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s3/esp32s3-devkit/src/esp32s3_buttons.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -151,7 +153,7 @@ int board_button_irq(int id, xcpt_t irqhandler, void *arg)
 
       /* Configure the interrupt for rising and falling edges */
 
-      esp32s3_gpioirqenable(irq, GPIO_INTR_ANYEDGE);
+      esp32s3_gpioirqenable(irq, CHANGE);
     }
   else
     {

@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/timers/oneshot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -40,7 +42,7 @@
 #ifdef CONFIG_ONESHOT
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 /* This structure describes the state of the upper half driver */
@@ -110,7 +112,7 @@ static void oneshot_callback(FAR struct oneshot_lowerhalf_s *lower,
  * Name: oneshot_read
  *
  * Description:
- *   A dummy read method.  This is provided only to satsify the VFS layer.
+ *   A dummy read method.  This is provided only to satisfy the VFS layer.
  *
  ****************************************************************************/
 
@@ -120,7 +122,6 @@ static ssize_t oneshot_read(FAR struct file *filep, FAR char *buffer,
   /* Return zero -- usually meaning end-of-file */
 
   tmrinfo("buflen=%ld\n", (unsigned long)buflen);
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   return 0;
 }
 
@@ -128,7 +129,7 @@ static ssize_t oneshot_read(FAR struct file *filep, FAR char *buffer,
  * Name: oneshot_write
  *
  * Description:
- *   A dummy write method.  This is provided only to satsify the VFS layer.
+ *   A dummy write method.  This is provided only to satisfy the VFS layer.
  *
  ****************************************************************************/
 
@@ -138,7 +139,6 @@ static ssize_t oneshot_write(FAR struct file *filep, FAR const char *buffer,
   /* Return a failure */
 
   tmrinfo("buflen=%ld\n", (unsigned long)buflen);
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   return -EPERM;
 }
 
@@ -158,9 +158,8 @@ static int oneshot_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   tmrinfo("cmd=%d arg=%08lx\n", cmd, (unsigned long)arg);
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
-  priv  = (FAR struct oneshot_dev_s *)inode->i_private;
+  priv  = inode->i_private;
   DEBUGASSERT(priv != NULL);
 
   /* Get exclusive access to the device structures */

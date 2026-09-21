@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32/hardware/stm32_dbgmcu.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -145,7 +147,7 @@
 #  define DBGMCU_APB2_TIM10STOP   (1 << 3)   /* Bit 3:  TIM10 stopped when core is halted */
 #  define DBGMCU_APB2_TIM11STOP   (1 << 4)   /* Bit 4:  TIM11 stopped when core is halted */
 #endif
-#endif  /* CONFIG_STM32_HAVE_IP_DBGMCU_V2 */
+#endif /* CONFIG_STM32_HAVE_IP_DBGMCU_V2 */
 
 #ifdef CONFIG_STM32_HAVE_IP_DBGMCU_V3
 
@@ -178,7 +180,7 @@
 #  define DBGMCU_APB2_TIM20STOP      (1 << 20)  /* Bit 20:  TIM20 stopped when core is halted */
 #  define DBGMCU_APB2_HRTIMSTOP      (1 << 26)  /* Bit 20:  HRTIM stopped when core is halted */
 
-#endif  /* CONFIG_STM32_HAVE_IP_DBGMCU_V3 */
+#endif /* CONFIG_STM32_HAVE_IP_DBGMCU_V3 */
 
 /****************************************************************************
  * Public Types

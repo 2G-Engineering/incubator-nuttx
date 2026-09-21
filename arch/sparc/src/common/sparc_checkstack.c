@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sparc/src/common/sparc_checkstack.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -204,9 +206,9 @@ size_t up_check_tcbstack(struct tcb_s *tcb)
 }
 
 #if CONFIG_ARCH_INTERRUPTSTACK > 7
-size_t up_check_intstack(void)
+size_t up_check_intstack(int cpu)
 {
-  return sparc_stack_check((void *)sparc_intstack_alloc(),
+  return sparc_stack_check((void *)up_get_intstackbase(cpu),
                            STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK));
 }
 #endif

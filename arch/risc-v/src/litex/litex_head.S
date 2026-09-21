@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/litex/litex_head.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -47,13 +49,13 @@ __start:
 
   /* Disable all interrupts (i.e. timer, external) in mie */
 
-  csrw mie, zero
+  csrw CSR_MIE, zero
 
   /* Initialize the Machine Trap Vector */
 
   lui  t0, %hi(__trap_vec)
   addi t0, t0, %lo(__trap_vec)
-  csrw  mtvec, t0
+  csrw CSR_MTVEC, t0
 
   /* Jump to __litex_start */
 

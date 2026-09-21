@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/lpc17xx_40xx/lx_cpu/src/lpc17_40_nsh.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -147,6 +149,9 @@ static struct usbhost_connection_s *g_usbconn;
 #ifdef NSH_HAVE_MMCSD
 static struct sdio_dev_s *g_sdiodev;
 #endif
+#ifdef NSH_HAVE_MMCSD_CD
+static bool g_sd_inserted;
+#endif
 
 /****************************************************************************
  * Private Functions
@@ -201,14 +206,13 @@ static int nsh_waiter(int argc, char *argv[])
 #ifdef NSH_HAVE_MMCSD_CDINT
 static int nsh_cdinterrupt(int irq, void *context)
 {
-  static bool inserted = 0xff; /* Impossible value */
   bool present;
 
   present = !lpc17_40_gpioread(GPIO_SD_CD);
-  if (present != inserted)
+  if (present != g_sd_inserted)
     {
       sdio_mediachange(g_sdiodev, present);
-      inserted = present;
+      g_sd_inserted = present;
     }
 
   return OK;
@@ -270,7 +274,8 @@ static int nsh_sdinitialize(void)
    */
 
 #ifdef NSH_HAVE_MMCSD_CD
-  sdio_mediachange(g_sdiodev, !lpc17_40_gpioread(GPIO_SD_CD));
+  g_sd_inserted = !lpc17_40_gpioread(GPIO_SD_CD);
+  sdio_mediachange(g_sdiodev, g_sd_inserted);
 #else
   sdio_mediachange(g_sdiodev, true);
 #endif

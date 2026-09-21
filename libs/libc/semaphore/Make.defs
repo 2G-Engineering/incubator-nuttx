@@ -1,6 +1,8 @@
 ############################################################################
 # libs/libc/semaphore/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,10 +22,16 @@
 
 # Add the semaphore C files to the build
 
-CSRCS += sem_init.c sem_getprotocol.c sem_getvalue.c
+CSRCS += sem_init.c sem_setprotocol.c sem_getprotocol.c sem_getvalue.c
+CSRCS += sem_destroy.c sem_wait.c sem_trywait.c sem_timedwait.c
+CSRCS += sem_clockwait.c sem_post.c
 
-ifneq ($(CONFIG_PRIORITY_INHERITANCE),y)
-CSRCS += sem_setprotocol.c
+ifeq ($(CONFIG_FS_NAMED_SEMAPHORES),y)
+CSRCS += sem_open.c sem_close.c sem_unlink.c
+endif
+
+ifeq ($(CONFIG_PRIORITY_PROTECT),y)
+CSRCS += sem_getprioceiling.c sem_setprioceiling.c
 endif
 
 # Add the semaphore directory to the build

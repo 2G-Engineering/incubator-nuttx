@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/icmpv6/icmpv6_sockif.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -163,7 +165,7 @@ static int icmpv6_setup(FAR struct socket *psock)
  *           queried.
  *
  * Returned Value:
- *   The set of socket cababilities is returned.
+ *   The set of socket capabilities is returned.
  *
  ****************************************************************************/
 
@@ -190,8 +192,6 @@ static sockcaps_t icmpv6_sockcaps(FAR struct socket *psock)
 static void icmpv6_addref(FAR struct socket *psock)
 {
   FAR struct icmpv6_conn_s *conn;
-
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
 
   conn = psock->s_conn;
   DEBUGASSERT(conn->crefs > 0 && conn->crefs < 255);
@@ -255,7 +255,6 @@ static int icmpv6_close(FAR struct socket *psock)
 {
   FAR struct icmpv6_conn_s *conn;
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
   conn = psock->s_conn;
 
   /* Is this the last reference to the connection structure (there could be\

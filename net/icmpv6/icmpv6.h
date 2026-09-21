@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/icmpv6/icmpv6.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -166,6 +168,26 @@ EXTERN const struct sock_intf_s g_icmpv6_sockif;
  ****************************************************************************/
 
 /****************************************************************************
+ * Name: icmpv6_devinit
+ *
+ * Description:
+ *   Called when a new network device is registered to configure that device
+ *   for ICMPv6 support.
+ *
+ * Input Parameters:
+ *   dev   - The device driver structure to configure.
+ *
+ * Returned Value:
+ *   None
+ *
+ * Assumptions:
+ *   The network is locked.
+ *
+ ****************************************************************************/
+
+void icmpv6_devinit(FAR struct net_driver_s *dev);
+
+/****************************************************************************
  * Name: icmpv6_input
  *
  * Description:
@@ -205,6 +227,8 @@ void icmpv6_input(FAR struct net_driver_s *dev, unsigned int iplen);
  *   ICMPv6 Neighbor Advertisement.
  *
  * Input Parameters:
+ *   dev      The suggested device driver structure to do the solicitation,
+ *            can be NULL for auto decision, must set for link-local ipaddr.
  *   ipaddr   The IPv6 address to be queried.
  *
  * Returned Value:
@@ -221,9 +245,10 @@ void icmpv6_input(FAR struct net_driver_s *dev, unsigned int iplen);
  ****************************************************************************/
 
 #ifdef CONFIG_NET_ICMPv6_NEIGHBOR
-int icmpv6_neighbor(const net_ipv6addr_t ipaddr);
+int icmpv6_neighbor(FAR struct net_driver_s *dev,
+                    const net_ipv6addr_t ipaddr);
 #else
-#  define icmpv6_neighbor(i) (0)
+#  define icmpv6_neighbor(d,i) (0)
 #endif
 
 /****************************************************************************
@@ -310,6 +335,7 @@ void icmpv6_rsolicit(FAR struct net_driver_s *dev);
  ****************************************************************************/
 
 void icmpv6_advertise(FAR struct net_driver_s *dev,
+                      const net_ipv6addr_t tgtaddr,
                       const net_ipv6addr_t destipaddr);
 
 /****************************************************************************
@@ -532,22 +558,9 @@ int icmpv6_rwait(FAR struct icmpv6_rnotify_s *notify, unsigned int timeout);
  ****************************************************************************/
 
 #ifdef CONFIG_NET_ICMPv6_AUTOCONF
-void icmpv6_rnotify(FAR struct net_driver_s *dev);
+void icmpv6_rnotify(FAR struct net_driver_s *dev, int result);
 #else
-#  define icmpv6_rnotify(d) (0)
-#endif
-
-/****************************************************************************
- * Name: icmpv6_sock_initialize
- *
- * Description:
- *   Initialize the IPPROTO_ICMP socket connection structures.  Called once
- *   and only from the network initialization layer.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_NET_ICMPv6_SOCKET
-void icmpv6_sock_initialize(void);
+#  define icmpv6_rnotify(d,r) (0)
 #endif
 
 /****************************************************************************

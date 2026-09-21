@@ -1,8 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_dtoa_engine.c
  *
- *   Copyright © 2018, Keith Packard
- *   All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2018, Keith Packard. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -51,6 +51,20 @@
  * by pasting the value of DBL_DIG onto '1e' to
  */
 
+/* Green hills #define DBL_DIG (6) or #define DBL_DIG (15)
+ * we need remove "()" here
+ */
+
+#if DBL_DIG == 6
+#  undef DBL_DIG
+#  define DBL_DIG 6
+#endif
+
+#if DBL_DIG == 15
+#  undef DBL_DIG
+#  define DBL_DIG 15
+#endif
+
 #define PASTE(a)      1e##a
 #define SUBSTITUTE(a) PASTE(a)
 #define MIN_MANT      (SUBSTITUTE(DBL_DIG))
@@ -69,7 +83,7 @@ int __dtoa_engine(double x, FAR struct dtoa_s *dtoa, int max_digits,
   uint8_t flags = 0;
   int i;
 
-  if (__builtin_signbit(x))
+  if (x < 0)
     {
       flags |= DTOA_MINUS;
       x = -x;

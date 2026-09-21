@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/motor/foc/foc_dummy.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -474,7 +476,7 @@ static void foc_dummy_notifier_handler(FAR struct foc_dev_s *dev)
       /* Call FOC notifier */
 
 #ifdef CONFIG_MOTOR_FOC_BEMF_SENSE
-      sim->cb->notifier(dev, sim->current, sim->voltage);
+      sim->cb->notifier(dev, sim->current, sim->volt);
 #else
       sim->cb->notifier(dev, sim->current, NULL);
 #endif

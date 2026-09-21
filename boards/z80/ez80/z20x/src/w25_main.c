@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/z80/ez80/z20x/src/w25_main.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -131,7 +133,7 @@ static int w25_read_hex(FAR uint24_t *len)
   printf("Send Intel HEX file now\n");
   fflush(stdout);
 
-  ret = hex2bin(&rawinstream.public, &memoutstream.public,
+  ret = hex2bin(&rawinstream.common, &memoutstream.common,
                 (uint32_t)PROGSTART, (uint32_t)(PROGSTART + PROGSIZE),
                 0);
 
@@ -147,7 +149,7 @@ static int w25_read_hex(FAR uint24_t *len)
   printf("Intel HEX file into memory loaded into RAM...\n");
   fflush(stdout);
 
-  *len = memoutstream.public.nput;
+  *len = memoutstream.common.nput;
   return OK;
 }
 

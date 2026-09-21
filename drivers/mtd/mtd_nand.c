@@ -1,7 +1,8 @@
 /****************************************************************************
  * drivers/mtd/mtd_nand.c
  *
- *   Copyright (c) 2011, 2012, Atmel Corporation
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: Copyright (c) 2011, 2012, Atmel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -44,6 +45,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <debug.h>
+#include <stdio.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/ioctl.h>
@@ -77,7 +79,8 @@
 
 static int     nand_markblock(FAR struct nand_dev_s *nand, off_t block);
 static int     nand_checkblock(FAR struct nand_dev_s *nand, off_t block);
-#ifdef CONFIG_MTD_NAND_BLOCKCHECK
+#if defined(CONFIG_MTD_NAND_BLOCKCHECK) && defined(CONFIG_DEBUG_INFO) && \
+    defined(CONFIG_DEBUG_FS)
 static int     nand_devscan(FAR struct nand_dev_s *nand);
 #endif
 
@@ -908,7 +911,7 @@ FAR struct mtd_dev_s *nand_raw_initialize(FAR struct nand_raw_s *raw)
 
   /* Allocate an NAND MTD device structure */
 
-  nand = (FAR struct nand_dev_s *)kmm_zalloc(sizeof(struct nand_dev_s));
+  nand = kmm_zalloc(sizeof(struct nand_dev_s));
   if (!nand)
     {
       ferr("ERROR: Failed to allocate the NAND MTD device structure\n");

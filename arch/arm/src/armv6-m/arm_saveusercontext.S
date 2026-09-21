@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv6-m/arm_saveusercontext.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -63,7 +65,7 @@ up_saveusercontext:
 	str		r2, [r0, #(4*REG_R2)]
 	str		r3, [r0, #(4*REG_R3)]
 
-	/* Save r12，r14, pc */
+	/* Save r12, r14, pc */
 
 	mov		r1, r12
 	mov		r2, r14
@@ -92,14 +94,12 @@ up_saveusercontext:
 	/* Save r11 and EXC_RETURN */
 
 	mov		r1, r11
-#ifdef CONFIG_BUILD_PROTECTED
+
 	/* Save EXC_RETURN to 0xffffffff */
 
-	movs		r2, #-1
+	movs		r2, #0
+	subs		r2, #1
 	stmia		r0!, {r1-r2}
-#else
-	stmia		r0!, {r1}
-#endif
 
 	movs		r0, #0
 	bx		lr

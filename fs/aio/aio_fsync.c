@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/aio/aio_fsync.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -191,7 +193,12 @@ int aio_fsync(int op, FAR struct aiocb *aiocbp)
   FAR struct aio_container_s *aioc;
   int ret;
 
-  DEBUGASSERT(op == O_SYNC); /* || op == O_DSYNC */
+  if (op != O_SYNC)
+    {
+      set_errno(EINVAL);
+      return ERROR;
+    }
+
   DEBUGASSERT(aiocbp);
 
   /* The result -EINPROGRESS means that the transfer has not yet completed */

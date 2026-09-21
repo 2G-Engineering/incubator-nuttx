@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imxrt/imxrt_xbar.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,11 +41,13 @@
  * Private Data
  ****************************************************************************/
 
+static const uint16_t g_xbars_masks[] = IMXRT_XBAR_SEL_MASKS;
+
 static const uintptr_t g_xbars_addresses[] =
 {
   IMXRT_XBAR1_BASE,
   IMXRT_XBAR2_BASE,
-#if (defined(CONFIG_ARCH_FAMILY_IMXRT105x) || defined (CONFIG_ARCH_FAMILY_IMXRT106x))
+#if (defined(IMXRT_XBAR3_BASE))
   IMXRT_XBAR3_BASE
 #endif
 };
@@ -80,7 +84,7 @@ int imxrt_xbar_connect(uint16_t mux_index_out, uint16_t mux_index_input)
   mux_select = IMXRT_SEL(mux_index_out);
   mux_input  = IMXRT_SEL(mux_index_input);
   xbar_index = IMXRT_XBAR(mux_index_out);
-  clearbits  = IMXRT_SEL0_MASK;
+  clearbits  = g_xbars_masks[xbar_index];
 
   switch (xbar_index)
     {
@@ -91,7 +95,7 @@ int imxrt_xbar_connect(uint16_t mux_index_out, uint16_t mux_index_input)
         imxrt_clockall_xbar2();
         break;
       case 2:
-#if (defined(CONFIG_ARCH_FAMILY_IMXRT105x) || defined(CONFIG_ARCH_FAMILY_IMXRT106x))
+#if defined(IMXRT_XBAR3_BASE)
         imxrt_clockall_xbar3();
         break;
 #endif

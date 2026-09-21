@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/avr/at32uc3/avr32dev1/scripts/avr32dev1.ld
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,7 +41,8 @@ MEMORY
 SECTIONS
 {
     .text : {
-        _stext = ABSOLUTE(.);
+        . = ALIGN(4);
+        _stext = .;
         *(.vectors)
         *(.text .text.*)
         *(.fixup)
@@ -51,27 +54,29 @@ SECTIONS
         *(.got)
         *(.gcc_except_table)
         *(.gnu.linkonce.r.*)
-        _etext = ABSOLUTE(.);
+        . = ALIGN(4);
+        _etext = .;
     } > flash
 
-    _eronly = ABSOLUTE(.);      /* See below                    */
+    _eronly = .;                /* See below                    */
 
-    .data : {
-        _sdata = ABSOLUTE(.);
+    .data : AT(_etext) {
+        . = ALIGN(4);
+        _sdata = .;
         *(.data .data.*)
         *(.gnu.linkonce.d.*)
         CONSTRUCTORS
         . = ALIGN(4);
-        _edata = ABSOLUTE(.);
-    } > intram AT > flash
+        _edata = .;
+    } > intram
 
     .bss : {            /* BSS              */
-        _sbss = ABSOLUTE(.);
+        _sbss = .;
         *(.bss .bss.*)
         *(.gnu.linkonce.b.*)
         *(COMMON)
         . = ALIGN(4);
-        _ebss = ABSOLUTE(.);
+        _ebss = .;
     } > intram
     /* Stabs debugging sections.    */
     .stab 0 : { *(.stab) }

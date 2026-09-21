@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/sama5/sama5d4-ek/scripts/isram.ld
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -56,7 +58,8 @@ SECTIONS
     .init_section :
     {
         _sinit = ABSOLUTE(.);
-        *(.init_array .init_array.*)
+        KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
+        KEEP(*(.init_array EXCLUDE_FILE(*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o) .ctors))
         _einit = ABSOLUTE(.);
     } > isram
 
@@ -84,6 +87,15 @@ SECTIONS
         _edata = ABSOLUTE(.);
     } > isram
 
+    /* Uninitialized data */
+
+    .noinit :
+    {
+        _snoinit = ABSOLUTE(.);
+        *(.noinit*)
+        _enoinit = ABSOLUTE(.);
+    } > isram
+
     .bss :
     {
         _sbss = ABSOLUTE(.);
@@ -92,15 +104,6 @@ SECTIONS
         *(COMMON)
         . = ALIGN(4);
         _ebss = ABSOLUTE(.);
-    } > isram
-
-    /* Uninitialized data */
-
-    .noinit :
-    {
-        _snoinit = ABSOLUTE(.);
-        *(.noinit*)
-        _enoinit = ABSOLUTE(.);
     } > isram
 
     /* Stabs debugging sections. */

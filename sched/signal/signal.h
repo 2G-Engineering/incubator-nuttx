@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/signal/signal.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,6 +33,7 @@
 #include <stdbool.h>
 #include <sched.h>
 
+#include <nuttx/sched.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/queue.h>
 
@@ -42,7 +45,6 @@
  * allocate in a block
  */
 
-#define NUM_SIGNAL_ACTIONS       4
 #define NUM_PENDING_ACTIONS      4
 #define NUM_SIGNALS_PENDING      4
 
@@ -78,6 +80,7 @@ typedef struct sigactq  sigactq_t;
 struct sigpendq
 {
   FAR struct sigpendq *flink;    /* Forward link */
+  FAR struct tcb_s *tcb;         /* TCB of thread to deliver to */
   siginfo_t info;                /* Signal information */
   uint8_t   type;                /* (Used to manage allocations) */
 };
@@ -166,8 +169,10 @@ int                nxsig_default_initialize(FAR struct tcb_s *tcb);
 /* sig_dispatch.c */
 
 int                nxsig_tcbdispatch(FAR struct tcb_s *stcb,
-                                     FAR siginfo_t *info);
-int                nxsig_dispatch(pid_t pid, FAR siginfo_t *info);
+                                     FAR siginfo_t *info,
+                                     bool group_dispatch);
+int                nxsig_dispatch(pid_t pid, FAR siginfo_t *info,
+                                  bool thread);
 
 /* sig_cleanup.c */
 

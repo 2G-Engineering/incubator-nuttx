@@ -1,6 +1,8 @@
 /***************************************************************************
  * libs/libc/machine/arm/armv7-m/gnu/arch_strcpy.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -20,7 +22,7 @@
 
 #include "libc.h"
 
-#ifdef LIBC_BUILD_STRING
+#ifdef LIBC_BUILD_STRCPY
 
 /* This strcpy borrowed some ideas from arch_strcmp.S(). */
 
@@ -58,12 +60,13 @@
 
     .syntax unified
     .text
+    .section .text.strcpy
     .align  2
-    .global strcpy
+    .global ARCH_LIBCFUN(strcpy)
     .thumb
-    .type   strcpy, %function
+    .type   ARCH_LIBCFUN(strcpy), %function
 
-strcpy:
+ARCH_LIBCFUN(strcpy):
     push    {result, tmp1, tmp2, tmp3, src_offset}
     eor     tmp1, dst, src
     tst     tmp1, #3 

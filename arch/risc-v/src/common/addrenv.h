@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/common/addrenv.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -58,7 +60,7 @@
 
 /* User address environment end */
 
-#define ARCH_ADDRENV_VEND       (ARCH_ADDRENV_VBASE + ARCH_ADDRENV_MAX_SIZE)
+#define ARCH_ADDRENV_VEND       (ARCH_ADDRENV_VBASE + ARCH_ADDRENV_MAX_SIZE - 1)
 
 /****************************************************************************
  * Public Function Prototypes

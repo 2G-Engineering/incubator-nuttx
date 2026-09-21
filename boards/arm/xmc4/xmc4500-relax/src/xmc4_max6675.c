@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/xmc4/xmc4500-relax/src/xmc4_max6675.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -71,7 +73,7 @@ int xmc4_max6675initialize(const char *devpath)
       return -ENODEV;
     }
 
-  /* Then register the barometer sensor */
+  /* Then register the temperature sensor */
 
   ret = max6675_register(devpath, spi);
   if (ret < 0)

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/win/sim_hostfs.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -80,7 +82,7 @@ static void host_stat_convert(struct _stat *hostbuf,
  * Name: host_open
  ****************************************************************************/
 
-int host_open(const char *pathname, int flags, nuttx_mode_t mode)
+int host_open(const char *pathname, int flags, int mode)
 {
   int mapflags = 0;
   int ret;
@@ -200,7 +202,8 @@ nuttx_ssize_t host_write(int fd, const void *buf, nuttx_size_t count)
  * Name: host_lseek
  ****************************************************************************/
 
-nuttx_off_t host_lseek(int fd, nuttx_off_t offset, int whence)
+nuttx_off_t host_lseek(int fd, nuttx_off_t pos, nuttx_off_t offset,
+                       int whence)
 {
   /* Just call the lseek routine */
 
@@ -381,7 +384,7 @@ int host_unlink(const char *pathname)
  * Name: host_mkdir
  ****************************************************************************/
 
-int host_mkdir(const char *pathname, nuttx_mode_t mode)
+int host_mkdir(const char *pathname, int mode)
 {
   /* Just call the host's mkdir routine */
 

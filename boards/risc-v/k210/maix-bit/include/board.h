@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/risc-v/k210/maix-bit/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,10 +32,6 @@
 #ifndef __ASSEMBLY__
 #  include <stdint.h>
 #endif
-
-#include "k210.h"
-
-#include "k210_fpioa.h"
 
 /****************************************************************************
  * Pre-processor Definitions

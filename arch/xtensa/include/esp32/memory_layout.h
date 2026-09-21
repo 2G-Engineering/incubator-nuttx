@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/xtensa/include/esp32/memory_layout.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -122,9 +124,9 @@
 #endif
 
 #ifdef CONFIG_XTENSA_IMEM_USE_SEPARATE_HEAP
-#  define	XTENSA_IMEM_REGION_SIZE	CONFIG_XTENSA_IMEM_REGION_SIZE
+#  define XTENSA_IMEM_REGION_SIZE  CONFIG_XTENSA_IMEM_REGION_SIZE
 #else
-#  define	XTENSA_IMEM_REGION_SIZE	0
+#  define XTENSA_IMEM_REGION_SIZE  0
 #endif
 
 /* Internal heap starts at the end of the ROM data.

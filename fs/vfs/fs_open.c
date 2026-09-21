@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_open.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,15 +35,62 @@
 #include <assert.h>
 #include <stdarg.h>
 
+#include <nuttx/sched.h>
 #include <nuttx/cancelpt.h>
 #include <nuttx/fs/fs.h>
 
+#include "sched/sched.h"
 #include "inode/inode.h"
 #include "driver/driver.h"
+#include "notify/notify.h"
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: inode_checkflags
+ *
+ * Description:
+ *   Check if the access described by 'oflags' is supported on 'inode'
+ *
+ *   inode_checkflags() is an internal NuttX interface and should not be
+ *   called from applications.
+ *
+ * Input Parameters:
+ *   inode  - The inode to check
+ *   oflags - open flags.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success.  On failure, a negated errno value is
+ *   returned.
+ *
+ ****************************************************************************/
+
+static int inode_checkflags(FAR struct inode *inode, int oflags)
+{
+  FAR const struct file_operations *ops = inode->u.i_ops;
+
+  if (INODE_IS_PSEUDODIR(inode))
+    {
+      return OK;
+    }
+
+  if (ops == NULL)
+    {
+      return -ENXIO;
+    }
+
+  if (((oflags & O_RDOK) != 0 && !ops->readv && !ops->read && !ops->ioctl) ||
+      ((oflags & O_WROK) != 0 && !ops->writev && !ops->write && !ops->ioctl))
+    {
+      return -EACCES;
+    }
+  else
+    {
+      return OK;
+    }
+}
 
 /****************************************************************************
  * Name: file_vopen
@@ -75,7 +124,7 @@ static int file_vopen(FAR struct file *filep, FAR const char *path,
 {
   struct inode_search_s desc;
   FAR struct inode *inode;
-#ifndef CONFIG_DISABLE_MOUNTPOINT
+#if !defined(CONFIG_DISABLE_MOUNTPOINT) || defined(CONFIG_PSEUDOFS_FILE)
   mode_t mode = 0666;
 #endif
   int ret;
@@ -89,7 +138,7 @@ static int file_vopen(FAR struct file *filep, FAR const char *path,
 
   /* If the file is opened for creation, then get the mode bits */
 
-  if ((oflags & (O_WRONLY | O_CREAT)) != 0)
+  if ((oflags & O_CREAT) != 0)
     {
       mode = va_arg(ap, mode_t);
     }
@@ -104,12 +153,22 @@ static int file_vopen(FAR struct file *filep, FAR const char *path,
   ret = inode_find(&desc);
   if (ret < 0)
     {
-      /* "O_CREAT is not set and the named file does not exist.  Or, a
-       * directory component in pathname does not exist or is a dangling
-       * symbolic link."
-       */
+#ifdef CONFIG_PSEUDOFS_FILE
+      if ((oflags & O_CREAT) != 0)
+        {
+          ret = pseudofile_create(&desc.node, path, mode);
+        }
+#endif
 
-      goto errout_with_search;
+      if (ret < 0)
+        {
+          /* "O_CREAT is not set and the named file does not exist.  Or, a
+           * directory component in pathname does not exist or is a dangling
+           * symbolic link."
+           */
+
+          goto errout_with_search;
+        }
     }
 
   /* Get the search results */
@@ -142,7 +201,19 @@ static int file_vopen(FAR struct file *filep, FAR const char *path,
 
       /* Get the file structure of the opened character driver proxy */
 
-      return block_proxy(filep, path, oflags);
+#ifdef CONFIG_BCH_DEVICE_READONLY
+      ret = block_proxy(filep, path, O_RDOK);
+#else
+      ret = block_proxy(filep, path, oflags);
+#endif
+#ifdef CONFIG_FS_NOTIFY
+      if (ret >= 0)
+        {
+          notify_open(path, filep->f_oflags);
+        }
+#endif
+
+      return ret;
     }
 #endif
 
@@ -178,7 +249,7 @@ static int file_vopen(FAR struct file *filep, FAR const char *path,
         }
     }
 #endif
-  else if (INODE_IS_DRIVER(inode))
+  else if (INODE_IS_DRIVER(inode) || INODE_IS_PIPE(inode))
     {
       if (inode->u.i_ops->open != NULL)
         {
@@ -190,7 +261,7 @@ static int file_vopen(FAR struct file *filep, FAR const char *path,
       ret = -ENXIO;
     }
 
-  if (ret == -EISDIR)
+  if (ret == -EISDIR && ((oflags & O_WRONLY) == 0))
     {
       ret = dir_allocate(filep, desc.relpath);
     }
@@ -201,6 +272,9 @@ static int file_vopen(FAR struct file *filep, FAR const char *path,
     }
 
   RELEASE_SEARCH(&desc);
+#ifdef CONFIG_FS_NOTIFY
+  notify_open(path, filep->f_oflags);
+#endif
   return OK;
 
 errout_with_inode:
@@ -256,7 +330,6 @@ static int nx_vopen(FAR struct tcb_s *tcb,
   if (fd < 0)
     {
       file_close(&filep);
-      return fd;
     }
 
   return fd;
@@ -265,48 +338,6 @@ static int nx_vopen(FAR struct tcb_s *tcb,
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: inode_checkflags
- *
- * Description:
- *   Check if the access described by 'oflags' is supported on 'inode'
- *
- *   inode_checkflags() is an internal NuttX interface and should not be
- *   called from applications.
- *
- * Input Parameters:
- *   inode  - The inode to check
- *   oflags - open flags.
- *
- * Returned Value:
- *   Zero (OK) is returned on success.  On failure, a negated errno value is
- *   returned.
- *
- ****************************************************************************/
-
-int inode_checkflags(FAR struct inode *inode, int oflags)
-{
-  if (INODE_IS_PSEUDODIR(inode))
-    {
-      return OK;
-    }
-
-  if (inode->u.i_ops == NULL)
-    {
-      return -ENXIO;
-    }
-
-  if (((oflags & O_RDOK) != 0 && !inode->u.i_ops->read) ||
-      ((oflags & O_WROK) != 0 && !inode->u.i_ops->write))
-    {
-      return -EACCES;
-    }
-  else
-    {
-      return OK;
-    }
-}
 
 /****************************************************************************
  * Name: file_open
@@ -338,6 +369,11 @@ int file_open(FAR struct file *filep, FAR const char *path, int oflags, ...)
   va_start(ap, oflags);
   ret = file_vopen(filep, path, oflags, 0, ap);
   va_end(ap);
+
+  if (ret >= OK)
+    {
+      FS_ADD_BACKTRACE(filep);
+    }
 
   return ret;
 }
@@ -409,7 +445,7 @@ int nx_open(FAR const char *path, int oflags, ...)
   /* Let nx_vopen() do all of the work */
 
   va_start(ap, oflags);
-  fd = nx_vopen(nxsched_self(), path, oflags, ap);
+  fd = nx_vopen(this_task(), path, oflags, ap);
   va_end(ap);
 
   return fd;
@@ -439,7 +475,7 @@ int open(FAR const char *path, int oflags, ...)
   /* Let nx_vopen() do most of the work */
 
   va_start(ap, oflags);
-  fd = nx_vopen(nxsched_self(), path, oflags, ap);
+  fd = nx_vopen(this_task(), path, oflags, ap);
   va_end(ap);
 
   /* Set the errno value if any errors were reported by nx_open() */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/driver/fs_unregisterdriver.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,6 +29,7 @@
 #include <nuttx/fs/fs.h>
 
 #include "inode/inode.h"
+#include "notify/notify.h"
 
 /****************************************************************************
  * Public Functions
@@ -44,12 +47,21 @@ int unregister_driver(FAR const char *path)
 {
   int ret;
 
-  ret = inode_lock();
+  /* Call unlink to release driver resource and inode. */
+
+  ret = nx_unlink(path);
   if (ret >= 0)
     {
-      ret = inode_remove(path);
-      inode_unlock();
+      return ret;
     }
 
+  /* If unlink failed, only remove inode. */
+
+  inode_lock();
+  ret = inode_remove(path);
+  inode_unlock();
+#ifdef CONFIG_FS_NOTIFY
+  notify_unlink(path);
+#endif
   return ret;
 }

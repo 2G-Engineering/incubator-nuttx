@@ -1,6 +1,7 @@
 /****************************************************************************
  * include/nuttx/power/battery_ioctl.h
- * NuttX Battery IOCTLs definition
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -98,7 +99,7 @@ enum battery_status_e
 enum battery_health_e
 {
   BATTERY_HEALTH_UNKNOWN = 0,   /* Battery health state is not known */
-  BATTERY_HEALTH_GOOD,          /* Battery is in good condiction */
+  BATTERY_HEALTH_GOOD,          /* Battery is in good condition */
   BATTERY_HEALTH_DEAD,          /* Battery is dead, nothing we can do */
   BATTERY_HEALTH_OVERHEAT,      /* Battery is over recommended temperature */
   BATTERY_HEALTH_OVERVOLTAGE,   /* Battery voltage is over recommended level */
@@ -116,6 +117,7 @@ enum battery_health_e
 
 enum battery_protocol_e
 {
+  BATTERY_PROTOCOL_DEFAULT = 0,         /* Battery charge protocol of adapter is DEFAULT */
   BATTERY_PROTOCOL_QC3P0 = 1 << 0,      /* Battery charge protocol of adapter is QC 3.0 */
   BATTERY_PROTOCOL_TX_XIAOMI = 1 << 1,  /* Battery charge protocol of TX is xiaomi standard */
 };
@@ -145,6 +147,10 @@ enum batio_operate_e
   BATIO_OPRTN_WDOG,
   BATIO_OPRTN_SHIPMODE,
   BATIO_OPRTN_CUTOFF_CURRENT,
+  BATIO_OPRTN_VBUS_STATE,
+  BATIO_OPRTN_CAPACITY,
+  BATIO_OPRTN_CHARGER_STATE,
+  BATIO_OPRTN_HEALTH,
   BATIO_OPRTN_END
 };
 

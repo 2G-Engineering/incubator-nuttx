@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nrf53/thingy53/src/nrf53_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,7 +31,6 @@
 #include <nuttx/board.h>
 #include <arch/board/board.h>
 
-#include "arm_internal.h"
 #include "thingy53.h"
 
 /****************************************************************************
@@ -53,6 +54,12 @@ void nrf53_board_initialize(void)
 
 #ifdef CONFIG_ARCH_LEDS
   board_autoled_initialize();
+#endif
+
+#ifdef CONFIG_NRF53_SPI_MASTER
+  /* Configure SPI chip selects */
+
+  nrf53_spidev_initialize();
 #endif
 }
 

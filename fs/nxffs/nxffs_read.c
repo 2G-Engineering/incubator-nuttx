@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/nxffs/nxffs_read.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -142,7 +144,7 @@ ssize_t nxffs_read(FAR struct file *filep, FAR char *buffer, size_t buflen)
 
   /* Sanity checks */
 
-  DEBUGASSERT(filep->f_priv != NULL && filep->f_inode != NULL);
+  DEBUGASSERT(filep->f_priv != NULL);
 
   /* Recover the open file state from the struct file instance */
 
@@ -150,7 +152,7 @@ ssize_t nxffs_read(FAR struct file *filep, FAR char *buffer, size_t buflen)
 
   /* Recover the volume state from the open file */
 
-  volume = (FAR struct nxffs_volume_s *)filep->f_inode->i_private;
+  volume = filep->f_inode->i_private;
   DEBUGASSERT(volume != NULL);
 
   /* Get exclusive access to the volume.  Note that the volume lock
@@ -301,7 +303,7 @@ int nxffs_nextblock(FAR struct nxffs_volume_s *volume, off_t offset,
 
           /* Check for the magic sequence indicating the start of an NXFFS
            * data block or start of the next inode. There is the possibility
-           * of this magic sequnce occurring in FLASH data.  However, the
+           * of this magic sequence occurring in FLASH data.  However, the
            * data block CRC should distinguish between real NXFFS data blocks
            * headers and such false alarms.
            */

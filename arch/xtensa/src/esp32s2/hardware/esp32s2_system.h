@@ -115,6 +115,13 @@
 #define SYSTEM_CLK_EN_DEDICATED_GPIO_V  0x00000001
 #define SYSTEM_CLK_EN_DEDICATED_GPIO_S  7
 
+/* SYSTEM_CLK_EN_ASSIST_DEBUG : R/W ;bitpos:[6] ;default: 0 */
+
+#define SYSTEM_CLK_EN_ASSIST_DEBUG  (BIT(6))
+#define SYSTEM_CLK_EN_ASSIST_DEBUG_M  (BIT(6))
+#define SYSTEM_CLK_EN_ASSIST_DEBUG_V  0x1
+#define SYSTEM_CLK_EN_ASSIST_DEBUG_S  6
+
 /* SYSTEM_CPU_PERI_RST_EN_REG register
  * CPU peripheral reset register
  */
@@ -129,6 +136,13 @@
 #define SYSTEM_RST_EN_DEDICATED_GPIO_M  (SYSTEM_RST_EN_DEDICATED_GPIO_V << SYSTEM_RST_EN_DEDICATED_GPIO_S)
 #define SYSTEM_RST_EN_DEDICATED_GPIO_V  0x00000001
 #define SYSTEM_RST_EN_DEDICATED_GPIO_S  7
+
+/* SYSTEM_RST_EN_ASSIST_DEBUG : R/W ;bitpos:[6] ;default: 1 ; */
+
+#define SYSTEM_RST_EN_ASSIST_DEBUG  (BIT(6))
+#define SYSTEM_RST_EN_ASSIST_DEBUG_M  (BIT(6))
+#define SYSTEM_RST_EN_ASSIST_DEBUG_V  0x1
+#define SYSTEM_RST_EN_ASSIST_DEBUG_S  6
 
 /* SYSTEM_CPU_PER_CONF_REG register
  * CPU peripheral clock configuration register
@@ -343,7 +357,7 @@
 #define SYSTEM_SPI4_CLK_EN_S  31
 
 /* SYSTEM_ADC2_ARB_CLK_EN : R/W; bitpos: [30]; default: 1;
- * Set this bit to enable clock of aribiter of ADC2.
+ * Set this bit to enable clock of arbiter of ADC2.
  */
 
 #define SYSTEM_ADC2_ARB_CLK_EN    (BIT(30))
@@ -441,14 +455,14 @@
 #define SYSTEM_PWM1_CLK_EN_V  0x00000001
 #define SYSTEM_PWM1_CLK_EN_S  20
 
-/* SYSTEM_CAN_CLK_EN : R/W; bitpos: [19]; default: 0;
- * Set this bit to enable clock of CAN.
+/* SYSTEM_TWAI_CLK_EN : R/W; bitpos: [19]; default: 0;
+ * Set this bit to enable clock of TWAI.
  */
 
-#define SYSTEM_CAN_CLK_EN    (BIT(19))
-#define SYSTEM_CAN_CLK_EN_M  (SYSTEM_CAN_CLK_EN_V << SYSTEM_CAN_CLK_EN_S)
-#define SYSTEM_CAN_CLK_EN_V  0x00000001
-#define SYSTEM_CAN_CLK_EN_S  19
+#define SYSTEM_TWAI_CLK_EN   (BIT(19))
+#define SYSTEM_TWAI_CLK_EN_M (SYSTEM_TWAI_CLK_EN_V << SYSTEM_TWAI_CLK_EN_S)
+#define SYSTEM_TWAI_CLK_EN_V 0x00000001
+#define SYSTEM_TWAI_CLK_EN_S 19
 
 /* SYSTEM_I2C_EXT1_CLK_EN : R/W; bitpos: [18]; default: 0;
  * Set this bit to enable clock of I2C EXT1.
@@ -697,7 +711,7 @@
 #define SYSTEM_SPI4_RST_S  31
 
 /* SYSTEM_ADC2_ARB_RST : R/W; bitpos: [30]; default: 0;
- * Set this bit to reset aribiter of ADC2.
+ * Set this bit to reset arbiter of ADC2.
  */
 
 #define SYSTEM_ADC2_ARB_RST    (BIT(30))
@@ -795,14 +809,14 @@
 #define SYSTEM_PWM1_RST_V  0x00000001
 #define SYSTEM_PWM1_RST_S  20
 
-/* SYSTEM_CAN_RST : R/W; bitpos: [19]; default: 0;
- * Set this bit to reset CAN.
+/* SYSTEM_TWAI_RST : R/W; bitpos: [19]; default: 0;
+ * Set this bit to reset TWAI.
  */
 
-#define SYSTEM_CAN_RST    (BIT(19))
-#define SYSTEM_CAN_RST_M  (SYSTEM_CAN_RST_V << SYSTEM_CAN_RST_S)
-#define SYSTEM_CAN_RST_V  0x00000001
-#define SYSTEM_CAN_RST_S  19
+#define SYSTEM_TWAI_RST   (BIT(19))
+#define SYSTEM_TWAI_RST_M (SYSTEM_TWAI_RST_V << SYSTEM_TWAI_RST_S)
+#define SYSTEM_TWAI_RST_V 0x00000001
+#define SYSTEM_TWAI_RST_S 19
 
 /* SYSTEM_I2C_EXT1_RST : R/W; bitpos: [18]; default: 0;
  * Set this bit to reset I2C EXT1.
@@ -1101,6 +1115,20 @@
 #define SYSTEM_LPCLK_SEL_RTC_SLOW_V  0x00000001
 #define SYSTEM_LPCLK_SEL_RTC_SLOW_S  24
 
+/* SYSTEM_BT_LPCK_DIV_A : R/W ;bitpos:[23:12] ;default: 1 */
+
+#define SYSTEM_BT_LPCK_DIV_A  0x00000FFF
+#define SYSTEM_BT_LPCK_DIV_A_M  ((SYSTEM_BT_LPCK_DIV_A_V)<<(SYSTEM_BT_LPCK_DIV_A_S))
+#define SYSTEM_BT_LPCK_DIV_A_V  0xFFF
+#define SYSTEM_BT_LPCK_DIV_A_S  12
+
+/* SYSTEM_BT_LPCK_DIV_B : R/W ;bitpos:[11:0] ;default: 1 */
+
+#define SYSTEM_BT_LPCK_DIV_B  0x00000FFF
+#define SYSTEM_BT_LPCK_DIV_B_M  ((SYSTEM_BT_LPCK_DIV_B_V)<<(SYSTEM_BT_LPCK_DIV_B_S))
+#define SYSTEM_BT_LPCK_DIV_B_V  0xFFF
+#define SYSTEM_BT_LPCK_DIV_B_S  0
+
 /* SYSTEM_CPU_INTR_FROM_CPU_0_REG register
  * CPU interrupt controlling register 0
  */
@@ -1200,6 +1228,7 @@
 #define SYSTEM_RSA_MEM_PD_M  (SYSTEM_RSA_MEM_PD_V << SYSTEM_RSA_MEM_PD_S)
 #define SYSTEM_RSA_MEM_PD_V  0x00000001
 #define SYSTEM_RSA_MEM_PD_S  0
+#define SYSTEM_RSA_PD SYSTEM_RSA_MEM_PD
 
 /* SYSTEM_BUSTOEXTMEM_ENA_REG register
  * EDMA enable register

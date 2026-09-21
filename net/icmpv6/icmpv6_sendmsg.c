@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/icmpv6/icmpv6_sendmsg.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -98,6 +100,10 @@ static void sendto_request(FAR struct net_driver_s *dev,
 {
   FAR struct icmpv6_echo_request_s *icmpv6;
 
+#ifdef CONFIG_NET_JUMBO_FRAME
+  netdev_iob_prepare_dynamic(dev, pstate->snd_buflen + IPv6_HDRLEN);
+#endif
+
   /* Set-up to send that amount of data. */
 
   devif_send(dev, pstate->snd_buf, pstate->snd_buflen, IPv6_HDRLEN);
@@ -115,7 +121,8 @@ static void sendto_request(FAR struct net_driver_s *dev,
   dev->d_len = IPv6_HDRLEN + pstate->snd_buflen;
 
   ipv6_build_header(IPv6BUF, pstate->snd_buflen, IP_PROTO_ICMP6,
-                    dev->d_ipv6addr, pstate->snd_toaddr.s6_addr16, 255, 0);
+                    netdev_ipv6_srcaddr(dev, pstate->snd_toaddr.s6_addr16),
+                    pstate->snd_toaddr.s6_addr16, 255, 0);
 
   /* Copy the ICMPv6 request and payload into place after the IPv6 header */
 
@@ -124,11 +131,14 @@ static void sendto_request(FAR struct net_driver_s *dev,
   /* Calculate the ICMPv6 checksum over the ICMPv6 header and payload. */
 
   icmpv6->chksum = 0;
+
+#ifdef CONFIG_NET_ICMPv6_CHECKSUMS
   icmpv6->chksum = ~icmpv6_chksum(dev, IPv6_HDRLEN);
   if (icmpv6->chksum == 0)
     {
       icmpv6->chksum = 0xffff;
     }
+#endif
 
   ninfo("Outgoing ICMPv6 packet length: %d\n", dev->d_len);
 
@@ -286,8 +296,7 @@ ssize_t icmpv6_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 
   /* Some sanity checks */
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL &&
-              buf != NULL && to != NULL);
+  DEBUGASSERT(buf != NULL && to != NULL);
 
   if (len < ICMPv6_HDRLEN || tolen < sizeof(struct sockaddr_in6))
     {
@@ -299,8 +308,18 @@ ssize_t icmpv6_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 
   /* Get the device that will be used to route this ICMPv6 ECHO request */
 
-  dev = netdev_findby_ripv6addr(g_ipv6_unspecaddr,
-                               inaddr->sin6_addr.s6_addr16);
+#ifdef CONFIG_NET_BINDTODEVICE
+  if (conn->sconn.s_boundto != 0)
+    {
+      dev = netdev_findbyindex(conn->sconn.s_boundto);
+    }
+  else
+#endif
+    {
+      dev = netdev_findby_ripv6addr(g_ipv6_unspecaddr,
+                                    inaddr->sin6_addr.s6_addr16);
+    }
+
   if (dev == NULL)
     {
       nerr("ERROR: Not reachable\n");
@@ -338,7 +357,7 @@ ssize_t icmpv6_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 #ifdef CONFIG_NET_ICMPv6_NEIGHBOR
   /* Make sure that the IP address mapping is in the Neighbor Table */
 
-  ret = icmpv6_neighbor(inaddr->sin6_addr.s6_addr16);
+  ret = icmpv6_neighbor(dev, inaddr->sin6_addr.s6_addr16);
   if (ret < 0)
     {
       nerr("ERROR: Not reachable\n");
@@ -396,8 +415,7 @@ ssize_t icmpv6_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
                * destination device.
                */
 
-              if (!net_ipv6addr_maskcmp(state.snd_toaddr.s6_addr16,
-                                        dev->d_ipv6addr, dev->d_ipv6netmask))
+              if (!NETDEV_V6ADDR_ONLINK(dev, state.snd_toaddr.s6_addr16))
                 {
                   /* Destination address was not on the local network served
                    * by this device.  If a timeout occurs, then the most

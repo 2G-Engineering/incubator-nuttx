@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/driver/fs_findmtddriver.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -81,7 +83,6 @@ int find_mtddriver(FAR const char *pathname, FAR struct inode **ppinode)
   /* Get the search results */
 
   inode = desc.node;
-  DEBUGASSERT(inode != NULL);
 
   /* Verify that the inode is a block driver. */
 

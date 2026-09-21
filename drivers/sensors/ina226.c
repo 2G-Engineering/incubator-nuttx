@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/ina226.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -40,10 +42,6 @@
 
 #if !defined(CONFIG_I2C)
 #  error i2c support required
-#endif
-
-#ifndef CONFIG_INA226_I2C_FREQUENCY
-#  define CONFIG_INA226_I2C_FREQUENCY 400000
 #endif
 
 #define I2C_NOSTARTSTOP_MSGS              2
@@ -344,7 +342,7 @@ int ina226_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
 
   /* Initialize the ina226 device structure */
 
-  priv = (FAR struct ina226_dev_s *)kmm_malloc(sizeof(struct ina226_dev_s));
+  priv = kmm_malloc(sizeof(struct ina226_dev_s));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");

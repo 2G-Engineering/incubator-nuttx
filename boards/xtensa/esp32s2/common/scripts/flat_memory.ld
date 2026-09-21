@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s2/common/scripts/flat_memory.ld
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -69,8 +71,18 @@ MEMORY
    * signing of firmware image.
    */
 
-  metadata (RX) :        org = CONFIG_ESP32S2_APP_MCUBOOT_HEADER_SIZE, len = 0x20
+  metadata (RX) :        org = CONFIG_ESP32S2_APP_MCUBOOT_HEADER_SIZE, len = 0x60
   ROM (RX) :             org = ORIGIN(metadata) + LENGTH(metadata),
+                         len = FLASH_SIZE - ORIGIN(ROM)
+#elif defined (CONFIG_ESPRESSIF_SIMPLE_BOOT)
+  /* The 0x20 offset is a convenience for the app binary image generation.
+   * Flash cache has 64KB pages. The .bin file which is flashed to the chip
+   * has a 0x18 byte file header, and each segment has a 0x08 byte segment
+   * header. Setting this offset makes it simple to meet the flash cache MMU's
+   * constraint that (paddr % 64KB == vaddr % 64KB).
+   */
+
+  ROM (RX) :             org = 0x20,
                          len = FLASH_SIZE - ORIGIN(ROM)
 #endif
 
@@ -157,3 +169,7 @@ MEMORY
   REGION_ALIAS("default_rodata_seg", drom0_0_seg);
   REGION_ALIAS("default_code_seg", irom0_0_seg);
 #endif /* CONFIG_ESP32S2_RUN_IRAM */
+
+/* Mark the end of the RTC heap (top of the RTC region) */
+
+_ertcheap = 0x50001fff;

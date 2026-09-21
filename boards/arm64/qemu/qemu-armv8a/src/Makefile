@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm64/qemu/qemu-armv8a/src/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -23,7 +25,11 @@ include $(TOPDIR)/Make.defs
 CSRCS = qemu_boardinit.c qemu_bringup.c
 
 ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += qemu_appinit.c
+CSRCS += qemu_appinit.c qemu_power.c
+endif
+
+ifeq ($(CONFIG_LIBC_FDT),y)
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)libs$(DELIM)libc$(DELIM)fdt$(DELIM)dtc$(DELIM)libfdt
 endif
 
 include $(TOPDIR)/boards/Board.mk

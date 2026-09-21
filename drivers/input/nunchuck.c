@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/input/nunchuck.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -275,10 +277,9 @@ static int nunchuck_open(FAR struct file *filep)
   FAR struct nunchuck_open_s *opriv;
   int ret;
 
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
-  priv = (FAR struct nunchuck_dev_s *)inode->i_private;
+  priv = inode->i_private;
 
   /* Get exclusive access to the driver structure */
 
@@ -330,11 +331,11 @@ static int nunchuck_close(FAR struct file *filep)
   bool closing;
   int ret;
 
-  DEBUGASSERT(filep && filep->f_priv && filep->f_inode);
+  DEBUGASSERT(filep->f_priv);
   opriv = filep->f_priv;
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
-  priv  = (FAR struct nunchuck_dev_s *)inode->i_private;
+  priv  = inode->i_private;
 
   /* Handle an improbable race conditions with the following atomic test
    * and set.
@@ -414,10 +415,9 @@ static ssize_t nunchuck_read(FAR struct file *filep, FAR char *buffer,
   FAR struct nunchuck_dev_s *priv;
   int ret;
 
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
-  priv  = (FAR struct nunchuck_dev_s *)inode->i_private;
+  priv  = inode->i_private;
 
   /* Make sure that the buffer is sufficiently large to hold at least one
    * complete sample.
@@ -462,10 +462,10 @@ static int nunchuck_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   FAR struct nunchuck_dev_s *priv;
   int ret;
 
-  DEBUGASSERT(filep && filep->f_priv && filep->f_inode);
+  DEBUGASSERT(filep->f_priv);
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
-  priv  = (FAR struct nunchuck_dev_s *)inode->i_private;
+  priv  = inode->i_private;
 
   /* Get exclusive access to the driver structure */
 

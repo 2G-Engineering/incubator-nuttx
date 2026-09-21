@@ -13,7 +13,7 @@ for the NuttX "sim" target.  The sim target is a NuttX port that runs as a
 user-space program under Linux, Cygwin, or macOS.  It is a very "low fidelity"
 embedded system simulation:  This environment does not support any kind of
 asynchronous events -- there are nothing like interrupts in this context.
-Therefore, there can be no pre-empting events.
+Therefore, there can be no preempting events.
 
 Fake Interrupts
 ---------------
@@ -571,6 +571,75 @@ You can use the normal adb command from host::
     adb connect localhost:5555
     adb shell
 
+alsa
+----
+
+This configuration enables testing audio applications on NuttX by
+implementing an audio-like driver that uses ALSA to forward the audio to
+the host system. It also enables the `hostfs` to enable direct access to
+the host system's files mounted on the simulator. The ALSA audio driver
+allows uncompressed PCM files - as well as MP3 files - to be played.
+
+To check the audio devices::
+
+    $ ./nuttx
+    NuttShell (NSH) NuttX-10.4.0
+    nsh> ls /dev/audio
+    /dev/audio:
+    pcm0c
+    pcm0p
+    pcm1c
+    pcm1p
+
+- `pcm0c` represents the device to capture uncompressed PCM audio;
+- `pcm0p` represents the device to playback uncompressed PCM files;
+- `pcm1c` represents the device to capture MP3-encoded audio;
+- `pcm1p` represents the device to playback MP3-encoded files;
+
+Mounting Files from Host System
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To mount files from the host system and enable them to be played in the sim::
+
+    nsh> mount -t hostfs -o fs=/path/to/audio/files/ /host
+    nsh> ls /host
+    /host:
+    mother.mp3
+    mother.wav
+    .
+    ..
+
+Playing uncompressed-PCM files
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To play uncompressed-PCM files, we can use `nxplayer`'s `playraw` command.
+We need 1) select the appropriate audio device to playback this file and
+1) know in advance the file's parameters (channels, bits/sample and
+sampling rate)::
+
+    nsh> nxplayer
+    NxPlayer version 1.05
+    h for commands, q to exit
+
+    nxplayer> device /dev/audio/pcm0p
+    nxplayer> playraw /host/mother.wav 2 16 44100
+
+In this example, the file `mother.wav` is a stereo (2-channel),
+16 bits/sample and 44,1KHz PCM-encoded file.
+
+Playing MP3-encoded files
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To play MP3 files, we can use `nxplayer`'s `play` command directly.
+We only need to select the appropriate audio device to playback this file::
+
+    nsh> nxplayer
+    NxPlayer version 1.05
+    h for commands, q to exit
+
+    nxplayer> device /dev/audio/pcm1p
+    nxplayer> play /host/mother.mp3
+
 bluetooth
 ---------
 
@@ -623,6 +692,7 @@ NOTES
      running C++ static initializers until NuttX has been initialized.
 
 fb
+--
 
 A simple configuration used for some basic (non-graphic) debug of the
 framebuffer character drivers using apps/examples/fb.
@@ -678,14 +748,14 @@ apps/interpreters/minibasic.
 module
 ------
 
-This is a configuration to test CONFIG_LIBC_MODLIB with 64-bit modules.
+This is a configuration to test CONFIG_LIBC_ELF with 64-bit modules.
 This has apps/examples/module enabled.
 This configuration is intended for 64-bit host OS.
 
 module32
 --------
 
-This is a configuration to test CONFIG_LIBC_MODLIB with CONFIG_SIM_M32
+This is a configuration to test CONFIG_LIBC_ELF with CONFIG_SIM_M32
 and 32-bit modules.
 This has apps/examples/module enabled.
 This configuration is intended for 64-bit host OS.
@@ -779,16 +849,7 @@ NOTES:
 
            apps/examples/hello.
 
-  2. This version has password protection enabled.  Here is the login info::
-
-           USERNAME:  admin
-           PASSWORD:  Administrator
-
-     The encrypted password is retained in /etc/passwd.  I am sure that
-     you will find this annoying.  You can disable the password protection
-     by de-selecting CONFIG_NSH_CONSOLE_LOGIN=y.
-
-  3. This configuration has BINFS enabled so that the builtin applications can
+  2. This configuration has BINFS enabled so that the builtin applications can
      be made visible in the file system.  Because of that, the builtin
      applications do not work as other examples.
 
@@ -974,7 +1035,7 @@ NOTES
          @@ -117,7 +117,8 @@
             /* Execute the startup script */
 
-          #ifdef CONFIG_NSH_ROMFSETC
+          #ifdef CONFIG_ETC_ROMFS
          -  nsh_script(&pstate->cn_vtbl, "init", NSH_INITPATH);
          +// REMOVE ME
          +//  nsh_script(&pstate->cn_vtbl, "init", NSH_INITPATH);
@@ -988,7 +1049,7 @@ NOTES
          -
          +sleep(2); // REMOVE ME
          +#if 0 // REMOVE ME
-                ret = readline(pstate->cn_line, CONFIG_NSH_LINELEN,
+                ret = readline(pstate->cn_line, LINE_MAX,
                                INSTREAM(pstate), OUTSTREAM(pstate));
                 if (ret > 0)
          @@ -153,6 +155,7 @@
@@ -1046,14 +1107,14 @@ rpproxy and rpserver
 
   rpserver: Remote master(host) server process.
             rpserver contains all the real hardware configuration, such as:
-              1.Universal Asynchronous Receiver/Transmitter (UART).
-              2.Specific File System.
-              3.Network protocol stack and real network card device.
-              4....
+              1. Universal Asynchronous Receiver/Transmitter (UART).
+              2. Specific File System.
+              3. Network protocol stack and real network card device.
+              4. ...
 
 Rpmsg driver used in this example include:
 
-1.Rpmsg Syslog
+1. Rpmsg Syslog
 
     Source::
 
@@ -1181,6 +1242,8 @@ To use this example:
               1     1 224 FIFO     Kthread --- Waiting  Signal    00000000 002032 hpwork
               3     3 100 FIFO     Task    --- Running            00000000 004080 init
 
+      To switch back the console, type ``"~."`` in the cu session.
+
 3. RpmsgFS:
 
    Mount the remote file system via RPMSGFS, cu to proxy first::
@@ -1290,17 +1353,44 @@ with an MTD RAM driver to simulate the FLASH part.
 sotest
 ------
 
-This is a configuration to test CONFIG_LIBC_MODLIB with 64-bit modules.
+This is a configuration to test CONFIG_LIBC_ELF with 64-bit modules.
 This has apps/examples/sotest enabled.
 This configuration is intended for 64-bit host OS.
 
 sotest32
 --------
 
-This is a configuration to test CONFIG_LIBC_MODLIB with CONFIG_SIM_M32
+This is a configuration to test CONFIG_LIBC_ELF with CONFIG_SIM_M32
 and 32-bit modules.
 This has apps/examples/sotest enabled.
 This configuration is intended for 64-bit host OS.
+
+sqlite
+-------
+
+This configuration is used to test sqlite. Since hostfs does not support
+FIOC_FILEPATH, it cannot currently be used in hostfs.
+
+Basic usage example::
+
+    nsh> cd tmp
+    nsh> sqlite3 test.db
+    SQLite version 3.45.1 2024-01-30 16:01:20
+    Enter ".help" for usage hints.
+    sqlite>
+    CREATE TABLE COMPANY(
+      ID INT PRIMARY KEY     sqlite> (x1...> NOT NULL,
+      NAME           TEXT    NOT NULL,
+      AGE            (x1...> (x1...> INT     NOT NULL,
+      ADDRESS        CHAR(50),
+      SALARY         (x1...> (x1...> REAL
+    );(x1...>
+    sqlite> .quit
+    sqlite>
+    nsh>
+    nsh> ls -l
+    /tmp:
+    -rwxrwxrwx       12288 test.db
 
 tcploop
 -------
@@ -1566,7 +1656,7 @@ This is a configuration with sim usbdev support.
 
   Make Raw Gadget:
   Run make in the raw_gadget and dummy_hcd directory. If raw_gadget build
-  fail, you need to check which register interface meets your kenel version,
+  fail, you need to check which register interface meets your kernel version,
   usb_gadget_probe_driver or usb_gadget_register_driver.
 
   Install Raw Gadget:
@@ -1578,6 +1668,8 @@ This is a configuration with sim usbdev support.
 
     conn0: adb & rndis
     conn1: cdcacm & cdcecm
+    conn2: cdcncm
+    conn3: cdcmbim
 
   You can use the sim:usbdev configuration::
 
@@ -1610,7 +1702,7 @@ This is a configuration with sim usbdev support.
   Then you can use commands such as adb shell, adb push, adb pull as normal.
 
     2> Run RNDIS:
-  
+
   NuttX enter command::
 
       $ conn 0
@@ -1654,7 +1746,7 @@ This is a configuration with sim usbdev support.
       $ cat /dev/ttyACM0
       hello
 
-    3> Run CDCECM:
+    4> Run CDCECM:
 
   NuttX enter command::
 
@@ -1680,6 +1772,76 @@ This is a configuration with sim usbdev support.
 
   Then you can test the network connection using the ping command or telnet.
 
+    5> Run CDCNCM:
+
+  NuttX enter command::
+
+      $ conn 2
+      $ ifconfig
+      eth0    Link encap:Ethernet HWaddr 42:67:c6:69:73:51 at UP
+              inet addr:10.0.1.2 DRaddr:10.0.1.1 Mask:255.255.255.0
+      eth1    Link encap:Ethernet HWaddr 00:e0:de:ad:be:ef at UP
+              inet addr:0.0.0.0 DRaddr:0.0.0.0 Mask:0.0.0.0
+      $ dhcpd_start eth1
+      $ ifconfig
+      eth0    Link encap:Ethernet HWaddr 42:67:c6:69:73:51 at UP
+              inet addr:10.0.1.2 DRaddr:10.0.1.1 Mask:255.255.255.0
+      eth1    Link encap:Ethernet HWaddr 00:e0:de:ad:be:ef at UP
+              inet addr:10.0.0.1 DRaddr:10.0.0.1 Mask:255.255.255.0
+
+  Host PC, you can see the network device named enx020000112233::
+
+      $ ifconfig
+      enx020000112233: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 576
+              inet 10.0.0.2  netmask 255.255.255.0  broadcast 10.0.0.255
+              ether 02:00:00:11:22:33  txqueuelen 1000  (以太网)
+              RX packets 0  bytes 0 (0.0 B)
+              RX errors 0  dropped 0  overruns 0  frame 0
+              TX packets 58  bytes 9143 (9.1 KB)
+              TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+  Then you can test the network connection using the ping command or telnet.
+
+    6> Run CDCMBIM:
+
+  NuttX enter command::
+
+      $ conn 3
+      $ ifconfig
+      eth0    Link encap:Ethernet HWaddr 42:67:c6:69:73:51 at RUNNING mtu 1500
+              inet addr:10.0.1.2 DRaddr:10.0.1.1 Mask:255.255.255.0
+      wwan0   Link encap:UNSPEC at RUNNING mtu 1200
+              inet addr:0.0.0.0 DRaddr:0.0.0.0 Mask:0.0.0.0
+      $ ifconfig wwan0 10.0.0.1 netmask 255.255.255.0
+      $ ifconfig
+      eth0    Link encap:Ethernet HWaddr 42:67:c6:69:73:51 at RUNNING mtu 1500
+              inet addr:10.0.1.2 DRaddr:10.0.1.1 Mask:255.255.255.0
+      wwan0   Link encap:UNSPEC at RUNNING mtu 1200
+              inet addr:10.0.0.1 DRaddr:10.0.0.1 Mask:255.255.255.0
+
+      $ echo -n "hello from nuttx" > /dev/cdc-wdm2
+      $ cat /dev/cdc-wdm2
+      hello from linux
+
+  Host PC, you can see the network device named wwx020000112233::
+
+      $ sudo ifconfig wwx020000112233
+      $ sudo ifconfig wwx020000112233 10.0.0.2 netmask 255.255.255.0
+      $ ifconfig
+      wwx020000112233: flags=4226<BROADCAST,NOARP,MULTICAST>  mtu 1500
+              inet 10.0.0.2  netmask 255.255.255.0  broadcast 10.0.0.255
+              ether 02:00:00:11:22:33  txqueuelen 1000  (以太网)
+              RX packets 0  bytes 0 (0.0 B)
+              RX errors 0  dropped 0  overruns 0  frame 0
+              TX packets 58  bytes 9143 (9.1 KB)
+              TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+      $ sudo cat /dev/cdc-wdm1
+      hello from nuttx
+      $ sudo bash -c "echo -n hello from linux > /dev/cdc-wdm1"
+
+  Then you can test the network connection using the ping command or telnet.
+
 usbhost
 -------
 
@@ -1698,7 +1860,7 @@ This is a configuration with sim usbhost support.
 
     $ ./tools/configure.sh sim:usbhost
 
-   Configure the device you want to connet::
+   Configure the device you want to connect::
 
     CONFIG_SIM_USB_PID=0x0042
     CONFIG_SIM_USB_VID=0x1630
@@ -1707,3 +1869,85 @@ This is a configuration with sim usbhost support.
 
    Run sim usbhost with root mode, run sim usbdev or plug-in cdcacm usb device.
    Then you can use /dev/ttyACM to transfer data.
+
+login
+-----
+
+This is a configuration with login password protection for nuttx shell.
+
+NOTES:
+
+  This config has password protection enabled.  Here is the login info::
+
+           USERNAME:  admin
+           PASSWORD:  Administrator
+
+  The encrypted password is retained in /etc/passwd.  I am sure that
+  you will find this annoying.  You can disable the password protection
+  by de-selecting CONFIG_NSH_CONSOLE_LOGIN=y.
+
+can
+---
+
+This is a configuration with simulated CAN support. Both CAN character driver
+and SocketCAN are enabled and use the host ``vcan0`` interface.
+The ``vcan0`` host interface must be available when NuttX is started.
+
+For the CAN character device, there is ``examples/can`` application enabled in
+read-only mode.
+
+Additionally, SocketCAN ``candump`` and ``cansend`` utils are enabled.
+
+Below is an example of receiving CAN frames from host to NuttX.
+Requirement: ``cansequence`` tool from ``linux-can/can-utils``
+
+1. Create virtual CAN on host::
+
+     ip link add dev can0 type vcan
+     ifconfig can0 up
+
+2. Run NuttX::
+
+     ./nuttx
+
+3. Bring up can0 on NuttX::
+
+     nsh> ifup can0
+     ifup can0...OK
+
+4. read CAN messages from SocketCAN on NuttX::
+
+     nsh> candump can0
+
+5. send CAN messages from host to NuttX::
+
+     $ cansequence can0
+
+6. frames from host should be received on NuttX::
+
+     nsh> candump can0
+     can0  002   [1]  00
+     can0  002   [1]  01
+     can0  002   [1]  02
+     can0  002   [1]  03
+     can0  002   [1]  04
+     can0  002   [1]  05
+     can0  002   [1]  06
+     can0  002   [1]  07
+     can0  002   [1]  08
+     can0  002   [1]  09
+     can0  002   [1]  0A
+     can0  002   [1]  0B
+     can0  002   [1]  0C
+     can0  002   [1]  0D
+     can0  002   [1]  0E
+     can0  002   [1]  0F
+     can0  002   [1]  10
+     can0  002   [1]  11
+     can0  002   [1]  12
+
+README.txt
+==========
+
+.. include:: README.txt
+   :literal:

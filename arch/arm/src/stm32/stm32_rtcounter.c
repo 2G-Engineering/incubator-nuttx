@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32/stm32_rtcounter.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -44,13 +46,17 @@
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
 #include <nuttx/timers/rtc.h>
+#include <nuttx/spinlock.h>
 #include <arch/board/board.h>
 
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <assert.h>
 #include <errno.h>
+#include <debug.h>
+#include <time.h>
 
 #include "arm_internal.h"
 #include "stm32_pwr.h"
@@ -149,6 +155,8 @@ struct rtc_regvals_s
  * Private Data
  ****************************************************************************/
 
+static spinlock_t g_rtc_lock = SP_UNLOCKED;
+
 /* Callback to use when the alarm expires */
 
 #ifdef CONFIG_RTC_ALARM
@@ -172,6 +180,30 @@ volatile bool g_rtc_enabled = false;
  ****************************************************************************/
 
 /****************************************************************************
+ * Name: stm32_rtc_waitlasttask
+ *
+ * Description:
+ *   wait task done
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+static inline void stm32_rtc_waitlasttask(void)
+{
+  /* Previous write is done? */
+
+  while ((getreg16(STM32_RTC_CRL) & RTC_CRL_RTOFF) == 0)
+    {
+      stm32_waste();
+    }
+}
+
+/****************************************************************************
  * Name: stm32_rtc_beginwr
  *
  * Description:
@@ -187,12 +219,7 @@ volatile bool g_rtc_enabled = false;
 
 static inline void stm32_rtc_beginwr(void)
 {
-  /* Previous write is done? */
-
-  while ((getreg16(STM32_RTC_CRL) & RTC_CRL_RTOFF) == 0)
-    {
-      stm32_waste();
-    }
+  stm32_rtc_waitlasttask();
 
   /* Enter Config mode, Set Value and Exit */
 
@@ -216,13 +243,7 @@ static inline void stm32_rtc_beginwr(void)
 static inline void stm32_rtc_endwr(void)
 {
   modifyreg16(STM32_RTC_CRL, RTC_CRL_CNF, 0);
-
-  /* Wait for the write to actually reach RTC registers */
-
-  while ((getreg16(STM32_RTC_CRL) & RTC_CRL_RTOFF) == 0)
-    {
-      stm32_waste();
-    }
+  stm32_rtc_waitlasttask();
 }
 
 /****************************************************************************
@@ -381,33 +402,44 @@ int up_rtc_initialize(void)
 
       modifyreg32(STM32_RCC_BDCR, 0, RCC_BDCR_BDRST);
       modifyreg32(STM32_RCC_BDCR, RCC_BDCR_BDRST, 0);
+
+      modifyreg16(STM32_RCC_BDCR, 0, RCC_BDCR_LSEON);
+
+      /* Wait for the LSE clock to be ready */
+
+      while ((getreg16(STM32_RCC_BDCR) & RCC_BDCR_LSERDY) == 0)
+        {
+          stm32_waste();
+        }
+
+      /* Select the lower power external 32,768Hz (Low-Speed External, LSE)
+       * oscillator as RTC Clock Source and enable the Clock.
+       */
+
+      modifyreg16(STM32_RCC_BDCR, RCC_BDCR_RTCSEL_MASK, RCC_BDCR_RTCSEL_LSE);
+
+      /* Enable RTC and wait for RSF */
+
+      modifyreg16(STM32_RCC_BDCR, 0, RCC_BDCR_RTCEN);
+      stm32_rtc_waitlasttask();
+
+      stm32_rtc_wait4rsf();
+      stm32_rtc_waitlasttask();
+
+      /* Configure prescaler, note that these are write-only registers */
+
+      stm32_rtc_beginwr();
+      putreg16(STM32_RTC_PRESCALAR_VALUE >> 16,    STM32_RTC_PRLH);
+      putreg16(STM32_RTC_PRESCALAR_VALUE & 0xffff, STM32_RTC_PRLL);
+      stm32_rtc_endwr();
+
+      stm32_rtc_wait4rsf();
+      stm32_rtc_waitlasttask();
+
+      /* Write the magic register after RTC initialization. */
+
       putreg16(RTC_MAGIC, RTC_MAGIC_REG);
     }
-
-  /* Select the lower power external 32,768Hz (Low-Speed External, LSE)
-   * oscillator as RTC Clock Source and enable the Clock.
-   */
-
-  modifyreg16(STM32_RCC_BDCR, RCC_BDCR_RTCSEL_MASK, RCC_BDCR_RTCSEL_LSE);
-
-  /* Enable RTC and wait for RSF */
-
-  modifyreg16(STM32_RCC_BDCR, 0, RCC_BDCR_RTCEN);
-
-  /* TODO: Possible stall?
-   * should we set the timeout period? and return with -1
-   */
-
-  stm32_rtc_wait4rsf();
-
-  /* Configure prescaler, note that these are write-only registers */
-
-  stm32_rtc_beginwr();
-  putreg16(STM32_RTC_PRESCALAR_VALUE >> 16,    STM32_RTC_PRLH);
-  putreg16(STM32_RTC_PRESCALAR_VALUE & 0xffff, STM32_RTC_PRLL);
-  stm32_rtc_endwr();
-
-  stm32_rtc_wait4rsf();
 
 #ifdef CONFIG_RTC_HIRES
   /* Enable overflow interrupt - alarm interrupt is enabled in
@@ -498,7 +530,7 @@ time_t up_rtc_time(void)
    * interrupts will prevent suspensions and interruptions:
    */
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_rtc_lock);
 
   /* And the following loop will handle any clock rollover events that may
    * happen between samples.  Most of the time (like 99.9%), the following
@@ -520,7 +552,7 @@ time_t up_rtc_time(void)
    */
 
   while (cntl < tmp);
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_rtc_lock, flags);
 
   /* Okay.. the samples should be as close together in time as possible and
    * we can be assured that no clock rollover occurred between the samples.
@@ -567,7 +599,7 @@ int up_rtc_gettime(struct timespec *tp)
    * interrupts will prevent suspensions and interruptions:
    */
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_rtc_lock);
 
   /* And the following loop will handle any clock rollover events that may
    * happen between samples.  Most of the time (like 99.9%), the following
@@ -590,7 +622,7 @@ int up_rtc_gettime(struct timespec *tp)
    */
 
   while (cntl < tmp);
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_rtc_lock, flags);
 
   /* Okay.. the samples should be as close together in time as possible and
    * we can be assured that no clock rollover occurred between the samples.
@@ -631,7 +663,6 @@ int up_rtc_settime(const struct timespec *tp)
 {
   struct rtc_regvals_s regvals;
   irqstate_t flags;
-  uint16_t cntl;
 
   /* Break out the time values */
 
@@ -639,30 +670,25 @@ int up_rtc_settime(const struct timespec *tp)
 
   /* Enable write access to the backup domain */
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_rtc_lock);
   stm32_pwr_enablebkp(true);
 
   /* Then write the broken out values to the RTC counter and BKP overflow
    * register (hi-res mode only)
    */
 
-  do
-    {
-      stm32_rtc_beginwr();
-      putreg16(RTC_MAGIC, RTC_MAGIC_TIME_SET);
-      putreg16(regvals.cnth, STM32_RTC_CNTH);
-      putreg16(regvals.cntl, STM32_RTC_CNTL);
-      cntl = getreg16(STM32_RTC_CNTL);
-      stm32_rtc_endwr();
-    }
-  while (cntl != regvals.cntl);
+  stm32_rtc_beginwr();
+  putreg16(regvals.cnth, STM32_RTC_CNTH);
+  putreg16(regvals.cntl, STM32_RTC_CNTL);
+  stm32_rtc_endwr();
+  putreg16(RTC_MAGIC_TIME_SET, RTC_MAGIC_REG);
 
 #ifdef CONFIG_RTC_HIRES
   putreg16(regvals.ovf, RTC_TIMEMSB_REG);
 #endif
 
   stm32_pwr_enablebkp(false);
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_rtc_lock, flags);
   return OK;
 }
 
@@ -689,7 +715,7 @@ int stm32_rtc_setalarm(const struct timespec *tp, alarmcb_t callback)
   uint16_t cr;
   int ret = -EBUSY;
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_rtc_lock);
 
   /* Is there already something waiting on the ALARM? */
 
@@ -723,7 +749,7 @@ int stm32_rtc_setalarm(const struct timespec *tp, alarmcb_t callback)
       ret = OK;
     }
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_rtc_lock, flags);
 
   return ret;
 }
@@ -749,7 +775,7 @@ int stm32_rtc_cancelalarm(void)
   irqstate_t flags;
   int ret = -ENODATA;
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&g_rtc_lock);
 
   if (g_alarmcb != NULL)
     {
@@ -769,7 +795,53 @@ int stm32_rtc_cancelalarm(void)
       ret = OK;
     }
 
-  leave_critical_section(flags);
+  spin_unlock_irqrestore(&g_rtc_lock, flags);
+
+  return ret;
+}
+#endif
+
+/****************************************************************************
+ * Name: stm32_rtc_rdalarm
+ *
+ * Description:
+ *   Query an alarm configured in hardware.
+ *
+ * Input Parameters:
+ *  alminfo - Information about the alarm configuration.
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno on failure
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_RTC_ALARM
+int stm32_rtc_rdalarm(FAR struct alm_rdalarm_s *alminfo)
+{
+  struct rtc_regvals_s regvals;
+  FAR struct timespec tp;
+  int ret = -EINVAL;
+
+  DEBUGASSERT(alminfo != NULL);
+  DEBUGASSERT(alminfo->ar_id == 0);
+
+  switch (alminfo->ar_id)
+    {
+      case 0:
+        {
+          regvals.cnth = getreg16(STM32_RTC_ALRH);
+          regvals.cntl = getreg16(STM32_RTC_ALRL);
+          tp.tv_sec    = regvals.cnth << 16 | regvals.cntl;
+          memcpy(alminfo->ar_time, (FAR struct tm *)gmtime(&tp.tv_sec),
+                 sizeof(FAR struct tm));
+          ret = OK;
+        }
+        break;
+
+      default:
+        rtcerr("ERROR: Invalid ALARM%d\n", alminfo->ar_id);
+        break;
+    }
 
   return ret;
 }

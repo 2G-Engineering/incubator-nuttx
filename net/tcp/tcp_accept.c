@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/tcp/tcp_accept.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -216,8 +218,6 @@ int psock_tcp_accept(FAR struct socket *psock, FAR struct sockaddr *addr,
   FAR struct tcp_conn_s *conn;
   struct accept_s state;
   int ret;
-
-  DEBUGASSERT(psock && newconn);
 
   /* Check the backlog to see if there is a connection already pending for
    * this listener.

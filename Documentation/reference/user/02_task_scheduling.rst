@@ -1,5 +1,6 @@
+==========================
 Task Scheduling Interfaces
-**************************
+==========================
 
 By default, NuttX performs strict priority scheduling: Tasks of higher
 priority have exclusive access to the CPU until they become blocked. At
@@ -11,7 +12,7 @@ Optionally, a NuttX task or thread can be configured with round-robin or
 *except* that tasks with equal priority and share CPU time via
 *time-slicing*. The time-slice interval is a constant determined by the
 configuration setting ``CONFIG_RR_INTERVAL`` to a positive, non-zero
-value. Sporadic scheduling scheduling is more complex, varying the
+value. Sporadic scheduling is more complex, varying the
 priority of a thread over a *replenishment* period. Support for sporadic
 scheduling is enabled by the configuration option
 ``CONFIG_SCHED_SPORADIC``.
@@ -26,10 +27,10 @@ compliant interface to the NuttX scheduler:
   - :c:func:`sched_yield`
   - :c:func:`sched_get_priority_max`
   - :c:func:`sched_get_priority_min`
-  - :c:func:`sched_get_rr_interval`
+  - :c:func:`sched_rr_get_interval`
 
 Functions
----------
+=========
 
 .. c:function:: int sched_setparam(pid_t pid, FAR const struct sched_param *param)
 
@@ -156,7 +157,7 @@ Functions
   **POSIX Compatibility:** Comparable to the POSIX interface of the same
   name.
 
-.. c:function:: int sched_get_rr_interval (pid_t pid, struct timespec *interval)
+.. c:function:: int sched_rr_get_interval (pid_t pid, struct timespec *interval)
 
   ``sched_rr_get_interval()`` writes the timeslice
   interval for task identified by ``pid`` into the timespec structure

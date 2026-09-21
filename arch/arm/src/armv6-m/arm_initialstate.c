@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv6-m/arm_initialstate.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -104,6 +106,12 @@ void up_initial_state(struct tcb_s *tcb)
 
   xcp->regs[REG_XPSR]    = ARMV6M_XPSR_T;
 
+  /* All tasks need set to pic address to special register */
+
+#ifdef CONFIG_BUILD_PIC
+  __asm__ ("mov %0, r9" : "=r"(xcp->regs[REG_R9]));
+#endif
+
   /* If this task is running PIC, then set the PIC base register to the
    * address of the allocated D-Space region.
    */
@@ -129,15 +137,15 @@ void up_initial_state(struct tcb_s *tcb)
 #endif
 #endif /* CONFIG_PIC */
 
-#ifdef CONFIG_BUILD_PROTECTED
   /* All tasks start via a stub function in kernel space.  So all
    * tasks must start in privileged thread mode.  If CONFIG_BUILD_PROTECTED
    * is defined, then that stub function will switch to unprivileged
    * mode before transferring control to the user task.
    */
 
-  xcp->regs[REG_EXC_RETURN] = EXC_RETURN_PRIVTHR;
-#endif
+  xcp->regs[REG_EXC_RETURN] = EXC_RETURN_THREAD;
+
+  xcp->regs[REG_CONTROL] = getcontrol() & ~CONTROL_NPRIV;
 
   /* Enable or disable interrupts, based on user configuration */
 
@@ -145,3 +153,44 @@ void up_initial_state(struct tcb_s *tcb)
   xcp->regs[REG_PRIMASK] = 1;
 #endif /* CONFIG_SUPPRESS_INTERRUPTS */
 }
+
+#if CONFIG_ARCH_INTERRUPTSTACK > 3
+/****************************************************************************
+ * Name: arm_initialize_stack
+ *
+ * Description:
+ *   If interrupt stack is defined, the PSP and MSP need to be reinitialized.
+ *
+ ****************************************************************************/
+
+noinline_function void arm_initialize_stack(void)
+{
+  uint32_t stack = up_get_intstackbase(this_cpu()) + INTSTACK_SIZE;
+  uint32_t tempa = 0;
+  uint32_t tempb = 2;
+
+  __asm__ __volatile__
+    (
+
+      /* Initialize PSP */
+
+      "mov %1, sp\n"
+      "msr psp, %1\n"
+      "isb sy\n"
+
+      /* Select PSP */
+
+      "mrs %1, CONTROL\n"
+      "orr %1, %2\n"
+      "msr CONTROL, %1\n"
+      "isb sy\n"
+
+      /* Initialize MSP */
+
+      "msr msp, %0\n"
+      "isb sy\n"
+      :
+      : "r" (stack), "r" (tempa), "r" (tempb)
+      : "memory");
+}
+#endif

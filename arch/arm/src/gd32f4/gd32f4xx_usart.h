@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/gd32f4/gd32f4xx_usart.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -488,11 +490,11 @@
 
 /* USART interrupts maps, each interrupt of the USART can be individually
  * configured by software. The following definitions provide the bit
- * encodingthat used to define the interrupt and control register offset.
+ * encoding that used to define the interrupt and control register offset.
  *
  * 24-bit Encoding:       2222 2222 1111 1111 1100 0000 0000
  *                        7654 3210 9876 5432 1098 7654 3210
- * ENCODING               SHIF
+ * ENCODING               SHIFT
  *
  * CTL SHIFT: Bit24-27, CTL2 int: Bit8-23, CTL3 int: Bit6-7,
  *  CTL1 int: Bit5, CTL0 int: Bit0-4,
@@ -516,13 +518,13 @@
 /* USART interrupt in CTL1 register */
 
 #define USART_CFG_CTL1_INT_SHIFT   (1)
-#  define USART_CFG_CTL1_INT_LBDIE ((USART_CFG_CTL1_INT << USART_CFG_SHIFT) | (USART_CTL1_LBDIE >> USART_CFG_CTL0_INT_SHIFT))
+#  define USART_CFG_CTL1_INT_LBDIE ((USART_CFG_CTL1_INT << USART_CFG_SHIFT) | (USART_CTL1_LBDIE >> USART_CFG_CTL1_INT_SHIFT))
 
 /* USART interrupt in CTL2 register */
 
 #define USART_CFG_CTL2_INT_SHIFT   (8)
-#  define USART_CFG_CTL2_INT_ERRIE ((USART_CFG_CTL2_INT << USART_CFG_SHIFT) | (USART_CTL2_ERRIE << USART_CFG_CTL0_INT_SHIFT))
-#  define USART_CFG_CTL2_INT_CTSIE ((USART_CFG_CTL2_INT << USART_CFG_SHIFT) | (USART_CTL2_CTSIE << USART_CFG_CTL0_INT_SHIFT))
+#  define USART_CFG_CTL2_INT_ERRIE ((USART_CFG_CTL2_INT << USART_CFG_SHIFT) | (USART_CTL2_ERRIE << USART_CFG_CTL2_INT_SHIFT))
+#  define USART_CFG_CTL2_INT_CTSIE ((USART_CFG_CTL2_INT << USART_CFG_SHIFT) | (USART_CTL2_CTSIE << USART_CFG_CTL2_INT_SHIFT))
 
 /* USART interrupt in CTL3 register */
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f0l0g0/nucleo-f091rc/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -71,7 +73,7 @@
  *
  *   - PLL source is HSI       -> 8MHz input (nominal)
  *   - PLL source predivider 2 -> 4MHz divided down PLL VCO clock output
- *   - PLL multipler is 12     -> 48MHz PLL VCO clock output (for USB)
+ *   - PLL multiplier is 12    -> 48MHz PLL VCO clock output (for USB)
  *
  * Resulting SYSCLK frequency is 8MHz x 12 / 2 = 48MHz
  *
@@ -232,12 +234,12 @@
 
 /* USART 1 */
 
-#define GPIO_USART1_TX (GPIO_USART1_TX_2|GPIO_SPEED_HIGH)
-#define GPIO_USART1_RX (GPIO_USART1_RX_2|GPIO_SPEED_HIGH)
+#define GPIO_USART1_TX (GPIO_USART1_TX_2|GPIO_SPEED_HIGH)   /* PA9 */
+#define GPIO_USART1_RX (GPIO_USART1_RX_2|GPIO_SPEED_HIGH)   /* PA10 */
 
 /* USART 2 */
 
-#define GPIO_USART2_TX (GPIO_USART2_TX_3|GPIO_SPEED_HIGH)
-#define GPIO_USART2_RX (GPIO_USART2_RX_3|GPIO_SPEED_HIGH)
+#define GPIO_USART2_TX (GPIO_USART2_TX_3|GPIO_SPEED_HIGH)   /* PA2 */
+#define GPIO_USART2_RX (GPIO_USART2_RX_3|GPIO_SPEED_HIGH)   /* PA3 */
 
 #endif /* __BOARDS_ARM_STM32F0L0G0_NUCLEO_F091RC_INCLUDE_BOARD_H */

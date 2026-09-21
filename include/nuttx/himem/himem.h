@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/himem/himem.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,15 +31,22 @@
 
 #include <signal.h>
 
-#ifdef CONFIG_ESP32_SPIRAM
+#if defined(CONFIG_ESP32_SPIRAM) || defined(CONFIG_ESP32S3_SPIRAM)
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
+#ifdef CONFIG_ESP32S3_SPIRAM
+/* ESP32S3 MMU block size */
+
+#  define ESP_HIMEM_BLKSZ (0x10000)
+
+#else
 /* ESP32 MMU block size */
 
-#define ESP_HIMEM_BLKSZ (0x8000)
+#  define ESP_HIMEM_BLKSZ (0x8000)
+#endif
 
 /* Command:     HIMEMIOC_ALLOC_BLOCKS
  * Description: Allocate a certain number of physical RAM blocks.

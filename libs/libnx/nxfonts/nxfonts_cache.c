@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libnx/nxfonts/nxfonts_cache.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -527,7 +529,7 @@ nxf_renderglyph(FAR struct nxfonts_fcache_s *priv,
  * Name: nxf_findcache
  *
  * Description:
- *   Find a font cache tht matches the font charcteristics.
+ *   Find a font cache that matches the font characteristics.
  *
  * Assumptions:
  *   The caller holds the font cache list lock.

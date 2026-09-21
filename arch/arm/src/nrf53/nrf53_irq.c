@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/nrf53/nrf53_irq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -123,8 +125,7 @@ static void nrf53_dumpnvic(const char *msg, int irq)
 #endif
 
 /****************************************************************************
- * Name: nrf53_nmi, nrf53_pendsv,
- *       nrf53_dbgmonitor, nrf53_pendsv, nrf53_reserved
+ * Name: nrf53_nmi, nrf53_pendsv, nrf53_pendsv, nrf53_reserved
  *
  * Description:
  *   Handlers for various exceptions.  None are handled and all are fatal
@@ -150,14 +151,6 @@ static int nrf53_pendsv(int irq, void *context, void *arg)
   return 0;
 }
 
-static int nrf53_dbgmonitor(int irq, void *context, void *arg)
-{
-  up_irq_save();
-  _err("PANIC!!! Debug Monitor received\n");
-  PANIC();
-  return 0;
-}
-
 static int nrf53_reserved(int irq, void *context, void *arg)
 {
   up_irq_save();
@@ -176,7 +169,6 @@ static int nrf53_reserved(int irq, void *context, void *arg)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ARMV8M_USEBASEPRI
 static inline void nrf53_prioritize_syscall(int priority)
 {
   uint32_t regval;
@@ -188,7 +180,6 @@ static inline void nrf53_prioritize_syscall(int priority)
   regval |= (priority << NVIC_SYSH_PRIORITY_PR11_SHIFT);
   putreg32(regval, NVIC_SYSH8_11_PRIORITY);
 }
-#endif
 
 /****************************************************************************
  * Name: nrf53_irqinfo
@@ -262,9 +253,6 @@ static int nrf53_irqinfo(int irq, uintptr_t *regaddr, uint32_t *bit,
 void up_irqinitialize(void)
 {
   uint32_t regaddr;
-#if defined(CONFIG_DEBUG_FEATURES) && !defined(CONFIG_ARMV8M_USEBASEPRI)
-  uint32_t regval;
-#endif
   int num_priority_registers;
   int i;
 
@@ -335,9 +323,7 @@ void up_irqinitialize(void)
 #  endif
 #endif
 
-#ifdef CONFIG_ARMV8M_USEBASEPRI
   nrf53_prioritize_syscall(NVIC_SYSH_SVCALL_PRIORITY);
-#endif
 
 #ifdef CONFIG_ARM_MPU
   /* If the MPU is enabled, then attach and enable the Memory Management
@@ -358,22 +344,12 @@ void up_irqinitialize(void)
   irq_attach(NRF53_IRQ_BUSFAULT, arm_busfault, NULL);
   irq_attach(NRF53_IRQ_USAGEFAULT, arm_usagefault, NULL);
   irq_attach(NRF53_IRQ_PENDSV, nrf53_pendsv, NULL);
-  irq_attach(NRF53_IRQ_DBGMONITOR, nrf53_dbgmonitor, NULL);
+  arm_enable_dbgmonitor();
+  irq_attach(NRF53_IRQ_DBGMONITOR, arm_dbgmonitor, NULL);
   irq_attach(NRF53_IRQ_RESERVED, nrf53_reserved, NULL);
 #endif
 
   nrf53_dumpnvic("initial", NRF53_IRQ_NIRQS);
-
-#if defined(CONFIG_DEBUG_FEATURES) && !defined(CONFIG_ARMV8M_USEBASEPRI)
-  /* If a debugger is connected, try to prevent it from catching hardfaults.
-   * If CONFIG_ARMV8M_USEBASEPRI, no hardfaults are expected in normal
-   * operation.
-   */
-
-  regval  = getreg32(NVIC_DEMCR);
-  regval &= ~NVIC_DEMCR_VCHARDERR;
-  putreg32(regval, NVIC_DEMCR);
-#endif
 
 #ifdef CONFIG_NRF53_GPIOTE
   /* Initialize GPIOTE */

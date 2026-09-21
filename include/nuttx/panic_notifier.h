@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/panic_notifier.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,6 +29,7 @@
 
 #include <nuttx/config.h>
 #include <nuttx/notifier.h>
+#include <nuttx/sched.h>
 
 #include <sys/types.h>
 
@@ -39,6 +42,17 @@ enum panic_type_e
   PANIC_KERNEL         =  0,
   PANIC_TASK           =  1,
   PANIC_KERNEL_FINAL   =  2,
+};
+
+/* Notifier data for panic */
+
+struct panic_notifier_s
+{
+  FAR struct tcb_s *rtcb;
+  FAR void         *regs;
+  FAR const char   *msg;
+  FAR const char   *filename;
+  int               linenum;
 };
 
 /****************************************************************************

@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/ctype/lib_isxdigit.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,4 +35,9 @@ int isxdigit(int c)
   return (c >= '0' && c <= '9') ||
          (c >= 'a' && c <= 'f') ||
          (c >= 'A' && c <= 'F');
+}
+
+int isxdigit_l(int c, locale_t locale)
+{
+  return isxdigit(c);
 }

@@ -1,6 +1,8 @@
 /****************************************************************************
  * board/arm/src/tlsr82/tlsr8278adk80d/scripts/flash_boot.ld
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -110,6 +112,15 @@ SECTIONS
         PROVIDE(_end_data_ = . );
     }
 
+    /* data in ram but no need to clean in .s*/
+
+    .noinit (NOLOAD) :
+    {
+        . = ALIGN(4);
+        *(.noinit)
+        *(.noinit.*)
+    }
+
     .bss :
     {
         . = ALIGN(4);
@@ -120,14 +131,6 @@ SECTIONS
         *(.bss.*)
     }
 
-    /* data in ram but no need to clean in .s*/
-
-    .noinit (NOLOAD) :
-    {
-        . = ALIGN(4);
-        *(.noinit)
-        *(.noinit.*)
-    }
     . = ALIGN(4);
 
     PROVIDE(_ebss = .);

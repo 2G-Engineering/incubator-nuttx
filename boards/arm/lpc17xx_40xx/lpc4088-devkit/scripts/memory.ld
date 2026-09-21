@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/lpc17xx_40xx/lpc4088-devkit/scripts/memory.ld
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -73,9 +75,9 @@ MEMORY
 
   /* 64Kb of SRAM in the CPU block */
 
-  ksram (rwx)      : ORIGIN = 0x10000000, LENGTH = 4K   /* May include waste */
-  usram (rwx)      : ORIGIN = 0x10001000, LENGTH = 4K
-  xsram (rwx)      : ORIGIN = 0x10002000, LENGTH = 24K  /* All used as heap */
+  ksram (rwx)      : ORIGIN = 0x10000000, LENGTH = 6K   /* May include waste */
+  usram (rwx)      : ORIGIN = 0x10001800, LENGTH = 4K
+  xsram (rwx)      : ORIGIN = 0x10002800, LENGTH = 22K  /* All used as heap */
 
   /* Other peripheral memory (free, nothing is linked here) */
 

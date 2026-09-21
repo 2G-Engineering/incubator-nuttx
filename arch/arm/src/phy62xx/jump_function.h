@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/phy62xx/jump_function.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -20,9 +22,9 @@
 
 /****************************************************************************
  *
- *    @file jump_fucntion.h
+ * jump_fucntion.h
  *
- *    @brief This file contains the definitions of the macros and functions
+ *    This file contains the definitions of the macros and functions
  *    that are architecture dependent.  The implementation of those is
  *    implemented in the appropriate architecture directory.
  *

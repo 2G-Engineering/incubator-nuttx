@@ -1,6 +1,7 @@
 /****************************************************************************
  * net/devif/ipv4_input.c
- * Device driver IPv4 packet receipt interface
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
  *
  *   Copyright (C) 2007-2009, 2013-2015, 2018-2019 Gregory Nutt. All rights
  *     reserved.
@@ -105,6 +106,7 @@
 #include "ipforward/ipforward.h"
 #include "devif/devif.h"
 #include "nat/nat.h"
+#include "ipfilter/ipfilter.h"
 #include "ipfrag/ipfrag.h"
 #include "utils/utils.h"
 
@@ -207,7 +209,7 @@ static int ipv4_in(FAR struct net_driver_s *dev)
   totlen = (ipv4->len[0] << 8) + ipv4->len[1];
   if (totlen < dev->d_len)
     {
-      iob_update_pktlen(dev->d_iob, totlen);
+      iob_update_pktlen(dev->d_iob, totlen, false);
       dev->d_len = totlen;
     }
   else if (totlen > dev->d_len)
@@ -235,14 +237,10 @@ static int ipv4_in(FAR struct net_driver_s *dev)
       goto drop;
     }
 
-#ifdef CONFIG_NET_NAT
+#ifdef CONFIG_NET_NAT44
   /* Try NAT inbound, rule matching will be performed in NAT module. */
 
-  if (ipv4_nat_inbound(dev, ipv4) < 0)
-    {
-      nwarn("WARNING: Performing NAT inbound failed!\n");
-      goto drop;
-    }
+  ipv4_nat_inbound(dev, ipv4);
 #endif
 
   /* Get the destination IP address in a friendlier form */
@@ -384,6 +382,7 @@ static int ipv4_in(FAR struct net_driver_s *dev)
     }
 #endif
 
+#ifdef CONFIG_NET_IPV4_CHECKSUMS
   if (ipv4_chksum(IPv4BUF) != 0xffff)
     {
       /* Compute and check the IP header checksum. */
@@ -395,6 +394,15 @@ static int ipv4_in(FAR struct net_driver_s *dev)
       nwarn("WARNING: Bad IP checksum\n");
       goto drop;
     }
+#endif
+
+#ifdef CONFIG_NET_IPFILTER
+  if (ipv4_filter_in(dev) != IPFILTER_TARGET_ACCEPT)
+    {
+      ninfo("Drop/Reject INPUT packet due to filter.\n");
+      goto done;
+    }
+#endif
 
   /* Now process the incoming packet according to the protocol. */
 
@@ -438,7 +446,11 @@ static int ipv4_in(FAR struct net_driver_s *dev)
         goto drop;
     }
 
-#if defined(CONFIG_NET_IPFORWARD) || \
+#ifdef CONFIG_NET_IPFILTER
+  ipfilter_out(dev);
+#endif
+
+#if defined(CONFIG_NET_IPFORWARD) || defined(CONFIG_NET_IPFILTER) || \
     (defined(CONFIG_NET_BROADCAST) && defined(NET_UDP_HAVE_STACK))
 done:
 #endif
@@ -490,6 +502,12 @@ int ipv4_input(FAR struct net_driver_s *dev)
 {
   FAR uint8_t *buf;
   int ret;
+
+  /* Store reception timestamp if enabled and not provided by hardware. */
+
+#if defined(CONFIG_NET_TIMESTAMP) && !defined(CONFIG_ARCH_HAVE_NETDEV_TIMESTAMP)
+  clock_gettime(CLOCK_REALTIME, &dev->d_rxtime);
+#endif
 
   if (dev->d_iob != NULL)
     {

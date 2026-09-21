@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/hardware/stm32_fdcan.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -36,8 +38,8 @@
 
 /* Register Offsets *********************************************************/
 
-#define STM32_FDCAN_CREL_OFFSET	      0x0000  /* FDCAN Core Release register */
-#define STM32_FDCAN_ENDN_OFFSET	      0x0004  /* FDCAN Endian register */
+#define STM32_FDCAN_CREL_OFFSET       0x0000  /* FDCAN Core Release register */
+#define STM32_FDCAN_ENDN_OFFSET       0x0004  /* FDCAN Endian register */
 #define STM32_FDCAN_DBTP_OFFSET       0x000C  /* FDCAN Data Bit Timing & Prescaler register */
 #define STM32_FDCAN_TEST_OFFSET       0x0010  /* FDCAN Test register */
 #define STM32_FDCAN_RWD_OFFSET        0x0014  /* FDCAN RAM Watchdog register */
@@ -202,7 +204,7 @@
 /* ***************  Bit definition for FDCAN_ENDN register  *****************/
 #define FDCAN_ENDN_ETV_SHIFT      (0U)
 #define FDCAN_ENDN_ETV_MASK       (0xFFFFFFFFU << FDCAN_ENDN_ETV_SHIFT)         /* 0xFFFFFFFF */
-#define FDCAN_ENDN_ETV            FDCAN_ENDN_ETV_MASK                           /* Endiannes Test Value                    */
+#define FDCAN_ENDN_ETV            FDCAN_ENDN_ETV_MASK                           /* Endianness Test Value                    */
 
 /* ***************  Bit definition for FDCAN_DBTP register  *****************/
 #define FDCAN_DBTP_DSJW_SHIFT     (0U)

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32f7/stm32f777zit6-meadow/src/stm32_spi.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -109,7 +111,7 @@ void stm32_spi2select(struct spi_dev_s *dev,
           );
 }
 
-uint8_t stm32_spi2status(FAR struct spi_dev_s *dev, uint32_t devid)
+uint8_t stm32_spi2status(struct spi_dev_s *dev, uint32_t devid)
 {
   return 0;
 }

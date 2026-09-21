@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/sched/sched_getparam.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -70,6 +72,7 @@ int nxsched_get_param(pid_t pid, FAR struct sched_param *param)
 {
   FAR struct tcb_s *rtcb;
   FAR struct tcb_s *tcb;
+  irqstate_t flags;
   int ret = OK;
 
   if (param == NULL)
@@ -93,7 +96,7 @@ int nxsched_get_param(pid_t pid, FAR struct sched_param *param)
     {
       /* Get the TCB associated with this PID */
 
-      sched_lock();
+      flags = enter_critical_section();
       tcb = nxsched_get_tcb(pid);
       if (!tcb)
         {
@@ -120,10 +123,10 @@ int nxsched_get_param(pid_t pid, FAR struct sched_param *param)
               param->sched_ss_low_priority = (int)sporadic->low_priority;
               param->sched_ss_max_repl     = (int)sporadic->max_repl;
 
-              clock_ticks2time((sclock_t)sporadic->repl_period,
-                               &param->sched_ss_repl_period);
-              clock_ticks2time((sclock_t)sporadic->budget,
-                               &param->sched_ss_init_budget);
+              clock_ticks2time(&param->sched_ss_repl_period,
+                               sporadic->repl_period);
+              clock_ticks2time(&param->sched_ss_init_budget,
+                               sporadic->budget);
             }
           else
             {
@@ -137,7 +140,7 @@ int nxsched_get_param(pid_t pid, FAR struct sched_param *param)
 #endif
         }
 
-      sched_unlock();
+      leave_critical_section(flags);
     }
 
   return ret;

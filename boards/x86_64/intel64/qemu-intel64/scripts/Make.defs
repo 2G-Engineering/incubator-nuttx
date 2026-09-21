@@ -1,6 +1,8 @@
 ############################################################################
 # boards/x86_64/intel64/qemu-intel64/scripts/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -20,48 +22,10 @@
 
 include $(TOPDIR)/.config
 include $(TOPDIR)/tools/Config.mk
+include $(TOPDIR)/arch/x86_64/src/intel64/Toolchain.defs
 
-ifeq ($(CONFIG_DEBUG_SYMBOLS),y)
-  ARCHOPTIMIZATION = -g
-endif
-
-ifneq ($(CONFIG_DEBUG_NOOPT),y)
-  ARCHOPTIMIZATION += -O2 -fno-optimize-sibling-calls -fno-omit-frame-pointer -fno-crossjumping -fno-delete-null-pointer-checks
-
-endif
-
+ifeq ($(CONFIG_BUILD_KERNEL),y)
+ARCHSCRIPT += $(BOARD_DIR)$(DELIM)scripts$(DELIM)qemu-kernel.ld
+else
 ARCHSCRIPT += $(BOARD_DIR)$(DELIM)scripts$(DELIM)qemu.ld
-
-ARCHCPUFLAGS = -fPIC -fno-stack-protector -mno-red-zone -mrdrnd
-ARCHPICFLAGS = -fPIC
-ARCHWARNINGS = -Wall -Wstrict-prototypes -Wshadow -Wundef
-
-# We have to use a cross-development toolchain under Cygwin because the native
-# Cygwin toolchains don't generate ELF binaries.
-
-ifeq ($(CONFIG_WINDOWS_CYGWIN),y)
-CROSSDEV = i486-nuttx-elf-
 endif
-
-ifeq ($(CONFIG_HOST_MACOS),y)
-CROSSDEV = x86_64-elf-
-endif
-
-CC = $(CROSSDEV)gcc
-CPP = $(CROSSDEV)gcc -E
-LD = $(CROSSDEV)ld
-STRIP = $(CROSSDEV)strip --strip-unneeded
-AR = $(CROSSDEV)ar rcs
-NM = $(CROSSDEV)nm
-OBJCOPY = $(CROSSDEV)objcopy
-OBJDUMP = $(CROSSDEV)objdump
-
-CFLAGS := $(ARCHWARNINGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS) -pipe
-CPPFLAGS := $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
-AFLAGS := $(CFLAGS) -D__ASSEMBLY__
-
-ifeq ($(CONFIG_HOST_MACOS),y)
-AFLAGS += -Wa,--divide
-endif
-
-EXEEXT = .elf

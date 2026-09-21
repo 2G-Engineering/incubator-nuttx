@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm64/src/fvp-v8r/fvp_boot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,6 +30,7 @@
 #include <assert.h>
 #include <debug.h>
 
+#include <arch/barriers.h>
 #include <arch/chip/chip.h>
 
 #ifdef CONFIG_SMP
@@ -39,7 +42,8 @@
 #include "arm64_mpu.h"
 #include "chip.h"
 #include "fvp_boot.h"
-#include "serial_pl011.h"
+
+#include <nuttx/serial/uart_pl011.h>
 
 /****************************************************************************
  * Private Data
@@ -110,7 +114,7 @@ void arm64_el_init(void)
 {
   write_sysreg(CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC, cntfrq_el0);
 
-  ARM64_ISB();
+  UP_ISB();
 }
 
 #ifdef CONFIG_SMP
@@ -118,35 +122,6 @@ void arm64_el_init(void)
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: up_cpu_index
- *
- * Description:
- *   Return an index in the range of 0 through (CONFIG_SMP_NCPUS-1) that
- *   corresponds to the currently executing CPU.
- *
- *   If TLS is enabled, then the RTOS can get this information from the TLS
- *   info structure.  Otherwise, the MCU-specific logic must provide some
- *   mechanism to provide the CPU index.
- *
- * Input Parameters:
- *   None
- *
- * Returned Value:
- *   An integer index in the range of 0 through (CONFIG_SMP_NCPUS-1) that
- *   corresponds to the currently executing CPU.
- *
- ****************************************************************************/
-
-int up_cpu_index(void)
-{
-  /* Read the Multiprocessor Affinity Register (MPIDR)
-   * And return the CPU ID field
-   */
-
-  return MPID_TO_CORE(GET_MPIDR(), 0);
-}
 
 /****************************************************************************
  * Name: arm64_get_mpid
@@ -162,6 +137,19 @@ int up_cpu_index(void)
 uint64_t arm64_get_mpid(int cpu)
 {
   return CORE_TO_MPID(cpu, 0);
+}
+
+/****************************************************************************
+ * Name: arm64_get_cpuid
+ *
+ * Description:
+ *   The function from mpid to get cpu id
+ *
+ ****************************************************************************/
+
+int arm64_get_cpuid(uint64_t mpid)
+{
+  return MPID_TO_CORE(mpid);
 }
 
 #endif /* CONFIG_SMP */
@@ -180,7 +168,7 @@ void arm64_chip_boot(void)
 
   arm64_mpu_init(true);
 
-#if defined(CONFIG_SMP) && defined(CONFIG_ARCH_HAVE_PCSI)
+#if defined(CONFIG_ARM64_PSCI)
   arm64_psci_init("smc");
 #endif
 
@@ -196,5 +184,9 @@ void arm64_chip_boot(void)
    */
 
   arm64_earlyserialinit();
+#endif
+
+#ifdef CONFIG_ARCH_PERF_EVENTS
+  up_perf_init((void *)CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC);
 #endif
 }

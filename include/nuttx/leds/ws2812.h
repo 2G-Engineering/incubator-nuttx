@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/leds/ws2812.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -52,6 +54,12 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+/* Although the LED might be RGB-only, the LED data is packed in a 32-bit
+ * long variable and, then, this is the default size of a LED pixel.
+ */
+
+#define WS2812_RW_PIXEL_SIZE  4
+
 #ifdef __cplusplus
 #define EXTERN extern "C"
 extern "C"
@@ -88,7 +96,7 @@ struct ws2812_dev_s
                         FAR char        *data,
                         size_t           len);
 
-  void                  *private;    /* Private data for opened device */
+  FAR void              *private;    /* Private data for opened device */
   uint32_t               clock;
   mutex_t                lock;
   int                    port;

@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/aio/aio_cancel.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -81,6 +83,12 @@
 
 int aio_cancel(int fildes, FAR struct aiocb *aiocbp)
 {
+  if (fildes < 0)
+    {
+      set_errno(EBADF);
+      return ERROR;
+    }
+
   FAR struct aio_container_s *aioc;
   FAR struct aio_container_s *next;
   pid_t pid;
@@ -94,8 +102,7 @@ int aio_cancel(int fildes, FAR struct aiocb *aiocbp)
    */
 
   ret = AIO_ALLDONE;
-  sched_lock();
-  ret = aio_lock();
+  aio_lock();
 
   if (aiocbp)
     {
@@ -214,7 +221,6 @@ int aio_cancel(int fildes, FAR struct aiocb *aiocbp)
     }
 
   aio_unlock();
-  sched_unlock();
   return ret;
 }
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/pthread/pthread_create.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -40,6 +42,7 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/pthread.h>
 
+#include "task/task.h"
 #include "sched/sched.h"
 #include "group/group.h"
 #include "clock/clock.h"
@@ -177,44 +180,57 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
                       FAR const pthread_attr_t *attr,
                       pthread_startroutine_t entry, pthread_addr_t arg)
 {
+  pthread_attr_t default_attr = g_default_pthread_attr;
   FAR struct pthread_tcb_s *ptcb;
   struct sched_param param;
   FAR struct tcb_s *parent;
   int policy;
   int errcode;
-  pid_t pid;
   int ret;
-  bool group_joined = false;
 
   DEBUGASSERT(trampoline != NULL);
+
+  parent = this_task();
+  DEBUGASSERT(parent != NULL);
 
   /* If attributes were not supplied, use the default attributes */
 
   if (!attr)
     {
-      attr = &g_default_pthread_attr;
+      /* Inherit parent priority by default. except idle */
+
+      if (!is_idle_task(parent))
+        {
+          default_attr.priority = parent->sched_priority;
+        }
+
+      attr = &default_attr;
     }
 
   /* Allocate a TCB for the new task. */
 
-  ptcb = (FAR struct pthread_tcb_s *)
-            kmm_zalloc(sizeof(struct pthread_tcb_s));
+  ptcb = kmm_zalloc(sizeof(struct pthread_tcb_s));
   if (!ptcb)
     {
       serr("ERROR: Failed to allocate TCB\n");
       return ENOMEM;
     }
 
+  ptcb->cmn.flags |= TCB_FLAG_FREE_TCB;
+
+  /* Initialize the task join */
+
+  nxtask_joininit(&ptcb->cmn);
+
+#ifndef CONFIG_PTHREAD_MUTEX_UNSAFE
+  spin_lock_init(&ptcb->cmn.mutex_lock);
+#endif
+
   /* Bind the parent's group to the new TCB (we have not yet joined the
    * group).
    */
 
-  ret = group_bind(ptcb);
-  if (ret < 0)
-    {
-      errcode = ENOMEM;
-      goto errout_with_tcb;
-    }
+  group_bind(ptcb);
 
 #ifdef CONFIG_ARCH_ADDRENV
   /* Share the address environment of the parent task group. */
@@ -253,14 +269,17 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
       goto errout_with_tcb;
     }
 
-  /* Initialize thread local storage */
+#if defined(CONFIG_ARCH_ADDRENV) && \
+    defined(CONFIG_BUILD_KERNEL) && defined(CONFIG_ARCH_KERNEL_STACK)
+  /* Allocate the kernel stack */
 
-  ret = tls_init_info(&ptcb->cmn);
-  if (ret != OK)
+  ret = up_addrenv_kstackalloc(&ptcb->cmn);
+  if (ret < 0)
     {
-      errcode = -ret;
+      errcode = ENOMEM;
       goto errout_with_tcb;
     }
+#endif
 
   /* Should we use the priority and scheduler specified in the pthread
    * attributes?  Or should we use the current thread's priority and
@@ -315,8 +334,8 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
 
       /* Convert timespec values to system clock ticks */
 
-      clock_time2ticks(&param.sched_ss_repl_period, &repl_ticks);
-      clock_time2ticks(&param.sched_ss_init_budget, &budget_ticks);
+      repl_ticks = clock_time2ticks(&param.sched_ss_repl_period);
+      budget_ticks = clock_time2ticks(&param.sched_ss_init_budget);
 
       /* The replenishment period must be greater than or equal to the
        * budget period.
@@ -369,17 +388,14 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
       goto errout_with_tcb;
     }
 
-#if defined(CONFIG_ARCH_ADDRENV) && \
-    defined(CONFIG_BUILD_KERNEL) && defined(CONFIG_ARCH_KERNEL_STACK)
-  /* Allocate the kernel stack */
+  /* Initialize thread local storage */
 
-  ret = up_addrenv_kstackalloc(&ptcb->cmn);
-  if (ret < 0)
+  ret = tls_init_info(&ptcb->cmn);
+  if (ret != OK)
     {
-      errcode = ENOMEM;
+      errcode = -ret;
       goto errout_with_tcb;
     }
-#endif
 
 #ifdef CONFIG_SMP
   /* pthread_setup_scheduler() will set the affinity mask by inheriting the
@@ -395,9 +411,6 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
     }
 #endif
 
-  parent = this_task();
-  DEBUGASSERT(parent != NULL);
-
   /* Configure the TCB for a pthread receiving on parameter
    * passed by value
    */
@@ -406,14 +419,7 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
 
   /* Join the parent's task group */
 
-  ret = group_join(ptcb);
-  if (ret < 0)
-    {
-      errcode = ENOMEM;
-      goto errout_with_tcb;
-    }
-
-  group_joined = true;
+  group_join(ptcb);
 
   /* Set the appropriate scheduling policy in the TCB */
 
@@ -440,71 +446,24 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
 #endif
     }
 
-#ifdef CONFIG_CANCELLATION_POINTS
-  /* Set the deferred cancellation type */
+  /* Return the thread information to the caller */
 
-  ptcb->cmn.flags |= TCB_FLAG_CANCEL_DEFERRED;
-#endif
-
-  /* Get the assigned pid before we start the task (who knows what
-   * could happen to ptcb after this!).
-   */
-
-  pid = ptcb->cmn.pid;
-
-  /* If the priority of the new pthread is lower than the priority of the
-   * parent thread, then starting the pthread could result in both the
-   * parent and the pthread to be blocked.  This is a recipe for priority
-   * inversion issues.
-   *
-   * We avoid this here by boosting the priority of the (inactive) pthread
-   * so it has the same priority as the parent thread.
-   */
-
-  if (ptcb->cmn.sched_priority < parent->sched_priority)
+  if (thread != NULL)
     {
-      ret = nxsched_set_priority(&ptcb->cmn, parent->sched_priority);
-      if (ret < 0)
-        {
-          ret = -ret;
-        }
+      *thread = (pthread_t)ptcb->cmn.pid;
     }
 
   /* Then activate the task */
 
-  sched_lock();
-  if (ret == OK)
-    {
-      nxtask_activate((FAR struct tcb_s *)ptcb);
+  nxtask_activate((FAR struct tcb_s *)ptcb);
 
-      /* Return the thread information to the caller */
-
-      if (thread)
-        {
-          *thread = (pthread_t)pid;
-        }
-
-      sched_unlock();
-    }
-  else
-    {
-      sched_unlock();
-      dq_rem((FAR dq_entry_t *)ptcb, &g_inactivetasks);
-
-      errcode = EIO;
-      goto errout_with_tcb;
-    }
-
-  return ret;
+  return OK;
 
 errout_with_tcb:
 
-  /* Clear group binding */
+  /* Since we do not join the group, assign group to NULL to clear binding */
 
-  if (ptcb && !group_joined)
-    {
-      ptcb->cmn.group = NULL;
-    }
+  ptcb->cmn.group = NULL;
 
   nxsched_release_tcb((FAR struct tcb_s *)ptcb, TCB_FLAG_TTYPE_PTHREAD);
   return errcode;

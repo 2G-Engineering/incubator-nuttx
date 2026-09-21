@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/nrf52/nrf52840-dongle/src/nrf52840-dongle.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,6 +35,18 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+/* Configuration ************************************************************/
+
+/* procfs File System */
+
+#ifdef CONFIG_FS_PROCFS
+#  ifdef CONFIG_NSH_PROC_MOUNTPOINT
+#    define NRF52_PROCFS_MOUNTPOINT CONFIG_NSH_PROC_MOUNTPOINT
+#  else
+#    define NRF52_PROCFS_MOUNTPOINT "/proc"
+#  endif
+#endif
 
 /* LED definitions **********************************************************/
 

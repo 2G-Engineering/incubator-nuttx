@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/stm32f103-minimum/src/stm32_userleds.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -59,7 +61,7 @@ uint32_t board_userled_initialize(void)
 {
   int i;
 
-  /* Configure LED1-8 GPIOs for output */
+  /* Configure LED GPIOs for output */
 
   for (i = 0; i < BOARD_NLEDS; i++)
     {
@@ -89,7 +91,7 @@ void board_userled_all(uint32_t ledset)
 {
   int i;
 
-  /* Configure LED1-8 GPIOs for output */
+  /* Configure LED GPIOs for output */
 
   for (i = 0; i < BOARD_NLEDS; i++)
     {

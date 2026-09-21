@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/power/battery/battery_monitor.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -104,14 +106,9 @@ static const struct file_operations g_batteryops =
 static int battery_monitor_notify(FAR struct battery_monitor_priv_s *priv,
                                   uint32_t mask)
 {
-  FAR struct pollfd *fd = priv->fds;
+  FAR struct pollfd *fds = priv->fds;
   int semcnt;
   int ret;
-
-  if (!fd)
-    {
-      return OK;
-    }
 
   ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
@@ -122,7 +119,7 @@ static int battery_monitor_notify(FAR struct battery_monitor_priv_s *priv,
   priv->mask |= mask;
   if (priv->mask)
     {
-      poll_notify(&fd, 1, POLLIN);
+      poll_notify(&fds, 1, POLLIN);
 
       nxsem_get_value(&priv->wait, &semcnt);
       if (semcnt < 1)
@@ -439,7 +436,7 @@ static int bat_monitor_ioctl(FAR struct file *filep, int cmd,
         break;
 
       default:
-        _err("ERROR: Unrecognized cmd: %d\n", cmd);
+        batinfo("ERROR: Unrecognized cmd: %d\n", cmd);
         ret = -ENOTTY;
         break;
     }
@@ -452,8 +449,8 @@ static int bat_monitor_ioctl(FAR struct file *filep, int cmd,
  * Name: bat_monitor_poll
  ****************************************************************************/
 
-static ssize_t bat_monitor_poll(FAR struct file *filep,
-                                struct pollfd *fds, bool setup)
+static int bat_monitor_poll(FAR struct file *filep,
+                            FAR struct pollfd *fds, bool setup)
 {
   FAR struct battery_monitor_priv_s *priv = filep->f_priv;
   int ret;
@@ -470,6 +467,10 @@ static ssize_t bat_monitor_poll(FAR struct file *filep,
         {
           priv->fds = fds;
           fds->priv = &priv->fds;
+          if (priv->mask)
+            {
+              poll_notify(&fds, 1, POLLIN);
+            }
         }
       else
         {
@@ -483,12 +484,6 @@ static ssize_t bat_monitor_poll(FAR struct file *filep,
     }
 
   nxmutex_unlock(&priv->lock);
-
-  if (setup)
-    {
-      battery_monitor_notify(priv, 0);
-    }
-
   return ret;
 }
 
@@ -561,7 +556,7 @@ int battery_monitor_register(FAR const char *devpath,
   ret = register_driver(devpath, &g_batteryops, 0555, dev);
   if (ret < 0)
     {
-      _err("ERROR: Failed to register driver: %d\n", ret);
+      baterr("ERROR: Failed to register driver: %d\n", ret);
     }
 
   return ret;

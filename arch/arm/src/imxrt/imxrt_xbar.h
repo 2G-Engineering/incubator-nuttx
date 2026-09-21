@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imxrt/imxrt_xbar.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,7 +29,6 @@
 
 #include <nuttx/config.h>
 #include <stdint.h>
-#include "hardware/imxrt_xbar.h"
 #include "hardware/imxrt_memorymap.h"
 #include "imxrt_periphclks.h"
 
@@ -48,7 +49,8 @@
  *   | XBARA1  | XBARAB2  | XBARB3  |
  *   |---------+----------*---------|
  *   | M  | I  |  M  | I  | M  | I  |
- *   |132 | 88 |  16 | 64 | 16 | 64 |
+ *   |132 | 88 |  16 | 64 | 16 | 64 | 1020, 1050, 1060 Family
+ *   |177 |146 |  16 |100 | 16 |100 | 1170 Family
  *
  *   Therefore there are M select fields that will be written to I values.
  *   The M fields are know as SELn, there are 2 selects fields per register.

@@ -27,6 +27,7 @@
 
 #include <stdio.h>
 
+#include <sys/lock.h>
 #include <sys/time.h>
 #include <sys/times.h>
 #include <sys/types.h>
@@ -38,14 +39,11 @@
 
 #include <nuttx/mutex.h>
 
-#define _lock_t int
-
 /* Forward declaration */
 
 struct _reent;
 
-/**
- * @brief ESP32-S3 ROM code contains implementations of some of C
+/* ESP32-S3 ROM code contains implementations of some of C
  * library functions.
  * Whenever a function in ROM needs to use a syscall, it calls a
  * pointer to the corresponding syscall implementation defined in

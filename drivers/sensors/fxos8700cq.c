@@ -1,6 +1,7 @@
 /****************************************************************************
  * drivers/sensors/fxos8700cq.c
- * Driver for Motion Sensor FXOS8700CQ (NXP)
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -29,6 +30,8 @@
 #include <debug.h>
 #include <errno.h>
 
+#include <nuttx/arch.h>
+#include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/i2c/i2c_master.h>
 
@@ -64,7 +67,7 @@
 /* Values */
 #define FXOS8700CQ_WHOAMI_VAL 0xC7
 
-/** status byte + x,y,z for accelerometer and magnetometer */
+/* status byte + x,y,z for accelerometer and magnetometer */
 #define FXOS8700CQ_READ_LEN ((8 + (16 * 3 + 16 * 3)) / 8)
 
 /****************************************************************************
@@ -103,7 +106,7 @@ static int fxos8700cq_checkid(FAR struct fxos8700cq_dev_s *priv);
  * Private Data
  ****************************************************************************/
 
-/** vtable that supports the character driver interface */
+/* vtable that supports the character driver interface */
 
 static const struct file_operations g_fxos8700cqfops =
 {
@@ -246,7 +249,7 @@ static int fxos8700cq_open(FAR struct file *filep)
   if (ret < 0)
     {
       snerr("ERROR: %02x\n", regval);
-      return (ret);
+      return ret;
     }
 
   /* m_hms[1:0]: Hybrid mode, both accelerometer and magnetometer
@@ -266,7 +269,7 @@ static int fxos8700cq_open(FAR struct file *filep)
   ret = fxos8700cq_putreg8(priv, FXOS8700CQ_M_CTRL_REG1, regval);
   if (ret < 0)
     {
-      return (ret);
+      return ret;
     }
 
   /* hyb_autoinc_mode */
@@ -275,7 +278,7 @@ static int fxos8700cq_open(FAR struct file *filep)
   ret = fxos8700cq_putreg8(priv, FXOS8700CQ_M_CTRL_REG2, regval);
   if (ret < 0)
     {
-      return (ret);
+      return ret;
     }
 
   /* fs[1:0]: Accelerometer full-scale range : 4G */
@@ -284,7 +287,7 @@ static int fxos8700cq_open(FAR struct file *filep)
   ret = fxos8700cq_putreg8(priv, FXOS8700CQ_XYZ_DATA_CFG, regval);
   if (ret < 0)
     {
-      return (ret);
+      return ret;
     }
 
   /* active ,  lnoise ,  dr[2:0] */
@@ -296,7 +299,7 @@ static int fxos8700cq_open(FAR struct file *filep)
   ret = fxos8700cq_putreg8(priv, FXOS8700CQ_CTRL_REG1, regval);
   if (ret < 0)
     {
-      return (ret);
+      return ret;
     }
 
   return OK;
@@ -319,7 +322,7 @@ static int fxos8700cq_close(FAR struct file *filep)
   int ret = fxos8700cq_putreg8(priv, FXOS8700CQ_CTRL_REG1, regval);
   if (ret < 0)
     {
-      return (ret);
+      return ret;
     }
 
   return OK;

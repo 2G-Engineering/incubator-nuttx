@@ -1,10 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rp2040/rp2040_pio.c
  *
- * Based upon the software originally developed by
- *   Raspberry Pi (Trading) Ltd.
- *
- * Copyright 2020 (c) 2020 Raspberry Pi (Trading) Ltd.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2020 Raspberry Pi (Trading) Ltd.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -61,8 +59,8 @@
 #define hw_claim_lock()         spin_lock_irqsave(&pio_lock)
 #define hw_claim_unlock(save)   spin_unlock_irqrestore(&pio_lock, save)
 #else
-#define hw_claim_lock()         spin_lock_irqsave(NULL)
-#define hw_claim_unlock(save)   spin_unlock_irqrestore(NULL, save)
+#define hw_claim_lock()         up_irq_save()
+#define hw_claim_unlock(save)   up_irq_restore(save)
 #endif
 
 /****************************************************************************
@@ -127,7 +125,7 @@ static int hw_claim_unused_from_range(uint8_t *bits, bool required,
 static void hw_claim_clear(uint8_t *bits, uint32_t bit_index)
 {
   uint32_t save = hw_claim_lock();
-  assert(bits[bit_index >> 3u] & (1u << (bit_index & 7u)));
+  ASSERT(bits[bit_index >> 3u] & (1u << (bit_index & 7u)));
   bits[bit_index >> 3u] &= (uint8_t) ~(1u << (bit_index & 7u));
   hw_claim_unlock(save);
 }
@@ -135,7 +133,7 @@ static void hw_claim_clear(uint8_t *bits, uint32_t bit_index)
 static int _pio_find_offset_for_program(uint32_t pio,
                                         const rp2040_pio_program_t *program)
 {
-  assert(program->length < PIO_INSTRUCTION_COUNT);
+  ASSERT(program->length < PIO_INSTRUCTION_COUNT);
   uint32_t used_mask = _used_instruction_space[rp2040_pio_get_index(pio)];
   uint32_t program_mask = (1u << program->length) - 1;
 
@@ -306,7 +304,7 @@ void rp2040_pio_remove_program(uint32_t pio,
   uint32_t program_mask = (1u << program->length) - 1;
   program_mask <<= loaded_offset;
   uint32_t save = hw_claim_lock();
-  assert(program_mask ==
+  ASSERT(program_mask ==
          (_used_instruction_space[rp2040_pio_get_index(pio)] &
             program_mask));
   _used_instruction_space[rp2040_pio_get_index(pio)] &= ~program_mask;

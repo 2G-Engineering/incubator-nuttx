@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imxrt/imxrt_flexpwm.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,6 +41,7 @@
 #include "chip.h"
 #include "imxrt_config.h"
 #include "imxrt_flexpwm.h"
+#include "imxrt_gpio.h"
 #include "imxrt_periphclks.h"
 #include "imxrt_xbar.h"
 #include "hardware/imxrt_flexpwm.h"

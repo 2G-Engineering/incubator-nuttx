@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/sama5/giant-board/include/board_492mhz.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -204,4 +206,4 @@ extern "C"
 #endif
 
 #endif /* !__ASSEMBLY__ */
-#endif  /* __BOARDS_ARM_SAMA5_GIANT_BOARD_INCLUDE_BOARD_492MHZ_H */
+#endif /* __BOARDS_ARM_SAMA5_GIANT_BOARD_INCLUDE_BOARD_492MHZ_H */

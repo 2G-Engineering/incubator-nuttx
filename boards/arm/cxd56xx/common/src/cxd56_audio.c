@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/cxd56xx/common/src/cxd56_audio.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,10 +35,10 @@
 
 #include <nuttx/arch.h>
 #include <nuttx/audio/audio.h>
-#include <nuttx/audio/cxd56.h>
 #include <nuttx/audio/pcm.h>
 #include <nuttx/signal.h>
 #include <arch/chip/audio.h>
+#include <arch/chip/nxaudio.h>
 
 #include "chip.h"
 #include "arm_internal.h"
@@ -499,7 +501,7 @@ int board_audio_initialize_driver(int minor)
 
   /* Create a device name */
 
-  snprintf(devname, 12, "pcm%d",  minor);
+  snprintf(devname, sizeof(devname), "pcm%d",  minor);
 
   /* Finally, we can register the PCM/CXD56 audio device. */
 
@@ -524,7 +526,7 @@ int board_audio_initialize_driver(int minor)
 
   /* Create a device name */
 
-  snprintf(devname, 12, "pcm_in%d",  minor);
+  snprintf(devname, sizeof(devname), "pcm_in%d",  minor);
 
   /* Finally, we can register the CXD56 audio input device. */
 

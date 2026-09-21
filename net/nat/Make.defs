@@ -1,6 +1,8 @@
 ############################################################################
 # net/nat/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -22,8 +24,14 @@
 
 ifeq ($(CONFIG_NET_NAT),y)
 
-ifeq ($(CONFIG_NET_IPv4),y)
+NET_CSRCS += nat.c
+
+ifeq ($(CONFIG_NET_NAT44),y)
 NET_CSRCS += ipv4_nat.c ipv4_nat_entry.c
+endif
+
+ifeq ($(CONFIG_NET_NAT66),y)
+NET_CSRCS += ipv6_nat.c ipv6_nat_entry.c
 endif
 
 # Include NAT build support

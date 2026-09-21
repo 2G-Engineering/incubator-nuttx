@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/t67xx.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,6 +32,7 @@
 #include <string.h>
 #include <time.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/i2c/i2c_master.h>
@@ -707,7 +710,7 @@ int t67xx_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
 
   /* Initialize the t67xx device structure. */
 
-  priv = (FAR struct t67xx_dev_s *)kmm_malloc(sizeof(struct t67xx_dev_s));
+  priv = kmm_malloc(sizeof(struct t67xx_dev_s));
   if (priv == NULL)
     {
       snerr("ERROR: Failed to allocate instance\n");

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imx6/imx_enet.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -45,6 +47,7 @@
 #include <nuttx/signal.h>
 #include <nuttx/net/mii.h>
 #include <nuttx/net/phy.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 
 #ifdef CONFIG_NET_PKT
@@ -1276,11 +1279,9 @@ static int imx_ifup_action(struct net_driver_s *dev, bool resetphy)
   uint32_t regval;
   int ret;
 
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff),
-        (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff),
-        (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 
   /* Initialize ENET buffers */
 
@@ -1422,11 +1423,9 @@ static int imx_ifdown(struct net_driver_s *dev)
     (struct imx_driver_s *)dev->d_private;
   irqstate_t flags;
 
-  ninfo("Taking down: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff),
-        (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff),
-        (int)(dev->d_ipaddr >> 24));
+  ninfo("Taking down: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 
   /* Flush and disable the Ethernet interrupts at the NVIC */
 
@@ -1660,7 +1659,7 @@ static int imx_addmac(struct net_driver_s *dev, const uint8_t *mac)
 
   temp  = imx_enet_getreg32(priv, registeraddress);
   temp |= 1 << hashindex;
-  imx_rt_enet_putreg32(priv, temp, registeraddress);
+  imx_enet_putreg32(priv, temp, registeraddress);
 
   return OK;
 }
@@ -2511,7 +2510,7 @@ int imx_netinitialize(int intf)
 
   memset(priv, 0, sizeof(struct imx_driver_s));
 
-  priv->base = IMX_ENET_VBASE;        /* Assigne base address */
+  priv->base = IMX_ENET_VBASE;        /* Assign base address */
 
   priv->dev.d_ifup    = imx_ifup;     /* I/F up (new IP address) callback */
   priv->dev.d_ifdown  = imx_ifdown;   /* I/F down callback */

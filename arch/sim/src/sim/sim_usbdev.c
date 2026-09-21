@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/sim_usbdev.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -219,6 +221,55 @@ static const struct usbdev_ops_s g_devops =
   .wakeup      = sim_usbdev_wakeup,
 };
 
+/* Device error strings that may be enabled for more descriptive USB trace
+ * output.
+ */
+
+#ifdef CONFIG_USBDEV_TRACE_STRINGS
+const struct trace_msg_t g_usb_trace_strings_deverror[] =
+{
+  TRACE_STR(SIM_TRACEERR_ALLOCFAIL),
+  TRACE_STR(SIM_TRACEERR_BADCLEARFEATURE),
+  TRACE_STR(SIM_TRACEERR_BADDEVGETSTATUS),
+  TRACE_STR(SIM_TRACEERR_BADEPGETSTATUS),
+  TRACE_STR(SIM_TRACEERR_BADEPNO),
+  TRACE_STR(SIM_TRACEERR_BADEPTYPE),
+  TRACE_STR(SIM_TRACEERR_BADGETCONFIG),
+  TRACE_STR(SIM_TRACEERR_BADGETSETDESC),
+  TRACE_STR(SIM_TRACEERR_BADGETSTATUS),
+  TRACE_STR(SIM_TRACEERR_BADSETADDRESS),
+  TRACE_STR(SIM_TRACEERR_BADSETCONFIG),
+  TRACE_STR(SIM_TRACEERR_BADSETFEATURE),
+  TRACE_STR(SIM_TRACEERR_BINDFAILED),
+  TRACE_STR(SIM_TRACEERR_DISPATCHSTALL),
+  TRACE_STR(SIM_TRACEERR_DRIVER),
+  TRACE_STR(SIM_TRACEERR_DRIVERREGISTERED),
+  TRACE_STR(SIM_TRACEERR_EP0BADCTR),
+  TRACE_STR(SIM_TRACEERR_EP0SETUPSTALLED),
+  TRACE_STR(SIM_TRACEERR_EPBUFFER),
+  TRACE_STR(SIM_TRACEERR_EPDISABLED),
+  TRACE_STR(SIM_TRACEERR_EPOUTNULLPACKET),
+  TRACE_STR(SIM_TRACEERR_EPRESERVE),
+  TRACE_STR(SIM_TRACEERR_INVALIDCTRLREQ),
+  TRACE_STR(SIM_TRACEERR_INVALIDPARMS),
+  TRACE_STR(SIM_TRACEERR_IRQREGISTRATION),
+  TRACE_STR(SIM_TRACEERR_NOTCONFIGURED),
+  TRACE_STR(SIM_TRACEERR_REQABORTED),
+  TRACE_STR_END
+};
+#endif
+
+/* Interrupt event strings that may be enabled for more descriptive USB trace
+ * output.
+ */
+
+#ifdef CONFIG_USBDEV_TRACE_STRINGS
+const struct trace_msg_t g_usb_trace_strings_intdecode[] =
+{
+  TRACE_STR_END
+};
+#endif
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -379,7 +430,7 @@ static int sim_reqwrite(struct sim_usbdev_s *priv, struct sim_ep_s *privep)
 }
 
 /****************************************************************************
- * Name: sim_ep_configure
+ * Name: sim_usbdev_getctrlreq
  ****************************************************************************/
 
 static void sim_usbdev_getctrlreq(struct usb_ctrlreq_s *usb_req,
@@ -396,7 +447,7 @@ static void sim_usbdev_getctrlreq(struct usb_ctrlreq_s *usb_req,
 }
 
 /****************************************************************************
- * Name: sim_ep_configure
+ * Name: sim_usbdev_setepdesc
  ****************************************************************************/
 
 static void sim_usbdev_setepdesc(struct host_usb_epdesc_s *host_epdesc,
@@ -611,7 +662,7 @@ static struct usbdev_req_s *sim_ep_allocreq(struct usbdev_ep_s *ep)
 
   usbtrace(TRACE_EPALLOCREQ, USB_EPNO(ep->eplog));
 
-  privreq = (struct sim_req_s *)kmm_malloc(sizeof(struct sim_req_s));
+  privreq = kmm_malloc(sizeof(struct sim_req_s));
   if (!privreq)
     {
       usbtrace(TRACE_DEVERROR(SIM_TRACEERR_ALLOCFAIL), 0);
@@ -802,7 +853,7 @@ static struct sim_ep_s *sim_ep_reserve(struct sim_usbdev_s *priv,
  *
  * Description:
  *   The endpoint is no long in-used.  It will be un-reserved and can be
- *   re-used if needed.
+ *   reused if needed.
  *
  ****************************************************************************/
 
@@ -1082,7 +1133,7 @@ int usbdev_unregister(struct usbdevclass_driver_s *driver)
    */
 
   flags = enter_critical_section();
-  host_usbdev_deinit();
+  CLASS_DISCONNECT(driver, &priv->usbdev);
   leave_critical_section(flags);
 
   /* Unbind the class driver */
@@ -1096,6 +1147,7 @@ int usbdev_unregister(struct usbdevclass_driver_s *driver)
   /* Disconnect device */
 
   host_usbdev_pullup(false);
+  host_usbdev_deinit();
 
   /* Unhook the driver */
 

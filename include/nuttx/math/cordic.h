@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/math/cordic.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -119,6 +121,8 @@ struct cordic_calc_s
   /* CORDIC request configuration */
 
   uint8_t func;                 /* CORDIC function */
+  int8_t  input_scale;          /* CORDIC input scale factor */
+  int8_t  output_scale;         /* CORDIC output scale factor */
   bool    res2_incl;            /* Include secondary result if available */
 
   /* Input data */

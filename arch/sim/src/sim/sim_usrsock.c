@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/sim_usrsock.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,6 +30,7 @@
 #include <syslog.h>
 #include <string.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/net/usrsock.h>
 
 #include "sim_hostusrsock.h"
@@ -39,7 +42,7 @@
 #define SIM_USRSOCK_BUFSIZE (400 * 1024)
 
 /****************************************************************************
- * Private Type Declarations
+ * Private Types
  ****************************************************************************/
 
 struct usrsock_s
@@ -408,6 +411,7 @@ void usrsock_register(void)
 int usrsock_request(struct iovec *iov, unsigned int iovcnt)
 {
   struct usrsock_request_common_s *common;
+  uint64_t flags;
   int ret;
 
   /* Copy request to buffer */
@@ -424,8 +428,10 @@ int usrsock_request(struct iovec *iov, unsigned int iovcnt)
   if (common->reqid >= 0 &&
       common->reqid < USRSOCK_REQUEST__MAX)
     {
+      flags = up_irq_save();
       ret = g_usrsock_handler[common->reqid](&g_usrsock,
                                               g_usrsock.in, ret);
+      up_irq_restore(flags);
       if (ret < 0)
         {
           syslog(LOG_ERR, "Usrsock request %d failed: %d\n",

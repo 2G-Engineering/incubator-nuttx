@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/timers/pwm.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -79,12 +81,10 @@
  * interface, the majority of the functionality is implemented in driver
  * ioctl calls.  The PWM ioctl commands are listed below:
  *
- * PWMIOC_SETCHARACTERISTICS - Set the characteristics of the next pulsed
- *  output.  This command will neither start nor stop the pulsed output.
- *  It will either setup the configuration that will be used when the
- *  output is started; or it will change the characteristics of the pulsed
- *  output on the fly if the timer is already started.  This command will
- *  set the PWM characteristics and return immediately.
+ * PWMIOC_SETCHARACTERISTICS - Set the characteristics of the next
+ *  pulsed output and start the pulsed output. It will change the
+ *  characteristics of the pulsed output on the fly if the timer is
+ *  already started.
  *
  *  ioctl argument: A read-only reference to struct pwm_info_s that provides
  *  the characteristics of the pulsed output.
@@ -109,12 +109,47 @@
  *  and return immediately.
  *
  *  ioctl argument:  None
+ *
+ * PWMIOC_FAULTS_FETCH_AND_CLEAR - Fetch current faults and clear them.
+ *  This command will clear fault inputs and re-enable PWM output. It also
+ *  fetches the faults active before the clear operation.
+ *
+ *  ioctl argument:  A pointer to an unsigned long bitmask of fault inputs to
+ *  be cleared. The previously active faults are also saved into this
+ *  bitmask, therefore it ioctl is both input and output. Passing NULL
+ *  clears all active faults and does not read them back. Passing a pointer
+ *  to a bitmask full of zeros will read the current faults and clear none.
  */
 
-#define PWMIOC_SETCHARACTERISTICS _PWMIOC(1)
-#define PWMIOC_GETCHARACTERISTICS _PWMIOC(2)
-#define PWMIOC_START              _PWMIOC(3)
-#define PWMIOC_STOP               _PWMIOC(4)
+#define PWMIOC_SETCHARACTERISTICS      _PWMIOC(1)
+#define PWMIOC_GETCHARACTERISTICS      _PWMIOC(2)
+#define PWMIOC_START                   _PWMIOC(3)
+#define PWMIOC_STOP                    _PWMIOC(4)
+#define PWMIOC_FAULTS_FETCH_AND_CLEAR  _PWMIOC(5)
+
+/* PWM channel polarity *****************************************************/
+
+/* These are helper definitions for setting PWM channel output polarity to
+ * logical low or high level. The pulsed output should start with this
+ * logical value.
+ * The output polarity of the PWM's disabled channel does not depend on this
+ * value, refer to DCPOL instead.
+ */
+
+#define PWM_CPOL_NDEF             0   /* Not defined, default value by arch driver should be used */
+#define PWM_CPOL_LOW              1   /* Logical zero */
+#define PWM_CPOL_HIGH             2   /* Logical one */
+
+/* PWM disabled channel polarity ********************************************/
+
+/* The output of the PWM disabled channel may depend on the platform
+ * dependent peripheral. These helper definitions can be used for setting
+ * the disabled channel's output state.
+ */
+
+#define PWM_DCPOL_NDEF           0   /* Not defined, the default output state is arch dependent */
+#define PWM_DCPOL_LOW            1   /* Logical zero */
+#define PWM_DCPOL_HIGH           2   /* Logical one  */
 
 /****************************************************************************
  * Public Types
@@ -136,6 +171,8 @@ struct pwm_chan_s
   ub16_t dead_time_a;
   ub16_t dead_time_b;
 #endif
+  uint8_t cpol;
+  uint8_t dcpol;
   int8_t channel;
 };
 #endif
@@ -163,6 +200,8 @@ struct pwm_info_s
   uint32_t           count;     /* The number of pulse to generate.  0 means to
                                  * generate an indefinite number of pulses */
 #  endif
+  uint8_t cpol;                 /* Channel polarity */
+  uint8_t dcpol;                /* Disabled channel polarity */
 #endif /* CONFIG_PWM_MULTICHAN */
 
   FAR void           *arg;      /* User provided argument to be used in the

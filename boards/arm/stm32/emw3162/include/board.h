@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/emw3162/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,9 +32,6 @@
 #ifndef __ASSEMBLY__
 #  include <stdbool.h>
 #endif
-
-#include "stm32_rcc.h"
-#include "stm32.h"
 
 /****************************************************************************
  * Pre-processor Definitions

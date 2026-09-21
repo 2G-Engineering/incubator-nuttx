@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/semaphore/sem_initialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,6 +25,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/trace.h>
 
 #include "semaphore/semaphore.h"
 
@@ -54,9 +57,12 @@
 
 void nxsem_initialize(void)
 {
+  sched_trace_begin();
+
   /* Initialize holder structures needed to support priority inheritance */
 
   nxsem_initialize_holders();
+  sched_trace_end();
 }
 
 #endif /* CONFIG_PRIORITY_INHERITANCE */

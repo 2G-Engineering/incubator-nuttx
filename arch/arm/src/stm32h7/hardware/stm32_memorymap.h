@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/hardware/stm32_memorymap.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,6 +33,8 @@
 #if defined(CONFIG_STM32H7_STM32H7X3XX)
 #  include "hardware/stm32h7x3xx_memorymap.h"
 #elif defined(CONFIG_STM32H7_STM32H7B3XX)
+#  include "hardware/stm32h7x3xx_memorymap.h"
+#elif defined(CONFIG_STM32H7_STM32H7X5XX)
 #  include "hardware/stm32h7x3xx_memorymap.h"
 #elif defined(CONFIG_STM32H7_STM32H7X7XX)
 #  include "hardware/stm32h7x3xx_memorymap.h"

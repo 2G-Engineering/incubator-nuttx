@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/sched/sched_sporadic.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -777,7 +779,7 @@ int nxsched_initialize_sporadic(FAR struct tcb_s *tcb)
    * sporadic scheduling parameters and state data.
    */
 
-  sporadic = (FAR struct sporadic_s *)kmm_zalloc(sizeof(struct sporadic_s));
+  sporadic = kmm_zalloc(sizeof(struct sporadic_s));
   if (sporadic == NULL)
     {
       serr("ERROR: Failed to allocate sporadic data structure\n");

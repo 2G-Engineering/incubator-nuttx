@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_putc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,4 +33,9 @@
 int putc(int c, FAR FILE *stream)
 {
   return fputc(c, stream);
+}
+
+int putc_unlocked(int c, FAR FILE *stream)
+{
+  return fputc_unlocked(c, stream);
 }

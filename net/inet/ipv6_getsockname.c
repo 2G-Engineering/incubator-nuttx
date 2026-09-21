@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/inet/ipv6_getsockname.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -150,7 +152,8 @@ int ipv6_getsockname(FAR struct socket *psock, FAR struct sockaddr *addr,
   /* Set the address family and the IP address */
 
   outaddr->sin6_family = AF_INET6;
-  memcpy(outaddr->sin6_addr.in6_u.u6_addr8, dev->d_ipv6addr, 16);
+  net_ipv6addr_copy(outaddr->sin6_addr.in6_u.u6_addr8,
+                    netdev_ipv6_srcaddr(dev, *lipaddr));
   *addrlen = sizeof(struct sockaddr_in6);
 
   net_unlock();

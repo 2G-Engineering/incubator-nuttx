@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/s32k1xx/ucans32k146/src/s32k1xx_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -128,13 +130,24 @@ int s32k1xx_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_S32K1XX_LPI2C
+#ifdef CONFIG_I2C_DRIVER
   /* Initialize I2C driver */
 
   ret = s32k1xx_i2cdev_initialize();
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: s32k1xx_i2cdev_initialize() failed: %d\n",
+             ret);
+    }
+#endif
+
+#ifdef CONFIG_DEV_SE05X
+  /* Initialize SE05x driver */
+
+  ret = s32k1xx_se05x_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: s32k1xx_se05x_initialize() failed: %d\n",
              ret);
     }
 #endif

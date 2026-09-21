@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/xtensa/src/common/xtensa_tcbinfo.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -26,6 +28,7 @@
 
 #include <nuttx/sched.h>
 #include <arch/irq.h>
+#include <sys/param.h>
 
 /****************************************************************************
  * Private Data
@@ -35,6 +38,33 @@ static const uint16_t g_reg_offs[] =
 {
   TCB_REG_OFF(REG_PC),
   TCB_REG_OFF(REG_PS),
+#if XCHAL_HAVE_LOOPS != 0
+  TCB_REG_OFF(REG_LBEG),
+  TCB_REG_OFF(REG_LEND),
+  TCB_REG_OFF(REG_LCOUNT),
+#else
+  UINT16_MAX,
+  UINT16_MAX,
+  UINT16_MAX,
+#endif
+  TCB_REG_OFF(REG_SAR),
+  UINT16_MAX, /* windowstart */
+  UINT16_MAX, /* windowbase */
+  UINT16_MAX, /* threadptr */
+  UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX, /* reserved[7 + 48] */
   TCB_REG_OFF(REG_A0),
   TCB_REG_OFF(REG_A1),
   TCB_REG_OFF(REG_A2),
@@ -50,22 +80,35 @@ static const uint16_t g_reg_offs[] =
   TCB_REG_OFF(REG_A12),
   TCB_REG_OFF(REG_A13),
   TCB_REG_OFF(REG_A14),
-  TCB_REG_OFF(REG_A15),
+  TCB_REG_OFF(REG_A15), /* ar[0:15] */
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX,
+  UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX, /* ar[16:63] */
 };
 
 /****************************************************************************
  * Public Data
  ****************************************************************************/
 
-const struct tcbinfo_s g_tcbinfo =
+const struct tcbinfo_s g_tcbinfo used_data =
 {
-  .pid_off   = TCB_PID_OFF,
-  .state_off = TCB_STATE_OFF,
-  .pri_off   = TCB_PRI_OFF,
-  .name_off  = TCB_NAME_OFF,
-  .regs_off  = TCB_REGS_OFF,
-  .basic_num = COMMON_CTX_REGS,
-  .total_num = sizeof(g_reg_offs) / sizeof(g_reg_offs[0]),
+  .pid_off        = TCB_PID_OFF,
+  .state_off      = TCB_STATE_OFF,
+  .pri_off        = TCB_PRI_OFF,
+  .name_off       = TCB_NAME_OFF,
+  .stack_off      = TCB_STACK_OFF,
+  .stack_size_off = TCB_STACK_SIZE_OFF,
+  .regs_off       = TCB_REGS_OFF,
+  .regs_num       = COMMON_CTX_REGS,
   {
     .p = g_reg_offs,
   },
@@ -74,4 +117,3 @@ const struct tcbinfo_s g_tcbinfo =
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
-

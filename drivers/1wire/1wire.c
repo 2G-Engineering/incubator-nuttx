@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/1wire/1wire.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -23,6 +25,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/nuttx.h>
 
 #include <assert.h>
 #include <errno.h>
@@ -135,9 +138,8 @@ static inline uint32_t onewire_leuint32(uint32_t x)
 static int onewire_pm_prepare(FAR struct pm_callback_s *cb, int domain,
                               enum pm_state_e pmstate)
 {
-  struct onewire_master_s *master =
-      (struct onewire_master_s *)((char *)cb -
-                                  offsetof(struct onewire_master_s, pm_cb));
+  struct onewire_master_s *master;
+  master = container_of(cb, struct onewire_master_s, pm_cb);
 
   /* Logic to prepare for a reduced power state goes here. */
 
@@ -152,7 +154,7 @@ static int onewire_pm_prepare(FAR struct pm_callback_s *cb, int domain,
 
       /* Check if exclusive lock for the bus master is held. */
 
-      if (nxrmutex_is_locked(&master->devlock)
+      if (nxrmutex_is_locked(&master->devlock))
         {
           /* Exclusive lock is held, do not allow entry to deeper PM
            * states.
@@ -524,7 +526,7 @@ int onewire_search(FAR struct onewire_master_s *master,
 
       if (last_zero == last_bit || last_zero == -1)
         {
-          i2cinfo("search complete, rom=0x%llx\n", rom);
+          i2cinfo("search complete, rom=0x%" PRIx64 "\n", rom);
 
           /* Found last device, quit searching. */
 

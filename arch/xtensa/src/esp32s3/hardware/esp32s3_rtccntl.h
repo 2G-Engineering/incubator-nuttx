@@ -33,18 +33,25 @@
 
 /* Offset relative to each watchdog timer instance memory base */
 
-#define RWDT_CONFIG0_OFFSET         0x0090
+#define RWDT_CONFIG0_OFFSET         0x0098
+#define XTWDT_CONFIG0_OFFSET        0x0060
 
 /* RWDT */
 
-#define RWDT_STAGE0_TIMEOUT_OFFSET  0x0094
-#define RWDT_STAGE1_TIMEOUT_OFFSET  0x0098
-#define RWDT_STAGE2_TIMEOUT_OFFSET  0x009c
-#define RWDT_STAGE3_TIMEOUT_OFFSET  0x00a0
-#define RWDT_FEED_OFFSET            0x00a4
-#define RWDT_WP_REG                 0x00a8
+#define RWDT_STAGE0_TIMEOUT_OFFSET  0x009C
+#define RWDT_STAGE1_TIMEOUT_OFFSET  0x00A0
+#define RWDT_STAGE2_TIMEOUT_OFFSET  0x00A4
+#define RWDT_STAGE3_TIMEOUT_OFFSET  0x00A8
+#define RWDT_FEED_OFFSET            0x00AC
+#define RWDT_WP_REG                 0x00B0
 #define RWDT_INT_ENA_REG_OFFSET     0x0040
 #define RWDT_INT_CLR_REG_OFFSET     0x004c
+
+/* XTWDT */
+
+#define XTWDT_TIMEOUT_OFFSET        0x00f8
+#define XTWDT_CLK_PRESCALE_OFFSET   0x00f4
+#define XTWDT_INT_ENA_REG_OFFSET    0x0040
 
 /* The value that needs to be written to RTC_CNTL_WDT_WKEY to
  * write-enable the wdt registers
@@ -978,7 +985,7 @@
 #define RTC_CNTL_RTC_TOUCH_APPROACH_LOOP_DONE_INT_ENA_S  20
 
 /* RTC_CNTL_RTC_GLITCH_DET_INT_ENA : R/W; bitpos: [19]; default: 0;
- * enbale gitch det interrupt
+ * enable gitch det interrupt
  */
 
 #define RTC_CNTL_RTC_GLITCH_DET_INT_ENA    (BIT(19))
@@ -2042,13 +2049,13 @@
 #define RTC_CNTL_RTC_SLEEP_REJECT_ENA_S  12
 
 /* RTC_CNTL_RTC_CPU_PERIOD_CONF_REG register
- * conigure cpu freq
+ * configure cpu freq
  */
 
 #define RTC_CNTL_RTC_CPU_PERIOD_CONF_REG (DR_REG_RTCCNTL_BASE + 0x6c)
 
 /* RTC_CNTL_RTC_CPUPERIOD_SEL : R/W; bitpos: [31:30]; default: 0;
- * conigure cpu freq
+ * configure cpu freq
  */
 
 #define RTC_CNTL_RTC_CPUPERIOD_SEL    0x00000003
@@ -2964,7 +2971,7 @@
 #define RTC_CNTL_LSLP_MEM_FORCE_PD_S  3
 
 /* RTC_CNTL_DIG_ISO_REG register
- * congigure digital power isolation
+ * configure digital power isolation
  */
 
 #define RTC_CNTL_DIG_ISO_REG (DR_REG_RTCCNTL_BASE + 0x94)
@@ -3358,7 +3365,7 @@
 #define RTC_CNTL_WDT_WKEY_S  0
 
 /* RTC_CNTL_RTC_SWD_CONF_REG register
- * congfigure super watch dog
+ * configure super watch dog
  */
 
 #define RTC_CNTL_RTC_SWD_CONF_REG (DR_REG_RTCCNTL_BASE + 0xb4)
@@ -3373,7 +3380,7 @@
 #define RTC_CNTL_SWD_AUTO_FEED_EN_S  31
 
 /* RTC_CNTL_SWD_DISABLE : R/W; bitpos: [30]; default: 0;
- * disabel SWD
+ * disable SWD
  */
 
 #define RTC_CNTL_SWD_DISABLE    (BIT(30))
@@ -4068,7 +4075,7 @@
 #define RTC_CNTL_EXT_WAKEUP1_STATUS_S  0
 
 /* RTC_CNTL_RTC_BROWN_OUT_REG register
- * congfigure brownout
+ * configure brownout
  */
 
 #define RTC_CNTL_RTC_BROWN_OUT_REG (DR_REG_RTCCNTL_BASE + 0xe8)
@@ -4242,7 +4249,7 @@
 #define RTC_CNTL_XTAL32K_RESTART_WAIT_S  4
 
 /* RTC_CNTL_XTAL32K_RETURN_WAIT : R/W; bitpos: [3:0]; default: 0;
- * cycles to wait to return noral xtal 32k
+ * cycles to wait to return normal xtal 32k
  */
 
 #define RTC_CNTL_XTAL32K_RETURN_WAIT    0x0000000f
@@ -5073,7 +5080,7 @@
 #define RTC_CNTL_TOUCH_TIMEOUT_NUM_S  0
 
 /* RTC_CNTL_RTC_SLP_REJECT_CAUSE_REG register
- * get reject casue
+ * get reject cause
  */
 
 #define RTC_CNTL_RTC_SLP_REJECT_CAUSE_REG (DR_REG_RTCCNTL_BASE + 0x128)
@@ -5140,7 +5147,7 @@
 
 /* RTC_CNTL_RTC_TOUCH_APPROACH_LOOP_DONE_INT_ENA_W1TS : WO; bitpos: [20];
  * default: 0;
- * enbale touch approach_loop done interrupt
+ * enable touch approach_loop done interrupt
  */
 
 #define RTC_CNTL_RTC_TOUCH_APPROACH_LOOP_DONE_INT_ENA_W1TS    (BIT(20))
@@ -5149,7 +5156,7 @@
 #define RTC_CNTL_RTC_TOUCH_APPROACH_LOOP_DONE_INT_ENA_W1TS_S  20
 
 /* RTC_CNTL_RTC_GLITCH_DET_INT_ENA_W1TS : WO; bitpos: [19]; default: 0;
- * enbale gitch det interrupt
+ * enable gitch det interrupt
  */
 
 #define RTC_CNTL_RTC_GLITCH_DET_INT_ENA_W1TS    (BIT(19))
@@ -5336,7 +5343,7 @@
 
 /* RTC_CNTL_RTC_TOUCH_APPROACH_LOOP_DONE_INT_ENA_W1TC : WO; bitpos: [20];
  * default: 0;
- * enbale touch approach_loop done interrupt
+ * enable touch approach_loop done interrupt
  */
 
 #define RTC_CNTL_RTC_TOUCH_APPROACH_LOOP_DONE_INT_ENA_W1TC    (BIT(20))
@@ -5345,7 +5352,7 @@
 #define RTC_CNTL_RTC_TOUCH_APPROACH_LOOP_DONE_INT_ENA_W1TC_S  20
 
 /* RTC_CNTL_RTC_GLITCH_DET_INT_ENA_W1TC : WO; bitpos: [19]; default: 0;
- * enbale gitch det interrupt
+ * enable gitch det interrupt
  */
 
 #define RTC_CNTL_RTC_GLITCH_DET_INT_ENA_W1TC    (BIT(19))
@@ -5576,7 +5583,7 @@
 #define RTC_CNTL_RETENTION_CLK_SEL_S  16
 
 /* RTC_CNTL_RETENTION_TARGET : R/W; bitpos: [15:14]; default: 0;
- * congfigure retention target cpu and/or tag
+ * configure retention target cpu and/or tag
  */
 
 #define RTC_CNTL_RETENTION_TARGET    0x00000003
@@ -5807,13 +5814,13 @@
 #define RTC_CNTL_TOUCH_PAD14_DAC_S  17
 
 /* RTC_CNTL_RTC_COCPU_DISABLE_REG register
- * configure ulp diable
+ * configure ulp disable
  */
 
 #define RTC_CNTL_RTC_COCPU_DISABLE_REG (DR_REG_RTCCNTL_BASE + 0x154)
 
 /* RTC_CNTL_DISABLE_RTC_CPU : R/W; bitpos: [31]; default: 0;
- * configure ulp diable
+ * configure ulp disable
  */
 
 #define RTC_CNTL_DISABLE_RTC_CPU    (BIT(31))
@@ -5835,6 +5842,13 @@
 #define RTC_CNTL_DATE_M  (RTC_CNTL_DATE_V << RTC_CNTL_DATE_S)
 #define RTC_CNTL_DATE_V  0x0fffffff
 #define RTC_CNTL_DATE_S  0
+
+/* LDO SLAVE : R/W ;bitpos:[18:13] ; default: 6'd0 ; */
+
+#define RTC_CNTL_SLAVE_PD    0x0000003F
+#define RTC_CNTL_SLAVE_PD_M  ((RTC_CNTL_SLAVE_PD_V)<<(RTC_CNTL_SLAVE_PD_S))
+#define RTC_CNTL_SLAVE_PD_V  0x3f
+#define RTC_CNTL_SLAVE_PD_S  13
 
 /* Deep sleep (power down digital domain) */
 
@@ -5885,5 +5899,16 @@
 /* Power down main XTAL */
 
 #define RTC_SLEEP_PD_XTAL               BIT(11)
+
+/* These flags are not power domains, but will affect some sleep parameters */
+
+#define RTC_SLEEP_DIG_USE_8M            BIT(16)
+#define RTC_SLEEP_USE_ADC_TESEN_MONITOR BIT(17)
+
+/* Avoid using ultra low power in deep sleep, in which RTCIO cannot
+ * be used as input, and RTCMEM can't work under high temperature
+ */
+
+#define RTC_SLEEP_NO_ULTRA_LOW          BIT(18)
 
 #endif /* __ARCH_XTENSA_SRC_ESP32S3_HARDWARE_ESP32S3_RTCCNTL_H */

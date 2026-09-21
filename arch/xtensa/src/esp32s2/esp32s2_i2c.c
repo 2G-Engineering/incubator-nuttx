@@ -24,7 +24,7 @@
 
 #include <nuttx/config.h>
 
-#ifdef CONFIG_ESP32S2_I2C
+#ifdef CONFIG_ESPRESSIF_I2C_PERIPH_MASTER_MODE
 
 #include <assert.h>
 #include <debug.h>
@@ -830,7 +830,7 @@ static int i2c_sem_waitdone(struct esp32s2_i2c_priv_s *priv)
  *   priv          - Pointer to the internal driver state structure.
  *
  * Returned Values:
- *   Zero (OK) is returned on successfull transfer. -ETIMEDOUT is returned
+ *   Zero (OK) is returned on successful transfer. -ETIMEDOUT is returned
  *   in case a transfer didn't finish within the timeout interval. And ERROR
  *   is returned in case of any I2C error during the transfer has happened.
  *
@@ -1268,8 +1268,8 @@ static void i2c_traceevent(struct esp32s2_i2c_priv_s *priv,
 
       /* Initialize the new trace entry */
 
-      trace->event  = event;
-      trace->parm   = parm;
+      trace->event = event;
+      trace->parm  = parm;
 
       /* Bump up the trace index (unless we are out of trace entries) */
 
@@ -1613,4 +1613,4 @@ int esp32s2_i2cbus_uninitialize(struct i2c_master_s *dev)
   return OK;
 }
 
-#endif /* CONFIG_ESP32S2_I2C */
+#endif /* CONFIG_ESPRESSIF_I2C_PERIPH_MASTER_MODE */

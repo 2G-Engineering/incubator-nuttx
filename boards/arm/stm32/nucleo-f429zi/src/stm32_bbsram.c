@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/nucleo-f429zi/src/stm32_bbsram.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -74,7 +76,7 @@
 #define BBSRAM_USED            ((4*BBSRAM_HEADER_SIZE)+ \
                                 (BBSRAM_SIZE_FN0+BBSRAM_SIZE_FN1+ \
                                  BBSRAM_SIZE_FN2))
-#define BBSRAM_REAMINING       (STM32F4_BBSRAM_SIZE-BBSRAM_USED)
+#define BBSRAM_REAMINING       (STM32_BBSRAM_SIZE-BBSRAM_USED)
 #if CONFIG_ARCH_INTERRUPTSTACK <= 3
 #  define BBSRAM_NUMBER_STACKS 1
 #else
@@ -136,7 +138,7 @@ typedef struct
 #if CONFIG_ARCH_INTERRUPTSTACK > 3
   _stack_t interrupt;
 #endif
-} stack_t;
+} stacks_t;
 
 /* Not Used for reference only */
 
@@ -232,18 +234,16 @@ typedef enum
 
 typedef struct
 {
-  fault_flags_t flags;                  /* What is in the dump */
-  uintptr_t     current_regs;           /* Used to validate the dump */
-  int           lineno;                 /* __LINE__ to up_assert */
-  pid_t         pid;                    /* Process ID */
-  uint32_t      regs[XCPTCONTEXT_REGS]; /* Interrupt register save area */
-  stack_t       stacks;                 /* Stack info */
-#if CONFIG_TASK_NAME_SIZE > 0
-  char          name[CONFIG_TASK_NAME_SIZE + 1]; /* Task name (with NULL
-                                                  * terminator) */
-#endif
-  char          filename[MAX_FILE_PATH_LENGTH];  /* the Last of chars in
-                                                  * __FILE__ to up_assert */
+  fault_flags_t flags;                            /* What is in the dump */
+  uintptr_t     current_regs;                     /* Used to validate the dump */
+  int           lineno;                           /* __LINE__ to up_assert */
+  pid_t         pid;                              /* Process ID */
+  uint32_t      regs[XCPTCONTEXT_REGS];           /* Interrupt register save area */
+  stack_t       stacks;                           /* Stack info */
+  char          name[CONFIG_TASK_NAME_SIZE + 1];  /* Task name (with NULL
+                                                   * terminator) */
+  char          filename[MAX_FILE_PATH_LENGTH];   /* the Last of chars in
+                                                   * __FILE__ to up_assert */
 } info_t;
 
 typedef struct
@@ -265,7 +265,7 @@ typedef struct
  * Private Data
  ****************************************************************************/
 
-static uint8_t g_sdata[STM32F4_BBSRAM_SIZE];
+static uint8_t g_sdata[STM32_BBSRAM_SIZE];
 
 /****************************************************************************
  * Private Functions
@@ -288,7 +288,7 @@ static int hardfault_get_desc(struct bbsramd_s *desc)
     }
   else
     {
-      ret = file_ioctl(&filestruct, STM32F4_BBSRAM_GETDESC_IOCTL,
+      ret = file_ioctl(&filestruct, STM32_BBSRAM_GETDESC_IOCTL,
                        (unsigned long)((uintptr_t)desc));
       file_close(&filestruct);
 
@@ -381,7 +381,7 @@ int stm32_bbsram_int(void)
 #if defined(CONFIG_STM32_SAVE_CRASHDUMP)
 void board_crashdump(uintptr_t sp, struct tcb_s *tcb,
                      const char *filename, int lineno,
-                     const char *msg)
+                     const char *msg, void *regs)
 {
   fullcontext_t *pdump = (fullcontext_t *)&g_sdata;
   int rv;
@@ -416,27 +416,20 @@ void board_crashdump(uintptr_t sp, struct tcb_s *tcb,
    * fault.
    */
 
-  pdump->info.current_regs = (uintptr_t) CURRENT_REGS;
+  pdump->info.current_regs = (uintptr_t)running_regs();
 
   /* Save Context */
 
-#if CONFIG_TASK_NAME_SIZE > 0
-  strlcpy(pdump->info.name, tcb->name, sizeof(pdump->info.name));
-#endif
+  strlcpy(pdump->info.name, get_task_name(tcb), sizeof(pdump->info.name));
 
   pdump->info.pid = tcb->pid;
 
-  /* If  current_regs is not NULL then we are in an interrupt context
-   * and the user context is in current_regs else we are running in
-   * the users context
-   */
-
-  if (CURRENT_REGS)
+  if (up_interrupt_context())
     {
       pdump->info.stacks.interrupt.sp = sp;
-      pdump->info.flags |= (REGS_PRESENT | USERSTACK_PRESENT | \
+      pdump->info.flags |= (REGS_PRESENT | USERSTACK_PRESENT |
                             INTSTACK_PRESENT);
-      memcpy(pdump->info.regs, (void *)CURRENT_REGS,
+      memcpy(pdump->info.regs, running_regs(),
              sizeof(pdump->info.regs));
       pdump->info.stacks.user.sp = pdump->info.regs[REG_R13];
     }

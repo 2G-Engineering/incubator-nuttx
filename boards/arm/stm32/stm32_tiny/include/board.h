@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/stm32_tiny/include/board.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -29,9 +31,6 @@
 #ifndef __ASSEMBLY__
 #  include <stdint.h>
 #endif
-#include "stm32_rcc.h"
-#include "stm32_sdio.h"
-#include "stm32.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -43,7 +42,7 @@
 
 #define STM32_BOARD_XTAL        8000000ul
 
-/* PLL source is HSE/1, PLL multipler is 9: PLL frequency is
+/* PLL source is HSE/1, PLL multiplier is 9: PLL frequency is
  * 8MHz (XTAL) x 9 = 72MHz
  */
 

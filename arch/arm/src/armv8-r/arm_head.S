@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/armv8-r/arm_head.S
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,8 +26,9 @@
 
 #include <nuttx/config.h>
 
+#include <arch/irq.h>
+
 #include "arm.h"
-#include "cp15.h"
 #include "cp15_cacheops.h"
 #include "sctlr.h"
 #include "arm_internal.h"
@@ -132,12 +135,12 @@
 	.type	__start, #function
 
 __start:
-#if defined(CONFIG_SMP) && CONFIG_SMP_NCPUS > 1
 	/* Get cpuindex, cpu0 continue boot, others wait event from cpu0 */
 
 	mrc		CP15_MPIDR(r0)
 	and		r0, r0, #0x3
 	cmp		r0, #0
+#if defined(CONFIG_SMP) && CONFIG_SMP_NCPUS > 1
 	beq		__cpu0_start
 	wfe
 	cmp		r0, #1
@@ -155,8 +158,20 @@ __start:
 	beq		__cpu4_start
 #  endif
 
-__cpu0_start:
+#else
+	beq		__cpu0_start
+
+__cpux_wfi:
+
+  /* Clear all pending data access */
+
+	dsb		sy
+	wfi
+	b		__cpux_wfi
+
 #endif
+
+__cpu0_start:
 
 	/* Make sure that IRQs and FIQs are disabled */
 
@@ -185,13 +200,21 @@ __cpu0_start:
 	 */
 
 	mov		r0, #0
+	mcr		CP15_TPIDRPRW(r0)	/* Initialize percpu reg TPIDRPRW */
 	mcr		CP15_BPIALL(r0)		/* Invalidate entire branch prediction array */
 	mcr		CP15_ICIALLU(r0)	/* Invalidate I-cache */
-	mov		r0, CP15_CACHE_INVALIDATE
+	mov		r1, CP15_CACHE_INVALIDATE
 	bl		cp15_dcache_op_level
 	isb
 
-	bl		sctlr_initialize
+	bl		hsctlr_initialize  /* Init Hyp system control register */
+
+	ldr		r0, =HACTLR_INIT
+	mcr		CP15_HACTLR(r0)  /* Enable EL1 access all IMP DEFINED registers */
+
+#ifdef CONFIG_ARCH_FPU
+	bl		arm_fpuconfig
+#endif
 
 	/* Initialize .bss and .data assumt that RAM that is ready to use. */
 	bl		arm_data_initialize
@@ -205,6 +228,8 @@ __cpu0_start:
 
 	adr		r0, 1f
 	msr		elr_hyp, r0
+	dsb
+	isb
 	eret
 
 1:
@@ -217,9 +242,6 @@ __cpu0_start:
 	mcr		CP15_VBAR(r0)
 
 	bl		sctlr_initialize
-#ifdef CONFIG_ARCH_FPU
-	bl		arm_fpuconfig
-#endif
 	bl		arm_boot
 
 	mov		lr, #0				/* LR = return address (none) */
@@ -311,7 +333,39 @@ arm_data_initialize:
 #endif
 
 /***************************************************************************
- * Name: arm_data_initialize
+ * Name: hsctlr_initialize
+ ***************************************************************************/
+
+	.global	hsctlr_initialize
+	.type	hsctlr_initialize, #function
+
+hsctlr_initialize:
+	mrc		CP15_HSCTLR(r0)		/* Get Hyp System Control Register */
+
+#if !defined(CONFIG_ARMV8R_DCACHE_DISABLE)
+	/* Dcache enable
+	 *
+	 *   SCTLR_C    Bit 2:  DCache enable
+	 */
+
+	orr		r0, r0, #(SCTLR_C)
+#endif
+
+#if !defined(CONFIG_ARMV8R_ICACHE_DISABLE)
+	/* Icache enable
+	 *
+	 *   SCTLR_I    Bit 12: ICache enable
+	 */
+
+	orr		r0, r0, #(SCTLR_I)
+#endif
+
+	mcr		CP15_HSCTLR(r0)		/* Write Hyp System Control Register */
+
+	bx		lr
+
+/***************************************************************************
+ * Name: sctlr_initialize
  ***************************************************************************/
 
 	.global	sctlr_initialize

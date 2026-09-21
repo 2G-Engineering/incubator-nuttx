@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/stm32ldiscovery/src/stm32_lcd.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -273,7 +275,7 @@
 #define SLCD_CHAR6_UPDATE3(s) SLCD_CHAR6_UPDATE2(s)
 
 /****************************************************************************
- * Private Type Definition
+ * Private Types
  ****************************************************************************/
 
 /* Global SLCD state */
@@ -603,7 +605,7 @@ static inline uint16_t slcd_mapch(uint8_t ch)
       return 0x0000;
     }
 
-  /* Handle space and the first block of puncutation */
+  /* Handle space and the first block of punctuation */
 
   if (ch < ASCII_0)
     {
@@ -617,7 +619,7 @@ static inline uint16_t slcd_mapch(uint8_t ch)
       return g_slcdnummap[(int)ch - ASCII_0];
     }
 
-  /* Handle the next block of puncutation */
+  /* Handle the next block of punctuation */
 
   else if (ch < ASCII_A)
     {
@@ -631,7 +633,7 @@ static inline uint16_t slcd_mapch(uint8_t ch)
       return g_slcdalphamap[(int)ch - ASCII_A];
     }
 
-  /* Handle the next block of puncutation */
+  /* Handle the next block of punctuation */
 
   else if (ch < ASCII_a)
     {
@@ -645,7 +647,7 @@ static inline uint16_t slcd_mapch(uint8_t ch)
       return g_slcdalphamap[(int)ch - ASCII_a];
     }
 
-  /* Handle the final block of puncutation */
+  /* Handle the final block of punctuation */
 
   else if (ch < ASCII_DEL)
     {
@@ -1138,7 +1140,7 @@ static ssize_t slcd_write(struct file *filep,
    */
 
   memset(&state, 0, sizeof(struct slcdstate_s));
-  result = slcd_decode(&instream.public, &state, &prev, &count);
+  result = slcd_decode(&instream.common, &state, &prev, &count);
 
   lcdinfo("slcd_decode returned result=%d char=%d count=%d\n",
            result, prev, count);
@@ -1162,7 +1164,7 @@ static ssize_t slcd_write(struct file *filep,
 
   /* Now decode and process every byte in the input buffer */
 
-  while ((result = slcd_decode(&instream.public,
+  while ((result = slcd_decode(&instream.common,
                                &state, &ch, &count)) != SLCDRET_EOF)
     {
       lcdinfo("slcd_decode returned result=%d char=%d count=%d\n",

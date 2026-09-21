@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/addrenv.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,9 +29,10 @@
 
 #include <nuttx/config.h>
 
+#ifndef __ASSEMBLY__
+
 #ifdef CONFIG_BUILD_KERNEL
 #  include <signal.h>
-#  include <nuttx/mm/mm.h>
 #endif
 
 #include <stdbool.h>
@@ -38,6 +41,8 @@
 #include <nuttx/wqueue.h>
 
 #include <arch/arch.h>
+
+#endif /* __ASSEMBLY__ */
 
 #ifdef CONFIG_ARCH_ADDRENV
 
@@ -108,7 +113,9 @@
  */
 
 #ifdef CONFIG_BUILD_KERNEL
-#  define ARCH_DATA_RESERVE_SIZE 512
+/* use MM_PGSIZE to unify among all archs for now */
+
+#  define ARCH_DATA_RESERVE_SIZE CONFIG_MM_PGSIZE
 #else
 #  define ARCH_DATA_RESERVE_SIZE 0
 #endif
@@ -191,9 +198,7 @@
 #    define CONFIG_ARCH_SHM_NPAGES 1
 #  endif
 
-#  define ARCH_SHM_MAXPAGES   (CONFIG_ARCH_SHM_NPAGES * CONFIG_ARCH_SHM_MAXREGIONS)
-#  define ARCH_SHM_REGIONSIZE (CONFIG_ARCH_SHM_NPAGES * CONFIG_MM_PGSIZE)
-#  define ARCH_SHM_SIZE       (CONFIG_ARCH_SHM_MAXREGIONS * ARCH_SHM_REGIONSIZE)
+#  define ARCH_SHM_SIZE       (CONFIG_ARCH_SHM_NPAGES * CONFIG_MM_PGSIZE)
 #  define ARCH_SHM_VEND       (CONFIG_ARCH_SHM_VBASE + ARCH_SHM_SIZE - 1)
 
 #  define ARCH_SCRATCH_VBASE   ARCH_SHM_VEND
@@ -242,6 +247,9 @@
      (CONFIG_ARCH_PGPOOL_VBASE + CONFIG_ARCH_PGPOOL_SIZE)
 
 #endif
+
+#ifndef __ASSEMBLY__
+
 /****************************************************************************
  * Public Type Definitions
  ****************************************************************************/
@@ -251,8 +259,6 @@ struct tcb_s;                  /* Forward reference to TCB */
 /****************************************************************************
  * Public Types
  ****************************************************************************/
-
-#ifndef __ASSEMBLY__
 
 struct addrenv_s
 {
@@ -282,6 +288,8 @@ typedef struct addrenv_s addrenv_t;
 typedef CODE void (*addrenv_sigtramp_t)(_sa_sigaction_t sighand, int signo,
                                         FAR siginfo_t *info,
                                         FAR void *ucontext);
+
+struct mm_heap_s; /* Forward reference */
 
 /* This structure describes the format of the .bss/.data reserved area */
 
@@ -414,6 +422,9 @@ int addrenv_leave(FAR struct tcb_s *tcb);
  *   This is a NuttX internal function so it follows the convention that
  *   0 (OK) is returned on success and a negated errno is returned on
  *   failure.
+ *
+ * Note:
+ *   This API is not safe to use from interrupt.
  *
  ****************************************************************************/
 

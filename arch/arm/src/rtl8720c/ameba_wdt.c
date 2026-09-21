@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rtl8720c/ameba_wdt.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -38,8 +40,7 @@
  * Private Types
  ****************************************************************************/
 
-/**
- * This structure provides the private representation of the "lower-half"
+/* This structure provides the private representation of the "lower-half"
  * driver state structure.  This structure must be cast-compatible with the
  * well-known watchdog_lowerhalf_s structure.
  */

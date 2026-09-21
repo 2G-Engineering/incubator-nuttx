@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/notifier.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,6 +30,7 @@
 #include <nuttx/config.h>
 #include <nuttx/irq.h>
 #include <nuttx/mutex.h>
+#include <nuttx/spinlock.h>
 
 #include <debug.h>
 #include <errno.h>
@@ -50,6 +53,14 @@
 
 #define BLOCKING_NOTIFIER_HEAD(name) \
   struct blocking_notifier_head name = BLOCKING_NOTIFIER_INIT(name)
+
+#define BLOCKING_INIT_NOTIFIER_HEAD(name) \
+  do \
+    { \
+      nxmutex_init(&(name)->mutex); \
+      (name)->head = NULL; \
+    } \
+  while (0)
 
 /****************************************************************************
  * Public Type Definitions

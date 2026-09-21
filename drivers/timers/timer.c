@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/timers/timer.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -34,16 +36,17 @@
 #include <debug.h>
 
 #include <nuttx/irq.h>
-#include <nuttx/kmalloc.h>
+#include <nuttx/lib/lib.h>
 #include <nuttx/signal.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/mutex.h>
 #include <nuttx/timers/timer.h>
+#include <sys/poll.h>
 
 #ifdef CONFIG_TIMER
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 /* This structure describes the state of the upper half driver */
@@ -53,6 +56,7 @@ struct timer_upperhalf_s
   mutex_t lock;            /* Supports mutual exclusion */
   uint8_t crefs;           /* The number of times the device has been opened */
   FAR char *path;          /* Registration path */
+  FAR struct pollfd *fds;
 
   /* The contained signal info */
 
@@ -77,6 +81,8 @@ static ssize_t timer_write(FAR struct file *filep, FAR const char *buffer,
                            size_t buflen);
 static int     timer_ioctl(FAR struct file *filep, int cmd,
                            unsigned long arg);
+static int     timer_poll(FAR struct file *filep,
+                          FAR struct pollfd *fds, bool setup);
 
 /****************************************************************************
  * Private Data
@@ -90,6 +96,9 @@ static const struct file_operations g_timerops =
   timer_write, /* write */
   NULL,        /* seek */
   timer_ioctl, /* ioctl */
+  NULL,        /* mmap */
+  NULL,        /* truncate */
+  timer_poll,  /* poll */
 };
 
 /****************************************************************************
@@ -114,6 +123,8 @@ static bool timer_notifier(FAR uint32_t *next_interval_us, FAR void *arg)
   DEBUGASSERT(upper != NULL);
 
   /* Signal the waiter.. if there is one */
+
+  poll_notify(&upper->fds, 1, POLLIN);
 
   nxsig_notification(notify->pid, &notify->event, SI_QUEUE, &upper->work);
 
@@ -397,6 +408,46 @@ static int timer_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 }
 
 /****************************************************************************
+ * Name: timer_poll
+ ****************************************************************************/
+
+static int timer_poll(FAR struct file *filep,
+                      FAR struct pollfd *fds, bool setup)
+{
+  FAR struct inode             *inode = filep->f_inode;
+  FAR struct timer_upperhalf_s *upper = inode->i_private;
+  irqstate_t flags;
+  int ret = OK;
+
+  if (upper == NULL || fds == NULL)
+    {
+      return -EINVAL;
+    }
+
+  flags = enter_critical_section();
+
+  if (setup)
+    {
+      if (upper->fds)
+        {
+          ret = -EBUSY;
+          goto errout;
+        }
+
+      upper->fds = fds;
+    }
+  else
+    {
+      upper->fds = NULL;
+    }
+
+errout:
+  leave_critical_section(flags);
+
+  return ret;
+}
+
+/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -473,7 +524,7 @@ FAR void *timer_register(FAR const char *path,
   return (FAR void *)upper;
 
 errout_with_path:
-  kmm_free(upper->path);
+  lib_free(upper->path);
 
 errout_with_upper:
   nxmutex_destroy(&upper->lock);
@@ -523,7 +574,7 @@ void timer_unregister(FAR void *handle)
   /* Then free all of the driver resources */
 
   nxmutex_destroy(&upper->lock);
-  kmm_free(upper->path);
+  lib_free(upper->path);
   kmm_free(upper);
 }
 
@@ -560,7 +611,7 @@ int timer_setcallback(FAR void *handle, tccb_t callback, FAR void *arg)
 
   /* Check if the lower half driver supports the setcallback method */
 
-  if (lower->ops->setcallback != NULL) /* Optional */
+  if (lower->ops->setcallback != NULL)
     {
       /* Yes.. Defer the handler attachment to the lower half driver */
 

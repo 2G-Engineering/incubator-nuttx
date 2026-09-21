@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/icmp/icmp_sendmsg.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -99,6 +101,10 @@ static void sendto_request(FAR struct net_driver_s *dev,
 {
   FAR struct icmp_hdr_s *icmp;
 
+#ifdef CONFIG_NET_JUMBO_FRAME
+  netdev_iob_prepare_dynamic(dev, pstate->snd_buflen + IPv4_HDRLEN);
+#endif
+
   /* Set-up to send that amount of data. */
 
   devif_send(dev, pstate->snd_buf, pstate->snd_buflen, IPv4_HDRLEN);
@@ -128,11 +134,14 @@ static void sendto_request(FAR struct net_driver_s *dev,
   /* Calculate the ICMP checksum. */
 
   icmp->icmpchksum = 0;
+
+#ifdef CONFIG_NET_ICMP_CHECKSUMS
   icmp->icmpchksum = ~icmp_chksum_iob(dev->d_iob);
   if (icmp->icmpchksum == 0)
     {
       icmp->icmpchksum = 0xffff;
     }
+#endif
 
   ninfo("Outgoing ICMP packet length: %d\n", dev->d_len);
 
@@ -290,8 +299,7 @@ ssize_t icmp_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 
   /* Some sanity checks */
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL &&
-              buf != NULL && to != NULL);
+  DEBUGASSERT(buf != NULL && to != NULL);
 
   if (len < ICMP_HDRLEN || tolen < sizeof(struct sockaddr_in))
     {
@@ -339,12 +347,11 @@ ssize_t icmp_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
    */
 
   icmp = (FAR struct icmp_hdr_s *)buf;
-  if (icmp->type != ICMP_ECHO_REQUEST || icmp->id != conn->id ||
-      dev != conn->dev)
+  if (psock->s_type != SOCK_RAW && (icmp->type != ICMP_ECHO_REQUEST ||
+      icmp->id != conn->id || dev != conn->dev))
     {
-      conn->id    = 0;
-      conn->nreqs = 0;
-      conn->dev   = NULL;
+      conn->id  = 0;
+      conn->dev = NULL;
 
       iob_free_queue(&conn->readahead);
     }
@@ -379,19 +386,18 @@ ssize_t icmp_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
   state.snd_cb = icmp_callback_alloc(dev, conn);
   if (state.snd_cb != NULL)
     {
-      state.snd_cb->flags   = (ICMP_POLL | NETDEV_DOWN);
-      state.snd_cb->priv    = (FAR void *)&state;
-      state.snd_cb->event   = sendto_eventhandler;
+      state.snd_cb->flags = (ICMP_POLL | NETDEV_DOWN);
+      state.snd_cb->priv  = (FAR void *)&state;
+      state.snd_cb->event = sendto_eventhandler;
 
       /* Setup to receive ICMP ECHO replies */
 
-      if (icmp->type == ICMP_ECHO_REQUEST)
+      if (psock->s_type != SOCK_RAW && icmp->type == ICMP_ECHO_REQUEST)
         {
-          conn->id    = icmp->id;
-          conn->nreqs = 1;
+          conn->id = icmp->id;
         }
 
-        conn->dev     = dev;
+        conn->dev = dev;
 
       /* Notify the device driver of the availability of TX data */
 
@@ -452,9 +458,8 @@ ssize_t icmp_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
   return len;
 
 errout:
-  conn->id    = 0;
-  conn->nreqs = 0;
-  conn->dev   = NULL;
+  conn->id  = 0;
+  conn->dev = NULL;
 
   iob_free_queue(&conn->readahead);
   return ret;

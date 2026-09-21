@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/nxffs/nxffs_truncate.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -57,7 +59,7 @@ int nxffs_truncate(FAR struct file *filep, off_t length)
 
   /* Sanity checks */
 
-  DEBUGASSERT(filep->f_priv != NULL && filep->f_inode != NULL);
+  DEBUGASSERT(filep->f_priv != NULL);
 
   /* Recover the open file state from the struct file instance */
 
@@ -65,7 +67,7 @@ int nxffs_truncate(FAR struct file *filep, off_t length)
 
   /* Recover the volume state from the open file */
 
-  volume = (FAR struct nxffs_volume_s *)filep->f_inode->i_private;
+  volume = filep->f_inode->i_private;
   DEBUGASSERT(volume != NULL);
 
   /* Get exclusive access to the volume.  Note that the volume lock

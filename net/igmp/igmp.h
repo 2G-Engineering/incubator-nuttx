@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/igmp/igmp.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -117,6 +119,7 @@ struct igmp_group_s
   uint8_t              ifindex; /* Interface index */
   uint8_t              flags;   /* See IGMP_ flags definitions */
   uint8_t              msgid;   /* Pending message ID (if non-zero) */
+  uint8_t              njoins;  /* Number of joins from this host */
 };
 
 /****************************************************************************

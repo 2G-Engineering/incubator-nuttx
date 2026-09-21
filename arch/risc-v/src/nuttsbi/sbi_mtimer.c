@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/nuttsbi/sbi_mtimer.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -66,7 +68,7 @@ void sbi_init_mtimer(uintptr_t mtime, uintptr_t mtimecmp)
 
 uint64_t sbi_get_mtime(void)
 {
-#ifdef CONFIG_ARCH_RV64
+#if CONFIG_ARCH_RV_MMIO_BITS == 64
   return getreg64(g_mtime);
 #else
   uint32_t hi;
@@ -85,8 +87,9 @@ uint64_t sbi_get_mtime(void)
 
 void sbi_set_mtimecmp(uint64_t value)
 {
-  uintptr_t mtimecmp = g_mtimecmp + READ_CSR(mhartid) * sizeof(uintptr_t);
-#ifdef CONFIG_ARCH_RV64
+  uintptr_t mtimecmp = g_mtimecmp +
+                       READ_CSR(CSR_MHARTID) * sizeof(uintptr_t);
+#if CONFIG_ARCH_RV_MMIO_BITS == 64
   putreg64(value, mtimecmp);
 #else
   putreg32(UINT32_MAX, mtimecmp + 4);
@@ -96,5 +99,5 @@ void sbi_set_mtimecmp(uint64_t value)
 
   /* Make sure it sticks */
 
-  __DMB();
+  UP_DSB();
 }

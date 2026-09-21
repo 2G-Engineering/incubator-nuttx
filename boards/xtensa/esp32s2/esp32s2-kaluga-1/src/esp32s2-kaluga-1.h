@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s2/esp32s2-kaluga-1/src/esp32s2-kaluga-1.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -162,8 +164,20 @@ int board_i2c_init(void);
  *
  ****************************************************************************/
 
-#if defined(CONFIG_ESP32S2_I2S) && !defined(CONFIG_AUDIO_ES8311)
+#if (defined(CONFIG_ESPRESSIF_I2S) && !defined(CONFIG_AUDIO_ES8311)) || \
+    defined(CONFIG_ESPRESSIF_I2S)
 int board_i2sdev_initialize(void);
+#endif
+
+/****************************************************************************
+ * Name: board_twai_setup
+ *
+ * Description:
+ *  Initialize TWAI and register the TWAI device
+ *
+ ****************************************************************************/
+#ifdef CONFIG_ESP32S2_TWAI
+int board_twai_setup(void);
 #endif
 
 /****************************************************************************

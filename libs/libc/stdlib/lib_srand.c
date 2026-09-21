@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdlib/lib_srand.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -67,9 +69,9 @@ typedef double       float_t;
 
 /* First order congruential generators */
 
-static inline unsigned long fgenerate1(void);
+static inline unsigned long fgenerate1(FAR unsigned long *seed);
 #if (CONFIG_LIBC_RAND_ORDER == 1)
-static float_t frand1(void);
+static float_t frand1(FAR unsigned long *seed);
 #endif
 
 /* Second order congruential generators */
@@ -106,7 +108,7 @@ static unsigned long g_randint3;
 
 /* First order congruential generators */
 
-static inline unsigned long fgenerate1(void)
+static inline unsigned long fgenerate1(FAR unsigned long *seed)
 {
   unsigned long randint;
 
@@ -115,17 +117,17 @@ static inline unsigned long fgenerate1(void)
    * the first order random number generator.
    */
 
-  randint    = (RND1_CONSTK * g_randint1) % RND1_CONSTP;
-  g_randint1 = (randint == 0 ? 1 : randint);
+  randint = (RND1_CONSTK * (*seed)) % RND1_CONSTP;
+  *seed   = (randint == 0 ? 1 : randint);
   return randint;
 }
 
 #if (CONFIG_LIBC_RAND_ORDER == 1)
-static float_t frand1(void)
+static float_t frand1(FAR unsigned long *seed)
 {
   /* First order congruential generator. */
 
-  unsigned long randint = fgenerate1();
+  unsigned long randint = fgenerate1(seed);
 
   /* Construct an floating point value in the range from 0.0 up to 1.0 */
 
@@ -215,6 +217,43 @@ static float_t frand3(void)
 #endif
 #endif
 
+static unsigned long nrand_r(unsigned long limit,
+                             FAR unsigned long *seed)
+{
+#if CONFIG_LIBC_RAND_ORDER > 0
+  unsigned long result;
+  float_t ratio;
+
+  /* Loop to be sure a legal random number is generated */
+
+  do
+    {
+      /* Get a random integer in the range 0.0 - 1.0 */
+
+#  if (CONFIG_LIBC_RAND_ORDER == 1)
+      ratio = frand1(seed);
+#  elif (CONFIG_LIBC_RAND_ORDER == 2)
+      ratio = frand2();
+#  elif (CONFIG_LIBC_RAND_ORDER > 2)
+      ratio = frand3();
+#endif
+
+      /* Then, produce the return-able value in the requested range */
+
+      result = (unsigned long)(((float_t)limit) * ratio);
+
+      /* Loop because there is an (unlikely) possibility that rounding
+       * could increase the result at the limit value about the limit.
+       */
+    }
+  while (result >= limit);
+
+  return result;
+#else
+  return fgenerate1(seed) % limit;
+#endif
+}
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -232,7 +271,7 @@ void srand(unsigned int seed)
   g_randint1 = seed;
 #if (CONFIG_LIBC_RAND_ORDER > 1)
   g_randint2 = seed;
-  fgenerate1();
+  fgenerate1(&g_randint1);
 #if (CONFIG_LIBC_RAND_ORDER > 2)
   g_randint3 = seed;
   fgenerate2();
@@ -250,32 +289,29 @@ void srand(unsigned int seed)
 
 unsigned long nrand(unsigned long limit)
 {
-  unsigned long result;
-  float_t ratio;
+  return nrand_r(limit, &g_randint1);
+}
 
-  /* Loop to be sure a legal random number is generated */
+/****************************************************************************
+ * Name: rand_r
+ *
+ * Description:
+ *   The function rand() is not reentrant, since it uses hidden state that
+ *   is modified on each call. This might just be the seed value to be used
+ *   by the next call, or it might be something more elaborate. In order to
+ *   get reproducible behavior in a threaded application, this state must be
+ *   made explicit; this can be done using the reentrant function rand_r().
+ *
+ *   Return a random, int value in the range of 0 to INT_MAX.
+ *
+ ****************************************************************************/
 
-  do
-    {
-      /* Get a random integer in the range 0.0 - 1.0 */
+int rand_r(FAR unsigned int *seedp)
+{
+  unsigned long seed = *seedp;
+  unsigned long rand;
 
-#if (CONFIG_LIBC_RAND_ORDER == 1)
-      ratio = frand1();
-#elif (CONFIG_LIBC_RAND_ORDER == 2)
-      ratio = frand2();
-#else /* if (CONFIG_LIBC_RAND_ORDER > 2) */
-      ratio = frand3();
-#endif
-
-      /* Then, produce the return-able value in the requested range */
-
-      result = (unsigned long)(((float_t)limit) * ratio);
-
-      /* Loop because there is an (unlikely) possibility that rounding
-       * could increase the result at the limit value about the limit.
-       */
-    }
-  while (result >= limit);
-
-  return result;
+  rand = nrand_r(INT_MAX, &seed);
+  *seedp = (unsigned int)seed;
+  return (int)rand;
 }

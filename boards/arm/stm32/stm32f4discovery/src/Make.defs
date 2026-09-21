@@ -1,6 +1,8 @@
 ############################################################################
 # boards/arm/stm32/stm32f4discovery/src/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -86,10 +88,6 @@ endif
 
 ifeq ($(CONFIG_RGBLED),y)
 CSRCS += stm32_rgbled.c
-endif
-
-ifeq ($(CONFIG_RTC_DS1307),y)
-CSRCS += stm32_ds1307.c
 endif
 
 ifeq ($(CONFIG_PWM),y)
@@ -193,4 +191,4 @@ endif
 
 DEPPATH += --dep-path board
 VPATH += :board
-CFLAGS += $(shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board)
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/mpfs/mpfs_userspace.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -224,8 +226,8 @@ static void configure_mpu(void)
 {
   /* Open everything for PMP */
 
-  WRITE_CSR(pmpaddr0, UINT64_C(~0));
-  WRITE_CSR(pmpcfg0, (PMPCFG_A_NAPOT | PMPCFG_R | PMPCFG_W | PMPCFG_X));
+  WRITE_CSR(CSR_PMPADDR0, UINT64_C(~0));
+  WRITE_CSR(CSR_PMPCFG0, (PMPCFG_A_NAPOT | PMPCFG_R | PMPCFG_W | PMPCFG_X));
 }
 
 /****************************************************************************

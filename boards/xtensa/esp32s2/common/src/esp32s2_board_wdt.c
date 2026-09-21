@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/xtensa/esp32s2/common/src/esp32s2_board_wdt.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -30,8 +32,6 @@
 #include "esp32s2_board_wdt.h"
 #include "esp32s2_wdt_lowerhalf.h"
 #include "esp32s2_wdt.h"
-
-#include "esp32s2-saola-1.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -83,6 +83,15 @@ int board_wdt_init(void)
       return ret;
     }
 #endif /* CONFIG_ESP32S2_RWDT */
+
+#ifdef CONFIG_ESP32S2_XTWDT
+  ret = esp32s2_wdt_initialize("/dev/watchdog3", ESP32S2_WDT_XTWDT);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize XTWDT: %d\n", ret);
+      return ret;
+    }
+#endif /* CONFIG_ESP32S2_XTWDT */
 
   return ret;
 }

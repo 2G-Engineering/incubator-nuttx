@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32l4/stm32l4_irq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -125,8 +127,7 @@ static void stm32l4_dumpnvic(const char *msg, int irq)
 #endif
 
 /****************************************************************************
- * Name: stm32l4_nmi, stm32l4_pendsv,
- *       stm32l4_dbgmonitor, stm32l4_pendsv, stm32l4_reserved
+ * Name: stm32l4_nmi, stm32l4_pendsv, stm32l4_pendsv, stm32l4_reserved
  *
  * Description:
  *   Handlers for various exceptions.  None are handled and all are fatal
@@ -146,17 +147,11 @@ static int stm32l4_nmi(int irq, void *context, void *arg)
 
 static int stm32l4_pendsv(int irq, void *context, void *arg)
 {
+#ifndef CONFIG_ARCH_HIPRI_INTERRUPT
   up_irq_save();
   _err("PANIC!!! PendSV received\n");
   PANIC();
-  return 0;
-}
-
-static int stm32l4_dbgmonitor(int irq, void *context, void *arg)
-{
-  up_irq_save();
-  _err("PANIC!!! Debug Monitor received\n");
-  PANIC();
+#endif
   return 0;
 }
 
@@ -178,7 +173,6 @@ static int stm32l4_reserved(int irq, void *context, void *arg)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ARMV7M_USEBASEPRI
 static inline void stm32l4_prioritize_syscall(int priority)
 {
   uint32_t regval;
@@ -190,7 +184,6 @@ static inline void stm32l4_prioritize_syscall(int priority)
   regval |= (priority << NVIC_SYSH_PRIORITY_PR11_SHIFT);
   putreg32(regval, NVIC_SYSH8_11_PRIORITY);
 }
-#endif
 
 /****************************************************************************
  * Name: stm32l4_irqinfo
@@ -326,9 +319,8 @@ void up_irqinitialize(void)
 #ifdef CONFIG_ARCH_IRQPRIO
   /* up_prioritize_irq(STM32L4_IRQ_PENDSV, NVIC_SYSH_PRIORITY_MIN); */
 #endif
-#ifdef CONFIG_ARMV7M_USEBASEPRI
+
   stm32l4_prioritize_syscall(NVIC_SYSH_SVCALL_PRIORITY);
-#endif
 
   /* If the MPU is enabled, then attach and enable the Memory Management
    * Fault handler.
@@ -349,7 +341,8 @@ void up_irqinitialize(void)
   irq_attach(STM32L4_IRQ_BUSFAULT, arm_busfault, NULL);
   irq_attach(STM32L4_IRQ_USAGEFAULT, arm_usagefault, NULL);
   irq_attach(STM32L4_IRQ_PENDSV, stm32l4_pendsv, NULL);
-  irq_attach(STM32L4_IRQ_DBGMONITOR, stm32l4_dbgmonitor, NULL);
+  arm_enable_dbgmonitor();
+  irq_attach(STM32L4_IRQ_DBGMONITOR, arm_dbgmonitor, NULL);
   irq_attach(STM32L4_IRQ_RESERVED, stm32l4_reserved, NULL);
 #endif
 

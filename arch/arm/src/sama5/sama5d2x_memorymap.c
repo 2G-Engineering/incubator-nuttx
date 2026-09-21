@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/sama5/sama5d2x_memorymap.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -97,7 +99,7 @@ const struct section_mapping_s g_section_mapping[] =
     SAM_NFCSRAM_MMUFLAGS,   SAM_NFCSRAM_NSECTIONS
   },
 
-#ifndef CONFIG_PAGING /* Internal SRAM is already fully mapped */
+#ifndef CONFIG_LEGACY_PAGING /* Internal SRAM is already fully mapped */
   { SAM_ISRAM_PSECTION,     SAM_ISRAM_VSECTION,
     SAM_ISRAM_MMUFLAGS,     SAM_ISRAM_NSECTIONS
   },

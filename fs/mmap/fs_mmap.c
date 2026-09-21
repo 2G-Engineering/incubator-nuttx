@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/mmap/fs_mmap.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -47,8 +49,8 @@
  ****************************************************************************/
 
 static int file_mmap_(FAR struct file *filep, FAR void *start,
-                      size_t length, int prot, int flags,
-                      off_t offset, bool kernel, FAR void **mapped)
+                      size_t length, int prot, int flags, off_t offset,
+                      enum mm_map_type_e type, FAR void **mapped)
 {
   int ret = -ENOTTY;
 
@@ -73,7 +75,13 @@ static int file_mmap_(FAR struct file *filep, FAR void *start,
    * things.
    */
 
-#ifdef CONFIG_DEBUG_FEATURES
+  /* A flags with MAP_PRIVATE and MAP_SHARED is invalid. */
+
+  if ((flags & MAP_PRIVATE) && (flags & MAP_SHARED))
+    {
+      return -EINVAL;
+    }
+
   /* Fixed mappings and protections are not currently supported.  These
    * options could be supported in the KERNEL build with an MMU, but that
    * logic is not in place.
@@ -92,7 +100,6 @@ static int file_mmap_(FAR struct file *filep, FAR void *start,
       ferr("ERROR: Invalid length, length=%zu\n", length);
       return -EINVAL;
     }
-#endif /* CONFIG_DEBUG_FEATURES */
 
   /* Check if we are just be asked to allocate memory, i.e., MAP_ANONYMOUS
    * set meaning that the memory is not backed up from a file.  The file
@@ -102,7 +109,18 @@ static int file_mmap_(FAR struct file *filep, FAR void *start,
 
   if ((flags & MAP_ANONYMOUS) != 0)
     {
-      ret = map_anonymous(&entry, kernel);
+      ret = map_anonymous(&entry, type);
+
+      /* According to the mmap(2) specification, anonymous pages should be
+       * initialized to zero unless the MAP_UNINITIALIZED is specified.
+       */
+
+      if ((ret == OK) && (flags & MAP_UNINITIALIZED) == 0)
+        {
+          DEBUGASSERT(entry.vaddr != NULL);
+          memset(entry.vaddr, 0, entry.length);
+        }
+
       goto out;
     }
 
@@ -111,7 +129,8 @@ static int file_mmap_(FAR struct file *filep, FAR void *start,
       return -EBADF;
     }
 
-  if ((filep->f_oflags & O_WROK) == 0 && prot == PROT_WRITE)
+  if ((flags & MAP_SHARED) &&
+      (filep->f_oflags & O_WROK) == 0 && prot == PROT_WRITE)
     {
       ferr("ERROR: Unsupported options for read-only file descriptor,"
            "prot=%x flags=%04x\n", prot, flags);
@@ -128,7 +147,7 @@ static int file_mmap_(FAR struct file *filep, FAR void *start,
    * in memory.
    */
 
-  if ((flags & MAP_PRIVATE) == 0 && filep->f_inode &&
+  if (filep->f_inode &&
       filep->f_inode->u.i_ops->mmap != NULL)
     {
       ret = filep->f_inode->u.i_ops->mmap(filep, &entry);
@@ -144,7 +163,7 @@ static int file_mmap_(FAR struct file *filep, FAR void *start,
        * do much better in the KERNEL build using the MMU.
        */
 
-      ret = rammap(filep, &entry, kernel);
+      ret = rammap(filep, &entry, type);
     }
 
   /* Return */
@@ -176,7 +195,7 @@ int file_mmap(FAR struct file *filep, FAR void *start, size_t length,
               int prot, int flags, off_t offset, FAR void **mapped)
 {
   return file_mmap_(filep, start, length,
-                    prot, flags, offset, true, mapped);
+                    prot, flags, offset, MAP_KERNEL, mapped);
 }
 
 /****************************************************************************
@@ -196,7 +215,7 @@ int file_mmap(FAR struct file *filep, FAR void *start, size_t length,
  *        only file system that meets this requirement.
  *     b. The underlying block driver supports the BIOC_XIPBASE ioctl
  *        command that maps the underlying media to a randomly accessible
- *        address. At  present, only the RAM/ROM disk driver does this.
+ *        address. At present, only the RAM/ROM disk driver does this.
  *
  *   2. If CONFIG_FS_RAMMAP is defined in the configuration, then mmap() will
  *      support simulation of memory mapped files by copying files whole
@@ -262,13 +281,18 @@ FAR void *mmap(FAR void *start, size_t length, int prot, int flags,
 
   if (fd != -1 && fs_getfilep(fd, &filep) < 0)
     {
-      ferr("ERROR: Invalid file descriptor, fd=%d\n", fd);
-      ret = -EBADF;
+      ferr("ERROR: fd:%d referred file whose type is not supported\n", fd);
+      ret = -ENODEV;
       goto errout;
     }
 
   ret = file_mmap_(filep, start, length,
-                   prot, flags, offset, false, &mapped);
+                   prot, flags, offset, MAP_USER, &mapped);
+  if (filep)
+    {
+      fs_putfilep(filep);
+    }
+
   if (ret < 0)
     {
       goto errout;

@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/symtab/symtab_findbyvalue.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -92,7 +94,7 @@ symtab_findbyvalue(FAR const struct symtab_s *symtab,
         }
       else if (symtab[mid].sym_value < value)
         {
-          if (symtab[mid + 1].sym_value >= value)
+          if (symtab[mid + 1].sym_value > value)
             {
               break;
             }

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/samd5e5/sam_irq.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -180,8 +182,7 @@ static void sam_dumpnvic(const char *msg, int irq)
 #endif
 
 /****************************************************************************
- * Name: sam_nmi, sam_pendsv, sam_dbgmonitor,
- *       sam_pendsv, sam_reserved
+ * Name: sam_nmi, sam_pendsv, sam_pendsv, sam_reserved
  *
  * Description:
  *   Handlers for various exceptions.  None are handled and all are fatal
@@ -207,14 +208,6 @@ static int sam_pendsv(int irq, void *context, void *arg)
   return 0;
 }
 
-static int sam_dbgmonitor(int irq, void *context, void *arg)
-{
-  up_irq_save();
-  _err("PANIC!!! Debug Monitor received\n");
-  PANIC();
-  return 0;
-}
-
 static int sam_reserved(int irq, void *context, void *arg)
 {
   up_irq_save();
@@ -233,7 +226,6 @@ static int sam_reserved(int irq, void *context, void *arg)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ARMV7M_USEBASEPRI
 static inline void sam_prioritize_syscall(int priority)
 {
   uint32_t regval;
@@ -245,7 +237,6 @@ static inline void sam_prioritize_syscall(int priority)
   regval |= (priority << NVIC_SYSH_PRIORITY_PR11_SHIFT);
   putreg32(regval, NVIC_SYSH8_11_PRIORITY);
 }
-#endif
 
 /****************************************************************************
  * Name: sam_irqinfo
@@ -402,9 +393,6 @@ static int sam_irqinfo(int irq, uintptr_t *regaddr, uint32_t *bit,
 void up_irqinitialize(void)
 {
   uintptr_t regaddr;
-#if defined(CONFIG_DEBUG_SYMBOLS) && !defined(CONFIG_ARMV7M_USEBASEPRI)
-  uint32_t regval;
-#endif
   int nintlines;
   int i;
 
@@ -479,9 +467,8 @@ void up_irqinitialize(void)
 #ifdef CONFIG_ARCH_IRQPRIO
   /* up_prioritize_irq(SAM_IRQ_PENDSV, NVIC_SYSH_PRIORITY_MIN); */
 #endif
-#ifdef CONFIG_ARMV7M_USEBASEPRI
+
   sam_prioritize_syscall(NVIC_SYSH_SVCALL_PRIORITY);
-#endif
 
   /* If the MPU is enabled, then attach and enable the Memory Management
    * Fault handler.
@@ -502,22 +489,12 @@ void up_irqinitialize(void)
   irq_attach(SAM_IRQ_BUSFAULT, arm_busfault, NULL);
   irq_attach(SAM_IRQ_USAGEFAULT, arm_usagefault, NULL);
   irq_attach(SAM_IRQ_PENDSV, sam_pendsv, NULL);
-  irq_attach(SAM_IRQ_DBGMONITOR, sam_dbgmonitor, NULL);
+  arm_enable_dbgmonitor();
+  irq_attach(SAM_IRQ_DBGMONITOR, arm_dbgmonitor, NULL);
   irq_attach(SAM_IRQ_RESERVED, sam_reserved, NULL);
 #endif
 
   sam_dumpnvic("initial", SAM_IRQ_NIRQS);
-
-  /* If a debugger is connected, try to prevent it from catching hardfaults.
-   * If CONFIG_ARMV7M_USEBASEPRI, no hardfaults are expected in normal
-   * operation.
-   */
-
-#if defined(CONFIG_DEBUG_SYMBOLS) && !defined(CONFIG_ARMV7M_USEBASEPRI)
-  regval  = getreg32(NVIC_DEMCR);
-  regval &= ~NVIC_DEMCR_VCHARDERR;
-  putreg32(regval, NVIC_DEMCR);
-#endif
 
 #ifdef CONFIG_SAMD5E5_EIC
   /* Initialize the external interrupt controller. */

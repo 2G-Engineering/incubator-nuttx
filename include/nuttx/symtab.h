@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/nuttx/symtab.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -51,8 +53,8 @@
 
 struct symtab_s
 {
-  FAR const char *sym_name;          /* A pointer to the symbol name string */
-  FAR const void *sym_value;         /* The value associated with the string */
+  FAR const char *sym_name;  /* A pointer to the symbol name string */
+  FAR const void *sym_value; /* The value associated with the string */
 };
 
 /****************************************************************************

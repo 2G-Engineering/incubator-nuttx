@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/sim_initialize.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,6 +26,7 @@
 
 #include <nuttx/arch.h>
 #include <nuttx/audio/audio.h>
+#include <nuttx/audio/audio_fake.h>
 #include <nuttx/kthread.h>
 #include <nuttx/motor/foc/foc_dummy.h>
 #include <nuttx/mtd/mtd.h>
@@ -187,20 +190,12 @@ static int sim_loop_task(int argc, char **argv)
       host_usrsock_loop();
 #endif
 
-#ifdef CONFIG_RPTUN
-      sim_rptun_loop();
-#endif
-
-#ifdef CONFIG_SIM_HCISOCKET
-      sim_bthcisock_loop();
-#endif
-
 #ifdef CONFIG_SIM_SOUND
       sim_audio_loop();
 #endif
 
-#ifdef CONFIG_SIM_VIDEO
-      sim_video_loop();
+#ifdef CONFIG_SIM_CAMERA
+      sim_camera_loop();
 #endif
 
 #ifdef CONFIG_SIM_USB_DEV
@@ -299,6 +294,17 @@ void up_initialize(void)
 
   audio_register("pcm1p", sim_audio_initialize(true, true));
   audio_register("pcm1c", sim_audio_initialize(false, true));
+
+  /* register independent mixer device, simulate amixer ioctl */
+
+  audio_register("mixer", sim_audio_initialize(false, false));
+
+#ifdef CONFIG_AUDIO_FAKE
+  /* Register fake audio driver */
+
+  audio_fake_initialize();
+#endif
+
 #endif
 
 #ifdef CONFIG_SIM_USB_DEV
@@ -309,7 +315,15 @@ void up_initialize(void)
   sim_usbhost_initialize();
 #endif
 
-  kthread_create("loop_task", SCHED_PRIORITY_MAX,
+#ifdef CONFIG_SIM_VIDEO_DECODER
+  sim_decoder_initialize();
+#endif
+
+#ifdef CONFIG_SIM_VIDEO_ENCODER
+  sim_encoder_initialize();
+#endif
+
+  kthread_create("loop_task", CONFIG_SIM_LOOPTASK_PRIORITY,
                  CONFIG_DEFAULT_TASK_STACKSIZE,
                  sim_loop_task, NULL);
 }

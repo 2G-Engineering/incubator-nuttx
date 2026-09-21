@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/timers/pwm.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -48,7 +50,7 @@
 #ifdef CONFIG_PWM
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 /* This structure describes the state of the upper half driver */
@@ -437,9 +439,7 @@ static int pwm_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   switch (cmd)
     {
       /* PWMIOC_SETCHARACTERISTICS - Set the characteristics of the next
-       *   pulsed output.  This command will neither start nor stop the
-       *   pulsed output.  It will either setup the configuration that will
-       *   be used when the output is started; or it will change the
+       *   pulsed output and start the pulsed output. It will change the
        *   characteristics of the pulsed output on the fly if the timer is
        *   already started.
        *

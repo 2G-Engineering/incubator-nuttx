@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/inet/ipv6_getsockopt.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,6 +35,7 @@
 #include <nuttx/net/net.h>
 
 #include "mld/mld.h"
+#include "netfilter/iptables.h"
 #include "inet/inet.h"
 #include "udp/udp.h"
 
@@ -75,6 +78,13 @@ int ipv6_getsockopt(FAR struct socket *psock, int option,
   net_lock();
   switch (option)
     {
+#ifdef CONFIG_NET_IPTABLES
+      case IP6T_SO_GET_INFO:
+      case IP6T_SO_GET_ENTRIES:
+        ret = ip6t_getsockopt(psock, option, value, value_len);
+        break;
+#endif
+
       case IPV6_TCLASS:
         {
           FAR struct socket_conn_s *conn = psock->s_conn;

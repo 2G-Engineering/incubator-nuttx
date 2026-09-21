@@ -1,6 +1,8 @@
 ############################################################################
 # net/netlink/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -27,6 +29,10 @@ NET_CSRCS += netlink_conn.c netlink_notifier.c
 
 ifeq ($(CONFIG_NETLINK_ROUTE),y)
 NET_CSRCS += netlink_route.c netlink_attr.c
+endif
+
+ifeq ($(CONFIG_NETLINK_NETFILTER),y)
+NET_CSRCS += netlink_netfilter.c
 endif
 
 # Include netlink build support

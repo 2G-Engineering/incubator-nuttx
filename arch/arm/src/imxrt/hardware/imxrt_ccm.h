@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imxrt/hardware/imxrt_ccm.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -34,6 +36,8 @@
 #  include "hardware/rt105x/imxrt105x_ccm.h"
 #elif defined(CONFIG_ARCH_FAMILY_IMXRT106x)
 #  include "hardware/rt106x/imxrt106x_ccm.h"
+#elif defined(CONFIG_ARCH_FAMILY_IMXRT117x)
+#  include "hardware/rt117x/imxrt117x_ccm.h"
 #else
 #  error Unrecognized i.MX RT architecture
 #endif

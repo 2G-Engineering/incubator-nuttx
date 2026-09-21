@@ -1,9 +1,9 @@
 /****************************************************************************
  * boards/arm/s32k1xx/ucans32k146/src/s32k1xx_periphclocks.c
  *
- *   Copyright (c) 2013 - 2015, Freescale Semiconductor, Inc.
- *   Copyright 2016-2018 NXP
- *   All rights reserved.
+ * SPDX-License-Identifier: 0BSD
+ * SPDX-FileCopyrightText: 2013 - 2015, Freescale Semiconductor, Inc.
+ * SPDX-FileCopyrightText: 2016-2018 NXP. All rights reserved.
  *
  * THIS SOFTWARE IS PROVIDED BY NXP "AS IS" AND ANY EXPRESSED OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
@@ -119,6 +119,15 @@ const struct peripheral_clock_config_s g_peripheral_clockconfig0[] =
 #else
     .clkgate = false,
 #endif
+  },
+  {
+    .clkname = FLEXIO0_CLK,
+#ifdef CONFIG_S32K1XX_FLEXIO_I2C
+    .clkgate = true,
+#else
+    .clkgate = false,
+#endif
+    .clksrc  = CLK_SRC_SPLL_DIV2,
   },
 };
 

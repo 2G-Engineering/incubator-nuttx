@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/cxd56xx/common/src/cxd56_isx019.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -38,6 +40,7 @@
 #include "cxd56_clock.h"
 
 #include <arch/board/board.h>
+#include <arch/chip/pm.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -53,6 +56,14 @@
 #define POWER_OFF_TIME              (50 * USEC_PER_MSEC)  /* ms */
 
 #define POWER_CHECK_RETRY           (10)
+
+/****************************************************************************
+ *  Private Data
+ ****************************************************************************/
+
+static struct pm_cpu_freqlock_s g_hv_lock =
+  PM_CPUFREQLOCK_INIT(PM_CPUFREQLOCK_TAG('I', 'S', 0),
+                      PM_CPUFREQLOCK_FLAG_HV);
 
 /****************************************************************************
  * Public Functions
@@ -134,6 +145,10 @@ struct i2c_master_s *board_isx019_initialize(void)
 
   _info("Initializing ISX019...\n");
 
+  /* Fix system clock to HV mode */
+
+  up_pm_acquire_freqlock(&g_hv_lock);
+
   while (!g_rtc_enabled && 0 < retry--)
     {
       /* ISX019 requires stable RTC */
@@ -170,6 +185,10 @@ int board_isx019_uninitialize(struct i2c_master_s *i2c)
   cxd56_gpio_config(PIN_IS_DATA7, false);
   cxd56_gpio_write_hiz(PIN_IS_DATA0);
   cxd56_gpio_write_hiz(PIN_IS_DATA7);
+
+  /* Release system clock */
+
+  up_pm_release_freqlock(&g_hv_lock);
 
   /* Uninitialize i2c device */
 

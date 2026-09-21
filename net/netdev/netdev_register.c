@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/netdev/netdev_register.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -40,6 +42,7 @@
 #include <nuttx/net/can.h>
 
 #include "utils/utils.h"
+#include "icmpv6/icmpv6.h"
 #include "igmp/igmp.h"
 #include "mld/mld.h"
 #include "netdev/netdev.h"
@@ -175,12 +178,12 @@ static int get_ifindex(void)
   uint32_t devset;
   int ndx;
 
-  /* Try to postpone re-using interface indices as long as possible */
+  /* Try to postpone reusing interface indices as long as possible */
 
   devset = g_devset | g_devfreed;
   if (devset == 0xffffffff)
     {
-      /* Time start re-using interface indices */
+      /* Time start reusing interface indices */
 
       devset     = g_devset;
       g_devfreed = 0;
@@ -473,6 +476,12 @@ int netdev_register(FAR struct net_driver_s *dev, enum net_lltype_e lltype)
       /* Configure the device for MLD support */
 
       mld_devinit(dev);
+#endif
+
+#ifdef NET_ICMPv6_HAVE_STACK
+      /* Configure the device for ICMPv6 support */
+
+      icmpv6_devinit(dev);
 #endif
 
       net_unlock();

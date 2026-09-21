@@ -163,9 +163,9 @@ static int esp32_max_lh_delay(struct oneshot_lowerhalf_s *lower,
   DEBUGASSERT(ts != NULL);
 
   /* The real maximum delay surpass the limit that timespec can
-   * reprent. Even using the better case: a resolution of
+   * represent. Even using the better case: a resolution of
    * 1 us.
-   * Therefore, here, fulfill the timespec with the
+   * Therefore, here, fill the timespec with the
    * maximum value it can represent.
    */
 
@@ -173,7 +173,7 @@ static int esp32_max_lh_delay(struct oneshot_lowerhalf_s *lower,
   ts->tv_nsec = NSEC_PER_SEC - 1;
 
   tmrinfo("max sec=%" PRIu32 "\n", ts->tv_sec);
-  tmrinfo("max nsec=%ld\n", ts->tv_nsec);
+  tmrinfo("max nsec=%" PRId32 "\n", ts->tv_nsec);
 
   return OK;
 }
@@ -348,9 +348,7 @@ struct oneshot_lowerhalf_s *oneshot_initialize(int chan,
 
   /* Allocate an instance of the lower half driver */
 
-  priv = (struct esp32_oneshot_lowerhalf_s *)kmm_zalloc(
-          sizeof(struct esp32_oneshot_lowerhalf_s));
-
+  priv = kmm_zalloc(sizeof(struct esp32_oneshot_lowerhalf_s));
   if (priv == NULL)
     {
       tmrerr("ERROR: Failed to initialize oneshot state structure\n");

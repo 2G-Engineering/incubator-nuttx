@@ -1,10 +1,8 @@
 /****************************************************************************
  * arch/arm/src/rp2040/rp2040_pio_instructions.h
  *
- * Based upon the software originally developed by
- *   Raspberry Pi (Trading) Ltd.
- *
- * Copyright 2020 (c) 2020 Raspberry Pi (Trading) Ltd.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: 2020 Raspberry Pi (Trading) Ltd.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -143,11 +141,11 @@ inline static uint32_t _pio_encode_instr_and_args(
   uint32_t major = _pio_major_instr_bits(instr_bits);
   if (major == pio_instr_bits_in || major == pio_instr_bits_out)
     {
-      assert(arg2 && arg2 <= 32);
+      ASSERT(arg2 && arg2 <= 32);
     }
   else
     {
-      assert(arg2 <= 31);
+      ASSERT(arg2 <= 31);
     }
 #endif
   return instr_bits | (arg1 << 5u) | (arg2 & 0x1fu);

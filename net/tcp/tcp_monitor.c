@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/tcp/tcp_monitor.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -197,8 +199,6 @@ static uint16_t tcp_monitor_event(FAR struct net_driver_s *dev,
 
 static void tcp_shutdown_monitor(FAR struct tcp_conn_s *conn, uint16_t flags)
 {
-  DEBUGASSERT(conn);
-
   /* Perform callbacks to assure that all sockets, including dup'ed copies,
    * are informed of the loss of connection event.
    */
@@ -248,7 +248,6 @@ int tcp_start_monitor(FAR struct socket *psock)
   FAR struct tcp_conn_s *conn;
   bool nonblock_conn;
 
-  DEBUGASSERT(psock != NULL && psock->s_conn != NULL);
   conn = psock->s_conn;
 
   net_lock();

@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/olimex-stm32-p207/src/olimex-stm32-p207.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,6 +30,8 @@
 #include <nuttx/config.h>
 #include <nuttx/compiler.h>
 #include <stdint.h>
+
+#include "stm32.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -87,7 +91,7 @@
  * Name: stm32_usbinitialize
  *
  * Description:
- *   Called from stm32_usbinitialize very early in inialization to setup
+ *   Called from stm32_usbinitialize very early in initialization to setup
  *   USB-related GPIO pins for the STM32F4Discovery board.
  *
  ****************************************************************************/

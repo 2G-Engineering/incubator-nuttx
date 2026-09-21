@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/risc-v/mpfs/common/src/mpfs_usb.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -75,7 +77,7 @@ int mpfs_board_usb_init(void)
       return ret;
     }
 
-  if (board_composite_connect(0, 0) == NULL)
+  if (board_composite_connect(0, 1) == NULL)
     {
       syslog(LOG_ERR, "Failed to connect composite: %d\n", ret);
       return ret;

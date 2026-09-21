@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/xmc4/xmc4700-relax/src/xmc4_bringup.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -24,8 +26,16 @@
 
 #include <nuttx/config.h>
 
-#include <sys/types.h>
 #include <debug.h>
+#include <errno.h>
+#include <sys/types.h>
+
+#ifdef CONFIG_XMC4_USCI_SPI
+#  include <nuttx/spi/spi_transfer.h>
+#endif
+#ifdef CONFIG_USERLED
+#  include <nuttx/leds/userled.h>
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -43,11 +53,29 @@ int xmc4_bringup(void)
 {
   int ret = OK;
 
-#ifdef CONFIG_SENSORS_MAX6675
-  ret = xmc4_max6675initialize("/dev/temp0");
+#ifdef CONFIG_XMC4_USCI_SPI
+  struct spi_dev_s *spi;
+  spi = xmc4_spibus_initialize(4);
+
+  if (!spi)
+    {
+      return -ENODEV;
+    }
+
+  ret = spi_register(spi, 0);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR:  stm32_max6675initialize failed: %d\n", ret);
+      snerr("ERROR: Failed to register driver: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_USERLED
+  /* Register the LED driver */
+
+  ret = userled_lower_initialize("/dev/userleds");
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n", ret);
     }
 #endif
 

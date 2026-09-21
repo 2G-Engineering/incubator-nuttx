@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/xtensa/src/esp32/hardware/esp32_aes.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -22,8 +24,6 @@
 #define __ARCH_XTENSA_SRC_ESP32_HARDWARE_ESP32_AES_H
 
 /* AES acceleration registers */
-
-#define DR_REG_AES_BASE         (0x3ff01000)
 
 #define AES_START_REG           ((DR_REG_AES_BASE) + 0x00)
 #define AES_IDLE_REG            ((DR_REG_AES_BASE) + 0x04)

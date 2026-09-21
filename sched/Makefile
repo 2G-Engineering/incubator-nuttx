@@ -1,6 +1,8 @@
 ############################################################################
 # sched/Makefile
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -23,8 +25,10 @@ include $(TOPDIR)/Make.defs
 include addrenv/Make.defs
 include clock/Make.defs
 include environ/Make.defs
+include event/Make.defs
 include group/Make.defs
 include init/Make.defs
+include instrument/Make.defs
 include irq/Make.defs
 include misc/Make.defs
 include mqueue/Make.defs

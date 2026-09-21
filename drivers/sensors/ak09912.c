@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/sensors/ak09912.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -85,7 +87,7 @@
  * The unit is 10 millisecond.
  */
 
-#define AK09912_POLLING_TIMEOUT (1)  // 10 ms
+#define AK09912_POLLING_TIMEOUT (1)  /* 10 ms */
 
 /* The parameter for compensating. */
 
@@ -127,7 +129,7 @@ do {                                     \
     ((low & 0xff) | ((high << 8) & ~0xff))
 
 /****************************************************************************
- * Private Type Definitions
+ * Private Types
  ****************************************************************************/
 
 /* Structure for compensating data. */
@@ -190,7 +192,7 @@ static const struct file_operations g_ak09912fops =
  * Name: ak09912_getreg8
  *
  * Description:
- *   Read from an 8-bit BMP280 register
+ *   Read from an 8-bit ak09912 register
  *
  ****************************************************************************/
 
@@ -227,7 +229,7 @@ static uint8_t ak09912_getreg8(FAR struct ak09912_dev_s *priv,
  * Name: ak09912_putreg8
  *
  * Description:
- *   Write to an 8-bit BMP280 register
+ *   Write to an 8-bit ak09912 register
  *
  ****************************************************************************/
 

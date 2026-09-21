@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/xmc4/xmc4500-relax/src/xmc4_spi.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -60,7 +62,7 @@ void weak_function xmc4_spidev_initialize(void)
 
   /* Configure SPI2 chip selects */
 
-#if define(CONFIG_XMC4_SPI2) && defined(CONFIG_SENSORS_MAX6675)
+#if defined(CONFIG_XMC4_SPI2) && defined(CONFIG_SENSORS_MAX6675)
   xmc4_gpio_config(GPIO_CS_MAX6675);
 #endif
 

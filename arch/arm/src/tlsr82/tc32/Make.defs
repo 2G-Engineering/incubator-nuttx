@@ -1,6 +1,8 @@
 ############################################################################
 # arch/arm/src/tlsr82/tc32/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -46,7 +48,7 @@ CMN_ASRCS := $(filter-out $(TC32_ASRCS_FILTER), $(CMN_ASRCS))
 
 # Common files in arch/arm/src/armv6-m
 
-CMN_CSRCS += arm_sigdeliver.c arm_doirq.c
+CMN_CSRCS += arm_sigdeliver.c
 
 # Common files in arch/arm/src/tlsr82/tc32
 

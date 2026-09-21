@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_ethernet.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,6 +37,7 @@
 
 #include <sys/param.h>
 
+#include <arch/barriers.h>
 #include <arpa/inet.h>
 
 #include <nuttx/arch.h>
@@ -44,6 +47,7 @@
 #include <nuttx/wqueue.h>
 #include <nuttx/signal.h>
 #include <nuttx/net/mii.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/phy.h>
 #include <nuttx/crc64.h>
@@ -54,7 +58,6 @@
 
 #include <nuttx/cache.h>
 #include "arm_internal.h"
-#include "barriers.h"
 
 #include "hardware/stm32_syscfg.h"
 #include "hardware/stm32_pinmap.h"
@@ -75,10 +78,6 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-/* Memory synchronization */
-
-#define MEMORY_SYNC() do { ARM_DSB(); ARM_ISB(); } while (0)
 
 /* Configuration ************************************************************/
 
@@ -107,6 +106,64 @@
 #  else
 #    define ETHWORK LPWORK
 #  endif
+#endif
+
+#if defined(CONFIG_ETH0_PHY_AM79C874)
+#  define STM32H7_PHYID1       MII_PHYID1_AM79C874
+#  define STM32H7_PHYID2       MII_PHYID2_AM79C874
+#elif defined(CONFIG_ETH0_PHY_AR8031)
+#  define STM32H7_PHYID1       MII_PHYID1_AR8031
+#  define STM32H7_PHYID2       MII_PHYID2_AR8031
+#elif defined(CONFIG_ETH0_PHY_KS8721)
+#  define STM32H7_PHYID1       MII_PHYID1_KS8721
+#  define STM32H7_PHYID2       MII_PHYID2_KS8721
+#elif defined(CONFIG_ETH0_PHY_KSZ8041)
+#  define STM32H7_PHYID1       MII_PHYID1_KSZ8041
+#  define STM32H7_PHYID2       MII_PHYID2_KSZ8041
+#elif defined(CONFIG_ETH0_PHY_KSZ8051)
+#  define STM32H7_PHYID1       MII_PHYID1_KSZ8051
+#  define STM32H7_PHYID2       MII_PHYID2_KSZ8051
+#elif defined(CONFIG_ETH0_PHY_KSZ8061)
+#  define STM32H7_PHYID1       MII_PHYID1_KSZ8061
+#  define STM32H7_PHYID2       MII_PHYID2_KSZ8061
+#elif defined(CONFIG_ETH0_PHY_KSZ8081)
+#  define STM32H7_PHYID1       MII_PHYID1_KSZ8081
+#  define STM32H7_PHYID2       MII_PHYID2_KSZ8081
+#elif defined(CONFIG_ETH0_PHY_DP83848C)
+#  define STM32H7_PHYID1       MII_PHYID1_DP83848C
+#  define STM32H7_PHYID2       MII_PHYID2_DP83848C
+#elif defined(CONFIG_ETH0_PHY_DP83825I)
+#  define STM32H7_PHYID1       MII_PHYID1_DP83825I
+#  define STM32H7_PHYID2       MII_PHYID2_DP83825I
+#elif defined(CONFIG_ETH0_PHY_TJA1100)
+#  define STM32H7_PHYID1       MII_PHYID1_TJA1100
+#  define STM32H7_PHYID2       MII_PHYID2_TJA1100
+#elif defined(CONFIG_ETH0_PHY_TJA1101)
+#  define STM32H7_PHYID1       MII_PHYID1_TJA1101
+#  define STM32H7_PHYID2       MII_PHYID2_TJA1101
+#elif defined(CONFIG_ETH0_PHY_TJA1103)
+#  define STM32H7_PHYID1       MII_PHYID1_TJA1103
+#  define STM32H7_PHYID2       MII_PHYID2_TJA1103
+#elif defined(CONFIG_ETH0_PHY_LAN8720)
+#  define STM32H7_PHYID1       MII_PHYID1_LAN8720
+#  define STM32H7_PHYID2       MII_PHYID2_LAN8720
+#elif defined(CONFIG_ETH0_PHY_LAN8740)
+#  define STM32H7_PHYID1       MII_PHYID1_LAN8740
+#  define STM32H7_PHYID2       MII_PHYID2_LAN8740
+#elif defined(CONFIG_ETH0_PHY_LAN8740A)
+#  define STM32H7_PHYID1       MII_PHYID1_LAN8740A
+#  define STM32H7_PHYID2       MII_PHYID2_LAN8740A
+#elif defined(CONFIG_ETH0_PHY_LAN8742A)
+#  define STM32H7_PHYID1       MII_PHYID1_LAN8742A
+#  define STM32H7_PHYID2       MII_PHYID2_LAN8742A
+#elif defined(CONFIG_ETH0_PHY_DM9161)
+#  define STM32H7_PHYID1       MII_PHYID1_DM9161
+#  define STM32H7_PHYID2       MII_PHYID2_DM9161
+#elif defined(CONFIG_ETH0_PHY_YT8512)
+#  define STM32H7_PHYID1       MII_PHYID1_YT8512
+#  define STM32H7_PHYID2       MII_PHYID2_YT8512
+#else
+#  warning "No PHY specified!"
 #endif
 
 #ifndef CONFIG_STM32H7_PHYADDR
@@ -748,7 +805,7 @@ static void stm32_rxdescinit(struct stm32_ethmac_s *priv,
                              union stm32_desc_u *rxtable, uint8_t *rxbuffer);
 
 /* PHY Initialization */
-
+#ifndef CONFIG_STM32H7_NO_PHY
 #if defined(CONFIG_NETDEV_PHY_IOCTL) && defined(CONFIG_ARCH_PHY_INTERRUPT)
 static int  stm32_phyintenable(struct stm32_ethmac_s *priv);
 #endif
@@ -763,6 +820,7 @@ static int  stm32_phyinit(struct stm32_ethmac_s *priv);
 #ifdef CONFIG_STM32H7_ETHMAC_REGDEBUG
 static void  stm32_phyregdump(void);
 #endif
+#endif
 
 /* MAC/DMA Initialization */
 
@@ -776,9 +834,6 @@ static inline void stm32_ethgpioconfig(struct stm32_ethmac_s *priv);
 static void stm32_ethreset(struct stm32_ethmac_s *priv);
 static int  stm32_macconfig(struct stm32_ethmac_s *priv);
 static void stm32_macaddress(struct stm32_ethmac_s *priv);
-#ifdef CONFIG_NET_ICMPv6
-static void stm32_ipv6multicast(struct stm32_ethmac_s *priv);
-#endif
 static int  stm32_macenable(struct stm32_ethmac_s *priv);
 static int  stm32_ethconfig(struct stm32_ethmac_s *priv);
 
@@ -1268,7 +1323,7 @@ static int stm32_transmit(struct stm32_ethmac_s *priv)
       stm32_disableint(priv, ETH_DMACIER_RIE);
     }
 
-  MEMORY_SYNC();
+  UP_MB();
 
   /* Enable TX interrupts */
 
@@ -1668,7 +1723,7 @@ static int stm32_recvframe(struct stm32_ethmac_s *priv)
    *   3) All of the TX descriptors are in flight.
    *
    * This last case is obscure.  It is due to that fact that each packet
-   * that we receive can generate an unstoppable transmisson.  So we have
+   * that we receive can generate an unstoppable transmission.  So we have
    * to stop receiving when we can not longer transmit.  In this case, the
    * transmit logic should also have disabled further RX interrupts.
    */
@@ -1974,7 +2029,7 @@ static void stm32_receive(struct stm32_ethmac_s *priv)
         }
 
       /* We are finished with the RX buffer.  NOTE:  If the buffer is
-       * re-used for transmission, the dev->d_buf field will have been
+       * reused for transmission, the dev->d_buf field will have been
        * nullified.
        */
 
@@ -2011,7 +2066,6 @@ static void stm32_freeframe(struct stm32_ethmac_s *priv)
 {
   struct eth_desc_s *txdesc;
   uint32_t des3_tmp;
-  int i;
 
   ninfo("txhead: %p txtail: %p inflight: %d\n",
         priv->txhead, priv->txtail, priv->inflight);
@@ -2425,9 +2479,9 @@ static int stm32_ifup(struct net_driver_s *dev)
   int ret;
 
 #ifdef CONFIG_NET_IPv4
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 #endif
 #ifdef CONFIG_NET_IPv6
   ninfo("Bringing up: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -2946,6 +3000,7 @@ static void stm32_rxdescinit(struct stm32_ethmac_s *priv,
 #ifdef CONFIG_NETDEV_PHY_IOCTL
 static int stm32_ioctl(struct net_driver_s *dev, int cmd, unsigned long arg)
 {
+#ifndef CONFIG_STM32H7_NO_PHY
 #ifdef CONFIG_ARCH_PHY_INTERRUPT
   struct stm32_ethmac_s *priv = (struct stm32_ethmac_s *)dev->d_private;
 #endif
@@ -3002,9 +3057,13 @@ static int stm32_ioctl(struct net_driver_s *dev, int cmd, unsigned long arg)
     }
 
   return ret;
+#else
+  return -EIO;
+#endif
 }
 #endif /* CONFIG_NETDEV_PHY_IOCTL */
 
+#ifndef CONFIG_STM32H7_NO_PHY
 /****************************************************************************
  * Function: stm32_phyintenable
  *
@@ -3333,7 +3392,10 @@ static int stm32_phyinit(struct stm32_ethmac_s *priv)
     {
       nxsig_usleep(10);
       to -= 10;
+      phyval = 0xffff;
       ret = stm32_phyread(CONFIG_STM32H7_PHYADDR, MII_MCR, &phyval);
+
+      ninfo("MII_MCR: phyval: %u ret: %d\n", phyval, ret);
     }
   while (phyval & MII_MCR_RESET && to > 0);
 
@@ -3346,6 +3408,40 @@ static int stm32_phyinit(struct stm32_ethmac_s *priv)
     {
       ninfo("Phy reset in %d ms\n", PHY_RESET_DELAY - to);
     }
+
+  ret = stm32_phyread(CONFIG_STM32H7_PHYADDR, MII_PHYID1, &phyval);
+
+  if (ret < 0)
+    {
+      nerr("ERROR: Failed to read PHYID1: %d\n", ret);
+      return ret;
+    }
+
+  if (phyval != STM32H7_PHYID1)
+    {
+      nerr("ERROR: Incorrect PHYID1: %u expected: %u\n",
+            phyval, STM32H7_PHYID1);
+      return -ENXIO;
+    }
+
+  ninfo("MII_PHYID1: phyval: %u ret: %d\n", phyval, ret);
+
+  ret = stm32_phyread(CONFIG_STM32H7_PHYADDR, MII_PHYID2, &phyval);
+
+  if (ret < 0)
+    {
+      nerr("ERROR: Failed to read PHYID2: %d\n", ret);
+      return ret;
+    }
+
+  if ((phyval & 0xfff0) != (STM32H7_PHYID2 & 0xfff0))
+    {
+      nerr("ERROR: Incorrect PHYID2: %u expected: %u\n",
+            phyval, STM32H7_PHYID2);
+      return -ENXIO;
+    }
+
+  ninfo("MII_PHYID2: phyval: %u ret: %d\n", phyval, ret);
 
 #ifdef CONFIG_STM32H7_ETHMAC_REGDEBUG
   stm32_phyregdump();
@@ -3376,6 +3472,7 @@ static int stm32_phyinit(struct stm32_ethmac_s *priv)
         }
       else if ((phyval & MII_MSR_LINKSTATUS) != 0)
         {
+          ninfo("MII_MSR: phyval: %u ret: %d \n", phyval, ret);
           break;
         }
 
@@ -3528,6 +3625,8 @@ if ((phyval & CONFIG_STM32H7_PHYSR_ALTMODE) == 0)
   return OK;
 }
 
+#endif
+
 /****************************************************************************
  * Name: stm32_selectmii
  *
@@ -3603,9 +3702,10 @@ static inline void stm32_ethgpioconfig(struct stm32_ethmac_s *priv)
 #if defined(CONFIG_STM32H7_MII) || defined(CONFIG_STM32H7_RMII)
 
   /* MDC and MDIO are common to both modes */
-
+# ifndef CONFIG_STM32H7_NO_PHY
   stm32_configgpio(GPIO_ETH_MDC);
   stm32_configgpio(GPIO_ETH_MDIO);
+# endif
 
   /* Set up the MII interface */
 
@@ -3962,79 +4062,6 @@ static void stm32_macaddress(struct stm32_ethmac_s *priv)
 }
 
 /****************************************************************************
- * Function: stm32_ipv6multicast
- *
- * Description:
- *   Configure the IPv6 multicast MAC address.
- *
- * Parameters:
- *   priv - A reference to the private driver state structure
- *
- * Returned Value:
- *   OK on success; Negated errno on failure.
- *
- * Assumptions:
- *
- ****************************************************************************/
-
-#ifdef CONFIG_NET_ICMPv6
-static void stm32_ipv6multicast(struct stm32_ethmac_s *priv)
-{
-  struct net_driver_s *dev;
-  uint16_t tmp16;
-  uint8_t mac[6];
-
-  /* For ICMPv6, we need to add the IPv6 multicast address
-   *
-   * For IPv6 multicast addresses, the Ethernet MAC is derived by
-   * the four low-order octets OR'ed with the MAC 33:33:00:00:00:00,
-   * so for example the IPv6 address FF02:DEAD:BEEF::1:3 would map
-   * to the Ethernet MAC address 33:33:00:01:00:03.
-   *
-   * NOTES:  This appears correct for the ICMPv6 Router Solicitation
-   * Message, but the ICMPv6 Neighbor Solicitation message seems to
-   * use 33:33:ff:01:00:03.
-   */
-
-  mac[0] = 0x33;
-  mac[1] = 0x33;
-
-  dev    = &priv->dev;
-  tmp16  = dev->d_ipv6addr[6];
-  mac[2] = 0xff;
-  mac[3] = tmp16 >> 8;
-
-  tmp16  = dev->d_ipv6addr[7];
-  mac[4] = tmp16 & 0xff;
-  mac[5] = tmp16 >> 8;
-
-  ninfo("IPv6 Multicast: %02x:%02x:%02x:%02x:%02x:%02x\n",
-        mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
-  stm32_addmac(dev, mac);
-
-#ifdef CONFIG_NET_ICMPv6_AUTOCONF
-  /* Add the IPv6 all link-local nodes Ethernet address.  This is the
-   * address that we expect to receive ICMPv6 Router Advertisement
-   * packets.
-   */
-
-  stm32_addmac(dev, g_ipv6_ethallnodes.ether_addr_octet);
-
-#endif /* CONFIG_NET_ICMPv6_AUTOCONF */
-#ifdef CONFIG_NET_ICMPv6_ROUTER
-  /* Add the IPv6 all link-local routers Ethernet address.  This is the
-   * address that we expect to receive ICMPv6 Router Solicitation
-   * packets.
-   */
-
-  stm32_addmac(dev, g_ipv6_ethallrouters.ether_addr_octet);
-
-#endif /* CONFIG_NET_ICMPv6_ROUTER */
-}
-#endif /* CONFIG_NET_ICMPv6 */
-
-/****************************************************************************
  * Function: stm32_macenable
  *
  * Description:
@@ -4057,12 +4084,6 @@ static int stm32_macenable(struct stm32_ethmac_s *priv)
   /* Set the MAC address */
 
   stm32_macaddress(priv);
-
-#ifdef CONFIG_NET_ICMPv6
-  /* Set up the IPv6 multicast address */
-
-  stm32_ipv6multicast(priv);
-#endif
 
   /* Enable transmit state machine of the MAC for transmission on the MII */
 
@@ -4176,6 +4197,19 @@ static int stm32_ethconfig(struct stm32_ethmac_s *priv)
 
   /* Initialize the PHY */
 
+#ifdef CONFIG_STM32H7_NO_PHY
+  ninfo("MAC without PHY\n");
+#ifdef CONFIG_STM32H7_ETHFD
+  priv->fduplex = 1;
+#else
+  priv->fduplex = 0;
+#endif
+#ifdef CONFIG_STM32H7_ETH100MBPS
+  priv->mbps100 = 1;
+#else
+  priv->mbps100 = 0;
+#endif
+#else
   ninfo("Initialize the PHY\n");
   ret = stm32_phyinit(priv);
   if (ret < 0)
@@ -4183,6 +4217,7 @@ static int stm32_ethconfig(struct stm32_ethmac_s *priv)
       return ret;
     }
 
+#endif
   /* Initialize the MAC and DMA */
 
   ninfo("Initialize the MAC and DMA\n");
@@ -4259,7 +4294,7 @@ static inline int stm32_ethinitialize(int intf)
   stm32_get_uniqueid(uid);
   crc = crc64(uid, 12);
 
-  /* Specify as localy administrated address */
+  /* Specify as locally administrated address */
 
   priv->dev.d_mac.ether.ether_addr_octet[0]  = (crc >> 0) | 0x02;
   priv->dev.d_mac.ether.ether_addr_octet[0] &= ~0x1;

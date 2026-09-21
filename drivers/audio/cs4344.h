@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/audio/cs4344.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -43,7 +45,7 @@
  * Pre-Processor Definitions
  ****************************************************************************/
 
-#define CS4344_DEFAULT_SAMPRATE      11025     /* Initial sample rate */
+#define CS4344_DEFAULT_SAMPRATE      16000     /* Initial sample rate */
 #define CS4344_DEFAULT_NCHANNELS     1         /* Initial number of channels */
 #define CS4344_DEFAULT_BPSAMP        16        /* Initial bits per sample */
 

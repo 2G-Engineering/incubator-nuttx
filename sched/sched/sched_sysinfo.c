@@ -1,6 +1,8 @@
 /****************************************************************************
  * sched/sched/sched_sysinfo.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -46,13 +48,15 @@
 
 int sysinfo(FAR struct sysinfo *info)
 {
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
   struct cpuload_s cpuload;
 #endif
 #ifdef CONFIG_MM_PGALLOC
   struct pginfo_s pginfo;
 #endif
+#if defined(MM_KERNEL_USRHEAP_INIT) || defined(CONFIG_MM_KERNEL_HEAP)
   struct mallinfo minfo;
+#endif
 
   if (info == NULL)
     {
@@ -62,7 +66,7 @@ int sysinfo(FAR struct sysinfo *info)
 
   memset(info, 0, sizeof(*info));
 
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
   clock_cpuload(0, &cpuload);
 
   /* On the simulator, you may hit cpuload.total == 0, but probably never

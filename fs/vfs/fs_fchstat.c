@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_fchstat.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -31,6 +33,7 @@
 
 #include <nuttx/fs/fs.h>
 
+#include "notify/notify.h"
 #include "inode/inode.h"
 
 /****************************************************************************
@@ -59,6 +62,7 @@ static int fchstat(int fd, FAR struct stat *buf, int flags)
   /* Perform the fchstat operation */
 
   ret = file_fchstat(filep, buf, flags);
+  fs_putfilep(filep);
   if (ret >= 0)
     {
       /* Successfully fchstat'ed the file */
@@ -111,11 +115,6 @@ int file_fchstat(FAR struct file *filep, FAR struct stat *buf, int flags)
   DEBUGASSERT(inode != NULL);
 
   /* Adjust and check buf and flags */
-
-  if ((flags & CH_STAT_MODE) && (buf->st_mode & ~0177777))
-    {
-      return -EINVAL;
-    }
 
   if ((flags & CH_STAT_UID) && buf->st_uid == -1)
     {
@@ -191,6 +190,13 @@ int file_fchstat(FAR struct file *filep, FAR struct stat *buf, int flags)
       ret = inode_chstat(inode, buf, flags, 0);
     }
 
+#ifdef CONFIG_FS_NOTIFY
+  if (ret >= 0)
+    {
+      notify_chstat(filep);
+    }
+#endif
+
   return ret;
 }
 
@@ -215,7 +221,7 @@ int fchmod(int fd, mode_t mode)
 {
   struct stat buf;
 
-  buf.st_mode = mode;
+  buf.st_mode = mode & 0777;
 
   return fchstat(fd, &buf, CH_STAT_MODE);
 }

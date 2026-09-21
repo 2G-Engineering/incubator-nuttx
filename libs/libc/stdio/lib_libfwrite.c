@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/stdio/lib_libfwrite.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -43,11 +45,12 @@
  * Name: lib_fwrite
  ****************************************************************************/
 
-ssize_t lib_fwrite(FAR const void *ptr, size_t count, FAR FILE *stream)
+ssize_t lib_fwrite_unlocked(FAR const void *ptr, size_t count,
+                            FAR FILE *stream)
 #ifndef CONFIG_STDIO_DISABLE_BUFFERING
 {
-  FAR const unsigned char *start = ptr;
-  FAR const unsigned char *src   = ptr;
+  FAR const char *start = ptr;
+  FAR const char *src   = ptr;
   ssize_t ret = ERROR;
   size_t gulp_size;
 
@@ -71,7 +74,15 @@ ssize_t lib_fwrite(FAR const void *ptr, size_t count, FAR FILE *stream)
 
   if (stream->fs_bufstart == NULL)
     {
-      ret = _NX_WRITE(stream->fs_fd, ptr, count);
+      if (stream->fs_iofunc.write != NULL)
+        {
+          ret = stream->fs_iofunc.write(stream->fs_cookie, ptr, count);
+        }
+      else
+        {
+          ret = _NX_WRITE((int)(intptr_t)stream->fs_cookie, ptr, count);
+        }
+
       if (ret < 0)
         {
           _NX_SETERRNO(ret);
@@ -81,18 +92,14 @@ ssize_t lib_fwrite(FAR const void *ptr, size_t count, FAR FILE *stream)
       goto errout;
     }
 
-  /* Get exclusive access to the stream */
-
-  flockfile(stream);
-
   /* If the buffer is currently being used for read access, then
    * discard all of the read-ahead data.  We do not support concurrent
    * buffered read/write access.
    */
 
-  if (lib_rdflush(stream) < 0)
+  if (lib_rdflush_unlocked(stream) < 0)
     {
-      goto errout_with_lock;
+      goto errout;
     }
 
   /* Determine the number of bytes left in the buffer */
@@ -125,22 +132,30 @@ ssize_t lib_fwrite(FAR const void *ptr, size_t count, FAR FILE *stream)
         {
           /* Flush the buffered data to the IO stream */
 
-          int bytes_buffered = lib_fflush(stream, false);
+          int bytes_buffered = lib_fflush_unlocked(stream);
           if (bytes_buffered < 0)
             {
-              goto errout_with_lock;
+              goto errout;
             }
         }
     }
 
   if (count >= CONFIG_STDIO_BUFFER_SIZE)
     {
-      ret = _NX_WRITE(stream->fs_fd, src, count);
+      if (stream->fs_iofunc.write != NULL)
+        {
+          ret = stream->fs_iofunc.write(stream->fs_cookie, src, count);
+        }
+      else
+        {
+          ret = _NX_WRITE((int)(intptr_t)stream->fs_cookie, src, count);
+        }
+
       if (ret < 0)
         {
           _NX_SETERRNO(ret);
           ret = ERROR;
-          goto errout_with_lock;
+          goto errout;
         }
 
       src += ret;
@@ -156,9 +171,6 @@ ssize_t lib_fwrite(FAR const void *ptr, size_t count, FAR FILE *stream)
 
   ret = (uintptr_t)src - (uintptr_t)start;
 
-errout_with_lock:
-  funlockfile(stream);
-
 errout:
   if (ret < 0)
     {
@@ -169,7 +181,16 @@ errout:
 }
 #else
 {
-  ssize_t ret = _NX_WRITE(stream->fs_fd, ptr, count);
+  ssize_t ret;
+  if (stream->fs_iofunc.write != NULL)
+    {
+      ret = stream->fs_iofunc.write(stream->fs_cookie, ptr, count);
+    }
+  else
+    {
+      ret = _NX_WRITE((int)(intptr_t)stream->fs_cookie, ptr, count);
+    }
+
   if (ret < 0)
     {
       stream->fs_flags |= __FS_FLAG_ERROR;
@@ -179,3 +200,14 @@ errout:
   return ret;
 }
 #endif /* CONFIG_STDIO_DISABLE_BUFFERING */
+
+ssize_t lib_fwrite(FAR const void *ptr, size_t count, FAR FILE *stream)
+{
+  ssize_t ret;
+
+  flockfile(stream);
+  ret = lib_fwrite_unlocked(ptr, count, stream);
+  funlockfile(stream);
+
+  return ret;
+}

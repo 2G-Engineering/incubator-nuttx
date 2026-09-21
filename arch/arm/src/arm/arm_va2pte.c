@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/arm/arm_va2pte.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -35,7 +37,7 @@
 #include "pg_macros.h"
 #include "arm_internal.h"
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -103,4 +105,4 @@ uint32_t *arm_va2pte(uintptr_t vaddr)
   return &L2[ndx];
 }
 
-#endif /* CONFIG_PAGING */
+#endif /* CONFIG_LEGACY_PAGING */

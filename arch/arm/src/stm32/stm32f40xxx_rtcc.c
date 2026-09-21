@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32/stm32f40xxx_rtcc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -34,7 +36,7 @@
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
-#include <nuttx/time.h>
+#include <nuttx/clock.h>
 
 #include "arm_internal.h"
 #include "stm32_rcc.h"

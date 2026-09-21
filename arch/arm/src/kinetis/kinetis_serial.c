@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/kinetis/kinetis_serial.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -37,6 +39,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/serial/serial.h>
+#include <nuttx/spinlock.h>
 
 #ifdef CONFIG_SERIAL_TERMIOS
 #  include <termios.h>
@@ -305,6 +308,7 @@ struct up_dev_s
   uint32_t          rxdmanext; /* Next byte in the DMA buffer to be read */
   char      *const  rxfifo;    /* Receive DMA buffer */
 #endif
+  spinlock_t lock;             /* Spinlock */
 };
 
 /****************************************************************************
@@ -483,6 +487,7 @@ static struct up_dev_s g_uart0priv =
   .rxdma_reqsrc   = KINETIS_DMA_REQUEST_SRC_UART0_RX,
   .rxfifo         = g_uart0rxfifo,
 #  endif
+  .lock           = SP_UNLOCKED
 };
 
 static uart_dev_t g_uart0port =
@@ -533,6 +538,7 @@ static struct up_dev_s g_uart1priv =
   .rxdma_reqsrc   = KINETIS_DMA_REQUEST_SRC_UART1_RX,
   .rxfifo         = g_uart1rxfifo,
 #  endif
+  .lock           = SP_UNLOCKED
 };
 
 static uart_dev_t g_uart1port =
@@ -583,6 +589,7 @@ static struct up_dev_s g_uart2priv =
   .rxdma_reqsrc   = KINETIS_DMA_REQUEST_SRC_UART2_RX,
   .rxfifo         = g_uart2rxfifo,
 #  endif
+  .lock           = SP_UNLOCKED
 };
 
 static uart_dev_t g_uart2port =
@@ -633,6 +640,7 @@ static struct up_dev_s g_uart3priv =
   .rxdma_reqsrc   = KINETIS_DMA_REQUEST_SRC_UART3_RX,
   .rxfifo         = g_uart3rxfifo,
 #  endif
+  .lock           = SP_UNLOCKED
 };
 
 static uart_dev_t g_uart3port =
@@ -683,6 +691,7 @@ static struct up_dev_s g_uart4priv =
   .rxdma_reqsrc   = KINETIS_DMA_REQUEST_SRC_UART4_RXTX,
   .rxfifo         = g_uart4rxfifo,
 #  endif
+  .lock           = SP_UNLOCKED
 };
 
 static uart_dev_t g_uart4port =
@@ -733,6 +742,7 @@ static struct up_dev_s g_uart5priv =
   .rxdma_reqsrc   = KINETIS_DMA_REQUEST_SRC_UART5_RX,
   .rxfifo         = g_uart5rxfifo,
 #  endif
+  .lock           = SP_UNLOCKED
 };
 
 static uart_dev_t g_uart5port =
@@ -783,21 +793,27 @@ static inline void up_serialout(struct up_dev_s *priv, int offset,
  * Name: up_setuartint
  ****************************************************************************/
 
-static void up_setuartint(struct up_dev_s *priv)
+static void up_setuartint_nolock(struct up_dev_s *priv)
 {
-  irqstate_t flags;
   uint8_t regval;
 
   /* Re-enable/re-disable interrupts corresponding to the state of bits in
    * ie
    */
 
-  flags    = enter_critical_section();
   regval   = up_serialin(priv, KINETIS_UART_C2_OFFSET);
   regval  &= ~UART_C2_ALLINTS;
   regval  |= priv->ie;
   up_serialout(priv, KINETIS_UART_C2_OFFSET, regval);
-  leave_critical_section(flags);
+}
+
+static void up_setuartint(struct up_dev_s *priv)
+{
+  irqstate_t flags;
+
+  flags    = spin_lock_irqsave(&priv->lock);
+  up_setuartint_nolock(priv);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 
 /****************************************************************************
@@ -812,10 +828,10 @@ static void up_restoreuartint(struct up_dev_s *priv, uint8_t ie)
    * ie
    */
 
-  flags    = enter_critical_section();
+  flags    = spin_lock_irqsave(&priv->lock);
   priv->ie = ie & UART_C2_ALLINTS;
-  up_setuartint(priv);
-  leave_critical_section(flags);
+  up_setuartint_nolock(priv);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 
 /****************************************************************************
@@ -827,14 +843,15 @@ static void up_disableuartint(struct up_dev_s *priv, uint8_t *ie)
 {
   irqstate_t flags;
 
-  flags = enter_critical_section();
+  flags = spin_lock_irqsave(&priv->lock);
   if (ie)
     {
       *ie = priv->ie;
     }
 
-  up_restoreuartint(priv, 0);
-  leave_critical_section(flags);
+  priv->ie = 0;
+  up_setuartint_nolock(priv);
+  spin_unlock_irqrestore(&priv->lock, flags);
 }
 #endif
 
@@ -1277,7 +1294,6 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
   struct up_dev_s   *priv;
   int                ret   = OK;
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
   dev   = inode->i_private;
   DEBUGASSERT(dev != NULL && dev->priv != NULL);
@@ -1972,7 +1988,7 @@ static void up_dma_rxcallback(DMACH_HANDLE handle, void *arg, bool done,
  *
  * Description:
  *   Performs the low level UART initialization early in debug so that the
- *   serial console will be available during bootup.  This must be called
+ *   serial console will be available during boot up.  This must be called
  *   before arm_serialinit.  NOTE:  This function depends on GPIO pin
  *   configuration performed in up_consoleinit() and main clock
  *   initialization performed in up_clkinitialize().
@@ -2141,27 +2157,16 @@ void kinetis_serial_dma_poll(void)
  ****************************************************************************/
 
 #ifdef HAVE_UART_PUTC
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef HAVE_UART_CONSOLE
   struct up_dev_s *priv = (struct up_dev_s *)CONSOLE_DEV.priv;
   uint8_t ie;
 
   up_disableuartint(priv, &ie);
-
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      arm_lowputc('\r');
-    }
-
   arm_lowputc(ch);
   up_restoreuartint(priv, ie);
 #endif
-  return ch;
 }
 #endif
 
@@ -2176,21 +2181,11 @@ int up_putc(int ch)
  ****************************************************************************/
 
 #ifdef HAVE_UART_PUTC
-int up_putc(int ch)
+void up_putc(int ch)
 {
 #ifdef HAVE_UART_CONSOLE
-  /* Check for LF */
-
-  if (ch == '\n')
-    {
-      /* Add CR */
-
-      arm_lowputc('\r');
-    }
-
   arm_lowputc(ch);
 #endif
-  return ch;
 }
 #endif
 

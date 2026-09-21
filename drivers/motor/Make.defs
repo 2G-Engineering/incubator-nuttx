@@ -1,6 +1,8 @@
 ############################################################################
 # drivers/motor/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -28,6 +30,20 @@ endif
 
 ifeq ($(CONFIG_MOTOR_UPPER),y)
 CSRCS += motor.c
+endif
+
+# Stepper upper half and lower halves
+
+ifeq ($(CONFIG_STEPPER_UPPER),y)
+CSRCS += stepper.c
+endif
+
+ifeq ($(CONFIG_STEPPER_A4988),y)
+CSRCS += a4988.c
+endif
+
+ifeq ($(CONFIG_STEPPER_DRV8825),y)
+CSRCS += drv8825.c
 endif
 
 # Include motor drivers in the build

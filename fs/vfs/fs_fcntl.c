@@ -1,6 +1,8 @@
 /****************************************************************************
  * fs/vfs/fs_fcntl.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -71,13 +73,13 @@ static int file_vfcntl(FAR struct file *filep, int cmd, va_list ap)
         {
           /* Does not set the errno variable in the event of a failure */
 
-          ret = file_dup(filep, va_arg(ap, int), false);
+          ret = file_dup(filep, va_arg(ap, int), 0);
         }
         break;
 
       case F_DUPFD_CLOEXEC:
         {
-          ret = file_dup(filep, va_arg(ap, int), true);
+          ret = file_dup(filep, va_arg(ap, int), O_CLOEXEC);
         }
         break;
 
@@ -159,7 +161,7 @@ static int file_vfcntl(FAR struct file *filep, int cmd, va_list ap)
 
               if ((filep->f_oflags & O_APPEND) != 0)
                 {
-                  file_seek(filep, 0, SEEK_END);
+                  ret = file_seek(filep, 0, SEEK_END);
                 }
             }
         }
@@ -195,6 +197,12 @@ static int file_vfcntl(FAR struct file *filep, int cmd, va_list ap)
          * for the lock type which shall be set to F_UNLCK.
          */
 
+        {
+          ret = file_ioctl(filep, FIOC_GETLK,
+                           va_arg(ap, FAR struct flock *));
+        }
+
+        break;
       case F_SETLK:
         /* Set or clear a file segment lock according to the lock
          * description pointed to by the third argument, arg, taken as a
@@ -206,6 +214,12 @@ static int file_vfcntl(FAR struct file *filep, int cmd, va_list ap)
          * shall return immediately with a return value of -1.
          */
 
+        {
+          ret = file_ioctl(filep, FIOC_SETLK,
+                           va_arg(ap, FAR struct flock *));
+        }
+
+        break;
       case F_SETLKW:
         /* This command shall be equivalent to F_SETLK except that if a
          * shared or exclusive lock is blocked by other locks, the thread
@@ -216,9 +230,12 @@ static int file_vfcntl(FAR struct file *filep, int cmd, va_list ap)
          * the lock operation shall not be done.
          */
 
-        ret = -ENOSYS; /* Not implemented */
-        break;
+        {
+          ret = file_ioctl(filep, FIOC_SETLKW,
+                           va_arg(ap, FAR struct flock *));
+        }
 
+        break;
       case F_GETPATH:
         /* Get the path of the file descriptor. The argument must be a buffer
          * of size PATH_MAX or greater.
@@ -228,6 +245,26 @@ static int file_vfcntl(FAR struct file *filep, int cmd, va_list ap)
           ret = file_ioctl(filep, FIOC_FILEPATH, va_arg(ap, FAR char *));
         }
 
+        break;
+      case F_SETPIPE_SZ:
+        /* Modify the capacity of the pipe to arg bytes, but not larger than
+         * CONFIG_DEV_PIPE_MAXSIZE.
+         */
+
+        {
+          ret = file_ioctl(filep, PIPEIOC_SETSIZE, va_arg(ap, int));
+        }
+
+        break;
+      case F_GETPIPE_SZ:
+
+        /* Return the capacity of the pipe */
+
+        {
+          ret = file_ioctl(filep, PIPEIOC_GETSIZE);
+        }
+
+        break;
       default:
         break;
     }
@@ -315,13 +352,12 @@ int fcntl(int fd, int cmd, ...)
   ret = fs_getfilep(fd, &filep);
   if (ret >= 0)
     {
-      DEBUGASSERT(filep != NULL);
-
       /* Let file_vfcntl() do the real work.  The errno is not set on
        * failures.
        */
 
       ret = file_vfcntl(filep, cmd, ap);
+      fs_putfilep(filep);
     }
 
   if (ret < 0)

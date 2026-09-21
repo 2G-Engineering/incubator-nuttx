@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/string/lib_ffs.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -17,13 +19,6 @@
  * under the License.
  *
  ****************************************************************************/
-
-/****************************************************************************
- * Included Files
- ****************************************************************************/
-
-#include <nuttx/compiler.h>
-#include <strings.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -55,13 +50,6 @@ int ffs(int j)
 
   if (j != 0)
     {
-#ifdef CONFIG_HAVE_BUILTIN_FFS
-      ret = __builtin_ffs(j);
-#elif defined (CONFIG_HAVE_BUILTIN_CTZ)
-      /* Count trailing zeros function can be used to implement ffs. */
-
-      ret = __builtin_ctz(j) + 1;
-#else
       unsigned int value = (unsigned int)j;
       int bitno;
 
@@ -73,7 +61,6 @@ int ffs(int j)
               break;
             }
         }
-#endif
     }
 
   return ret;

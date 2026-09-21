@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/mmcsd/mmcsd_debug.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -107,7 +109,7 @@ void mmcsd_dmpcsd(FAR const uint8_t *csd, uint8_t cardtype)
       MMCSD_CSD_READBLKMISALIGN(csd));
   finfo("  DSR_IMP:                 %d\n",
       sd2 ? SD20_CSD_DSRIMP(csd) : MMCSD_CSD_DSRIMP(csd));
-  finfo("  C_SIZE:                  %d\n",
+  finfo("  C_SIZE:                  %" PRId32" \n",
       sd2 ? SD20_CSD_CSIZE(csd) : MMCSD_CSD_CSIZE(csd));
   finfo("  VDD_R_CURR_MIN:          %d\n",
       sd2 ? SD20_CSD_VDDRCURRMIN(csd) : MMCSD_CSD_VDDRCURRMIN(csd));

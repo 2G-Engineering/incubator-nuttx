@@ -1,6 +1,8 @@
 ############################################################################
 # arch/risc-v/src/nuttsbi/Make.defs
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.  The
@@ -24,9 +26,9 @@ ifeq ($(CONFIG_NUTTSBI),y)
 
 SBI_ASRCS += sbi_mtrap.S sbi_vectors.S sbi_head.S
 SBI_CSRCS += sbi_mscratch.c sbi_mcall.c sbi_start.c
-SBI_CSRCS += sbi_mexception.c sbi_mtimer.c
+SBI_CSRCS += sbi_mexception.c sbi_mtimer.c sbi_ipi.c
 
-INCLUDES  += ${shell $(INCDIR) "$(CC)" $(ARCH_SRCDIR)$(DELIM)nuttsbi}
+INCLUDES  += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)nuttsbi
 
 SBI_DIR   := nuttsbi
 

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/common/arm_internal.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,6 +35,8 @@
 #  include <sys/types.h>
 #  include <stdint.h>
 #  include <syscall.h>
+
+#  include "chip.h"
 #endif
 
 /****************************************************************************
@@ -52,6 +56,12 @@
 #    undef  USE_SERIALDRIVER
 #    undef  USE_EARLYSERIALINIT
 #  elif defined(CONFIG_CONSOLE_SYSLOG)
+#    undef  USE_SERIALDRIVER
+#    undef  USE_EARLYSERIALINIT
+#  elif defined(CONFIG_SERIAL_RTT_CONSOLE)
+#    undef  USE_SERIALDRIVER
+#    undef  USE_EARLYSERIALINIT
+#  elif defined(CONFIG_RPMSG_UART_CONSOLE)
 #    undef  USE_SERIALDRIVER
 #    undef  USE_EARLYSERIALINIT
 #  else
@@ -89,11 +99,6 @@
 #endif
 
 #define INTSTACK_SIZE (CONFIG_ARCH_INTERRUPTSTACK & ~STACK_ALIGN_MASK)
-
-/* Macros to handle saving and restoring interrupt state. */
-
-#define arm_savestate(regs)    (regs = (uint32_t *)CURRENT_REGS)
-#define arm_restorestate(regs) (CURRENT_REGS = regs)
 
 /* Toolchain dependent, linker defined section addresses */
 
@@ -146,18 +151,7 @@
 /* Context switching */
 
 #ifndef arm_fullcontextrestore
-#  define arm_fullcontextrestore(restoreregs) \
-    sys_call1(SYS_restore_context, (uintptr_t)restoreregs);
-#else
-extern void arm_fullcontextrestore(uint32_t *restoreregs);
-#endif
-
-#ifndef arm_switchcontext
-#  define arm_switchcontext(saveregs, restoreregs) \
-    sys_call2(SYS_switch_context, (uintptr_t)saveregs, (uintptr_t)restoreregs);
-#else
-extern void arm_switchcontext(uint32_t **saveregs,
-                              uint32_t *restoreregs);
+#  define arm_fullcontextrestore() sys_call0(SYS_restore_context)
 #endif
 
 /* Redefine the linker symbols as armlink style */
@@ -212,7 +206,7 @@ extern void arm_switchcontext(uint32_t **saveregs,
   ({ \
     uint64_t __mpidr = GET_MPIDR(); \
     __mpidr &= ~(MPIDR_AFFLVL_MASK << MPIDR_AFF ## aff_level ## _SHIFT); \
-    __mpidr |= (cpu << MPIDR_AFF ## aff_level ## _SHIFT); \
+    __mpidr |= (core << MPIDR_AFF ## aff_level ## _SHIFT); \
     __mpidr &= MPIDR_ID_MASK; \
     __mpidr; \
   })
@@ -222,6 +216,10 @@ extern void arm_switchcontext(uint32_t **saveregs,
  ****************************************************************************/
 
 #ifndef __ASSEMBLY__
+/* g_interrupt_context store irq status */
+
+extern volatile bool g_interrupt_context[CONFIG_SMP_NCPUS];
+
 typedef void (*up_vector_t)(void);
 #endif
 
@@ -323,6 +321,8 @@ void modifyreg32(unsigned int addr, uint32_t clearbits, uint32_t setbits);
 
 void arm_boot(void);
 
+int arm_psci_init(const char *method);
+
 /* Context switching */
 
 uint32_t *arm_decodeirq(uint32_t *regs);
@@ -341,10 +341,14 @@ void arm_pminitialize(void);
 
 /* Interrupt handling *******************************************************/
 
-#if defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
-uintptr_t arm_intstack_alloc(void);
-uintptr_t arm_intstack_top(void);
+#if CONFIG_ARCH_INTERRUPTSTACK > 7
+void weak_function arm_initialize_stack(void);
 #endif
+
+/* Interrupt acknowledge and dispatch */
+
+void arm_ack_irq(int irq);
+uint32_t *arm_doirq(int irq, uint32_t *regs);
 
 /* Exception handling logic unique to the Cortex-M family */
 
@@ -358,20 +362,17 @@ uintptr_t arm_intstack_top(void);
 #if defined(__ICCARM__)
 /* _vectors replaced on __vector_table for IAR C-SPY Simulator */
 
-extern const void *__vector_table[];
+EXTERN const void *__vector_table[];
 #else
-extern const void * const _vectors[];
+EXTERN const void * const _vectors[];
 #endif
-
-/* Interrupt acknowledge and dispatch */
-
-void arm_ack_irq(int irq);
-uint32_t *arm_doirq(int irq, uint32_t *regs);
 
 /* Exception Handlers */
 
 int  arm_svcall(int irq, void *context, void *arg);
 int  arm_hardfault(int irq, void *context, void *arg);
+int  arm_enable_dbgmonitor(void);
+int  arm_dbgmonitor(int irq, void *context, void *arg);
 
 #  if defined(CONFIG_ARCH_ARMV7M) || defined(CONFIG_ARCH_ARMV8M)
 
@@ -390,16 +391,18 @@ int  arm_securefault(int irq, void *context, void *arg);
 
 /* Interrupt acknowledge and dispatch */
 
-uint32_t *arm_doirq(int irq, uint32_t *regs);
+#ifdef CONFIG_ARCH_HIPRI_INTERRUPT
+uint32_t *arm_dofiq(int fiq, uint32_t *regs);
+#endif
 
 /* Paging support */
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 void arm_pginitialize(void);
 uint32_t *arm_va2pte(uintptr_t vaddr);
-#else /* CONFIG_PAGING */
+#else /* CONFIG_LEGACY_PAGING */
 #  define arm_pginitialize()
-#endif /* CONFIG_PAGING */
+#endif /* CONFIG_LEGACY_PAGING */
 
 /* Exception Handlers */
 
@@ -412,21 +415,16 @@ uint32_t *arm_undefinedinsn(uint32_t *regs);
 
 #else /* ARM7 | ARM9 */
 
-/* Interrupt acknowledge and dispatch */
-
-void arm_ack_irq(int irq);
-void arm_doirq(int irq, uint32_t *regs);
-
 /* Paging support (and exception handlers) */
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
 void arm_pginitialize(void);
 uint32_t *arm_va2pte(uintptr_t vaddr);
 void arm_dataabort(uint32_t *regs, uint32_t far, uint32_t fsr);
-#else /* CONFIG_PAGING */
+#else /* CONFIG_LEGACY_PAGING */
 #  define arm_pginitialize()
 void arm_dataabort(uint32_t *regs);
-#endif /* CONFIG_PAGING */
+#endif /* CONFIG_LEGACY_PAGING */
 
 /* Exception handlers */
 
@@ -520,6 +518,20 @@ void arm_usbuninitialize(void);
 #ifdef CONFIG_STACK_COLORATION
 size_t arm_stack_check(void *stackbase, size_t nbytes);
 void arm_stack_color(void *stackbase, size_t nbytes);
+#endif
+
+#ifdef CONFIG_ARCH_TRUSTZONE_SECURE
+int arm_gen_nonsecurefault(int irq, uint32_t *regs);
+#else
+# define arm_gen_nonsecurefault(i, r)  (0)
+#endif
+
+#if defined(CONFIG_ARMV7M_STACKCHECK) || defined(CONFIG_ARMV8M_STACKCHECK)
+void arm_stack_check_init(void) noinstrument_function;
+#endif
+
+#ifdef CONFIG_ARM_COREDUMP_REGION
+  void arm_coredump_add_region(void);
 #endif
 
 #undef EXTERN

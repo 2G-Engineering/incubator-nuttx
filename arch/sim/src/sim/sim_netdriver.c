@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/sim/src/sim/sim_netdriver.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -71,7 +73,8 @@
 
 #include "sim_internal.h"
 
-#define SIM_NETDEV_BUFSIZE (MAX_NETDEV_PKTSIZE + CONFIG_NET_GUARDSIZE)
+#define SIM_NETDEV_BUFSIZE (CONFIG_SIM_NETDEV_MTU + ETH_HDRLEN + \
+                            CONFIG_NET_GUARDSIZE)
 
 /* We don't know packet length before receiving, so we can only offload it
  * when netpkt's buffer is long enough.
@@ -86,6 +89,9 @@
 #define DEVIDX(p) ((struct sim_netdev_s *)(p) - g_sim_dev)
 #define DEVBUF(p) (((struct sim_netdev_s *)(p))->buf)
 
+#if CONFIG_SIM_WIFIDEV_NUMBER != 0
+#  include "sim_wifidriver.c"
+#else
 /****************************************************************************
  * Private Types
  ****************************************************************************/
@@ -95,6 +101,7 @@ struct sim_netdev_s
   struct netdev_lowerhalf_s dev;
   uint8_t buf[SIM_NETDEV_BUFSIZE]; /* Used when packet buffer is fragmented */
 };
+#endif
 
 /****************************************************************************
  * Private Function Prototypes
@@ -188,7 +195,21 @@ static int netdriver_ifup(struct netdev_lowerhalf_s *dev)
 #else /* CONFIG_NET_IPv6 */
   sim_netdev_ifup(DEVIDX(dev), &dev->netdev.d_ipv6addr);
 #endif /* CONFIG_NET_IPv4 */
-  netdev_lower_carrier_on(dev);
+
+#if CONFIG_SIM_WIFIDEV_NUMBER != 0
+  if (DEVIDX(dev) < CONFIG_SIM_WIFIDEV_NUMBER)
+    {
+      if (wifidriver_connected(dev))
+        {
+          netdev_lower_carrier_on(dev);
+        }
+    }
+  else
+#endif
+    {
+      netdev_lower_carrier_on(dev);
+    }
+
   return OK;
 }
 
@@ -236,11 +257,19 @@ int sim_netdriver_init(void)
       dev->quota[NETPKT_RX] = 1;
       dev->ops              = &g_ops;
 
+#if CONFIG_SIM_WIFIDEV_NUMBER != 0
+      if (devidx < CONFIG_SIM_WIFIDEV_NUMBER)
+        {
+          wifidriver_init(dev, devidx);
+        }
+#endif
+
       /* Register the device with the OS so that socket IOCTLs can be
        * performed
        */
 
-      netdev_lower_register(dev, NET_LL_ETHERNET);
+      netdev_lower_register(dev, devidx < CONFIG_SIM_WIFIDEV_NUMBER ?
+                                 NET_LL_IEEE80211 : NET_LL_ETHERNET);
     }
 
   return OK;
@@ -254,7 +283,8 @@ void sim_netdriver_setmacaddr(int devidx, unsigned char *macaddr)
 
 void sim_netdriver_setmtu(int devidx, int mtu)
 {
-  g_sim_dev[devidx].dev.netdev.d_pktsize = mtu + ETH_HDRLEN;
+  g_sim_dev[devidx].dev.netdev.d_pktsize = MIN(SIM_NETDEV_BUFSIZE,
+                                               mtu + ETH_HDRLEN);
 }
 
 void sim_netdriver_loop(void)

@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/hardware/stm32h7x3xx_rcc.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -568,8 +570,21 @@
 
 #define RCC_D2CCIP2R_USART234578SEL_SHIFT  (0)  /* Bits 0-2 */
 #  define RCC_D2CCIP2R_USART234578SEL_MASK (7 << RCC_D2CCIP2R_USART234578SEL_SHIFT)
+#  define RCC_D2CCIP2R_USART234578SEL_RCC  (0 << RCC_D2CCIP2R_USART234578SEL_SHIFT)
+#  define RCC_D2CCIP2R_USART234578SEL_PLL2 (1 << RCC_D2CCIP2R_USART234578SEL_SHIFT)
+#  define RCC_D2CCIP2R_USART234578SEL_PLL3 (2 << RCC_D2CCIP2R_USART234578SEL_SHIFT)
+#  define RCC_D2CCIP2R_USART234578SEL_HSI  (3 << RCC_D2CCIP2R_USART234578SEL_SHIFT)
+#  define RCC_D2CCIP2R_USART234578SEL_CSI  (4 << RCC_D2CCIP2R_USART234578SEL_SHIFT)
+#  define RCC_D2CCIP2R_USART234578SEL_LSE  (5 << RCC_D2CCIP2R_USART234578SEL_SHIFT)
 #define RCC_D2CCIP2R_USART16SEL_SHIFT      (3)  /* Bits 3-5 */
 #  define RCC_D2CCIP2R_USART16SEL_MASK     (7 << RCC_D2CCIP2R_USART16SEL_SHIFT)
+#  define RCC_D2CCIP2R_USART16SEL_MASK     (7 << RCC_D2CCIP2R_USART16SEL_SHIFT)
+#  define RCC_D2CCIP2R_USART16SEL_RCC      (0 << RCC_D2CCIP2R_USART16SEL_SHIFT)
+#  define RCC_D2CCIP2R_USART16SEL_PLL2     (1 << RCC_D2CCIP2R_USART16SEL_SHIFT)
+#  define RCC_D2CCIP2R_USART16SEL_PLL3     (2 << RCC_D2CCIP2R_USART16SEL_SHIFT)
+#  define RCC_D2CCIP2R_USART16SEL_HSI      (3 << RCC_D2CCIP2R_USART16SEL_SHIFT)
+#  define RCC_D2CCIP2R_USART16SEL_CSI      (4 << RCC_D2CCIP2R_USART16SEL_SHIFT)
+#  define RCC_D2CCIP2R_USART16SEL_LSE      (5 << RCC_D2CCIP2R_USART16SEL_SHIFT)
                                                 /* Bits 6-7: Reserved */
 #define RCC_D2CCIP2R_RNGSEL_SHIFT          (8)  /* Bits 8-9 */
 #  define RCC_D2CCIP2R_RNGSEL_MASK         (3 << RCC_D2CCIP2R_RNGSEL_SHIFT)
@@ -812,6 +827,13 @@
 /* RCC Global Control register */
 
 #define RCC_GCR_WW1RSC                  (1 << 0)  /* Bit 0: WWDG1 reset scope control */
+#ifdef CONFIG_STM32H7_HAVE_CM4
+#  define RCC_GCR_WW2RSC                (1 << 1)  /* Bit 1: WWDG2 reset scope control */
+#endif
+#ifdef CONFIG_STM32H7_HAVE_CM4
+#  define RCC_GCR_BOOT_C1               (1 << 2)  /* Bit 2: Allows CPU1 to boot */
+#  define RCC_GCR_BOOT_C2               (1 << 3)  /* Bit 3: Allows CPU2 to boot */
+#endif
 
 /* TODO: D3 Autonomous mode register */
 

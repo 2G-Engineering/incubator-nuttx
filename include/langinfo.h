@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/langinfo.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -33,7 +35,7 @@
  ****************************************************************************/
 
 #define NL_ITEM(cat, index) (((cat) << 16) | (index))
-#define NL_LOCALE_NAME(cat) NL_ITEM((cat)， (0xffff))
+#define NL_LOCALE_NAME(cat) NL_ITEM((cat),  (0xffff))
 
 #define CODESET             NL_ITEM(LC_CTYPE,    0x0e)
 

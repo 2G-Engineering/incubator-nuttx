@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/stm32h7/stm32_sdmmc.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -1900,8 +1902,8 @@ static void stm32_reset(struct sdio_dev_s *dev)
   struct stm32_dev_s *priv = (struct stm32_dev_s *)dev;
   irqstate_t flags;
   uint32_t regval;
-  uint32_t regaddress;
-  uint32_t restval;
+  uint32_t regaddress = 0;
+  uint32_t restval = 0;
 
   /* Disable clocking */
 
@@ -2547,7 +2549,7 @@ static int stm32_waitresponse(struct sdio_dev_s *dev, uint32_t cmd)
  *
  * Returned Value:
  *   Number of bytes sent on success; a negated errno on failure.  Here a
- *   failure means only a faiure to obtain the requested response (due to
+ *   failure means only a failure to obtain the requested response (due to
  *   transport problem -- timeout, CRC, etc.).  The implementation only
  *   assures that the response is returned intact and does not check errors
  *   within the response itself.

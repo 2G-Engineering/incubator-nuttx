@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/tcp/tcp_send.c
  *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  *   Copyright (C) 2007-2010, 2012, 2015, 2018-2019 Gregory Nutt. All rights
  *     reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
@@ -55,6 +57,7 @@
 #include <nuttx/net/netstats.h>
 #include <nuttx/net/ip.h>
 #include <nuttx/net/tcp.h>
+#include <nuttx/wqueue.h>
 
 #include "netdev/netdev.h"
 #include "devif/devif.h"
@@ -146,6 +149,12 @@ static void tcp_sendcommon(FAR struct net_driver_s *dev,
     }
   else
     {
+      if (work_available(&conn->work) && conn->tx_unacked != 0)
+        {
+          conn->timeout = false;
+          tcp_update_retrantimer(conn, conn->rto);
+        }
+
       /* Update the TCP received window based on I/O buffer availability */
 
       uint32_t rcvseq = tcp_getsequence(conn->rcvseq);
@@ -170,7 +179,7 @@ static void tcp_sendcommon(FAR struct net_driver_s *dev,
 
   /* Update device buffer length before setup the IP header */
 
-  iob_update_pktlen(dev->d_iob, dev->d_len);
+  iob_update_pktlen(dev->d_iob, dev->d_len, false);
 
   /* Calculate chk & build L3 header */
 
@@ -181,13 +190,19 @@ static void tcp_sendcommon(FAR struct net_driver_s *dev,
     {
       ninfo("do IPv6 IP header build!\n");
       ipv6_build_header(IPv6BUF, dev->d_len - IPv6_HDRLEN,
-                        IP_PROTO_TCP, dev->d_ipv6addr, conn->u.ipv6.raddr,
-                        conn->sconn.ttl, conn->sconn.s_tclass);
+                        IP_PROTO_TCP,
+                        netdev_ipv6_srcaddr(dev, conn->u.ipv6.laddr),
+                        conn->u.ipv6.raddr,
+                        conn->sconn.s_ttl, conn->sconn.s_tclass);
 
       /* Calculate TCP checksum. */
 
       tcp->tcpchksum = 0;
+
+#ifdef CONFIG_NET_TCP_CHECKSUMS
       tcp->tcpchksum = ~tcp_ipv6_chksum(dev);
+#endif
+
 #ifdef CONFIG_NET_STATISTICS
       g_netstats.ipv6.sent++;
 #endif
@@ -202,12 +217,16 @@ static void tcp_sendcommon(FAR struct net_driver_s *dev,
       ninfo("do IPv4 IP header build!\n");
       ipv4_build_header(IPv4BUF, dev->d_len, IP_PROTO_TCP,
                         &dev->d_ipaddr, &conn->u.ipv4.raddr,
-                        conn->sconn.ttl, conn->sconn.s_tos, NULL);
+                        conn->sconn.s_ttl, conn->sconn.s_tos, NULL);
 
       /* Calculate TCP checksum. */
 
       tcp->tcpchksum = 0;
+
+#ifdef CONFIG_NET_TCP_CHECKSUMS
       tcp->tcpchksum = ~tcp_ipv4_chksum(dev);
+#endif
+
 #ifdef CONFIG_NET_STATISTICS
       g_netstats.ipv4.sent++;
 #endif
@@ -464,7 +483,7 @@ void tcp_reset(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
 
   /* Update device buffer length before setup the IP header */
 
-  iob_update_pktlen(dev->d_iob, dev->d_len);
+  iob_update_pktlen(dev->d_iob, dev->d_len, false);
 
   /* Calculate chk & build L3 header */
 
@@ -476,11 +495,16 @@ void tcp_reset(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
       FAR struct ipv6_hdr_s *ipv6 = IPv6BUF;
 
       ipv6_build_header(ipv6, dev->d_len - IPv6_HDRLEN,
-                        IP_PROTO_TCP, dev->d_ipv6addr, ipv6->srcipaddr,
-                        conn ? conn->sconn.ttl : IP_TTL_DEFAULT,
+                        IP_PROTO_TCP,
+                        netdev_ipv6_srcaddr(dev, ipv6->destipaddr),
+                        ipv6->srcipaddr,
+                        conn ? conn->sconn.s_ttl : IP_TTL_DEFAULT,
                         conn ? conn->sconn.s_tos : 0);
       tcp->tcpchksum = 0;
+
+#ifdef CONFIG_NET_TCP_CHECKSUMS
       tcp->tcpchksum = ~tcp_ipv6_chksum(dev);
+#endif
     }
 #endif /* CONFIG_NET_IPv6 */
 
@@ -493,11 +517,14 @@ void tcp_reset(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
 
       ipv4_build_header(IPv4BUF, dev->d_len, IP_PROTO_TCP,
                         &dev->d_ipaddr, (FAR in_addr_t *)ipv4->srcipaddr,
-                        conn ? conn->sconn.ttl : IP_TTL_DEFAULT,
+                        conn ? conn->sconn.s_ttl : IP_TTL_DEFAULT,
                         conn ? conn->sconn.s_tos : 0, NULL);
 
       tcp->tcpchksum = 0;
+
+#ifdef CONFIG_NET_TCP_CHECKSUMS
       tcp->tcpchksum = ~tcp_ipv4_chksum(dev);
+#endif
     }
 #endif /* CONFIG_NET_IPv4 */
 }
@@ -506,7 +533,7 @@ void tcp_reset(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
  * Name: tcp_rx_mss
  *
  * Description:
- *   Return the MSS to advertize to the peer.
+ *   Return the MSS to advertise to the peer.
  *
  * Input Parameters:
  *   dev  - The device driver structure
@@ -703,26 +730,10 @@ uint16_t tcpip_hdrsize(FAR struct tcp_conn_s *conn)
 {
   uint16_t hdrsize = sizeof(struct tcp_hdr_s);
 
-#if defined(CONFIG_NET_IPv4) && defined(CONFIG_NET_IPv6)
-  if (conn->domain == PF_INET)
-    {
-      /* Select the IPv4 domain */
-
-      return sizeof(struct ipv4_hdr_s) + hdrsize;
-    }
-  else /* if (domain == PF_INET6) */
-    {
-      /* Select the IPv6 domain */
-
-      return sizeof(struct ipv6_hdr_s) + hdrsize;
-    }
-#elif defined(CONFIG_NET_IPv4)
-  ((void)conn);
-  return sizeof(struct ipv4_hdr_s) + hdrsize;
-#elif defined(CONFIG_NET_IPv6)
-  ((void)conn);
-  return sizeof(struct ipv6_hdr_s) + hdrsize;
-#endif
+  UNUSED(conn);
+  return net_ip_domain_select(conn->domain,
+                              sizeof(struct ipv4_hdr_s) + hdrsize,
+                              sizeof(struct ipv6_hdr_s) + hdrsize);
 }
 
 #endif /* CONFIG_NET && CONFIG_NET_TCP */

@@ -1,6 +1,8 @@
 /****************************************************************************
  * net/arp/arp_out.c
  *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  *   Copyright (C) 2007-2011, 2014-2015, 2017-2018 Gregory Nutt. All rights
  *     reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
@@ -87,7 +89,7 @@ static const uint16_t g_broadcast_ipaddr[2] =
  * 33-33-00-00-00-00 0x86DD IPv6 Neighbor Discovery
  * 33-33-xx-xx-xx-xx 0x86DD IPv6 Multicast Address (RFC3307)
  *
- * The following is the first three octects of the IGMP address:
+ * The following is the first three octets of the IGMP address:
  */
 
 #ifdef CONFIG_NET_IGMP
@@ -113,7 +115,7 @@ static const uint8_t g_multicast_ethaddr[3] =
  *   If the destination IP address is in the local network (determined
  *   by logical ANDing of netmask and our IP address), the function
  *   checks the ARP cache to see if an entry for the destination IP
- *   address is found.  If so, an Ethernet header is pre-pended at the
+ *   address is found.  If so, an Ethernet header is prepended at the
  *   beginning of the packet and the function returns.
  *
  *   If no ARP cache entry is found for the destination IP address, the

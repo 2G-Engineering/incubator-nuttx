@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/common/riscv_releasestack.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -103,4 +105,13 @@ void up_release_stack(struct tcb_s *dtcb, uint8_t ttype)
   dtcb->stack_alloc_ptr = NULL;
   dtcb->stack_base_ptr = NULL;
   dtcb->adj_stack_size = 0;
+
+  /* Release vector register context */
+
+#if defined(CONFIG_ARCH_RV_ISA_V) && (CONFIG_ARCH_RV_VECTOR_BYTE_LENGTH == 0)
+  if (dtcb->xcp.vregs != NULL)
+    {
+      kmm_free(dtcb->xcp.vregs);
+    }
+#endif
 }

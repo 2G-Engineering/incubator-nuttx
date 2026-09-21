@@ -1,6 +1,8 @@
 /****************************************************************************
  * drivers/usbhost/usbhost_hidmouse.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -242,7 +244,7 @@ struct usbhost_state_s
    * bound to this class instance
    */
 
-  struct usbhost_driver_s *drvr;
+  FAR struct usbhost_driver_s *drvr;
 
   /* The remainder of the fields are provide o the mouse class driver */
 
@@ -280,7 +282,7 @@ struct usbhost_state_s
    * retained in the f_priv field of the 'struct file'.
    */
 
-  struct pollfd *fds[CONFIG_HIDMOUSE_NPOLLWAITERS];
+  FAR struct pollfd      *fds[CONFIG_HIDMOUSE_NPOLLWAITERS];
 };
 
 /****************************************************************************
@@ -310,7 +312,7 @@ static bool usbhost_touchscreen(FAR struct usbhost_state_s *priv,
                                 FAR struct usbhid_mousereport_s *rpt);
 #endif
 static bool usbhost_threshold(FAR struct usbhost_state_s *priv);
-static int usbhost_mouse_poll(int argc, char *argv[]);
+static int usbhost_mouse_poll(int argc, FAR char *argv[]);
 static int usbhost_sample(FAR struct usbhost_state_s *priv,
                           FAR struct mouse_sample_s *sample);
 static int usbhost_waitsample(FAR struct usbhost_state_s *priv,
@@ -939,7 +941,7 @@ static bool usbhost_threshold(FAR struct usbhost_state_s *priv)
  *
  ****************************************************************************/
 
-static int usbhost_mouse_poll(int argc, char *argv[])
+static int usbhost_mouse_poll(int argc, FAR char *argv[])
 {
   FAR struct usbhost_state_s *priv;
   FAR struct usbhost_hubport_s *hport;
@@ -1195,7 +1197,7 @@ static int usbhost_sample(FAR struct usbhost_state_s *priv,
   irqstate_t flags;
   int ret = -EAGAIN;
 
-  /* Interrupts me be disabled when this is called to (1) prevent posting
+  /* Interrupts must be disabled when this is called to (1) prevent posting
    * of semaphores from interrupt handlers, and (2) to prevent sampled data
    * from changing until it has been reported.
    */
@@ -1260,15 +1262,11 @@ static int usbhost_waitsample(FAR struct usbhost_state_s *priv,
   irqstate_t flags;
   int ret;
 
-  /* Interrupts me be disabled when this is called to (1) prevent posting
+  /* Interrupts must be disabled when this is called to (1) prevent posting
    * of semaphores from interrupt handlers, and (2) to prevent sampled data
    * from changing until it has been reported.
-   *
-   * In addition, we will also disable pre-emption to prevent other threads
-   * from getting control while we muck with the semaphores.
    */
 
-  sched_lock();
   flags = enter_critical_section();
 
   /* Now release the semaphore that manages mutually exclusive access to
@@ -1322,14 +1320,6 @@ errout:
    */
 
   leave_critical_section(flags);
-
-  /* Restore pre-emption.  We might get suspended here but that is okay
-   * because we already have our sample.  Note:  this means that if there
-   * were two threads reading from the HIDMOUSE for some reason, the data
-   * might be read out of order.
-   */
-
-  sched_unlock();
   return ret;
 }
 
@@ -1989,7 +1979,6 @@ static int usbhost_open(FAR struct file *filep)
   int ret;
 
   uinfo("Entry\n");
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -2069,7 +2058,6 @@ static int usbhost_close(FAR struct file *filep)
   int ret;
 
   uinfo("Entry\n");
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -2170,7 +2158,7 @@ static ssize_t usbhost_read(FAR struct file *filep, FAR char *buffer,
   int                         ret;
 
   uinfo("Entry\n");
-  DEBUGASSERT(filep && filep->f_inode && buffer);
+  DEBUGASSERT(buffer);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -2332,7 +2320,7 @@ static int usbhost_poll(FAR struct file *filep, FAR struct pollfd *fds,
   int                         i;
 
   uinfo("Entry\n");
-  DEBUGASSERT(filep && filep->f_inode && fds);
+  DEBUGASSERT(fds);
   inode = filep->f_inode;
   priv  = inode->i_private;
 
@@ -2380,8 +2368,8 @@ static int usbhost_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
       if (i >= CONFIG_HIDMOUSE_NPOLLWAITERS)
         {
-          fds->priv    = NULL;
-          ret          = -EBUSY;
+          fds->priv = NULL;
+          ret       = -EBUSY;
           goto errout;
         }
 
@@ -2391,14 +2379,14 @@ static int usbhost_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
       if (priv->valid)
         {
-          poll_notify(priv->fds, CONFIG_HIDMOUSE_NPOLLWAITERS, POLLIN);
+          poll_notify(&fds, 1, POLLIN);
         }
     }
   else
     {
       /* This is a request to tear down the poll. */
 
-      struct pollfd **slot = (struct pollfd **)fds->priv;
+      FAR struct pollfd **slot = (FAR struct pollfd **)fds->priv;
       DEBUGASSERT(slot);
 
       /* Remove all memory of the poll setup */

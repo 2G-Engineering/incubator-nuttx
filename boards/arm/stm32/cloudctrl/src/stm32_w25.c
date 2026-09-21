@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/stm32/cloudctrl/src/stm32_w25.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -125,7 +127,7 @@ int stm32_w25initialize(int minor)
 
   /* Mount the file system at /mnt/w25 */
 
-  snprintf(devname, 12, "/mnt/w25%c", 'a' + minor);
+  snprintf(devname, sizeof(devname), "/mnt/w25%c", 'a' + minor);
   ret = nx_mount(NULL, devname, "nxffs", 0, NULL);
   if (ret < 0)
     {

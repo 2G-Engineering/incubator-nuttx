@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/common/riscv_percpu.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -47,9 +49,11 @@
  * 2: REGLOAD a0, RISCV_PERCPU_HARTID(a0)
  */
 
-#define RISCV_PERCPU_LIST       (0 * INT_REG_SIZE)
+#define RISCV_PERCPU_TCB        (0 * INT_REG_SIZE)
 #define RISCV_PERCPU_HARTID     (1 * INT_REG_SIZE)
 #define RISCV_PERCPU_IRQSTACK   (2 * INT_REG_SIZE)
+#define RISCV_PERCPU_USP        (3 * INT_REG_SIZE)
+#define RISCV_PERCPU_KSP        (4 * INT_REG_SIZE)
 
 #ifndef __ASSEMBLY__
 
@@ -63,14 +67,20 @@
  * will set up [m/s]scratch to point to the CPUs own area
  */
 
-struct riscv_percpu_s
+union riscv_percpu_s
 {
-  struct riscv_percpu_s *next;      /* For sl list linkage */
-  uintptr_t              hartid;    /* Hart ID */
-  uintptr_t              irq_stack; /* Interrupt stack */
+  union riscv_percpu_s *next;      /* For sl list linkage */
+  struct
+  {
+    struct tcb_s       *tcb;       /* Current thread TCB */
+    uintreg_t           hartid;    /* Hart ID */
+    uintreg_t           irq_stack; /* Interrupt stack */
+    uintreg_t           usp;       /* Area to store user sp */
+    uintreg_t           ksp;       /* Area to load kernel sp */
+  };
 };
 
-typedef struct riscv_percpu_s riscv_percpu_t;
+typedef union riscv_percpu_s riscv_percpu_t;
 
 /****************************************************************************
  * Public Function Prototypes
@@ -115,6 +125,40 @@ uintptr_t riscv_percpu_get_hartid(void);
  ****************************************************************************/
 
 uintptr_t riscv_percpu_get_irqstack(void);
+
+/****************************************************************************
+ * Name: riscv_percpu_set_kstack
+ *
+ * Description:
+ *   Set current kernel stack, so it can be taken quickly into use when a
+ *   trap is taken.
+ *
+ * Input Parameters:
+ *   ksp - Pointer to the kernel stack
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+void riscv_percpu_set_kstack(uintptr_t ksp);
+
+/****************************************************************************
+ * Name: riscv_percpu_set_thread
+ *
+ * Description:
+ *   Set current thread (tcb), so it can be found quickly when a trap is
+ *   taken.
+ *
+ * Input Parameters:
+ *   tcb - Pointer to the current thread's tcb
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+void riscv_percpu_set_thread(struct tcb_s *tcb);
 
 #endif /* __ASSEMBLY__ */
 #endif /* __ARCH_RISC_V_SRC_COMMON_RISCV_PERCPU_H */

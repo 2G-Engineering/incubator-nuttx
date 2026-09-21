@@ -1,6 +1,8 @@
 /****************************************************************************
  * include/dsp.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -27,6 +29,7 @@
 
 #include <nuttx/compiler.h>
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -36,7 +39,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Disable DEBUGASSERT macro if LIBDSP debug is not enabled */
+/* Disable DEBUGASSER macro if LIBDSP debug is not enabled */
 
 #ifdef CONFIG_LIBDSP_DEBUG
 #  ifndef CONFIG_DEBUG_ASSERTIONS
@@ -102,6 +105,7 @@
  *     filter = T * (2*PI) * f_c
  *
  *     phase shift = -arctan(f_in/f_c)
+ *     time constant = -T / (ln(1 - filter))
  *
  *     T    - period at which the digital filter is being calculated
  *     f_in - input frequency of the filter
@@ -187,7 +191,7 @@ typedef struct float_sat_f32_s float_sat_f32_t;
 struct pid_controller_f32_s
 {
   bool            aw_en;       /* Integral part decay if saturated */
-  bool            ireset_en;   /* Intergral part reset if saturated */
+  bool            ireset_en;   /* Integral part reset if saturated */
   bool            pisat_en;    /* PI saturation enabled */
   bool            pidsat_en;   /* PID saturation enabled */
   bool            _res;        /* Reserved */
@@ -233,7 +237,7 @@ typedef struct ab_frame_f32_s ab_frame_f32_t;
 
 struct dq_frame_f32_s
 {
-  float d;                     /* Driect component */
+  float d;                     /* Direct component */
   float q;                     /* Quadrature component */
 };
 
@@ -319,7 +323,7 @@ struct motor_aobserver_smo_f32_s
   float emf_lp_filter1; /* Adaptive first low pass EMF filter */
   float emf_lp_filter2; /* Adaptive second low pass EMF filter */
   ab_frame_f32_t emf;   /* Estimated back-EMF */
-  ab_frame_f32_t emf_f; /* Fitlered estimated back-EMF */
+  ab_frame_f32_t emf_f; /* Filtered estimated back-EMF */
   ab_frame_f32_t z;     /* Correction factor */
   ab_frame_f32_t i_est; /* Estimated idq current */
   ab_frame_f32_t v_err; /* v_err = v_ab - emf */
@@ -447,6 +451,14 @@ struct pmsm_model_f32_s
   float                         iq_int; /* Iq integral part */
 };
 
+/* Average filter */
+
+struct avg_filter_data_s
+{
+  float prev_avg;      /* Previous average */
+  float k;             /* k counter */
+};
+
 /****************************************************************************
  * Public Functions Prototypes
  ****************************************************************************/
@@ -512,7 +524,7 @@ void phase_angle_update(FAR struct phase_angle_f32_s *angle, float val);
 void svm3_init(FAR struct svm3_state_f32_s *s);
 void svm3(FAR struct svm3_state_f32_s *s, FAR ab_frame_f32_t *ab);
 void svm3_current_correct(FAR struct svm3_state_f32_s *s,
-                          float *c0, float *c1, float *c2);
+                          FAR float *c0, FAR float *c1, FAR float *c2);
 
 /* Field Oriented Control */
 
@@ -600,6 +612,12 @@ int pmsm_model_initialize(FAR struct pmsm_model_f32_s *model,
 int pmsm_model_elec(FAR struct pmsm_model_f32_s *model,
                     FAR ab_frame_f32_t *vab);
 int pmsm_model_mech(FAR struct pmsm_model_f32_s *model, float load);
+
+/* Average filter */
+
+void avg_filter_data_init(FAR struct avg_filter_data_s *data,
+                          float prev_avg, float k);
+float avg_filter(FAR struct avg_filter_data_s *data, float x);
 
 #undef EXTERN
 #if defined(__cplusplus)

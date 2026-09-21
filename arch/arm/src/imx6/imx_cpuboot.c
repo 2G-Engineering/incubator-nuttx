@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/arm/src/imx6/imx_cpuboot.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -28,6 +30,8 @@
 #include <assert.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/sched.h>
+#include <arch/barriers.h>
 #include <arch/irq.h>
 
 #include "arm_internal.h"
@@ -37,15 +41,8 @@
 #include "scu.h"
 #include "gic.h"
 #include "mmu.h"
-#include "barriers.h"
 
 #ifdef CONFIG_SMP
-
-/****************************************************************************
- * Private Types
- ****************************************************************************/
-
-typedef void (*cpu_start_t)(void);
 
 /****************************************************************************
  * Private Data
@@ -95,7 +92,7 @@ static const uintptr_t g_cpu_gpr[CONFIG_SMP_NCPUS] =
 #endif
 };
 
-static const cpu_start_t g_cpu_boot[CONFIG_SMP_NCPUS] =
+static const start_t g_cpu_boot[CONFIG_SMP_NCPUS] =
 {
   0,
 #if CONFIG_SMP_NCPUS > 1
@@ -200,7 +197,7 @@ void imx_cpu_disable(void)
 
 void imx_cpu_enable(void)
 {
-  cpu_start_t bootaddr;
+  start_t bootaddr;
   uintptr_t regaddr;
   uint32_t regval;
   int cpu;
@@ -212,7 +209,7 @@ void imx_cpu_enable(void)
 
       memcpy((uint32_t *)(PGTABLE_BASE_VADDR + PGTABLE_SIZE * cpu),
              (uint32_t *)PGTABLE_BASE_VADDR, PGTABLE_SIZE);
-      ARM_DSB();
+      UP_DSB();
 #endif
 
       /* Set the start up address */
@@ -243,7 +240,7 @@ void imx_cpu_enable(void)
  *
  * Input Parameters:
  *   cpu - The CPU index.  This is the same value that would be obtained by
- *      calling up_cpu_index();
+ *      calling this_cpu();
  *
  * Returned Value:
  *   Does not return.

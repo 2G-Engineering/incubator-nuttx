@@ -1,6 +1,8 @@
 /****************************************************************************
  * arch/risc-v/src/qemu-rv/qemu_rv_memorymap.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -39,7 +41,10 @@
 #define QEMU_RV_IDLESTACK_BASE  _ebss
 #endif
 
-#define QEMU_RV_IDLESTACK_SIZE (CONFIG_IDLETHREAD_STACKSIZE & ~3)
-#define QEMU_RV_IDLESTACK_TOP  (QEMU_RV_IDLESTACK_BASE + QEMU_RV_IDLESTACK_SIZE)
+/* QEMU reset chocies */
+
+#define QEMU_RV_RESET_DONE         0x5555
+#define QEMU_RV_RESET_FAIL         0x3333
+#define QEMU_RV_RESET_REBOOT       0x7777
 
 #endif /* __ARCH_RISCV_SRC_QEMU_RV_QEMU_RV_MEMORYMAP_H */

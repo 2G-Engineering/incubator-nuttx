@@ -1,6 +1,8 @@
 /****************************************************************************
  * boards/arm/kinetis/freedom-k64f/src/freedom-k64f.h
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -258,7 +260,7 @@ int k64_bringup(void);
  * Name: k64_sdhc_initialize
  *
  * Description:
- *   Inititialize the SDHC SD card slot
+ *   Initialize the SDHC SD card slot
  *
  ****************************************************************************/
 

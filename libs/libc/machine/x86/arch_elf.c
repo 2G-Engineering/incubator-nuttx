@@ -1,6 +1,8 @@
 /****************************************************************************
  * libs/libc/machine/x86/arch_elf.c
  *
+ * SPDX-License-Identifier: Apache-2.0
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.  The
@@ -95,7 +97,8 @@ bool up_checkarch(const Elf32_Ehdr *hdr)
  *
  ****************************************************************************/
 
-int up_relocate(const Elf32_Rel *rel, const Elf32_Sym *sym, uintptr_t addr)
+int up_relocate(const Elf32_Rel *rel, const Elf32_Sym *sym, uintptr_t addr,
+                void *arch_data)
 {
   uint32_t *ptr = (uint32_t *)addr;
 
@@ -126,7 +129,7 @@ int up_relocate(const Elf32_Rel *rel, const Elf32_Sym *sym, uintptr_t addr)
 }
 
 int up_relocateadd(const Elf32_Rela *rel, const Elf32_Sym *sym,
-                   uintptr_t addr)
+                   uintptr_t addr, void *arch_data)
 {
   bwarn("WARNING: Not supported\n");
   return -ENOSYS;
