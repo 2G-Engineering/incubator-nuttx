@@ -54,7 +54,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/irq.h>
@@ -156,6 +156,7 @@ struct s32k3xx_edma_s
   /* This array describes each DMA channel */
 
   struct s32k3xx_dmach_s dmach[S32K3XX_EDMA_NCHANNELS];
+  spinlock_t lock;
 };
 
 /****************************************************************************
@@ -443,7 +444,7 @@ static struct s32k3xx_edmatcd_s *s32k3xx_tcd_alloc(void)
   struct s32k3xx_edmatcd_s *tcd;
   irqstate_t flags;
 
-  /* Take the 'dsem'.  When we hold the the 'dsem', then we know that one
+  /* Take the 'dsem'.  When we hold the 'dsem', then we know that one
    * TCD is reserved for us in the free list.
    *
    * NOTE: We use a critical section here because we may block waiting for
@@ -475,7 +476,7 @@ static struct s32k3xx_edmatcd_s *s32k3xx_tcd_alloc(void)
 #if CONFIG_S32K3XX_EDMA_NTCD > 0
 static void s32k3xx_tcd_free_nolock(struct s32k3xx_edmatcd_s *tcd)
 {
-  /* Add the the TCD to the end of the free list and post the 'dsem',
+  /* Add the TCD to the end of the free list and post the 'dsem',
    * possibly waking up another thread that might be waiting for
    * a TCD.
    */
@@ -488,16 +489,14 @@ static void s32k3xx_tcd_free(struct s32k3xx_edmatcd_s *tcd)
 {
   irqstate_t flags;
 
-  /* Add the the TCD to the end of the free list and post the 'dsem',
+  /* Add the TCD to the end of the free list and post the 'dsem',
    * possibly waking up another thread that might be waiting for
    * a TCD.
    */
 
-  flags = spin_lock_irqsave(&g_edma.lock);
-  sched_lock();
+  flags = spin_lock_irqsave_nopreempt(&g_edma.lock);
   s32k3xx_tcd_free_nolock(tcd);
-  spin_unlock_irqrestore(&g_edma.lock, flags);
-  sched_unlock();
+  spin_unlock_irqrestore_nopreempt(&g_edma.lock, flags);
 }
 #endif
 
@@ -725,8 +724,7 @@ static void s32k3xx_dmaterminate(struct s32k3xx_dmach_s *dmach, int result)
   irqstate_t flags;
   void *arg;
 
-  flags = spin_lock_irqsave(&g_edma.lock);
-  sched_lock();
+  flags = spin_lock_irqsave_nopreempt(&g_edma.lock);
 
   chan            = dmach->chan;
 
@@ -780,8 +778,7 @@ static void s32k3xx_dmaterminate(struct s32k3xx_dmach_s *dmach, int result)
       callback((DMACH_HANDLE)dmach, arg, true, result);
     }
 
-  spin_unlock_irqrestore(&g_edma.lock, flags);
-  sched_unlock();
+  spin_unlock_irqrestore_nopreempt(&g_edma.lock, flags);
 }
 
 /****************************************************************************
@@ -1363,7 +1360,7 @@ int s32k3xx_dmach_xfrsetup(DMACH_HANDLE *handle,
  *   this will be generated with the final TCD.
  *
  *   At the conclusion of the DMA, the DMA channel is reset, all TCDs are
- *   freed, and the callback function is called with the the success/fail
+ *   freed, and the callback function is called with the success/fail
  *   result of the DMA.
  *
  *   NOTE: On Rx DMAs (peripheral-to-memory or memory-to-memory), it is
@@ -1455,7 +1452,7 @@ void s32k3xx_dmach_stop(DMACH_HANDLE handle)
  *
  * Description:
  *   This function checks the TCD (Task Control Descriptor) status for a
- *   specified eDMA channel and returns the the number of major loop counts
+ *   specified eDMA channel and returns the number of major loop counts
  *   that have not finished.
  *
  *   NOTES:

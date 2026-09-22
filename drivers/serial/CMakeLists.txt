@@ -46,8 +46,16 @@ if(CONFIG_UART_PL011)
   list(APPEND SRCS uart_pl011.c)
 endif()
 
+if(CONFIG_UART_XLNXPS)
+  list(APPEND SRCS uart_xlnx_ps.c)
+endif()
+
 if(CONFIG_RPMSG_UART)
   list(APPEND SRCS uart_rpmsg.c)
+endif()
+
+if(CONFIG_RPMSG_UART_RAW)
+  list(APPEND SRCS uart_rpmsg_raw.c)
 endif()
 
 if(CONFIG_UART_HOSTFS)

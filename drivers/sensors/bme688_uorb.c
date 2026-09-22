@@ -31,7 +31,7 @@
 #include <stdlib.h>
 #include <fixedmath.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
 #include <nuttx/arch.h>
@@ -48,6 +48,12 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+/* Only float data type supported now */
+
+#ifdef CONFIG_SENSORS_USE_B16
+#  error fixed-point data type not supported yet
+#endif
 
 #define BME688_ADDR                0x76 /* I2C Slave Address */
 #define BME688_FREQ                CONFIG_BME688_I2C_FREQUENCY
@@ -383,6 +389,7 @@ static const struct sensor_ops_s g_sensor_ops =
   NULL,             /* set_calibvalue */
   bme688_calibrate, /* calibrate */
   NULL,             /* get_info */
+  NULL,             /* set_nonwakeup */
   bme688_control    /* control */
 };
 
@@ -1601,7 +1608,7 @@ static int bme688_thread(int argc, char **argv)
         }
 
     thread_sleep:
-      nxsig_usleep(CONFIG_SENSORS_BME688_POLL_INTERVAL);
+      nxsched_usleep(CONFIG_SENSORS_BME688_POLL_INTERVAL);
     }
 
   return OK;

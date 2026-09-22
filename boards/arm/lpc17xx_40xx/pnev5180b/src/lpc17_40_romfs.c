@@ -29,7 +29,7 @@
 #include <sys/mount.h>
 #include <sys/types.h>
 #include <stdint.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/fs/fs.h>
@@ -69,7 +69,7 @@
  ****************************************************************************/
 
 __asm__ (
-    ".section .rodata\n"
+    ".section .rodata, \"a\"\n"
     ".balign  16\n"
     ".globl   romfs_data_begin\n"
 "romfs_data_begin:\n"

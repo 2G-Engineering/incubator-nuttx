@@ -60,7 +60,7 @@
 
 #include "xtensa.h"
 #include "chip.h"
-#include "esp32s3_irq.h"
+#include "esp_irq.h"
 #include "hardware/esp32s3_systimer.h"
 #include "hardware/esp32s3_system.h"
 #include "hardware/esp32s3_soc.h"
@@ -148,7 +148,7 @@ static inline uint64_t tickless_getcounter(void)
     }
   while (lo_start != lo);
 
-  counter = ((uint64_t) hi << 32) | lo;
+  counter = ((uint64_t)hi << 32) | lo;
 
   return counter;
 }
@@ -171,7 +171,7 @@ static inline uint64_t tickless_getalarmvalue(void)
 {
   uint32_t hi = getreg32(SYSTIMER_TARGET0_HI_REG);
   uint32_t lo = getreg32(SYSTIMER_TARGET0_LO_REG);
-  uint64_t ticks = ((uint64_t) hi << 32) | lo;
+  uint64_t ticks = ((uint64_t)hi << 32) | lo;
 
   return ticks;
 }
@@ -255,7 +255,7 @@ static int IRAM_ATTR tickless_isr(int irq, void *context, void *arg)
       return OK;
     }
 
-  nxsched_timer_expiration();
+  nxsched_process_timer();
 
   return OK;
 }
@@ -319,7 +319,7 @@ int IRAM_ATTR up_timer_gettime(struct timespec *ts)
  * Description:
  *   Cancel the interval timer and return the time remaining on the timer.
  *   These two steps need to be as nearly atomic as possible.
- *   nxsched_timer_expiration() will not be called unless the timer is
+ *   nxsched_process_timer() will not be called unless the timer is
  *   restarted with up_timer_start().
  *
  *   If, as a race condition, the timer has already expired when this
@@ -397,14 +397,14 @@ int IRAM_ATTR up_timer_cancel(struct timespec *ts)
  * Name: up_timer_start
  *
  * Description:
- *   Start the interval timer.  nxsched_timer_expiration() will be
+ *   Start the interval timer.  nxsched_process_timer() will be
  *   called at the completion of the timeout (unless up_timer_cancel
  *   is called to stop the timing.
  *
  *   Provided by platform-specific code and called from the RTOS base code.
  *
  * Input Parameters:
- *   ts - Provides the time interval until nxsched_timer_expiration() is
+ *   ts - Provides the time interval until nxsched_process_timer() is
  *        called.
  *
  * Returned Value:
@@ -430,8 +430,8 @@ int IRAM_ATTR up_timer_start(const struct timespec *ts)
       up_timer_cancel(NULL);
     }
 
-  cpu_ticks = SEC_2_CTICK((uint64_t)ts->tv_sec) +
-              NSEC_2_CTICK((uint64_t)ts->tv_nsec);
+  cpu_ticks = SEC_2_CTICK(ts->tv_sec) +
+              NSEC_2_CTICK(ts->tv_nsec);
 
   tickless_setcounter(cpu_ticks);
   g_timer_started = true;
@@ -472,14 +472,10 @@ void up_timer_initialize(void)
 
   g_timer_started = false;
 
-  cpuint = esp32s3_setup_irq(0, ESP32S3_PERIPH_SYSTIMER_TARGET0, 1,
-                             ESP32S3_CPUINT_LEVEL);
+  cpuint = esp_setup_irq(ESP32S3_PERIPH_SYSTIMER_TARGET0, 1,
+                         ESP_IRQ_TRIGGER_LEVEL, tickless_isr, NULL);
 
   DEBUGASSERT(cpuint >= 0);
-
-  /* Attach the timer interrupt. */
-
-  irq_attach(ESP32S3_IRQ_SYSTIMER_TARGET0, tickless_isr, NULL);
 
   /* Enable the allocated CPU interrupt. */
 

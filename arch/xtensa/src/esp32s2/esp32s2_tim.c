@@ -25,7 +25,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -33,7 +33,7 @@
 #include <nuttx/irq.h>
 
 #include "xtensa.h"
-#include "esp32s2_irq.h"
+#include "espressif/esp_irq.h"
 #include "esp32s2_tim.h"
 #include "hardware/esp32s2_system.h"
 #include "hardware/esp32s2_systimer.h"
@@ -230,22 +230,6 @@ struct esp32s2_tim_priv_s g_esp32s2_tim3_priv =
   .periph     = ESP32S2_PERIPH_TG1_T1_LEVEL, /* Peripheral ID */
   .irq        = ESP32S2_IRQ_TG1_T1_LEVEL,    /* Interrupt ID */
   .cpuint     = -ENOMEM,                     /* CPU interrupt assigned to this timer */
-  .inuse      = false,
-};
-#endif
-
-#ifdef CONFIG_ESP32S2_RT_TIMER
-/* SYSTIMER */
-
-struct esp32s2_tim_priv_s g_esp32s2_tim4_priv =
-{
-  .ops        = &esp32s2_systim_ops,
-  .gid        = -ENODEV,                          /* There's no group in systimer */
-  .tid        = SYSTIMER_COMP0,                   /* Systimer contains 1 counter and 3 comps */
-  .int_pri    = ESP32S2_INT_PRIO_DEF,
-  .periph     = ESP32S2_PERIPH_SYSTIMER_TARGET0,  /* Peripheral ID */
-  .irq        = ESP32S2_IRQ_SYSTIMER_TARGET0,     /* Interrupt ID */
-  .cpuint     = -ENOMEM,                          /* CPU interrupt assigned to this timer */
   .inuse      = false,
 };
 #endif
@@ -503,10 +487,10 @@ static void esp32s2_tim_getcounter(struct esp32s2_tim_dev_s *dev,
       /* Read value */
 
       value_32  = getreg32(SYSTIMER_VALUE_HI_REG); /* High 32 bits */
-      *value   |= (uint64_t)value_32;
+      *value   |= value_32;
       *value  <<= SHIFT_32;
       value_32  = getreg32(SYSTIMER_VALUE_LO_REG); /* Low 32 bits */
-      *value   |= (uint64_t)value_32;
+      *value   |= value_32;
     }
   else
     {
@@ -519,10 +503,10 @@ static void esp32s2_tim_getcounter(struct esp32s2_tim_dev_s *dev,
           /* Read value */
 
           value_32  = getreg32(TIMG_T0HI_REG(priv->gid)); /* High 32 bits */
-          *value   |= (uint64_t)value_32;
+          *value   |= value_32;
           *value  <<= SHIFT_32;
           value_32  = getreg32(TIMG_T0LO_REG(priv->gid)); /* Low 32 bits */
-          *value   |= (uint64_t)value_32;
+          *value   |= value_32;
         }
       else
         {
@@ -533,10 +517,10 @@ static void esp32s2_tim_getcounter(struct esp32s2_tim_dev_s *dev,
           /* Read value */
 
           value_32  = getreg32(TIMG_T1HI_REG(priv->gid)); /* High 32 bits */
-          *value   |= (uint64_t)value_32;
+          *value   |= value_32;
           *value  <<= SHIFT_32;
           value_32  = getreg32(TIMG_T1LO_REG(priv->gid)); /* Low 32 bits */
-          *value   |= (uint64_t)value_32;
+          *value   |= value_32;
         }
     }
 }
@@ -655,28 +639,28 @@ static void esp32s2_tim_getalarmvalue(struct esp32s2_tim_dev_s *dev,
   if (priv->tid == SYSTIMER_COMP0)
     {
       value_32  = getreg32(SYSTIMER_TARGET0_HI_REG); /* High 32 bits */
-      *value   |= (uint64_t)value_32;
+      *value   |= value_32;
       *value  <<= SHIFT_32;
       value_32  = getreg32(SYSTIMER_TARGET0_LO_REG); /* Low 32 bits */
-      *value   |= (uint64_t)value_32;
+      *value   |= value_32;
     }
   else
     {
       if (priv->tid == TIMER0)
         {
           value_32  = getreg32(TIMG_T0ALARMHI_REG(priv->gid)); /* High 32 bits */
-          *value   |= (uint64_t)value_32;
+          *value   |= value_32;
           *value  <<= SHIFT_32;
           value_32  = getreg32(TIMG_T0ALARMLO_REG(priv->gid)); /* Low 32 bits */
-          *value   |= (uint64_t)value_32;
+          *value   |= value_32;
         }
       else
         {
           value_32  = getreg32(TIMG_T1ALARMHI_REG(priv->gid)); /* High 32 bits */
-          *value   |= (uint64_t)value_32;
+          *value   |= value_32;
           *value  <<= SHIFT_32;
           value_32  = getreg32(TIMG_T1ALARMLO_REG(priv->gid)); /* Low 32 bits */
-          *value   |= (uint64_t)value_32;
+          *value   |= value_32;
         }
     }
 }
@@ -964,8 +948,7 @@ static int esp32s2_tim_setisr(struct esp32s2_tim_dev_s *dev,
            */
 
           up_disable_irq(priv->irq);
-          esp32s2_teardown_irq(priv->periph, priv->cpuint);
-          irq_detach(priv->irq);
+          esp_teardown_irq(priv->periph, priv->cpuint);
 
           priv->cpuint = -ENOMEM;
         }
@@ -984,29 +967,20 @@ static int esp32s2_tim_setisr(struct esp32s2_tim_dev_s *dev,
 
       if (priv->tid == SYSTIMER_COMP0)
         {
-          priv->cpuint = esp32s2_setup_irq(priv->periph, priv->int_pri,
-                                           ESP32S2_CPUINT_EDGE);
+          priv->cpuint = esp_setup_irq(priv->periph, priv->int_pri,
+                                       ESP_IRQ_TRIGGER_EDGE, handler, arg);
         }
       else
         {
-          priv->cpuint = esp32s2_setup_irq(priv->periph, priv->int_pri,
-                                           ESP32S2_CPUINT_LEVEL);
+          priv->cpuint = esp_setup_irq(priv->periph, priv->int_pri,
+                                       ESP_IRQ_TRIGGER_LEVEL,
+                                       handler, arg);
         }
 
       if (priv->cpuint < 0)
         {
           tmrerr("ERROR: No CPU Interrupt available");
           ret = priv->cpuint;
-          goto errout;
-        }
-
-      /* Associate an IRQ Number (from the timer) to an ISR */
-
-      ret = irq_attach(priv->irq, handler, arg);
-      if (ret != OK)
-        {
-          esp32s2_teardown_irq(priv->periph, priv->cpuint);
-          tmrerr("ERROR: Failed to associate an IRQ Number");
           goto errout;
         }
 
@@ -1236,22 +1210,6 @@ struct esp32s2_tim_dev_s *esp32s2_tim_init(int timer)
       case TIMER3:
         {
           tim = &g_esp32s2_tim3_priv;
-          break;
-        }
-#endif
-
-#ifdef CONFIG_ESP32S2_RT_TIMER
-      case SYSTIMER_COMP0:
-        {
-          tim = &g_esp32s2_tim4_priv;
-
-          /* Enable Systimer peripheral clock and reset it */
-
-          modifyreg32(SYSTEM_PERIP_CLK_EN0_REG, 0, SYSTEM_SYSTIMER_CLK_EN);
-          modifyreg32(SYSTEM_PERIP_RST_EN0_REG, 0, SYSTEM_SYSTIMER_RST);
-          modifyreg32(SYSTEM_PERIP_RST_EN0_REG, SYSTEM_SYSTIMER_RST, 0);
-          modifyreg32(SYSTIMER_CONF_REG, 0, SYSTIMER_CLK_EN
-                      | SYSTIMER_CLK_FO);
           break;
         }
 #endif

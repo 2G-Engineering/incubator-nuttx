@@ -29,7 +29,9 @@
 
 /* UP_DMB() is used to flush local data caches (memory) */
 
-#define UP_DMB()       __FENCE(rw, rw)
+#define UP_DMB()  __FENCE(rw, rw)
+#define UP_RMB()  __FENCE(r, r)
+#define UP_WMB()  __FENCE(w, w)
 
 /* UP_DSB() is a full memory barrier */
 
@@ -37,6 +39,10 @@
 
 /* UP_ISB() is used to synchronize the instruction and data streams */
 
-#define UP_ISB()       __asm__ __volatile__ ("fence.i" ::: "memory")
+#ifdef CONFIG_ARCH_RV_ISA_ZICSR_ZIFENCEI
+#  define UP_ISB()       __asm__ __volatile__ ("fence.i" ::: "memory")
+#else
+#  define UP_ISB()       
+#endif
 
 #endif /* __ARCH_RISCV_INCLUDE_BARRIERS_H */

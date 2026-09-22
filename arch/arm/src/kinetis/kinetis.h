@@ -475,7 +475,7 @@ void kinetis_uartconfigure(uintptr_t uart_base,
                            uint32_t baud, uint32_t clock,
                            unsigned int parity, unsigned int nbits,
                            unsigned int stop2,
-                           bool iflow, bool oflow);
+                           bool iflow, bool oflow, bool rs485control);
 #endif
 
 /****************************************************************************
@@ -777,6 +777,10 @@ int kinetis_netinitialize(int intf);
  ****************************************************************************/
 #ifdef CONFIG_KINETIS_FLEXCAN
 int kinetis_caninitialize(int intf);
+#endif
+
+#if defined(CONFIG_KINETIS_DAC0) || defined (CONFIG_KINETIS_DAC1)
+struct dac_dev_s *kinetis_dac_initialize(int which);
 #endif
 
 #endif /* __ASSEMBLY__ */

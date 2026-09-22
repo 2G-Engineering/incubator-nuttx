@@ -38,7 +38,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
@@ -445,7 +445,7 @@ static int route_open(FAR struct file *filep, FAR const char *relpath,
    * REVISIT:  Write-able proc files could be quite useful.
    */
 
-  if ((oflags & O_WRONLY) != 0 || (oflags & O_RDONLY) == 0)
+  if ((oflags & O_ACCMODE) != O_RDONLY)
     {
       ferr("ERROR: Only O_RDONLY supported\n");
       return -EACCES;

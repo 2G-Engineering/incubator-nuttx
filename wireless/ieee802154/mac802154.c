@@ -29,7 +29,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
 #include <nuttx/kmalloc.h>
@@ -46,6 +46,38 @@
 
 #include <nuttx/wireless/ieee802154/ieee802154_mac.h>
 #include <nuttx/wireless/ieee802154/ieee802154_radio.h>
+
+/****************************************************************************
+ * Public Data
+ ****************************************************************************/
+
+FAR const char *g_ieee802154_status_string[] =
+{
+  "Success",
+  "Out of capacity",
+  "Denied",
+  "Failure",
+  "Beacon loss",
+  "Channel access failure",
+  "Disable TRX failure",
+  "Failed security check",
+  "Frame too long",
+  "Invalid GTS",
+  "Invalid handle",
+  "Invalid parameter",
+  "No ack",
+  "No beacon",
+  "No data",
+  "No short address",
+  "PAN ID conflict",
+  "Realignment",
+  "Transaction expired",
+  "Transaction overflow",
+  "Tx active",
+  "Unavailable key",
+  "Unsupported attribute",
+  "Limit reached",
+};
 
 /****************************************************************************
  * Private Function Prototypes
@@ -468,7 +500,7 @@ static void mac802154_notify_worker(FAR void *arg)
  *    uses the various MAC attributes to update the beacon frame. It loads
  *    the inactive beacon frame structure and then notifies the radio layer
  *    new frame.  the provided tx descriptor in the indirect list and manages
- *    of the the scheduling for purging the transaction if it does not get
+ *    of the scheduling for purging the transaction if it does not get
  *    extracted in time.
  *
  * Assumptions:
@@ -902,7 +934,7 @@ static void mac802154_txdone_worker(FAR void *arg)
       primitive = (FAR struct ieee802154_primitive_s *)txdesc->conf;
 
       wlinfo("Tx status: %s\n",
-             IEEE802154_STATUS_STRING[txdesc->conf->status]);
+             g_ieee802154_status_string[txdesc->conf->status]);
 
       switch (txdesc->frametype)
         {

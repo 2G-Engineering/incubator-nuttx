@@ -24,7 +24,7 @@
  * Included Files
  ****************************************************************************/
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
@@ -575,6 +575,10 @@ int goldfish_gpu_fb_register(int display)
 
   fb->vtable.getplaneinfo = goldfish_gpu_fb_getplaneinfo;
   fb->vtable.getvideoinfo = goldfish_gpu_fb_getvideoinfo;
+
+  /* Clear goldfish_gpu_fb */
+
+  goldfish_gpu_fb_commit(fb, fb->planeinfo.fbmem);
 
   /* Create the vsync thread */
 

@@ -32,7 +32,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 
@@ -122,7 +122,7 @@ static int nxterm_open(FAR struct file *filep)
   /* Verify that the driver is opened for write-only access */
 
 #ifndef CONFIG_NXTERM_NXKBDIN
-  if ((filep->f_oflags & O_RDOK) != 0)
+  if ((filep->f_oflags & O_ACCMODE) != O_WRONLY)
     {
       gerr("ERROR: Attempted open with read access\n");
       return -EACCES;
@@ -432,7 +432,7 @@ int nxterm_ioctl_tap(int cmd, uintptr_t arg)
          break;
 
       /* CMD:           NXTERMIOC_NXTERM_RESIZE
-       * DESCRIPTION:   Inform NxTerm keyboard the the size of the window has
+       * DESCRIPTION:   Inform NxTerm keyboard the size of the window has
        *                changed
        * ARG:           A reference readable instance of struct
        *                nxtermioc_resize_s

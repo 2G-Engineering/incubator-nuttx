@@ -31,7 +31,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <inttypes.h>
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
@@ -46,21 +46,22 @@
 #include "xtensa.h"
 #ifdef CONFIG_ARCH_CHIP_ESP32
 #include "hardware/esp32_soc.h"
-#include "esp32_gpio.h"
-#include "esp32_irq.h"
+#include "esp_gpio.h"
+#include "esp_irq.h"
 #elif CONFIG_ARCH_CHIP_ESP32S3
 #include "hardware/esp32s3_soc.h"
-#include "esp32s3_gpio.h"
-#include "esp32s3_irq.h"
+#include "esp_gpio.h"
+#include "esp_irq.h"
 #endif
 
 #include "hal/mcpwm_hal.h"
 #include "hal/mcpwm_ll.h"
 #include "hal/mcpwm_types.h"
-#include "soc/mcpwm_periph.h"
+#include "hal/mcpwm_periph.h"
 #include "periph_ctrl.h"
 #include "esp_clk_tree.h"
-#include "hal/clk_tree_hal.h"
+#include "esp_private/esp_clk_tree_common.h"
+#include "soc/clk_tree_defs.h"
 
 #ifdef CONFIG_ESP_MCPWM
 
@@ -68,22 +69,10 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+#define MCPWM_DEV_CLK_PRESCALE      1
+
 #define MCPWM_CAPTURE_DEFAULT_GROUP 0
-#ifdef CONFIG_ARCH_CHIP_ESP32
-#  define esp_configgpio      esp32_configgpio
-#  define esp_gpio_matrix_in  esp32_gpio_matrix_in
-#  define esp_gpio_matrix_out esp32_gpio_matrix_out
-#  define esp_setup_irq       esp32_setup_irq
-#  define esp_teardown_irq    esp32_teardown_irq
-#  define ESP_CPUINT_LEVEL    ESP32_CPUINT_LEVEL
-#elif CONFIG_ARCH_CHIP_ESP32S3
-#  define esp_configgpio      esp32s3_configgpio
-#  define esp_gpio_matrix_in  esp32s3_gpio_matrix_in
-#  define esp_gpio_matrix_out esp32s3_gpio_matrix_out
-#  define esp_setup_irq       esp32s3_setup_irq
-#  define esp_teardown_irq    esp32s3_teardown_irq
-#  define ESP_CPUINT_LEVEL    ESP32S3_CPUINT_LEVEL
-#endif
+
 #ifdef CONFIG_ESP_MCPWM_MOTOR_BDC
 /* Peak counter at 13330 in up-down mode allows frequencies at a prescale
  * of: 2 kHz @ 2; 1.5 kHz @ 3; 1.2 kHz @ 4; 1 kHz @ 5.
@@ -154,6 +143,7 @@ struct mcpwm_dev_common_s
   spinlock_t mcpwm_spinlock;
   bool initialized;          /* MCPWM periph. and HAL has been initialized */
   bool isr_initialized;      /* Shared ISR has been initialized */
+  int group_prescale;
 };
 
 #ifdef CONFIG_ESP_MCPWM_MOTOR
@@ -192,9 +182,10 @@ struct mcpwm_motor_lowerhalf_s
 
 struct mcpwm_capture_event_data_s
 {
-  uint32_t pos_edge_count;
-  uint32_t neg_edge_count;
-  uint32_t last_pos_edge_count;
+  uint32_t pos_edge_count;         /* Counter value on positive edge */
+  uint32_t neg_edge_count;         /* Counter value on negative edge */
+  uint32_t last_pos_edge_count;    /* Last counter value on positive edge */
+  uint32_t pos_edge_square_count;  /* Number of positive edges */
 };
 
 struct mcpwm_cap_channel_lowerhalf_s
@@ -232,7 +223,7 @@ static void esp_mcpwm_group_start(void);
 static int esp_mcpwm_capture_set_gpio(
   struct mcpwm_cap_channel_lowerhalf_s *lower);
 
-/* Upper-half functions required by capture driver */
+/* Lower half methods required by capture driver */
 
 static int esp_capture_start(struct cap_lowerhalf_s *lower);
 static int esp_capture_stop(struct cap_lowerhalf_s *lower);
@@ -240,6 +231,8 @@ static int esp_capture_getduty(struct cap_lowerhalf_s *lower,
                                uint8_t *duty);
 static int esp_capture_getfreq(struct cap_lowerhalf_s *lower,
                                uint32_t *freq);
+static int esp_capture_getedges(struct cap_lowerhalf_s *lower,
+                                uint32_t *edges);
 #endif
 
 /* MCPWM Motor Control */
@@ -306,6 +299,7 @@ static struct mcpwm_dev_common_s g_mcpwm_common =
   .group.group_id      = 0,
   .initialized         = false,
   .isr_initialized     = false,
+  .group_prescale      = MCPWM_DEV_CLK_PRESCALE,
 };
 
 /* Motor specific data structures */
@@ -353,6 +347,7 @@ static const struct cap_ops_s mcpwm_cap_ops =
   .stop        = esp_capture_stop,
   .getduty     = esp_capture_getduty,
   .getfreq     = esp_capture_getfreq,
+  .getedges    = esp_capture_getedges,
 };
 
 /* Data structures for the available capture channels */
@@ -415,8 +410,31 @@ static struct mcpwm_cap_channel_lowerhalf_s mcpwm_cap_ch2_lowerhalf =
 
 static void esp_mcpwm_group_start(void)
 {
-  periph_module_enable(PERIPH_PWM0_MODULE);
-  mcpwm_hal_init(&g_mcpwm_common.hal, &g_mcpwm_common.group);
+  mcpwm_hal_context_t *hal = &g_mcpwm_common.hal;
+
+  /* HAL and MCPWM Initialization */
+
+  PERIPH_RCC_ATOMIC()
+    {
+      mcpwm_ll_enable_bus_clock(g_mcpwm_common.group.group_id, true);
+      mcpwm_ll_reset_register(g_mcpwm_common.group.group_id);
+      mcpwm_ll_group_enable_clock(g_mcpwm_common.group.group_id, true);
+    }
+
+  mcpwm_hal_init(hal, &g_mcpwm_common.group);
+
+  esp_clk_tree_enable_src(
+    (soc_module_clk_t)MCPWM_CAPTURE_CLK_SRC_DEFAULT, true);
+
+    PERIPH_RCC_ATOMIC()
+    {
+      mcpwm_ll_group_set_clock_source(g_mcpwm_common.group.group_id,
+                                      MCPWM_CAPTURE_CLK_SRC_DEFAULT);
+
+      mcpwm_ll_group_set_clock_prescale(g_mcpwm_common.group.group_id,
+                                        g_mcpwm_common.group_prescale);
+    }
+
   g_mcpwm_common.initialized = true;
 }
 
@@ -426,7 +444,7 @@ static void esp_mcpwm_group_start(void)
  * Description:
  *   Configures the MCPWM operator and generator, setting the PWM clock and
  *   output pins.
- *   If required, also configures fault detection. When done, sets the the
+ *   If required, also configures fault detection. When done, sets the
  *   motor state to IDLE.
  *
  * Input Parameters:
@@ -461,7 +479,7 @@ static int esp_motor_setup(struct motor_lowerhalf_s *dev)
 
   mtrinfo("State: %d\n", priv->state.state);
 
-  esp_clk_tree_src_get_freq_hz(SOC_MOD_CLK_PLL_F160M,
+  esp_clk_tree_src_get_freq_hz(MCPWM_TIMER_CLK_SRC_DEFAULT,
                                ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED,
                                &base_clock);
 
@@ -1316,7 +1334,7 @@ static int esp_mcpwm_fault_gpio_config(struct mcpwm_motor_lowerhalf_s *lower,
   if (!enable)
     {
       esp_gpio_matrix_in(0x3a,
-        mcpwm_periph_signals.groups[MCPWM_CAPTURE_DEFAULT_GROUP].\
+        soc_mcpwm_signals[MCPWM_CAPTURE_DEFAULT_GROUP].\
         gpio_faults[lower->fault_id].fault_sig,
         false);
       return OK;
@@ -1331,7 +1349,7 @@ static int esp_mcpwm_fault_gpio_config(struct mcpwm_motor_lowerhalf_s *lower,
 
   esp_gpio_matrix_in(
     lower->fault_pin,
-    mcpwm_periph_signals.groups[MCPWM_CAPTURE_DEFAULT_GROUP].\
+    soc_mcpwm_signals[MCPWM_CAPTURE_DEFAULT_GROUP].\
     gpio_faults[lower->fault_id].fault_sig,
     false);
 
@@ -1393,13 +1411,13 @@ static int esp_mcpwm_motor_set_gpio(struct mcpwm_motor_lowerhalf_s *lower,
 
   esp_gpio_matrix_out(
     lower->generator_pins[MCPWM_GENERATOR_0],
-    mcpwm_periph_signals.groups[MCPWM_CAPTURE_DEFAULT_GROUP].\
+    soc_mcpwm_signals[MCPWM_CAPTURE_DEFAULT_GROUP].\
     operators[lower->channel_id].generators[MCPWM_GENERATOR_0].pwm_sig,
     false, false);
 
   esp_gpio_matrix_out(
     lower->generator_pins[MCPWM_GENERATOR_1],
-    mcpwm_periph_signals.groups[MCPWM_CAPTURE_DEFAULT_GROUP].\
+    soc_mcpwm_signals[MCPWM_CAPTURE_DEFAULT_GROUP].\
     operators[lower->channel_id].generators[MCPWM_GENERATOR_1].pwm_sig,
     false, false);
 
@@ -1407,14 +1425,12 @@ static int esp_mcpwm_motor_set_gpio(struct mcpwm_motor_lowerhalf_s *lower,
 
 #ifdef CONFIG_ESP_MCPWM_TEST_LOOPBACK
   esp_gpio_matrix_out(CONFIG_ESP_MCPWM_CAPTURE_CH0_GPIO,
-                      mcpwm_periph_signals.\
-                      groups[MCPWM_CAPTURE_DEFAULT_GROUP].\
+                      soc_mcpwm_signals[MCPWM_CAPTURE_DEFAULT_GROUP].\
                       operators[lower->channel_id].\
                       generators[MCPWM_GENERATOR_0].pwm_sig,
                       0, 0);
   esp_gpio_matrix_out(CONFIG_ESP_MCPWM_CAPTURE_CH1_GPIO,
-                      mcpwm_periph_signals.\
-                      groups[MCPWM_CAPTURE_DEFAULT_GROUP].\
+                      soc_mcpwm_signals[MCPWM_CAPTURE_DEFAULT_GROUP].\
                       operators[lower->channel_id].\
                       generators[MCPWM_GENERATOR_1].pwm_sig,
                       0, 0);
@@ -1479,6 +1495,7 @@ static int esp_capture_start(struct cap_lowerhalf_s *lower)
   priv->isr_count = 0;
   priv->enabled = true;
   priv->ready = false;
+  priv->data->pos_edge_square_count = 0;
 
   cpinfo("Channel enabled: %d\n", priv->channel_id);
   spin_unlock_irqrestore(&priv->common->mcpwm_spinlock, flags);
@@ -1549,6 +1566,9 @@ static int esp_capture_getduty(struct cap_lowerhalf_s *lower,
 {
   struct mcpwm_cap_channel_lowerhalf_s *priv = (
     struct mcpwm_cap_channel_lowerhalf_s *)lower;
+
+  DEBUGASSERT(priv != NULL);
+
   *duty = priv->duty;
   cpinfo("Get duty called from channel %d\n", priv->channel_id);
   return OK;
@@ -1577,8 +1597,42 @@ static int esp_capture_getfreq(struct cap_lowerhalf_s *lower,
 {
   struct mcpwm_cap_channel_lowerhalf_s *priv = (
     struct mcpwm_cap_channel_lowerhalf_s *)lower;
+
+  DEBUGASSERT(priv != NULL);
+
   *freq = priv->freq;
   cpinfo("Get freq called from channel %d\n", priv->channel_id);
+  return OK;
+}
+#endif
+
+/****************************************************************************
+ * Name: esp_capture_getedges
+ *
+ * Description:
+ *   This function is a requirement of the upper-half driver. Returns
+ *   the last edges count value.
+ *
+ * Input Parameters:
+ *   lower - Pointer to the capture channel lower-half data structure.
+ *   edges - uint32_t pointer where the edges count value is written.
+ *
+ * Returned Value:
+ *   Returns OK on success.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ESP_MCPWM_CAPTURE
+static int esp_capture_getedges(struct cap_lowerhalf_s *lower,
+                                uint32_t *edges)
+{
+  struct mcpwm_cap_channel_lowerhalf_s *priv = (
+    struct mcpwm_cap_channel_lowerhalf_s *)lower;
+
+  DEBUGASSERT(priv != NULL);
+
+  *edges = priv->data->pos_edge_square_count;
+  cpinfo("Get edges called from channel %d\n", priv->channel_id);
   return OK;
 }
 #endif
@@ -1605,7 +1659,7 @@ static int esp_mcpwm_capture_set_gpio(
   mcpwm_hal_context_t *hal = &lower->common->hal;
   int ret;
 
-  ret = esp_configgpio(lower->gpio_pin, INPUT_FUNCTION | INPUT_PULLUP);
+  ret = esp_configgpio(lower->gpio_pin, INPUT | PULLUP);
   if (ret < 0)
     {
       cperr("Failed configuring GPIO pin\n");
@@ -1614,7 +1668,7 @@ static int esp_mcpwm_capture_set_gpio(
 
   esp_gpio_matrix_in(
     lower->gpio_pin,
-    mcpwm_periph_signals.groups[MCPWM_CAPTURE_DEFAULT_GROUP].\
+    soc_mcpwm_signals[MCPWM_CAPTURE_DEFAULT_GROUP].\
       captures[lower->channel_id].cap_sig,
     false);
 
@@ -1645,26 +1699,22 @@ static int esp_mcpwm_isr_register(int (*fn)(int, void *, void *), void *arg)
 {
   int cpuint;
   int ret;
-  int cpu = this_cpu();
 
   DEBUGASSERT(fn);
 
-  cpuint = esp_setup_irq(cpu, mcpwm_periph_signals.groups[0].irq_id,
-                         1, ESP_CPUINT_LEVEL);
+  cpuint = esp_setup_irq(soc_mcpwm_signals[MCPWM_CAPTURE_DEFAULT_GROUP].\
+                         irq_id,
+                         1, ESP_IRQ_TRIGGER_LEVEL,
+                         fn,
+                         arg);
   if (cpuint < 0)
     {
       cperr("Failed to allocate a CPU interrupt.\n");
       return -ENOMEM;
     }
 
-  ret = irq_attach(mcpwm_periph_signals.groups[0].irq_id +
-                   XTENSA_IRQ_FIRSTPERIPH, fn, arg);
-  if (ret < 0)
-    {
-      cperr("Couldn't attach IRQ to handler.\n");
-      esp_teardown_irq(cpu, mcpwm_periph_signals.groups[0].irq_id, cpuint);
-      return ret;
-    }
+  up_enable_irq(ESP_SOURCE2IRQ(
+      soc_mcpwm_signals[MCPWM_CAPTURE_DEFAULT_GROUP].irq_id));
 
   return ret;
 }
@@ -1801,6 +1851,7 @@ static int IRAM_ATTR mcpwm_driver_isr_default(int irq, void *context,
       data->last_pos_edge_count = data->pos_edge_count;
       data->pos_edge_count = cap_value;
       data->neg_edge_count = data->pos_edge_count;
+      data->pos_edge_square_count++;
       mcpwm_ll_capture_enable_negedge(common->hal.dev,
                                       lower->channel_id,
                                       true);
@@ -1952,6 +2003,7 @@ struct motor_lowerhalf_s *esp_motor_bdc_initialize(int channel,
 struct cap_lowerhalf_s *esp_mcpwm_capture_initialize(int channel, int pin)
 {
   struct mcpwm_cap_channel_lowerhalf_s *lower = NULL;
+  uint32_t group_clock;
 
   if (!g_mcpwm_common.initialized)
     {
@@ -1960,8 +2012,7 @@ struct cap_lowerhalf_s *esp_mcpwm_capture_initialize(int channel, int pin)
 
   if (!g_mcpwm_common.isr_initialized)
     {
-      esp_mcpwm_isr_register(mcpwm_driver_isr_default,
-                                     &g_mcpwm_common);
+      esp_mcpwm_isr_register(mcpwm_driver_isr_default, &g_mcpwm_common);
       g_mcpwm_common.isr_initialized = true;
     }
 
@@ -1987,8 +2038,17 @@ struct cap_lowerhalf_s *esp_mcpwm_capture_initialize(int channel, int pin)
         return NULL;
     }
 
-  lower->clock = clk_hal_apb_get_freq_hz();
+  esp_clk_tree_src_get_freq_hz(MCPWM_CAPTURE_CLK_SRC_DEFAULT,
+                               ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED,
+                               &group_clock);
+
+  /* Set the clock to be used when calculating frequency */
+
   lower->gpio_pin = pin;
+  lower->clock = group_clock / g_mcpwm_common.group_prescale;
+
+  /* Configure GPIO pin */
+
   esp_mcpwm_capture_set_gpio(lower);
 
   return (struct cap_lowerhalf_s *) lower;

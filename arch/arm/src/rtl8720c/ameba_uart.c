@@ -32,8 +32,9 @@
 #include <semaphore.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
-#include <nuttx/irq.h>
+
+#include <nuttx/debug.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/arch.h>
 #include <nuttx/serial/serial.h>
 #include <nuttx/fs/ioctl.h>
@@ -107,6 +108,7 @@ struct ameba_s
   bool                flow;      /* flow control (RTS/CTS) enabled */
 #endif
 #endif
+  spinlock_t          lock;      /* Ensure mutually exclusive access */
 };
 
 /****************************************************************************
@@ -213,6 +215,7 @@ static struct ameba_s g_uart0priv =
   .flow           = true,
 #endif
 #endif
+  .lock           = SP_UNLOCKED,
 };
 
 static uart_dev_t g_uart0port =
@@ -251,6 +254,7 @@ static struct ameba_s g_uart1priv =
   .flow           = true,
 #endif
 #endif
+  .lock           = SP_UNLOCKED,
 };
 
 static uart_dev_t g_uart1port =
@@ -289,6 +293,7 @@ static struct ameba_s g_uart2priv =
   .flow           = true,
 #endif
 #endif
+  .lock           = SP_UNLOCKED,
 };
 
 static uart_dev_t g_uart2port =
@@ -327,6 +332,7 @@ static struct ameba_s g_uart3priv =
   .flow           = true,
 #endif
 #endif
+  .lock           = SP_UNLOCKED,
 };
 
 static uart_dev_t g_uart3port =
@@ -753,7 +759,7 @@ static int ameba_ioctl(struct file *filep, int cmd, unsigned long arg)
           break;
         }
 
-      flags = enter_critical_section();
+      flags = spin_lock_irqsave(&priv->lock);
       cfsetispeed(termiosp, priv->baud);
       termiosp->c_cflag = ((priv->parity != 0) ? PARENB : 0) |
                           ((priv->parity == 1) ? PARODD : 0);
@@ -778,7 +784,7 @@ static int ameba_ioctl(struct file *filep, int cmd, unsigned long arg)
           break;
         }
 
-      leave_critical_section(flags);
+      spin_unlock_irqrestore(&priv->lock, flags);
     }
 
     break;
@@ -792,7 +798,7 @@ static int ameba_ioctl(struct file *filep, int cmd, unsigned long arg)
           break;
         }
 
-      flags = enter_critical_section();
+      flags = spin_lock_irqsave(&priv->lock);
       switch (termiosp->c_cflag & CSIZE)
         {
         case CS5:
@@ -826,7 +832,7 @@ static int ameba_ioctl(struct file *filep, int cmd, unsigned long arg)
       priv->flow      = (termiosp->c_cflag & CRTSCTS) != 0;
 #endif
       ameba_setup(dev);
-      leave_critical_section(flags);
+      spin_unlock_irqrestore(&priv->lock, flags);
     }
 
     break;

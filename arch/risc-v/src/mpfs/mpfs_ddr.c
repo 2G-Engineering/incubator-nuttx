@@ -31,7 +31,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/arch.h>
@@ -2090,7 +2090,7 @@ static inline uint64_t rotl(uint64_t x, int k)
   return (x << k) | (x >> (-k & 0x3f));
 }
 
-static int mpfs_ddr_rand(void)
+static uint32_t mpfs_ddr_rand(void)
 {
   uint64_t s0 = prng_state[0];
   uint64_t s1 = prng_state[1];
@@ -2099,7 +2099,7 @@ static int mpfs_ddr_rand(void)
   prng_state[0] = s0 ^ rotl(s1, 29);
   prng_state[1] = s0 ^ (s1 << 9);
 
-  return (int)result;
+  return (uint32_t)result;
 }
 
 /****************************************************************************
@@ -2145,7 +2145,7 @@ static void mpfs_ddr_write(struct mpfs_ddr_priv_s *priv,
         break;
 
       case PATTERN_RANDOM:
-        data = (uint64_t)mpfs_ddr_rand();
+        data = mpfs_ddr_rand();
         break;
 
       case PATTERN_CCCCCCCC:
@@ -2212,7 +2212,7 @@ static void mpfs_ddr_write(struct mpfs_ddr_priv_s *priv,
             break;
 
           case PATTERN_RANDOM:
-            data = (uint64_t)mpfs_ddr_rand();
+            data = mpfs_ddr_rand();
             break;
 
           case PATTERN_CCCCCCCC:
@@ -2287,7 +2287,7 @@ uint32_t mpfs_ddr_read(struct mpfs_ddr_priv_s *priv,
         break;
 
       case PATTERN_RANDOM:
-        data = (uint64_t)mpfs_ddr_rand();
+        data = mpfs_ddr_rand();
         *ddr_word_ptr = data;
         *ddr_32_pt_t = (uint32_t)data;
         break;
@@ -2366,8 +2366,8 @@ uint32_t mpfs_ddr_read(struct mpfs_ddr_priv_s *priv,
               break;
 
             case PATTERN_RANDOM:
-                data = (uint64_t)mpfs_ddr_rand();
-                mpfs_ddr_rand_addr_offset = (uint32_t)(mpfs_ddr_rand() &
+                data = mpfs_ddr_rand();
+                mpfs_ddr_rand_addr_offset = (mpfs_ddr_rand() &
                                              0xffffc);
                 ddr_word_ptr = first_ddr_word_pt_t +
                                mpfs_ddr_rand_addr_offset;
@@ -3449,6 +3449,7 @@ static int mpfs_training_verify(void)
   if ((LIBERO_SETTING_TRAINING_SKIP_SETTING & ADDCMD_BIT) != ADDCMD_BIT)
     {
       unsigned low_ca_dly_count = 0;
+      unsigned decrease_count = 0;
       uint8_t ca_status[8] =
         {
           ((addcmd_status0) & 0xff),
@@ -3467,21 +3468,28 @@ static int mpfs_training_verify(void)
        * Expected result is increasing numbers, starting at index n and
        * wrapping around. For example:
        *   [0x35, 0x3b, 0x4, 0x14, 0x1b, 0x21, 0x28, 0x2f].
-       *
-       * Also they need to be separated by at least 5
        */
 
       for (i = 0; i < 8; i++)
         {
-          if (ca_status[i] < last + 5)
+          if (ca_status[i] < 5)
             {
               low_ca_dly_count++;
+            }
+
+          if (ca_status[i] <= last)
+            {
+              decrease_count++;
             }
 
           last = ca_status[i];
         }
 
-      if (low_ca_dly_count > 1)
+      /* Check against thresholds. Allow one low and one extra
+       * backwards jump, in addition to the wrap-around point
+       */
+
+      if (low_ca_dly_count > 1 || decrease_count > 2)
         {
           /* Retrain via reset */
 
@@ -3508,17 +3516,32 @@ static int mpfs_training_verify(void)
           t_status |= 0x01;
         }
 
-      /* Check that DQ/DQS calculated window is above 5 taps
-       * and centered with margin
-       */
-
       off_taps = getreg32(MPFS_CFG_DDR_SGMII_PHY_DQDQS_STATUS1);
       width_taps = getreg32(MPFS_CFG_DDR_SGMII_PHY_DQDQS_STATUS2);
 
-      if (width_taps < DQ_DQS_NUM_TAPS ||
-          width_taps + off_taps <= 16 + DQ_DQS_NUM_TAPS / 2)
+      /* Check that DQ/DQS calculated window is above 5 taps */
+
+      if (width_taps < DQ_DQS_NUM_TAPS) /* eye is long enough */
         {
           t_status |= 0x01;
+        }
+
+      /* Check that DQ/DQS calculated window is centered; starts
+       * at > 2 taps left and ends at > 2 taps right from
+       * the center
+       */
+
+      if (width_taps + off_taps <= 16 + DQ_DQS_NUM_TAPS / 2 ||
+          off_taps >= 16 - DQ_DQS_NUM_TAPS / 2)
+        {
+          t_status |= 0x01;
+        }
+
+      /* Check that the calculated window ends within the 32-taps */
+
+      if (off_taps + width_taps > 32)
+        {
+           t_status |= 0x01;
         }
 
       /* Extra checks */

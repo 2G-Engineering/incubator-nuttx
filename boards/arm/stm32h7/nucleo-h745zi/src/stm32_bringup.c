@@ -85,10 +85,6 @@ void rpmsg_serialinit(void)
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y &&
- *   CONFIG_NSH_ARCHINIT:
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int stm32_bringup(void)
@@ -148,11 +144,11 @@ int stm32_bringup(void)
 
   int adcno = 0;
 
-#ifdef CONFIG_STM32H7_ADC1
+#ifdef CONFIG_STM32_ADC1
   adcno = 0;
 #endif
 
-#ifdef CONFIG_STM32H7_ADC3
+#ifdef CONFIG_STM32_ADC3
   adcno = 2;
 #endif
 
@@ -176,18 +172,18 @@ int stm32_bringup(void)
 
 #ifdef CONFIG_NETDEV_LATEINIT
 
-#  ifdef CONFIG_STM32H7_FDCAN1
+#  ifdef CONFIG_STM32_FDCAN1
   stm32_fdcansockinitialize(0);
 #  endif
 
-#  ifdef CONFIG_STM32H7_FDCAN2
+#  ifdef CONFIG_STM32_FDCAN2
   stm32_fdcansockinitialize(1);
 #  endif
 
 #endif
 
 #ifdef CONFIG_SENSORS_QENCODER
-#ifdef CONFIG_STM32H7_TIM1_QE
+#ifdef CONFIG_STM32_TIM1_QE
   ret = stm32_qencoder_initialize("/dev/qe0", 1);
   if (ret < 0)
     {
@@ -198,7 +194,7 @@ int stm32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_STM32H7_TIM3_QE
+#ifdef CONFIG_STM32_TIM3_QE
   ret = stm32_qencoder_initialize("/dev/qe2", 3);
   if (ret < 0)
     {
@@ -209,7 +205,7 @@ int stm32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_STM32H7_TIM4_QE
+#ifdef CONFIG_STM32_TIM4_QE
   ret = stm32_qencoder_initialize("/dev/qe3", 4);
   if (ret < 0)
     {
@@ -229,7 +225,7 @@ int stm32_bringup(void)
     {
       syslog(LOG_ERR, "ERROR: stm32_pwm_setup() failed: %d\n", ret);
     }
-#endif 
+#endif
 
   return OK;
 }

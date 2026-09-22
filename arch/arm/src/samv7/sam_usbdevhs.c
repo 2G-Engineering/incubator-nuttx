@@ -49,7 +49,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
@@ -4518,7 +4518,7 @@ static int sam_pullup(struct usbdev_s *dev, bool enable)
            *     of the reset (USBHS_DEVISR.EORST = 1).
            *
            * The class implementation should not call this method with
-           * enable == true until is is fully initialized and ready to
+           * enable == true until it is fully initialized and ready to
            * accept connections.
            */
 

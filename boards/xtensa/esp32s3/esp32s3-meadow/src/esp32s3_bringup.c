@@ -33,17 +33,16 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <errno.h>
 #include <nuttx/fs/fs.h>
 
+#include "espressif/esp_gpio.h"
+#include "esp32s3_start.h"
+
 #ifdef CONFIG_ESP32S3_TIMER
 #  include "esp32s3_board_tim.h"
-#endif
-
-#ifdef CONFIG_ESP32S3_RT_TIMER
-#  include "esp32s3_rt_timer.h"
 #endif
 
 #ifdef CONFIG_WATCHDOG
@@ -52,6 +51,10 @@
 
 #ifdef CONFIG_INPUT_BUTTONS
 #  include <nuttx/input/buttons.h>
+#endif
+
+#ifdef CONFIG_ESPRESSIF_HR_TIMER
+#  include "espressif/esp_hr_timer.h"
 #endif
 
 #include "esp32s3-meadow.h"
@@ -69,14 +72,19 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int esp32s3_bringup(void)
 {
   int ret;
+
+#ifdef CONFIG_ESPRESSIF_HR_TIMER
+  ret = esp_hr_timer_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: esp_hr_timer_init() failed: %d\n", ret);
+    }
+#endif
 
 #ifdef CONFIG_FS_PROCFS
   /* Mount the procfs file system */
@@ -106,14 +114,6 @@ int esp32s3_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "Failed to initialize timers: %d\n", ret);
-    }
-#endif
-
-#ifdef CONFIG_ESP32S3_RT_TIMER
-  ret = esp32s3_rt_timer_init();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "Failed to initialize RT timer: %d\n", ret);
     }
 #endif
 

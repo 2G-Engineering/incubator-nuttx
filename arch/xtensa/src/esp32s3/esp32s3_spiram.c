@@ -28,7 +28,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 #include <sys/param.h>
 #include <nuttx/spinlock.h>
@@ -162,7 +162,7 @@ static inline uint32_t mmu_valid_space(uint32_t *start_address)
 {
   /* Look for an invalid entry for the MMU table from the end of the it
    * towards the beginning. This is done to make sure we have a room for
-   * mapping the the SPIRAM
+   * mapping the SPIRAM
    */
 
   for (int i = (FLASH_MMU_TABLE_SIZE - 1); i >= 0; i--)

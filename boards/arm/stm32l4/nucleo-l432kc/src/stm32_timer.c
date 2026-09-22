@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 #include <nuttx/timers/timer.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "stm32l4_tim.h"
 #include "nucleo-l432kc.h"
@@ -61,7 +61,7 @@
 
 int board_timer_driver_initialize(const char *devpath, int timer)
 {
-  return stm32l4_timer_initialize(devpath, timer);
+  return stm32_timer_initialize(devpath, timer);
 }
 
 #endif

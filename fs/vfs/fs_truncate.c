@@ -30,7 +30,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 
@@ -57,7 +57,7 @@ int file_truncate(FAR struct file *filep, off_t length)
 
   /* Was this file opened for write access? */
 
-  if ((filep->f_oflags & O_WROK) == 0)
+  if ((filep->f_oflags & O_ACCMODE) == O_RDONLY)
     {
       fwarn("WARNING: Cannot truncate a file opened read-only\n");
       return -EINVAL;

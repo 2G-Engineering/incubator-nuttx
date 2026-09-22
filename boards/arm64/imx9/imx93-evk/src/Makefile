@@ -24,12 +24,12 @@ include $(TOPDIR)/Make.defs
 
 CSRCS = imx9_boardinit.c imx9_bringup.c
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += imx9_appinit.c
-endif
-
 ifeq ($(CONFIG_PWM),y)
 CSRCS += imx9_pwm.c
+endif
+
+ifeq ($(CONFIG_DSHOT),y)
+CSRCS += imx9_dshot.c
 endif
 
 ifeq ($(CONFIG_IMX9_LPI2C),y)
@@ -43,6 +43,11 @@ endif
 ifeq ($(CONFIG_IMX9_USDHC),y)
 CSRCS += imx9_usdhc.c
 endif
+
+ifeq ($(CONFIG_IMX9_DDR_TRAINING),y)
+CSRCS += imx9_ddr_config.c
+endif
+
 
 include $(TOPDIR)/boards/Board.mk
 

@@ -193,6 +193,13 @@ Configuration                        Description
                                      more information). This required ``CONFIG_BUILTIN`` to enable
                                      NuttX support for "builtin" applications.
 
+ ``CONFIG_NSH_BUILTIN_AS_COMMAND``   If enabled, then "builtin" applications will be executed directly
+                                     from the NSH command line without creating a separate thread. The
+                                     advantage is simpler and faster execution. The disadvantage is that
+                                     background execution is not supported. This required ``CONFIG_BUILTIN``
+                                     and ``CONFIG_NSH_BUILTIN_APPS`` to enable NuttX support for "builtin"
+                                     applications.
+
  ``CONFIG_NSH_FILEIOSIZE``           Size of a static I/O buffer used for file access (ignored if there
                                      is no file system). Default is 1024.
 
@@ -367,12 +374,6 @@ Configuration                        Description
  ``CONFIG_NSH_TELNET``               If ``CONFIG_NSH_TELNET`` is set to *y*, then a TELNET server
                                      front-end is selected. When this option is provided, you may log
                                      into NuttX remotely using telnet in order to access NSH.
-
- ``CONFIG_NSH_ARCHINIT``             Set ``CONFIG_NSH_ARCHINIT`` if your board provides architecture
-                                     specific initialization via the board-specific function
-                                     ``board_app_initialize()``. This function will be called early in
-                                     NSH initialization to allow board logic to do such things as
-                                     configure MMC/SD slots.
 ===================================  ==================================
 
 .. _nsh_vars_table:

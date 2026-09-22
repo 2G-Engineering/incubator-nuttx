@@ -32,7 +32,7 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/timers/rtc.h>
@@ -483,8 +483,7 @@ static int rtc_lh_rdalarm(struct rtc_lowerhalf_s *lower,
   flags = spin_lock_irqsave(&priv->lock);
 
   ret = up_rtc_rdalarm(&ts, alarminfo->id);
-  localtime_r((const time_t *)&ts.tv_sec,
-              (struct tm *)alarminfo->time);
+  localtime_r(&ts.tv_sec, (struct tm *)alarminfo->time);
 
   spin_unlock_irqrestore(&priv->lock, flags);
 

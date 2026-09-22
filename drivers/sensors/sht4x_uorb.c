@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 #include <nuttx/nuttx.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <unistd.h>
 
@@ -46,6 +46,12 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+/* Only float data type supported now */
+
+#ifdef CONFIG_SENSORS_USE_B16
+#  error fixed-point data type not supported yet
+#endif
 
 #define SHT4X_CRC_INIT 0xFF /* Initial value of the calculated CRC. */
 #define SHT4X_CRC_POLY 0x31 /* CRC calculation polynomial. */
@@ -517,12 +523,12 @@ static int sht4x_read(FAR struct sht4x_dev_s *priv,
 static bool has_time_passed(struct timespec curr, struct timespec start,
                             unsigned int secs_since_start)
 {
-  if ((long)((start.tv_sec + secs_since_start) - curr.tv_sec) == 0)
+  if ((start.tv_sec + secs_since_start) - curr.tv_sec == 0)
     {
       return start.tv_nsec <= curr.tv_nsec;
     }
 
-  return (long)((start.tv_sec + secs_since_start) - curr.tv_sec) <= 0;
+  return (start.tv_sec + secs_since_start) - curr.tv_sec <= 0;
 }
 
 /****************************************************************************
@@ -784,7 +790,7 @@ static int sht4x_thread(int argc, char **argv)
 
       /* Sleep before next fetch */
 
-      nxsig_usleep(dev->interval);
+      nxsched_usleep(dev->interval);
     }
 
   return OK;
@@ -835,14 +841,7 @@ int sht4x_register(FAR struct i2c_master_s *i2c, int devno, uint8_t addr)
   priv->addr = addr;
   priv->precision = SHT4X_PREC_HIGH;
   priv->interval = 1000000; /* 1s interval */
-  err = clock_systime_timespec(&priv->last_heat);
-
-  if (err < 0)
-    {
-      snerr("ERROR: Failed to get timespec: %d\n", err);
-      kmm_free(priv);
-      return err;
-    }
+  clock_systime_timespec(&priv->last_heat);
 
   /* Allow heat immediately after registration since in theory the sensor has
    * never had its heater activated yet.

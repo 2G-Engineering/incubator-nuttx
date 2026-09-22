@@ -25,7 +25,7 @@
  * controller
  */
 
-/* LCD pin mapping (see boards/sure-pic32mx/README.txt)
+/* LCD pin mapping
  *
  *  --------------------- ---------- ----------------------------------
  *  PIC32                  Sure JP1   Sure Signal Description
@@ -68,7 +68,7 @@
 #include <poll.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/ascii.h>

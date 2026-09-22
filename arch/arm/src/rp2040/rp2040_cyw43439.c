@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <stdio.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/kmalloc.h>
@@ -166,11 +166,11 @@ static int my_init(gspi_dev_t  *gspi)
   rp2040_gpio_setdir(rp_io->gpio_data, true);
   rp2040_gpio_put(rp_io->gpio_data, false);
 
-  nxsig_usleep(50000); /* Leave off for at least 50ms. */
+  nxsched_usleep(50000); /* Leave off for at least 50ms. */
 
   rp2040_gpio_put(rp_io->gpio_on, true);     /* power on */
 
-  nxsig_usleep(50000); /* Wait a bit to let the power come up. */
+  nxsched_usleep(50000); /* Wait a bit to let the power come up. */
 
   /* Don't let anyone else grab a PIO while we are doing so. */
 
@@ -429,7 +429,7 @@ static int my_write(struct gspi_dev_s   *gspi,
    * any data.
    *
    * This is slightly magical.  The way we load the X is to first
-   * push the the number of bits to transmit onto the transmit fifo.
+   * push the number of bits to transmit onto the transmit fifo.
    * Then we force the PIO state machine to execute the instruction
    * "out x, 32" which transfers the word from the output shift
    * register (OSR) to the X register.  When this instruction executes
@@ -644,7 +644,7 @@ static int my_read(struct gspi_dev_s   *gspi,
    * pio program will be sure to autopush the final data to the output fifo.
    *
    * This is slightly magical.  The way we load the X is to first
-   * push the the number of bits to transmit onto the transmit fifo.
+   * push the number of bits to transmit onto the transmit fifo.
    * Then we force the PIO state machine to execute the instruction
    * "out x, 32" which transfers the word from the output shift
    * register (OSR) to the X register.  When this instruction executes

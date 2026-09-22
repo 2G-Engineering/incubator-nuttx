@@ -30,8 +30,8 @@
 #include <stdint.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/timers/watchdog.h>
 #include <arch/board/board.h>
@@ -39,7 +39,7 @@
 #include "arm_internal.h"
 #include "stm32_wdg.h"
 
-#if defined(CONFIG_WATCHDOG) && defined(CONFIG_STM32H7_WWDG)
+#if defined(CONFIG_WATCHDOG) && defined(CONFIG_STM32_WWDG)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -211,7 +211,7 @@ static uint16_t stm32_getreg(uint32_t addr)
 
   /* Show the register value read */
 
-  wdinfo("%08x->%04x\n", addr, val);
+  wdinfo("%08" PRIx32 "->%04x\n", addr, val);
   return val;
 }
 #endif
@@ -229,7 +229,7 @@ static void stm32_putreg(uint16_t val, uint32_t addr)
 {
   /* Show the register value being written */
 
-  wdinfo("%08x<-%04x\n", addr, val);
+  wdinfo("%08" PRIx32 "<-%04x\n", addr, val);
 
   /* Write the value */
 
@@ -462,7 +462,7 @@ static int stm32_getstatus(struct watchdog_lowerhalf_s *lower,
   status->timeleft = (priv->timeout * elapsed) / (priv->reload + 1);
 
   wdinfo("Status     :\n");
-  wdinfo("  flags    : %08x\n", status->flags);
+  wdinfo("  flags    : %08" PRIx32 "\n", status->flags);
   wdinfo("  timeout  : %d\n", status->timeout);
   wdinfo("  timeleft : %d\n", status->timeleft);
   return OK;
@@ -783,9 +783,9 @@ void stm32_wwdginitialize(const char *devpath)
    * on the WWDG1 STOP configuration bit in DBG module.
    */
 
-#if defined(CONFIG_STM32H7_JTAG_FULL_ENABLE) || \
-    defined(CONFIG_STM32H7_JTAG_NOJNTRST_ENABLE) || \
-    defined(CONFIG_STM32H7_JTAG_SW_ENABLE)
+#if defined(CONFIG_STM32_JTAG_FULL_ENABLE) || \
+    defined(CONFIG_STM32_JTAG_NOJNTRST_ENABLE) || \
+    defined(CONFIG_STM32_JTAG_SW_ENABLE)
     {
       uint32_t cr = getreg32(STM32_DBGMCU_APB3_FZ1);
       cr |= DBGMCU_APB3_WWDG1STOP;
@@ -794,4 +794,4 @@ void stm32_wwdginitialize(const char *devpath)
 #endif
 }
 
-#endif /* CONFIG_WATCHDOG && CONFIG_STM32H7_WWDG */
+#endif /* CONFIG_WATCHDOG && CONFIG_STM32_WWDG */

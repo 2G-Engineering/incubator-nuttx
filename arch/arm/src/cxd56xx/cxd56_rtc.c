@@ -31,7 +31,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/irq.h>
@@ -75,7 +75,7 @@
 
 /* convert seconds to 64bit counter value running at 32kHz */
 
-#define SEC_TO_CNT(sec) ((uint64_t)(((uint64_t)(sec)) << 15))
+#define SEC_TO_CNT(sec) (((uint64_t)(sec)) << 15)
 
 /* convert nano-seconds to 32kHz counter less than 1 second */
 
@@ -157,7 +157,7 @@ static void rtc_dumptime(const struct timespec *tp, const char *msg)
   gmtime_r(&tp->tv_sec, &tm);
 
   rtcinfo("%s:\n", msg);
-  rtcinfo("RTC %u.%09u\n", tp->tv_sec, tp->tv_nsec);
+  rtcinfo("RTC %jd.%09ld\n", (intmax_t)tp->tv_sec, tp->tv_nsec);
   rtcinfo("%4d/%02d/%02d %02d:%02d:%02d\n",
           tm.tm_year, tm.tm_mon, tm.tm_mday,
           tm.tm_hour, tm.tm_min, tm.tm_sec);
@@ -325,6 +325,24 @@ static void cxd56_rtc_initialize(wdparm_t arg)
 }
 
 /****************************************************************************
+ * Name: cxd56_update_basetime
+ *
+ * Description:
+ *   Update the g_basetime value from RTC saved offset data.
+ *
+ * Input Parameters:
+ *   tp - Pointer to timespec structure to update the g_basetime.
+ *
+ ****************************************************************************/
+
+static void cxd56_update_basetime(struct timespec *tp)
+{
+  tp->tv_sec  = g_rtc_save->offset / CONFIG_RTC_FREQUENCY;
+  tp->tv_nsec = (g_rtc_save->offset % CONFIG_RTC_FREQUENCY) *
+                (NSEC_PER_SEC / CONFIG_RTC_FREQUENCY);
+}
+
+/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -376,7 +394,7 @@ time_t up_rtc_time(void)
   count += g_rtc_save->offset;
   count >>= 15; /* convert to 1sec resolution */
 
-  return (time_t)count / CONFIG_RTC_FREQUENCY;
+  return count / CONFIG_RTC_FREQUENCY;
 }
 #endif
 
@@ -406,6 +424,9 @@ int up_rtc_gettime(struct timespec *tp)
 
   count = cxd56_rtc_count_nolock();
   count += g_rtc_save->offset;
+
+  cxd56_update_basetime(&g_basetime);
+
   spin_unlock_irqrestore(&g_rtc_lock, flags);
 
   /* Then we can save the time in seconds and fractional seconds. */
@@ -460,8 +481,10 @@ int up_rtc_settime(const struct timespec *tp)
   /* Only save the difference from HW raw value */
 
   count = SEC_TO_CNT(tp->tv_sec) | NSEC_TO_PRECNT(tp->tv_nsec);
-  g_rtc_save->offset = (int64_t)count - (int64_t)cxd56_rtc_count();
+  g_rtc_save->offset = count - cxd56_rtc_count();
 #endif
+
+  cxd56_update_basetime(&g_basetime);
 
   spin_unlock_irqrestore(&g_rtc_lock, flags);
 

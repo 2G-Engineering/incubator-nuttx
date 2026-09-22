@@ -37,7 +37,7 @@
 #include <poll.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
@@ -639,7 +639,7 @@ static int gt9xx_open(FAR struct file *filep)
 
       /* Let Touch Panel power up before probing */
 
-      nxsig_usleep(100 * 1000);
+      nxsched_usleep(100 * 1000);
 
       /* Check that Touch Panel exists on I2C */
 

@@ -49,7 +49,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -292,7 +292,7 @@ static int at24c_eraseall(FAR struct at24c_dev_s *priv)
               return -ETIMEDOUT;
             }
 
-          nxsig_usleep(1000);
+          nxsched_usleep(1000);
         }
 
       at24c_i2c_write(priv,
@@ -368,7 +368,7 @@ static ssize_t at24c_read_internal(FAR struct at24c_dev_s *priv,
           return -ETIMEDOUT;
         }
 
-      nxsig_usleep(1000);
+      nxsched_usleep(1000);
     }
 
   /* Then transfer the following bytes */
@@ -492,7 +492,7 @@ static ssize_t at24c_bwrite(FAR struct mtd_dev_s *dev, off_t startblock,
               return -ETIMEDOUT;
             }
 
-          nxsig_usleep(1000);
+          nxsched_usleep(1000);
         }
 
       memcpy(&buf[AT24XX_ADDRSIZE], buffer, priv->pagesize);

@@ -28,14 +28,14 @@
 
 #include <stdbool.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "xtensa.h"
 #include "hardware/esp32s3_tim.h"
 
 #include "esp32s3_tim.h"
-#include "esp32s3_irq.h"
-#include "esp32s3_gpio.h"
+#include "esp_irq.h"
+#include "esp_gpio.h"
 
 #include "soc/periph_defs.h"
 #include "esp_private/periph_ctrl.h"
@@ -425,10 +425,10 @@ static void tim_getcounter(struct esp32s3_tim_dev_s *dev, uint64_t *value)
       /* Read value */
 
       value_32  = getreg32(TIMG_T0HI_REG(priv->gid)); /* High 32 bits */
-      *value   |= (uint64_t)value_32;
+      *value   |= value_32;
       *value  <<= SHIFT_32;
       value_32  = getreg32(TIMG_T0LO_REG(priv->gid)); /* Low 32 bits */
-      *value   |= (uint64_t)value_32;
+      *value   |= value_32;
     }
   else
     {
@@ -439,10 +439,10 @@ static void tim_getcounter(struct esp32s3_tim_dev_s *dev, uint64_t *value)
       /* Read value */
 
       value_32  = getreg32(TIMG_T1HI_REG(priv->gid)); /* High 32 bits */
-      *value   |= (uint64_t)value_32;
+      *value   |= value_32;
       *value  <<= SHIFT_32;
       value_32  = getreg32(TIMG_T1LO_REG(priv->gid)); /* Low 32 bits */
-      *value   |= (uint64_t)value_32;
+      *value   |= value_32;
     }
 }
 
@@ -545,18 +545,18 @@ static void tim_getalarmvalue(struct esp32s3_tim_dev_s *dev, uint64_t *value)
   if (priv->tid == ESP32S3_TIM_TIMER0)
     {
       value_32  = getreg32(TIMG_T0ALARMHI_REG(priv->gid)); /* High 32 bits */
-      *value   |= (uint64_t)value_32;
+      *value   |= value_32;
       *value  <<= SHIFT_32;
       value_32  = getreg32(TIMG_T0ALARMLO_REG(priv->gid)); /* Low 32 bits */
-      *value   |= (uint64_t)value_32;
+      *value   |= value_32;
     }
   else
     {
       value_32  = getreg32(TIMG_T1ALARMHI_REG(priv->gid)); /* High 32 bits */
-      *value   |= (uint64_t)value_32;
+      *value   |= value_32;
       *value  <<= SHIFT_32;
       value_32  = getreg32(TIMG_T1ALARMLO_REG(priv->gid)); /* Low 32 bits */
-      *value   |= (uint64_t)value_32;
+      *value   |= value_32;
     }
 }
 
@@ -731,8 +731,7 @@ static int tim_setisr(struct esp32s3_tim_dev_s *dev, xcpt_t handler,
            */
 
           up_disable_irq(priv->irq);
-          esp32s3_teardown_irq(priv->core, priv->periph, priv->cpuint);
-          irq_detach(priv->irq);
+          esp_teardown_irq(priv->periph, priv->cpuint);
 
           priv->cpuint = -ENOMEM;
           priv->core   = -ENODEV;
@@ -753,22 +752,14 @@ static int tim_setisr(struct esp32s3_tim_dev_s *dev, xcpt_t handler,
       /* Set up to receive peripheral interrupts on the current CPU */
 
       priv->core = this_cpu();
-      priv->cpuint = esp32s3_setup_irq(priv->core, priv->periph,
-                                       priv->priority, ESP32S3_CPUINT_LEVEL);
+      priv->cpuint = esp_setup_irq(priv->periph,
+                                   priv->priority,
+                                   ESP_IRQ_TRIGGER_LEVEL,
+                                   handler, arg);
       if (priv->cpuint < 0)
         {
           tmrerr("ERROR: No CPU Interrupt available");
           ret = priv->cpuint;
-          goto errout;
-        }
-
-      /* Associate an IRQ Number (from the timer) to an ISR */
-
-      ret = irq_attach(priv->irq, handler, arg);
-      if (ret != OK)
-        {
-          esp32s3_teardown_irq(priv->core, priv->periph, priv->cpuint);
-          tmrerr("ERROR: Failed to associate an IRQ Number");
           goto errout;
         }
 

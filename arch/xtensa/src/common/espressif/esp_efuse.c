@@ -25,7 +25,11 @@
  ****************************************************************************/
 
 #include <stdlib.h>
+<<<<<<< HEAD
 #include <debug.h>
+=======
+#include <nuttx/debug.h>
+>>>>>>> nuttx-13.0.0
 #include <errno.h>
 #include <assert.h>
 #include <string.h>
@@ -40,8 +44,14 @@
 
 #ifdef CONFIG_ARCH_CHIP_ESP32
 #include "xtensa.h"
+<<<<<<< HEAD
 #include "soc/apb_ctrl_reg.h"
 #include "esp_efuse_table.h"
+=======
+#include "soc/syscon_reg.h"
+#include "esp_efuse_table.h"
+#include "hal/efuse_ll.h"
+>>>>>>> nuttx-13.0.0
 #endif
 
 /****************************************************************************
@@ -286,6 +296,10 @@ int esp_efuse_initialize(const char *devpath)
 {
   struct esp_efuse_lowerhalf_s *lower = NULL;
   int ret = OK;
+<<<<<<< HEAD
+=======
+  irqstate_t flags;
+>>>>>>> nuttx-13.0.0
 
   DEBUGASSERT(devpath != NULL);
 
@@ -293,6 +307,10 @@ int esp_efuse_initialize(const char *devpath)
 
   /* Register the efuse upper driver */
 
+<<<<<<< HEAD
+=======
+  flags = enter_critical_section();
+>>>>>>> nuttx-13.0.0
   lower->upper = efuse_register(devpath,
                                 (struct efuse_lowerhalf_s *)lower);
 
@@ -312,6 +330,10 @@ int esp_efuse_initialize(const char *devpath)
   esp_efuse_utility_update_virt_blocks();
 #endif
 
+<<<<<<< HEAD
+=======
+  leave_critical_section(flags);
+>>>>>>> nuttx-13.0.0
   return ret;
 }
 #endif
@@ -342,6 +364,7 @@ uint32_t esp_efuse_hal_chip_revision(void)
   uint32_t combine_value;
   uint32_t chip_ver = 0;
 
+<<<<<<< HEAD
   esp_efuse_read_field_blob(ESP_EFUSE_CHIP_VER_REV1,
                             &eco_bit0,
                             ESP_EFUSE_CHIP_VER_REV1[0]->bit_count);
@@ -353,6 +376,12 @@ uint32_t esp_efuse_hal_chip_revision(void)
                             ESP_EFUSE_WAFER_VERSION_MINOR[0]->bit_count);
 
   eco_bit2 = (getreg32(APB_CTRL_DATE_REG) & 0x80000000) >> 31;
+=======
+  eco_bit0 = efuse_ll_get_chip_ver_rev1();
+  eco_bit1 = efuse_ll_get_chip_ver_rev2();
+  minor_chip_version = efuse_ll_get_chip_wafer_version_minor();
+  eco_bit2 = (getreg32(SYSCON_DATE_REG) & 0x80000000) >> 31;
+>>>>>>> nuttx-13.0.0
   combine_value = (eco_bit2 << 2) | (eco_bit1 << 1) | eco_bit0;
 
   switch (combine_value)

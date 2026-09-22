@@ -28,14 +28,14 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 #include <nuttx/power/pm.h>
 
 #include "chip.h"
 #include "arm_internal.h"
-#include "stm32wb.h"
+#include "stm32.h"
 #include "nucleo-wb55rg.h"
 
 #ifndef CONFIG_ARCH_LEDS
@@ -84,36 +84,36 @@ static void led_pm_notify(struct pm_callback_s *cb, int domain,
 {
   switch (pmstate)
     {
-      case(PM_NORMAL):
+      case PM_NORMAL:
         {
           /* Restore normal LEDs operation */
         }
         break;
 
-      case(PM_IDLE):
+      case PM_IDLE:
         {
           /* Entering IDLE mode - Turn leds off */
 
-          stm32wb_gpiowrite(GPIO_LED_RED, 0);
-          stm32wb_gpiowrite(GPIO_LED_GREEN, 0);
+          stm32_gpiowrite(GPIO_LED_RED, 0);
+          stm32_gpiowrite(GPIO_LED_GREEN, 0);
         }
         break;
 
-      case(PM_STANDBY):
+      case PM_STANDBY:
         {
           /* Entering STANDBY mode - Logic for PM_STANDBY goes here */
 
-          stm32wb_gpiowrite(GPIO_LED_RED, 0);
-          stm32wb_gpiowrite(GPIO_LED_GREEN, 0);
+          stm32_gpiowrite(GPIO_LED_RED, 0);
+          stm32_gpiowrite(GPIO_LED_GREEN, 0);
         }
         break;
 
-      case(PM_SLEEP):
+      case PM_SLEEP:
         {
           /* Entering SLEEP mode - Logic for PM_SLEEP goes here */
 
-          stm32wb_gpiowrite(GPIO_LED_RED, 0);
-          stm32wb_gpiowrite(GPIO_LED_GREEN, 0);
+          stm32_gpiowrite(GPIO_LED_RED, 0);
+          stm32_gpiowrite(GPIO_LED_GREEN, 0);
         }
         break;
 
@@ -160,9 +160,9 @@ static int led_pm_prepare(struct pm_callback_s *cb, int domain,
 
 uint32_t board_userled_initialize(void)
 {
-  stm32wb_configgpio(GPIO_LED_RED);
-  stm32wb_configgpio(GPIO_LED_GREEN);
-  stm32wb_configgpio(GPIO_LED_BLUE);
+  stm32_configgpio(GPIO_LED_RED);
+  stm32_configgpio(GPIO_LED_GREEN);
+  stm32_configgpio(GPIO_LED_BLUE);
   return BOARD_NLEDS;
 }
 
@@ -178,15 +178,15 @@ void board_userled(int led, bool ledon)
       break;
 
     case BOARD_LED_RED:
-      stm32wb_gpiowrite(GPIO_LED_RED, ledon);
+      stm32_gpiowrite(GPIO_LED_RED, ledon);
       break;
 
     case GPIO_LED_GREEN:
-      stm32wb_gpiowrite(GPIO_LED_GREEN, ledon);
+      stm32_gpiowrite(GPIO_LED_GREEN, ledon);
       break;
 
     case GPIO_LED_BLUE:
-      stm32wb_gpiowrite(GPIO_LED_BLUE, ledon);
+      stm32_gpiowrite(GPIO_LED_BLUE, ledon);
       break;
   }
 }
@@ -197,9 +197,9 @@ void board_userled(int led, bool ledon)
 
 void board_userled_all(uint32_t ledset)
 {
-  stm32wb_gpiowrite(GPIO_LED1, (ledset & BOARD_LED1_BIT) != 0);
-  stm32wb_gpiowrite(GPIO_LED2, (ledset & BOARD_LED2_BIT) != 0);
-  stm32wb_gpiowrite(GPIO_LED3, (ledset & BOARD_LED3_BIT) != 0);
+  stm32_gpiowrite(GPIO_LED1, (ledset & BOARD_LED1_BIT) != 0);
+  stm32_gpiowrite(GPIO_LED2, (ledset & BOARD_LED2_BIT) != 0);
+  stm32_gpiowrite(GPIO_LED3, (ledset & BOARD_LED3_BIT) != 0);
 }
 
 /****************************************************************************

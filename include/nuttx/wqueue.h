@@ -32,8 +32,8 @@
 #include <sys/types.h>
 #include <stdint.h>
 
+#include <nuttx/list_type.h>
 #include <nuttx/clock.h>
-#include <nuttx/list.h>
 #include <nuttx/wdog.h>
 
 /****************************************************************************
@@ -547,7 +547,7 @@ int work_cancel_sync_wq(FAR struct kwork_wqueue_s *wqueue,
  *
  ****************************************************************************/
 
-#define work_timeleft(work) ((sclock_t)((work)->qtime - clock()))
+#define work_timeleft(work) ((work)->qtime - clock())
 
 /****************************************************************************
  * Name: lpwork_boostpriority

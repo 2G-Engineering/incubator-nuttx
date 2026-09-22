@@ -29,7 +29,7 @@
 #include <sched.h>
 #include <syscall.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
@@ -57,10 +57,6 @@
 void up_exit(int status)
 {
   struct tcb_s *tcb = this_task();
-
-  /* Update scheduler parameters */
-
-  nxsched_suspend_scheduler(tcb);
 
   /* Destroy the task at the head of the ready to run list. */
 

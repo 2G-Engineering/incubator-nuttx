@@ -30,7 +30,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <sys/param.h>
@@ -180,7 +180,7 @@ static int mmcsd_open(FAR struct file *filep, FAR const char *relpath,
    * is not permitted.
    */
 
-  if ((oflags & O_WRONLY) != 0 || (oflags & O_RDONLY) == 0)
+  if ((oflags & O_ACCMODE) != O_RDONLY)
     {
       finfo("ERROR: Only O_RDONLY supported\n");
       return -EACCES;

@@ -24,7 +24,7 @@
  * Included Files
  ****************************************************************************/
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include "chip.h"
@@ -486,6 +486,30 @@ int imx9_ele_get_random(uint32_t paddr, size_t len)
 
       up_invalidate_dcache((uintptr_t)paddr,
                            (uintptr_t)(paddr + len));
+      return 0;
+    }
+
+  return -EIO;
+}
+
+int imx9_ele_commit(uint32_t info, uint32_t *response)
+{
+  msg.header.version = ELE_VERSION;
+  msg.header.tag = ELE_CMD_TAG;
+  msg.header.size = 2;
+  msg.header.command = ELE_COMMIT_REQ;
+  msg.data[0] = info;
+
+  imx9_ele_sendmsg(&msg);
+  imx9_ele_receivemsg(&msg);
+
+  if (response)
+    {
+      *response = msg.data[0];
+    }
+
+  if ((msg.data[0] & 0xff) == ELE_OK)
+    {
       return 0;
     }
 

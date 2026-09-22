@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
@@ -45,7 +45,7 @@
 #include "hardware/esp32s3_soc.h"
 #include "hardware/esp32s3_system.h"
 
-#include "soc/gdma_periph.h"
+#include "hal/gdma_periph.h"
 #include "hal/gdma_hal.h"
 #include "hal/gdma_types.h"
 #include "hal/gdma_ll.h"

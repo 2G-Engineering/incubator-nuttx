@@ -20,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -28,7 +41,7 @@
 
 #include <sys/types.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -401,7 +414,7 @@ static int hts221_config_ctrl_reg2(FAR struct hts221_dev_s *priv,
               break;
             }
 
-          nxsig_usleep(10 * 1000);
+          nxsched_usleep(10 * 1000);
           retries--;
         }
       while (retries);

@@ -28,12 +28,12 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/spi/spi.h>
 #include <arch/board/board.h>
 
-#include "esp32_gpio.h"
+#include "espressif/esp_gpio.h"
 
 /****************************************************************************
  * Private Functions
@@ -80,7 +80,7 @@ static inline int spi_cmddata(struct spi_dev_s *dev, uint32_t devid,
        *  data bits are data or a command.
        */
 
-      esp32_gpiowrite(DISPLAY_DC, !cmd);
+      esp_gpiowrite(DISPLAY_DC, !cmd);
       return OK;
     }
 #endif

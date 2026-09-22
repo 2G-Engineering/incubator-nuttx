@@ -31,7 +31,7 @@
 
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
 #include <arch/board/board.h>
@@ -53,7 +53,7 @@
 
 #ifdef CONFIG_ADC
 
-#if defined(CONFIG_STM32H5_ADC1) || defined(CONFIG_STM32H5_ADC2)
+#if defined(CONFIG_STM32_ADC1) || defined(CONFIG_STM32_ADC2)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -91,6 +91,10 @@
                              (ADC_SMPR_DEFAULT << ADC_SMPR2_SMP18_SHIFT) | \
                              (ADC_SMPR_DEFAULT << ADC_SMPR2_SMP19_SHIFT))
 
+#define ADC_DIFSEL_DEFAULT    0
+#define ADC_DIFSEL_ALL_SINGLE 0x0
+#define ADC_DIFSEL_ALL_DIFF   0xFFFFF
+
 /****************************************************************************
  * Private Types
  ****************************************************************************/
@@ -106,7 +110,7 @@ struct stm32_dev_s
   uint8_t intf;         /* ADC interface number */
   uint8_t current;      /* Current ADC channel being converted */
   uint8_t resolution;   /* ADC resolution (0-3) */
-  bool     hasdma;      /* True: This ADC supports DMA */
+  bool    hasdma;       /* True: This ADC supports DMA */
 #ifdef ADC_HAVE_DMA
   uint16_t dmabatch;    /* Number of conversions for DMA batch */
   bool     circular;    /* 0 = one-shot, 1 = circular */
@@ -131,28 +135,40 @@ struct stm32_dev_s
   uint32_t freq;        /* The desired frequency of conversions */
 #endif
 
+  uint32_t difsel;      /* ADCx_DIFSEL (Differential Mode) value */
+  uint32_t smpr1;       /* ADCx_SMPR1 (Sample time 1) value */
+  uint32_t smpr2;       /* ADCx_SMPR2 (Sample time 2) value */
+
 #ifdef CONFIG_PM
   struct pm_callback_s pm_callback;
 #endif
 
 #ifdef ADC_HAVE_DMA
-  DMA_HANDLE dma;       /* Allocated DMA channel */
-
-  /* DMA transfer buffer */
-
-  uint16_t *r_dmabuffer;
+  DMA_HANDLE dma;        /* Allocated DMA channel */
+  uint32_t *r_dmabuffer; /* DMA transfer buffer */
+  uint8_t *r_chanbuffer; /* DMA channel buffer */
 #endif
 
-  bool oversample;
+  bool wdg1_enable;          /* True - Analog Watchdog 1 Enabled */
+#ifdef ADC_HAVE_WDG1
+  uint16_t wdg1_low_thresh;  /* AWD1 Thresholds. Initialized by Kconfig */
+  uint16_t wdg1_high_thresh; /* and can be changed with ioctl */
+  uint8_t wdg1_flt;          /* wdg1_flt+1 events triggers the watchdog */
+  bool wdg1_single_chan;     /* True - Single Channel monitored.
+                              * False - All Channels monitored */
+  uint8_t wdg1_chan;         /* AWD1 Channel for single mode */
+#endif
+
+  bool oversample; /* True - Oversampling enabled */
 #ifdef ADC_HAVE_OVERSAMPLE
-  bool trovs;
-  uint8_t ovsr;
-  uint8_t ovss;
+  bool trovs;      /* True - Each oversampled conversion needs a trigger */
+  uint8_t ovsr;    /* Oversampling Ratio = 2^(ovsr+1) */
+  uint8_t ovss;    /* Oversampling shift bits (max 16-bit result) */
 #endif
 
   /* List of selected ADC channels to sample */
 
-  uint8_t  chanlist[CONFIG_STM32H5_ADC_MAX_SAMPLES];
+  uint8_t chanlist[CONFIG_STM32_ADC_MAX_SAMPLES];
 };
 
 /****************************************************************************
@@ -188,7 +204,10 @@ static uint32_t adc_sqrbits(struct stm32_dev_s *priv, int first,
 static int  adc_set_ch(struct adc_dev_s *dev, uint8_t ch);
 static bool adc_internal(struct stm32_dev_s * priv, uint32_t *adc_ccr);
 static void adc_startconv(struct stm32_dev_s *priv, bool enable);
-static void adc_wdog_enable(struct stm32_dev_s *priv);
+#ifdef ADC_HAVE_WDG1
+static void adc_wdog1_enable(struct stm32_dev_s *priv);
+static void adc_wdog1_init(struct stm32_dev_s *priv);
+#endif
 
 #ifdef ADC_HAVE_TIMER
 static void adc_timstart(struct stm32_dev_s *priv, bool enable);
@@ -200,6 +219,8 @@ static void adc_dmaconvcallback(DMA_HANDLE handle, uint8_t status,
                                 void *arg);
 static void adc_dmacfg(struct stm32_dev_s *priv,
                                struct stm32_gpdma_cfg_s *cfg);
+static void adc_dma_init_chanbuf(struct stm32_dev_s *priv);
+static void adc_reset_dma(struct adc_dev_s *dev);
 #endif
 
 #ifdef ADC_HAVE_OVERSAMPLE
@@ -239,7 +260,7 @@ static const struct adc_ops_s g_adcops =
 
 /* ADC1 state */
 
-#ifdef CONFIG_STM32H5_ADC1
+#ifdef CONFIG_STM32_ADC1
 
 /* Double the size of the buffer in circular mode
  * Circular mode utilizes half-transfer DMA interrupts and a 2x buffer
@@ -248,17 +269,20 @@ static const struct adc_ops_s g_adcops =
  */
 
 #ifdef ADC1_HAVE_DMA
-#  ifdef CONFIG_STM32H5_ADC1_DMA_CFG
-#    define ADC1_DMA_BUFFER_SIZE (CONFIG_STM32H5_ADC_MAX_SAMPLES *\
-                                  CONFIG_STM32H5_ADC1_DMA_BATCH * 2)
+#  define ADC1_CHAN_BUFFER_SIZE (CONFIG_STM32_ADC_MAX_SAMPLES *\
+                                 CONFIG_STM32_ADC1_DMA_BATCH)
+
+#  if CONFIG_STM32_ADC1_DMA_CFG == 1
+#    define ADC1_DMA_BUFFER_SIZE (ADC1_CHAN_BUFFER_SIZE * 2)
 #  else
-#    define ADC1_DMA_BUFFER_SIZE (CONFIG_STM32H5_ADC_MAX_SAMPLES *\
-                                  CONFIG_STM32H5_ADC1_DMA_BATCH)
+#    define ADC1_DMA_BUFFER_SIZE (ADC1_CHAN_BUFFER_SIZE)
 #  endif
 
-static uint16_t g_adc1_dmabuffer[ADC1_DMA_BUFFER_SIZE]
+static uint8_t g_adc1_chanbuffer[ADC1_CHAN_BUFFER_SIZE]
 __attribute__((aligned(32)));
 
+static uint32_t g_adc1_dmabuffer[ADC1_DMA_BUFFER_SIZE]
+__attribute__((aligned(32)));
 #endif
 
 static struct stm32_dev_s g_adcpriv1 =
@@ -266,43 +290,79 @@ static struct stm32_dev_s g_adcpriv1 =
   .irq         = STM32_IRQ_ADC1,
   .isr         = adc12_interrupt,
   .intf        = 1,
-  .resolution  = CONFIG_STM32H5_ADC1_RESOLUTION,
+  .resolution  = CONFIG_STM32_ADC1_RESOLUTION,
   .base        = STM32_ADC1_BASE,
   .mbase       = STM32_ADC1_BASE,
   .initialized = false,
 #ifdef ADC1_HAVE_TIMER
-  .trigger     = CONFIG_STM32H5_ADC1_TIMTRIG,
+  .trigger     = CONFIG_STM32_ADC1_TIMTRIG,
   .tbase       = ADC1_TIMER_BASE,
   .trcc_enr    = ADC1_TIMER_RCC_ENR,
   .trcc_en     = ADC1_TIMER_RCC_EN,
   .extsel      = ADC1_EXTSEL_VALUE,
   .pclck       = ADC1_TIMER_PCLK_FREQUENCY,
-  .freq        = CONFIG_STM32H5_ADC1_SAMPLE_FREQUENCY,
+  .freq        = CONFIG_STM32_ADC1_SAMPLE_FREQUENCY,
 #endif
+
+#ifdef BOARD_ADC1_DIFSEL
+  .difsel      = BOARD_ADC1_DIFSEL,
+#else
+  .difsel      = ADC_DIFSEL_DEFAULT,
+#endif
+
+#ifdef BOARD_ADC1_SMPR1
+  .smpr1       = BOARD_ADC1_SMPR1,
+#else
+  .smpr1       = ADC_SMPR1_DEFAULT,
+#endif
+
+#ifdef BOARD_ADC1_SMPR2
+  .smpr2       = BOARD_ADC1_SMPR2,
+#else
+  .smpr2       = ADC_SMPR2_DEFAULT,
+#endif
+
 #ifdef ADC1_HAVE_DMA
-  .hasdma      = true,
-  .r_dmabuffer = g_adc1_dmabuffer,
-  .dmabatch    = CONFIG_STM32H5_ADC1_DMA_BATCH,
-#  ifdef CONFIG_STM32H5_ADC1_DMA_CFG
-  .circular    = true,
+  .hasdma       = true,
+  .r_chanbuffer = g_adc1_chanbuffer,
+  .r_dmabuffer  = g_adc1_dmabuffer,
+  .dmabatch     = CONFIG_STM32_ADC1_DMA_BATCH,
+#  if CONFIG_STM32_ADC1_DMA_CFG == 1
+  .circular     = true,
 #  else
-  .circular    = false,
+  .circular     = false,
 #  endif
 #else
-  .hasdma      = false,
+  .hasdma       = false,
 #endif
 
 #ifdef ADC1_HAVE_OVERSAMPLE
   .oversample = true,
-#  ifdef CONFIG_STM32H5_ADC1_TROVS
+#  ifdef CONFIG_STM32_ADC1_TROVS
   .trovs = true,
 #  else
   .trovs = false,
 #  endif
-  .ovsr = CONFIG_STM32H5_ADC1_OVSR,
-  .ovss = CONFIG_STM32H5_ADC1_OVSS,
+  .ovsr = CONFIG_STM32_ADC1_OVSR,
+  .ovss = CONFIG_STM32_ADC1_OVSS,
 #else
   .oversample = false,
+#endif
+
+#ifdef CONFIG_STM32_ADC1_WDG1
+  .wdg1_enable = true,
+  .wdg1_flt = CONFIG_STM32_ADC1_WDG1_FLT,
+  .wdg1_low_thresh = CONFIG_STM32_ADC1_WDG1_LOWTHRESH,
+  .wdg1_high_thresh = CONFIG_STM32_ADC1_WDG1_HIGHTHRESH,
+#  ifdef CONFIG_STM32_ADC1_WDG1_SGL
+  .wdg1_single_chan = true,
+  .wdg1_chan = CONFIG_STM32_ADC1_WDG1_CHAN,
+#  else
+  .wdg1_single_chan = false,
+  .wdg1_chan = 0,
+#  endif
+#else
+  .wdg1_enable = false,
 #endif
 };
 
@@ -315,18 +375,22 @@ static struct adc_dev_s g_adcdev1 =
 
 /* ADC2 state */
 
-#ifdef CONFIG_STM32H5_ADC2
+#ifdef CONFIG_STM32_ADC2
 
 #ifdef ADC2_HAVE_DMA
-#  ifdef CONFIG_STM32H5_ADC2_DMA_CFG
-#    define ADC2_DMA_BUFFER_SIZE (CONFIG_STM32H5_ADC_MAX_SAMPLES *\
-                                  CONFIG_STM32H5_ADC2_DMA_BATCH * 2)
+#  define ADC2_CHAN_BUFFER_SIZE (CONFIG_STM32_ADC_MAX_SAMPLES *\
+                                 CONFIG_STM32_ADC2_DMA_BATCH)
+
+#  ifdef CONFIG_STM32_ADC2_DMA_CFG
+#    define ADC2_DMA_BUFFER_SIZE (ADC2_CHAN_BUFFER_SIZE * 2)
 #  else
-#    define ADC2_DMA_BUFFER_SIZE (CONFIG_STM32H5_ADC_MAX_SAMPLES *\
-                                  CONFIG_STM32H5_ADC2_DMA_BATCH)
+#    define ADC2_DMA_BUFFER_SIZE (ADC2_CHAN_BUFFER_SIZE)
 #  endif
 
-static uint16_t g_adc2_dmabuffer[ADC2_DMA_BUFFER_SIZE]
+static uint8_t g_adc2_chanbuffer[ADC2_CHAN_BUFFER_SIZE]
+__attribute__((aligned(32)));
+
+static uint32_t g_adc2_dmabuffer[ADC2_DMA_BUFFER_SIZE]
 __attribute__((aligned(32)));
 #endif
 
@@ -335,43 +399,79 @@ static struct stm32_dev_s g_adcpriv2 =
   .irq         = STM32_IRQ_ADC2,
   .isr         = adc12_interrupt,
   .intf        = 2,
-  .resolution  = CONFIG_STM32H5_ADC2_RESOLUTION,
+  .resolution  = CONFIG_STM32_ADC2_RESOLUTION,
   .base        = STM32_ADC2_BASE,
   .mbase       = STM32_ADC2_BASE,
   .initialized = false,
 #ifdef ADC2_HAVE_TIMER
-  .trigger     = CONFIG_STM32H5_ADC2_TIMTRIG,
+  .trigger     = CONFIG_STM32_ADC2_TIMTRIG,
   .tbase       = ADC2_TIMER_BASE,
   .trcc_enr    = ADC2_TIMER_RCC_ENR,
   .trcc_en     = ADC2_TIMER_RCC_EN,
   .extsel      = ADC2_EXTSEL_VALUE,
   .pclck       = ADC2_TIMER_PCLK_FREQUENCY,
-  .freq        = CONFIG_STM32H5_ADC2_SAMPLE_FREQUENCY,
+  .freq        = CONFIG_STM32_ADC2_SAMPLE_FREQUENCY,
 #endif
+
+#ifdef BOARD_ADC2_DIFSEL
+  .difsel      = BOARD_ADC2_DIFSEL,
+#else
+  .difsel      = ADC_DIFSEL_DEFAULT,
+#endif
+
+#ifdef BOARD_ADC2_SMPR1
+  .smpr1       = BOARD_ADC2_SMPR1,
+#else
+  .smpr1       = ADC_SMPR1_DEFAULT,
+#endif
+
+#ifdef BOARD_ADC2_SMPR2
+  .smpr2       = BOARD_ADC2_SMPR2,
+#else
+  .smpr2       = ADC_SMPR2_DEFAULT,
+#endif
+
 #ifdef ADC2_HAVE_DMA
-  .hasdma      = true,
-  .r_dmabuffer = g_adc2_dmabuffer,
-  .dmabatch    = CONFIG_STM32H5_ADC2_DMA_BATCH,
-#  ifdef CONFIG_STM32H5_ADC2_DMA_CFG
-  .circular    = true,
+  .hasdma       = true,
+  .r_chanbuffer = g_adc2_chanbuffer,
+  .r_dmabuffer  = g_adc2_dmabuffer,
+  .dmabatch     = CONFIG_STM32_ADC2_DMA_BATCH,
+#  ifdef CONFIG_STM32_ADC2_DMA_CFG
+  .circular     = true,
 #  else
-  .circular    = false,
+  .circular     = false,
 #  endif
 #else
-  .hasdma      = false,
+  .hasdma       = false,
 #endif
 
 #ifdef ADC2_HAVE_OVERSAMPLE
   .oversample = true,
-#  ifdef CONFIG_STM32H5_ADC2_TROVS
+#  ifdef CONFIG_STM32_ADC2_TROVS
   .trovs = true,
 #  else
   .trovs = false,
 #  endif
-  .ovsr = CONFIG_STM32H5_ADC2_OVSR,
-  .ovss = CONFIG_STM32H5_ADC2_OVSS,
+  .ovsr = CONFIG_STM32_ADC2_OVSR,
+  .ovss = CONFIG_STM32_ADC2_OVSS,
 #else
   .oversample = false,
+#endif
+
+#ifdef CONFIG_STM32_ADC2_WDG1
+  .wdg1_enable = true,
+  .wdg1_flt = CONFIG_STM32_ADC2_WDG1_FLT,
+  .wdg1_low_thresh = CONFIG_STM32_ADC2_WDG1_LOWTHRESH,
+  .wdg1_high_thresh = CONFIG_STM32_ADC2_WDG1_HIGHTHRESH,
+#  ifdef CONFIG_STM32_ADC2_WDG1_SGL
+  .wdg1_single_chan = true,
+  .wdg1_chan = CONFIG_STM32_ADC2_WDG1_CHAN,
+#  else
+  .wdg1_single_chan = false,
+  .wdg1_chan = 0,
+#  endif
+#else
+  .wdg1_enable = false,
 #endif
 };
 
@@ -550,16 +650,27 @@ static void adc_enable(struct stm32_dev_s *priv)
 
   up_udelay(20);
 
-  /* Enable ADC calibration. ADCALDIF == 0 so this is only for
-   * single-ended conversions, not for differential ones.
-   */
+  /* Perform single-ended and/or differential calibration if necessary */
 
   regval |= ADC_CR_ADCAL;
-  adc_putreg(priv, STM32_ADC_CR_OFFSET, regval);
 
-  /* Wait for calibration to complete */
+  /* Calibrate single-ended channels if necessary */
 
-  while (adc_getreg(priv, STM32_ADC_CR_OFFSET) & ADC_CR_ADCAL);
+  if (priv->difsel != ADC_DIFSEL_ALL_DIFF)
+    {
+      regval &= ~ADC_CR_ADCALDIF;
+      adc_putreg(priv, STM32_ADC_CR_OFFSET, regval);
+      while (adc_getreg(priv, STM32_ADC_CR_OFFSET) & ADC_CR_ADCAL);
+    }
+
+  /* Calibrate differential channels if necessary */
+
+  if (priv->difsel != ADC_DIFSEL_ALL_SINGLE)
+    {
+      regval |= ADC_CR_ADCALDIF;
+      adc_putreg(priv, STM32_ADC_CR_OFFSET, regval);
+      while (adc_getreg(priv, STM32_ADC_CR_OFFSET) & ADC_CR_ADCAL);
+    }
 
   /* Enable ADC
    * Note: ADEN bit cannot be set during ADCAL=1 and 4 ADC clock cycle
@@ -599,21 +710,22 @@ static int adc_bind(struct adc_dev_s *dev,
 }
 
 /****************************************************************************
- * Name: adc_wdog_enable
+ * Name: adc_wdog1_enable
  *
  * Description:
  *   Enable analog watchdog 1. Sets continuous and overrun mode. Turns on
  *   AWD1 interrupt and disables end of conversion interrupt.
  ****************************************************************************/
 
-static void adc_wdog_enable(struct stm32_dev_s *priv)
+#ifdef ADC_HAVE_WDG1
+static void adc_wdog1_enable(struct stm32_dev_s *priv)
 {
   uint32_t regval;
 
   /* Initialize analog watchdog */
 
   regval = adc_getreg(priv, STM32_ADC_CFGR_OFFSET);
-  regval |= ADC_CFGR_AWD1EN | ADC_CFGR_CONT | ADC_CFGR_OVRMOD;
+  regval |= ADC_CFGR_AWD1EN;
   adc_putreg(priv, STM32_ADC_CFGR_OFFSET, regval);
 
   /* Switch to analog watchdog interrupt */
@@ -623,6 +735,37 @@ static void adc_wdog_enable(struct stm32_dev_s *priv)
   regval &= ~ADC_INT_EOC;
   adc_putreg(priv, STM32_ADC_IER_OFFSET, regval);
 }
+
+/****************************************************************************
+ * Name: adc_wdog1_init
+ *
+ * Description:
+ *   Initialize the ADC Watchdog 1 according to Kconfig options.
+ ****************************************************************************/
+
+static void adc_wdog1_init(struct stm32_dev_s *priv)
+{
+  uint32_t regval;
+
+  regval = ((priv->wdg1_high_thresh << ADC_TR1_HT1_SHIFT)
+            & ADC_TR1_HT1_MASK);
+  regval |= ((priv->wdg1_low_thresh << ADC_TR1_LT1_SHIFT)
+            & ADC_TR1_LT1_MASK);
+  regval |= ((priv->wdg1_flt << ADC_TR1_AWDFILT_SHIFT)
+            & ADC_TR1_AWDFILT_MASK);
+  adc_putreg(priv, STM32_ADC_TR1_OFFSET, regval);
+
+  regval = adc_getreg(priv, STM32_ADC_CFGR_OFFSET);
+  if (priv->wdg1_single_chan == true)
+    {
+      regval |= ADC_CFGR_AWD1SGL;
+      regval |= (ADC_CFGR_AWD1CH(priv->wdg1_chan)
+                & ADC_CFGR_AWD1CH_MASK);
+    }
+
+  adc_putreg(priv, STM32_ADC_CFGR_OFFSET, regval);
+}
+#endif
 
 /****************************************************************************
  * Name: adc_startconv
@@ -658,6 +801,68 @@ static void adc_startconv(struct stm32_dev_s *priv, bool enable)
       regval |= ADC_CR_ADSTP;
     }
 
+  adc_putreg(priv, STM32_ADC_CR_OFFSET, regval);
+}
+
+/****************************************************************************
+ * Name: adc_stopifstarted
+ *
+ * Description:
+ *   Gracefully stop ADC regular and/or injected conversions if they are
+ *   currently running.  This function writes ADSTP/JADSTP as needed,
+ *   waits until ADSTART and/or JADSTART clear, then returns a mask of
+ *   which conversion streams had been active so they can later be restarted.
+ *
+ * Input Parameters:
+ *   priv - A reference to the ADC block status
+ *
+ * Returned Value:
+ *   Bitmask of stopped conversion streams (ADC_CR_ADSTART and/or
+ *   ADC_CR_JADSTART) indicating which were active before the stop.
+ *
+ ****************************************************************************/
+
+static uint32_t adc_stopifstarted(struct stm32_dev_s *priv)
+{
+  uint32_t regval;
+  uint32_t startbits;
+
+  regval = adc_getreg(priv, STM32_ADC_CR_OFFSET);
+  startbits = (regval & (ADC_CR_ADSTART | ADC_CR_JADSTART));
+
+  regval &= ~(ADC_CR_ADSTART | ADC_CR_JADSTART);
+  regval |= (ADC_CR_ADSTP | ADC_CR_JADSTP);
+  adc_putreg(priv, STM32_ADC_CR_OFFSET, regval);
+
+  while ((adc_getreg(priv, STM32_ADC_CR_OFFSET) &
+          (ADC_CR_ADSTART | ADC_CR_JADSTART)) != 0);
+
+  return startbits;
+}
+
+/****************************************************************************
+ * Name: adc_startifstopped
+ *
+ * Description:
+ *   Restart ADC conversions that were previously stopped by
+ *   adc_stopifstarted().  The stopped_bits parameter should contain the
+ *   ADSTART and/or JADSTART flags that were returned earlier, ensuring
+ *   that only the streams that were active before are resumed.
+ *
+ * Input Parameters:
+ *   priv        - A reference to the ADC block status
+ *   stopped_bits - Bitmask of streams to restart (ADSTART/JADSTART)
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+static void adc_startifstopped(struct stm32_dev_s *priv,
+                               uint8_t stopped_bits)
+{
+  uint32_t regval = adc_getreg(priv, STM32_ADC_CR_OFFSET);
+  regval |= stopped_bits;
   adc_putreg(priv, STM32_ADC_CR_OFFSET, regval);
 }
 
@@ -761,7 +966,12 @@ static void adc_rxint(struct adc_dev_s *dev, bool enable)
     {
       /* Enable end of conversion and overrun interrupts */
 
-      regval |= ADC_INT_EOC | ADC_INT_OVR;
+      regval |= ADC_INT_OVR;
+
+      if (!priv->hasdma)
+        {
+          regval |= ADC_INT_EOC;
+        }
     }
   else
     {
@@ -859,7 +1069,10 @@ static void adc_oversample(struct adc_dev_s *dev)
                      (priv->ovsr << ADC_CFGR2_OVSR_SHIFT) |
                      (priv->ovss << ADC_CFGR2_OVSS_SHIFT);
 
-  setbits |= priv->trovs;
+  if (priv->trovs)
+    {
+      setbits |= ADC_CFGR2_TROVS;
+    }
 
   adc_modifyreg(priv, STM32_ADC_CFGR2_OFFSET, clrbits, setbits);
 }
@@ -930,6 +1143,35 @@ static void adc_restart_dma(struct adc_dev_s *dev)
 }
 
 /****************************************************************************
+ * Name: adc_reset_dma
+ *
+ * Description:
+ *   Reinitialize and restart the DMA stream used for ADC conversions.
+ *   This stops the current DMA transfer, reloads the DMA configuration,
+ *   and starts a new transfer with the proper callback and circular mode
+ *   setting.
+ *
+ * Input Parameters:
+ *   dev - Pointer to the ADC device structure. The private data is used
+ *         to retrieve the DMA handle and configuration.
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+static void adc_reset_dma(struct adc_dev_s *dev)
+{
+  struct stm32_dev_s *priv = (struct stm32_dev_s *)dev->ad_priv;
+  struct stm32_gpdma_cfg_s dmacfg;
+
+  adc_dmacfg(priv, &dmacfg);
+  stm32_dmastop(priv->dma);
+  stm32_dmasetup(priv->dma, &dmacfg);
+  stm32_dmastart(priv->dma, adc_dmaconvcallback, dev, priv->circular);
+}
+
+/****************************************************************************
  * Name: adc_dmaconvcallback
  *
  * Description:
@@ -952,9 +1194,8 @@ static void adc_dmaconvcallback(DMA_HANDLE handle, uint8_t status, void *arg)
   struct adc_dev_s   *dev  = (struct adc_dev_s *)arg;
   struct stm32_dev_s *priv = (struct stm32_dev_s *)dev->ad_priv;
 
-  uint16_t conversion_count;
-  uint16_t buffer_offset;
-  int i;
+  uint32_t conversion_count;
+  uint32_t buffer_offset;
 
   /* About Circular Mode
    * The size of r_dmabuffer and transfer size is doubled
@@ -967,7 +1208,7 @@ static void adc_dmaconvcallback(DMA_HANDLE handle, uint8_t status, void *arg)
 
   if (priv->cb != NULL)
     {
-      DEBUGASSERT(priv->cb->au_receive != NULL);
+      DEBUGASSERT(priv->cb->au_receive_batch != NULL);
 
       if (status & DMA_STATUS_FATAL)
         {
@@ -1009,33 +1250,18 @@ static void adc_dmaconvcallback(DMA_HANDLE handle, uint8_t status, void *arg)
 
       if (status & DMA_STATUS_HTF && priv->circular)
         {
-          for (i = 0; i < conversion_count; i++)
-            {
-              priv->cb->au_receive(dev,
-                priv->chanlist[priv->current],
-                priv->r_dmabuffer[i]);
-
-              priv->current++;
-              if (priv->current >= priv->rnchannels)
-                {
-                  priv->current = 0;
-                }
-            }
+          priv->cb->au_receive_batch(dev,
+                                     priv->r_chanbuffer,
+                                     priv->r_dmabuffer,
+                                     conversion_count);
         }
 
       if (status & DMA_STATUS_TCF)
         {
-          for (i = 0; i < conversion_count; i++)
-            {
-              priv->cb->au_receive(dev,
-                priv->chanlist[priv->current],
-                priv->r_dmabuffer[buffer_offset + i]);
-              priv->current++;
-              if (priv->current >= priv->rnchannels)
-                {
-                  priv->current = 0;
-                }
-            }
+          priv->cb->au_receive_batch(dev,
+                                     priv->r_chanbuffer,
+                                     &priv->r_dmabuffer[buffer_offset],
+                                     conversion_count);
         }
     }
 
@@ -1066,7 +1292,8 @@ static void adc_dmaconvcallback(DMA_HANDLE handle, uint8_t status, void *arg)
 static void adc_dmacfg(struct stm32_dev_s *priv,
                        struct stm32_gpdma_cfg_s *cfg)
 {
-  const uint32_t sdw_log2 = 1;  /* Always 16-bit half-word for ADC_DR */
+  const uint32_t src_sdw_log2 = 1;  /* Always 16-bit half-word for ADC_DR */
+  const uint32_t dst_sdw_log2 = 2;  /* 32-bit word for dmabuffer */
 
   cfg->src_addr   = priv->base + STM32_ADC_DR_OFFSET;
   cfg->dest_addr  = (uintptr_t)priv->r_dmabuffer;
@@ -1079,12 +1306,63 @@ static void adc_dmacfg(struct stm32_dev_s *priv,
 
   cfg->mode       = priv->circular ? GPDMACFG_MODE_CIRC : 0;
 
-  cfg->ntransfers = (priv->cchannels * priv->dmabatch) << sdw_log2;
+  cfg->ntransfers = (priv->cchannels * priv->dmabatch) << src_sdw_log2;
   cfg->ntransfers <<= (priv->circular ? 1 : 0);
 
-  cfg->tr1        = (sdw_log2 << GPDMA_CXTR1_SDW_LOG2_SHIFT)
-                  | (sdw_log2 << GPDMA_CXTR1_DDW_LOG2_SHIFT)
+  cfg->tr1        = (src_sdw_log2 << GPDMA_CXTR1_SDW_LOG2_SHIFT)
+                  | (dst_sdw_log2 << GPDMA_CXTR1_DDW_LOG2_SHIFT)
                   | GPDMA_CXTR1_DINC;  /* dest-inc, source fixed */
+}
+
+/****************************************************************************
+ * Name: adc_dma_init_chanbuf
+ *
+ * Description:
+ *   Initialize the channel buffer for use with au_receive_batch.
+ *
+ * Input Parameters:
+ *   priv     - ADC instance structure
+ *
+ * Returned Value:
+ *   None
+ ****************************************************************************/
+
+static void adc_dma_init_chanbuf(struct stm32_dev_s *priv)
+{
+  const uint32_t channels = priv->cchannels;
+  const uint32_t conversions = channels * priv->dmabatch;   /* total entries in r_chanbuffer */
+  uint8_t *dst = priv->r_chanbuffer;
+  uint32_t filled = 0;  /* number of valid bytes in dst */
+  uint32_t remain;
+  uint32_t chunk;
+
+  if (channels == 0 || conversions == 0)
+    {
+      return;
+    }
+
+  /* Fast path: single-channel scan ==> fill with one byte */
+
+  if (channels == 1)
+    {
+      memset(dst, priv->chanlist[0], conversions);
+      return;
+    }
+
+  /* Seed the first frame (one copy of chanlist) */
+
+  memcpy(dst, priv->chanlist, channels * sizeof(dst[0]));
+  filled = channels;
+
+  /* Exponentially replicate: copy the filled prefix onto the tail */
+
+  while (filled < conversions)
+    {
+      remain = conversions - filled;
+      chunk = (filled < remain) ? filled : remain;
+      memcpy(dst + filled, dst, chunk);
+      filled += chunk;
+    }
 }
 #endif
 
@@ -1131,7 +1409,7 @@ static int adc_setup(struct adc_dev_s *dev)
    * ADC1 and ADC2 are enabled.)
    */
 
-#if defined(CONFIG_STM32H5_ADC1) && defined(CONFIG_STM32H5_ADC2)
+#if defined(CONFIG_STM32_ADC1) && defined(CONFIG_STM32_ADC2)
   if ((dev == &g_adcdev1 &&
       !((struct stm32_dev_s *)g_adcdev2.ad_priv)->initialized) ||
      (dev == &g_adcdev2 &&
@@ -1141,12 +1419,9 @@ static int adc_setup(struct adc_dev_s *dev)
       adc_reset(dev);
     }
 
-  /* Initialize the same sample time for each ADC.
-   * During sample cycles channel selection bits must remain unchanged.
-   */
-
-  adc_putreg(priv, STM32_ADC_SMPR1_OFFSET, ADC_SMPR1_DEFAULT);
-  adc_putreg(priv, STM32_ADC_SMPR2_OFFSET, ADC_SMPR2_DEFAULT);
+  adc_putreg(priv, STM32_ADC_SMPR1_OFFSET, priv->smpr1);
+  adc_putreg(priv, STM32_ADC_SMPR2_OFFSET, priv->smpr2);
+  adc_putreg(priv, STM32_ADC_DIFSEL_OFFSET, priv->difsel);
 
   /* Set the resolution of the conversion. */
 
@@ -1167,6 +1442,7 @@ static int adc_setup(struct adc_dev_s *dev)
 
       if (priv->circular)
         {
+          setbits |= ADC_CFGR_OVRMOD; /* overwrite on overrun */
           setbits |= ADC_CFGR_DMACFG;
           setbits |= ADC_CFGR_CONT;
         }
@@ -1174,20 +1450,20 @@ static int adc_setup(struct adc_dev_s *dev)
         {
           clrbits |= ADC_CFGR_DMACFG;
           clrbits |= ADC_CFGR_CONT;
+          clrbits |= ADC_CFGR_OVRMOD; /* keep DR for non-DMA/sparse reads */
         }
     }
-#else
-  clrbits |= ADC_CFGR_CONT;
+  else
 #endif
+    {
+      clrbits |= ADC_CFGR_CONT;
+      clrbits |= ADC_CFGR_OVRMOD; /* keep DR for non-DMA/sparse reads */
+    }
 
   /* Disable external trigger for regular channels */
 
   clrbits |= ADC_CFGR_EXTEN_MASK;
   setbits |= ADC_CFGR_EXTEN_NONE;
-
-  /* Set overrun mode to preserve the data register */
-
-  clrbits |= ADC_CFGR_OVRMOD;
 
   /* Set CFGR configuration */
 
@@ -1224,6 +1500,8 @@ static int adc_setup(struct adc_dev_s *dev)
     }
 #endif
 
+  leave_critical_section(flags);
+
 #ifdef ADC_HAVE_DMA
 
   /* Enable DMA */
@@ -1240,11 +1518,21 @@ static int adc_setup(struct adc_dev_s *dev)
 
       priv->dma = stm32_dmachannel(GPDMA_TTYPE_P2M);
 
+      adc_dma_init_chanbuf(priv);
+
       adc_dmacfg(priv, &dmacfg);
 
       stm32_dmasetup(priv->dma, &dmacfg);
 
       stm32_dmastart(priv->dma, adc_dmaconvcallback, dev, priv->circular);
+    }
+#endif
+
+#ifdef ADC_HAVE_WDG1
+  if (priv->wdg1_enable)
+    {
+      adc_wdog1_init(priv);
+      adc_wdog1_enable(priv);
     }
 #endif
 
@@ -1265,15 +1553,6 @@ static int adc_setup(struct adc_dev_s *dev)
     }
 #endif
 
-#ifdef ADC_HAVE_DMA
-  if (priv->circular)
-    {
-      adc_startconv(priv, true);
-    }
-#endif
-
-  leave_critical_section(flags);
-
   ainfo("ISR:   0x%08" PRIx32 " CR:    0x%08" PRIx32 " "
         "CFGR:  0x%08" PRIx32 " CFGR2: 0x%08" PRIx32 "\n",
         adc_getreg(priv, STM32_ADC_ISR_OFFSET),
@@ -1288,14 +1567,8 @@ static int adc_setup(struct adc_dev_s *dev)
         adc_getreg(priv, STM32_ADC_SQR4_OFFSET));
   ainfo("CCR:   0x%08" PRIx32 "\n", adc_getregm(priv, STM32_ADC_CCR_OFFSET));
 
-  if (!priv->hasdma)
-    {
-      /* Enable the ADC interrupt */
-
-      ainfo("Enable the ADC interrupt: irq=%d\n", priv->irq);
-
-      up_enable_irq(priv->irq);
-    }
+  ainfo("Enable the ADC interrupt: irq=%d\n", priv->irq);
+  up_enable_irq(priv->irq);
 
   priv->initialized = true;
 
@@ -1402,7 +1675,8 @@ static int adc_set_ch(struct adc_dev_s *dev, uint8_t ch)
     }
   else
     {
-      for (i = 0; i < priv->cchannels && priv->chanlist[i] != ch - 1; i++);
+      for (i = 0; i < priv->cchannels &&
+           priv->chanlist[i] != ch - 1; i++);
 
       if (i >= priv->cchannels)
         {
@@ -1413,7 +1687,7 @@ static int adc_set_ch(struct adc_dev_s *dev, uint8_t ch)
       priv->rnchannels = 1;
     }
 
-  DEBUGASSERT(priv->rnchannels <= CONFIG_STM32H5_ADC_MAX_SAMPLES);
+  DEBUGASSERT(priv->rnchannels <= CONFIG_STM32_ADC_MAX_SAMPLES);
 
   bits = adc_sqrbits(priv, ADC_SQR4_FIRST, ADC_SQR4_LAST,
                      ADC_SQR4_SQ_OFFSET);
@@ -1502,14 +1776,13 @@ static int adc_ioc_set_oversample(struct adc_dev_s *dev, uint32_t arg)
 static int adc_ioctl(struct adc_dev_s *dev, int cmd, unsigned long arg)
 {
   struct stm32_dev_s *priv = (struct stm32_dev_s *)dev->ad_priv;
-  uint32_t regval;
-  uint32_t tmp;
   int ret = OK;
 
   switch (cmd)
     {
       case ANIOC_TRIGGER:
         {
+          priv->current = 0;
           adc_startconv(priv, true);
         }
         break;
@@ -1522,8 +1795,13 @@ static int adc_ioctl(struct adc_dev_s *dev, int cmd, unsigned long arg)
         }
         break;
 
-      case ANIOC_WDOG_UPPER: /* Set watchdog upper threshold */
+#ifdef ADC_HAVE_WDG1
+  uint32_t regval;
+  uint32_t startbits;
+  uint32_t tmp;
+     case ANIOC_WDOG_UPPER: /* Set watchdog upper threshold */
         {
+          startbits = adc_stopifstarted(priv);
           regval = adc_getreg(priv, STM32_ADC_TR1_OFFSET);
 
           /* Verify new upper threshold greater than lower threshold */
@@ -1537,17 +1815,28 @@ static int adc_ioctl(struct adc_dev_s *dev, int cmd, unsigned long arg)
 
           /* Set the watchdog threshold register */
 
-          regval = ((arg << ADC_TR1_HT1_SHIFT) & ADC_TR1_HT1_MASK);
+          regval &= ~ADC_TR1_HT1_MASK;
+          regval |= ((arg << ADC_TR1_HT1_SHIFT) & ADC_TR1_HT1_MASK);
           adc_putreg(priv, STM32_ADC_TR1_OFFSET, regval);
 
           /* Ensure analog watchdog is enabled */
 
-          adc_wdog_enable(priv);
+          adc_wdog1_enable(priv);
+#ifdef ADC_HAVE_DMA
+          if (priv->hasdma)
+            {
+              adc_reset_dma(dev);
+            }
+#endif
+
+          adc_startifstopped(priv, startbits);
         }
+
         break;
 
       case ANIOC_WDOG_LOWER: /* Set watchdog lower threshold */
         {
+          startbits = adc_stopifstarted(priv);
           regval = adc_getreg(priv, STM32_ADC_TR1_OFFSET);
 
           /* Verify new lower threshold less than upper threshold */
@@ -1561,14 +1850,25 @@ static int adc_ioctl(struct adc_dev_s *dev, int cmd, unsigned long arg)
 
           /* Set the watchdog threshold register */
 
-          regval = ((arg << ADC_TR1_LT1_SHIFT) & ADC_TR1_LT1_MASK);
+          regval &= ~ADC_TR1_LT1_MASK;
+          regval |= ((arg << ADC_TR1_LT1_SHIFT) & ADC_TR1_LT1_MASK);
           adc_putreg(priv, STM32_ADC_TR1_OFFSET, regval);
 
           /* Ensure analog watchdog is enabled */
 
-          adc_wdog_enable(priv);
+          adc_wdog1_enable(priv);
+#ifdef ADC_HAVE_DMA
+          if (priv->hasdma)
+            {
+              adc_reset_dma(dev);
+            }
+#endif
+
+          adc_startifstopped(priv, startbits);
         }
+
         break;
+#endif
 
 #ifdef ADC_HAVE_OVERSAMPLE
       case ANIOC_SET_OVERSAMPLE:
@@ -1604,27 +1904,33 @@ static int adc_interrupt(struct adc_dev_s *dev, uint32_t adcisr)
   struct stm32_dev_s *priv = (struct stm32_dev_s *)dev->ad_priv;
   int32_t value;
 
-  /* Identifies the AWD interrupt */
-
-  if ((adcisr & ADC_INT_AWD1) != 0)
+#ifdef ADC_HAVE_WDG
+  uint32_t awd_mask = adcisr & (ADC_INT_AWD1 | ADC_INT_AWD2 | ADC_INT_AWD3);
+  uint32_t regval;
+  if (awd_mask != 0)
     {
-      value  = adc_getreg(priv, STM32_ADC_DR_OFFSET);
-      value &= ADC_DR_MASK;
+      regval = adc_getreg(priv, STM32_ADC_IER_OFFSET);
+      regval &= ~(awd_mask);
+      adc_putreg(priv, STM32_ADC_IER_OFFSET, regval);
 
-      awarn("WARNING: Analog Watchdog, Value (0x%03" PRIx32 ") "
-            "out of range!\n", value);
+      if ((adcisr & ADC_INT_AWD1) != 0)
+        {
+          awarn("WARNING: Analog Watchdog 1 out of range!\n");
+        }
 
-      /* Stop ADC conversions to avoid continuous interrupts */
+      if ((adcisr & ADC_INT_AWD2) != 0)
+        {
+          awarn("WARNING: Analog Watchdog 2 out of range!\n");
+        }
 
-      adc_startconv(priv, false);
+      if ((adcisr & ADC_INT_AWD3) != 0)
+        {
+          awarn("WARNING: Analog Watchdog 3 out of range!\n");
+        }
 
-      /* Clear the interrupt. This register only accepts write 1's so its
-       * safe to only set the 1 bit without regard for the rest of the
-       * register
-       */
-
-      adc_putreg(priv, STM32_ADC_ISR_OFFSET, ADC_INT_AWD1);
+      adc_putreg(priv, STM32_ADC_ISR_OFFSET, awd_mask);
     }
+#endif
 
   /* OVR: Overrun */
 
@@ -1653,11 +1959,6 @@ static int adc_interrupt(struct adc_dev_s *dev, uint32_t adcisr)
           priv->cb->au_reset(dev);
         }
 
-      /* Clear the interrupt. This register only accepts write 1's so its
-       * safe to only set the 1 bit without regard for the rest of the
-       * register
-       */
-
       adc_putreg(priv, STM32_ADC_ISR_OFFSET, ADC_INT_OVR);
     }
 
@@ -1676,8 +1977,7 @@ static int adc_interrupt(struct adc_dev_s *dev, uint32_t adcisr)
            * (It is cleared by reading the ADC_DR)
            */
 
-          value  = adc_getreg(priv, STM32_ADC_DR_OFFSET);
-          value &= ADC_DR_MASK;
+          value = adc_getreg(priv, STM32_ADC_DR_OFFSET) & ADC_DR_MASK;
 
           /* Verify that the upper-half driver has bound its
            * callback functions
@@ -1733,13 +2033,13 @@ static int adc_interrupt(struct adc_dev_s *dev, uint32_t adcisr)
  *
  ****************************************************************************/
 
-#if defined(CONFIG_STM32H5_ADC1) || defined(CONFIG_STM32H5_ADC2)
+#if defined(CONFIG_STM32_ADC1) || defined(CONFIG_STM32_ADC2)
 static int adc12_interrupt(int irq, void *context, void *arg)
 {
   uint32_t regval;
   uint32_t pending;
 
-#ifdef CONFIG_STM32H5_ADC1
+#ifdef CONFIG_STM32_ADC1
   regval  = getreg32(STM32_ADC1_ISR);
   pending = regval & ADC_INT_MASK;
   if (pending != 0)
@@ -1748,7 +2048,7 @@ static int adc12_interrupt(int irq, void *context, void *arg)
     }
 #endif
 
-#ifdef CONFIG_STM32H5_ADC2
+#ifdef CONFIG_STM32_ADC2
   regval  = getreg32(STM32_ADC2_ISR);
   pending = regval & ADC_INT_MASK;
   if (pending != 0)
@@ -2285,12 +2585,11 @@ static int adc_timinit(struct stm32_dev_s *priv)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32h5_adc_initialize
+ * Name: stm32_adc_initialize
  ****************************************************************************/
 
-struct adc_dev_s *stm32h5_adc_initialize(int intf,
-                                         const uint8_t *chanlist,
-                                         int cchannels)
+struct adc_dev_s *stm32_adc_initialize(int intf, const uint8_t *chanlist,
+                                       int cchannels)
 {
   struct adc_dev_s *dev;
   struct stm32_dev_s *priv;
@@ -2299,13 +2598,13 @@ struct adc_dev_s *stm32h5_adc_initialize(int intf,
 
   switch (intf)
     {
-#ifdef CONFIG_STM32H5_ADC1
+#ifdef CONFIG_STM32_ADC1
       case 1:
         ainfo("ADC1 selected\n");
         dev = &g_adcdev1;
         break;
 #endif
-#ifdef CONFIG_STM32H5_ADC2
+#ifdef CONFIG_STM32_ADC2
       case 2:
         ainfo("ADC2 selected\n");
         dev = &g_adcdev2;
@@ -2321,10 +2620,10 @@ struct adc_dev_s *stm32h5_adc_initialize(int intf,
   priv = (struct stm32_dev_s *)dev->ad_priv;
   priv->cb = NULL;
 
-  DEBUGASSERT(cchannels <= CONFIG_STM32H5_ADC_MAX_SAMPLES);
-  if (cchannels > CONFIG_STM32H5_ADC_MAX_SAMPLES)
+  DEBUGASSERT(cchannels <= CONFIG_STM32_ADC_MAX_SAMPLES);
+  if (cchannels > CONFIG_STM32_ADC_MAX_SAMPLES)
     {
-      cchannels = CONFIG_STM32H5_ADC_MAX_SAMPLES;
+      cchannels = CONFIG_STM32_ADC_MAX_SAMPLES;
     }
 
   priv->cchannels = cchannels;
@@ -2340,6 +2639,5 @@ struct adc_dev_s *stm32h5_adc_initialize(int intf,
 
   return dev;
 }
-#endif /* CONFIG_STM32H5_ADC1 || CONFIG_STM32H5_ADC2 */
+#endif /* CONFIG_STM32_ADC1 || CONFIG_STM32_ADC2 */
 #endif /* CONFIG_ADC */
-

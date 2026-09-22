@@ -29,7 +29,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <inttypes.h>
 
 #include <nuttx/sched.h>
@@ -186,17 +186,17 @@ static uint32_t _i2s_tx_th_bytes;
  * Private Function Prototypes
  ****************************************************************************/
 
-static uint32_t lc823450_i2s_rxsamplerate(struct i2s_dev_s *dev,
+static int32_t  lc823450_i2s_rxsamplerate(struct i2s_dev_s *dev,
                                           uint32_t rate);
-static uint32_t lc823450_i2s_rxdatawidth(struct i2s_dev_s *dev, int bits);
+static int32_t  lc823450_i2s_rxdatawidth(struct i2s_dev_s *dev, int bits);
 static int      lc823450_i2s_receive(struct i2s_dev_s *dev,
                                      struct ap_buffer_s *apb,
                                      i2s_callback_t callback, void *arg,
                                      uint32_t timeout);
 
-static uint32_t lc823450_i2s_txsamplerate(struct i2s_dev_s *dev,
+static int32_t  lc823450_i2s_txsamplerate(struct i2s_dev_s *dev,
                                           uint32_t rate);
-static uint32_t lc823450_i2s_txdatawidth(struct i2s_dev_s *dev, int bits);
+static int32_t  lc823450_i2s_txdatawidth(struct i2s_dev_s *dev, int bits);
 static int      lc823450_i2s_send(struct i2s_dev_s *dev,
                                   struct ap_buffer_s *apb,
                                   i2s_callback_t callback, void *arg,
@@ -291,7 +291,7 @@ static void _setup_audio_pll(uint32_t freq)
 
   /* TODO: Wait */
 
-  nxsig_usleep(50 * 1000);
+  nxsched_usleep(50 * 1000);
 
   /* Switch to the PLL */
 
@@ -312,7 +312,7 @@ static void _setup_audio_pll(uint32_t freq)
  * Name: lc823450_i2s_rxsamplerate
  ****************************************************************************/
 
-static uint32_t lc823450_i2s_rxsamplerate(struct i2s_dev_s *dev,
+static int32_t lc823450_i2s_rxsamplerate(struct i2s_dev_s *dev,
                                           uint32_t rate)
 {
   /* Change ASRC FSO rate */
@@ -340,7 +340,7 @@ static uint32_t lc823450_i2s_rxsamplerate(struct i2s_dev_s *dev,
  * Name: lc823450_i2s_rxdatawidth
  ****************************************************************************/
 
-static uint32_t lc823450_i2s_rxdatawidth(struct i2s_dev_s *dev, int bits)
+static int32_t lc823450_i2s_rxdatawidth(struct i2s_dev_s *dev, int bits)
 {
   return 0;
 }
@@ -573,7 +573,7 @@ static void _i2s_txdma_callback(DMA_HANDLE hdma, void *arg, int result)
  * Name: lc823450_i2s_txsamplerate
  ****************************************************************************/
 
-static uint32_t lc823450_i2s_txsamplerate(struct i2s_dev_s *dev,
+static int32_t lc823450_i2s_txsamplerate(struct i2s_dev_s *dev,
                                           uint32_t rate)
 {
   /* Change SSRC FSI rate */
@@ -601,7 +601,7 @@ static uint32_t lc823450_i2s_txsamplerate(struct i2s_dev_s *dev,
  * Name: lc823450_i2s_txdatawidth
  ****************************************************************************/
 
-static uint32_t lc823450_i2s_txdatawidth(struct i2s_dev_s *dev, int bits)
+static int32_t lc823450_i2s_txdatawidth(struct i2s_dev_s *dev, int bits)
 {
   return 0;
 }
@@ -1052,7 +1052,7 @@ struct i2s_dev_s *lc823450_i2sdev_initialize(void)
   /* Set the new affinity which assigns to CPU0 */
 
   nxsched_set_affinity(nxsched_gettid(), sizeof(cpuset1), &cpuset1);
-  nxsig_usleep(10 * 1000);
+  nxsched_usleep(10 * 1000);
 #endif
 
   irq_attach(LC823450_IRQ_AUDIOBUF0, _i2s_isr, NULL);
@@ -1065,7 +1065,7 @@ struct i2s_dev_s *lc823450_i2sdev_initialize(void)
   /* Restore the original affinity */
 
   nxsched_set_affinity(nxsched_gettid(), sizeof(cpuset0), &cpuset0);
-  nxsig_usleep(10 * 1000);
+  nxsched_usleep(10 * 1000);
 #endif
 
   /* Success exit */

@@ -38,13 +38,15 @@
 
 #  include <IfxCpu_reg.h>
 #  include <Ifx_Ssw_Compilers.h>
-#  include <Tricore/Compilers/Compilers.h>
+#  include <Compilers/Compilers.h>
 #  include <IfxCpu_Intrinsics.h>
 #endif
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+#define SCU_FREQUENCY 100000000UL
 
 /* Determine which (if any) console driver to use.  If a console is enabled
  * and no other console device is specified, then a serial console is
@@ -67,6 +69,9 @@
 #  elif defined(CONFIG_RPMSG_UART_CONSOLE)
 #    undef  USE_SERIALDRIVER
 #    undef  USE_EARLYSERIALINIT
+#  elif defined(CONFIG_RPMSG_UART_RAW_CONSOLE)
+#    undef  USE_SERIALDRIVER
+#    undef  USE_EARLYSERIALINIT
 #  else
 #    define USE_SERIALDRIVER 1
 #    define USE_EARLYSERIALINIT 1
@@ -83,25 +88,13 @@
 #  define USE_SERIALDRIVER 1
 #endif
 
-/* For use with EABI and floating point, the stack must be aligned to 8-byte
- * addresses.
- */
-
-#define STACK_ALIGNMENT     8
-
-/* Stack alignment macros */
-
-#define STACK_ALIGN_MASK    (STACK_ALIGNMENT - 1)
-#define STACK_ALIGN_DOWN(a) ((a) & ~STACK_ALIGN_MASK)
-#define STACK_ALIGN_UP(a)   (((a) + STACK_ALIGN_MASK) & ~STACK_ALIGN_MASK)
-
 /* Check if an interrupt stack size is configured */
 
 #ifndef CONFIG_ARCH_INTERRUPTSTACK
 #  define CONFIG_ARCH_INTERRUPTSTACK 0
 #endif
 
-#define INTSTACK_SIZE (CONFIG_ARCH_INTERRUPTSTACK & ~STACK_ALIGN_MASK)
+#define INTSTACK_SIZE (CONFIG_ARCH_INTERRUPTSTACK & ~STACKFRAME_ALIGN_MASK)
 
 /* This is the value used to mark the stack for subsequent stack monitoring
  * logic.
@@ -127,22 +120,7 @@
 #define modreg32(v,m,a) putreg32((getreg32(a) & ~(m)) | ((v) & (m)), (a))
 #define modreg64(v,m,a) putreg64((getreg64(a) & ~(m)) | ((v) & (m)), (a))
 
-/* Context switching */
-
-#ifndef tricore_fullcontextrestore
-#  define tricore_fullcontextrestore(restoreregs) \
-    sys_call1(SYS_restore_context, (uintptr_t)restoreregs);
-#else
-extern void tricore_fullcontextrestore(uintptr_t *restoreregs);
-#endif
-
-#ifndef tricore_switchcontext
-#  define tricore_switchcontext(saveregs, restoreregs) \
-    sys_call2(SYS_switch_context, (uintptr_t)saveregs, (uintptr_t)restoreregs);
-#else
-extern void tricore_switchcontext(uintptr_t **saveregs,
-                                  uintptr_t *restoreregs);
-#endif
+#define tricore_fullcontextrestore() sys_call0(SYS_restore_context)
 
 /****************************************************************************
  * Public Types
@@ -178,19 +156,8 @@ extern uintptr_t        __ISTACK0[];
 
 /* These symbols are setup by the linker script. */
 
-#ifdef CONFIG_TRICORE_TOOLCHAIN_TASKING
-extern uintptr_t        _lc_gb_data[]; /* Start of .data */
-extern uintptr_t        _lc_ge_data[]; /* End+1 of .data */
-#define _sdata          _lc_gb_data
-#define _edata          _lc_ge_data
-#define _eheap          __USTACK0_END
-#else
-extern uintptr_t        __HEAP[];      /* End+1 of .data */
-extern uintptr_t        __A0_MEM[];    /* End+1 of .data */
-#define _sdata          LCF_DSPR0_START
-#define _edata          __A0_MEM
-#define _eheap          __USTACK0_END
-#endif
+extern uintptr_t        _sheap[]; /* Start of .heap */
+extern uintptr_t        _eheap[]; /* End+1 of .heap */
 
 #endif
 
@@ -202,14 +169,13 @@ extern uintptr_t        __A0_MEM[];    /* End+1 of .data */
  * Inline Functions
  ****************************************************************************/
 
-/* Macros to handle saving and restoring interrupt state. */
-
-#define tricore_savestate(regs)    (regs = up_current_regs())
-#define tricore_restorestate(regs) (up_set_current_regs(regs))
-
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
+
+/* Interrupt ****************************************************************/
+
+void tricore_ack_irq(int irq);
 
 /* Signal handling **********************************************************/
 
@@ -219,6 +185,7 @@ void tricore_sigdeliver(void);
 
 void tricore_svcall(volatile void *trap);
 void tricore_trapcall(volatile void *trap);
+void tricore_trapinit(void);
 
 /* Context Save Areas *******************************************************/
 
@@ -237,6 +204,16 @@ void tricore_serialinit(void);
 
 #ifdef USE_EARLYSERIALINIT
 void tricore_earlyserialinit(void);
+#endif
+
+/* FPU **********************************************************************/
+
+#ifdef CONFIG_ARCH_HAVE_FPU
+void tricore_fpuinit(void);
+#endif
+
+#ifdef CONFIG_ARCH_HAVE_DEBUG
+int tricore_init_dbgmonitor(void);
 #endif
 
 /* System Timer *************************************************************/

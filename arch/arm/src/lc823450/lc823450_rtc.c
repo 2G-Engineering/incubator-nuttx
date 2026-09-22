@@ -39,7 +39,7 @@
 
 #include <time.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
 #include "lc823450_syscontrol.h"
@@ -173,7 +173,7 @@ static void tm_divider(struct tm *tm, int divn, int divm)
 {
   time_t tt;
   tt = timegm(tm);
-  tt = (time_t) ((uint64_t)tt * divn / divm);
+  tt = tt * divn / divm;
   gmtime_r(&tt, tm);
 }
 #endif /* CONFIG_RTC_DIV */

@@ -123,7 +123,7 @@
 #  define REG_D15           (30) /* D15 */
 #  define REG_S30           (30) /* S30 */
 #  define REG_S31           (31) /* S31 */
-#  ifdef CONFIG_ARM_HAVE_DPFPU32
+#  ifdef CONFIG_ARM_DPFPU32
 #    define REG_D16         (32) /* D16 */
 #    define REG_D17         (34) /* D17 */
 #    define REG_D18         (36) /* D18 */
@@ -259,6 +259,7 @@ struct xcpt_syscall_s
 
 struct xcptcontext
 {
+#ifdef CONFIG_ENABLE_ALL_SIGNALS
   /* These are saved copies of the context used during
    * signal processing.
    */
@@ -273,6 +274,7 @@ struct xcptcontext
   uint32_t sigreturn;
 
 #endif
+#endif /* CONFIG_ENABLE_ALL_SIGNALS */
 
   /* Register save area with XCPTCONTEXT_SIZE, only valid when:
    * 1.The task isn't running or

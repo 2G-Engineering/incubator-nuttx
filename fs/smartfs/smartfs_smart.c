@@ -36,7 +36,7 @@
 #include <assert.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
@@ -258,7 +258,7 @@ static int smartfs_open(FAR struct file *filep, FAR const char *relpath,
 
   if (ret == OK)
     {
-      /* The name exists -- but is is a file or a directory? */
+      /* The name exists -- but is it a file or a directory? */
 
       if (sf->entry.flags & SMARTFS_DIRENT_TYPE_DIR)
         {
@@ -285,7 +285,7 @@ static int smartfs_open(FAR struct file *filep, FAR const char *relpath,
        * is writeable. O_TRUNC without write access is ignored.
        */
 
-      if ((oflags & (O_TRUNC | O_WROK)) == (O_TRUNC | O_WROK))
+      if ((oflags & (O_TRUNC | O_WRONLY)) == (O_TRUNC | O_WRONLY))
         {
           /* Truncate the file as part of the open */
 
@@ -693,7 +693,7 @@ static ssize_t smartfs_write(FAR struct file *filep, FAR const char *buffer,
    * write flags.
    */
 
-  if ((sf->oflags & O_WROK) == 0)
+  if ((sf->oflags & O_ACCMODE) == O_RDONLY)
     {
       ret = -EACCES;
       goto errout_with_lock;
@@ -1223,7 +1223,7 @@ static int smartfs_truncate(FAR struct file *filep, off_t length)
    * write flags.
    */
 
-  if ((sf->oflags & O_WROK) == 0)
+  if ((sf->oflags & O_ACCMODE) == O_RDONLY)
     {
       ret = -EACCES;
       goto errout_with_lock;

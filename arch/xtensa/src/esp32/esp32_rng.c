@@ -27,7 +27,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/param.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <nuttx/fs/fs.h>
@@ -40,9 +40,8 @@
 #include <arch/xtensa/core_macros.h>
 
 #include "xtensa.h"
-#include "xtensa_attr.h"
+
 #include "hardware/wdev_reg.h"
-#include "esp32_clockconfig.h"
 
 #include "esp_random.h"
 

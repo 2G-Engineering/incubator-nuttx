@@ -47,9 +47,6 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int stm32_bringup(void)
@@ -68,7 +65,7 @@ int stm32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_STM32F7_FOC
+#ifdef CONFIG_STM32_FOC
   /* Initialize and register the FOC device - must be before ADC setup */
 
   ret = stm32_foc_setup();

@@ -37,7 +37,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <fcntl.h>
 #include <stdio.h>
 
@@ -3388,7 +3388,7 @@ static int cxd56_usbdev_open(struct file *filep, const char *relpath,
    * REVISIT:  Write-able proc files could be quite useful.
    */
 
-  if (((oflags & O_WRONLY) != 0 || (oflags & O_RDONLY) == 0))
+  if ((oflags & O_ACCMODE) != O_RDONLY)
     {
       uerr("ERROR: Only O_RDONLY supported\n");
       return -EACCES;

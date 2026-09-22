@@ -1,5 +1,5 @@
 # ##############################################################################
-# boards/arm/imxrt/arcx-socket-grid/src/Makefile
+# boards/arm/imxrt/arcx-socket-grid/src/CMakeLists.txt
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -20,16 +20,11 @@
 #
 # ##############################################################################
 
-set(SRCS imxrt_boot.c imxrt_flexspi_nor_boot.c imxrt_flexspi_nor_flash.c)
+set(SRCS imxrt_boot.c imxrt_flexspi_nor_boot.c imxrt_flexspi_nor_flash.c
+         imxrt_bringup.c)
 
 if(CONFIG_IMXRT_SDRAMC)
   list(APPEND SRCS imxrt_sdram.c)
-endif()
-
-if(CONFIG_BOARDCTL)
-  list(APPEND SRCS imxrt_appinit.c imxrt_bringup.c)
-elseif(CONFIG_BOARD_LATE_INITIALIZE)
-  list(APPEND SRCS imxrt_bringup.c)
 endif()
 
 if(CONFIG_ARCH_LEDS)

@@ -32,7 +32,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <sched.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/signal.h>
@@ -154,7 +154,7 @@ static int usbmonitor_daemon(int argc, FAR char **argv)
 
   while (!g_usbmonitor.stop)
     {
-      nxsig_sleep(CONFIG_USBMONITOR_INTERVAL);
+      nxsched_sleep(CONFIG_USBMONITOR_INTERVAL);
 #ifdef CONFIG_USBDEV_TRACE
       usbtrace_enumerate(usbmonitor_tracecallback, NULL);
 #endif

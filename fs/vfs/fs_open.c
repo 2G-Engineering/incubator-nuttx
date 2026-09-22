@@ -49,54 +49,6 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: inode_checkflags
- *
- * Description:
- *   Check if the access described by 'oflags' is supported on 'inode'
- *
- *   inode_checkflags() is an internal NuttX interface and should not be
- *   called from applications.
- *
- * Input Parameters:
- *   inode  - The inode to check
- *   oflags - open flags.
- *
- * Returned Value:
- *   Zero (OK) is returned on success.  On failure, a negated errno value is
- *   returned.
- *
- ****************************************************************************/
-
-static int inode_checkflags(FAR struct inode *inode, int oflags)
-{
-  FAR const struct file_operations *ops = inode->u.i_ops;
-
-  if (INODE_IS_PSEUDODIR(inode))
-    {
-      return OK;
-    }
-
-  if (ops == NULL)
-    {
-      return -ENXIO;
-    }
-
-  if (((oflags & O_RDOK) != 0 && !ops->readv && !ops->read && !ops->ioctl) ||
-      ((oflags & O_WROK) != 0 && !ops->writev && !ops->write && !ops->ioctl))
-    {
-      return -EACCES;
-    }
-  else
-    {
-      return OK;
-    }
-}
-
-/****************************************************************************
- * Name: file_vopen
- ****************************************************************************/
-
-/****************************************************************************
  * Name: file_vopen
  *
  * Description:
@@ -203,7 +155,7 @@ static int file_vopen(FAR struct file *filep, FAR const char *path,
 
 #ifdef CONFIG_BCH_DEVICE_READONLY
       oflags &= ~O_RDWR;
-      oflags |= O_RDOK;
+      oflags |= O_RDONLY;
 #endif
 
       ret = block_proxy(filep, path, oflags);
@@ -218,9 +170,9 @@ static int file_vopen(FAR struct file *filep, FAR const char *path,
     }
 #endif
 
-  /* Make sure that the inode supports the requested access */
+  /* Validate operation support and pseudo-filesystem permissions */
 
-  ret = inode_checkflags(inode, oflags);
+  ret = inode_checkopenperm(inode, oflags);
   if (ret < 0)
     {
       goto errout_with_inode;
@@ -235,6 +187,10 @@ static int file_vopen(FAR struct file *filep, FAR const char *path,
    * called many times.  The driver/mountpoint logic should handle this
    * because it may also be closed that many times.
    */
+
+  clock_t start_time;
+
+  FS_PROFILE_START(start_time);
 
   if (oflags & O_DIRECTORY)
     {
@@ -261,7 +217,10 @@ static int file_vopen(FAR struct file *filep, FAR const char *path,
       ret = -ENXIO;
     }
 
-  if (ret == -EISDIR && ((oflags & O_WRONLY) == 0))
+  FS_PROFILE_STOP(start_time, g_fs_profile.total_open_time,
+                  g_fs_profile.opens);
+
+  if (ret == -EISDIR && (oflags & O_ACCMODE) == O_RDONLY)
     {
       ret = dir_allocate(filep, desc.relpath);
     }
@@ -315,22 +274,24 @@ static int nx_vopen(FAR struct fdlist *list,
   int ret;
   int fd;
 
-  /* Allocate a new file descriptor for the inode */
-
-  fd = fdlist_allocate(list, oflags, 0, &filep);
-  if (fd < 0)
+  filep = file_allocate();
+  if (filep == NULL)
     {
-      return fd;
+      return -ENOMEM;
     }
 
-  /* Let file_vopen() do all of the work */
-
   ret = file_vopen(filep, path, oflags, getumask(), ap);
-  file_put(filep);
   if (ret < 0)
     {
-      fdlist_close(list, fd);
+      file_deallocate(filep);
       return ret;
+    }
+
+  fd = fdlist_dupfile(list, oflags, 0, filep);
+  if (fd < 0)
+    {
+      file_close(filep);
+      file_deallocate(filep);
     }
 
   return fd;
@@ -372,6 +333,11 @@ int file_open(FAR struct file *filep, FAR const char *path, int oflags, ...)
   va_start(ap, oflags);
   ret = file_vopen(filep, path, oflags, 0, ap);
   va_end(ap);
+
+  if (ret >= OK)
+    {
+      atomic_fetch_add(&filep->f_refs, 1);
+    }
 
   return ret;
 }

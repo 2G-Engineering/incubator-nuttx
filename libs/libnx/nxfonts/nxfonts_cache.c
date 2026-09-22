@@ -31,7 +31,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/mutex.h>
 #include <nuttx/nx/nxfonts.h>
@@ -384,7 +384,7 @@ static inline void nxf_fillglyph(FAR struct nxfonts_fcache_s *priv,
   if (priv->bpp == 24)
     {
       FAR uint32_t *ptr = (FAR uint32_t *)glyph->bitmap;
-      FAR uint32_t pixel[3];
+      uint32_t pixel[3];
 
       /* Get two 32-bit values for alternating 32 representations */
 

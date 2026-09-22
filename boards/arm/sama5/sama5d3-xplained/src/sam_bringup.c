@@ -31,7 +31,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/signal.h>
 
@@ -166,7 +166,7 @@ int sam_bringup(void)
         {
           /* Wait for mmc block driver to be registered. */
 
-          nxsig_sleep(1);
+          nxsched_sleep(1);
 
           /* Mount the volume on HSMCI0 */
 

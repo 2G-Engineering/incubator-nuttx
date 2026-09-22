@@ -26,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
@@ -42,7 +42,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_board_initialize
+ * Name: stm32_board_initialize
  *
  * Description:
  *   All STM32L4 architectures must provide the following entry point.  This
@@ -52,7 +52,7 @@
  *
  ****************************************************************************/
 
-void stm32l4_board_initialize(void)
+void stm32_board_initialize(void)
 {
   /* Configure on-board LEDs if LED support has been selected. */
 
@@ -61,20 +61,20 @@ void stm32l4_board_initialize(void)
 #endif
 
   /* Configure SPI chip selects if 1) SP2 is not disabled, and 2) the weak
-   * function stm32l4_spiinitialize() has been brought into the link.
+   * function stm32_spiinitialize() has been brought into the link.
    */
 
-#if defined(CONFIG_STM32L4_SPI1) || defined(CONFIG_STM32L4_SPI2) || defined(CONFIG_STM32L4_SPI3)
-  stm32l4_spiinitialize();
+#if defined(CONFIG_STM32_SPI1) || defined(CONFIG_STM32_SPI2) || defined(CONFIG_STM32_SPI3)
+  stm32_spiinitialize();
 #endif
 
   /* Initialize USB is 1) USBDEV is selected, 2) the USB controller is not
-   * disabled, and 3) the weak function stm32l4_usbinitialize() has been
+   * disabled, and 3) the weak function stm32_usbinitialize() has been
    * brought into the build.
    */
 
-#if defined(CONFIG_USBDEV) && defined(CONFIG_STM32L4_USB)
-  stm32l4_usbinitialize();
+#if defined(CONFIG_USBDEV) && defined(CONFIG_STM32_USB)
+  stm32_usbinitialize();
 #endif
 }
 
@@ -95,13 +95,6 @@ void stm32l4_board_initialize(void)
 #ifdef CONFIG_BOARD_LATE_INITIALIZE
 void board_late_initialize(void)
 {
-  /* Perform NSH initialization here instead of from the NSH.  This
-   * alternative NSH initialization is necessary when NSH is ran in
-   * user-space but the initialization function must run in kernel space.
-   */
-
-#if defined(CONFIG_NSH_LIBRARY) && !defined(CONFIG_NSH_ARCHINIT)
-  board_app_initialize(0);
-#endif
+  stm32_bringup();
 }
 #endif

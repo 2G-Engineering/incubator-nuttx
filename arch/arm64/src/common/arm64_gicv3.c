@@ -25,7 +25,7 @@
  ***************************************************************************/
 
 #include <nuttx/config.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <assert.h>
 
 #include <nuttx/arch.h>
@@ -156,53 +156,8 @@ static inline void arm64_gic_write_irouter(uint64_t val, unsigned int intid)
   putreg64(val, addr);
 }
 
-void arm64_gic_irq_set_priority(unsigned int intid, unsigned int prio,
-                                uint32_t flags)
-{
-  uint32_t      mask  = BIT(intid & (GIC_NUM_INTR_PER_REG - 1));
-  uint32_t      idx   = intid / GIC_NUM_INTR_PER_REG;
-  uint32_t      shift;
-  uint32_t      val;
-  unsigned long base = GET_DIST_BASE(intid);
-  irqstate_t    irq_flags;
-
-  /* Disable the interrupt */
-
-  putreg32(mask, ICENABLER(base, idx));
-  gic_wait_rwp(intid);
-
-  /* PRIORITYR registers provide byte access */
-
-  putreg8(prio & GIC_PRI_MASK, IPRIORITYR(base, intid));
-
-  /* Interrupt type config */
-
-  if (!GIC_IS_SGI(intid))
-    {
-      idx     = intid / GIC_NUM_CFG_PER_REG;
-      shift   = (intid & (GIC_NUM_CFG_PER_REG - 1)) * 2;
-
-      /* GICD_ICFGR requires full 32-bit RMW operations.
-       * Each interrupt uses 2 bits; thus updates must be synchronized
-       * to avoid losing configuration in concurrent environments.
-       */
-
-      irq_flags = spin_lock_irqsave(&g_gic_lock);
-
-      val = getreg32(ICFGR(base, idx));
-      val &= ~(GICD_ICFGR_MASK << shift);
-      if (flags & IRQ_TYPE_EDGE)
-        {
-          val |= (GICD_ICFGR_TYPE << shift);
-        }
-
-      putreg32(val, ICFGR(base, idx));
-      spin_unlock_irqrestore(&g_gic_lock, irq_flags);
-    }
-}
-
 /***************************************************************************
- * Name: arm64_gic_irq_trigger
+ * Name: up_set_irq_type
  *
  * Description:
  *   Set the trigger type for the specified IRQ source and the current CPU.
@@ -211,27 +166,26 @@ void arm64_gic_irq_set_priority(unsigned int intid, unsigned int prio,
  *   avoided in common implementations where possible.
  *
  * Input Parameters:
- *   irq   - The interrupt request to modify.
- *   flags - irq type, IRQ_TYPE_EDGE or IRQ_TYPE_LEVEL
- *           Default is IRQ_TYPE_LEVEL
+ *   irq  - The interrupt request to modify.
+ *   mode - Level sensitive or edge sensitive
  *
  * Returned Value:
  *   Zero (OK) on success; a negated errno value is returned on any failure.
  *
  ***************************************************************************/
 
-int arm64_gic_irq_trigger(unsigned int intid, uint32_t flags)
+int up_set_irq_type(int irq, int mode)
 {
-  uint32_t      idx  = intid / GIC_NUM_INTR_PER_REG;
+  uint32_t      idx  = irq / GIC_NUM_INTR_PER_REG;
   uint32_t      shift;
   uint32_t      val;
-  unsigned long base = GET_DIST_BASE(intid);
+  unsigned long base = GET_DIST_BASE(irq);
   irqstate_t    irq_flags;
 
-  if (!GIC_IS_SGI(intid))
+  if (!GIC_IS_SGI(irq))
     {
-      idx   = intid / GIC_NUM_CFG_PER_REG;
-      shift = (intid & (GIC_NUM_CFG_PER_REG - 1)) * 2;
+      idx   = irq / GIC_NUM_CFG_PER_REG;
+      shift = (irq & (GIC_NUM_CFG_PER_REG - 1)) * 2;
 
       /* GICD_ICFGR requires full 32-bit RMW operations.
        * Each interrupt uses 2 bits; thus updates must be synchronized
@@ -242,7 +196,7 @@ int arm64_gic_irq_trigger(unsigned int intid, uint32_t flags)
 
       val = getreg32(ICFGR(base, idx));
       val &= ~(GICD_ICFGR_MASK << shift);
-      if (flags & IRQ_TYPE_EDGE)
+      if (mode != IRQ_HIGH_LEVEL && mode != IRQ_LOW_LEVEL)
         {
           val |= (GICD_ICFGR_TYPE << shift);
         }
@@ -615,21 +569,6 @@ static void gicv3_dist_init(void)
   putreg32(0, GICD_CTLR);
   gic_wait_rwp(GIC_SPI_INT_BASE);
 
-#ifdef CONFIG_ARCH_SINGLE_SECURITY_STATE
-
-  /* Before configuration, we need to check whether
-   * the GIC single security state mode is supported.
-   * Make sure GICD_CTRL_NS is 1.
-   */
-
-  sys_set_bit(GICD_CTLR, GICD_CTRL_DS);
-  if (!sys_test_bit(GICD_CTLR, GICD_CTRL_DS))
-    {
-      sinfo("Current GIC does not support single security state\n");
-      PANIC();
-    }
-#endif
-
   /* Default configuration of all SPIs */
 
   for (intid = GIC_SPI_INT_BASE; intid < num_ints;
@@ -745,6 +684,35 @@ void up_disable_irq(int irq)
 {
   arm64_gic_irq_disable(irq);
 }
+
+/***************************************************************************
+ * Name: up_set_secure_irq
+ *
+ * Description:
+ *   Secure an IRQ
+ *
+ ***************************************************************************/
+
+#if defined(CONFIG_ARCH_TRUSTZONE_SECURE) || defined(CONFIG_ARCH_HIPRI_INTERRUPT)
+void up_secure_irq(int irq, bool secure)
+{
+  uint32_t mask      = BIT(irq & (GIC_NUM_INTR_PER_REG - 1));
+  uint32_t idx       = irq / GIC_NUM_INTR_PER_REG;
+  unsigned long base = GET_DIST_BASE(irq);
+  unsigned int val   = getreg32(IGROUPR(base, idx));
+
+  if (secure)
+    {
+      val &= (~mask);  /* group 0 fiq */
+    }
+  else
+    {
+      val |= mask;     /* group 1 irq */
+    }
+
+  putreg32(val, IGROUPR(base, idx));
+}
+#endif
 
 /***************************************************************************
  * Name: up_prioritize_irq

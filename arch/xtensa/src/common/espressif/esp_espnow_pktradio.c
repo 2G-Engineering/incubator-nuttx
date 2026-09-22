@@ -31,7 +31,7 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arpa/inet.h>
 #include <net/if.h>
@@ -42,12 +42,13 @@
 #include <nuttx/net/ip.h>
 #include <nuttx/spinlock.h>
 #include <nuttx/net/radiodev.h>
+#include <nuttx/net/netdev.h>
 #include <nuttx/net/sixlowpan.h>
 #include <nuttx/wireless/pktradio.h>
 #include <nuttx/wdog.h>
 
 #include "xtensa.h"
-#include "xtensa_attr.h"
+
 #include "esp_now.h"
 #include "esp_mac.h"
 #include "esp_espnow_pktradio.h"
@@ -1098,6 +1099,11 @@ static int espnow_ifup(FAR struct net_driver_s *dev)
 
   priv->txblocked = false;
   priv->bifup = true;
+
+  /* Link is ready for 6LoWPAN; set IFF_RUNNING (ifconfig "RUNNING"). */
+
+  netdev_carrier_on(dev);
+
   return OK;
 }
 
@@ -1147,6 +1153,8 @@ static int espnow_ifdown(FAR struct net_driver_s *dev)
   /* Mark the device "down" */
 
   priv->bifup = false;
+
+  netdev_carrier_off(dev);
 
   return OK;
 }

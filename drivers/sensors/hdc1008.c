@@ -20,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -29,7 +42,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <time.h>
 
 #include <nuttx/kmalloc.h>
@@ -200,7 +213,7 @@ static int hdc1008_measure_trh(FAR struct hdc1008_dev_s *priv, int *t,
    * both temperature and humidity.
    */
 
-  nxsig_usleep(20000);
+  nxsched_usleep(20000);
 
   ret = i2c_read(priv->i2c, &config, buf, 4);
   if (ret < 0)
@@ -250,7 +263,7 @@ static int hdc1008_measure_t_or_rh(FAR struct hdc1008_dev_s *priv,
    * margin for either temperature/humidity at maximum resolution.
    */
 
-  nxsig_usleep(10000);
+  nxsched_usleep(10000);
 
   ret = i2c_read(priv->i2c, &config, buf, 2);
   if (ret < 0)
@@ -902,7 +915,7 @@ static int hdc1008_reset(FAR struct hdc1008_dev_s *priv)
   do
     {
       ret = hdc1008_getreg(priv, HDC1008_REG_CONFIGURATION, &reg);
-      nxsig_usleep(1000);
+      nxsched_usleep(1000);
       --count;
     }
   while ((reg & HDC1008_CONFIGURATION_RST) && (ret == OK) && count);
@@ -974,7 +987,7 @@ int hdc1008_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
    * sure that it is ready.
    */
 
-  nxsig_usleep(15000);
+  nxsched_usleep(15000);
 
   /* Set default configuration */
 

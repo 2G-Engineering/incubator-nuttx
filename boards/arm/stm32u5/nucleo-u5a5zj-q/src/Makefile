@@ -25,11 +25,7 @@
 ASRCS =
 CSRCS = stm32_boot.c stm32_bringup.c stm32_spi.c
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += stm32_appinit.c
-endif
-
-ifeq ($(CONFIG_ARCH_BOARD_STM32U5_CUSTOM_CLOCKCONFIG),y)
+ifeq ($(CONFIG_ARCH_BOARD_STM32_CUSTOM_CLOCKCONFIG),y)
 CSRCS += stm32_clockconfig.c
 endif
 

@@ -32,7 +32,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
@@ -356,7 +356,7 @@ int imxrt_hprtc_initialize(void)
 {
   uint32_t regval;
 
-  /* Enable clocking to the the SNVS HP module.
+  /* Enable clocking to the SNVS HP module.
    * Clock is on in run mode, but off in WAIT and STOP modes.
    */
 

@@ -31,7 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/symtab.h>
 #include <nuttx/lib/elf.h>
@@ -174,7 +174,7 @@ static int libelf_symname(FAR struct mod_loadinfo_s *loadinfo,
           return ret;
         }
 
-      offset += CONFIG_LIBC_ELF_BUFFERINCR;
+      offset += readlen;
     }
 
   /* We will not get here */

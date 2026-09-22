@@ -28,7 +28,7 @@
 #include <nuttx/compiler.h>
 
 #include <sys/types.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <nuttx/clock.h>
@@ -68,6 +68,10 @@
 
 #if defined(CONFIG_INPUT_BUTTONS_LOWER) && defined(CONFIG_SIM_BUTTONS)
 #include <nuttx/input/buttons.h>
+#endif
+
+#ifdef CONFIG_TIMER_WDOG
+#include <nuttx/timers/timer_wdog.h>
 #endif
 
 #include "sim_internal.h"
@@ -311,12 +315,10 @@ int sim_bringup(void)
 #ifdef CONFIG_SIM_CAMERA
   /* Initialize and register the simulated video driver */
 
-  sim_camera_initialize();
-
-  ret = capture_initialize(CONFIG_SIM_CAMERA_DEV_PATH);
+  ret = sim_camera_initialize();
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: capture_initialize() failed: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: sim_camera_initialize() failed: %d\n", ret);
     }
 
 #endif
@@ -566,6 +568,14 @@ int sim_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: sim_cansock_initialize() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_TIMER_WDOG
+  ret = timer_wdog_initialize(0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: timer_wdog_initialize failed: %d\n", ret);
     }
 #endif
 

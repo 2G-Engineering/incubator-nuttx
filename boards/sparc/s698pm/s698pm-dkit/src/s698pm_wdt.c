@@ -30,7 +30,7 @@
 
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <sched.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -76,7 +76,7 @@ static int wdog_daemon(int argc, char *argv[])
 
   while (1)
     {
-      nxsig_usleep((CONFIG_S698PM_DKIT_WDG_THREAD_INTERVAL)*1000);
+      nxsched_usleep((CONFIG_S698PM_DKIT_WDG_THREAD_INTERVAL)*1000);
 
       /* Send keep alive ioctl */
 

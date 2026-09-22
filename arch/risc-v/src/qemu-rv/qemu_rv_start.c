@@ -31,7 +31,7 @@
 #include <nuttx/serial/uart_16550.h>
 #include <arch/board/board.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include "riscv_internal.h"
 #include "riscv_sbi.h"
 #include "chip.h"
@@ -166,9 +166,11 @@ void qemu_rv_start(int mhartid, const char *dtb)
     }
 #endif
 
-  /* Configure FPU */
+  /* Configure FPU and VPU */
 
   riscv_fpuconfig();
+
+  riscv_vpuconfig();
 
   if (mhartid > 0)
     {
@@ -225,6 +227,9 @@ void qemu_rv_start(int mhartid, const char *dtb)
 cpux:
 
 #ifdef CONFIG_SMP
+#  ifdef CONFIG_BUILD_PROTECTED
+  qemu_rv_configure_mpu();
+#  endif
   riscv_cpu_boot(mhartid);
 #endif
 

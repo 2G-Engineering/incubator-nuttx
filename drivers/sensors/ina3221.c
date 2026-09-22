@@ -20,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -29,7 +42,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
 #include <nuttx/kmalloc.h>

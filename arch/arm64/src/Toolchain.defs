@@ -81,7 +81,7 @@ else
 endif
 
 ifeq ($(CONFIG_STACK_CANARIES),y)
-  ARCHOPTIMIZATION += -fstack-protector-all
+  ARCHOPTIMIZATION += $(patsubst "%",%,$(CONFIG_STACK_CANARIES_LEVEL))
 endif
 
 ifeq ($(CONFIG_STACK_USAGE),y)
@@ -274,6 +274,10 @@ ifeq ($(CONFIG_LIBSUPCXX_TOOLCHAIN),y)
   EXTRA_LIBS += $(wildcard $(shell $(CC) $(ARCHCPUFLAGS) --print-file-name=libsupc++.a))
 endif
 
+ifeq ($(CONFIG_LIBCXXTOOLCHAIN),y)
+  EXTRA_LIBS += $(wildcard $(shell $(CC) $(ARCHCPUFLAGS) --print-file-name=libstdc++.a))
+endif
+
 ifeq ($(CONFIG_COVERAGE_TOOLCHAIN),y)
   EXTRA_LIBS += $(wildcard $(shell $(CC) $(ARCHCPUFLAGS) --print-file-name=libgcov.a))
 endif
@@ -288,7 +292,7 @@ LDMODULEFLAGS = -r -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/elf/gnu-elf.ld)
 CELFFLAGS = $(CFLAGS) -fvisibility=hidden # --target1-abs
 CXXELFFLAGS = $(CXXFLAGS) -fvisibility=hidden # --target1-abs
 
-LDELFFLAGS = -r -e __start
+LDELFFLAGS = -r -e _start
 ifneq ($(CONFIG_BUILD_KERNEL),y)
   # Flat build and protected elf entry point use crt0,
   # Kernel build will use apps/import/scripts/crt0

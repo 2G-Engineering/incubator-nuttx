@@ -22,7 +22,7 @@
 
 #include <nuttx/config.h>
 
-#ifndef CONFIG_STM32H7_CORTEXM4_ENABLED
+#ifndef CONFIG_STM32_CORTEXM4_ENABLED
 MEMORY
 {
   itcm  (rwx) : ORIGIN = 0x00000000, LENGTH = 64K
@@ -40,7 +40,7 @@ MEMORY
 MEMORY
 {
   itcm  (rwx) : ORIGIN = 0x00000000, LENGTH = 64K
-  flash (rx)  : ORIGIN = 0x08000000, LENGTH = CONFIG_STM32H7_CORTEXM7_FLASH_SIZE
+  flash (rx)  : ORIGIN = 0x08000000, LENGTH = CONFIG_STM32_CORTEXM7_FLASH_SIZE
   dtcm1 (rwx) : ORIGIN = 0x20000000, LENGTH = 64K
   dtcm2 (rwx) : ORIGIN = 0x20010000, LENGTH = 64K
   sram  (rwx) : ORIGIN = 0x24000000, LENGTH = 512K
@@ -113,18 +113,18 @@ SECTIONS
         *(.bss .bss.*)
         *(.gnu.linkonce.b.*)
         *(COMMON)
-        . = ALIGN(4);
+        . = ALIGN(8);
         _ebss = ABSOLUTE(.);
     } > sram
 
-    .shmem :
+    .shmem (NOLOAD):
     {
         . = ALIGN(4);
         *(.shmem);
         KEEP(*(.shmem))
     } > shmem
 
-    /* Emit the the D3 power domain section for locating BDMA data
+    /* Emit the D3 power domain section for locating BDMA data
      *
      * Static data with locate_data(".sram4") will be located
      * at start of SRAM4; the rest of SRAM4 will be added to the heap.

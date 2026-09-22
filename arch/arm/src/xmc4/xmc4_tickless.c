@@ -38,7 +38,7 @@
  * The RTOS will provide the following interfaces for use by the platform-
  * specific interval timer implementation:
  *
- *   void nxsched_timer_expiration(void):  Called by the platform-specific
+ *   void nxsched_process_timer(void):  Called by the platform-specific
  *     logic when the interval timer expires.
  *
  * NOTE
@@ -72,8 +72,8 @@
 #include <stdio.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
-#include <debug.h>
 
 #include "arm_internal.h"
 #include <arch/board/board.h>
@@ -150,7 +150,7 @@ static void xmc4_interval_handler(void *arg)
   putreg32(CCU4_CC4_TCCLR_TRBC_MASK, XMC4_CCU41_CC40TCCLR);
 
   g_tickless.pending = false;
-  nxsched_timer_expiration();
+  nxsched_process_timer();
 }
 
 /****************************************************************************
@@ -375,8 +375,8 @@ int up_timer_gettime(struct timespec *ts)
   ts->tv_sec = sec;
   ts->tv_nsec = (usec - (sec * USEC_PER_SEC)) * NSEC_PER_USEC;
 
-  tmrinfo("usec=%llu ts=(%lu, %lu)\n",
-          usec, (unsigned long)ts->tv_sec, (unsigned long)ts->tv_nsec);
+  tmrinfo("usec=%llu ts=(%jd, %ld)\n",
+          usec, (intmax_t)ts->tv_sec, ts->tv_nsec);
 
   return OK;
 }
@@ -385,7 +385,7 @@ int up_timer_gettime(struct timespec *ts)
  * Name: up_alarm_start
  *
  * Description:
- *   Start the alarm.  nxsched_alarm_expiration() will be called when the
+ *   Start the alarm.  nxsched_process_timer() will be called when the
  *   alarm occurs (unless up_alaram_cancel is called to stop it).
  *
  *   Provided by platform-specific code and called from the RTOS base code.
@@ -393,7 +393,7 @@ int up_timer_gettime(struct timespec *ts)
  * Input Parameters:
  *   ts - The time in the future at the alarm is expected to occur.  When
  *        the alarm occurs the timer logic will call
- *        nxsched_alarm_expiration().
+ *        nxsched_process_timer().
  *
  * Returned Value:
  *   Zero (OK) is returned on success; a negated errno value is returned on
@@ -412,8 +412,8 @@ int up_timer_start(const struct timespec *ts)
   uint64_t period;
   irqstate_t flags;
 
-  tmrinfo("ts=(%lu, %lu)\n",
-          (unsigned long)ts->tv_sec, (unsigned long)ts->tv_nsec);
+  tmrinfo("ts=(%jd, %ld)\n",
+          (intmax_t)ts->tv_sec, ts->tv_nsec);
   DEBUGASSERT(ts);
 
   /* Was an interval already running? */
@@ -429,8 +429,8 @@ int up_timer_start(const struct timespec *ts)
 
   /* Express the delay in microseconds */
 
-  usec = (uint64_t)ts->tv_sec * USEC_PER_SEC +
-         (uint64_t)(ts->tv_nsec / NSEC_PER_USEC);
+  usec = ts->tv_sec * USEC_PER_SEC +
+         (ts->tv_nsec / NSEC_PER_USEC);
 
   /* Compute periods of the timers to match delay to wait */
 
@@ -466,7 +466,7 @@ int up_timer_start(const struct timespec *ts)
  * Description:
  *   Cancel the alarm and return the time of cancellation of the alarm.
  *   These two steps need to be as nearly atomic as possible.
- *   nxsched_alarm_expiration() will not be called unless the alarm is
+ *   nxsched_process_timer() will not be called unless the alarm is
  *   restarted with up_alarm_start().
  *
  *   If, as a race condition, the alarm has already expired when this
@@ -563,11 +563,11 @@ int up_timer_cancel(struct timespec *ts)
 
       sec         = usec / USEC_PER_SEC;
       nsec        = ((usec) - (sec * USEC_PER_SEC)) * NSEC_PER_USEC;
-      ts->tv_sec  = (time_t)sec;
-      ts->tv_nsec = (unsigned long)nsec;
+      ts->tv_sec  = sec;
+      ts->tv_nsec = nsec;
 
-      tmrinfo("remaining count : %lu (%lu, %lu)\n", count,
-              (unsigned long)ts->tv_sec, (unsigned long)ts->tv_nsec);
+      tmrinfo("remaining count : %lu (%jd, %ld)\n", count,
+              (intmax_t)ts->tv_sec, ts->tv_nsec);
     }
 
   return OK;

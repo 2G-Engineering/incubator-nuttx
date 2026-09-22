@@ -42,8 +42,8 @@
 #include <poll.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
@@ -1742,7 +1742,7 @@ static int mxt_hwinitialize(FAR struct mxt_dev_s *priv)
       goto errout_with_objtab;
     }
 
-  nxsig_usleep(MXT_RESET_TIME);
+  nxsched_usleep(MXT_RESET_TIME);
 
   /* Update matrix size in the info structure */
 

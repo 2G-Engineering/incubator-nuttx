@@ -32,8 +32,8 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/clock.h>
 
@@ -301,8 +301,8 @@ int esp32c3_freerun_counter(struct esp32c3_freerun_s *freerun,
   ts->tv_sec  = sec;
   ts->tv_nsec = (usec - (sec * USEC_PER_SEC)) * NSEC_PER_USEC;
 
-  tmrinfo("   usec=%" PRIu64 " ts=(%lu, %lu)\n",
-          usec, (unsigned long)ts->tv_sec, (unsigned long)ts->tv_nsec);
+  tmrinfo("   usec=%" PRIu64 " ts=(%jd, %ld)\n",
+          usec, (intmax_t)ts->tv_sec, ts->tv_nsec);
 
   return OK;
 }

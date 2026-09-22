@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <semaphore.h>
 
 #include <nuttx/mutex.h>
@@ -595,11 +595,6 @@ int aes_cypher(void *out, const void *in, size_t size,
       return -EINVAL;
     }
 
-  if (keysize != 16)
-    {
-      return -EINVAL;
-    }
-
   if ((mode != AES_MODE_ECB) &&
       (mode != AES_MODE_CBC) &&
       (mode != AES_MODE_CTR))
@@ -633,6 +628,7 @@ int aes_cypher(void *out, const void *in, size_t size,
         memcpy(iv_buf, iv, AES_BLK_SIZE);
         ret = esp32_aes_ctr_cypher(&aes, &nc_off, iv_buf, cache_buf,
                                    in, out, size);
+        break;
       default:
         ret = -EINVAL;
         break;

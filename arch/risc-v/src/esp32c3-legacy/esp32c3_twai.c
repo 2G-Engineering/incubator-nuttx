@@ -33,7 +33,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 #include <nuttx/irq.h>
@@ -1220,7 +1220,7 @@ struct can_dev_s *esp32c3_twaiinitialize(int port)
       modifyreg32(SYSTEM_PERIP_RST_EN0_REG, 0, SYSTEM_TWAI_RST_M);
       modifyreg32(SYSTEM_PERIP_CLK_EN0_REG, SYSTEM_TWAI_CLK_EN_M, 0);
 
-      nxsig_usleep(1);
+      nxsched_usleep(1);
 
       modifyreg32(SYSTEM_PERIP_CLK_EN0_REG, 0, SYSTEM_TWAI_CLK_EN_M);
       modifyreg32(SYSTEM_PERIP_RST_EN0_REG, SYSTEM_TWAI_RST_M, 0);

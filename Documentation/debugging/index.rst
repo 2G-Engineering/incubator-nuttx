@@ -11,10 +11,12 @@ This page contains a collection of guides on how to debug problems with NuttX.
   debugging_elf_loadable_modules.rst
   tasktrace.rst
   kasan.rst
+  gprof.rst
   coredump.rst
   coresight.rst
   stackcheck.rst
   stackrecord.rst
+  stackusage.rst
   disabling_stackdumpdebug.rst
   debuggingflash_nuttxonarm.rst
   cortexmhardfaults.rst

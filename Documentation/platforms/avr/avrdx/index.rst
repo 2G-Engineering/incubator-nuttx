@@ -46,17 +46,21 @@ in :menuselection:`RTOS Features --> Clocks and Timers --> Support tick-less OS`
 changed to value of at least 300. Higher value is recommended though,
 300us is not going to be precise at all.
 
+Architecture code for this CPU family provides custom ``up_udelay`` function.
+More information can be found in :doc:`docs/up_udelay` document
+
 Peripheral Support
 ==================
 
 The following list indicates peripherals supported in NuttX:
 
-==========  ================
+==========  =======================
 Peripheral  Notes
-==========  ================
+==========  =======================
 GPIO        In board code
 UART        See below
-==========  ================
+TWI         Master only, more below
+==========  =======================
 
 GPIO
 ----
@@ -100,6 +104,12 @@ device file. File name corresponds to the peripheral related to it.
 This for example means that ``USART1`` peripheral will always
 be accessed through ``/dev/ttyS1`` regardless of what other ``USART``
 peripherals are enabled (if any.)
+
+TWI
+---
+
+Currently, only master is supported. Implementation details and quick
+usage instructions can be found in :doc:`docs/twi` document.
 
 Supported Boards
 ================

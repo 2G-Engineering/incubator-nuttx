@@ -44,7 +44,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
@@ -83,11 +83,10 @@ struct tone_upperhalf_s
 {
   uint8_t crefs;                       /* The number of times the device has been
                                         * opened */
-#ifdef CONFIG_PWM_MULTICHAN
   uint8_t channel;                     /* Output channel that drives the tone. */
-#endif
   volatile bool started;               /* True: pulsed output is being generated */
   mutex_t lock;                        /* Supports mutual exclusion */
+  sem_t  busysem;                      /* Don't accept new writes if busy */
   struct pwm_info_s tone;              /* Pulsed output for Audio Tone */
   struct pwm_lowerhalf_s *devtone;
   struct oneshot_lowerhalf_s *oneshot;
@@ -290,12 +289,8 @@ static void start_note(FAR struct tone_upperhalf_s *upper, uint8_t note)
   FAR struct pwm_lowerhalf_s *tone = upper->devtone;
 
   upper->tone.frequency           = g_notes_freq[note - 1];
-#ifdef CONFIG_PWM_MULTICHAN
   upper->tone.channels[0].channel = upper->channel;
   upper->tone.channels[0].duty    = b16HALF;
-#else
-  upper->tone.duty                = b16HALF;
-#endif
 
   /* REVISIT: Should check the return value */
 
@@ -310,12 +305,8 @@ static void stop_note(FAR struct tone_upperhalf_s *upper)
 {
   FAR struct pwm_lowerhalf_s *tone = upper->devtone;
 
-#ifdef CONFIG_PWM_MULTICHAN
   upper->tone.channels[0].channel = upper->channel;
   upper->tone.channels[0].duty    = 0;
-#else
-  upper->tone.duty                = 0;
-#endif
 
   /* REVISIT: Should check the return value */
 
@@ -387,10 +378,10 @@ static void next_note(FAR struct tone_upperhalf_s *upper)
       sec = duration / USEC_PER_SEC;
       nsec = ((duration) - (sec * USEC_PER_SEC)) * NSEC_PER_USEC;
 
-      ts.tv_sec = (time_t) sec;
-      ts.tv_nsec = (unsigned long)nsec;
+      ts.tv_sec = sec;
+      ts.tv_nsec = nsec;
 
-      ONESHOT_START(upper->oneshot, oneshot_callback, upper, &ts);
+      ONESHOT_START(upper->oneshot, &ts);
 
       g_silence_length = 0;
       return;
@@ -521,10 +512,10 @@ static void next_note(FAR struct tone_upperhalf_s *upper)
           sec = duration / USEC_PER_SEC;
           nsec = ((duration) - (sec * USEC_PER_SEC)) * NSEC_PER_USEC;
 
-          ts.tv_sec = (time_t) sec;
-          ts.tv_nsec = (unsigned long)nsec;
+          ts.tv_sec = sec;
+          ts.tv_nsec = nsec;
 
-          ONESHOT_START(upper->oneshot, oneshot_callback, upper, &ts);
+          ONESHOT_START(upper->oneshot, &ts);
           return;
 
           /* Change tempo */
@@ -564,10 +555,10 @@ static void next_note(FAR struct tone_upperhalf_s *upper)
               sec = duration / USEC_PER_SEC;
               nsec = ((duration) - (sec * USEC_PER_SEC)) * NSEC_PER_USEC;
 
-              ts.tv_sec = (time_t) sec;
-              ts.tv_nsec = (unsigned long)nsec;
+              ts.tv_sec = sec;
+              ts.tv_nsec = nsec;
 
-              ONESHOT_START(upper->oneshot, oneshot_callback, upper, &ts);
+              ONESHOT_START(upper->oneshot, &ts);
 
               return;
             }
@@ -646,12 +637,12 @@ static void next_note(FAR struct tone_upperhalf_s *upper)
   sec = duration / USEC_PER_SEC;
   nsec = ((duration) - (sec * USEC_PER_SEC)) * NSEC_PER_USEC;
 
-  ts.tv_sec = (time_t) sec;
-  ts.tv_nsec = (unsigned long)nsec;
+  ts.tv_sec = sec;
+  ts.tv_nsec = nsec;
 
   /* And arrange a callback when the note should stop */
 
-  ONESHOT_START(upper->oneshot, oneshot_callback, upper, &ts);
+  ONESHOT_START(upper->oneshot, &ts);
   return;
 
   /* Tune looks bad (unexpected EOF, bad character, etc.) */
@@ -675,6 +666,10 @@ tune_end:
   else
     {
       g_tune = NULL;
+
+      /* Now the user can play again */
+
+      nxsem_post(&upper->busysem);
     }
 }
 
@@ -870,6 +865,7 @@ static ssize_t tone_write(FAR struct file *filep, FAR const char *buffer,
 {
   FAR struct inode *inode = filep->f_inode;
   FAR struct tone_upperhalf_s *upper = inode->i_private;
+  int ret;
 
   /* We need to receive a string #RRGGBB = 7 bytes */
 
@@ -885,6 +881,15 @@ static ssize_t tone_write(FAR struct file *filep, FAR const char *buffer,
       /* Too big to it inside internal buffer (with extra NUL terminator) */
 
       return -EINVAL;
+    }
+
+  /* If it is playing, then ignore new write attempts */
+
+  ret = nxsem_wait_uninterruptible(&upper->busysem);
+  if (ret < 0)
+    {
+      auderr("ERROR: Audio Tone is already playing, try again later!\n");
+      return -EAGAIN;
     }
 
   /* Copy music to internal buffer */
@@ -929,9 +934,7 @@ static ssize_t tone_write(FAR struct file *filep, FAR const char *buffer,
  ****************************************************************************/
 
 int tone_register(FAR const char *path, FAR struct pwm_lowerhalf_s *tone,
-#ifdef CONFIG_PWM_MULTICHAN
                   int channel,
-#endif
                   FAR struct oneshot_lowerhalf_s *oneshot)
 {
   FAR struct tone_upperhalf_s *upper;
@@ -952,11 +955,13 @@ int tone_register(FAR const char *path, FAR struct pwm_lowerhalf_s *tone,
    */
 
   nxmutex_init(&upper->lock);
+  nxsem_init(&upper->busysem, 0, 1);
   upper->devtone = tone;
   upper->oneshot = oneshot;
-#ifdef CONFIG_PWM_MULTICHAN
   upper->channel = (uint8_t)channel;
-#endif
+
+  upper->oneshot->callback = oneshot_callback;
+  upper->oneshot->arg = upper;
 
   /* Register the PWM device */
 

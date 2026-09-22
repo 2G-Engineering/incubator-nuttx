@@ -47,7 +47,7 @@
 #if defined(CONFIG_NET) && defined(CONFIG_NET_UDP)
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/net/netconfig.h>
 #include <nuttx/net/netdev.h>
@@ -103,7 +103,7 @@ void udp_poll(FAR struct net_driver_s *dev, FAR struct udp_conn_s *conn)
 
       /* If the application has data to send, setup the UDP/IP header */
 
-      if (dev->d_sndlen > 0)
+      if (dev->d_len > 0)
         {
           udp_send(dev, conn);
           return;

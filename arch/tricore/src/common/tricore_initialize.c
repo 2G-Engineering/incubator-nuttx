@@ -26,6 +26,7 @@
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
+#include <nuttx/cache.h>
 #include <arch/board/board.h>
 
 #include "tricore_internal.h"
@@ -34,37 +35,9 @@
  * Public Data
  ****************************************************************************/
 
-volatile uintptr_t *g_current_regs[CONFIG_SMP_NCPUS];
+/* g_interrupt_context store irq status */
 
-/****************************************************************************
- * Private Functions
- ****************************************************************************/
-
-/****************************************************************************
- * Name: up_color_intstack
- *
- * Description:
- *   Set the interrupt stack to a value so that later we can determine how
- *   much stack space was used by interrupt handling logic
- *
- ****************************************************************************/
-
-#if defined(CONFIG_STACK_COLORATION) && CONFIG_ARCH_INTERRUPTSTACK > 15
-static inline void up_color_intstack(void)
-{
-  uint32_t *ptr = (uint32_t *)g_intstackalloc;
-  ssize_t size;
-
-  for (size = (CONFIG_ARCH_INTERRUPTSTACK & ~15);
-       size > 0;
-       size -= sizeof(uint32_t))
-    {
-      *ptr++ = INTSTACK_COLOR;
-    }
-}
-#else
-#  define up_color_intstack()
-#endif
+volatile bool g_interrupt_context[CONFIG_SMP_NCPUS];
 
 /****************************************************************************
  * Public Functions
@@ -89,13 +62,27 @@ static inline void up_color_intstack(void)
 
 void up_initialize(void)
 {
-  /* Colorize the interrupt stack */
+#ifdef CONFIG_ARCH_PERF_EVENTS
+  up_perf_init((void *)IFX_CFG_CPU_CLOCK_FREQUENCY);
+#endif
 
-  up_color_intstack();
+  tricore_trapinit();
+
+#ifdef CONFIG_ARCH_ICACHE
+  up_enable_icache();
+#endif
+
+#ifdef CONFIG_ARCH_DCACHE
+  up_enable_dcache();
+#endif
 
   /* Initialize the serial device driver */
 
 #ifdef USE_SERIALDRIVER
   tricore_serialinit();
+#endif
+
+#ifdef CONFIG_ARCH_HAVE_DEBUG
+  tricore_init_dbgmonitor();
 #endif
 }

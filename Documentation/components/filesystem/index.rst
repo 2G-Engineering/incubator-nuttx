@@ -1,3 +1,5 @@
+.. _nuttx-filesystem:
+
 =================
 NuttX File System
 =================
@@ -543,6 +545,7 @@ NuttX provides support for a variety of file systems out of the box.
   nxffs.rst
   partition.rst
   procfs.rst
+  profiler.rst
   romfs.rst
   rpmsgfs.rst
   smartfs.rst

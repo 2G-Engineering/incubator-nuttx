@@ -20,24 +20,29 @@
 #
 # ##############################################################################
 
-function(process_config OUTPUT INPUT)
+# save preprocess defconfig as orig by default
+set(NUTTX_ORIG_DEFCONFIG ${NUTTX_DEFCONFIG})
+
+function(process_config OUTPUT INPUT TREE_FILE)
   set(options)
   set(oneValueArgs)
   set(multiValueArgs INCLUDE_PATHS)
   cmake_parse_arguments(PARSE_ARGV 2 PROCESS_INCLUDES "${options}"
                         "${oneValueArgs}" "${multiValueArgs}")
 
-  find_package(Python3 REQUIRED COMPONENTS Interpreter)
-
   set(include_args "")
   foreach(path IN LISTS PROCESS_INCLUDES_INCLUDE_PATHS)
     list(APPEND include_args "${path}")
   endforeach()
 
+  if(TREE_FILE)
+    set(TREE_OPTION --tree)
+  endif()
   message(STATUS "Processing includes: ${INPUT} → ${OUTPUT}")
   execute_process(
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/process_config.py
-            ${OUTPUT} ${INPUT} ${include_args}
+    COMMAND
+      ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/process_config.py
+      preprocess ${OUTPUT} ${INPUT} ${include_args} ${TREE_OPTION} ${TREE_FILE}
     RESULT_VARIABLE result
     OUTPUT_VARIABLE out
     ERROR_VARIABLE err)
@@ -46,3 +51,28 @@ function(process_config OUTPUT INPUT)
     message(FATAL_ERROR "Failed to process includes:\n${err}")
   endif()
 endfunction()
+
+# fetch defconfig content
+file(READ "${NUTTX_DEFCONFIG}" FILE_CONTENTS)
+string(FIND "${FILE_CONTENTS}" "#include" INCLUDE_FOUND)
+
+if(NOT EXISTS ${CMAKE_BINARY_DIR}/.defconfig.processed)
+  set(TREE_FILE ${CMAKE_BINARY_DIR}/config_tree.json)
+else()
+  set(TREE_FILE ${CMAKE_BINARY_DIR}/config_tree_dirty.json)
+endif()
+# Should we preprocess defconfig?
+if(INCLUDE_FOUND GREATER -1)
+  get_filename_component(NUTTX_DEFCONFIG_DIR "${NUTTX_DEFCONFIG}" DIRECTORY)
+  process_config(
+    ${CMAKE_BINARY_DIR}/.defconfig.processed
+    ${NUTTX_DEFCONFIG}
+    ${TREE_FILE}
+    INCLUDE_PATHS
+    ${NUTTX_DEFCONFIG_DIR}/../../common/configs
+    ${NUTTX_DEFCONFIG_DIR}/../common
+    ${NUTTX_DEFCONFIG_DIR}
+    ${NUTTX_DIR}/../apps
+    ${NUTTX_DIR}/../nuttx-apps)
+  set(NUTTX_DEFCONFIG ${CMAKE_BINARY_DIR}/.defconfig.processed)
+endif()

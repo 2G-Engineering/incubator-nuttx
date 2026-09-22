@@ -122,7 +122,7 @@ endif
 ifeq ($(CONFIG_ARCH_MIPS_M5150),y)
   MIPS_MARCH = mips32r2
   MIPS_MPROCESSOR = elf32pic32mz
-else ifeq ($(CONFIG_ARCH_MIPS_MICROAPTIV), y)
+else ifeq ($(CONFIG_ARCH_MIPS_MICROAPTIV),y)
   MIPS_MARCH = mips32r2
   MIPS_MPROCESSOR = elf32pic32mz
 else
@@ -316,6 +316,10 @@ ifeq ($(CONFIG_LIBSUPCXX_TOOLCHAIN),y)
   EXTRA_LIBS += $(wildcard $(shell $(CC) $(ARCHCPUFLAGS) --print-file-name=libsupc++.a))
 endif
 
+ifeq ($(CONFIG_LIBCXXTOOLCHAIN),y)
+  EXTRA_LIBS += $(wildcard $(shell $(CC) $(ARCHCPUFLAGS) --print-file-name=libstdc++.a))
+endif
+
 # Loadable module definitions
 
 CMODULEFLAGS = $(CFLAGS) -fvisibility=hidden
@@ -326,5 +330,5 @@ LDMODULEFLAGS = -r -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/elf/gnu-elf.ld)
 CELFFLAGS = $(CFLAGS) -fvisibility=hidden
 CXXELFFLAGS = $(CXXFLAGS) -fvisibility=hidden
 
-LDELFFLAGS = -r -e __start
+LDELFFLAGS = -r -e _start
 LDELFFLAGS += -T $(call CONVERT_PATH,$(TOPDIR)$(DELIM)libs$(DELIM)libc$(DELIM)elf$(DELIM)gnu-elf.ld)

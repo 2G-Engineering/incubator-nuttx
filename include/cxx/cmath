@@ -30,7 +30,16 @@
 #include <nuttx/config.h>
 #include <nuttx/compiler.h>
 
-#include <math.h>
+#if defined(CONFIG_LIBM_TOOLCHAIN)
+/* In toolchain libm mode, use toolchain <cmath> so it can include_next the
+ * matching C math.h header and populate std::* consistently.
+ */
+
+#  include_next <cmath>
+
+#else
+
+#  include <math.h>
 
 #undef signbit
 #undef fpclassify
@@ -44,10 +53,15 @@
 
 namespace std
 {
+#if defined(FLT_EVAL_METHOD) && FLT_EVAL_METHOD == 0
   using ::float_t;
   using ::double_t;
+#else
+  typedef float  float_t;
+  typedef double double_t;
+#endif
 
-#ifdef CONFIG_HAVE_FLOAT
+#if defined(CONFIG_HAVE_FLOAT) && defined(FLT_EVAL_METHOD) && FLT_EVAL_METHOD == 0
   using ::acosf;
   using ::asinf;
   using ::atanf;
@@ -82,7 +96,7 @@ namespace std
   signbit(float __x)
   { return __builtin_signbit(__x); }
 
-  constexpr int 
+  constexpr int
   fpclassify(float __x)
   { return __builtin_fpclassify(FP_NAN, FP_INFINITE, FP_NORMAL,
 				FP_SUBNORMAL, FP_ZERO, __x); }
@@ -99,10 +113,13 @@ namespace std
   isnan(float __x)
   { return __builtin_isnan(__x); }
 
+  constexpr float
+  nextafter(float from, float to)
+  { return ::nextafterf(from, to); }
 
 #endif
 
-#ifdef CONFIG_HAVE_DOUBLE
+#if defined(CONFIG_HAVE_DOUBLE) && defined(FLT_EVAL_METHOD) && FLT_EVAL_METHOD == 0
   using ::acos;
   using ::asin;
   using ::atan;
@@ -135,7 +152,7 @@ namespace std
   signbit(double __x)
   { return __builtin_signbit(__x); }
 
-  constexpr int 
+  constexpr int
   fpclassify(double __x)
   { return __builtin_fpclassify(FP_NAN, FP_INFINITE, FP_NORMAL,
 		FP_SUBNORMAL, FP_ZERO, __x); }
@@ -152,9 +169,13 @@ namespace std
   isnan(double __x)
   { return __builtin_isnan(__x); }
 
+  constexpr double
+  nextafter(double from, double to)
+  { return ::nextafter(from, to); }
+
 #endif
 
-#ifdef CONFIG_HAVE_LONG_DOUBLE
+#if defined(CONFIG_HAVE_LONG_DOUBLE) && defined(FLT_EVAL_METHOD) && FLT_EVAL_METHOD == 0
   using ::acosl;
   using ::asinl;
   using ::atanl;
@@ -185,7 +206,7 @@ namespace std
   signbit(long double __x)
   { return __builtin_signbit(__x); }
 
-  constexpr int 
+  constexpr int
   fpclassify(long double __x)
   { return __builtin_fpclassify(FP_NAN, FP_INFINITE, FP_NORMAL,
 		FP_SUBNORMAL, FP_ZERO, __x); }
@@ -202,8 +223,14 @@ namespace std
   isnan(long double __x)
   { return __builtin_isnan(__x); }
 
+  constexpr long double
+  nextafter(long double from, long double to)
+  { return ::nextafterl(from, to); }
+
 #endif
 
 }
+
+#endif
 
 #endif // __INCLUDE_CXX_CMATH

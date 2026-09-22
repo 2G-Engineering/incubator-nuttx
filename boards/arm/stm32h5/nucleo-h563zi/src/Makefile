@@ -35,20 +35,24 @@ ifeq ($(CONFIG_ARCH_BUTTONS),y)
 CSRCS += stm32_buttons.c
 endif
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += stm32_appinit.c
-endif
-
 ifeq ($(CONFIG_ADC),y)
 CSRCS += stm32_adc.c
 endif
 
-ifeq ($(CONFIG_STM32H5_DTS),y)
+ifeq ($(CONFIG_STM32_DTS),y)
 CSRCS += stm32_dts.c
 endif
 
-ifeq ($(CONFIG_STM32H5_FDCAN),y)
+ifeq ($(CONFIG_STM32_FDCAN),y)
 CSRCS += stm32_can.c
+endif
+
+ifeq ($(CONFIG_STM32_PWM),y)
+CSRCS += stm32_pwm.c
+endif
+
+ifeq ($(CONFIG_STM32_USBFS_HOST),y)
+CSRCS += stm32_usb.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

@@ -26,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "icmp/icmp.h"
 #include "icmpv6/icmpv6.h"
@@ -37,6 +37,12 @@
 #include "utils/utils.h"
 
 #ifdef CONFIG_NET_NAT
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+static rmutex_t g_nat_lock = NXRMUTEX_INITIALIZER;
 
 /****************************************************************************
  * Private Functions
@@ -50,13 +56,14 @@
  *   Used when corresponding stack is disabled.
  *
  * Input Parameters:
- *   domain     - The domain of the packet.
- *   protocol   - The L4 protocol of the packet.
- *   ip         - The IP bind with the port (in network byte order).
- *   local_port - The local port (in network byte order), as reference.
+ *   domain        - The domain of the packet.
+ *   protocol      - The L4 protocol of the packet.
+ *   ip            - The IP bind with the port (in network byte order).
+ *   local_port    - The local port (in network byte order), as reference.
+ *   external_port - The selected external port (in network byte order).
  *
  * Returned Value:
- *   port number on success; 0 on failure
+ *   0 on success; a negated errno on failure.
  *
  ****************************************************************************/
 
@@ -65,12 +72,15 @@
     (defined(CONFIG_NET_ICMP) && !defined(CONFIG_NET_ICMP_SOCKET)) || \
     (defined(CONFIG_NET_ICMPv6) && !defined(CONFIG_NET_ICMPv6_SOCKET))
 
-static uint16_t nat_port_select_without_stack(
+static int nat_port_select_without_stack(
     uint8_t domain, uint8_t protocol, FAR const union ip_addr_u *ip,
-    uint16_t local_port)
+    uint16_t local_port, FAR uint16_t *external_port)
 {
   uint16_t portno = local_port;
   uint16_t hport = NTOHS(portno);
+
+  DEBUGASSERT(external_port != NULL);
+
   while (nat_port_inuse(domain, protocol, ip, portno))
     {
       NET_PORT_NEXT_NH(portno, hport);
@@ -78,11 +88,12 @@ static uint16_t nat_port_select_without_stack(
         {
           /* We have looped back, failed. */
 
-          return 0;
+          return -EADDRINUSE;
         }
     }
 
-  return portno;
+  *external_port = portno;
+  return OK;
 }
 
 #endif
@@ -108,18 +119,16 @@ static uint16_t nat_port_select_without_stack(
 
 int nat_enable(FAR struct net_driver_s *dev)
 {
-  net_lock();
-
+  nat_lock();
   if (IFF_IS_NAT(dev->d_flags))
     {
       nwarn("WARNING: NAT was already enabled for %s!\n", dev->d_ifname);
-      net_unlock();
+      nat_unlock();
       return -EEXIST;
     }
 
   IFF_SET_NAT(dev->d_flags);
-
-  net_unlock();
+  nat_unlock();
   return OK;
 }
 
@@ -140,12 +149,11 @@ int nat_enable(FAR struct net_driver_s *dev)
 
 int nat_disable(FAR struct net_driver_s *dev)
 {
-  net_lock();
-
+  nat_lock();
   if (!IFF_IS_NAT(dev->d_flags))
     {
       nwarn("WARNING: NAT was not enabled for %s!\n", dev->d_ifname);
-      net_unlock();
+      nat_unlock();
       return -ENODEV;
     }
 
@@ -159,8 +167,7 @@ int nat_disable(FAR struct net_driver_s *dev)
 #endif
 
   IFF_CLR_NAT(dev->d_flags);
-
-  net_unlock();
+  nat_unlock();
   return OK;
 }
 
@@ -184,23 +191,27 @@ int nat_disable(FAR struct net_driver_s *dev)
 bool nat_port_inuse(uint8_t domain, uint8_t protocol,
                     FAR const union ip_addr_u *ip, uint16_t port)
 {
+  bool ret = false;
+
+  nat_lock();
 #ifdef CONFIG_NET_NAT44
   if (domain == PF_INET)
     {
-      return !!ipv4_nat_inbound_entry_find(protocol, ip->ipv4, port,
-                                           INADDR_ANY, 0, false);
+      ret = !!ipv4_nat_inbound_entry_find(protocol, ip->ipv4, port,
+                                          INADDR_ANY, 0, false);
     }
 #endif
 
 #ifdef CONFIG_NET_NAT66
   if (domain == PF_INET6)
     {
-      return !!ipv6_nat_inbound_entry_find(protocol, ip->ipv6, port,
-                                           g_ipv6_unspecaddr, 0, false);
+      ret = !!ipv6_nat_inbound_entry_find(protocol, ip->ipv6, port,
+                                          g_ipv6_unspecaddr, 0, false);
     }
 #endif
 
-  return false;
+  nat_unlock();
+  return ret;
 }
 
 /****************************************************************************
@@ -210,22 +221,26 @@ bool nat_port_inuse(uint8_t domain, uint8_t protocol,
  *   Select an available port number for TCP/UDP protocol, or id for ICMP.
  *
  * Input Parameters:
- *   dev         - The device on which the packet will be sent.
- *   domain      - The domain of the packet.
- *   protocol    - The L4 protocol of the packet.
- *   external_ip - The external IP bind with the port.
- *   local_port  - The local port of the packet, as reference.
+ *   dev           - The device on which the packet will be sent.
+ *   domain        - The domain of the packet.
+ *   protocol      - The L4 protocol of the packet.
+ *   external_ip   - The external IP bind with the port.
+ *   local_port    - The local port of the packet, as reference.
+ *   external_port - The selected external port.
  *
  * Returned Value:
- *   External port number on success; 0 on failure
+ *   0 on success; a negated errno on failure.
  *
  ****************************************************************************/
 
-uint16_t nat_port_select(FAR struct net_driver_s *dev,
-                         uint8_t domain, uint8_t protocol,
-                         FAR const union ip_addr_u *external_ip,
-                         uint16_t local_port)
+int nat_port_select(FAR struct net_driver_s *dev,
+                    uint8_t domain, uint8_t protocol,
+                    FAR const union ip_addr_u *external_ip,
+                    uint16_t local_port,
+                    FAR uint16_t *external_port)
 {
+  DEBUGASSERT(external_port != NULL);
+
   switch (protocol)
     {
 #ifdef CONFIG_NET_TCP
@@ -243,10 +258,17 @@ uint16_t nat_port_select(FAR struct net_driver_s *dev,
               ret = tcp_selectport(domain, external_ip, 0);
             }
 
-          return ret > 0 ? ret : 0;
+          if (ret < 0)
+            {
+              return ret;
+            }
+
+          *external_port = ret;
+          return OK;
 #else
           return nat_port_select_without_stack(domain, IP_PROTO_TCP,
-                                               external_ip, local_port);
+                                               external_ip, local_port,
+                                               external_port);
 #endif
         }
 #endif
@@ -278,10 +300,12 @@ uint16_t nat_port_select(FAR struct net_driver_s *dev,
 
           /* TODO: Try keep origin port as possible. */
 
-          return HTONS(udp_select_port(domain, &u));
+          *external_port = HTONS(udp_select_port(domain, &u));
+          return *external_port == 0 ? -EADDRINUSE : OK;
 #else
           return nat_port_select_without_stack(domain, IP_PROTO_UDP,
-                                               external_ip, local_port);
+                                               external_ip, local_port,
+                                               external_port);
 #endif
         }
 #endif
@@ -300,14 +324,16 @@ uint16_t nat_port_select(FAR struct net_driver_s *dev,
                 {
                   /* We have looped back, failed. */
 
-                  return 0;
+                  return -EADDRINUSE;
                 }
             }
 
-          return id;
+          *external_port = id;
+          return OK;
 #else
           return nat_port_select_without_stack(domain, IP_PROTO_ICMP,
-                                               external_ip, local_port);
+                                               external_ip, local_port,
+                                               external_port);
 #endif
         }
 #endif
@@ -326,14 +352,16 @@ uint16_t nat_port_select(FAR struct net_driver_s *dev,
                 {
                   /* We have looped back, failed. */
 
-                  return 0;
+                  return -EADDRINUSE;
                 }
             }
 
-          return id;
+          *external_port = id;
+          return OK;
 #else
           return nat_port_select_without_stack(domain, IP_PROTO_ICMP6,
-                                               external_ip, local_port);
+                                               external_ip, local_port,
+                                               external_port);
 #endif
         }
 #endif
@@ -341,7 +369,8 @@ uint16_t nat_port_select(FAR struct net_driver_s *dev,
 
   /* Select original port for unsupported protocol. */
 
-  return local_port;
+  *external_port = local_port;
+  return OK;
 }
 
 /****************************************************************************
@@ -401,6 +430,32 @@ uint32_t nat_expire_time(uint8_t protocol)
         nwarn("WARNING: Unsupported protocol %" PRIu8 "\n", protocol);
         return 0;
   }
+}
+
+/****************************************************************************
+ * Name: nat_lock
+ *
+ * Description:
+ *   Lock the NAT lock.
+ *
+ ****************************************************************************/
+
+void nat_lock(void)
+{
+  nxrmutex_lock(&g_nat_lock);
+}
+
+/****************************************************************************
+ * Name: nat_unlock
+ *
+ * Description:
+ *   Unlock the NAT lock.
+ *
+ ****************************************************************************/
+
+void nat_unlock(void)
+{
+  nxrmutex_unlock(&g_nat_lock);
 }
 
 #endif /* CONFIG_NET_NAT */

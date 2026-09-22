@@ -4,6 +4,9 @@ ST STM32F429I-DISCO
 
 .. tags:: chip:stm32, chip:stm32f4, chip:stm32f429
 
+.. figure:: stm32f429i-disco.png
+   :align: center
+
 This page discusses issues unique to NuttX configurations for the
 STMicro STM32F429I-DISCO development board featuring the STM32F429ZIT6
 MCU. The STM32F429ZIT6 is a 180MHz Cortex-M4 operation with 2Mbit Flash
@@ -299,8 +302,17 @@ can be selected as follow::
 
 Where <subdir> is one of the following:
 
-extflash:
----------
+bootlogo
+--------
+
+This board configuration enables the framebuffer test (like the 'fb' profile)
+and includes the NuttX NX Logo as boot splash screen.
+
+Note: the Logo seems upside down. It should be nice to have a rotation option
+for the boot logo splash image.
+
+extflash
+--------
 
 This is another NSH example.  If differs from other 'nsh' configurations
 in that this configuration defines an external 8 MByte SPI FLASH (the
@@ -447,7 +459,6 @@ NOTES:
      CONFIG_USBDEV=y               : USB device support must be enabled
      CONFIG_CDCACM=y               : The CDC/ACM driver must be built
      CONFIG_NSH_BUILTIN_APPS=y     : NSH built-in application support must be enabled
-     CONFIG_NSH_ARCHINIT=y         : To perform USB initialization
 
 8. Using the USB console.
 
@@ -470,7 +481,7 @@ NOTES:
     configuration will also create a NSH USB console but this version
     will use /dev/console.  Instead, it will use the normal /dev/ttyACM0
     USB serial device for the console::
-    
+
       CONFIG_STM32_OTGFS=y           : STM32 OTG FS support
       CONFIG_USART2_SERIAL_CONSOLE=y : Keep the USART2 console
       CONFIG_DEV_CONSOLE=y           : /dev/console exists (but NSH won't use it)
@@ -492,7 +503,7 @@ NOTES:
       for this.
 
     - /dev/console still exists and still refers to the serial port. So
-      you can still use certain kinds of debug output (see include/debug.h, all
+      you can still use certain kinds of debug output (see include/nuttx/debug.h, all
       debug output from interrupt handlers will be lost.
 
     - But don't enable USB debug output!  Since USB is console is used for
@@ -529,11 +540,7 @@ NOTES:
     CONFIG_FS_FAT=y          : Needed by the USB host mass storage class.
 
     Board Selection ->
-    CONFIG_BOARDCTL=y    : Needed for CONFIG_NSH_ARCHINIT
-
-    Application Configuration -> NSH Library
-    CONFIG_NSH_ARCHINIT=y    : Architecture specific USB initialization
-    : is needed for NSH
+    CONFIG_BOARDCTL=y
 
     With those changes, you can use NSH with a FLASH pen driver as shown
     belong.  Here NSH is started with nothing in the USB host slot:
@@ -605,7 +612,7 @@ NOTES:
 
 2. Stack usage make increase when USB hub support is enabled because
    the nesting depth of certain USB host class logic can increase.
-   
+
    STATUS:
    2015-04-30
    Appears to be fully functional.
@@ -626,7 +633,7 @@ UnitTest.
 NOTES:
 
 1. The NxWM window manager can be found here::
-   
+
          apps/graphics/NxWidgets/nxwm
 
    The NxWM unit test can be found at::

@@ -33,7 +33,7 @@
 #include <aio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 
@@ -280,7 +280,7 @@ int aio_write(FAR struct aiocb *aiocbp)
    */
 
   flags = fcntl(aiocbp->aio_fildes, F_GETFL);
-  if ((flags & O_WRONLY) == 0)
+  if ((flags & O_ACCMODE) == O_RDONLY)
     {
       aiocbp->aio_result = -EBADF;
       return OK;

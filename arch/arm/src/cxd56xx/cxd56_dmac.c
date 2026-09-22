@@ -32,7 +32,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
@@ -313,13 +313,13 @@ static int ch2dmac(int ch)
 {
   switch (ch)
     {
-    case 0: case 1:
+      case 0 ... 1:
         return 1;
-    case 2: case 3: case 4: case 5: case 6: /* APP IDMAC */
+      case 2 ... 6: /* APP IDMAC */
         return 3;
-    case 7: case 8: /* APP SKDMAC */
+      case 7 ... 8: /* APP SKDMAC */
         return 2;
-    default:
+      default:
         return 0;
     }
 }
@@ -330,9 +330,12 @@ static struct dmac_register_map *get_device(int ch)
 
   switch (id)
     {
-    case 1: return (struct dmac_register_map *)DMAC1_REG_BASE;
-    case 2: return (struct dmac_register_map *)DMAC2_REG_BASE;
-    case 3: return (struct dmac_register_map *)DMAC3_REG_BASE;
+      case 1:
+        return (struct dmac_register_map *)DMAC1_REG_BASE;
+      case 2:
+        return (struct dmac_register_map *)DMAC2_REG_BASE;
+      case 3:
+        return (struct dmac_register_map *)DMAC3_REG_BASE;
     }
 
     return NULL;
@@ -366,13 +369,13 @@ static int get_pmid(int ch)
 {
   switch (ch)
     {
-    case 0: case 1:
+      case 0 ... 1:
         return PM_APP_ADMAC;
-    case 2: case 3: case 4: case 5: case 6:
+      case 2 ... 6:
         return PM_APP_IDMAC;
-    case 7: case 8:
+      case 7 ... 8:
         return PM_APP_SKDMAC;
-    default:
+      default:
         break; /* may not comes here */
     }
 
@@ -941,7 +944,11 @@ void cxd56_rxdmasetup(DMA_HANDLE handle, uintptr_t paddr, uintptr_t maddr,
                                CXD56_DMAC_BSIZE4, CXD56_DMAC_BSIZE4,   /* Dest / Src burst size (fixed) */
                                CXD56_DMAC_MAX_SIZE);
 
-      dst += CXD56_DMAC_MAX_SIZE;
+      if (di)
+        {
+          dst += CXD56_DMAC_MAX_SIZE;
+        }
+
       rest -= CXD56_DMAC_MAX_SIZE;
     }
 
@@ -1012,7 +1019,11 @@ void cxd56_txdmasetup(DMA_HANDLE handle, uintptr_t paddr, uintptr_t maddr,
                                    CXD56_DMAC_BSIZE1, CXD56_DMAC_BSIZE1,   /* Dest / Src burst size (fixed) */
                                    CXD56_DMAC_MAX_SIZE);
 
-      src += CXD56_DMAC_MAX_SIZE;
+      if (si)
+        {
+          src += CXD56_DMAC_MAX_SIZE;
+        }
+
       rest -= CXD56_DMAC_MAX_SIZE;
     }
 

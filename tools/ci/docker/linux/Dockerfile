@@ -37,19 +37,21 @@ RUN apt-get update -qq && DEBIAN_FRONTEND="noninteractive" apt-get install -y -q
   gawk \
   git \
   gperf \
+  libftdi1-dev \
   libncurses5-dev \
   make \
   ninja-build \
   nodejs \
   npm \
   unzip \
-  zip
+  zip \
+  python3
 
 RUN mkdir -p /tools
 WORKDIR /tools
 
 RUN mkdir -p /tools/nuttx-tools
-RUN curl -s -L https://bitbucket.org/nuttx/tools/get/9ad3e1ee75c7.tar.gz \
+RUN curl -s -L https://github.com/patacongo/tools/archive/9ad3e1ee75c7d39bfee8019ce44f4fd035d89584.tar.gz \
   | tar -C nuttx-tools --strip-components=1 -xz
 
 RUN mkdir -p /tools/bloaty \
@@ -67,8 +69,10 @@ RUN cd nuttx-tools/kconfig-frontends \
 RUN mkdir -p /tools/gn \
   && cd /tools/gn \
   && git clone https://gn.googlesource.com/gn gn \
-  && cd gn && ./build/gen.py \
-  && cd out && ninja
+  && cd gn \
+  && git checkout 5d0a4153b0bcc86c5a23310d5b648a587be3c56d \
+  && python3 build/gen.py \
+  && ninja -C out
 
 # Upgrade nodejs to the stable version we need before install zap
 RUN npm install -g n && n 20.10.0 node && hash -r
@@ -303,6 +307,15 @@ RUN mkdir -p pico-sdk && \
   | tar -C pico-sdk --strip-components 1 -xz
 
 ###############################################################################
+# Build image for tool required by Raspberry Pi picotool builds
+###############################################################################
+FROM nuttx-toolchain-base AS nuttx-toolchain-raspberrypi-picotool
+# Download the prebuilt Raspberry Pi picotool
+RUN mkdir -p picotool && \
+  curl -s -L "https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-0/picotool-2.2.0-x86_64-lin.tar.gz" \
+  | tar -C picotool --strip-components 1 -xz
+
+###############################################################################
 # Final Docker image used for running CI system.  This includes all toolchains
 # supported by the CI system.
 ###############################################################################
@@ -384,6 +397,7 @@ ENV PIP_NO_CACHE_DIR=0
 # We are using the minimal python installation from the system so include
 # setuptools and also wheel so we can use the binary releases of packages
 # instead of requiring them to be compiled.
+RUN pip3 install --upgrade pip
 RUN pip3 install setuptools
 RUN pip3 install wheel
 RUN pip3 install cmake-format
@@ -394,7 +408,7 @@ RUN pip3 install cvt2utf
 # Install pytest
 RUN pip3 install cxxfilt
 RUN pip3 install construct
-RUN pip3 install esptool==4.8.dev4
+RUN pip3 install esptool==5.2.0
 RUN pip3 install imgtool
 RUN pip3 install kconfiglib
 RUN pip3 install pexpect==4.8.0
@@ -492,6 +506,10 @@ COPY --from=nuttx-toolchain-esp32 /tools/blobs/* /tools/blobs/esp-bins/
 # Raspberry Pi pico-sdk source
 COPY --from=nuttx-toolchain-raspberrypi-pico-sdk /tools/pico-sdk/ pico-sdk/
 ENV PICO_SDK_PATH="/tools/pico-sdk"
+
+# Raspberry Pi picotool
+COPY --from=nuttx-toolchain-raspberrypi-picotool /tools/picotool/ picotool/
+ENV PATH="/tools/picotool:$PATH"
 
 # gn tool
 RUN mkdir -p /tools/gn

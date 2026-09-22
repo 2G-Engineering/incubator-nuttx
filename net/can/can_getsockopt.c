@@ -30,7 +30,7 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/net/net.h>
 #include <nuttx/net/can.h>
@@ -180,8 +180,23 @@ int can_getsockopt(FAR struct socket *psock, int level, int option,
             return -EINVAL;
           }
 
-        *(FAR int *)value = conn->recv_buffnum * CONFIG_IOB_BUFSIZE;
+        *(FAR int *)value = conn->rcvbufs;
 
+        break;
+#endif
+
+#if CONFIG_NET_SEND_BUFSIZE > 0
+      case SO_SNDBUF:
+        /* Verify that option is the size of an 'int'.  Should also check
+          * that 'value' is properly aligned for an 'int'
+          */
+
+        if (*value_len < sizeof(int))
+          {
+            return -EINVAL;
+        }
+
+        *(FAR int *)value = conn->sndbufs;
         break;
 #endif
 

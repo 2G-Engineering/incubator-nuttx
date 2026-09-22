@@ -49,7 +49,7 @@
  *   LED_SIGNAL         2  In a signal handler          No change
  *   LED_ASSERTION      2  An assertion failed          No change
  *   LED_PANIC          3  The system has crashed     OFF      Blinking
- *   LED_IDLE          N/A MCU is is sleep mode         Not used
+ *   LED_IDLE          N/A MCU is in sleep mode         Not used
  *
  * Thus if the blue LED is statically on, NuttX has successfully booted and
  * is, apparently, running normally.  If the red is flashing at
@@ -66,7 +66,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <arch/board/board.h>

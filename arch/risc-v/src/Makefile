@@ -133,9 +133,9 @@ VPATH += $(SBI_DIR)
 VPATH += $(ARCH_SUBDIR)
 VPATH += $(CHIP_DIR)
 
-all: $(HEAD_OBJ) $(BIN)
+vpath nuttx$(EXEEXT) $(TOPDIR)
 
-.PHONY: board/libboard$(LIBEXT)
+all: $(HEAD_OBJ) $(BIN)
 
 $(AOBJS) $(UAOBJS) $(HEAD_OBJ): %$(OBJEXT): %.S
 	$(call ASSEMBLE, $<, $@)
@@ -143,22 +143,26 @@ $(AOBJS) $(UAOBJS) $(HEAD_OBJ): %$(OBJEXT): %.S
 $(COBJS) $(UCOBJS): %$(OBJEXT): %.c
 	$(call COMPILE, $<, $@)
 
-crt0$(OBJEXT): %$(OBJEXT): %.c
-	$(call COMPILE, $<, $@)
+$(STARTUP_OBJS): %$(OBJEXT): %.c
+	$(Q) $(CC) $(CELFFLAGS) -c common$(DELIM)crt0.c -o crt0$(OBJEXT)
 
 ifeq ($(CONFIG_BUILD_FLAT),y)
-$(BIN): $(OBJS)
+$(BIN): $(STARTUP_OBJS) $(OBJS)
 	$(call ARCHIVE, $@, $(OBJS))
 else
-$(BIN): $(UOBJS)
+$(BIN): $(STARTUP_OBJS) $(UOBJS)
 	$(call ARCHIVE, $@, $(UOBJS))
 endif
 
 $(KBIN): $(OBJS)
 	$(call ARCHIVE, $@, $(OBJS))
 
-board/libboard$(LIBEXT):
+board/libboard$(LIBEXT): FORCE
 	$(Q) $(MAKE) -C board libboard$(LIBEXT) EXTRAFLAGS="$(EXTRAFLAGS)"
+
+.PHONY: FORCE
+
+FORCE:
 
 # When multiple linking, these two additional linking objects will be included
 
@@ -183,10 +187,10 @@ define LINK_ALLSYMS_KASAN
 		$(LDSTARTGROUP) $(LDLIBS) $(EXTRA_LIBS) $(LDENDGROUP)
 endef
 
-$(addsuffix .tmp,$(ARCHSCRIPT)): $(ARCHSCRIPT)
+$(addsuffix .tmp,$(ARCHSCRIPT)): $(ARCHSCRIPT) $(TOPDIR)$(DELIM).config
 	$(call PREPROCESS, $(patsubst %.tmp,%,$@), $@)
 
-nuttx$(EXEEXT): $(HEAD_OBJ) board/libboard$(LIBEXT) $(addsuffix .tmp,$(ARCHSCRIPT))
+nuttx$(EXEEXT): $(HEAD_OBJ) board/libboard$(LIBEXT) $(addsuffix .tmp,$(ARCHSCRIPT)) $(addprefix $(TOPDIR)$(DELIM)staging$(DELIM),$(LINKLIBS))
 	$(Q) echo "LD: nuttx"
 ifeq ($(CONFIG_ALLSYMS)$(CONFIG_MM_KASAN_GLOBAL),)
 	$(Q) $(LD) $(LDENTRY) $(LDFLAGS) $(LIBPATHS) $(EXTRA_LIBPATHS) \
@@ -207,7 +211,6 @@ ifneq ($(CONFIG_WINDOWS_NATIVE),y)
 	grep -v '\(compiled\)\|\(\$(OBJEXT)$$\)\|\( [aUw] \)\|\(\.\.ng$$\)\|\(LASH[RL]DI\)' | \
 	sort > $(TOPDIR)/System.map
 endif
-	$(Q) $(call DELFILE, $(addsuffix .tmp,$(ARCHSCRIPT)))
 
 # This is part of the top-level export target
 # Note that there may not be a head object if layout is handled
@@ -254,6 +257,7 @@ distclean:: clean
 ifeq ($(BOARDMAKE),y)
 	$(Q) $(MAKE) -C board distclean
 endif
+	$(call DELFILE, $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds) $(HEAD_ASRC:.S=.dds))
 	$(call DELFILE, Make.dep)
 	$(call DELFILE, .depend)
 

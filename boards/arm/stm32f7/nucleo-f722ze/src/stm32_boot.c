@@ -26,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <arch/board/board.h>
@@ -57,7 +57,7 @@ void stm32_boardinitialize(void)
   board_autoled_initialize();
 #endif
 
-#if defined(CONFIG_STM32F7_OTGFS) || defined(CONFIG_STM32F7_HOST)
+#if defined(CONFIG_STM32_OTGFS) || defined(CONFIG_STM32F7_HOST)
   stm32_usbinitialize();
 #endif
 

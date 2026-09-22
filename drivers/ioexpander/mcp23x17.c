@@ -28,8 +28,8 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/i2c/i2c_master.h>
 #include <nuttx/kmalloc.h>
@@ -418,7 +418,7 @@ static int mcp23x17_writepin(FAR struct ioexpander_dev_s *dev, uint8_t pin,
       return ret;
     }
 
-  ret = mcp23x17_setbit(priv, MCP23X17_GPIOA, pin, value);
+  ret = mcp23x17_setbit(priv, MCP23X17_OLATA, pin, value);
   nxmutex_unlock(&priv->lock);
   return ret;
 }

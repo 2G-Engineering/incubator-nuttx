@@ -41,7 +41,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/crc8.h>
 #include <nuttx/kmalloc.h>
@@ -1631,7 +1631,7 @@ static int bq769x0_getcurrent(FAR struct bq769x0_dev_s *priv,
 
       /* Sample is not complete, wait and try again */
 
-      nxsig_usleep(BQ769X0_CC_POLL_INTERVAL * USEC_PER_MSEC);
+      nxsched_usleep(BQ769X0_CC_POLL_INTERVAL * USEC_PER_MSEC);
     }
 
   /* CC value didn't become available in the expected amount of time */

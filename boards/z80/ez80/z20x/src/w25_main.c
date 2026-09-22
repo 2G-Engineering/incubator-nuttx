@@ -34,7 +34,7 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <hex2bin.h>
 
 #include <nuttx/streams.h>
@@ -690,7 +690,7 @@ static int w25_wait_keypress(FAR char *keyset, int nseconds)
 
           /* Delay 50 Milliseconds  */
 
-          nxsig_usleep(50 * 1000);
+          nxsched_usleep(50 * 1000);
 
           /* Output a dot to stdout every 10 * 50 = 500 milliseconds */
 

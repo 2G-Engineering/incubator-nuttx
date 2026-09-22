@@ -46,7 +46,7 @@
  *
  * Returned Value:
  *   The time in system ticks remaining for idle.
- *   Zero means system is busy.
+ *   Zero means that the system is in idle mode without any timer running.
  *
  ****************************************************************************/
 

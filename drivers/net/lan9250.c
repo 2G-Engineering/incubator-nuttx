@@ -31,7 +31,7 @@
 #include <time.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <arpa/inet.h>
@@ -280,8 +280,8 @@ static inline void lan9250_send_buffer(FAR struct lan9250_driver_s *priv,
 static void lan9250_enable_sqi(FAR struct lan9250_driver_s *priv);
 #endif
 static inline void lan9250_sw_reset(FAR struct lan9250_driver_s *priv);
-static void lan9250_set_txavailabe(FAR struct lan9250_driver_s *priv,
-                                   bool enable);
+static void lan9250_set_txavailable(FAR struct lan9250_driver_s *priv,
+                                    bool enable);
 static int lan9250_reset(FAR struct lan9250_driver_s *priv);
 static void lan9250_set_macaddr(FAR struct lan9250_driver_s *priv);
 
@@ -1088,7 +1088,7 @@ static inline void lan9250_sw_reset(FAR struct lan9250_driver_s *priv)
 }
 
 /****************************************************************************
- * Name: lan9250_set_txavailabe
+ * Name: lan9250_set_txavailable
  *
  * Description:
  *   Enable or disable TX data FIFO available interrupt.
@@ -1102,8 +1102,8 @@ static inline void lan9250_sw_reset(FAR struct lan9250_driver_s *priv)
  *
  ****************************************************************************/
 
-static void lan9250_set_txavailabe(FAR struct lan9250_driver_s *priv,
-                                   bool enable)
+static void lan9250_set_txavailable(FAR struct lan9250_driver_s *priv,
+                                    bool enable)
 {
   uint32_t regval;
 
@@ -1241,7 +1241,7 @@ static int lan9250_reset(FAR struct lan9250_driver_s *priv)
 
   /* Disable TX data FIFO available interrupt */
 
-  lan9250_set_txavailabe(priv, false);
+  lan9250_set_txavailable(priv, false);
 
   /* Configure RX:
    *
@@ -1445,7 +1445,7 @@ static int lan9250_transmit(FAR struct lan9250_driver_s *priv)
         {
           /* Enable TX data FIFO available interrupt */
 
-          lan9250_set_txavailabe(priv, true);
+          lan9250_set_txavailable(priv, true);
 
           /* Enable the TX timeout watchdog (perhaps restarting the timer)
            * when free data space is not enough.
@@ -1525,7 +1525,7 @@ static void lan9250_txavail_work(FAR void *arg)
    * thread has been configured.
    */
 
-  net_lock();
+  netdev_lock(dev);
   lan9250_lock_spi(priv);
 
   /* Ignore the notification if the interface is not yet up */
@@ -1544,7 +1544,7 @@ static void lan9250_txavail_work(FAR void *arg)
   /* Release lock on the SPI bus and the network */
 
   lan9250_unlock_spi(priv);
-  net_unlock();
+  netdev_unlock(dev);
 }
 
 /****************************************************************************
@@ -1602,7 +1602,7 @@ static void lan9250_txavailable_isr(FAR struct lan9250_driver_s *priv)
 
   /* Disable TX data FIFO available interrupt */
 
-  lan9250_set_txavailabe(priv, false);
+  lan9250_set_txavailable(priv, false);
 
   /* If no further xmits are pending, then cancel the TX timeout */
 
@@ -1798,7 +1798,7 @@ static void lan9250_int_worker(FAR void *arg)
 
   /* Get exclusive access to both the network and the SPI bus. */
 
-  net_lock();
+  netdev_lock(&priv->dev);
   lan9250_lock_spi(priv);
 
   /* There is no infinite loop check... if there are always pending
@@ -1985,7 +1985,7 @@ static void lan9250_int_worker(FAR void *arg)
   /* Release lock on the SPI bus and the network */
 
   lan9250_unlock_spi(priv);
-  net_unlock();
+  netdev_unlock(&priv->dev);
 
   /* Enable ISR_GPIO interrupts after unlocking net so that application
    * could have chance to process Ethernet packet and free iob.
@@ -2061,7 +2061,7 @@ static void lan9250_txtout_worker(FAR void *arg)
 
   /* Get exclusive access to the network */
 
-  net_lock();
+  netdev_lock(&priv->dev);
 
   /* Increment statistics and dump debug info */
 
@@ -2083,7 +2083,7 @@ static void lan9250_txtout_worker(FAR void *arg)
 
   /* Release lock on the network */
 
-  net_unlock();
+  netdev_unlock(&priv->dev);
 }
 
 /****************************************************************************
@@ -2189,6 +2189,7 @@ static int lan9250_ifup(FAR struct net_driver_s *dev)
             (uint8_t)(mac_addr[0] >> 24), (uint8_t)(mac_addr[0] >> 16),
             (uint8_t)(mac_addr[0] >>  8), (uint8_t)(mac_addr[0] >>  0));
 #endif
+      netdev_carrier_on(dev);
     }
 
   /* Un-lock the SPI bus */
@@ -2240,6 +2241,7 @@ static int lan9250_ifdown(FAR struct net_driver_s *dev)
 
   IFF_CLR_UP(priv->dev.d_flags);
   leave_critical_section(flags);
+  netdev_carrier_off(dev);
 
   /* Un-lock the SPI bus */
 

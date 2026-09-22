@@ -33,7 +33,7 @@
 #include <poll.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/cancelpt.h>
@@ -204,7 +204,7 @@ int select(int nfds, FAR fd_set *readfds, FAR fd_set *writefds,
     {
       /* Calculate the timeout in milliseconds */
 
-      msec = timeout->tv_sec * 1000 + timeout->tv_usec / 1000;
+      msec = timeout->tv_sec * 1000 + (timeout->tv_usec + 999) / 1000;
     }
   else
     {

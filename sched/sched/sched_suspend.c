@@ -36,6 +36,7 @@
 
 #include "sched/sched.h"
 #include "sched/queue.h"
+#include "signal/signal.h"
 
 #ifdef CONFIG_SMP
 /****************************************************************************
@@ -102,17 +103,34 @@ void nxsched_suspend(FAR struct tcb_s *tcb)
 {
   irqstate_t flags;
   bool switch_needed;
+#ifdef CONFIG_ENABLE_ALL_SIGNALS
+  FAR sq_entry_t *entry;
+#endif
 
   DEBUGASSERT(tcb != NULL);
 
   flags = enter_critical_section();
+
+#ifdef CONFIG_ENABLE_ALL_SIGNALS
+  /* Check if received SIGCONT */
+
+  sq_for_every(&tcb->sigpendactionq, entry)
+    {
+      FAR sigq_t *sigq = (FAR sigq_t *)entry;
+      if (sigq->info.si_signo == SIGCONT)
+        {
+          leave_critical_section(flags);
+          return;
+        }
+    }
+#endif
 
   /* Check the current state of the task */
 
   if (tcb->task_state >= FIRST_BLOCKED_STATE &&
       tcb->task_state <= LAST_BLOCKED_STATE)
     {
-      /* Remove the TCB from the the blocked task list. */
+      /* Remove the TCB from the blocked task list. */
 
       nxsched_remove_blocked(tcb);
 
@@ -170,13 +188,12 @@ void nxsched_suspend(FAR struct tcb_s *tcb)
         {
           switch_needed = nxsched_remove_readytorun(tcb);
 
-          if (switch_needed || !nxsched_islocked_tcb(rtcb))
+          if (switch_needed)
             {
 #ifdef CONFIG_SMP
-              switch_needed |= nxsched_deliver_task(cpu, tcb->cpu,
-                                                    SWITCH_HIGHER);
+              nxsched_deliver_task(cpu, tcb->cpu, SWITCH_HIGHER);
 #else
-              switch_needed |= nxsched_merge_pending();
+              nxsched_merge_pending();
 #endif
             }
 

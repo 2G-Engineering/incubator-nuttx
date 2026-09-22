@@ -31,13 +31,24 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/kthread.h>
 #include <nuttx/nuttx.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/sensors/goldfish_gnss.h>
 #include <nuttx/sensors/gnss.h>
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+/* Only float data type supported now */
+
+#ifdef CONFIG_SENSORS_USE_B16
+#  error fixed-point data type not supported yet
+#endif
 
 /****************************************************************************
  * Private Types

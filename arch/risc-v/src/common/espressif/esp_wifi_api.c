@@ -26,7 +26,7 @@
 
 #include <inttypes.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <math.h>
 
 #include "esp_mac.h"
@@ -115,6 +115,7 @@ int esp_wifi_api_adapter_init(void)
   esp_wifi_lock(true);
 
   esp_evt_work_init();
+  esp_wifi_evt_work_init();
 
   wifi_cfg.nvs_enable = 0;
 
@@ -282,7 +283,16 @@ int esp_wifi_api_start(uint32_t start_mode)
       goto errout;
     }
 
-  wlinfo("Wi-Fi started with mode=%d\n", mode);
+  ret = esp_wifi_get_mode(&current_mode);
+  if (ret)
+    {
+      wlerr("Failed to get Wi-Fi mode ret=%d. Check if initialized\n",
+            ret);
+      ret = esp_wifi_to_errno(ret);
+      goto errout;
+    }
+
+  wlinfo("Wi-Fi started with mode=%d\n", current_mode);
 
 errout:
   esp_wifi_lock(false);

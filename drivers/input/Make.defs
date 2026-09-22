@@ -126,8 +126,20 @@ ifeq ($(CONFIG_INPUT_SPQ10KBD),y)
   CSRCS += spq10kbd.c
 endif
 
+ifeq ($(CONFIG_INPUT_KMATRIX),y)
+  CSRCS += kmatrix.c
+endif
+
+ifeq ($(CONFIG_INPUT_KMATRIX_I2C),y)
+  CSRCS += kmatrix_i2c.c
+endif
+
 ifeq ($(CONFIG_INPUT_GOLDFISH_EVENTS),y)
   CSRCS += goldfish_events.c
+endif
+
+ifeq ($(CONFIG_INPUT_MPR121_KEYPAD),y)
+  CSRCS += mpr121.c
 endif
 
 # Include input device driver build support

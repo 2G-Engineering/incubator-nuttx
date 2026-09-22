@@ -29,7 +29,7 @@
 #include <nuttx/serial/serial.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -568,7 +568,10 @@ static int bcm2711_miniuart_attach(struct uart_dev_s *dev)
 
   /* Set interrupt priority in GICv2 */
 
-  arm64_gic_irq_set_priority(BCM_IRQ_VC_AUX, 0, IRQ_TYPE_LEVEL);
+#ifdef CONFIG_ARCH_IRQPRIO
+  up_prioritize_irq(BCM_IRQ_VC_AUX, 0);
+#endif
+  up_set_irq_type(BCM_IRQ_VC_AUX, IRQ_HIGH_LEVEL);
 
   /* Enable UART interrupt */
 

@@ -32,10 +32,6 @@ if(CONFIG_ARCH_BUTTONS)
   list(APPEND SRCS stm32_buttons.c)
 endif()
 
-if(CONFIG_BOARDCTL)
-  list(APPEND SRCS stm32_appinitialize.c)
-endif()
-
 if(CONFIG_DEV_GPIO)
   list(APPEND SRCS stm32_gpio.c)
 endif()
@@ -56,11 +52,11 @@ if(CONFIG_MMCSD)
   list(APPEND SRCS stm32_sdio.c)
 endif()
 
-if(CONFIG_STM32F7_OTGFS)
+if(CONFIG_STM32_OTGFS)
   list(APPEND SRCS stm32_usb.c)
 endif()
 
-if(CONFIG_STM32F7_BBSRAM)
+if(CONFIG_STM32_BBSRAM)
   list(APPEND SRCS stm32_bbsram.c)
 endif()
 

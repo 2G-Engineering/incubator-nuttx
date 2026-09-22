@@ -28,10 +28,12 @@ endif
 
 # i.MX9-specific C source files
 
-CHIP_CSRCS  = imx9_boot.c imx9_timer.c
+CHIP_CSRCS  = imx9_boot.c
 
 ifeq ($(CONFIG_ARCH_CHIP_IMX93),y)
-CHIP_CSRCS  += imx9_ccm.c imx9_gpio.c
+CHIP_CSRCS  += imx9_ccm.c imx9_gpio.c imx9_gpiobase.c
+else ifeq ($(CONFIG_ARCH_CHIP_IMX95),y)
+CHIP_CSRCS  += imx9_gpio.c imx9_gpiobase.c
 endif
 
 CHIP_CSRCS += imx9_lpuart.c imx9_lowputc.c imx9_clockconfig.c
@@ -54,6 +56,10 @@ ifeq ($(CONFIG_IMX9_FLEXIO_PWM),y)
   CHIP_CSRCS += imx9_flexio_pwm.c
 endif
 
+ifeq ($(CONFIG_IMX9_FLEXIO_DSHOT),y)
+  CHIP_CSRCS += imx9_flexio_dshot.c
+endif
+
 ifeq ($(CONFIG_IMX9_TPM_PWM),y)
   CHIP_CSRCS += imx9_tpm_pwm.c
 endif
@@ -70,7 +76,7 @@ ifeq ($(CONFIG_IMX9_LPSPI),y)
   CHIP_CSRCS += imx9_lpspi.c
 endif
 
-ifeq ($(CONFIG_IMX9_EDMA), y)
+ifeq ($(CONFIG_IMX9_EDMA),y)
   CHIP_CSRCS += imx9_edma.c
 endif
 
@@ -86,25 +92,25 @@ ifeq ($(CONFIG_IMX9_USDHC),y)
   CHIP_CSRCS += imx9_usdhc.c
 endif
 
-ifeq ($(CONFIG_IMX9_FLEXSPI), y)
+ifeq ($(CONFIG_IMX9_FLEXSPI),y)
   CHIP_CSRCS += imx9_flexspi.c
 endif
 
-ifeq ($(CONFIG_IMX9_FLEXSPI_NOR), y)
+ifeq ($(CONFIG_IMX9_FLEXSPI_NOR),y)
   CHIP_CSRCS += imx9_flexspi_nor.c
 endif
 
-ifeq ($(CONFIG_IMX9_BOOTLOADER), y)
+ifeq ($(CONFIG_IMX9_BOOTLOADER),y)
   CHIP_CSRCS += imx9_system_ctl.c
   CHIP_CSRCS += imx9_trdc.c
   CHIP_CSRCS += imx9_ele.c
 endif
 
-ifeq ($(CONFIG_IMX9_ROMAPI), y)
+ifeq ($(CONFIG_IMX9_ROMAPI),y)
   CHIP_CSRCS += imx9_romapi.c
 endif
 
-ifeq ($(CONFIG_IMX9_AHAB_BOOT), y)
+ifeq ($(CONFIG_IMX9_AHAB_BOOT),y)
   CHIP_CSRCS += imx9_ahab.c
 endif
 
@@ -112,6 +118,10 @@ ifeq ($(CONFIG_IMX9_DDR_TRAINING),y)
   CHIP_CSRCS += $(DDR_CSRCS)
 endif
 
-ifeq ($(CONFIG_IMX9_FLEXCAN), y)
+ifeq ($(CONFIG_IMX9_FLEXCAN),y)
   CHIP_CSRCS += imx9_flexcan.c
+endif
+
+ifeq ($(CONFIG_IMX9_SAR_ADC),y)
+  CHIP_CSRCS += imx9_sar_adc.c
 endif

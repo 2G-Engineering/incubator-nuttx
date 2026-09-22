@@ -27,7 +27,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -51,10 +51,6 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-#ifndef CONFIG_LIBC_LONG_LONG
-#error "CONFIG_LIBC_LONG_LONG must be enabled for this driver"
-#endif
 
 /* Duration of maximum MAC layer pause in milliseconds */
 

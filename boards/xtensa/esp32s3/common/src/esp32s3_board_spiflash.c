@@ -35,7 +35,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/spi/spi.h>
@@ -43,8 +43,13 @@
 #include <nuttx/fs/nxffs.h>
 #include <nuttx/fs/partition.h>
 
-#include "esp32s3_spiflash.h"
-#include "esp32s3_spiflash_mtd.h"
+#if defined(CONFIG_ESP32S3_SPIRAM) || defined(CONFIG_ESP32S3_PARTITION_TABLE)
+#  include "esp32s3_spiflash.h"
+#  include "esp32s3_spiflash_mtd.h"
+#else
+#  include "espressif/esp_spiflash.h"
+#  include "espressif/esp_spiflash_mtd.h"
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -119,12 +124,17 @@ static int init_ota_partitions(void)
 {
   struct mtd_dev_s *mtd;
   int ret = OK;
+  int i;
 
-  for (int i = 0; i < nitems(g_ota_partition_table); ++i)
+  for (i = 0; i < nitems(g_ota_partition_table); ++i)
     {
       const struct partition_s *part = &g_ota_partition_table[i];
+#if defined(CONFIG_ESP32S3_SPIRAM) || defined(CONFIG_ESP32S3_PARTITION_TABLE)
       mtd = esp32s3_spiflash_alloc_mtdpart(part->firstblock, part->blocksize,
                                            OTA_ENCRYPT);
+#else
+      mtd = esp_spiflash_alloc_mtdpart(part->firstblock, part->blocksize);
+#endif
 
       ret = register_mtddriver(part->name, mtd, 0755, NULL);
       if (ret < 0)
@@ -358,9 +368,14 @@ static int init_storage_partition(void)
   int ret = OK;
   struct mtd_dev_s *mtd;
 
+#if defined(CONFIG_ESP32S3_SPIRAM) || defined(CONFIG_ESP32S3_PARTITION_TABLE)
   mtd = esp32s3_spiflash_alloc_mtdpart(CONFIG_ESP32S3_STORAGE_MTD_OFFSET,
                                        CONFIG_ESP32S3_STORAGE_MTD_SIZE,
-                                       false);
+                                       OTA_ENCRYPT);
+#else
+  mtd = esp_spiflash_alloc_mtdpart(CONFIG_ESP32S3_STORAGE_MTD_OFFSET,
+                                   CONFIG_ESP32S3_STORAGE_MTD_SIZE);
+#endif
   if (!mtd)
     {
       syslog(LOG_ERR, "ERROR: Failed to alloc MTD partition of SPI Flash\n");
@@ -435,7 +450,9 @@ int board_spiflash_init(void)
 {
   int ret = OK;
 
+#if defined(CONFIG_ESP32S3_SPIRAM) || defined(CONFIG_ESP32S3_PARTITION_TABLE)
   ret = esp32s3_spiflash_init();
+#endif
   if (ret < 0)
     {
       return ret;

@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/power/pm.h>
 
@@ -86,25 +86,25 @@ static void led_pm_notify(struct pm_callback_s *cb, int domain,
 {
   switch (pmstate)
     {
-      case(PM_NORMAL):
+      case PM_NORMAL:
         {
           /* Restore normal LEDs operation */
         }
         break;
 
-      case(PM_IDLE):
+      case PM_IDLE:
         {
           /* Entering IDLE mode - Turn leds off */
         }
         break;
 
-      case(PM_STANDBY):
+      case PM_STANDBY:
         {
           /* Entering STANDBY mode - Logic for PM_STANDBY goes here */
         }
         break;
 
-      case(PM_SLEEP):
+      case PM_SLEEP:
         {
           /* Entering SLEEP mode - Logic for PM_SLEEP goes here */
         }
@@ -155,7 +155,7 @@ uint32_t board_userled_initialize(void)
 {
   /* Configure LD2 GPIO for output */
 
-  stm32l4_configgpio(GPIO_LD2);
+  stm32_configgpio(GPIO_LD2);
   return BOARD_NLEDS;
 }
 
@@ -167,7 +167,7 @@ void board_userled(int led, bool ledon)
 {
   if (led == BOARD_LD2)
     {
-      stm32l4_gpiowrite(GPIO_LD2, ledon);
+      stm32_gpiowrite(GPIO_LD2, ledon);
     }
 }
 
@@ -177,15 +177,15 @@ void board_userled(int led, bool ledon)
 
 void board_userled_all(uint32_t ledset)
 {
-  stm32l4_gpiowrite(GPIO_LD2, (ledset & BOARD_LD2_BIT) != 0);
+  stm32_gpiowrite(GPIO_LD2, (ledset & BOARD_LD2_BIT) != 0);
 }
 
 /****************************************************************************
- * Name: stm32l4_led_pminitialize
+ * Name: stm32_led_pminitialize
  ****************************************************************************/
 
 #ifdef CONFIG_PM
-void stm32l4_led_pminitialize(void)
+void stm32_led_pminitialize(void)
 {
   /* Register to receive power management callbacks */
 

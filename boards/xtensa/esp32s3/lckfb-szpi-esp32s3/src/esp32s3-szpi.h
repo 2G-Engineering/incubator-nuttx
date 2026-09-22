@@ -40,11 +40,18 @@
 #define GPIO_LCD_RST        (-1)
 #define SZPI_LCD_CS_PATH    "/dev/gpio0"
 #define SZPI_LCD_PWM_PATH   "/dev/pwm0"
-#define SZPI_LCD_PWM_FREQ   (100)
+#define SZPI_LCD_PWM_FREQ   (10000)
 #define SZPI_LCD_PWM_DUTY   (0xe666)       /* 0x1 ~ 0xffff */
 
 #define FT5X06_I2C_ADDRESS  (0x38)
 #define FT5X06_FREQUENCY    (400000)
+
+#define QMI8658_I2C_PORT    (0)
+#define QMI8658_I2C_ADDR    (0x6A)
+
+#define ES7210_I2C_ADDR     (0x41)
+#define ES7210_I2C_FREQ     (100000)
+#define ES7210_DEVPATH      "/dev/audio/pcm_in0"
 
 /****************************************************************************
  * Public Types
@@ -68,9 +75,6 @@
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=y && CONFIG_BOARDCTL=y :
- *     Called from the NSH library via board_app_initialize()
  *
  ****************************************************************************/
 
@@ -154,6 +158,18 @@ int esp32s3_pca9557_initialize(void);
 
 #ifdef CONFIG_INPUT_FT5X06
 int esp32s3_ft5x06_initialize(void);
+#endif
+
+#ifdef CONFIG_SENSORS_QMI8658
+int esp32s3_qmi8658_initialize(void);
+#endif
+
+#ifdef CONFIG_ESP32S3_CAM
+int esp32s3_camera_initialize(void);
+#endif
+
+#ifdef CONFIG_AUDIO_ES7210
+int esp32s3_es7210_initialize(int i2c_port, int i2s_port);
 #endif
 
 #endif /* __ASSEMBLY__ */

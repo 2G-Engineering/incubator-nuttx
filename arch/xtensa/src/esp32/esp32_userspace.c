@@ -25,7 +25,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -35,7 +35,6 @@
 
 #include "chip.h"
 #include "xtensa.h"
-#include "xtensa_attr.h"
 #ifdef CONFIG_ESP32_USER_DATA_EXTMEM
 #include "esp32_spiram.h"
 #endif

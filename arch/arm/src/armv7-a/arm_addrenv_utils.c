@@ -29,7 +29,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/pgalloc.h>
 #include <nuttx/irq.h>
@@ -107,8 +107,7 @@ int arm_addrenv_create_region(uintptr_t *l1table, unsigned int listlen,
 
       DEBUGASSERT(MM_ISALIGNED(paddr));
 
-      mmu_l1table_setentry(l1table, paddr, vaddr + i * SECTION_SIZE,
-                           MMU_L1_PGTABFLAGS);
+      mmu_l1table_setentry(l1table, paddr, vaddr, MMU_L1_PGTABFLAGS);
 
       /* Get the virtual address corresponding to the physical page address */
 

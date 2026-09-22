@@ -76,13 +76,8 @@
 #  define ldbl_min_10_exp FLT_MIN_10_EXP
 #endif
 
-#ifdef CONFIG_HAVE_LONG_LONG
-#  define long_long long long
-#  define llong_min LLONG_MIN
-#else
-#  define long_long long
-#  define llong_min LONG_MIN
-#endif
+#define long_long long long
+#define llong_min LLONG_MIN
 
 #define shgetc(f) (*(f)++)
 #define shunget(f) ((f)--)
@@ -432,7 +427,7 @@ static long_double decfloat(FAR char *ptr, FAR char **endptr)
  *   A long_double number about ptr
  *
  ****************************************************************************/
-
+#ifndef CONFIG_LIBC_DISABLE_HEXSTR_TO_FLOAT
 static long_double hexfloat(FAR char *ptr,
                             FAR char **endptr, int bits, int emin)
 {
@@ -618,6 +613,7 @@ static long_double hexfloat(FAR char *ptr,
 
   return scalbnx(y, 2., e2);
 }
+#endif
 
 /****************************************************************************
  * Name: strtox
@@ -644,6 +640,7 @@ static long_double strtox(FAR const char *str, FAR char **endptr, int flag)
   long_double y = 0;
   int i = 0;
 
+#ifndef CONFIG_LIBC_DISABLE_HEXSTR_TO_FLOAT
   int bits;
   int emin;
 
@@ -664,6 +661,7 @@ static long_double strtox(FAR const char *str, FAR char **endptr, int flag)
       default:
         return 0;
     }
+#endif
 
   /* Skip leading whitespace */
 
@@ -712,12 +710,15 @@ static long_double strtox(FAR const char *str, FAR char **endptr, int flag)
   /* Process optional 0x prefix */
 
   s -= i;
+#ifndef CONFIG_LIBC_DISABLE_HEXSTR_TO_FLOAT
   if (*s == '0' && (*(s + 1) | 32) == 'x')
     {
       s += 2;
       y = hexfloat(s, endptr, bits, emin);
     }
-  else if (isdigit(*s) || (*s == '.' && isdigit(*(s + 1))))
+  else
+#endif
+  if (isdigit(*s) || (*s == '.' && isdigit(*(s + 1))))
     {
       y = decfloat(s, endptr);
     }

@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/param.h>
@@ -43,10 +43,10 @@
 
 #include "xtensa.h"
 #include "esp_attr.h"
-#include "hardware/esp32s3_efuse.h"
+#include "soc/efuse_reg.h"
 #include "hardware/esp32s3_cache_memory.h"
 #include "rom/esp32s3_spiflash.h"
-#include "esp32s3_irq.h"
+#include "esp_irq.h"
 #include "esp32s3_spiflash.h"
 
 #include "spi_flash_defs.h"
@@ -384,7 +384,7 @@ void spiflash_start(void)
 
   nxsched_set_priority(tcb, saved_priority);
 
-  esp32s3_irq_noniram_disable();
+  esp_intr_noniram_disable();
 
   spiflash_suspend_cache();
 }
@@ -418,7 +418,7 @@ void spiflash_end(void)
 
   g_flash_op_complete = true;
 
-  esp32s3_irq_noniram_enable();
+  esp_intr_noniram_enable();
 
   sched_unlock();
 
@@ -867,7 +867,7 @@ static inline void IRAM_ATTR spiflash_os_yield(void)
   /* Delay 1 tick */
 
   useconds_t us = TICK2USEC(1);
-  nxsig_usleep(us);
+  nxsched_usleep(us);
 }
 #endif /* CONFIG_ESP32S3_SPI_FLASH_DONT_USE_ROM_CODE */
 
@@ -948,7 +948,7 @@ static int spi_flash_op_block_task(int argc, char *argv[])
 
       sched_lock();
 
-      esp32s3_irq_noniram_disable();
+      esp_intr_noniram_disable();
 
       /* g_flash_op_complete flag is cleared on *this* CPU, otherwise the
        * other CPU may reset the flag back to false before this task has a
@@ -971,7 +971,7 @@ static int spi_flash_op_block_task(int argc, char *argv[])
 
       /* Restore interrupts that aren't located in IRAM */
 
-      esp32s3_irq_noniram_enable();
+      esp_intr_noniram_enable();
 
       sched_unlock();
     }
@@ -1024,7 +1024,7 @@ static int spiflash_init_spi_flash_op_block_task(int cpu)
 
   /* Initialize the task */
 
-  ret = nxtask_init((FAR struct task_tcb_s *)tcb, "spiflash_op",
+  ret = nxtask_init(tcb, "spiflash_op",
                     SCHED_PRIORITY_MAX,
                     NULL, CONFIG_ESP32S3_SPIFLASH_OP_TASK_STACKSIZE,
                     spi_flash_op_block_task, argv, environ, NULL);

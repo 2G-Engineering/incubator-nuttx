@@ -73,7 +73,7 @@
  */
 
 #define ADC1_MEASURE_CHANNEL     12
-#define GPIO_MEASURE_ADC         (GPIO_ADC1_IN12)
+#define GPIO_MEASURE_ADC         (GPIO_ADC1_IN12_0)
 
 /* Alternate function pin selections ****************************************/
 
@@ -88,8 +88,8 @@
  */
 
 #if 0
-#define GPIO_USART1_RX GPIO_USART1_RX_2    / * PB7  * /
-#define GPIO_USART1_TX GPIO_USART1_TX_2    / * PB6  * /
+#define GPIO_USART1_RX GPIO_USART1_RX_2    /* PB7 */
+#define GPIO_USART1_TX GPIO_USART1_TX_2    /* PB6 */
 #endif
 
 /* USART2: Connected to STLink Debug via PD5, PD6
@@ -105,8 +105,8 @@
  *   TXD: PA0 -> CN17 A4
  */
 
-#define GPIO_UART4_RX   GPIO_UART4_RX_1    /* PA1 */
-#define GPIO_UART4_TX   GPIO_UART4_TX_1    /* PA0 */
+#define GPIO_UART4_RX    GPIO_UART4_RX_1    /* PA1 */
+#define GPIO_UART4_TX    GPIO_UART4_TX_1    /* PA0 */
 
 /* I2C
  *
@@ -218,7 +218,7 @@
  *   LED_SIGNAL           In a signal handler
  *   LED_ASSERTION        An assertion failed
  *   LED_PANIC            The system has crashed                  Blinking
- *   LED_IDLE             MCU is is sleep mode       ON
+ *   LED_IDLE             MCU is in sleep mode       ON
  *
  * Thus if BOARD_LED_GRN, NuttX has successfully booted and is, apparently,
  * running normally.  If BOARD_LED_RED is flashing at approximately 2Hz, then
@@ -275,7 +275,7 @@ extern "C"
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_board_initialize
+ * Name: stm32_board_initialize
  *
  * Description:
  *   All STM32L4 architectures must provide the following entry point.
@@ -285,7 +285,7 @@ extern "C"
  *
  ****************************************************************************/
 
-void stm32l4_board_initialize(void);
+void stm32_board_initialize(void);
 
 #undef EXTERN
 #if defined(__cplusplus)

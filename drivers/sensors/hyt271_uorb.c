@@ -28,7 +28,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -60,9 +60,6 @@
 #define HYT271_HUMIRAWDATA(x) (HYT271_HUMIDATA_SHIFT(x) & HYT271_HUMIDATA_MASK)
 #define HYT271_HUMIRAWEQUAL(x, y) \
   (HYT271_HUMIRAWDATA(x) == HYT271_HUMIRAWDATA(y))
-
-#define HYT271_TEMPDATA(x) (HYT271_TEMPRAWDATA(x) * 165.0 / 16383.0 - 40.0)
-#define HYT271_HUMIDATA(x) (HYT271_HUMIRAWDATA(x) * 100.0 / 16383.0)
 
 #define HYT271_SENSOR_HUMI    0
 #define HYT271_SENSOR_TEMP    1
@@ -159,8 +156,12 @@ static const struct sensor_ops_s g_hyt271_ops =
 static void hyt271_humi_from_rawdata(FAR struct hyt271_sensor_data_s *data,
                                      FAR struct sensor_humi *humi)
 {
-  humi->timestamp   = data->timestamp;
-  humi->humidity    = HYT271_HUMIDATA(data->data);
+  /* hum = HUM_RAW * (100 / 16383) */
+
+  humi->timestamp = data->timestamp;
+  humi->humidity  = sensor_data_mul(
+    sensor_data_itof(HYT271_HUMIRAWDATA(data->data)),
+    sensor_data_ftof(100.0f / 16383.0f));
 }
 
 /****************************************************************************
@@ -177,8 +178,14 @@ static void hyt271_humi_from_rawdata(FAR struct hyt271_sensor_data_s *data,
 static void hyt271_temp_from_rawdata(FAR struct hyt271_sensor_data_s *data,
                                      FAR struct sensor_temp *temp)
 {
+  /* temp = TEMP_RAW * (165 / 16383) - 40 */
+
   temp->timestamp   = data->timestamp;
-  temp->temperature = HYT271_TEMPDATA(data->data);
+  temp->temperature = sensor_data_subi(
+    sensor_data_mul(
+      sensor_data_itof(HYT271_TEMPRAWDATA(data->data)),
+      sensor_data_ftof(165.0f / 16383.0f)),
+    40);
 }
 
 /****************************************************************************
@@ -295,7 +302,7 @@ static int hyt271_mr(FAR struct hyt271_dev_s *dev,
 
   /* Wait until measure cycle is done. This takes between 60 - 100 ms. */
 
-  nxsig_usleep(100000);
+  nxsched_usleep(100000);
   return ret;
 }
 
@@ -368,7 +375,7 @@ static int hyt271_cmd_response(FAR struct hyt271_dev_s *dev,
 
   /* Sleep for usec µs until response is ready */
 
-  nxsig_usleep(usec);
+  nxsched_usleep(usec);
 
   /* Read response and return */
 
@@ -857,7 +864,7 @@ static int hyt271_thread(int argc, char** argv)
 
       /* Sleeping thread before fetching the next sensor data */
 
-      nxsig_usleep(priv->interval);
+      nxsched_usleep(priv->interval);
     }
 
   return OK;

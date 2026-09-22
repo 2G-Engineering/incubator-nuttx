@@ -74,7 +74,7 @@
 #  undef HAVE_N25QXXX_CHARDEV
 #endif
 
-#ifndef CONFIG_STM32L4_QSPI
+#ifndef CONFIG_STM32_QSPI
 #  undef HAVE_N25QXXX
 #  undef HAVE_N25QXXX_NXFFS
 #  undef HAVE_N25QXXX_SMARTFS
@@ -116,7 +116,7 @@
 
 /* Can't support USB host or device features if USB OTG FS is not enabled */
 
-#ifndef CONFIG_STM32L4_OTGFS
+#ifndef CONFIG_STM32_OTGFS
 #  undef HAVE_USBDEV
 #  undef HAVE_USBHOST
 #endif
@@ -259,9 +259,6 @@ extern struct spi_dev_s *g_spi2;
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=y && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int stm32_bringup(void);
@@ -277,13 +274,13 @@ int stm32_bringup(void);
 void stm32_spiinitialize(void);
 
 /****************************************************************************
- * Name: stm32l4_usbinitialize
+ * Name: stm32_usbinitialize
  *
  * Description:
  *   Called to setup USB-related GPIO pins.
  *
  ****************************************************************************/
 
-void stm32l4_usbinitialize(void);
+void stm32_usbinitialize(void);
 
 #endif /* __BOARDS_ARM_STM32L4_STM32L476VG_DISCO_SRC_STM32L476VG_DISCO_H */

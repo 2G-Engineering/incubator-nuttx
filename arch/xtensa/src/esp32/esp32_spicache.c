@@ -27,14 +27,13 @@
 #if defined(CONFIG_ESP32_SPIRAM) || defined(CONFIG_ESP32_SPIFLASH)
 
 #include <stdint.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <errno.h>
 
 #include "xtensa.h"
-#include "xtensa_attr.h"
 
 #include "hardware/esp32_soc.h"
 #include "hardware/esp32_spi.h"

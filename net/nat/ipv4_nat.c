@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
@@ -739,6 +739,8 @@ ipv4_nat_outbound_internal(FAR struct net_driver_s *dev,
 void ipv4_nat_inbound(FAR struct net_driver_s *dev,
                       FAR struct ipv4_hdr_s *ipv4)
 {
+  nat_lock();
+
   /* We only process packets from NAT device and targeting at the address
    * assigned to the device.
    */
@@ -748,6 +750,8 @@ void ipv4_nat_inbound(FAR struct net_driver_s *dev,
     {
       ipv4_nat_inbound_internal(ipv4, NAT_MANIP_DST);
     }
+
+  nat_unlock();
 }
 
 /****************************************************************************
@@ -773,6 +777,8 @@ int ipv4_nat_outbound(FAR struct net_driver_s *dev,
                       FAR struct ipv4_hdr_s *ipv4,
                       enum nat_manip_type_e manip_type)
 {
+  nat_lock();
+
   /* We only process packets targeting at NAT device but not targeting at the
    * address assigned to the device.
    */
@@ -789,10 +795,12 @@ int ipv4_nat_outbound(FAR struct net_driver_s *dev,
         {
           /* Outbound entry creation failed, should have entry. */
 
+          nat_unlock();
           return -ENOENT;
         }
     }
 
+  nat_unlock();
   return OK;
 }
 

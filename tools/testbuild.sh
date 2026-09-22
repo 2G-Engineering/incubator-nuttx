@@ -24,6 +24,7 @@ nuttx=$WD/../nuttx
 
 progname=$0
 fail=0
+maxbuilds=4  # Retry 3 times on failure
 APPSDIR=$WD/../apps
 if [ -z $ARTIFACTDIR ]; then
   ARTIFACTDIR=$WD/../buildartifacts
@@ -34,6 +35,7 @@ MAKE=make
 unset testfile
 unset HOPTION
 unset STORE
+unset NXTMPDIR
 unset JOPTION
 PRINTLISTONLY=0
 GITCLEAN=0
@@ -41,6 +43,7 @@ SAVEARTIFACTS=0
 CHECKCLEAN=1
 CODECHECKER=0
 NINJACMAKE=0
+STORECMAKE=0
 RUN=0
 
 case $(uname -s) in
@@ -149,6 +152,7 @@ while [ ! -z "$1" ]; do
     ;;
   -S )
     STORE+=" $1"
+    STORECMAKE=1
     ;;
   --codechecker )
     CODECHECKER=1
@@ -197,6 +201,14 @@ blacklist=`grep "^-" $testfile || true`
 
 if [ ${NINJACMAKE} -eq 1 ]; then
   cmakelist=`grep "^[C|c][M|m][A|a][K|k][E|e]" $testfile | cut -d',' -f2 || true`
+fi
+
+if [ ${STORECMAKE} -eq 1 ]; then
+  NXTMPDIR="ON"
+  echo "NXTMPDIR store is enabled"
+else
+  NXTMPDIR="OFF"
+  echo "NXTMPDIR store is disabled"
 fi
 
 cd $nuttx || { echo "ERROR: failed to CD to $nuttx"; exit 1; }
@@ -341,8 +353,8 @@ function configure_default {
 }
 
 function configure_cmake {
-  if ! cmake -B build -DBOARD_CONFIG=$config -GNinja 1>/dev/null; then
-    cmake -B build -DBOARD_CONFIG=$config -GNinja
+  if ! cmake -B build -DBOARD_CONFIG=$config -DNXTMPDIR="$NXTMPDIR" -GNinja 1>/dev/null; then
+    cmake -B build -DBOARD_CONFIG=$config -DNXTMPDIR="$NXTMPDIR" -GNinja
     fail=1
   fi
 
@@ -491,10 +503,12 @@ function refresh {
 }
 
 function run {
-  if [ ${RUN} -ne 0 ] && [ -z ${cmake} ]; then
-    run_script="$path/run"
+  if [ ${RUN} -ne 0 ]; then
+    run_script="$path/run.sh"
     if [ -x $run_script ]; then
       echo "  Running NuttX..."
+      export ARTIFACTCONFDIR=$ARTIFACTDIR/$(echo $config | sed "s/:/\//")/
+      export CURRENTCONFDIR=$(realpath $path)
       if ! $run_script; then
         fail=1
       fi
@@ -514,6 +528,7 @@ function dotest {
     if [[ "${check}" =~ ${re:1}$ ]]; then
       echo "Skipping: $1"
       skip=1
+      break
     fi
   done
 
@@ -523,6 +538,7 @@ function dotest {
       if [[ "${config/\//:}" == "${l}" ]]; then
         echo "Cmake in present: $1"
         cmake=1
+        break
       fi
     done
   fi
@@ -576,6 +592,49 @@ function dotest {
   fi
 }
 
+# Build one entry from the test list file. Retry on failure.
+function retrytest {
+  # Remember the Fail Status and clear it for each build
+  local line=$1
+  local prevfail=$fail
+  local backoff=60  # Initial Exponential Backoff, in seconds
+
+  # Build and retry on failure, with Random Exponential Backoff
+  for ((i = 1; i <= $maxbuilds; i++)); do
+    echo "Build Attempt $i of $maxbuilds"
+    fail=0
+    dotest $line
+
+    # Don't retry if the build succeeded
+    if [ ${fail} -eq 0 ]; then
+      break
+    else
+      # Build Failed: Clean up any corrupted downloads, don't reuse
+      git -C $nuttx clean -xfdq
+      git -C $APPSDIR clean -xfdq
+      pushd $nuttx ; git status ; popd
+      pushd $APPSDIR ; git status ; popd
+    fi
+
+    # If this is Final Retry: Don't retry subsequent builds
+    if [ $i -eq $maxbuilds ]; then
+      maxbuilds=1
+      break
+    fi
+
+    # Wait for Random Exponential Backoff, then retry
+    delay=$(( (RANDOM % $backoff) + 1 ))
+    echo "Wait $delay seconds ($backoff backoff)"
+    backoff=$(($backoff * 2))
+    sleep $delay
+  done
+
+  # Return the Previous Fail Status, unless this build failed
+  if [ ${fail} -eq 0 ]; then
+    fail=$prevfail
+  fi
+}
+
 # Perform the build test for each entry in the test list file
 
 for line in $testlist; do
@@ -584,10 +643,10 @@ for line in $testlist; do
     dir=`echo $line | cut -d',' -f1`
     list=`find boards$dir -name defconfig | cut -d'/' -f4,6`
     for i in ${list}; do
-      dotest $i${line/"$dir"/}
+      retrytest $i${line/"$dir"/}
     done
   else
-    dotest $line
+    retrytest $line
   fi
 done
 

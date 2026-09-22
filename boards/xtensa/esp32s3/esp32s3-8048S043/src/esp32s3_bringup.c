@@ -32,13 +32,16 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 
 #include <errno.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/himem/himem.h>
 #include <arch/board/board.h>
+
+#include "espressif/esp_gpio.h"
+#include "esp32s3_start.h"
 
 #ifdef CONFIG_ESP32S3_I2C
 #  include "esp32s3_i2c.h"
@@ -49,9 +52,16 @@
 #endif
 
 #ifdef CONFIG_RTC_DRIVER
-#  include "esp32s3_rtc_lowerhalf.h"
+#  include "espressif/esp_rtc.h"
 #endif
 
+<<<<<<< HEAD
+=======
+#ifdef CONFIG_ESPRESSIF_HR_TIMER
+#  include "espressif/esp_hr_timer.h"
+#endif
+
+>>>>>>> nuttx-13.0.0
 #ifdef CONFIG_ESPRESSIF_EFUSE
 #  include "espressif/esp_efuse.h"
 #endif
@@ -100,14 +110,19 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int esp32s3_bringup(void)
 {
   int ret;
+
+#ifdef CONFIG_ESPRESSIF_HR_TIMER
+  ret = esp_hr_timer_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: esp_hr_timer_init() failed: %d\n", ret);
+    }
+#endif
 
 #if defined(CONFIG_ESP32S3_SPIRAM) && \
     defined(CONFIG_ESP32S3_SPIRAM_BANKSWITCH_ENABLE)
@@ -195,7 +210,7 @@ int esp32s3_bringup(void)
 #ifdef CONFIG_RTC_DRIVER
   /* Instantiate the ESP32-S3 RTC driver */
 
-  ret = esp32s3_rtc_driverinit();
+  ret = esp_rtc_driverinit();
   if (ret < 0)
     {
       syslog(LOG_ERR,

@@ -27,7 +27,8 @@
 #include <nuttx/config.h>
 
 #include <stdint.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/arch.h>
 
 #include "arm.h"
@@ -74,6 +75,7 @@ void up_irqinitialize(void)
   /* And finally, enable interrupts */
 
 #ifndef CONFIG_SUPPRESS_INTERRUPTS
+  arm_color_intstack();
   up_irq_restore(PSR_MODE_SYS | PSR_F_BIT);
 #endif
 }

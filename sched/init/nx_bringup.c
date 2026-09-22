@@ -30,7 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
@@ -318,7 +318,9 @@ static inline void nx_start_application(void)
    * configured.
    */
 
+  boards_trace_begin();
   board_late_initialize();
+  boards_trace_end();
 #endif
 
 #ifdef CONFIG_COREDUMP

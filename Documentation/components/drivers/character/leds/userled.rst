@@ -29,7 +29,7 @@ Also is possible for users to control the LEDs from "nsh>" using the "printf" co
 .. code-block:: bash
 
   NuttShell (NSH)
-  nsh> printf \x000000a5 > /dev/userleds
+  nsh> printf \\x000000a5 > /dev/userleds
 
 This command will turn ON the LEDs mapped to bits 0, 2, 5 and 7.
 
@@ -59,7 +59,7 @@ Files supporting USERLED can be found in the following locations:
 
 Something important to note is that your board initialization code (normally named ``<arch>_bringup.c`` should call the function to register the driver.
 
-For stm32f4discovery board this initialization code is placed at ``boards/arm/stm32/stm32f4discovery/src/stm32_bringup.c`` and this is the block responsible to initialize the subsystem:
+For stm32f4discovery board this initialization code is placed at ``boards/arm/stm32f4/stm32f4discovery/src/stm32_bringup.c`` and this is the block responsible to initialize the subsystem:
 
 .. code-block:: C
 

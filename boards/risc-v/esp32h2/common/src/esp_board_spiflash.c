@@ -34,7 +34,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <sys/param.h>
 
@@ -407,7 +407,7 @@ static int init_storage_partition(void)
 
 #elif defined (CONFIG_ESPRESSIF_SPIFLASH_MTD_CONFIG)
 
-#  if defined (CONFIG_TESTING_MTD_CONFIG_FAIL_SAFE)
+#  if defined (CONFIG_TESTING_MTD_CONFIG_NVS)
 
   /* To test power-loss resilient kv system,
    * we write possible power-loss flash layout into flash
@@ -416,7 +416,7 @@ static int init_storage_partition(void)
    * write into flash.
    */
 
-  const char *path = CONFIG_TESTING_MTD_CONFIG_FAIL_SAFE_MOUNTPT_NAME;
+  const char *path = CONFIG_TESTING_MTD_CONFIG_MOUNTPT_NAME;
   ret = register_mtddriver(path, mtd, 0777, NULL);
   if (ret < 0)
     {
@@ -471,8 +471,6 @@ static int init_storage_partition(void)
 int board_spiflash_init(void)
 {
   int ret = OK;
-
-  esp_spiflash_init();
 
 #ifdef CONFIG_ESPRESSIF_HAVE_OTA_PARTITION
   ret = init_ota_partitions();

@@ -30,7 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/irq.h>
 
@@ -284,5 +284,30 @@ void mld_new_pollcycle(FAR struct net_driver_s *dev)
     }
 }
 #endif
+
+/****************************************************************************
+ * Name:  mld_grpfree_all
+ *
+ * Description:
+ *   Release all previously allocated groups for a device.
+ *
+ * Assumptions:
+ *   The network is locked.
+ *
+ ****************************************************************************/
+
+void mld_grpfree_all(FAR struct net_driver_s *dev)
+{
+  FAR struct mld_group_s *group =
+                         (FAR struct mld_group_s *)dev->d_mld.grplist.head;
+  FAR struct mld_group_s *next;
+
+  while (group != NULL)
+    {
+      next = group->next;
+      mld_grpfree(dev, group);
+      group = next;
+    }
+}
 
 #endif /* CONFIG_NET_MLD */

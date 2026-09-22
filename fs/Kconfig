@@ -5,6 +5,14 @@
 
 comment "File system configuration"
 
+config FS_PROFILER
+	bool "VFS Performance Profiler"
+	default n
+	---help---
+		Enable nanosecond/microsecond-level profiling for the Virtual File
+		System (VFS) operations (open, close, read, write). The profile stats
+		can be read via /proc/fs/profile if PROCFS is enabled.
+
 config DISABLE_MOUNTPOINT
 	bool "Disable support for mount points"
 	default n
@@ -45,7 +53,7 @@ config FS_AUTOMOUNTER_DEBUG
 config FS_AUTOMOUNTER_DRIVER
 	bool "Auto-mounter driver"
 	default n
-	depends on FS_AUTOMOUNTER
+	depends on FS_AUTOMOUNTER && !DISABLE_ALL_SIGNALS
 	---help---
 		Enabling this option will lead to registering of a character driver
 		on FS_AUTOMOUNTER_VFS_PATH + mount point path for auto-mounter.
@@ -85,6 +93,27 @@ config PSEUDOFS_ATTRIBUTES
 	---help---
 		Enable support for attributes(e.g. mode, uid, gid and time)
 		in the pseudo file system.
+
+config FS_PERMISSION
+	bool "Enable UNIX Filesystem Permission Support"
+	default n
+	depends on !DISABLE_PSEUDOFS_OPERATIONS
+	depends on SCHED_USER_IDENTITY
+	depends on PSEUDOFS_ATTRIBUTES
+
+	---help---
+		Enable filesystem ownership and permission metadata
+		support for pseudoFS inodes.
+
+		Requires SCHED_USER_IDENTITY and
+		PSEUDOFS_ATTRIBUTES for task credential tracking
+		and inode ownership/mode metadata support.
+
+		This option alone does not enforce runtime
+		permission checks.
+
+	comment "UNIX filesystem permission support requires SCHED_USER_IDENTITY=y, PSEUDOFS_ATTRIBUTES=y and DISABLE_PSEUDOFS_OPERATIONS=n"
+		depends on !SCHED_USER_IDENTITY || !PSEUDOFS_ATTRIBUTES || DISABLE_PSEUDOFS_OPERATIONS
 
 config PSEUDOFS_SOFTLINKS
 	bool "Pseudo-filesystem soft links"

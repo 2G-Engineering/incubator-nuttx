@@ -32,7 +32,7 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arpa/inet.h>
 
@@ -147,10 +147,12 @@ struct macnet_driver_s
 
   /* MAC Service notification information */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   bool    md_notify_registered;
   pid_t   md_notify_pid;
   struct sigevent md_notify_event;
   struct sigwork_s md_notify_work;
+#endif
 
 #ifdef CONFIG_NET_6LOWPAN
   struct sixlowpan_reassbuf_s md_iobuffer;
@@ -378,12 +380,14 @@ static int macnet_notify(FAR struct mac802154_maccb_s *maccb,
           nxsem_post(&priv->md_eventsem);
         }
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
       if (priv->md_notify_registered)
         {
           priv->md_notify_event.sigev_value.sival_int = primitive->type;
           nxsig_notification(priv->md_notify_pid, &priv->md_notify_event,
                              SI_QUEUE, &priv->md_notify_work);
         }
+#endif
 
       nxmutex_unlock(&priv->md_lock);
       return OK;
@@ -709,11 +713,6 @@ static int macnet_ifdown(FAR struct net_driver_s *dev)
 {
   FAR struct macnet_driver_s *priv = (FAR struct macnet_driver_s *)
                                       dev->d_private;
-  irqstate_t flags;
-
-  /* Disable interruption */
-
-  flags = enter_critical_section();
 
   /* Put the EMAC in its reset, non-operational state.  This should be
    * a known configuration that will guarantee the macnet_ifup() always
@@ -723,7 +722,7 @@ static int macnet_ifdown(FAR struct net_driver_s *dev)
   /* Mark the device "down" */
 
   priv->md_bifup = false;
-  leave_critical_section(flags);
+
   return OK;
 }
 
@@ -938,6 +937,7 @@ static int macnet_ioctl(FAR struct net_driver_s *dev, int cmd,
                *              errno value set appropriately.
                */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
               case MAC802154IOC_NOTIFY_REGISTER:
                 {
                   /* Save the notification events */
@@ -948,6 +948,7 @@ static int macnet_ioctl(FAR struct net_driver_s *dev, int cmd,
                   ret = OK;
                 }
                 break;
+#endif
 
               case MAC802154IOC_GET_EVENT:
                 {

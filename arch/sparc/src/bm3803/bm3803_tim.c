@@ -34,7 +34,7 @@
 #include <semaphore.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -563,7 +563,7 @@ static int bm3803_tim_checkint(struct bm3803_tim_dev_s *dev, int source)
 }
 
 /****************************************************************************
- * Pubic Functions
+ * Public Functions
  ****************************************************************************/
 
 /****************************************************************************

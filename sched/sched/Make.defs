@@ -30,6 +30,13 @@ CSRCS += sched_yield.c sched_rrgetinterval.c sched_foreach.c
 CSRCS += sched_lock.c sched_unlock.c sched_lockcount.c
 CSRCS += sched_idletask.c sched_self.c sched_get_stackinfo.c sched_get_tls.c
 CSRCS += sched_sysinfo.c sched_get_stateinfo.c sched_getcpu.c
+CSRCS += sched_switchcontext.c sched_sleep.c
+
+ifneq ($(CONFIG_STACKCHECK_MARGIN),)
+  ifneq ($(CONFIG_STACKCHECK_MARGIN),-1)
+    CSRCS += nxsched_checkstackoverflow.c
+  endif
+endif
 
 ifeq ($(CONFIG_PRIORITY_INHERITANCE),y)
 CSRCS += sched_reprioritize.c
@@ -61,16 +68,6 @@ ifeq ($(CONFIG_SCHED_SPORADIC),y)
 CSRCS += sched_sporadic.c
 endif
 
-ifeq ($(CONFIG_SCHED_SUSPENDSCHEDULER),y)
-CSRCS += sched_suspendscheduler.c
-endif
-
-ifneq ($(CONFIG_RR_INTERVAL),0)
-CSRCS += sched_resumescheduler.c
-else ifeq ($(CONFIG_SCHED_RESUMESCHEDULER),y)
-CSRCS += sched_resumescheduler.c
-endif
-
 ifneq ($(CONFIG_SCHED_CPULOAD_NONE),y)
 CSRCS += sched_cpuload.c
 ifeq ($(CONFIG_CPULOAD_ONESHOT),y)
@@ -82,9 +79,9 @@ endif
 endif
 
 ifeq ($(CONFIG_SCHED_TICKLESS),y)
-CSRCS += sched_timerexpiration.c
+CSRCS += sched_processtickless.c
 else
-CSRCS += sched_processtimer.c
+CSRCS += sched_processtick.c
 endif
 
 ifeq ($(CONFIG_SCHED_CRITMONITOR),y)

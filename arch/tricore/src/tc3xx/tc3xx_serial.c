@@ -33,8 +33,8 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/serial/serial.h>
@@ -44,6 +44,8 @@
 #include "tricore_internal.h"
 
 #include "Asclin/Asc/IfxAsclin_Asc.h"
+
+#include <chip.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -160,9 +162,6 @@ static char g_uart0txbuffer[CONFIG_UART0_TXBUFSIZE];
 
 #ifdef CONFIG_TC3XX_UART0
 
-#define UART_PIN_RX IfxAsclin0_RXA_P14_1_IN     /* UART receive port pin  */
-#define UART_PIN_TX IfxAsclin0_TX_P14_0_OUT     /* UART transmit port pin */
-
 /* Pin configuration */
 
 static const IfxAsclin_Asc_Pins g_uart0_pins =
@@ -179,7 +178,7 @@ static struct up_dev_s g_uart0priv =
   .uartbase  = &MODULE_ASCLIN0,
   .pins      = &g_uart0_pins,
   .baud      = CONFIG_UART0_BAUD,
-  .irq       = 21,
+  .irq       = TRICORE_UART_RX_IRQ,
 };
 
 static uart_dev_t g_uart0port =

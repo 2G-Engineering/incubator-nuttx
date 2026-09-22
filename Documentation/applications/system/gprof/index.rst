@@ -1,81 +1,127 @@
-=============================
-``gprof`` GNU Profile tool
-=============================
+===========================
+``gprof`` profiling command
+===========================
 
-GNU Profile (gprof) is a performance analysis tool that helps developers
-identify code bottlenecks and optimize their programs.
-It provides detailed information about the execution time and call
-frequency of functions within a program.
+The ``gprof`` command controls the NuttX function-call profiling subsystem.
+It can start and stop sampling at runtime and dump the collected profiling
+data to a file in ``gmon.out`` format.  The resulting file can be processed
+with the host ``gprof`` tool (or compatible analysers) to produce a flat
+profile and a call-graph.
 
-gprof can be used to:
+Profiling relies on compiler instrumentation (``-finstrument-functions``
+or equivalent).  Each instrumented function call records the caller and
+callee addresses; the dump subcommand writes these records together with a
+histogram of sampled program-counter values.
 
-1. Detect performance bottlenecks in your code
-2. Identify which functions consume the most execution time
-3. Analyze the call graph of your program
-4. Help prioritize optimization efforts
+Configuration
+=============
+
+Enable the application with ``CONFIG_SYSTEM_GPROF`` (tristate; can be
+built-in or an NSH command).
+
+``CONFIG_SYSTEM_GPROF`` depends on profiling being enabled.  Set
+``CONFIG_PROFILE_NONE`` to ``n`` (or enable ``CONFIG_SIM_GPROF`` for the
+simulator).
+
+Related profiling options:
+
+- ``CONFIG_PROFILE`` -- enable the NuttX profiling framework
+- ``CONFIG_PROFILE_DUMP_ON_EXIT`` -- automatically dump profiling data when
+  the process exits
+
+Task tuning:
+
+- ``CONFIG_SYSTEM_GPROF_PRIORITY`` -- task priority (default ``100``)
+- ``CONFIG_SYSTEM_GPROF_STACKSIZE`` -- stack size (default
+  ``DEFAULT_TASK_STACKSIZE``)
 
 Usage
 =====
 
-Build
+.. code-block:: console
+
+   gprof start
+   gprof stop
+   gprof dump [output]
+   gprof help
+
+Subcommands
+===========
+
+start
 -----
 
-Enable the following configuration in NuttX::
+Begin profiling.  Calls ``monstartup()`` with the text-section boundaries
+(``_stext`` to ``_etext``) and then enables sampling via ``moncontrol(1)``.
 
-  CONFIG_SYSTEM_GPROF
+stop
+----
 
-Using in NuttX
---------------
+Disable sampling by calling ``moncontrol(0)``.  Profiling data remains in
+memory and can be dumped later.
 
-1. Start profiling::
+dump [output]
+-------------
 
-     nsh> gprof start
+Write collected profiling data to a file and release the associated
+resources.  Calls ``_mcleanup()`` internally.
 
-2. Stop profiling::
+By default the output file is ``gmon.out`` in the current working
+directory.  When *output* is specified it is used as the file-name prefix
+via the ``GMON_OUT_PREFIX`` environment variable; the actual file will be
+named ``<output>.0`` (the suffix is appended by the gmon writer).
 
-     nsh> gprof stop
+.. note::
 
-3. Dump profiling data::
+   The ``dump`` subcommand requires ``CONFIG_DISABLE_ENVIRON`` to be
+   ``n`` so that ``setenv()`` is available.  On configurations that
+   disable the environment, ``dump`` prints an error message and does
+   not write a file.
 
-     nsh> gprof dump /tmp/gmon.out
+help
+----
 
-Analyzing on Host
------------------
+Print a short usage summary and exit.
 
-1. Pull the profiling data to host::
+Examples
+========
 
-     adb pull /tmp/gmon.out ./gmon.out
+Profile a section of code interactively:
 
-2. Analyze the data using gprof tool::
+.. code-block:: console
 
-     The saved file format complies with the standard gprof format.
-     For detailed instructions on gprof command usage, please refer to the GNU gprof manual:
-     https://ftp.gnu.org/old-gnu/Manuals/gprof-2.9.1/html_mono/gprof.html
+   nsh> gprof start
+   nsh> <run the workload to be profiled>
+   nsh> gprof stop
+   nsh> gprof dump
 
-     arm-none-eabi-gprof ./nuttx/nuttx gmon.out -b
+Dump to a custom file name:
 
-     Example output:
+.. code-block:: console
 
-     ```
-     arm-none-eabi-gprof nuttx/nuttx gmon.out -b
-     Flat profile:
+   nsh> gprof dump /tmp/my_profile
 
-     Each sample counts as 0.001 seconds.
-       %   cumulative   self              self     total
-      time   seconds   seconds    calls   s/call   s/call  name
-      66.41      3.55     3.55       43     0.08     0.08  sdelay
-      33.44      5.34     1.79       44     0.04     0.04  delay
-       0.07      5.34     0.00                             up_idle
-       0.04      5.34     0.00                             nx_start
-       0.02      5.34     0.00                             fdtdump_main
-       0.02      5.34     0.00                             nxsem_wait
-       0.00      5.34     0.00        1     0.00     5.34  hello_main
-       0.00      5.34     0.00        1     0.00     0.00  singal_handler
+The resulting ``/tmp/my_profile.0`` can be copied to the host and analysed:
 
-     ```
+.. code-block:: console
 
-     This output shows the performance profile of the program,
-     including execution time and call counts for each function.
-     The flat profile table provides a quick overview of where the program spends most of its time.
-     In this example, `sdelay` and `delay` functions consume the majority of execution time.
-     This information can be used to identify performance bottlenecks and optimize critical parts of the code.
+   $ arm-none-eabi-objcopy --update-section .gmon/data=my_profile.0 nuttx
+   $ arm-none-eabi-gprof nuttx
+
+Automatic dump on exit
+======================
+
+When ``CONFIG_PROFILE_DUMP_ON_EXIT`` is enabled, profiling data is written
+automatically when the profiled process exits.  In that case there is no
+need to call ``gprof dump`` explicitly.
+
+Notes
+=====
+
+- Profiling data structures are allocated by ``monstartup()``.  Starting
+  profiling a second time without dumping first will silently discard the
+  previous data.
+
+- The ``gprof`` command itself must also be built with profiling
+  instrumentation if you want to profile it; normally it is only used as a
+  controller for profiling other code.

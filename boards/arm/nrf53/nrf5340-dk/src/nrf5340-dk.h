@@ -106,9 +106,6 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int nrf53_bringup(void);
@@ -162,6 +159,18 @@ int nrf53_mx25_initialize(void);
 
 #ifdef CONFIG_DEV_GPIO
 int nrf53_gpio_initialize(void);
+#endif
+
+/****************************************************************************
+ * Name: nrf53_qencoder_initialize
+ *
+ * Description:
+ *   Initialize and register the qencoder driver
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NRF53_QDEC
+int nrf53_qencoder_initialize(int devno);
 #endif
 
 #endif /* __ASSEMBLY__ */

@@ -49,7 +49,7 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <time.h>
 #include <stdlib.h>
 
@@ -62,6 +62,7 @@
 #include "netdev/netdev.h"
 #include "devif/devif.h"
 #include "socket/socket.h"
+#include "utils/utils.h"
 #include "tcp/tcp.h"
 
 /****************************************************************************
@@ -73,7 +74,7 @@
  *
  * NOTE:  We only have 0.5 timing resolution here so the delay will be
  * between 0.5 and 1.0 seconds, and may be delayed further, depending on the
- * polling rate of the the driver (often 1 second).
+ * polling rate of the driver (often 1 second).
  */
 
 #define ACK_DELAY (1)
@@ -145,19 +146,22 @@ static void tcp_timer_expiry(FAR void *arg)
 {
   FAR struct tcp_conn_s *conn = NULL;
 
-  net_lock();
+  tcp_conn_list_lock();
 
   while ((conn = tcp_nextconn(conn)) != NULL)
     {
       if (conn == arg)
         {
+          tcp_conn_list_unlock();
           conn->timeout = true;
-          netdev_txnotify_dev(conn->dev);
-          break;
+          netdev_lock(conn->dev);
+          netdev_txnotify_dev(conn->dev, TCP_POLL);
+          netdev_unlock(conn->dev);
+          return;
         }
     }
 
-  net_unlock();
+  tcp_conn_list_unlock();
 }
 
 /****************************************************************************
@@ -229,7 +233,7 @@ static void tcp_xmit_probe(FAR struct net_driver_s *dev,
 
 void tcp_update_timer(FAR struct tcp_conn_s *conn)
 {
-  sclock_t timeout = tcp_get_timeout(conn);
+  clock_t timeout = tcp_get_timeout(conn);
 
   if (timeout > 0)
     {
@@ -238,7 +242,7 @@ void tcp_update_timer(FAR struct tcp_conn_s *conn)
 
       if (conn->ltimeout != 0)
         {
-          sclock_t ticks = conn->ltimeout - clock_systime_ticks();
+          clock_t ticks = conn->ltimeout - clock_systime_ticks();
 
           if (ticks <= 0)
             {
@@ -360,7 +364,7 @@ void tcp_stop_timer(FAR struct tcp_conn_s *conn)
  *
  ****************************************************************************/
 
-void tcp_set_zero_probe(FAR struct tcp_conn_s *conn, uint16_t flags)
+void tcp_set_zero_probe(FAR struct tcp_conn_s *conn, uint32_t flags)
 {
   if ((conn->tcpstateflags & TCP_ESTABLISHED) &&
       ((flags & TCP_NEWDATA) == 0) && conn->tx_unacked <= 0 &&
@@ -418,6 +422,7 @@ void tcp_timer(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
    * the connection.
    */
 
+  conn_lock(&conn->sconn);
   tcp_ip_select(conn);
 
   hdrlen = tcpip_hdrsize(conn);
@@ -435,6 +440,7 @@ void tcp_timer(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
     {
       /* Nothing to be done */
 
+      conn_unlock(&conn->sconn);
       return;
     }
 
@@ -442,7 +448,7 @@ void tcp_timer(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
   /* Send reset immediately if linger timeout */
 
   if (conn->ltimeout != 0 &&
-      ((sclock_t)(conn->ltimeout - clock_systime_ticks()) <= 0))
+      conn->ltimeout - clock_systime_ticks() <= 0)
     {
       conn->tcpstateflags = TCP_CLOSED;
       ninfo("TCP state: TCP_CLOSED\n");
@@ -469,8 +475,7 @@ void tcp_timer(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
    * out.
    */
 
-  if (conn->tcpstateflags == TCP_TIME_WAIT ||
-      conn->tcpstateflags == TCP_FIN_WAIT_2)
+  if (conn->tcpstateflags == TCP_TIME_WAIT)
     {
       /* Check if the timer exceeds the timeout value */
 
@@ -537,6 +542,7 @@ void tcp_timer(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
                   /* Finally, we must free this TCP connection structure */
 
                   conn->crefs = 0;
+                  conn_unlock(&conn->sconn);
                   tcp_free(conn);
                   return;
                 }
@@ -548,38 +554,34 @@ void tcp_timer(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
 
               else if (
 #ifdef CONFIG_NET_TCP_WRITE_BUFFERS
-#  ifdef CONFIG_NET_SENDFILE
-                  (!conn->sendfile && conn->expired > 0) ||
-                  (conn->sendfile && conn->nrtx >= TCP_MAXRTX) ||
-#  else
                   conn->expired > 0 ||
-#  endif
-#else
-                  conn->nrtx >= TCP_MAXRTX ||
 #endif
+                  (conn->tcpstateflags != TCP_SYN_SENT &&
+                   conn->nrtx >= TCP_MAXRTX) ||
                   (conn->tcpstateflags == TCP_SYN_SENT &&
-                   conn->nrtx >= TCP_MAXSYNRTX)
-                 )
+                   conn->nrtx >= TCP_MAXSYNRTX))
                 {
                   conn->tcpstateflags = TCP_CLOSED;
                   ninfo("TCP state: TCP_CLOSED\n");
 
-                  /* We call tcp_callback() with TCP_TIMEDOUT to
+                  /* We send a reset packet to the remote host. */
+
+                  tcp_send(dev, conn, TCP_RST | TCP_ACK, hdrlen);
+
+                  /* We also call tcp_callback() with TCP_TIMEDOUT to
                    * inform the application that the connection has
                    * timed out.
                    */
 
                   tcp_callback(dev, conn, TCP_TIMEDOUT);
-
-                  /* We also send a reset packet to the remote host. */
-
-                  tcp_send(dev, conn, TCP_RST | TCP_ACK, hdrlen);
                   goto done;
                 }
 
               /* Exponential backoff. */
 
+#ifndef CONFIG_NET_TCP_FIXED_RTO
               conn->rto = TCP_RTO << (conn->nrtx > 4 ? 4: conn->nrtx);
+#endif
               tcp_update_retrantimer(conn, conn->rto);
               conn->nrtx++;
 
@@ -602,11 +604,7 @@ void tcp_timer(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
                      * SYNACK.
                      */
 
-#if !defined(CONFIG_NET_TCP_WRITE_BUFFERS)
                     tcp_setsequence(conn->sndseq, conn->rexmit_seq);
-#else
-                    /* REVISIT for the buffered mode */
-#endif
                     tcp_synack(dev, conn, TCP_ACK | TCP_SYN);
                     goto done;
 
@@ -614,15 +612,12 @@ void tcp_timer(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
 
                     /* In the SYN_SENT state, we retransmit out SYN. */
 
-#if !defined(CONFIG_NET_TCP_WRITE_BUFFERS)
                     tcp_setsequence(conn->sndseq, conn->rexmit_seq);
-#else
-                    /* REVISIT for the buffered mode */
-#endif
                     tcp_synack(dev, conn, TCP_SYN);
                     goto done;
 
                   case TCP_ESTABLISHED:
+                  case TCP_CLOSE_WAIT:
 
                     /* In the ESTABLISHED state, we call upon the application
                      * to do the actual retransmit after which we jump into
@@ -658,11 +653,7 @@ void tcp_timer(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
 
                     /* In all these states we should retransmit a FINACK. */
 
-#if !defined(CONFIG_NET_TCP_WRITE_BUFFERS)
                     tcp_setsequence(conn->sndseq, conn->rexmit_seq);
-#else
-                    /* REVISIT for the buffered mode */
-#endif
                     tcp_send(dev, conn, TCP_FIN | TCP_ACK, hdrlen);
                     goto done;
                 }
@@ -673,7 +664,8 @@ void tcp_timer(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
        * connection has been established.
        */
 
-      else if ((conn->tcpstateflags & TCP_STATE_MASK) == TCP_ESTABLISHED)
+      else if ((conn->tcpstateflags & TCP_STATE_MASK) == TCP_ESTABLISHED ||
+               (conn->tcpstateflags & TCP_STATE_MASK) == TCP_CLOSE_WAIT)
         {
 #ifdef CONFIG_NET_TCP_KEEPALIVE
           /* Is this an established connected with KeepAlive enabled? */
@@ -703,19 +695,20 @@ void tcp_timer(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
 
                       devif_conn_event(conn->dev, TCP_ABORT,
                                        conn->sconn.list);
-                      tcp_stop_monitor(conn, TCP_ABORT);
+
+                      /* We also send a reset packet to the remote host. */
+
+                      tcp_send(dev, conn, TCP_RST | TCP_ACK, hdrlen);
+
+                      /* Stop the timer work */
+
+                      conn->keeptimer = 0;
+                      conn->timer     = 0;
                     }
                   else
                     {
                       tcp_xmit_probe(dev, conn);
 
-#ifdef CONFIG_NET_TCP_WRITE_BUFFERS
-                      /* Increment the un-ACKed sequence number */
-
-#if 0
-                      conn->sndseq_max++;
-#endif
-#endif
                       /* Update for the next probe */
 
                       conn->keeptimer = conn->keepintvl;
@@ -756,12 +749,6 @@ void tcp_timer(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
                   else
                     {
                       tcp_xmit_probe(dev, conn);
-
-#ifdef CONFIG_NET_TCP_WRITE_BUFFERS
-                      /* Increment the un-ACKed sequence number */
-
-                      conn->sndseq_max++;
-#endif
 
                       /* Update for the next probe */
 
@@ -822,6 +809,7 @@ void tcp_timer(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn)
 
 done:
   tcp_update_timer(conn);
+  conn_unlock(&conn->sconn);
 }
 
 #endif /* CONFIG_NET && CONFIG_NET_TCP */

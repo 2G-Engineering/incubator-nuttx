@@ -58,10 +58,13 @@ behave as follows at Nuttx start-up time:
               `-- rcS
               `-- rc.sysinit
 
-  -  By default, the contents of ``rc.sysinit`` script are::
+  -  By default, the contents of ``rc.sysinit`` script prefer TMPFS for
+     ``/tmp`` and fall back to FAT RAMDISK when TMPFS is not enabled::
 
-      # Create a RAMDISK and mount it at /tmp
+      # Mount /tmp on TMPFS
+      mount -t tmpfs /tmp
 
+      # Otherwise create a RAMDISK and mount it at /tmp
       mkrd -m 1 -s 512 1024
       mkfatfs /dev/ram1
       mount -t vfat /dev/ram1 /tmp
@@ -83,7 +86,7 @@ behave as follows at Nuttx start-up time:
 ``CONFIG_ETC_ROMFS=y`` in the NuttX configuration file. They might
 provide useful examples:
 
-  -  ``boards/arm/stm32/hymini-stm32v/nsh2``
+  -  ``boards/arm/stm32f1/hymini-stm32v/nsh2``
   -  ``boards/arm/dm320/ntosd-dm320/nsh``
   -  ``boards/sim/sim/sim/nsh``
   -  ``boards/sim/sim/sim/nsh2``
@@ -96,8 +99,8 @@ In most of these cases, the configuration sets up the *default*
 script is here: ``apps/nshlib/rc.sysinit.template`` and
 ``apps/nshlib/rcS.template``. (The funny values in the rc.sysinit.template
 like ``XXXMKRDMINORXXX`` get replaced via ``sed`` at build time). This
-default configuration creates a ramdisk and mounts it at ``/tmp`` as
-discussed above.
+default configuration mounts ``/tmp`` as TMPFS when enabled, otherwise
+it creates a RAMDISK and mounts FAT at ``/tmp`` as discussed above.
 
 Customizing Start up Scripts
 ============================
@@ -122,7 +125,7 @@ In order to modify the start-up behavior, there are three things to study:
         `http://romfs.sourceforge.net <http://romfs.sourceforge.net/>`__)
         or included within the NuttX buildroot toolchain. There is also a
         snapshot available in the NuttX tools repository
-        `here <https://bitbucket.org/nuttx/tools/src/master/genromfs-0.5.2.tar.gz>`__.
+        `here <https://github.com/patacongo/tools/blob/main/genromfs-0.5.2.tar.gz>`__.
 
      #. The ``xxd`` tool that is used to generate the C header files (xxd
         is a normal part of a complete Linux or Cygwin installation,

@@ -31,7 +31,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <sys/param.h>
 
@@ -44,7 +44,8 @@
 #include <nuttx/fs/nxffs.h>
 #endif
 
-#include "esp32_spiflash.h"
+#include "espressif/esp_spiflash.h"
+#include "espressif/esp_spiflash_mtd.h"
 #include "esp32_board_spiflash.h"
 
 /****************************************************************************
@@ -52,15 +53,11 @@
  ****************************************************************************/
 
 #ifdef CONFIG_ESP32_OTA_PARTITION_ENCRYPT
-#  define OTA_ENCRYPT true
-#else
-#  define OTA_ENCRYPT false
+#  warning "CONFIG_ESP32_OTA_PARTITION_ENCRYPT is deprecated"
 #endif
 
 #ifdef CONFIG_ESP32_STORAGE_MTD_ENCRYPT
-#  define STORAGE_ENCRYPT true
-#else
-#  define STORAGE_ENCRYPT false
+#  warning "CONFIG_ESP32_STORAGE_MTD_ENCRYPT is deprecated"
 #endif
 
 /****************************************************************************
@@ -112,12 +109,12 @@ static int init_ota_partitions(void)
 {
   struct mtd_dev_s *mtd;
   int ret = OK;
+  int i;
 
-  for (int i = 0; i < nitems(g_ota_partition_table); ++i)
+  for (i = 0; i < nitems(g_ota_partition_table); ++i)
     {
       const struct partition_s *part = &g_ota_partition_table[i];
-      mtd = esp32_spiflash_alloc_mtdpart(part->firstblock, part->blocksize,
-                                         OTA_ENCRYPT);
+      mtd = esp_spiflash_alloc_mtdpart(part->firstblock, part->blocksize);
 
       ret = register_mtddriver(part->name, mtd, 0755, NULL);
       if (ret < 0)
@@ -350,9 +347,8 @@ static int init_storage_partition(void)
   int ret = OK;
   struct mtd_dev_s *mtd;
 
-  mtd = esp32_spiflash_alloc_mtdpart(CONFIG_ESP32_STORAGE_MTD_OFFSET,
-                                     CONFIG_ESP32_STORAGE_MTD_SIZE,
-                                     STORAGE_ENCRYPT);
+  mtd = esp_spiflash_alloc_mtdpart(CONFIG_ESP32_STORAGE_MTD_OFFSET,
+                                   CONFIG_ESP32_STORAGE_MTD_SIZE);
   if (!mtd)
     {
       syslog(LOG_ERR, "ERROR: Failed to alloc MTD partition of SPI Flash\n");
@@ -445,12 +441,6 @@ static int init_storage_partition(void)
 int board_spiflash_init(void)
 {
   int ret = OK;
-
-  ret = esp32_spiflash_init();
-  if (ret < 0)
-    {
-      return ret;
-    }
 
 #ifdef CONFIG_ESP32_HAVE_OTA_PARTITION
   ret = init_ota_partitions();

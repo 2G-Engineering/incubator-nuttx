@@ -32,7 +32,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
@@ -469,26 +469,19 @@ static int sim_closewindow(struct lcd_dev_s *dev)
 }
 
 /****************************************************************************
+ * Public Functions
+ ****************************************************************************/
+
+/****************************************************************************
  * Name: sim_x11loop
  ****************************************************************************/
 
+#ifdef CONFIG_SIM_X11FB
 void sim_x11loop(void)
 {
-#ifdef CONFIG_SIM_X11FB
-  static clock_t last;
-  clock_t now = clock_systime_ticks();
-
-  if (now - last >= MSEC2TICK(16))
-    {
-      sim_x11update();
-      last = now;
-    }
-#endif
+  sim_x11update();
 }
-
-/****************************************************************************
- * Public Functions
- ****************************************************************************/
+#endif
 
 /****************************************************************************
  * Name:  board_lcd_initialize

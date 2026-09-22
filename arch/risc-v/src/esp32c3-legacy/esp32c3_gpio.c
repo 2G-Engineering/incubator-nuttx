@@ -29,7 +29,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
@@ -419,4 +419,3 @@ void esp32c3_gpioirqdisable(int irq)
   up_enable_irq(ESP32C3_IRQ_GPIO);
 }
 #endif
-

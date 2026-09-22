@@ -28,7 +28,7 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
@@ -85,10 +85,6 @@ void s698pm_cpu_boot(void)
 
   sched_note_cpu_started(this_task());
 #endif
-
-  /* Reset scheduler parameters */
-
-  nxsched_resume_scheduler(this_task());
 
   /* And finally, enable cpu interrupts */
 

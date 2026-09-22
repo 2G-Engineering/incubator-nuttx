@@ -53,7 +53,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "nuttx/mm/iob.h"
 #include "nuttx/net/netdev.h"
@@ -457,8 +457,14 @@ static int sixlowpan_frame_process(FAR struct radio_driver_s *radio,
       SIXLOWPAN_DISPATCH_IPHC)
     {
       ninfo("IPHC Dispatch\n");
-      sixlowpan_uncompresshdr_hc06(radio, metadata,
-                                   fragsize, iob, fptr, bptr);
+      ret = sixlowpan_uncompresshdr_hc06(radio, metadata,
+                                         fragsize, iob, fptr, bptr);
+      if (ret < 0)
+        {
+          nerr("ERROR: HC06 header decompress failed, dropping frame: %d\n",
+               ret);
+          goto errout_with_reass;
+        }
     }
   else
 #endif /* CONFIG_NET_6LOWPAN_COMPRESSION_HC06 */
@@ -722,7 +728,7 @@ static int sixlowpan_dispatch(FAR struct radio_driver_s *radio)
  *               must apply to all of the frames in the list.
  *
  * Returned Value:
- *   Zero (OK) is returned if the the frame was consumed; Otherwise a negated
+ *   Zero (OK) is returned if the frame was consumed; Otherwise a negated
  *   errno value is returned.
  *
  ****************************************************************************/

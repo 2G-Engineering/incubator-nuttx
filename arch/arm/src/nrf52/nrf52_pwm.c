@@ -31,7 +31,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -68,9 +68,6 @@ struct nrf52_pwm_s
   uint32_t                ch1_pin;   /* Channel 2 pin */
   uint32_t                ch2_pin;   /* Channel 3 pin */
   uint32_t                ch3_pin;   /* Channel 4 pin */
-#ifndef CONFIG_PWM_MULTICHAN
-  uint8_t                 channel;   /* Assigned channel */
-#endif
 
   /* Sequence 0 */
 
@@ -100,14 +97,8 @@ static int nrf52_pwm_freq(struct nrf52_pwm_s *priv, uint32_t freq);
 
 static int nrf52_pwm_setup(struct pwm_lowerhalf_s *dev);
 static int nrf52_pwm_shutdown(struct pwm_lowerhalf_s *dev);
-#ifdef CONFIG_PWM_PULSECOUNT
-static int nrf52_pwm_start(struct pwm_lowerhalf_s *dev,
-                           const struct pwm_info_s *info,
-                           void *handle);
-#else
 static int nrf52_pwm_start(struct pwm_lowerhalf_s *dev,
                            const struct pwm_info_s *info);
-#endif
 static int nrf52_pwm_stop(struct pwm_lowerhalf_s *dev);
 static int nrf52_pwm_ioctl(struct pwm_lowerhalf_s *dev,
                            int cmd, unsigned long arg);
@@ -148,9 +139,6 @@ struct nrf52_pwm_s g_nrf52_pwm0 =
 #ifdef CONFIG_NRF52_PWM0_CH3
   .ch3_pin = NRF52_PWM0_CH3_PIN,
 #endif
-#ifndef CONFIG_PWM_MULTICHAN
-  .channel = CONFIG_NRF52_PWM0_CHANNEL
-#endif
 };
 #endif
 
@@ -172,9 +160,6 @@ struct nrf52_pwm_s g_nrf52_pwm1 =
 #endif
 #ifdef CONFIG_NRF52_PWM1_CH3
   .ch3_pin = NRF52_PWM1_CH3_PIN,
-#endif
-#ifndef CONFIG_PWM_MULTICHAN
-  .channel = CONFIG_NRF52_PWM1_CHANNEL
 #endif
 };
 #endif
@@ -198,9 +183,6 @@ struct nrf52_pwm_s g_nrf52_pwm2 =
 #ifdef CONFIG_NRF52_PWM2_CH3
   .ch3_pin = NRF52_PWM2_CH3_PIN,
 #endif
-#ifndef CONFIG_PWM_MULTICHAN
-  .channel = CONFIG_NRF52_PWM2_CHANNEL
-#endif
 };
 #endif
 
@@ -222,9 +204,6 @@ struct nrf52_pwm_s g_nrf52_pwm3 =
 #endif
 #ifdef CONFIG_NRF52_PWM3_CH3
   .ch3_pin = NRF52_PWM3_CH3_PIN,
-#endif
-#ifndef CONFIG_PWM_MULTICHAN
-  .channel = CONFIG_NRF52_PWM3_CHANNEL
 #endif
 };
 #endif
@@ -555,22 +534,12 @@ static int nrf52_pwm_shutdown(struct pwm_lowerhalf_s *dev)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_PWM_PULSECOUNT
-static int nrf52_pwm_start(struct pwm_lowerhalf_s *dev,
-                           const struct pwm_info_s *info,
-                           void *handle)
-{
-#error Not supported
-}
-#else
 static int nrf52_pwm_start(struct pwm_lowerhalf_s *dev,
                            const struct pwm_info_s *info)
 {
   struct nrf52_pwm_s *priv = (struct nrf52_pwm_s *)dev;
   int                 ret  = OK;
-#ifdef CONFIG_PWM_MULTICHAN
-  int                 i    = 0;
-#endif
+  int                 i;
 
   DEBUGASSERT(dev);
 
@@ -588,29 +557,24 @@ static int nrf52_pwm_start(struct pwm_lowerhalf_s *dev,
         }
     }
 
-#ifdef CONFIG_PWM_MULTICHAN
-      for (i = 0; ret == OK && i < CONFIG_PWM_NCHANNELS; i++)
+  for (i = 0; ret == OK && i < CONFIG_PWM_NCHANNELS; i++)
+    {
+      /* Break the loop if all following channels are not configured */
+
+      if (info->channels[i].channel == -1)
         {
-          /* Break the loop if all following channels are not configured */
-
-          if (info->channels[i].channel == -1)
-            {
-              break;
-            }
-
-          /* Set output if channel configured */
-
-          if (info->channels[i].channel != 0)
-            {
-              ret = nrf52_pwm_duty(priv,
-                                   (info->channels[i].channel - 1),
-                                   info->channels[i].duty);
-            }
+          break;
         }
 
-#else
-      ret = nrf52_pwm_duty(priv, priv->channel, info->duty);
-#endif /* CONFIG_PWM_MULTICHAN */
+      /* Set output if channel configured */
+
+      if (info->channels[i].channel != 0)
+        {
+          ret = nrf52_pwm_duty(priv,
+                               (info->channels[i].channel - 1),
+                               info->channels[i].duty);
+        }
+    }
 
   /* Start sequence 0 */
 
@@ -622,7 +586,6 @@ static int nrf52_pwm_start(struct pwm_lowerhalf_s *dev,
 
   return ret;
 }
-#endif
 
 /****************************************************************************
  * Name: nrf52_pwm_stop

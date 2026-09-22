@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -43,6 +43,9 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+static_assert(CONFIG_BOARD_LOOPSPERMSEC != -1,
+              "Configure BOARD_LOOPSPERMSEC to non-default value.");
 
 /* Allow 2 milliseconds for the IRC16M to become ready. */
 

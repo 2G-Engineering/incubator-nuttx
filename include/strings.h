@@ -44,15 +44,15 @@
  * IEEE Std 1003.1-2008
  */
 
-#ifndef bcmp /* See mm/README.txt */
+#ifndef bcmp
 #define bcmp(b1,b2,len)  memcmp(b1,b2,(size_t)len)
 #endif
 
-#ifndef bcopy /* See mm/README.txt */
+#ifndef bcopy
 #define bcopy(b1,b2,len) memmove(b2,b1,len)
 #endif
 
-#ifndef bzero /* See mm/README.txt */
+#ifndef bzero
 #define bzero(s,n)       memset(s,0,n)
 #endif
 
@@ -92,16 +92,12 @@ int ffsl(long j);
 #  define ffsl(j) (__builtin_ctzl(j) + 1)
 #endif
 
-#ifdef CONFIG_HAVE_LONG_LONG
-
 int ffsll(long long j);
 
-#  ifdef CONFIG_HAVE_BUILTIN_FFSLL
-#    define ffsll(j)  __builtin_ffsll(j)
-#  elif defined (CONFIG_HAVE_BUILTIN_CTZ)
-#    define ffsll(j)  (__builtin_ctzll(j) + 1)
-#  endif
-
+#ifdef CONFIG_HAVE_BUILTIN_FFSLL
+#  define ffsll(j)  __builtin_ffsll(j)
+#elif defined (CONFIG_HAVE_BUILTIN_CTZ)
+#  define ffsll(j)  (__builtin_ctzll(j) + 1)
 #endif
 
 int fls(int j);
@@ -118,10 +114,8 @@ int flsl(long j);
 
 int flsll(long long j);
 
-#ifdef CONFIG_HAVE_LONG_LONG
-#  ifdef CONFIG_HAVE_BUILTIN_CLZ
-#    define flsll(j)  ((8 * sizeof(long long)) - __builtin_clzll(j))
-#  endif
+#ifdef CONFIG_HAVE_BUILTIN_CLZ
+#  define flsll(j)  ((8 * sizeof(long long)) - __builtin_clzll(j))
 #endif
 
 unsigned int popcount(unsigned int j);

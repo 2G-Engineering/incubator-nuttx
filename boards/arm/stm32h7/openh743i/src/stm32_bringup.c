@@ -38,7 +38,7 @@
 #  include <nuttx/usb/rndis.h>
 #endif
 
-#ifdef CONFIG_STM32H7_OTGFS
+#ifdef CONFIG_STM32_OTGFS
 #  include "stm32_usbhost.h"
 #endif
 
@@ -60,10 +60,6 @@
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y &&
- *   CONFIG_NSH_ARCHINIT:
- *     Called from the NSH library
  *
  ****************************************************************************/
 
@@ -95,7 +91,7 @@ int stm32_bringup(void)
   usbdev_rndis_initialize(mac);
 #endif
 
-#if defined(CONFIG_STM32H7_SDMMC) && !defined(CONFIG_CDCACM_CONSOLE)
+#if defined(CONFIG_STM32_SDMMC) && !defined(CONFIG_CDCACM_CONSOLE)
   /* Initialize the SDIO block driver */
 
   ret = stm32_sdio_initialize();

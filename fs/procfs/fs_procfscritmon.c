@@ -38,7 +38,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/clock.h>
 #include <nuttx/kmalloc.h>
@@ -137,7 +137,7 @@ static int critmon_open(FAR struct file *filep, FAR const char *relpath,
    * REVISIT:  Write-able proc files could be quite useful.
    */
 
-  if ((oflags & O_WRONLY) != 0 || (oflags & O_RDONLY) == 0)
+  if ((oflags & O_ACCMODE) != O_RDONLY)
     {
       ferr("ERROR: Only O_RDONLY supported\n");
       return -EACCES;
@@ -190,6 +190,11 @@ static ssize_t critmon_read_cpu(FAR struct critmon_file_s *attr,
   size_t linesize;
   size_t copysize;
   size_t totalsize;
+#if CONFIG_SCHED_CRITMONITOR_MAXTIME_BUSYWAIT >= 0
+  struct timespec all_time;
+  clock_t elapsed;
+  uint32_t rate;
+#endif
 
   UNUSED(maxtime);
   UNUSED(linesize);
@@ -230,9 +235,9 @@ static ssize_t critmon_read_cpu(FAR struct critmon_file_s *attr,
 
   /* Generate output for maximum time pre-emption disabled */
 
-  linesize = procfs_snprintf(attr->line, CRITMON_LINELEN, ",%lu.%09lu",
-                             (unsigned long)maxtime.tv_sec,
-                             (unsigned long)maxtime.tv_nsec);
+  linesize = procfs_snprintf(attr->line, CRITMON_LINELEN, ",%jd.%09ld",
+                             (intmax_t)maxtime.tv_sec,
+                             maxtime.tv_nsec);
   copysize = procfs_memcpy(attr->line, linesize, buffer, buflen, offset);
 
   totalsize += copysize;
@@ -264,9 +269,77 @@ static ssize_t critmon_read_cpu(FAR struct critmon_file_s *attr,
 
   /* Generate output for maximum time in a critical section */
 
-  linesize = procfs_snprintf(attr->line, CRITMON_LINELEN, ",%lu.%09lu",
-                             (unsigned long)maxtime.tv_sec,
-                             (unsigned long)maxtime.tv_nsec);
+  linesize = procfs_snprintf(attr->line, CRITMON_LINELEN, ",%jd.%09ld",
+                             (intmax_t)maxtime.tv_sec,
+                             maxtime.tv_nsec);
+  copysize = procfs_memcpy(attr->line, linesize, buffer, buflen, offset);
+
+  totalsize += copysize;
+  buffer    += copysize;
+  buflen    -= copysize;
+
+  if (buflen <= 0)
+    {
+      return totalsize;
+    }
+#endif
+
+#if CONFIG_SCHED_CRITMONITOR_MAXTIME_BUSYWAIT >= 0
+  /* Convert and generate output for max busywait time when trying spinlock */
+
+  if (g_busywait_max[cpu] > 0)
+    {
+      perf_convert(g_busywait_max[cpu], &maxtime);
+    }
+  else
+    {
+      maxtime.tv_sec = 0;
+      maxtime.tv_nsec = 0;
+    }
+
+  /* Reset the maximum */
+
+  g_busywait_max[cpu] = 0;
+
+  /* Generate output for max busywait time to enter csection(get spinlock) */
+
+  linesize = procfs_snprintf(attr->line, CRITMON_LINELEN, ",%jd.%09ld",
+                             (intmax_t)maxtime.tv_sec,
+                             maxtime.tv_nsec);
+  copysize = procfs_memcpy(attr->line, linesize, buffer, buflen, offset);
+
+  totalsize += copysize;
+  buffer    += copysize;
+  buflen    -= copysize;
+
+  if (buflen <= 0)
+    {
+      return totalsize;
+    }
+
+  /* Convert and generate output for all busywait time when trying spinlock */
+
+  if (g_busywait_total[cpu] > 0)
+    {
+      perf_convert(g_busywait_total[cpu], &all_time);
+    }
+  else
+    {
+      all_time.tv_sec = 0;
+      all_time.tv_nsec = 0;
+    }
+
+  elapsed = clock() * CONFIG_USEC_PER_TICK;
+  rate = (all_time.tv_sec * 1000000 + all_time.tv_nsec / 1000) *
+         1000000 / elapsed;
+
+  /* Generate output for all busywait time to enter csection(get spinlock) */
+
+  linesize = procfs_snprintf(attr->line, CRITMON_LINELEN, ",%jd.%09ld %2"
+                             PRId32 ".%04" PRId32 "%%",
+                             (intmax_t)all_time.tv_sec,
+                             all_time.tv_nsec,
+                             rate / 10000, rate % 10000);
   copysize = procfs_memcpy(attr->line, linesize, buffer, buflen, offset);
 
   totalsize += copysize;

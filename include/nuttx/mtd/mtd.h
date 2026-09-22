@@ -35,6 +35,10 @@
 
 #include <nuttx/fs/ioctl.h>
 
+#ifdef CONFIG_EEPROM
+#include <nuttx/eeprom/eeprom.h>
+#endif
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -77,6 +81,13 @@
                                              *      erased state of the MTD cell */
 #define MTDIOC_ERASESECTORS _MTDIOC(0x000c) /* IN: Pointer to mtd_erase_s structure
                                              * OUT: None */
+#define MTDIOC_RESET        _MTDIOC(0x000d) /* IN: None
+                                             * OUT: None
+                                             *      Resets the device to the power-on
+                                             *      default condition */
+#define MTDIOC_ISBAD        _MTDIOC(0x000e) /* IN: Erase block number
+                                             * OUT: 0=A good block
+                                             *      1=A bad block */
 
 /* Macros to hide implementation */
 
@@ -86,8 +97,14 @@
 #define MTD_READ(d,s,n,b)  ((d)->read    ? (d)->read(d,s,n,b)   : (-ENOSYS))
 #define MTD_WRITE(d,s,n,b) ((d)->write   ? (d)->write(d,s,n,b)  : (-ENOSYS))
 #define MTD_IOCTL(d,c,a)   ((d)->ioctl   ? (d)->ioctl(d,c,a)    : (-ENOSYS))
-#define MTD_ISBAD(d,b)     ((d)->isbad   ? (d)->isbad(d,b)      : (-ENOSYS))
-#define MTD_MARKBAD(d,b)   ((d)->markbad ? (d)->markbad(d,b)    : (-ENOSYS))
+
+#ifdef CONFIG_FTL_BBM
+#  define MTD_ISBAD(d,b)   ((d)->isbad   ? (d)->isbad(d,b)      : (-ENOSYS))
+#  define MTD_MARKBAD(d,b) ((d)->markbad ? (d)->markbad(d,b)    : (-ENOSYS))
+#else
+#  define MTD_ISBAD(d,b)   (-ENOSYS)
+#  define MTD_MARKBAD(d,b) (-ENOSYS)
+#endif
 
 /* If any of the low-level device drivers declare they want sub-sector erase
  * support, then define MTD_SUBSECTOR_ERASE.
@@ -150,6 +167,14 @@ struct mtd_erase_s
   uint32_t nblocks;     /* Number of blocks to be erased */
 };
 
+/* This structure store the bad block information of a block */
+
+struct mtd_bad_block_s
+{
+  off_t block_num;
+  int bad_flag;
+};
+
 /* This structure defines the interface to a simple memory technology device.
  * It will likely need to be extended in the future to support more complex
  * devices.
@@ -201,8 +226,10 @@ struct mtd_dev_s
 
   /* Check/Mark bad block for the specified block number */
 
+#ifdef CONFIG_FTL_BBM
   CODE int (*isbad)(FAR struct mtd_dev_s *dev, off_t block);
   CODE int (*markbad)(FAR struct mtd_dev_s *dev, off_t block);
+#endif
 
   /* Name of this MTD device */
 
@@ -414,7 +441,7 @@ FAR struct mtd_dev_s *at24c_initialize(FAR struct i2c_master_s *dev);
 #endif
 
 /****************************************************************************
- * Name: at25xx_initialize
+ * Name: at25ee_initialize
  *
  * Description:
  *   Create an initialized MTD device instance for an AT25 SPI EEPROM
@@ -424,16 +451,36 @@ FAR struct mtd_dev_s *at24c_initialize(FAR struct i2c_master_s *dev);
  *
  * Input Parameters:
  *   dev        - a reference to the spi device structure
- *   devtype    - device type, from include/nuttx/eeprom/spi_xx25xx.h
+ *   spi_devid  - SPI device ID to manage CS lines in board
+ *   devtype    - device type, see eeprom/eeprom.h
  *   readonly   - sets block driver to be readonly
  *
  * Returned Value:
- *   Initialised device structure (success) of NULL (fail)
+ *   Initialized device structure (success) or NULL (fail)
  *
  ****************************************************************************/
 
+#ifdef CONFIG_MTD_AT25EE
 FAR struct mtd_dev_s *at25ee_initialize(FAR struct spi_dev_s *dev,
-                                        int devtype, int readonly);
+                                        uint16_t spi_devid,
+                                        enum eeprom_25xx_e devtype,
+                                        int readonly);
+#endif
+
+/****************************************************************************
+ * Name: at25ee_teardown
+ *
+ * Description:
+ *   Teardown a previously created at25ee device.
+ *
+ * Input Parameters:
+ *   dev - Pointer to the mtd driver instance.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_MTD_AT25EE
+void at25ee_teardown(FAR struct mtd_dev_s *mtd);
+#endif
 
 /****************************************************************************
  * Name: at24c_uninitialize
@@ -588,7 +635,7 @@ FAR struct mtd_dev_s *sst39vf_initialize(void);
  *
  * Description:
  *   Initializes the driver for SPI-based W25x16, x32, and x64 and W25q16,
- *   q32, q64, and q128 FLASH
+ *   q32, q64, and q128 NOR FLASH
  *
  ****************************************************************************/
 
@@ -602,8 +649,13 @@ FAR struct mtd_dev_s *w25_initialize(FAR struct spi_dev_s *dev);
  *
  ****************************************************************************/
 
+#ifdef CONFIG_GD25_QSPI
+FAR struct mtd_dev_s *gd25_initialize(FAR struct qspi_dev_s *qspi,
+                                      bool unprotect);
+#else
 FAR struct mtd_dev_s *gd25_initialize(FAR struct spi_dev_s *dev,
                                       uint32_t spi_devid);
+#endif
 
 /****************************************************************************
  * Name: gd55_initialize
@@ -631,7 +683,7 @@ FAR struct mtd_dev_s *gd5f_initialize(FAR struct spi_dev_s *dev,
  * Name: w25n_initialize
  *
  * Description:
- *   Initializes the driver for SPI-based W25N FLASH
+ *   Initializes the driver for SPI-based W25N NAND FLASH
  *
  ****************************************************************************/
 

@@ -29,7 +29,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 
 #include <nuttx/kmalloc.h>
@@ -314,7 +314,7 @@ static void adxl345_reset(FAR struct adxl345_dev_s *priv)
 
   /* Wait a bit to make the GOD of TIME happy */
 
-  nxsig_usleep(20 * 1000);
+  nxsched_usleep(20 * 1000);
 }
 
 /****************************************************************************

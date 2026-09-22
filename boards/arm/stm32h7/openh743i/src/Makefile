@@ -24,11 +24,7 @@ include $(TOPDIR)/Make.defs
 
 CSRCS = stm32_boot.c stm32_bringup.c
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += stm32_appinitialize.c
-endif
-
-ifeq ($(CONFIG_STM32H7_SDMMC),y)
+ifeq ($(CONFIG_STM32_SDMMC),y)
 CSRCS += stm32_sdmmc.c
 endif
 

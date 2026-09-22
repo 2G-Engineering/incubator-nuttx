@@ -29,7 +29,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <fcntl.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <sys/ioctl.h>
 
@@ -44,7 +44,7 @@
 
 #include <arch/board/board.h>
 
-#include "esp32s3_gpio.h"
+#include "espressif/esp_gpio.h"
 #include "esp32s3_spi.h"
 #include "hardware/esp32s3_gpio_sigmap.h"
 
@@ -106,7 +106,7 @@ int board_lcd_initialize(void)
   /* Turn on LCD backlight (10% brightness) */
 
   pwm.frequency = SZPI_LCD_PWM_FREQ;
-  pwm.duty = SZPI_LCD_PWM_DUTY;
+  pwm.channels[0].duty = SZPI_LCD_PWM_DUTY;
 
   ret = file_open(&g_pwm_file, SZPI_LCD_PWM_PATH, O_RDONLY);
   if (ret < 0)

@@ -32,10 +32,6 @@ if(CONFIG_ARCH_BUTTONS)
   list(APPEND SRCS stm32_buttons.c)
 endif()
 
-if(CONFIG_BOARDCTL)
-  list(APPEND SRCS stm32_appinitialize.c)
-endif()
-
 if(CONFIG_PWM)
   list(APPEND SRCS stm32_pwm.c)
 endif()
@@ -44,7 +40,7 @@ if(CONFIG_SPORADIC_INSTRUMENTATION)
   list(APPEND SRCS stm32_sporadic.c)
 endif()
 
-if(CONFIG_STM32F7_FMC)
+if(CONFIG_STM32_FMC)
   list(APPEND SRCS stm32_extmem.c)
 endif()
 

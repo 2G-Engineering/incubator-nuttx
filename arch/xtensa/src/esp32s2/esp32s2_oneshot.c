@@ -30,7 +30,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/timers/oneshot.h>
@@ -39,7 +39,7 @@
 #include "hardware/esp32s2_soc.h"
 
 #include "esp32s2_tim.h"
-#include "esp32s2_clockconfig.h"
+#include "esp_clk.h"
 #include "esp32s2_oneshot.h"
 
 #ifdef CONFIG_ESP32S2_ONESHOT
@@ -73,12 +73,14 @@ static int esp32s2_oneshot_handler(int irq, void *context, void *arg);
  *   the next level up.
  *
  * Input Parameters:
- *   irq   - IRQ associated to that interrupt
- *   arg -   A pointer to the argument provided when the interrupt was
- *           registered.
+ *   irq     - The interrupt number.
+ *   context - The context of the interrupt.
+ *   arg     -  A pointer to the argument provided when the interrupt was
+ *              registered.
  *
  * Returned Value:
- *   Zero on success; a negated errno value on failure.
+ *   Zero (OK) is returned on success; a negated errno value is returned
+ *   on failure.
  *
  ****************************************************************************/
 
@@ -261,9 +263,8 @@ int esp32s2_oneshot_start(struct esp32s2_oneshot_s *oneshot,
   uint64_t timeout_us;
   int ret = OK;
 
-  tmrinfo("handler=%p arg=%p, ts=(%lu, %lu)\n",
-          handler, arg, (unsigned long)ts->tv_sec,
-          (unsigned long)ts->tv_nsec);
+  tmrinfo("handler=%p arg=%p, ts=(%jd, %ld)\n",
+          handler, arg, (intmax_t)ts->tv_sec, ts->tv_nsec);
   DEBUGASSERT(oneshot != NULL);
   DEBUGASSERT(handler != NULL);
   DEBUGASSERT(ts != NULL);
@@ -286,8 +287,8 @@ int esp32s2_oneshot_start(struct esp32s2_oneshot_s *oneshot,
 
   /* Retrieve the duration from timespec in microsecond */
 
-  timeout_us = (uint64_t)ts->tv_sec * USEC_PER_SEC +
-               (uint64_t)(ts->tv_nsec / NSEC_PER_USEC);
+  timeout_us = ts->tv_sec * USEC_PER_SEC +
+               (ts->tv_nsec / NSEC_PER_USEC);
 
   /* Verify if it is a multiple of the configured resolution.
    * In case it isn't, warn the user.
@@ -457,7 +458,7 @@ int esp32s2_oneshot_current(struct esp32s2_oneshot_s *oneshot,
 
   ESP32S2_TIM_GETCTR(oneshot->tim, usec);
 
-  *usec = *usec * (uint64_t)oneshot->resolution;
+  *usec = *usec * oneshot->resolution;
 
   return OK;
 }

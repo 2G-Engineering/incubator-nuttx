@@ -43,7 +43,7 @@
 #include <math.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/signal.h>
 
@@ -225,7 +225,7 @@ int spirit_radio_initialize(FAR struct spirit_library_s *spirit,
 
   /* Delay for state transition */
 
-  nxsig_usleep(100);
+  nxsched_usleep(100);
 
   /* Wait for the device to enter STANDBY */
 
@@ -263,7 +263,7 @@ int spirit_radio_initialize(FAR struct spirit_library_s *spirit,
 
   /* Delay for state transition */
 
-  nxsig_usleep(100);
+  nxsched_usleep(100);
 
   /* Make sure that the device becomes READY */
 
@@ -4674,7 +4674,7 @@ int spirit_radio_set_refdiv(FAR struct spirit_library_s *spirit,
  * Name: spirit_radio_get_refdiv
  *
  * Description:
- *   Get the the synthesizer reference divider state.
+ *   Get the synthesizer reference divider state.
  *
  * Input Parameters:
  *   spirit - Reference to a Spirit library state structure instance
@@ -4752,7 +4752,7 @@ int spirit_radio_enable_digdivider(FAR struct spirit_library_s *spirit,
  * Name: spirit_radio_isenabled_digdivider
  *
  * Description:
- *   Get the the synthesizer reference divider state.
+ *   Get the synthesizer reference divider state.
  *
  * Input Parameters:
  *   spirit - Reference to a Spirit library state structure instance

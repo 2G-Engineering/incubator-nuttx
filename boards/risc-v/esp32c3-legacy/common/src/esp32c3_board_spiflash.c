@@ -34,7 +34,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <sys/param.h>
 
@@ -421,7 +421,7 @@ static int init_storage_partition(void)
 
 #elif defined (CONFIG_ESP32C3_SPIFLASH_MTD_CONFIG)
 
-#if defined (CONFIG_TESTING_MTD_CONFIG_FAIL_SAFE)
+#if defined (CONFIG_TESTING_MTD_CONFIG_NVS)
 
   /* To test power-loss resilient kv system,
    * we write possible power-loss flash layout into flash

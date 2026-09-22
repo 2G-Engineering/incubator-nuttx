@@ -28,7 +28,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #ifdef CONFIG_SERIAL_TERMIOS
 #  include <termios.h>
@@ -47,7 +47,7 @@
 #include "hardware/esp32s3_usb_serial_jtag.h"
 
 #include "esp32s3_config.h"
-#include "esp32s3_irq.h"
+#include "esp_irq.h"
 
 /****************************************************************************
  * Pre-processor Macros
@@ -261,7 +261,7 @@ static void esp32s3_rxint(struct uart_dev_s *dev, bool enable)
  * Description:
  *   Configure the UART to operation in interrupt driven mode.  This method
  *   is called when the serial port is opened.  Normally, this is just after
- *   the the setup() method is called, however, the serial console may
+ *   the setup() method is called, however, the serial console may
  *   operate in a non-interrupt driven mode during the boot phase.
  *
  *   RX and TX interrupts are not enabled by the attach method (unless
@@ -281,23 +281,21 @@ static int esp32s3_attach(struct uart_dev_s *dev)
   /* Try to attach the IRQ to a CPU int */
 
   priv->cpu = this_cpu();
-  priv->cpuint = esp32s3_setup_irq(priv->cpu, priv->periph,
-                                   ESP32S3_INT_PRIO_DEF,
-                                   ESP32S3_CPUINT_LEVEL);
+  priv->cpuint = esp_setup_irq(priv->periph,
+                               ESP32S3_INT_PRIO_DEF,
+                               ESP_IRQ_TRIGGER_LEVEL,
+                               esp32s3_interrupt,
+                               dev);
   if (priv->cpuint < 0)
     {
       return priv->cpuint;
     }
 
-  /* Attach and enable the IRQ */
+  /* Enable the IRQ */
 
-  ret = irq_attach(priv->irq, esp32s3_interrupt, dev);
-  if (ret == OK)
-    {
-      up_enable_irq(priv->irq);
-    }
+  up_enable_irq(priv->irq);
 
-  return ret;
+  return OK;
 }
 
 /****************************************************************************
@@ -317,8 +315,7 @@ static void esp32s3_detach(struct uart_dev_s *dev)
   DEBUGASSERT(priv->cpuint != -ENOMEM);
 
   up_disable_irq(priv->irq);
-  irq_detach(priv->irq);
-  esp32s3_teardown_irq(priv->cpu, priv->periph, priv->cpuint);
+  esp_teardown_irq(priv->periph, priv->cpuint);
 
   priv->cpuint = -ENOMEM;
 }
@@ -478,4 +475,3 @@ void esp32s3_usbserial_write(char ch)
 
   esp32s3_send(&g_uart_usbserial, ch);
 }
-

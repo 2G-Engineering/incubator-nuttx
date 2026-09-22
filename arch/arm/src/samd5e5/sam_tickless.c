@@ -38,7 +38,7 @@
  * The RTOS will provide the following interfaces for use by the platform-
  * specific interval timer implementation:
  *
- *   void nxsched_timer_expiration(void):  Called by the platform-specific
+ *   void nxsched_process_timer(void):  Called by the platform-specific
  *     logic when the interval timer expires.
  *
  ****************************************************************************/
@@ -198,7 +198,7 @@ static struct sam_tickless_s g_tickless;
 static void sam_oneshot_handler(void *arg)
 {
   tmrinfo("Expired...\n");
-  nxsched_timer_expiration();
+  nxsched_process_timer();
 }
 
 /****************************************************************************
@@ -263,7 +263,7 @@ void up_timer_initialize(void)
   /* Convert this to configured clock ticks for use by the OS timer logic */
 
   max_delay /= CONFIG_USEC_PER_TICK;
-  if (max_delay > (uint64_t)UINT32_MAX)
+  if (max_delay > UINT32_MAX)
     {
       g_oneshot_maxticks = UINT32_MAX;
     }
@@ -333,7 +333,7 @@ int up_timer_gettime(struct timespec *ts)
  * Description:
  *   Cancel the interval timer and return the time remaining on the timer.
  *   These two steps need to be as nearly atomic as possible.
- *   nxsched_timer_expiration() will not be called unless the timer is
+ *   nxsched_process_timer() will not be called unless the timer is
  *   restarted with up_timer_start().
  *
  *   If, as a race condition, the timer has already expired when this
@@ -375,14 +375,14 @@ int up_timer_cancel(struct timespec *ts)
  * Name: up_timer_start
  *
  * Description:
- *   Start the interval timer.  nxsched_timer_expiration() will be
+ *   Start the interval timer.  nxsched_process_timer() will be
  *   called at the completion of the timeout (unless up_timer_cancel
  *   is called to stop the timing.
  *
  *   Provided by platform-specific code and called from the RTOS base code.
  *
  * Input Parameters:
- *   ts - Provides the time interval until nxsched_timer_expiration() is
+ *   ts - Provides the time interval until nxsched_process_timer() is
  *        called.
  *
  * Returned Value:
@@ -398,8 +398,7 @@ int up_timer_cancel(struct timespec *ts)
 
 int up_timer_start(const struct timespec *ts)
 {
-  tmrinfo("ts=(%lu, %lu)\n", (unsigned long)ts->tv_sec,
-                             (unsigned long)ts->tv_nsec);
+  tmrinfo("ts=(%jd, %ld)\n", (intmax_t)ts->tv_sec, ts->tv_nsec);
   return ONESHOT_INITIALIZED(&g_tickless.oneshot) ?
          sam_oneshot_start(&g_tickless.oneshot, &g_tickless.freerun,
          sam_oneshot_handler, NULL, ts) :

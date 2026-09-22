@@ -36,10 +36,12 @@
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
 #include <nuttx/cache.h>
+#include <nuttx/init.h>
 #include <nuttx/lib/elf.h>
 #include <nuttx/binfmt/symtab.h>
 #include <nuttx/drivers/ramdisk.h>
 #include <nuttx/reboot_notifier.h>
+#include <nuttx/trace.h>
 
 #ifdef CONFIG_NX
 #  include <nuttx/nx/nxmu.h>
@@ -54,6 +56,7 @@
 #  include <nuttx/usb/cdcacm.h>
 #  include <nuttx/usb/pl2303.h>
 #  include <nuttx/usb/usbmsc.h>
+#  include <nuttx/usb/uvc.h>
 #  include <nuttx/usb/composite.h>
 #endif
 
@@ -133,7 +136,6 @@ static inline int
             case BOARDIOC_USBDEV_CONNECT:    /* Connect the CDC/ACM device */
 #ifndef CONFIG_CDCACM_COMPOSITE
               {
-                DEBUGASSERT(ctrl->handle != NULL);
                 ret = cdcacm_initialize(ctrl->instance, ctrl->handle);
               }
 #endif
@@ -141,8 +143,7 @@ static inline int
 
             case BOARDIOC_USBDEV_DISCONNECT: /* Disconnect the CDC/ACM device */
               {
-                DEBUGASSERT(ctrl->handle != NULL && *ctrl->handle != NULL);
-                cdcacm_uninitialize(*ctrl->handle);
+                ret = cdcacm_uninitialize_instance(ctrl->instance, NULL);
               }
               break;
 
@@ -196,6 +197,44 @@ static inline int
               {
                 DEBUGASSERT(ctrl->handle != NULL && *ctrl->handle != NULL);
                 usbmsc_uninitialize(*ctrl->handle);
+              }
+              break;
+
+            default:
+              ret = -EINVAL;
+              break;
+          }
+        break;
+#endif
+
+#if defined(CONFIG_USBUVC) && !defined(CONFIG_USBUVC_COMPOSITE)
+      case BOARDIOC_USBDEV_UVC:              /* UVC class */
+        switch (ctrl->action)
+          {
+            case BOARDIOC_USBDEV_INITIALIZE: /* Initialize UVC device */
+              break;
+
+            case BOARDIOC_USBDEV_CONNECT:    /* Connect the UVC device */
+              {
+                FAR const struct uvc_params_s *params;
+
+                DEBUGASSERT(ctrl->handle != NULL);
+
+                /* Application passes video params via *handle */
+
+                params = (FAR const struct uvc_params_s *)*ctrl->handle;
+                *ctrl->handle = usbdev_uvc_initialize(params);
+                if (*ctrl->handle == NULL)
+                  {
+                    ret = -EIO;
+                  }
+              }
+              break;
+
+            case BOARDIOC_USBDEV_DISCONNECT: /* Disconnect the UVC device */
+              {
+                DEBUGASSERT(ctrl->handle != NULL && *ctrl->handle != NULL);
+                usbdev_uvc_uninitialize(*ctrl->handle);
               }
               break;
 
@@ -348,29 +387,6 @@ int boardctl(unsigned int cmd, uintptr_t arg)
 
   switch (cmd)
     {
-      /* CMD:           BOARDIOC_INIT
-       * DESCRIPTION:   Perform one-time application initialization.
-       * ARG:           The boardctl() argument is passed to the
-       *                board_app_initialize() implementation without
-       *                modification.  The argument has no meaning to NuttX;
-       *                the meaning of the argument is a contract between
-       *                the board-specific initialization logic and the
-       *                matching application logic.  The value cold be such
-       *                things as a mode enumeration value, a set of DIP
-       *                switch switch settings, a pointer to configuration
-       *                data read from a file or serial FLASH, or whatever
-       *                you would like to do with it.  Every implementation
-       *                should accept zero/NULL as a default configuration.
-       * CONFIGURATION: CONFIG_BOARDCTL
-       * DEPENDENCIES:  Board logic must provide board_app_initialization
-       */
-
-      case BOARDIOC_INIT:
-        {
-          ret = board_app_initialize(arg);
-        }
-        break;
-
 #ifdef CONFIG_BOARDCTL_FINALINIT
       /* CMD:           BOARDIOC_FINALINIT
        * DESCRIPTION:   Perform one-time application initialization after
@@ -414,6 +430,8 @@ int boardctl(unsigned int cmd, uintptr_t arg)
 
       case BOARDIOC_RESET:
         {
+          g_nx_initstate = OSINIT_RESET;
+          sched_trace_mark("RESET");
           reboot_notifier_call_chain(SYS_RESTART, (FAR void *)arg);
           up_flush_dcache_all();
           ret = board_reset((int)arg);
@@ -806,42 +824,55 @@ int boardctl(unsigned int cmd, uintptr_t arg)
 
           if (spinlock->action == BOARDIOC_SPINLOCK_LOCK)
             {
-              if (flags != NULL)
-                {
-                  *flags = up_irq_save();
-                }
-
               if (lock != NULL)
                 {
-                  spin_lock(lock);
+                  if (flags != NULL)
+                    {
+                      *flags = spin_lock_irqsave(lock);
+                    }
+                  else
+                    {
+                      spin_lock(lock);
+                    }
+                }
+              else
+                {
+                  *flags = up_irq_save();
                 }
             }
           else if (spinlock->action == BOARDIOC_SPINLOCK_TRYLOCK)
             {
-              if (flags != NULL)
-                {
-                  *flags = up_irq_save();
-                }
-
-              if (!spin_trylock(lock))
-                {
-                  ret = -EBUSY;
-                  if (flags != NULL)
-                    {
-                      up_irq_restore(*flags);
-                    }
-                }
+              if (lock != NULL)
+              {
+                if (flags != NULL)
+                  {
+                    if (!spin_trylock_irqsave(lock, *flags))
+                      {
+                        ret = -EBUSY;
+                      }
+                  }
+                else if (!spin_trylock(lock))
+                  {
+                    ret = -EBUSY;
+                  }
+              }
             }
           else if (spinlock->action == BOARDIOC_SPINLOCK_UNLOCK)
             {
-              if (flags != NULL)
-                {
-                  up_irq_restore(*flags);
-                }
-
               if (lock != NULL)
                 {
-                  spin_unlock(lock);
+                  if (flags != NULL)
+                    {
+                      spin_unlock_irqrestore(lock, *flags);
+                    }
+                  else
+                    {
+                      spin_unlock(lock);
+                    }
+                }
+              else
+                {
+                  up_irq_restore(*flags);
                 }
             }
           else
@@ -904,6 +935,25 @@ int boardctl(unsigned int cmd, uintptr_t arg)
       case BOARDIOC_START_CPU:
         {
           ret = board_start_cpu((int)arg);
+        }
+        break;
+#endif
+
+#ifdef CONFIG_BOARDCTL_MACADDR
+      /* CMD:           BOARDIOC_MACADDR
+       * DESCRIPTION:   Get the network driver mac address.
+       * ARG:           A pointer to an instance of struct
+       *                boardioc_macaddr_s.
+       * CONFIGURATION: CONFIG_BOARDCTL_MACADDR
+       * DEPENDENCIES:  Board logic must provide board_macaddr()
+       */
+
+      case BOARDIOC_MACADDR:
+        {
+          FAR struct boardioc_macaddr_s *req =
+            (FAR struct boardioc_macaddr_s *)arg;
+
+          ret = board_macaddr(req->ifname, req->macaddr);
         }
         break;
 #endif

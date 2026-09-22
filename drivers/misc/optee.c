@@ -36,6 +36,7 @@
 #include <sys/param.h>
 
 #ifdef CONFIG_ARCH_ADDRENV
+#  include <nuttx/addrenv.h>
 #  include <nuttx/pgalloc.h>
 #  include <nuttx/sched.h>
 #  include <nuttx/arch.h>
@@ -936,7 +937,7 @@ optee_ioctl_shm_alloc(FAR struct optee_priv_data *priv,
     }
 
   ret = file_allocate_from_inode(&g_optee_shm_inode,
-                                 O_CLOEXEC | O_RDOK, 0, shm, 0);
+                                 O_CLOEXEC | O_RDONLY, 0, shm, 0);
 
   if (ret < 0)
     {

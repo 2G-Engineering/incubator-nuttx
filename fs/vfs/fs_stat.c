@@ -428,9 +428,9 @@ int inode_stat(FAR struct inode *inode, FAR struct stat *buf, int resolve)
         {
           /* What is it if it also has child inodes? */
 
-#ifdef CONFIG_PSEUDOFS_FILE
           buf->st_size = inode->i_size;
 
+#ifdef CONFIG_PSEUDOFS_FILE
           if (inode_is_pseudofile(inode))
             {
               buf->st_mode |= S_IFREG;
@@ -454,7 +454,7 @@ int inode_stat(FAR struct inode *inode, FAR struct stat *buf, int resolve)
     }
 
 #ifdef CONFIG_PSEUDOFS_ATTRIBUTES
-  buf->st_mode |= inode->i_mode;
+  buf->st_mode = (buf->st_mode & S_IFMT) | inode->i_mode;
   buf->st_uid   = inode->i_owner;
   buf->st_gid   = inode->i_group;
   buf->st_atim  = inode->i_atime;

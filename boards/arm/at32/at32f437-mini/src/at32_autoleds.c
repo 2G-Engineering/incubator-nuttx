@@ -28,7 +28,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <arch/board/board.h>
@@ -58,7 +58,7 @@
  *   LED_SIGNAL           In a signal handler          No change
  *   LED_ASSERTION        An assertion failed          No change
  *   LED_PANIC            The system has crashed     OFF      Blinking
- *   LED_IDLE             AT32 is is sleep mode        Not used
+ *   LED_IDLE             AT32 is in sleep mode        Not used
  */
 
 /****************************************************************************

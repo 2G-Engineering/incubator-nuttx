@@ -33,7 +33,7 @@
 #include <sched.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/irq.h>
@@ -377,7 +377,7 @@ static void usb_msc_disconnect(void *arg)
 
       else
         {
-          ferr("ERROR: Unmount failed: %d\n", errcode);
+          ferr("ERROR: Unmount failed: %d\n", ret);
         }
     }
 }

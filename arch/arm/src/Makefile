@@ -21,7 +21,16 @@
 ############################################################################
 
 include $(TOPDIR)/tools/Make.defs
+
+# Allow cleanup targets to run even if the configured chip dirlink is gone.
+CLEAN_GOALS = clean distclean
+ifeq ($(strip $(MAKECMDGOALS)),)
 include chip/Make.defs
+else ifeq ($(strip $(filter-out $(CLEAN_GOALS),$(MAKECMDGOALS))),)
+-include chip/Make.defs
+else
+include chip/Make.defs
+endif
 
 ifeq ($(CONFIG_ARCH_ARMV7A),y)          # ARMv7-A
 ARCH_SUBDIR = armv7-a
@@ -153,6 +162,8 @@ VPATH += chip
 VPATH += common
 VPATH += $(ARCH_SUBDIR)
 
+vpath nuttx$(EXEEXT) $(TOPDIR)
+
 ifeq ($(CONFIG_ARM_TOOLCHAIN_IAR),y)
   VPATH += common$(DELIM)iar
 else # ifeq ($(CONFIG_ARCH_TOOLCHAIN_GNU),y)
@@ -161,8 +172,6 @@ else # ifeq ($(CONFIG_ARCH_TOOLCHAIN_GNU),y)
 endif
 
 all: $(HEAD_OBJ) $(BIN)
-
-.PHONY: board$(DELIM)libboard$(LIBEXT)
 
 $(AOBJS) $(UAOBJS) $(HEAD_OBJ): %$(OBJEXT): %.S
 	$(call ASSEMBLE, $<, $@)
@@ -184,8 +193,12 @@ endif
 $(KBIN): $(OBJS)
 	$(call ARCHIVE, $@, $(OBJS))
 
-board$(DELIM)libboard$(LIBEXT):
+board$(DELIM)libboard$(LIBEXT): FORCE
 	$(Q) $(MAKE) -C board libboard$(LIBEXT) EXTRAFLAGS="$(EXTRAFLAGS)"
+
+.PHONY: FORCE
+
+FORCE:
 
 # When multiple linking, these two additional linking objects will be included
 
@@ -236,7 +249,6 @@ ifneq ($(CONFIG_WINDOWS_NATIVE),y)
 	grep -v '\(compiled\)\|\(\$(OBJEXT)$$\)\|\( [aUw] \)\|\(\.\.ng$$\)\|\(LASH[RL]DI\)' | \
 	sort > $(TOPDIR)$(DELIM)System.map
 endif
-	$(Q) $(call DELFILE, $(addsuffix .tmp,$(ARCHSCRIPT)))
 
 # This is part of the top-level export target
 # Note that there may not be a head object if layout is handled
@@ -285,6 +297,7 @@ distclean:: clean
 ifeq ($(BOARDMAKE),y)
 	$(Q) $(MAKE) -C board distclean
 endif
+	$(call DELFILE, $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds) $(HEAD_ASRC:.S=.dds))
 	$(call DELFILE, Make.dep)
 	$(call DELFILE, .depend)
 

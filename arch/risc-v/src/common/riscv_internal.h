@@ -72,20 +72,11 @@
 #define INTSTACK_COLOR 0xdeadbeef
 #define HEAP_COLOR     'h'
 
-/* RISC-V requires a 16-byte stack alignment. */
-
-#define STACK_ALIGNMENT     16
-#define STACK_FRAME_SIZE    __XSTR(STACK_ALIGNMENT)
-
-/* Stack alignment macros */
-
-#define STACK_ALIGN_MASK    (STACK_ALIGNMENT - 1)
-#define STACK_ALIGN_DOWN(a) ((a) & ~STACK_ALIGN_MASK)
-#define STACK_ALIGN_UP(a)   (((a) + STACK_ALIGN_MASK) & ~STACK_ALIGN_MASK)
+#define STACK_FRAME_SIZE __XSTR(STACKFRAME_ALIGN)
 
 /* Interrupt Stack macros */
 
-#define INT_STACK_SIZE  (STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK))
+#define INT_STACK_SIZE  (STACKFRAME_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK))
 
 /* Determine which (if any) console driver to use.  If a console is enabled
  * and no other console device is specified, then a serial console is
@@ -243,12 +234,12 @@ static inline uintreg_t *riscv_fpuregs(struct tcb_s *tcb)
 
 #ifdef CONFIG_ARCH_RV_ISA_V
 void riscv_vpuconfig(void);
-void riscv_savevpu(uintptr_t *regs, uintptr_t *vregs);
-void riscv_restorevpu(uintptr_t *regs, uintptr_t *vregs);
+void riscv_savevpu(uintreg_t *regs, uintreg_t *vregs);
+void riscv_restorevpu(uintreg_t *regs, uintreg_t *vregs);
 
 /* Get VPU register save area */
 
-static inline uintptr_t *riscv_vpuregs(struct tcb_s *tcb)
+static inline uintreg_t *riscv_vpuregs(struct tcb_s *tcb)
 {
   return tcb->xcp.vregs;
 }
@@ -324,6 +315,10 @@ void riscv_pminitialize(void);
 void weak_function riscv_dma_initialize(void);
 #endif
 
+/* SoC-specific CPU initialization ******************************************/
+
+void weak_function riscv_soc_initialize(void);
+
 /* Low level serial output **************************************************/
 
 void riscv_lowputc(char ch);
@@ -364,9 +359,17 @@ size_t riscv_stack_check(uintptr_t alloc, size_t size);
 void riscv_stack_color(void *stackbase, size_t nbytes);
 #endif
 
+#if defined(CONFIG_STACK_COLORATION) && \
+    defined(CONFIG_ARCH_INTERRUPTSTACK) && CONFIG_ARCH_INTERRUPTSTACK > 15
+void riscv_color_intstack(void);
+#else
+#  define riscv_color_intstack()
+#endif
+
 #ifdef CONFIG_SMP
 void riscv_cpu_boot(int cpu);
 int riscv_smp_call_handler(int irq, void *c, void *arg);
+void riscv_timer_secondary_init(void);
 #endif
 
 #ifdef CONFIG_ARCH_RV_CPUID_MAP

@@ -25,7 +25,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <stdbool.h>
@@ -36,9 +36,9 @@
 #include <nuttx/clock.h>
 #include <nuttx/spinlock.h>
 
-#include "esp32s3_clockconfig.h"
+#include "esp_clk.h"
 #include "esp32s3_freerun.h"
-#include "esp32s3_gpio.h"
+#include "esp_gpio.h"
 
 #ifdef CONFIG_ESP32S3_FREERUN
 
@@ -315,8 +315,8 @@ int esp32s3_freerun_counter(struct esp32s3_freerun_s *freerun,
   ts->tv_sec  = sec;
   ts->tv_nsec = (usec - (sec * USEC_PER_SEC)) * NSEC_PER_USEC;
 
-  tmrinfo("   usec=%" PRIu64 " ts=(%lu, %lu)\n",
-          usec, (unsigned long)ts->tv_sec, (unsigned long)ts->tv_nsec);
+  tmrinfo("   usec=%" PRIu64 " ts=(%jd, %ld)\n",
+          usec, (intmax_t)ts->tv_sec, ts->tv_nsec);
 
   return OK;
 }

@@ -42,8 +42,8 @@
 #include <assert.h>
 #include <errno.h>
 #include <fixedmath.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/queue.h>
@@ -900,7 +900,7 @@ static void wm8904_setbitrate(FAR struct wm8904_dev_s *priv)
   retries = 5;
   do
     {
-      nxsig_usleep(5 * 5000);
+      nxsched_usleep(5 * 5000);
     }
   while (priv->locked == false && --retries > 0);
 
@@ -923,7 +923,7 @@ static void wm8904_setbitrate(FAR struct wm8904_dev_s *priv)
   retries = 5;
   do
     {
-       nxsig_usleep(5 * 5000);
+       nxsched_usleep(5 * 5000);
     }
   while ((wm8904_readreg(priv, WM8904_INT_STATUS) &
          WM8904_FLL_LOCK_INT) != 0 ||
@@ -2250,7 +2250,7 @@ static void wm8904_audio_output(FAR struct wm8904_dev_s *priv)
    * This value sets TOCLK_RATE_DIV16=0, TOCLK_RATE_X4=0, and MCLK_DIV=0
    * while preserving the state of some undocumented bits (see wm8904.h).
    *
-   *   MCLK_DIV=0           : MCLK is is not divided by 2.
+   *   MCLK_DIV=0           : MCLK is not divided by 2.
    */
 
   wm8904_writereg(priv, WM8904_CLKRATE0, 0x845e);

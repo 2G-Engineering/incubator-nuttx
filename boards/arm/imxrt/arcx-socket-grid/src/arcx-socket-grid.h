@@ -138,9 +138,7 @@
  *
  ****************************************************************************/
 
-#if defined(CONFIG_BOARDCTL) || defined(CONFIG_BOARD_LATE_INITIALIZE)
 int imxrt_bringup(void);
-#endif
 
 /****************************************************************************
  * Name: imxrt_spidev_initialize
@@ -199,11 +197,12 @@ int imxrt_gpio_initialize(void);
  * Name: imxrt_usbhost_initialize
  *
  * Description:
+ *   Initialize the USB Host EHCI Controller
  *
  ****************************************************************************/
 
 #ifdef CONFIG_USBHOST
-int imxrt_usbhost_initialize(void);
+int imxrt_usbhost_initialize(int ctrid);
 #endif
 
 #endif /* __ASSEMBLY__ */

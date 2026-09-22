@@ -49,17 +49,15 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_bringup
+ * Name: stm32_bringup
  *
  * Description:
- *   Called either by board_initialize() if CONFIG_BOARD_LATE_INITIALIZE or
- *   by board_app_initialize if CONFIG_BOARDCTL is selected.  This
- *   function initializes and configures all on-board features appropriate
- *   for the selected configuration.
+ *   This function initializes and configures all on-board features
+ *   appropriate for the selected configuration.
  *
  ****************************************************************************/
 
-int stm32l4_bringup(void)
+int stm32_bringup(void)
 {
   int ret = OK;
 
@@ -97,10 +95,10 @@ int stm32l4_bringup(void)
       struct qspi_dev_s *g_qspi;
       struct mtd_dev_s *g_mtd_fs;
 
-      g_qspi = stm32l4_qspi_initialize(0);
+      g_qspi = stm32_qspi_initialize(0);
       if (g_qspi == NULL)
         {
-          syslog(LOG_ERR, "ERROR: stm32l4_qspi_initialize failed\n");
+          syslog(LOG_ERR, "ERROR: stm32_qspi_initialize failed\n");
           return -EIO;
         }
 
@@ -224,10 +222,10 @@ process_next_part:
 #ifdef HAVE_SPSGRF
   /* Configure Spirit/SPSGRF wireless */
 
-  ret = stm32l4_spirit_initialize();
+  ret = stm32_spirit_initialize();
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: stm32l4_spirit_initialize() failed: %d\n",
+      syslog(LOG_ERR, "ERROR: stm32_spirit_initialize() failed: %d\n",
              ret);
     }
 #endif
@@ -235,7 +233,7 @@ process_next_part:
 #ifdef CONFIG_TIMER
   /* Register timer drivers */
 
-  ret = stm32l4_timer_driver_setup();
+  ret = stm32_timer_driver_setup();
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: Failed to setup TIM1 at /dev/timer0: %d\n",

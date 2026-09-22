@@ -31,7 +31,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <mqueue.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <fcntl.h>
 
 #include <nuttx/irq.h>
@@ -90,7 +90,7 @@ static int nxmq_verify_receive(FAR struct file *mq,
       return -EINVAL;
     }
 
-  if ((mq->f_oflags & O_RDOK) == 0)
+  if ((mq->f_oflags & O_ACCMODE) == O_WRONLY)
     {
       return -EBADF;
     }
@@ -138,14 +138,12 @@ static
 ssize_t file_mq_timedreceive_internal(FAR struct file *mq, FAR char *msg,
                                       size_t msglen, FAR unsigned int *prio,
                                       FAR const struct timespec *abstime,
-                                      sclock_t ticks)
+                                      clock_t ticks)
 {
   FAR struct mqueue_inode_s *msgq;
   FAR struct mqueue_msg_s *mqmsg;
   irqstate_t flags;
   ssize_t ret = 0;
-
-  DEBUGASSERT(up_interrupt_context() == false);
 
   /* Verify the input parameters */
 
@@ -185,6 +183,14 @@ ssize_t file_mq_timedreceive_internal(FAR struct file *mq, FAR char *msg,
   if (mqmsg == NULL)
     {
       if ((mq->f_oflags & O_NONBLOCK) != 0)
+        {
+          leave_critical_section(flags);
+          return -EAGAIN;
+        }
+
+      /* If we are in interrupt context, return EAGAIN instead of blocking */
+
+      if (up_interrupt_context())
         {
           leave_critical_section(flags);
           return -EAGAIN;
@@ -319,7 +325,7 @@ ssize_t file_mq_timedreceive(FAR struct file *mq, FAR char *msg,
 
 ssize_t file_mq_tickreceive(FAR struct file *mq, FAR char *msg,
                             size_t msglen, FAR unsigned int *prio,
-                            sclock_t ticks)
+                            clock_t ticks)
 {
   return file_mq_timedreceive_internal(mq, msg, msglen, prio, NULL, ticks);
 }

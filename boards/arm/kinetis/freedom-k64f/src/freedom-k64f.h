@@ -45,6 +45,11 @@
 #define HAVE_AUTOMOUNTER 1
 #define HAVE_USBDEV      1
 
+#undef HAVE_LEDS
+#if !defined(CONFIG_ARCH_LEDS) && defined(CONFIG_USERLED_LOWER)
+#  define HAVE_LEDS 1
+#endif
+
 #if defined(CONFIG_KINETIS_RTC)
 #define HAVE_RTC_DRIVER  1
 #endif
@@ -208,6 +213,9 @@
 #define GPIO_LED_G         (GPIO_LOWDRIVE | GPIO_OUTPUT_ONE | PIN_PORTE | PIN26)
 #define GPIO_LED_B         (GPIO_LOWDRIVE | GPIO_OUTPUT_ONE | PIN_PORTB | PIN21)
 
+/* SPI CS,   Arduino D10      Pin 93, PTD0, PIN_SPI0_PCS0_2 */
+#define GPIO_SPI0_CS       (GPIO_LOWDRIVE | GPIO_OUTPUT_ONE | PIN_PORTC | PIN4)
+
 /****************************************************************************
  * Public Data
  ****************************************************************************/
@@ -252,9 +260,7 @@ void weak_function k64_usbinitialize(void);
  *
  ****************************************************************************/
 
-#if defined(CONFIG_BOARDCTL) || defined(CONFIG_BOARD_LATE_INITIALIZE)
 int k64_bringup(void);
-#endif
 
 /****************************************************************************
  * Name: k64_sdhc_initialize

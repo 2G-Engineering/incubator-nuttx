@@ -1,0 +1,10 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+if ARCH_BOARD_ESK32
+
+comment "ESK32 note: USART1 is routed on the board, and PWM is exposed as /dev/pwm0 through TMR3."
+
+endif # ARCH_BOARD_ESK32

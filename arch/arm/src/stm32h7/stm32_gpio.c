@@ -30,8 +30,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <arch/stm32h7/chip.h>
 #include <nuttx/spinlock.h>
@@ -44,14 +44,11 @@
  * families
  */
 
-#if defined(CONFIG_STM32H7_STM32H7X3XX) || \
-    defined(CONFIG_STM32H7_STM32H7B3XX) || \
-    defined(CONFIG_STM32H7_STM32H7X5XX) || \
-    defined(CONFIG_STM32H7_STM32H7X7XX)
-
-#if defined(CONFIG_STM32H7_USE_LEGACY_PINMAP)
-#  pragma message "CONFIG_STM32H7_USE_LEGACY_PINMAP will be deprecated migrate board.h see tools/stm32_pinmap_tool.py"
-#endif
+#if  defined(CONFIG_STM32_STM32H7X0XX) || \
+     defined(CONFIG_STM32_STM32H7X3XX) || \
+     defined(CONFIG_STM32_STM32H7B3XX) || \
+     defined(CONFIG_STM32_STM32H7X5XX) || \
+     defined(CONFIG_STM32_STM32H7X7XX)
 
 /****************************************************************************
  * Private Data
@@ -65,47 +62,47 @@ static spinlock_t g_configgpio_lock = SP_UNLOCKED;
 
 /* Base addresses for each GPIO block */
 
-const uint32_t g_gpiobase[STM32H7_NGPIO] =
+const uint32_t g_gpiobase[STM32_NGPIO] =
 {
-#if STM32H7_NGPIO > 0
+#if STM32_NGPIO > 0
   STM32_GPIOA_BASE,
 #endif
-#if STM32H7_NGPIO > 1
+#if STM32_NGPIO > 1
   STM32_GPIOB_BASE,
 #endif
-#if STM32H7_NGPIO > 2
+#if STM32_NGPIO > 2
   STM32_GPIOC_BASE,
 #endif
-#if STM32H7_NGPIO > 3
+#if STM32_NGPIO > 3
   STM32_GPIOD_BASE,
 #endif
-#if STM32H7_NGPIO > 4
+#if STM32_NGPIO > 4
   STM32_GPIOE_BASE,
 #endif
-#if STM32H7_NGPIO > 5
-#  if defined(CONFIG_STM32H7_HAVE_GPIOF)
+#if STM32_NGPIO > 5
+#  if defined(CONFIG_STM32_HAVE_GPIOF)
   STM32_GPIOF_BASE,
 #  else
   0,
 #  endif
 #endif
-#if STM32H7_NGPIO > 6
-#  if defined(CONFIG_STM32H7_HAVE_GPIOG)
+#if STM32_NGPIO > 6
+#  if defined(CONFIG_STM32_HAVE_GPIOG)
   STM32_GPIOG_BASE,
 #  else
   0,
 #  endif
 #endif
-#if STM32H7_NGPIO > 7
+#if STM32_NGPIO > 7
   STM32_GPIOH_BASE,
 #endif
-#if STM32H7_NGPIO > 8
+#if STM32_NGPIO > 8
   STM32_GPIOI_BASE,
 #endif
-#if STM32H7_NGPIO > 9
+#if STM32_NGPIO > 9
   STM32_GPIOJ_BASE,
 #endif
-#if STM32H7_NGPIO > 10
+#if STM32_NGPIO > 10
   STM32_GPIOK_BASE,
 #endif
 };
@@ -166,7 +163,7 @@ int stm32_configgpio(uint32_t cfgset)
   /* Verify that this hardware supports the select GPIO port */
 
   port = (cfgset & GPIO_PORT_MASK) >> GPIO_PORT_SHIFT;
-  if (port >= STM32H7_NGPIO)
+  if (port >= STM32_NGPIO)
     {
       return -EINVAL;
     }
@@ -295,7 +292,7 @@ int stm32_configgpio(uint32_t cfgset)
   putreg32(regval, base + STM32_GPIO_PUPDR_OFFSET);
 
   /* Set the alternate function (Only alternate function pins)
-   * This is done after configuring the the pin's connection
+   * This is done after configuring the pin's connection
    * on a change away from an Alternate function.
    */
 
@@ -446,7 +443,7 @@ void stm32_gpiowrite(uint32_t pinset, bool value)
   unsigned int pin;
 
   port = (pinset & GPIO_PORT_MASK) >> GPIO_PORT_SHIFT;
-  if (port < STM32H7_NGPIO)
+  if (port < STM32_NGPIO)
     {
       /* Get the port base address */
 
@@ -488,7 +485,7 @@ bool stm32_gpioread(uint32_t pinset)
   unsigned int pin;
 
   port = (pinset & GPIO_PORT_MASK) >> GPIO_PORT_SHIFT;
-  if (port < STM32H7_NGPIO)
+  if (port < STM32_NGPIO)
     {
       /* Get the port base address */
 
@@ -664,7 +661,7 @@ void stm32_gpiowriteanddir(uint32_t pinset, bool value, uint32_t dir)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H7_SYSCFG_IOCOMPENSATION
+#ifdef CONFIG_STM32_SYSCFG_IOCOMPENSATION
 void stm32_iocompensation(void)
 {
   /* Enable I/O Compensation.  Writing '1' to the CMPCR power-down bit
@@ -681,4 +678,4 @@ void stm32_iocompensation(void)
 }
 #endif
 
-#endif /* CONFIG_STM32H7_STM32H7X3XX || CONFIG_STM32H7_STM32H7X7XX || CONFIG_STM32H7_STM32H7B3XX */
+#endif /* CONFIG_STM32_STM32H7X3XX || CONFIG_STM32_STM32H7X7XX || CONFIG_STM32_STM32H7B3XX */

@@ -33,7 +33,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -1596,7 +1596,7 @@ static int at32_tim_checkint(struct at32_tim_dev_s *dev, int source)
 }
 
 /****************************************************************************
- * Pubic Functions
+ * Public Functions
  ****************************************************************************/
 
 /****************************************************************************

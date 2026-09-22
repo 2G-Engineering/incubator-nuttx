@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 #include <nuttx/nuttx.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -875,7 +875,7 @@ static int nau7802_thread(int argc, FAR char *argv[])
 
       /* Wait for next measurement cycle */
 
-      nxsig_usleep(dev->interval);
+      nxsched_usleep(dev->interval);
     }
 
   return err;

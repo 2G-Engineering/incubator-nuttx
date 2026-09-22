@@ -20,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -29,7 +42,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdlib.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -277,7 +290,7 @@ static void kxtj9_soft_reset(FAR struct kxtj9_dev_s *priv)
 
   /* Delay 10ms for the accel parts to re-initialize */
 
-  nxsig_usleep(10000);
+  nxsched_usleep(10000);
 }
 
 /****************************************************************************

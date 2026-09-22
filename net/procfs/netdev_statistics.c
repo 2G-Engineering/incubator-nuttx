@@ -31,7 +31,7 @@
 #include <string.h>
 #include <inttypes.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <netinet/ether.h>
 
@@ -191,7 +191,7 @@ static int netprocfs_linklayer(FAR struct netprocfs_file_s *netfile)
 
   /* Get the interface status:  RUNNING, UP, or DOWN */
 
-  if ((dev->d_flags & IFF_RUNNING) != 0)
+  if (IFF_IS_RUNNING(dev->d_flags) != 0)
     {
       status = "RUNNING";
     }

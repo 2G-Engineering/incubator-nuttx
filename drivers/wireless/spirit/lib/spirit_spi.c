@@ -27,7 +27,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/clock.h>
 #include <nuttx/spi/spi.h>
@@ -635,17 +635,9 @@ int spirit_waitstatus(FAR struct spirit_library_s *spirit,
   /* Convert the MSEC timedelay to clock ticks, making sure that the
    * resulting delay in ticks is greater than or equal to the requested time
    * in MSEC.
-   *
-   * REVISIT: If USEC_PER_TICK and 'msec' are large, then the second
-   * computation may overflow!
    */
 
-#if (MSEC_PER_TICK * USEC_PER_MSEC) == USEC_PER_TICK
-  ticks = (msec + (MSEC_PER_TICK - 1)) / MSEC_PER_TICK;
-#else
-  ticks = ((clock_t)msec * USEC_PER_MSEC + (USEC_PER_TICK - 1)) /
-           USEC_PER_TICK;
-#endif
+  ticks = MSEC2TICK(msec);
 
   /* The time that we started the wait */
 
@@ -673,7 +665,7 @@ int spirit_waitstatus(FAR struct spirit_library_s *spirit,
   /* This is probably not an error.  In a busy radio environment, there
    * are many race conditions.  Most typically, just when the driver is
    * setting up to perform a transmission, the hardware commits to a
-   * reception.  The symptom is that the the above loop times out out
+   * reception.  The symptom is that the above loop times out out
    * waiting to go into the TX state (because it is in the RX state).
    *
    * Complaining with too much debug output just aggravates the problem.

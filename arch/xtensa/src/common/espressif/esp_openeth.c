@@ -26,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <netinet/if_ether.h>
@@ -475,6 +475,8 @@ int esp_openeth_initialize(void)
 
   dev->quota[NETPKT_TX] = TX_BUF_COUNT;
   dev->quota[NETPKT_RX] = RX_BUF_COUNT;
+  dev->rxtype           = NETDEV_RX_THREAD;
+  dev->priority         = 100;
 
   /* Allocate DMA buffers */
 
@@ -512,8 +514,9 @@ int esp_openeth_initialize(void)
 
   /* Setup interrupts */
 
-  priv->cpuint = OPENETH_SETUP_IRQ(0, OPENETH_PERIPH_MAC,
-                                 1, OPENETH_CPUINT_LEVEL);
+  priv->cpuint = OPENETH_SETUP_IRQ(OPENETH_PERIPH_MAC,
+                                   1, OPENETH_CPUINT_LEVEL,
+                                   openeth_isr_handler, priv);
   if (priv->cpuint < 0)
     {
       nerr("ERROR: Failed allocate interrupt\n");
@@ -528,10 +531,6 @@ int esp_openeth_initialize(void)
   memcpy(priv->dev.netdev.d_mac.ether.ether_addr_octet,
     "\x00\x02\x03\x04\x05\x06\x07\x08", ETH_ALEN);
   openeth_set_addr(priv->dev.netdev.d_mac.ether.ether_addr_octet);
-
-  /* Attach the interrupt */
-
-  ret = irq_attach(OPENETH_IRQ_MAC, openeth_isr_handler, priv);
 
   /* Register the device with the OS so that socket IOCTLs can be
    * performed.

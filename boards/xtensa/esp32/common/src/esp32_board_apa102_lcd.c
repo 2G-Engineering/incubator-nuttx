@@ -28,7 +28,7 @@
 
 #include <stdio.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/arch.h>
@@ -37,7 +37,7 @@
 #include <nuttx/lcd/lcd.h>
 #include <nuttx/lcd/apa102.h>
 
-#include "esp32_gpio.h"
+#include "espressif/esp_gpio.h"
 #include "esp32_spi.h"
 
 /****************************************************************************
@@ -107,4 +107,3 @@ void board_lcd_uninitialize(void)
 {
   /* TO-FIX */
 }
-

@@ -36,6 +36,12 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+/* Only float data type supported now */
+
+#ifdef CONFIG_SENSORS_USE_B16
+#  error fixed-point data type not supported yet
+#endif
+
 #define BMI160_DEFAULT_INTERVAL 10000  /* Default conversion interval. */
 
 /****************************************************************************
@@ -209,7 +215,7 @@ static void bmi160_accel_enable(FAR struct bmi160_dev_uorb_s *priv,
       /* Set accel as normal mode. */
 
       bmi160_putreg8(&priv->dev, BMI160_CMD, ACCEL_PM_NORMAL);
-      nxsig_usleep(30000);
+      nxsched_usleep(30000);
 
       idx = bmi160_findodr(priv->interval, g_bmi160_accel_odr,
                            nitems(g_bmi160_accel_odr));
@@ -260,7 +266,7 @@ static void bmi160_gyro_enable(FAR struct bmi160_dev_uorb_s *priv,
       /* Set gyro as normal mode. */
 
       bmi160_putreg8(&priv->dev, BMI160_CMD, GYRO_PM_NORMAL);
-      nxsig_usleep(30000);
+      nxsched_usleep(30000);
 
       idx = bmi160_findodr(priv->interval, g_bmi160_gyro_odr,
                            nitems(g_bmi160_gyro_odr));
@@ -465,7 +471,7 @@ static int bmi160_accel_activate(FAR struct sensor_lowerhalf_s *lower,
 static void bmi160_accel_worker(FAR void *arg)
 {
   FAR struct bmi160_dev_uorb_s *priv = arg;
-  struct sensor_accel accel;
+  struct sensor_accel_uncal accel;
   struct accel_t p;
   uint32_t time;
 
@@ -512,7 +518,7 @@ static void bmi160_accel_worker(FAR void *arg)
 static void bmi160_gyro_worker(FAR void *arg)
 {
   FAR struct bmi160_dev_uorb_s *priv = arg;
-  struct sensor_gyro gyro;
+  struct sensor_gyro_uncal gyro;
   struct gyro_t p;
   uint32_t time;
 
@@ -597,7 +603,7 @@ static int bmi160_register_accel(int devno,
 
   bmi160_getreg8(&priv->dev, 0x7f);
   bmi160_getreg8(&priv->dev, 0x7f); /* workaround: fail to switch SPI, run twice */
-  nxsig_usleep(200);
+  nxsched_usleep(200);
 
 #endif
 

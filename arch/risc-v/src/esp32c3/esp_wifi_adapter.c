@@ -25,7 +25,7 @@
  ****************************************************************************/
 
 #include <inttypes.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <pthread.h>
 #include <clock/clock.h>
 #include <sys/time.h>
@@ -40,14 +40,17 @@
 #include "esp_hr_timer.h"
 
 #include "esp_log.h"
+#include "esp_intr_alloc.h"
 #include "esp_mac.h"
 #include "esp_random.h"
 #include "esp_private/wifi_os_adapter.h"
 #include "esp_phy_init.h"
 #include "esp_private/periph_ctrl.h"
 #include "os.h"
+#include "platform/os.h"
 #include "private/esp_coexist_internal.h"
 #include "rom/ets_sys.h"
+#include "riscv/interrupt.h"
 
 #include "espressif/esp_wifi_utils.h"
 #include "esp_coex_adapter.h"
@@ -64,22 +67,30 @@
  * Private Types
  ****************************************************************************/
 
-/* Wi-Fi interrupt adapter private data */
+typedef struct shared_vector_desc_t shared_vector_desc_t;
+typedef struct vector_desc_t vector_desc_t;
 
-struct irq_adpt
+typedef struct intr_handle_data_t
 {
-  void (*func)(void *arg);  /* Interrupt callback function */
-  void *arg;                /* Interrupt private data */
+  vector_desc_t *vector_desc;
+  shared_vector_desc_t *shared_vector_desc;
+} intr_handle_data_t;
+
+struct vector_desc_t
+{
+  int flags: 16;
+  unsigned int cpu: 1;
+  unsigned int intno: 5;
+  int source: 16;
+  shared_vector_desc_t *shared_vec_info;
+  vector_desc_t *next;
 };
 
-/* Wi-Fi message queue private data */
+/* From esp_hw_support/intr_alloc.c: returns a pointer to a HAL-owned
+ * vector descriptor for some intno and cpu.
+ */
 
-struct mq_adpt
-{
-  struct file mq;           /* Message queue handle */
-  uint32_t    msgsize;      /* Message size */
-  char        name[16];     /* Message queue name */
-};
+extern vector_desc_t *get_desc_for_int(int intno, int cpu);
 
 /****************************************************************************
  * Private Function Prototypes
@@ -216,7 +227,6 @@ static void *event_group_create_wrapper(void);
 static void event_group_delete_wrapper(void *event);
 static uint32_t event_group_set_bits_wrapper(void *event, uint32_t bits);
 static uint32_t event_group_clear_bits_wrapper(void *event, uint32_t bits);
-static int esp_int_adpt_cb(int irq, void *context, void *arg);
 static int esp_nvs_commit(uint32_t handle);
 static int esp_nvs_erase_key(uint32_t handle, const char *key);
 static int esp_nvs_get_blob(uint32_t handle,
@@ -529,7 +539,9 @@ static void wifi_delete_queue_wrapper(void *queue)
  * Name: set_intr_wrapper
  *
  * Description:
- *   Do nothing
+ *   Route the Wi-Fi interrupt source and attach a handle that uses the HAL
+ *   global vector descriptor list. Mark the CPU line as non-IRAM so
+ *   esp_intr_noniram_disable() masks it while SPI flash holds the cache off.
  *
  * Input Parameters:
  *     cpu_no      - The CPU which the interrupt number belongs.
@@ -545,12 +557,43 @@ static void wifi_delete_queue_wrapper(void *queue)
 static void set_intr_wrapper(int32_t cpu_no, uint32_t intr_source,
                              uint32_t intr_num, int32_t intr_prio)
 {
+  intr_handle_t handle;
+  int irq = ESP_SOURCE2IRQ(intr_source);
+  esp_err_t err;
+
   wlinfo("cpu_no=%" PRId32 ", intr_source=%" PRIu32
          ", intr_num=%" PRIu32 ", intr_prio=%" PRId32 "\n",
          cpu_no, intr_source, intr_num, intr_prio);
 
-  esp_route_intr(intr_source, intr_num, intr_prio, ESP_IRQ_TRIGGER_LEVEL);
-  esp_set_irq(ESP_SOURCE2IRQ(intr_source), intr_num);
+  esp_rom_route_intr_matrix(cpu_no, intr_source, intr_num);
+  esprv_int_set_priority(intr_num, intr_prio);
+  esprv_int_set_type(intr_num, INTR_TYPE_LEVEL);
+
+  handle = kmm_calloc(1, sizeof(intr_handle_data_t));
+  if (handle == NULL)
+    {
+      wlerr("Failed to kmm_calloc\n");
+      return;
+    }
+
+  handle->vector_desc = get_desc_for_int(intr_num, cpu_no);
+  if (handle->vector_desc == NULL)
+    {
+      wlerr("get_desc_for_int failed\n");
+      kmm_free(handle);
+      return;
+    }
+
+  handle->vector_desc->source = intr_source;
+  handle->shared_vector_desc = NULL;
+
+  esp_set_handle(cpu_no, irq, handle);
+
+  err = esp_intr_set_in_iram(handle, false);
+  if (err != ESP_OK)
+    {
+      wlerr("esp_intr_set_in_iram failed: %d\n", err);
+    }
 }
 
 /****************************************************************************
@@ -592,40 +635,7 @@ static void IRAM_ATTR clear_intr_wrapper(uint32_t intr_source,
 
 static void set_isr_wrapper(int32_t n, void *f, void *arg)
 {
-  int ret;
-  uint32_t tmp;
-  struct irq_adpt *adapter;
-  int irq = esp_get_irq(n);
-
-  wlinfo("n=%ld f=%p arg=%p irq=%d\n", n, f, arg, irq);
-
-  if (g_irqvector[irq].handler &&
-      g_irqvector[irq].handler != irq_unexpected_isr)
-    {
-      wlinfo("irq=%d has been set handler=%p\n", irq,
-             g_irqvector[irq].handler);
-      return;
-    }
-
-  tmp = sizeof(struct irq_adpt);
-  adapter = kmm_malloc(tmp);
-  if (!adapter)
-    {
-      wlerr("Failed to alloc %ld memory\n", tmp);
-      PANIC();
-      return;
-    }
-
-  adapter->func = f;
-  adapter->arg = arg;
-
-  ret = irq_attach(irq, esp_int_adpt_cb, adapter);
-  if (ret)
-    {
-      wlerr("Failed to attach IRQ %d\n", irq);
-      PANIC();
-      return;
-    }
+  intr_handler_set(n, (intr_handler_t)f, arg);
 }
 
 /****************************************************************************
@@ -646,11 +656,11 @@ static void set_isr_wrapper(int32_t n, void *f, void *arg)
 static void enable_intr_wrapper(uint32_t intr_mask)
 {
   int cpuint = __builtin_ffs(intr_mask) - 1;
-  int irq = esp_get_irq(cpuint);
+  int irq = esp_cpuint_to_irq(cpuint, this_cpu());
 
   wlinfo("intr_mask=%08lx cpuint=%d irq=%d\n", intr_mask, cpuint, irq);
 
-  up_enable_irq(irq);
+  esprv_int_enable(intr_mask);
 }
 
 /****************************************************************************
@@ -671,7 +681,7 @@ static void enable_intr_wrapper(uint32_t intr_mask)
 static void disable_intr_wrapper(uint32_t intr_mask)
 {
   int cpuint = __builtin_ffs(intr_mask) - 1;
-  int irq = esp_get_irq(cpuint);
+  int irq = esp_cpuint_to_irq(cpuint, this_cpu());
 
   wlinfo("intr_mask=%08lx cpuint=%d irq=%d\n", intr_mask, cpuint, irq);
 
@@ -2339,33 +2349,6 @@ static uint32_t event_group_clear_bits_wrapper(void *event, uint32_t bits)
 }
 
 /****************************************************************************
- * Name: esp_int_adpt_cb
- *
- * Description:
- *   This is the callback function for the Wi-Fi interrupt adapter. It
- *   retrieves the adapter from the argument, then calls the function
- *   stored in the adapter with its argument.
- *
- * Input Parameters:
- *   irq     - The IRQ number that caused this interrupt.
- *   context - The register context at the time of the interrupt.
- *   arg     - A pointer to the interrupt adapter's private data.
- *
- * Returned Value:
- *   Always returns 0.
- *
- ****************************************************************************/
-
-static int esp_int_adpt_cb(int irq, void *context, void *arg)
-{
-  struct irq_adpt *adapter = (struct irq_adpt *)arg;
-
-  adapter->func(adapter->arg);
-
-  return 0;
-}
-
-/****************************************************************************
  * Name: esp_nvs_commit
  *
  * Description:
@@ -2694,7 +2677,7 @@ static void task_delay_wrapper(uint32_t tick)
 {
   useconds_t us = TICK2USEC(tick);
 
-  nxsig_usleep(us);
+  nxsched_usleep(us);
 }
 
 /****************************************************************************

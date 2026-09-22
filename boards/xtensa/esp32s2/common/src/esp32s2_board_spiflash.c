@@ -35,7 +35,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/spi/spi.h>
@@ -50,14 +50,6 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-#ifndef CONFIG_ESP32S2_STORAGE_MTD_OFFSET
-#  define CONFIG_ESP32S2_STORAGE_MTD_OFFSET 0x180000
-#endif
-
-#ifndef CONFIG_ESP32S2_STORAGE_MTD_SIZE
-#  define CONFIG_ESP32S2_STORAGE_MTD_SIZE 0x100000
-#endif
 
 /****************************************************************************
  * Private Types
@@ -122,8 +114,9 @@ static int init_ota_partitions(void)
 {
   struct mtd_dev_s *mtd;
   int ret = OK;
+  int i;
 
-  for (int i = 0; i < nitems(g_ota_partition_table); ++i)
+  for (i = 0; i < nitems(g_ota_partition_table); ++i)
     {
       const struct partition_s *part = &g_ota_partition_table[i];
       mtd = esp_spiflash_alloc_mtdpart(part->firstblock, part->blocksize);
@@ -360,8 +353,8 @@ static int init_storage_partition(void)
   int ret = OK;
   struct mtd_dev_s *mtd;
 
-  mtd = esp_spiflash_alloc_mtdpart(CONFIG_ESP32S2_STORAGE_MTD_OFFSET,
-                                   CONFIG_ESP32S2_STORAGE_MTD_SIZE);
+  mtd = esp_spiflash_alloc_mtdpart(CONFIG_ESPRESSIF_STORAGE_MTD_OFFSET,
+                                   CONFIG_ESPRESSIF_STORAGE_MTD_SIZE);
   if (!mtd)
     {
       syslog(LOG_ERR, "ERROR: Failed to alloc MTD partition of SPI Flash\n");
@@ -435,12 +428,6 @@ static int init_storage_partition(void)
 int board_spiflash_init(void)
 {
   int ret = OK;
-
-  ret = esp_spiflash_init();
-  if (ret < 0)
-    {
-      return ret;
-    }
 
 #ifdef CONFIG_ESPRESSIF_HAVE_OTA_PARTITION
   ret = init_ota_partitions();

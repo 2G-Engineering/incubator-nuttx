@@ -32,7 +32,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <inttypes.h>
 
 #include <nuttx/kmalloc.h>
@@ -459,7 +459,7 @@ static void is25xp_waitwritecomplete(struct is25xp_dev_s *priv)
       if ((status & IS25_SR_WIP) != 0)
         {
           is25xp_unlock(priv->dev);
-          nxsig_usleep(1000);
+          nxsched_usleep(1000);
           is25xp_lock(priv->dev);
         }
     }

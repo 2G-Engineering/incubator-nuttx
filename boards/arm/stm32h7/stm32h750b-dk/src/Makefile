@@ -28,12 +28,8 @@ else
 CSRCS += stm32_userleds.c
 endif
 
-ifeq ($(CONFIG_STM32H7_OTGFS),y)
+ifeq ($(CONFIG_STM32_OTGFS),y)
 CSRCS += stm32_usb.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += stm32_appinitialize.c
 endif
 
 ifeq ($(CONFIG_TESTING_OSTEST),y)
@@ -48,7 +44,7 @@ ifeq ($(CONFIG_INPUT_FT5X06),y)
 CSRCS += stm32_ft5x06.c
 endif
 
-ifeq ($(CONFIG_STM32H7_LTDC),y)
+ifeq ($(CONFIG_STM32_LTDC),y)
 CSRCS += stm32_lcd.c
 endif
 

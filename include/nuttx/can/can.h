@@ -286,7 +286,7 @@
  *                   nature of the error.
  *   Dependencies:   None
  *
- * CANIOC_SET_TRANSV_STATE
+ * CANIOC_SET_TRANSVSTATE
  *   Description:    Set specific can transceiver state
  *
  *   Argument:       A pointer to an int type that describes the CAN
@@ -296,11 +296,36 @@
  *                   nature of the error.
  *   Dependencies:   None
  *
- * CANIOC_GET_TRANSV_STATE
+ * CANIOC_GET_TRANSVSTATE
  *   Description:    Get specific can transceiver state
  *
  *   Argument:       A pointer to an int type that describes the CAN
  *                   transceiver state.
+ *   returned Value: Zero (OK) is returned on success.  Otherwise -1 (ERROR)
+ *                   is returned with the errno variable set to indicate the
+ *                   nature of the error.
+ *   Dependencies:   None
+ *
+ * CANIOC_SET_MSGALIGN
+ *   Description:    Set messages alignment. Read and written messages can be
+ *                   configured to be aligned to multiple of given bytes by
+ *                   this. The default value is 1. The alignment affects both
+ *                   read and write operation. The value 0 has a special
+ *                   meaning where both write will always write only a single
+ *                   message and read will always provide only a single
+ *                   message.
+ *
+ *   Argument:       A pointer to an unsigned int type with alignment value.
+ *   returned Value: Zero (OK) is returned on success.  Otherwise -1 (ERROR)
+ *                   is returned with the errno variable set to indicate the
+ *                   nature of the error.
+ *   Dependencies:   None
+ *
+ * CANIOC_GET_MSGALIGN
+ *   Description:    Get messages alignment. See CANIOC_SET_MSGALIGN for
+ *                   explanation.
+ *
+ *   Argument:       A pointer to an unsigned int type for alignment value.
  *   returned Value: Zero (OK) is returned on success.  Otherwise -1 (ERROR)
  *                   is returned with the errno variable set to indicate the
  *                   nature of the error.
@@ -319,17 +344,19 @@
 #define CANIOC_BUSOFF_RECOVERY    _CANIOC(10)
 #define CANIOC_SET_NART           _CANIOC(11)
 #define CANIOC_SET_ABOM           _CANIOC(12)
-#define CANIOC_SET_BAUD           _CANIOC(13)
-#define CANIOC_IFLUSH             _CANIOC(14)
-#define CANIOC_OFLUSH             _CANIOC(15)
-#define CANIOC_IOFLUSH            _CANIOC(16)
-#define CANIOC_SET_STATE          _CANIOC(17)
-#define CANIOC_GET_STATE          _CANIOC(18)
-#define CANIOC_SET_TRANSVSTATE    _CANIOC(19)
-#define CANIOC_GET_TRANSVSTATE    _CANIOC(20)
+#define CANIOC_IFLUSH             _CANIOC(13)
+#define CANIOC_OFLUSH             _CANIOC(14)
+#define CANIOC_IOFLUSH            _CANIOC(15)
+#define CANIOC_SET_STATE          _CANIOC(16)
+#define CANIOC_GET_STATE          _CANIOC(17)
+#define CANIOC_SET_TRANSVSTATE    _CANIOC(18)
+#define CANIOC_GET_TRANSVSTATE    _CANIOC(19)
+#define CANIOC_SET_MSGALIGN       _CANIOC(20)
+#define CANIOC_GET_MSGALIGN       _CANIOC(21)
+#define CANIOC_SET_BAUD           _CANIOC(22)
 
 #define CAN_FIRST                 0x0001         /* First common command */
-#define CAN_NCMDS                 20             /* 20 common commands, plus 2G CANIOC_SET_BAUD */
+#define CAN_NCMDS                 22             /* 22 common commands */
 
 /* User defined ioctl commands are also supported. These will be forwarded
  * by the upper-half CAN driver to the lower-half CAN driver via the
@@ -370,6 +397,7 @@
 #define dev_send(dev,m)           (dev)->cd_ops->co_send(dev,m)
 #define dev_txready(dev)          (dev)->cd_ops->co_txready(dev)
 #define dev_txempty(dev)          (dev)->cd_ops->co_txempty(dev)
+#define dev_cancel(dev,m)         (dev)->cd_ops->co_cancel(dev,m)
 
 /* CAN message support ******************************************************/
 
@@ -651,7 +679,7 @@ struct can_rxfifo_s
   struct can_msg_s rx_buffer[CONFIG_CAN_RXFIFOSIZE];
 };
 
-#ifdef CONFIG_CAN_TXPRIORITY
+#ifdef CONFIG_CAN_STRICT_TX_PRIORITY
 struct can_msg_node_s
 {
   struct list_node  list;
@@ -662,7 +690,7 @@ struct can_msg_node_s
 struct can_txcache_s
 {
   sem_t             tx_sem;             /* Counting semaphore */
-#ifdef CONFIG_CAN_TXPRIORITY
+#ifdef CONFIG_CAN_STRICT_TX_PRIORITY
   /* tx_buffer   - Buffer of CAN message. And this buffer is managed by
    *               tx_free/tx_pending/tx_sending
    * tx_free     - Link all buffer node in the initial step
@@ -789,6 +817,9 @@ struct can_ops_s
    */
 
   CODE bool (*co_txempty)(FAR struct can_dev_s *dev);
+
+  CODE bool (*co_cancel)(FAR struct can_dev_s *dev,
+                         FAR struct can_msg_s *msg);
 };
 
 /* This is the device structure used by the driver.  The caller of
@@ -797,13 +828,14 @@ struct can_ops_s
  *
  *   The elements of 'cd_ops', and 'cd_priv'
  *
- * The common logic will initialize all semaphores.
+ * The common logic will initialize all semaphores and set 'msgalign' to '1'.
  */
 
 struct can_reader_s
 {
   struct list_node     list;
   struct can_rxfifo_s  fifo;             /* Describes receive FIFO */
+  unsigned int         msgalign;
   FAR struct pollfd   *cd_fds;
 };
 

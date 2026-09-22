@@ -24,7 +24,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/gdbstub.h>
@@ -234,10 +234,6 @@ static void x86_64_debug_step(bool enable)
     {
       regs[REG_RFLAGS] &= ~X86_64_RFLAGS_TF;
     }
-
-  /* Request full context switch so we update RFLAGS */
-
-  regs[REG_AUX] |= REG_AUX_FULLCONTEXT;
 }
 
 /****************************************************************************

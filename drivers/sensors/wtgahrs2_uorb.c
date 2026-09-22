@@ -37,11 +37,17 @@
 #include <math.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+/* Only float data type supported now */
+
+#ifdef CONFIG_SENSORS_USE_B16
+#  error fixed-point data type not supported yet
+#endif
 
 #define WTGAHRS2_ACCEL_IDX         0
 #define WTGAHRS2_GYRO_IDX          1
@@ -148,7 +154,7 @@ static void wtgahrs2_sendcmd(FAR struct wtgahrs2_dev_s *rtdata,
                              const void *cmd)
 {
   file_write(&rtdata->file, cmd, WTGAHRS2_CMD_LENGTH);
-  nxsig_usleep(10000);
+  nxsched_usleep(10000);
 }
 
 static int wtgahrs2_activate(FAR struct sensor_lowerhalf_s *lower,

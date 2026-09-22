@@ -51,7 +51,7 @@
  *   LED_SIGNAL         In a signal handler      N/C
  *   LED_ASSERTION      An assertion failed      N/C
  *   LED_PANIC          The system has crashed   FLASH
- *   LED_IDLE           MCU is is sleep mode     Not used
+ *   LED_IDLE           MCU is in sleep mode     Not used
  *
  * Thus if the white LED is statically on, NuttX has successfully booted and
  * is, apparently, running normally.  If white LED is flashing at
@@ -67,7 +67,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <arch/board/board.h>
@@ -89,9 +89,9 @@ void board_autoled_initialize(void)
 {
   /* Configure LED GPIOs for output */
 
-  stm32l4_configgpio(GPIO_LED_RED);
-  stm32l4_configgpio(GPIO_LED_GREEN);
-  stm32l4_configgpio(GPIO_LED_WHITE);
+  stm32_configgpio(GPIO_LED_RED);
+  stm32_configgpio(GPIO_LED_GREEN);
+  stm32_configgpio(GPIO_LED_WHITE);
 }
 
 /****************************************************************************
@@ -102,7 +102,7 @@ void board_autoled_on(int led)
 {
   if (led == 1 || led == 3)
     {
-      stm32l4_gpiowrite(GPIO_LED_WHITE, false); /* Low illuminates */
+      stm32_gpiowrite(GPIO_LED_WHITE, false); /* Low illuminates */
     }
 }
 
@@ -114,7 +114,7 @@ void board_autoled_off(int led)
 {
   if (led == 3)
     {
-      stm32l4_gpiowrite(GPIO_LED_WHITE, true);  /* High extinguishes */
+      stm32_gpiowrite(GPIO_LED_WHITE, true);  /* High extinguishes */
     }
 }
 

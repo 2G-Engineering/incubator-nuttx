@@ -116,6 +116,43 @@ Then run the adb command::
   nsh> uname -a
   NuttX 0.0.0  Mar 21 2025 14:25:36 xtensa lckfb-szpi-esp32s3
 
+es7210
+------
+
+Basic NuttShell configuration with ES7210 4-channel ADC audio codec support
+over USB ADB. The ES7210 is connected via I2C0 (address 0x41) and I2S0 RX,
+enabling audio recording through the on-board microphones.
+
+The I2S0 RX pin mapping is as follows:
+
+======= ======
+Signal  GPIO
+======= ======
+BCLK    GPIO14
+DIN     GPIO12
+MCLK    GPIO38
+WS      GPIO13
+======= ======
+
+You can run the configuration and compilation procedure::
+
+  $ ./tools/configure.sh lckfb-szpi-esp32s3:es7210
+  $ make flash ESPTOOL_PORT=/dev/ttyUSB0 -j
+
+Then record audio using nxrecorder::
+
+  $ adb -s 1234 shell
+  nsh> nxrecorder
+  nxrecorder> device /dev/audio/pcm_in0
+  nxrecorder> recordraw /tmp/test.pcm 2 16 48000
+  nxrecorder> stop
+  nxrecorder> q
+
+Pull the recorded file to the host and convert to WAV::
+
+  $ adb -s 1234 pull /tmp/test.pcm .
+  $ ffmpeg -f s16le -ar 48000 -ac 2 -i test.pcm test.wav
+
 txtable
 -------
 
@@ -454,3 +491,172 @@ Then run the lvgldemo command::
  [LVGL] [User]   (6.560, +0)      lv_nuttx_lcd_create: lcd /dev/lcd0 open success lv_nuttx_lcd.c:84
  [LVGL] [Warn]   (6.570, +10)     lv_demo_widgets: LV_FONT_MONTSERRAT_18 is not enabled for the widgets demo. Using LV_FONT_DEFAULT instead. lv_demo_widgets.c:156
  [LVGL] [Warn]   (6.580, +10)     lv_demo_widgets: LV_FONT_MONTSERRAT_12 is not enabled for the widgets demo. Using LV_FONT_DEFAULT instead. lv_demo_widgets.c:161
+
+qmi8658
+-------
+
+Basic NuttShell configuration console and QMI8658 6-axis IMU sensor enabled.
+
+The QMI8658 is a 6-axis IMU sensor that combines a 3-axis accelerometer and 3-axis gyroscope.
+This configuration enables the sensor on I2C0 at address 0x6A and registers uORB devices:
+
+- ``/dev/uorb/sensor_accel0`` for accelerometer data
+- ``/dev/uorb/sensor_gyro0`` for gyroscope data
+
+You can run the configuration and compilation procedure::
+
+  $ ./tools/configure.sh lckfb-szpi-esp32s3:qmi8658
+  $ make flash -j$(nproc) ESPTOOL_PORT=/dev/ttyUSB0
+
+Then test the IMU sensor::
+
+  # Check available sensor devices
+  nsh> ls /dev/uorb/
+  /dev/uorb:
+   sensor_accel0
+   sensor_gyro0
+
+  nsh> uorb_listener
+
+  Monitor objects num:2
+  object_name:sensor_gyro, object_instance:0
+  object_name:sensor_accel, object_instance:0
+  sensor_gyro(now:113510000):timestamp:113510000,x:1.468750,y:1.562500,z:-0.093750,temperature:22.855469
+  sensor_accel(now:113510000):timestamp:113510000,x:-0.810913,y:0.027343,z:0.571167,temperature:22.855469
+
+sdmmc
+-----
+
+Basic NuttShell configuration console and SD card enabled via SDMMC peripheral
+in 1-bit mode. The SD card pin mapping is as follows:
+
+===== ======
+Pin   GPIO
+===== ======
+CLK   GPIO47
+CMD   GPIO48
+D0    GPIO21
+===== ======
+
+You can run the configuration and compilation procedure::
+
+  $ ./tools/configure.sh lckfb-szpi-esp32s3:sdmmc
+  $ make flash -j$(nproc) ESPTOOL_PORT=/dev/ttyUSB0
+
+Then format and mount the SD card::
+
+  # Format the SD card with FAT32
+  nsh> mkfatfs -F 32 /dev/mmcsd1
+
+  # Create mount point and mount
+  nsh> mkdir -p /mnt/sd
+  nsh> mount -t vfat /dev/mmcsd1 /mnt/sd
+
+  # Verify
+  nsh> df
+    Block  Number
+    Size   Blocks     Used Available Mounted on
+       0        0        0         0 /proc
+     512 124702720        0 124702720 /mnt/sd
+
+  nsh> echo "hello" > /mnt/sd/test.txt
+  nsh> cat /mnt/sd/test.txt
+  hello
+
+gc0308
+------
+
+Minimal NuttShell configuration with GC0308 DVP camera support only.
+Based on the nsh configuration, this adds only the GC0308 image sensor
+driver, ESP32-S3 CAM DVP controller, and the V4L2 video pipeline.
+Console is accessible over UART0 (serial).
+
+You can run the configuration and compilation procedure::
+
+  $ ./tools/configure.sh lckfb-szpi-esp32s3:gc0308
+  $ make flash -j$(nproc) ESPTOOL_PORT=/dev/ttyUSB0
+
+camera
+------
+
+Basic NuttShell configuration console and DVP camera enabled via the
+ESP32-S3 CAM controller with a GC0308 VGA CMOS image sensor. The camera
+outputs RGB565X (big-endian RGB565) at QVGA (320x240) resolution by default.
+Console is accessible over USB ADB.
+
+The DVP camera pin mapping is as follows:
+
+======= ======
+Signal  GPIO
+======= ======
+XCLK    GPIO15
+PCLK    GPIO13
+VSYNC   GPIO6
+HREF    GPIO7
+D0      GPIO5
+D1      GPIO4
+D2      GPIO16
+D3      GPIO14
+D4      GPIO1
+D5      GPIO2
+D6      GPIO42
+D7      GPIO41
+PWDN    GPIO38 (active low, directly connected to PCA9557 I/O expander)
+======= ======
+
+You can run the configuration and compilation procedure::
+
+  $ ./tools/configure.sh lckfb-szpi-esp32s3:camera
+  $ make flash -j$(nproc) ESPTOOL_PORT=/dev/ttyUSB0
+
+Then use the camera example to capture a frame::
+
+  $ adb -s 1234 shell
+  nsh> camera
+
+uvc
+---
+
+USB Video Class (UVC) webcam configuration. Streams YUYV frames from the
+GC0308 DVP camera to a USB host via the UVC gadget driver (Bulk transport).
+The application queries the sensor resolution at runtime and configures the
+UVC descriptors accordingly. Console is accessible over UART0 (serial).
+
+The UVC driver also supports composite USB device mode
+(``CONFIG_USBUVC_COMPOSITE``), allowing it to be combined with other USB
+class drivers (e.g., CDC/ACM) in a single composite device.
+
+You can run the configuration and compilation procedure::
+
+  $ ./tools/configure.sh lckfb-szpi-esp32s3:uvc
+  $ make flash -j$(nproc) ESPTOOL_PORT=/dev/ttyUSB0
+
+The application should work as follows:
+
+1. Create ``/dev/video0`` via ``capture_initialize()`` and open it.
+2. Query the sensor's native resolution with ``VIDIOC_ENUM_FRAMESIZES``
+   (pixel format ``V4L2_PIX_FMT_YUYV``), then ``VIDIOC_S_FMT`` to configure.
+3. Fill ``struct uvc_params_s`` with the queried width, height and fps,
+   pass it to ``boardctl(BOARDIOC_USBDEV_CONTROL)`` via ``ctrl.handle``
+   so the UVC gadget builds USB descriptors matching the actual sensor.
+4. Open ``/dev/uvc0``, use ``poll()`` with ``POLLOUT`` to wait for the
+   USB host to start streaming.
+5. Loop: ``VIDIOC_QBUF`` / ``VIDIOC_DQBUF`` to capture a YUYV frame,
+   then ``write()`` to ``/dev/uvc0``.
+
+On the host side, verify the device is recognized::
+
+  $ sudo dmesg
+  [32982831.662622] usb 1-9.3.3: new full-speed USB device number 72 using xhci_hcd
+  [32982831.752856] usb 1-9.3.3: New USB device found, idVendor=1d6b, idProduct=0102, bcdDevice= 1.00
+  [32982831.752860] usb 1-9.3.3: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+  [32982831.752861] usb 1-9.3.3: Product: NuttX UVC Camera
+  [32982831.752862] usb 1-9.3.3: Manufacturer: NuttX
+  [32982831.752863] usb 1-9.3.3: SerialNumber: 0001
+  [32982831.756625] usb 1-9.3.3: Found UVC 1.10 device NuttX UVC Camera (1d6b:0102)
+
+Then open the webcam with any UVC viewer (e.g. ``cheese``, ``guvcview``,
+or ``ffplay``)::
+
+  $ cheese
+

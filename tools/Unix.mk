@@ -212,6 +212,15 @@ include/stdarg.h: include/nuttx/lib/stdarg.h
 	$(Q) cp -f include/nuttx/lib/stdarg.h include/stdarg.h
 endif
 
+# Target used to copy include/nuttx/lib/stdbit.h.  If CONFIG_ARCH_STDBIT_H or
+# CONFIG_LIBC_STDBIT_GENERIC is set, copy stdbit.h to include/ for C23 bit
+# utilities.
+
+ifeq ($(firstword $(filter y, $(CONFIG_ARCH_STDBIT_H) $(CONFIG_LIBC_STDBIT_GENERIC))),y)
+include/stdbit.h: include/nuttx/lib/stdbit.h
+	$(Q) cp -f include/nuttx/lib/stdbit.h include/stdbit.h
+endif
+
 # Target used to copy include/nuttx/lib/setjmp.h.  If CONFIG_ARCH_SETJMP_H is
 # defined, then there is an architecture specific setjmp.h header file
 # that will be included indirectly from include/lib/setjmp.h.  But first, we
@@ -257,11 +266,12 @@ tools/mkconfig$(HOSTEXEEXT): prebuild
 include/nuttx/config.h: $(TOPDIR)/.config tools/mkconfig$(HOSTEXEEXT)
 	$(Q) grep -v "CONFIG_BASE_DEFCONFIG" "$(TOPDIR)/.config" > "$(TOPDIR)/.config.tmp"
 	$(Q) if ! cmp -s "$(TOPDIR)/.config.tmp" "$(TOPDIR)/.config.orig" ; then \
-		sed -i.bak -e "/CONFIG_BASE_DEFCONFIG/ { /-dirty/! s/\"$$/-dirty\"/; }" "$(TOPDIR)/.config" ; \
+		sed -e "/CONFIG_BASE_DEFCONFIG/ { /-dirty/! s/\"$$/-dirty\"/; }" "$(TOPDIR)/.config" > "$(TOPDIR)/.config.dirty" ; \
 	else \
-		sed -i.bak "s/-dirty//g" "$(TOPDIR)/.config"; \
+		sed "s/-dirty//g" "$(TOPDIR)/.config" > "$(TOPDIR)/.config.dirty"; \
 	fi
-	$(Q) rm -f "$(TOPDIR)/.config.tmp" "$(TOPDIR)/.config.bak"
+	$(Q) rm -f "$(TOPDIR)/.config.tmp"
+	$(Q) $(call TESTANDREPLACEFILE, $(TOPDIR)/.config.dirty, $(TOPDIR)/.config)
 	$(Q) tools/mkconfig $(TOPDIR) > $@.tmp
 	$(Q) $(call TESTANDREPLACEFILE, $@.tmp, $@)
 
@@ -272,6 +282,9 @@ tools/mkdeps$(HOSTEXEEXT):
 
 tools/cnvwindeps$(HOSTEXEEXT):
 	$(Q) $(MAKE) -C tools -f Makefile.host cnvwindeps$(HOSTEXEEXT)
+
+tools/mkpasswd$(HOSTEXEEXT):
+	$(Q) $(MAKE) -C tools -f Makefile.host mkpasswd$(HOSTEXEEXT)
 
 # .dirlinks, and helpers
 #
@@ -470,6 +483,10 @@ ifeq ($(CONFIG_ARCH_STDARG_H),y)
 context: include/stdarg.h
 endif
 
+ifeq ($(firstword $(filter y, $(CONFIG_ARCH_STDBIT_H) $(CONFIG_LIBC_STDBIT_GENERIC))),y)
+context: include/stdbit.h
+endif
+
 ifeq ($(CONFIG_ARCH_SETJMP_H),y)
 context: include/setjmp.h
 endif
@@ -631,12 +648,9 @@ checkpython3:
 SYSINFO_PARSE_FLAGS = "$(realpath $(TOPDIR))"
 SYSINFO_PARSE_FLAGS += "-finclude/sysinfo.h"
 
-SYSINFO_FLAGS = "-c"
-SYSINFO_FLAGS += "-p"
-SYSINFO_FLAGS += -f \""$(shell echo '$(CFLAGS)' | sed 's/"/\\\\\\"/g')"\"
-SYSINFO_FLAGS += \""$(shell echo '$(CXXFLAGS)' | sed 's/"/\\\\\\"/g')"\"
-SYSINFO_FLAGS += \""$(shell echo '$(LDFLAGS)' | sed 's/"/\\\\\\"/g')"\"
-SYSINFO_FLAGS += "--target_info"
+SYSINFO_FLAGS = -c
+SYSINFO_FLAGS += -p
+SYSINFO_FLAGS += --target_info
 
 # host_info: Parse nxdiag example output file (sysinfo.h) and print
 
@@ -651,12 +665,17 @@ host_info: checkpython3
 # pass1dep: Create pass1 build dependencies
 # pass2dep: Create pass2 build dependencies
 
-pass1dep: context tools/mkdeps$(HOSTEXEEXT) tools/cnvwindeps$(HOSTEXEEXT)
+PASSWD_TOOL_DEP =
+ifeq ($(CONFIG_BOARD_ETC_ROMFS_PASSWD_ENABLE),y)
+PASSWD_TOOL_DEP += tools/mkpasswd$(HOSTEXEEXT)
+endif
+
+pass1dep: context tools/mkdeps$(HOSTEXEEXT) tools/cnvwindeps$(HOSTEXEEXT) $(PASSWD_TOOL_DEP)
 	$(Q) for dir in $(USERDEPDIRS) ; do \
 		$(MAKE) -C $$dir depend || exit; \
 	done
 
-pass2dep: context tools/mkdeps$(HOSTEXEEXT) tools/cnvwindeps$(HOSTEXEEXT)
+pass2dep: context tools/mkdeps$(HOSTEXEEXT) tools/cnvwindeps$(HOSTEXEEXT) $(PASSWD_TOOL_DEP)
 	$(Q) for dir in $(KERNDEPDIRS) ; do \
 		$(MAKE) -C $$dir EXTRAFLAGS="$(KDEFINE) $(EXTRAFLAGS)" depend || exit; \
 	done
@@ -728,27 +747,41 @@ olddefconfig:
 menuconfig:
 	$(Q) $(MAKE) clean_context
 	$(Q) $(MAKE) apps_preconfig
+	$(Q) cp .config .config.tmp 2>/dev/null || true
 	$(Q) ${KCONFIG_ENV} ${KCONFIG_MENUCONFIG}
+	$(Q) cmp -s .config .config.tmp || $(MAKE) clean
+	$(Q) rm -f .config.tmp
 
 nconfig: apps_preconfig
 	$(Q) $(MAKE) clean_context
 	$(Q) $(MAKE) apps_preconfig
+	$(Q) cp .config .config.tmp
 	$(Q) ${KCONFIG_ENV} ${KCONFIG_NCONFIG}
+	$(Q) cmp -s .config .config.tmp || $(MAKE) clean
+	$(Q) rm -f .config.tmp
 
 qconfig: apps_preconfig
 	$(Q) $(MAKE) clean_context
 	$(Q) $(MAKE) apps_preconfig
+	$(Q) cp .config .config.tmp
 	$(Q) ${KCONFIG_ENV} ${KCONFIG_QCONFIG}
+	$(Q) cmp -s .config .config.tmp || $(MAKE) clean
+	$(Q) rm -f .config.tmp
 
 gconfig: apps_preconfig
-	$(Q) $(MAKE) clean_context
+	$(Q) $(MAKE) clean_context1
 	$(Q) $(MAKE) apps_preconfig
+	$(Q) cp .config .config.tmp
 	$(Q) ${KCONFIG_ENV} ${KCONFIG_GCONFIG}
+	$(Q) cmp -s .config .config.tmp || $(MAKE) clean
+	$(Q) rm -f .config.tmp
 
 savedefconfig: apps_preconfig
 	$(Q) ${KCONFIG_ENV} ${KCONFIG_SAVEDEFCONFIG}
 	$(Q) $(call kconfig_tweak_disable,defconfig.tmp,CONFIG_APPS_DIR)
 	$(Q) $(call kconfig_tweak_disable,defconfig.tmp,CONFIG_BASE_DEFCONFIG)
+	$(Q) sed -i.bak -e '/^CONFIG_FSUTILS_PASSWD_KEY[0-9]/d' defconfig.tmp
+	$(Q) sed -i.bak -e '/^CONFIG_BOARD_ETC_ROMFS_PASSWD_PASSWORD=/d' defconfig.tmp
 	$(Q) grep "CONFIG_ARCH=" .config >> defconfig.tmp
 	$(Q) grep "^CONFIG_ARCH_CHIP_" .config >> defconfig.tmp; true
 	$(Q) grep "CONFIG_ARCH_CHIP=" .config >> defconfig.tmp; true
@@ -768,6 +801,11 @@ savedefconfig: apps_preconfig
 	$(Q) rm -f warning.tmp
 	$(Q) rm -f defconfig.tmp
 	$(Q) rm -f sortedconfig.tmp
+	$(Q) if grep -q '^CONFIG_BOARD_ETC_ROMFS_PASSWD_ENABLE=y' .config; then \
+		echo "WARNING: CONFIG_BOARD_ETC_ROMFS_PASSWD_PASSWORD was not saved in defconfig."; \
+		echo "WARNING: CONFIG_FSUTILS_PASSWD_KEY1-4 were not saved in defconfig."; \
+		echo "WARNING: This is intentional to avoid leaking credentials. Add them manually in local defconfig if needed."; \
+	fi
 
 # export
 #
@@ -826,6 +864,7 @@ endif
 	$(Q) $(MAKE) -C tools -f Makefile.host clean
 	$(call DELFILE, Make.defs)
 	$(call DELFILE, defconfig)
+	$(call DELFILE, defconfig.tmp.bak)
 	$(call DELFILE, .config)
 	$(call DELFILE, .config.old)
 	$(call DELFILE, .config.orig)

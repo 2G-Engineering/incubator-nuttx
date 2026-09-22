@@ -30,7 +30,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <pthread.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -2053,7 +2053,7 @@ static void esp_task_delay(uint32_t tick)
 {
   useconds_t us = TICK2USEC(tick);
 
-  nxsig_usleep(us);
+  nxsched_usleep(us);
 }
 
 /****************************************************************************
@@ -2926,7 +2926,7 @@ static void wifi_rtc_disable_iso(void)
 
 int64_t esp_timer_get_time(void)
 {
-  return (int64_t)rt_timer_time_us();
+  return rt_timer_time_us();
 }
 
 /****************************************************************************
@@ -3289,8 +3289,8 @@ static int esp_get_time(void *t)
   ret = gettimeofday(&tv, NULL);
   if (!ret)
     {
-      time_adpt->sec  = (time_t)tv.tv_sec;
-      time_adpt->usec = (suseconds_t)tv.tv_usec;
+      time_adpt->sec  = tv.tv_sec;
+      time_adpt->usec = tv.tv_usec;
     }
   else
     {
@@ -6929,6 +6929,6 @@ void esp_wifi_stop_callback(void)
     }
   else
     {
-      nxsig_sleep(1);
+      nxsched_sleep(1);
     }
 }

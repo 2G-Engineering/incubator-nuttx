@@ -28,7 +28,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <assert.h>
 #include <errno.h>
 
@@ -119,7 +119,7 @@ int esp32s2_cs4344_initialize(void)
         }
 
       /* No we can embed the CS4344/I2S conglomerate into a PCM decoder
-       * instance so that we will have a PCM front end for the the CS4344
+       * instance so that we will have a PCM front end for the CS4344
        * driver.
        */
 

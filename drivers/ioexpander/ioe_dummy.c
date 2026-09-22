@@ -28,7 +28,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/wdog.h>
@@ -710,8 +710,7 @@ static ioe_pinset_t ioe_dummy_int_update(FAR struct ioe_dummy_dev_s *priv)
             }
         }
 
-      diff  >>= 1;
-      input >>= 1;
+      diff >>= 1;
     }
 
   return intstat;

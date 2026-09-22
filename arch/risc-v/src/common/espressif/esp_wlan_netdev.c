@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <arpa/inet.h>
 
 #include <nuttx/wireless/wireless.h>
@@ -117,6 +117,7 @@ struct esp_wlan_priv_s
   struct esp_common_wifi_s *common;
   uint32_t mode;
 
+  spinlock_t rx_lock;
   netpkt_queue_t netdev_rx_queue;
   uint8_t flatbuf[CONFIG_NET_ETH_PKTSIZE];
 };
@@ -212,6 +213,7 @@ static int esp_wlan_ifup(struct netdev_lowerhalf_s *dev)
 {
   struct esp_wlan_priv_s *priv = (struct esp_wlan_priv_s *)dev;
   struct net_driver_s *netdev = &priv->dev.netdev;
+  irqstate_t flags;
   int ret = OK;
 
 #ifdef CONFIG_NET_IPv4
@@ -228,7 +230,9 @@ static int esp_wlan_ifup(struct netdev_lowerhalf_s *dev)
 
   /* Clear RX queue */
 
+  flags = spin_lock_irqsave(&priv->rx_lock);
   netpkt_free_queue(&priv->netdev_rx_queue);
+  spin_unlock_irqrestore(&priv->rx_lock, flags);
 
   /* Start Wi-Fi interface */
 
@@ -349,7 +353,13 @@ static int esp_wlan_transmit(struct netdev_lowerhalf_s *dev,
 static netpkt_t *esp_wlan_receive(struct netdev_lowerhalf_s *dev)
 {
   struct esp_wlan_priv_s *priv = (struct esp_wlan_priv_s *)dev;
-  netpkt_t *pkt = netpkt_remove_queue(&priv->netdev_rx_queue);
+  irqstate_t flags;
+  netpkt_t *pkt;
+
+  flags = spin_lock_irqsave(&priv->rx_lock);
+  pkt = netpkt_remove_queue(&priv->netdev_rx_queue);
+  spin_unlock_irqrestore(&priv->rx_lock, flags);
+
   return pkt;
 }
 
@@ -448,7 +458,7 @@ static int esp_wlan_connect(struct netdev_lowerhalf_s *dev)
               break;
             }
 
-          nxsig_usleep(timeout);
+          nxsched_usleep(timeout);
           timeout_count--;
         }
 
@@ -970,14 +980,14 @@ void IRAM_ATTR esp_wifi_tx_done_cb(uint8_t ifidx,
                                    bool txstatus)
 {
 #ifdef ESP_WLAN_HAS_STA
-  if (ifidx == ESP_IF_WIFI_STA)
+  if (ifidx == WIFI_IF_STA)
     {
       netdev_lower_txdone(&g_wlan_sta.dev);
     }
 #endif
 
 #ifdef ESP_WLAN_HAS_SOFTAP
-  if (ifidx == ESP_IF_WIFI_AP)
+  if (ifidx == WIFI_IF_AP)
     {
       netdev_lower_txdone(&g_wlan_softap.dev);
     }
@@ -1008,6 +1018,7 @@ void IRAM_ATTR esp_wifi_tx_done_cb(uint8_t ifidx,
 static int wlan_rx_done(struct esp_wlan_priv_s *priv,
                         void *buffer, uint16_t len, void *eb)
 {
+  irqstate_t flags;
   int ret = OK;
   netpkt_t *pkt = NULL;
 
@@ -1025,7 +1036,9 @@ static int wlan_rx_done(struct esp_wlan_priv_s *priv,
       goto out;
     }
 
+  flags = spin_lock_irqsave(&priv->rx_lock);
   ret = netpkt_tryadd_queue(pkt, &priv->netdev_rx_queue);
+  spin_unlock_irqrestore(&priv->rx_lock, flags);
   if (ret < 0)
     {
       wlerr("ERROR: Failed to add packet to queue\n");
@@ -1218,7 +1231,10 @@ static int esp_wlan_initialize(uint32_t mode)
 
   priv->dev.quota[NETPKT_RX] = RX_BUF_COUNT;
   priv->dev.quota[NETPKT_TX] = TX_BUF_COUNT;
+  priv->dev.rxtype           = NETDEV_RX_THREAD;
+  priv->dev.priority         = 100;
 
+  spin_lock_init(&priv->rx_lock);
   IOB_QINIT(&priv->netdev_rx_queue);
 
   /* Register RX done callback. Called when the RX packet is received. */

@@ -30,7 +30,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 
 #include <nuttx/arch.h>
@@ -41,7 +41,7 @@
 
 #include "esp32s3_tim.h"
 #include "esp32s3_tim_lowerhalf.h"
-#include "esp32s3_clockconfig.h"
+#include "esp_clk.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -410,7 +410,7 @@ static int timer_lh_settimeout(struct timer_lowerhalf_s *lower,
 
   /* Set the timeout */
 
-  ESP32S3_TIM_SETALRVL(priv->tim, (uint64_t)timeout);
+  ESP32S3_TIM_SETALRVL(priv->tim, timeout);
 
   return ret;
 }

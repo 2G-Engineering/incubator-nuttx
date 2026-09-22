@@ -44,7 +44,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 
 #include <nuttx/kmalloc.h>
@@ -834,6 +834,15 @@ static int nand_ioctl(FAR struct mtd_dev_s *dev, int cmd, unsigned long arg)
         {
           FAR struct mtd_erase_s *erase = (FAR struct mtd_erase_s *)arg;
           ret = nand_erase(dev, erase->startblock, erase->nblocks);
+        }
+        break;
+
+      case MTDIOC_ISBAD:
+        {
+          FAR struct mtd_bad_block_s *bad_block =
+                                     (FAR struct mtd_bad_block_s *)arg;
+          bad_block->bad_flag = nand_isbad(dev, bad_block->block_num);
+          ret = OK;
         }
         break;
 

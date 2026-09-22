@@ -34,7 +34,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <strings.h>
 
 #include <nuttx/irq.h>
@@ -1210,7 +1210,7 @@ static void mcp2515_reset_lowlevel(FAR struct mcp2515_can_s *priv)
 
   /* Wait 1ms to let MCP2515 restart */
 
-  nxsig_usleep(1000);
+  nxsched_usleep(1000);
 
   /* Make sure that all buffers are released. */
 
@@ -1526,7 +1526,8 @@ static int mcp2515_ioctl(FAR struct can_dev_s *dev, int cmd,
           uint8_t regval;
 
           DEBUGASSERT(bt != NULL);
-          DEBUGASSERT(bt->bt_baud < MCP2515_CANCLK_FREQUENCY);
+          DEBUGASSERT(bt->bt_baud > 0 &&
+            bt->bt_baud < MCP2515_CANCLK_FREQUENCY);
           DEBUGASSERT(bt->bt_sjw > 0 && bt->bt_sjw <= 4);
           DEBUGASSERT(bt->bt_tseg1 > 1 && bt->bt_tseg1 <= 16);
           DEBUGASSERT(bt->bt_tseg2 > 1 && bt->bt_tseg2 <= 8);
@@ -2457,7 +2458,7 @@ static int mcp2515_hw_initialize(struct mcp2515_can_s *priv)
   regval = (regval & ~CANCTRL_REQOP_MASK) | (CANCTRL_REQOP_NORMAL);
   mcp2515_writeregs(priv, MCP2515_CANCTRL, &regval, 1);
 
-  nxsig_usleep(100);
+  nxsched_usleep(100);
 
   /* Read the CANINTF */
 

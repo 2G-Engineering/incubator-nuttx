@@ -84,7 +84,7 @@
 
 #include <sys/ioctl.h>
 #include <stdint.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 
 #include <netinet/in.h>
@@ -94,6 +94,7 @@
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/netstats.h>
 #include <nuttx/net/ip.h>
+#include <nuttx/net/ipopt.h>
 
 #include "arp/arp.h"
 #include "inet/inet.h"
@@ -117,6 +118,53 @@
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: ipv4_check_opt
+ *
+ * Description:
+ *   Check the IP options length.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_DEBUG_FEATURES
+static int ipv4_check_opt(FAR struct ipv4_hdr_s *ipv4)
+{
+  FAR uint8_t *opt = (FAR uint8_t *)(ipv4 + 1);
+  int optlen;
+
+  optlen = ((ipv4->vhl & IPv4_HLMASK) << 2) - IPv4_HDRLEN;
+  while (optlen > 0)
+    {
+      if (opt[0] == IPOPT_END_TYPE)
+        {
+          break;
+        }
+      else if (opt[0] == IPOPT_NOOP_TYPE)
+        {
+          opt++;
+          optlen--;
+        }
+      else if (optlen > 1)
+        {
+          int len = opt[1];
+          if (len > optlen)
+            {
+              return -EINVAL;
+            }
+
+          opt += len;
+          optlen -= len;
+        }
+      else
+        {
+          return -EINVAL;
+        }
+    }
+
+  return OK;
+}
+#endif
 
 /****************************************************************************
  * Name: ipv4_in
@@ -187,7 +235,9 @@ static int ipv4_in(FAR struct net_driver_s *dev)
 
   /* Get the size of the packet minus the size of link layer header */
 
-  if (IPv4_HDRLEN > dev->d_len)
+  dev->d_len -= NET_LL_HDRLEN(dev);
+
+  if (((ipv4->vhl & IPv4_HLMASK) << 2) > dev->d_len)
     {
       nwarn("WARNING: Packet shorter than IPv4 header\n");
       goto drop;
@@ -214,6 +264,9 @@ static int ipv4_in(FAR struct net_driver_s *dev)
     }
   else if (totlen > dev->d_len)
     {
+#ifdef CONFIG_NET_STATISTICS
+      g_netstats.ipv4.drop++;
+#endif
       nwarn("WARNING: IP packet shorter than length in IP header\n");
       goto drop;
     }
@@ -237,6 +290,17 @@ static int ipv4_in(FAR struct net_driver_s *dev)
       goto drop;
     }
 
+#ifdef CONFIG_DEBUG_FEATURES
+  if (ipv4_check_opt(ipv4) != OK)
+    {
+#ifdef CONFIG_NET_STATISTICS
+      g_netstats.ipv4.drop++;
+#endif
+      nwarn("WARNING: IP options error\n");
+      goto drop;
+    }
+#endif
+
 #ifdef CONFIG_NET_NAT44
   /* Try NAT inbound, rule matching will be performed in NAT module. */
 
@@ -247,143 +311,104 @@ static int ipv4_in(FAR struct net_driver_s *dev)
 
   destipaddr = net_ip4addr_conv32(ipv4->destipaddr);
 
-#if defined(CONFIG_NET_BROADCAST) && defined(NET_UDP_HAVE_STACK)
-  /* If IP broadcast support is configured, we check for a broadcast
-   * UDP packet, which may be destined to us (even if there is no IP
-   * address yet assigned to the device as is the case when we are
-   * negotiating over DHCP for an address).
+  /* Keep the common local-unicast case on the fast path, then classify
+   * non-local packets as broadcast, multicast, or forwardable unicast.
    */
 
-  if (ipv4->proto == IP_PROTO_UDP &&
-      net_ipv4addr_cmp(destipaddr, INADDR_BROADCAST))
+  if (net_ipv4addr_cmp(destipaddr, dev->d_ipaddr))
+    {
+#ifdef CONFIG_NET_ICMP
+      if (net_ipv4addr_cmp(dev->d_ipaddr, INADDR_ANY))
+        {
+          nwarn("WARNING: No IP address assigned\n");
+          goto drop;
+        }
+#endif
+    }
+  else if (net_ipv4addr_cmp(destipaddr, INADDR_BROADCAST) ||
+           (net_ipv4addr_maskcmp(destipaddr, dev->d_ipaddr,
+                                 dev->d_netmask) &&
+            net_ipv4addr_broadcast(destipaddr, dev->d_netmask)))
     {
 #ifdef CONFIG_NET_IPFORWARD_BROADCAST
-      /* Forward broadcast packets */
-
       ipv4_forward_broadcast(dev, ipv4);
-
-      /* Process the incoming packet if not forwardable */
-
-      if (dev->d_len > 0)
 #endif
-        {
-          ret = udp_ipv4_input(dev);
-        }
 
-      goto done;
-    }
-  else
-#endif
 #if defined(CONFIG_NET_BROADCAST) && defined(NET_UDP_HAVE_STACK)
-  /* The address is not the broadcast address and we have been assigned a
-   * address.  So there is also the possibility that the destination address
-   * is a sub-net broadcast address which we will need to handle just as for
-   * the broadcast address above.
-   */
-
-  if (ipv4->proto == IP_PROTO_UDP &&
-      net_ipv4addr_maskcmp(destipaddr, dev->d_ipaddr, dev->d_netmask) &&
-      net_ipv4addr_broadcast(destipaddr, dev->d_netmask))
-    {
-#ifdef CONFIG_NET_IPFORWARD_BROADCAST
-      /* Forward broadcast packets */
-
-      ipv4_forward_broadcast(dev, ipv4);
-
-      /* Process the incoming packet if not forwardable */
-
-      if (dev->d_len > 0)
-#endif
+      if (ipv4->proto == IP_PROTO_UDP)
         {
           ret = udp_ipv4_input(dev);
+          goto done;
         }
-
-      goto done;
-    }
-  else
 #endif
-  /* Check if the packet is destined for our IP address. */
 
-  if (!net_ipv4addr_cmp(destipaddr, dev->d_ipaddr))
+#ifdef CONFIG_NET_STATISTICS
+      g_netstats.ipv4.drop++;
+#endif
+      goto drop;
+    }
+  else if (IN_MULTICAST(NTOHL(destipaddr)))
     {
-      /* No.. This is not our IP address. Check for an IPv4 IGMP group
-       * address
-       */
-
 #ifdef CONFIG_NET_IGMP
-      in_addr_t destip = net_ip4addr_conv32(ipv4->destipaddr);
-      if (igmp_grpfind(dev, &destip) != NULL)
+      if (igmp_grpfind(dev, &destipaddr) != NULL)
         {
 #ifdef CONFIG_NET_IPFORWARD_BROADCAST
-          /* Forward multicast packets */
-
           ipv4_forward_broadcast(dev, ipv4);
-
-          /* Return success if the packet was forwarded. */
-
-          if (dev->d_len == 0)
-            {
-              goto done;
-            }
 #endif
         }
       else
 #endif
         {
-          /* No.. The packet is not destined for us. */
-
-#ifdef CONFIG_NET_IPFORWARD
-          /* Try to forward the packet */
-
-          if (ipv4_forward(dev, ipv4) >= 0)
-            {
-              /* The packet was forwarded.  Return success; d_len will
-               * be set appropriately by the forwarding logic:  Cleared
-               * if the packet is forward via anoother device or non-
-               * zero if it will be forwarded by the same device that
-               * it was received on.
-               */
-
-              goto done;
-            }
-          else
-#endif
-#if defined(NET_UDP_HAVE_STACK) && defined(CONFIG_NET_BINDTODEVICE)
-          /* If the protocol specific socket option NET_BINDTODEVICE
-           * is selected, then we must forward all UDP packets to the bound
-           * socket.
-           */
-
-          if (ipv4->proto != IP_PROTO_UDP)
-#endif
-            {
-              /* Not destined for us and not forwardable... Drop the
-               * packet.
-               */
-
-              ninfo("WARNING: Not destined for us; not forwardable... "
-                    "Dropping!\n");
-
 #ifdef CONFIG_NET_STATISTICS
-              g_netstats.ipv4.drop++;
+          g_netstats.ipv4.drop++;
 #endif
-              goto drop;
-            }
+          goto drop;
         }
     }
-#ifdef CONFIG_NET_ICMP
-
-  /* In other cases, the device must be assigned a non-zero IP address. */
-
-  else if (net_ipv4addr_cmp(dev->d_ipaddr, INADDR_ANY))
+  else
     {
-      nwarn("WARNING: No IP address assigned\n");
-      goto drop;
-    }
+#ifdef CONFIG_NET_IPFORWARD
+      /* Try to forward the unicast packet. */
+
+      if (ipv4_forward(dev, ipv4) >= 0)
+        {
+          /* The packet was forwarded.  Return success; d_len will
+           * be set appropriately by the forwarding logic:  Cleared
+           * if the packet is forward via another device or non-zero
+           * if it will be forwarded by the same device that it was
+           * received on.
+           */
+
+          goto done;
+        }
+      else
 #endif
+#if defined(NET_UDP_HAVE_STACK) && defined(CONFIG_NET_BINDTODEVICE)
+      /* If the protocol specific socket option NET_BINDTODEVICE
+       * is selected, then we must forward all UDP packets to the bound
+       * socket.
+       */
+
+      if (ipv4->proto != IP_PROTO_UDP)
+#endif
+        {
+          /* Not destined for us and not forwardable... Drop the
+           * packet.
+           */
+
+          ninfo("WARNING: Not destined for us; not forwardable... "
+                "Dropping!\n");
+
+#ifdef CONFIG_NET_STATISTICS
+          g_netstats.ipv4.drop++;
+#endif
+          goto drop;
+        }
+    }
 
 #ifdef CONFIG_NET_IPV4_CHECKSUMS
-  if (ipv4_chksum(IPv4BUF) != 0xffff)
+  if (((dev->d_features & NETDEV_RX_CSUM) == 0)
+      && (ipv4_chksum(IPv4BUF) != 0xffff))
     {
       /* Compute and check the IP header checksum. */
 
@@ -443,7 +468,12 @@ static int ipv4_in(FAR struct net_driver_s *dev)
 #endif
 
         nwarn("WARNING: Unrecognized IP protocol\n");
+#if defined(CONFIG_NET_ICMP) && !defined(CONFIG_NET_ICMP_NO_STACK)
+        icmp_reply(dev, ICMP_DEST_UNREACHABLE, ICMP_PROT_UNREACH);
+        goto done;
+#else
         goto drop;
+#endif
     }
 
 #ifdef CONFIG_NET_IPFILTER
@@ -451,7 +481,8 @@ static int ipv4_in(FAR struct net_driver_s *dev)
 #endif
 
 #if defined(CONFIG_NET_IPFORWARD) || defined(CONFIG_NET_IPFILTER) || \
-    (defined(CONFIG_NET_BROADCAST) && defined(NET_UDP_HAVE_STACK))
+    (defined(CONFIG_NET_BROADCAST) && defined(NET_UDP_HAVE_STACK)) || \
+    defined(CONFIG_NET_ICMP) && !defined(CONFIG_NET_ICMP_NO_STACK)
 done:
 #endif
 
@@ -503,6 +534,8 @@ int ipv4_input(FAR struct net_driver_s *dev)
   FAR uint8_t *buf;
   int ret;
 
+  netdev_lock(dev);
+
   /* Store reception timestamp if enabled and not provided by hardware. */
 
 #if defined(CONFIG_NET_TIMESTAMP) && !defined(CONFIG_ARCH_HAVE_NETDEV_TIMESTAMP)
@@ -520,10 +553,13 @@ int ipv4_input(FAR struct net_driver_s *dev)
 
       dev->d_buf = buf;
 
+      netdev_unlock(dev);
       return ret;
     }
 
-  return netdev_input(dev, ipv4_in, true);
+  ret = netdev_input(dev, ipv4_in, true);
+  netdev_unlock(dev);
+  return ret;
 }
 
 #endif /* CONFIG_NET_IPv4 */

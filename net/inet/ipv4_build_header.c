@@ -25,7 +25,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <nuttx/net/ip.h>
 #include <nuttx/net/netconfig.h>
 
@@ -59,6 +59,7 @@ static uint16_t g_ipid;
  *   src_ip     Source IPv4 address
  *   dst_ip     Destination IPv4 address
  *   ttl        Time to live(IPv4)
+ *   tos        Type of Service(IPv4)
  *   opt        IPv4 options
  *
  * Returned Value:

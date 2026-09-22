@@ -62,7 +62,7 @@
 #include <time.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
@@ -581,7 +581,7 @@ static int nfs_fileopen(FAR struct nfsmount *nmp, FAR struct nfsnode *np,
 
   /* Check if the caller has sufficient privileges to open the file */
 
-  if ((oflags & O_WRONLY) != 0)
+  if ((oflags & O_ACCMODE) != O_RDONLY)
     {
       /* Check if anyone has privileges to write to the file -- owner,
        * group, or other (we are probably "other" and may still not be
@@ -737,7 +737,7 @@ static int nfs_open(FAR struct file *filep, FAR const char *relpath,
    * the file.
    */
 
-  if ((oflags & (O_APPEND | O_WRONLY)) == (O_APPEND | O_WRONLY))
+  if ((oflags & O_APPEND) && (oflags & O_ACCMODE) != O_RDONLY)
     {
       filep->f_pos = (off_t)np->n_size;
     }
@@ -2420,11 +2420,11 @@ static int nfs_statfs(FAR struct inode *mountpt, FAR struct statfs *sbp)
   sfp                   = (FAR struct rpc_reply_fsstat *)nmp->nm_iobuffer;
   sbp->f_bsize          = NFS_FABLKSIZE;
   tquad                 = fxdr_hyper(&sfp->fsstat.sf_tbytes);
-  sbp->f_blocks         = tquad / (uint64_t) NFS_FABLKSIZE;
+  sbp->f_blocks         = tquad / NFS_FABLKSIZE;
   tquad                 = fxdr_hyper(&sfp->fsstat.sf_fbytes);
-  sbp->f_bfree          = tquad / (uint64_t) NFS_FABLKSIZE;
+  sbp->f_bfree          = tquad / NFS_FABLKSIZE;
   tquad                 = fxdr_hyper(&sfp->fsstat.sf_abytes);
-  sbp->f_bavail         = tquad / (uint64_t) NFS_FABLKSIZE;
+  sbp->f_bavail         = tquad / NFS_FABLKSIZE;
   tquad                 = fxdr_hyper(&sfp->fsstat.sf_tfiles);
   sbp->f_files          = tquad;
   tquad                 = fxdr_hyper(&sfp->fsstat.sf_ffiles);

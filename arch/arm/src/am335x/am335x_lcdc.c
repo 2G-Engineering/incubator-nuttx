@@ -45,7 +45,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/video/fb.h>
@@ -496,7 +496,7 @@ static int am335x_get_refclk(uint32_t *frequency)
  *
  * Returned value:
  *   Zero (OK) is returned on success; a negated errno value is returned in
- *   the the case of a failure.
+ *   the case of a failure.
  *
  ****************************************************************************/
 

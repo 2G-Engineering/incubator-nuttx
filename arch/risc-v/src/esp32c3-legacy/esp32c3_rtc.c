@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/spinlock.h>
@@ -735,7 +735,7 @@ static uint32_t IRAM_ATTR esp32c3_rtc_clk_cal_internal(
       expected_freq = RTC_SLOW_CLK_FREQ_90K;
     }
 
-  us_time_estimate = (uint32_t) (((uint64_t) slowclk_cycles) *
+  us_time_estimate = (uint32_t)(((uint64_t)slowclk_cycles) *
                                           MHZ / expected_freq);
 
   /* Start calibration */
@@ -2509,7 +2509,7 @@ uint64_t IRAM_ATTR esp32c3_rtc_time_get(void)
 
   modifyreg32(RTC_CNTL_TIME_UPDATE_REG, 0, RTC_CNTL_TIME_UPDATE);
   rtc_time = getreg32(RTC_CNTL_TIME0_REG);
-  rtc_time |= ((uint64_t) getreg32(RTC_CNTL_TIME1_REG)) << 32;
+  rtc_time |= ((uint64_t)getreg32(RTC_CNTL_TIME1_REG)) << 32;
 
   return rtc_time;
 }
@@ -3108,7 +3108,7 @@ time_t up_rtc_time(void)
 
   spin_unlock_irqrestore(&g_rtc_lock, flags);
 
-  return (time_t)(time_us / USEC_PER_SEC);
+  return time_us / USEC_PER_SEC;
 }
 #endif /* !CONFIG_RTC_HIRES */
 
@@ -3136,7 +3136,7 @@ int up_rtc_settime(const struct timespec *ts)
   DEBUGASSERT(ts != NULL && ts->tv_nsec < NSEC_PER_SEC);
   flags = spin_lock_irqsave(&g_rtc_lock);
 
-  now_us = ((uint64_t) ts->tv_sec) * USEC_PER_SEC +
+  now_us = ts->tv_sec * USEC_PER_SEC +
           ts->tv_nsec / NSEC_PER_USEC;
   if (g_rt_timer_enabled == true)
     {
@@ -3383,6 +3383,7 @@ int up_rtc_rdalarm(struct timespec *tp, uint32_t alarmid)
 {
   irqstate_t flags;
   struct alm_cbinfo_s *cbinfo;
+  uint64_t time_us;
   DEBUGASSERT(tp != NULL);
   DEBUGASSERT((RTC_ALARM0 <= alarmid) &&
               (alarmid < RTC_ALARM_LAST));
@@ -3393,10 +3394,11 @@ int up_rtc_rdalarm(struct timespec *tp, uint32_t alarmid)
 
   cbinfo = &g_alarmcb[alarmid];
 
-  tp->tv_sec = (rt_timer_time_us() + g_rtc_save->offset +
-              cbinfo->deadline_us) / USEC_PER_SEC;
-  tp->tv_nsec = ((rt_timer_time_us() + g_rtc_save->offset +
-              cbinfo->deadline_us) % USEC_PER_SEC) * NSEC_PER_USEC;
+  time_us = rt_timer_time_us() + g_rtc_save->offset +
+            cbinfo->deadline_us;
+
+  tp->tv_sec = time_us / USEC_PER_SEC;
+  tp->tv_nsec = (time_us % USEC_PER_SEC) * NSEC_PER_USEC;
 
   spin_unlock_irqrestore(&g_rtc_lock, flags);
 

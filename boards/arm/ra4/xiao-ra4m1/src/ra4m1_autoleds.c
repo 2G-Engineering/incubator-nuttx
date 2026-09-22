@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 
@@ -69,7 +69,7 @@
  *   LED_SIGNAL           In a signal handler        N/C
  *   LED_ASSERTION        An assertion failed        N/C
  *   LED_PANIC            The system has crashed     N/C
- *   LED_IDLE             MCU is is sleep mode      ------
+ *   LED_IDLE             MCU is in sleep mode      ------
  */
 
 /****************************************************************************

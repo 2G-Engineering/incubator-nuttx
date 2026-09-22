@@ -33,7 +33,7 @@
 
 /* Ethernet support only on STM32H563/573 chips. */
 
-#if defined(CONFIG_STM32H5_STM32H56XXX)
+#if defined(CONFIG_STM32_STM32H56XXX)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -502,6 +502,11 @@
 
 #define ETH_TDES3_RD_CIC_TPL_SHIFT   (16) /* Checksum Insertion Control or TCP Payload Length */
 #define ETH_TDES3_RD_CIC_TPL_MASK    (0x3 << ETH_TDES3_RD_CIC_TPL_SHIFT)
+#  define ETH_TDES3_RD_CIC_DISABLED  (0x0 << ETH_TDES3_RD_CIC_TPL_SHIFT) /* Checksum insertion disabled */
+#  define ETH_TDES3_RD_CIC_IPHDR     (0x1 << ETH_TDES3_RD_CIC_TPL_SHIFT) /* Only IP header checksum calculation and insertion are enabled */
+#  define ETH_TDES3_RD_CIC_IPHDR_PL  (0x2 << ETH_TDES3_RD_CIC_TPL_SHIFT) /* IP header + payload checksum and insertion, pseudo-header checksum is not calculated in hardware. */
+#  define ETH_TDES3_RD_CIC_ALL       (0x3 << ETH_TDES3_RD_CIC_TPL_SHIFT) /* IP header + payload + pseudo-header computed by hardware */
+
 #define ETH_TDES3_RD_TSE             (1 << 18) /* Bit 18: TCP Segmentation Enable */
 
 #define ETH_TDES3_RD_THL_SHIFT       (19) /* TCP Header Length */
@@ -676,5 +681,5 @@ struct eth_desc_s
  ****************************************************************************/
 
 #endif /* __ASSEMBLY__ */
-#endif /* CONFIG_STM32H5_STM32H56XXX */
+#endif /* CONFIG_STM32_STM32H56XXX */
 #endif /* __ARCH_ARM_SRC_STM32H5_HARDWARE_STM32_ETHERNET_H */

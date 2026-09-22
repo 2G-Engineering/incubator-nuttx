@@ -29,7 +29,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
@@ -70,7 +70,7 @@
  * .bss in some RAM.  We refer to that RAM as the primary RAM.  It also
  * holds the IDLE threads stack and any remaining portion of the primary
  * OCRAM is automatically added to the heap.  The linker provided address,
- * ... .sbss, .ebss, .sdat, etc. ...  are expected to lie in the the region
+ * ... .sbss, .ebss, .sdat, etc. ...  are expected to lie in the region
  * defined by the OCRAM configuration settings.
  *
  * Other RAM regions must be selected use configuration options and the
@@ -203,7 +203,7 @@ extern  const uint32_t  _ram_size[];  /* See linker script */
 #  define IMXRT_OCRAM_ASSIGNED 1
 #elif defined(CONFIG_IMXRT_DTCM_HEAP) && !defined(IMXRT_DCTM_ASSIGNED)
 #  define REGION1_RAM_START    IMXRT_DTCM_BASE
-#  define REGION1_RAM_SIZE     CONFIG_DTCM_USED
+#  define REGION1_RAM_SIZE     (CONFIG_IMXRT_DTCM_HEAP_SIZE * 1024)
 #  define IMXRT_DCTM_ASSIGNED 1
 #elif defined(CONFIG_IMXRT_SDRAM_HEAP) && !defined(IMXRT_SDRAM_ASSIGNED)
 #  define REGION1_RAM_START    (CONFIG_IMXRT_SDRAM_START + CONFIG_IMXRT_SDRAM_HEAPOFFSET)

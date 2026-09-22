@@ -20,7 +20,7 @@
 #
 # ##############################################################################
 
-set(SRCS stm32_boot.c stm32_spi.c stm32_bringup.c)
+set(SRCS stm32_boot.c stm32_bringup.c stm32_spi.c)
 
 if(CONFIG_ARCH_LEDS)
   list(APPEND SRCS stm32_autoleds.c)
@@ -64,6 +64,10 @@ if(CONFIG_SENSORS_QENCODER)
 endif()
 
 if(CONFIG_SENSORS_HTS221)
+  list(APPEND SRCS stm32_hts221.c)
+endif()
+
+if(CONFIG_SENSORS_LSM6DSL)
   list(APPEND SRCS stm32_lsm6dsl.c)
 endif()
 
@@ -95,11 +99,8 @@ if(CONFIG_TIMER)
   list(APPEND SRCS stm32_timer.c)
 endif()
 
-if(CONFIG_BOARDCTL)
-  list(APPEND SRCS stm32_appinit.c)
-  if(CONFIG_BOARDCTL_IOCTL)
-    list(APPEND SRCS stm32_ioctl.c)
-  endif()
+if(CONFIG_BOARDCTL_IOCTL)
+  list(APPEND SRCS stm32_ioctl.c)
 endif()
 
 if(CONFIG_BOARDCTL_UNIQUEID)

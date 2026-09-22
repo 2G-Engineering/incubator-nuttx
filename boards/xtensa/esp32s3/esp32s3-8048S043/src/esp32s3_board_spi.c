@@ -28,11 +28,11 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/spi/spi.h>
 
-#include "esp32s3_gpio.h"
+#include "espressif/esp_gpio.h"
 #include "esp32s3-8048S043.h"
 
 /****************************************************************************

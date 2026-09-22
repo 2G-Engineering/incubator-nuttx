@@ -42,7 +42,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <semaphore.h>
 
@@ -609,7 +609,7 @@ static int i2schar_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
  *     registers as /dev/i2scharN where N is the minor number
  *
  * Returned Value:
- *   OK if the driver was successfully register; A negated errno value is
+ *   OK if the driver was successfully registered; A negated errno value is
  *   returned on any failure.
  *
  ****************************************************************************/

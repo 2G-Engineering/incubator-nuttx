@@ -26,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/net/netdev.h>
 
@@ -71,6 +71,7 @@ int netdev_foreach(netdev_callback_t callback, FAR void *arg)
 
   if (callback != NULL)
     {
+      netdev_list_lock();
       for (dev = g_netdevices; dev; dev = dev->flink)
         {
           if (callback(dev, arg) != 0)
@@ -79,6 +80,8 @@ int netdev_foreach(netdev_callback_t callback, FAR void *arg)
               break;
             }
         }
+
+      netdev_list_unlock();
     }
 
   return ret;

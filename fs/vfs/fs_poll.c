@@ -30,7 +30,7 @@
 #include <time.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/clock.h>
 #include <nuttx/semaphore.h>
@@ -161,25 +161,20 @@ static inline int poll_setup(FAR struct pollfd *fds, nfds_t nfds,
       if (fds[i].fd >= 0)
         {
           FAR struct file *filep;
-          int num = i;
 
           ret = file_get(fds[i].fd, &filep);
-          if (ret < 0)
-            {
-              num -= 1;
-            }
-          else
+          if (ret >= 0)
             {
               ret = file_poll(filep, &fds[i], true);
+              if (ret < 0)
+                {
+                  file_put(filep);
+                }
             }
 
           if (ret < 0)
             {
-              if (num >= 0)
-                {
-                  poll_teardown(fds, num, &count);
-                }
-
+              poll_teardown(fds, i, &count);
               fds[i].revents |= POLLERR;
               fds[i].arg = NULL;
               fds[i].cb = NULL;
@@ -493,7 +488,7 @@ int poll(FAR struct pollfd *fds, nfds_t nfds, int timeout)
            * will return immediately.
            */
 
-          ret = nxsem_tickwait(&sem, MSEC2TICK((clock_t)timeout));
+          ret = nxsem_tickwait(&sem, MSEC2TICK(timeout));
           if (ret < 0)
             {
               if (ret == -ETIMEDOUT)

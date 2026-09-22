@@ -217,6 +217,8 @@ config ARCH_CHIP_SAME70J
 	select SAMV7_QSPI_IS_SPI
 	select SAMV7_HAVE_USBFS
 	select SAMV7_HAVE_ISI8
+	select SAMV7_HAVE_USART0
+	select SAMV7_HAVE_USART1
 
 config ARCH_CHIP_SAMV71
 	bool
@@ -269,6 +271,8 @@ config ARCH_CHIP_SAMV71J
 	select SAMV7_QSPI_IS_SPI
 	select SAMV7_HAVE_USBFS
 	select SAMV7_HAVE_ISI8
+	select SAMV7_HAVE_USART0
+	select SAMV7_HAVE_USART1
 
 config ARCH_CHIP_PIC32CZCA70
 	bool
@@ -383,7 +387,6 @@ config SAMV7_HAVE_MEDIALB
 config SAMV7_PWM
 	bool
 	default n
-	select ARCH_HAVE_PWM_MULTICHAN
 	select ARCH_HAVE_PWM_OVERWRITE
 	select ARCH_HAVE_PWM_DEADTIME
 
@@ -738,7 +741,6 @@ if SAMV7_PWM0
 
 config SAMV7_PWM0_SYNC
 	bool "PWM0 synchronous channels"
-	depends on PWM_MULTICHAN
 	default n
 	---help---
 		This option makes the synchronization between channels possible.
@@ -1093,7 +1095,6 @@ if SAMV7_PWM1
 
 config SAMV7_PWM1_SYNC
 	bool "PWM1 synchronous channels"
-	depends on PWM_MULTICHAN
 	default n
 	---help---
 		This option makes the synchronization between channels possible.
@@ -3254,7 +3255,6 @@ config SAMV7_EMAC0_MII
 
 config SAMV7_EMAC0_RMII
 	bool "RMII"
-	depends on !ARCH_CHIP_SAM4E
 	---help---
 		Support Ethernet RMII interface (vs MII).
 
@@ -3677,7 +3677,7 @@ endchoice # MCAN0 RX buffer element size
 config SAMV7_MCAN0_RXFIFO0_SIZE
 	int "MCAN0 RX FIFO0 size"
 	default 8
-	range 1 64
+	range 0 64
 	---help---
 		Number of receive FIFO 0 elements.  Zero disables FIFO 0.
 
@@ -3721,7 +3721,7 @@ endchoice # MCAN0 RX buffer element size
 config SAMV7_MCAN0_RXFIFO1_SIZE
 	int "MCAN0 RX FIFO1 size"
 	default 4
-	range 1 64
+	range 0 64
 	---help---
 		Number of receive FIFO 1 elements for MCAN0.  Zero disables FIFO 1.
 
@@ -3993,7 +3993,7 @@ endchoice # MCAN1 RX buffer element size
 config SAMV7_MCAN1_RXFIFO0_SIZE
 	int "MCAN1 RX FIFO0 size"
 	default 8
-	range 1 64
+	range 0 64
 	---help---
 		Number of receive FIFO 0 elements.  Zero disables FIFO 0.
 
@@ -4037,7 +4037,7 @@ endchoice # MCAN1 RX buffer element size
 config SAMV7_MCAN1_RXFIFO1_SIZE
 	int "MCAN1 RX FIFO1 size"
 	default 4
-	range 1 64
+	range 0 64
 	---help---
 		Number of receive FIFO 1 elements for MCAN1.  Zero disables FIFO 1.
 

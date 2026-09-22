@@ -35,7 +35,7 @@
 #include <string.h>
 #include <assert.h>
 #include <fcntl.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <limits.h>
 
 #include <nuttx/lib/lib.h>
@@ -267,7 +267,7 @@ static void rpmsgfs_mkpath(FAR struct rpmsgfs_mountpt_s *fs,
           break;
         }
 
-      nxsig_usleep(RPMSGFS_RETRY_DELAY_MS * USEC_PER_MSEC);
+      nxsched_usleep(RPMSGFS_RETRY_DELAY_MS * USEC_PER_MSEC);
       fs->timeout -= RPMSGFS_RETRY_DELAY_MS;
     }
 }
@@ -341,7 +341,7 @@ static int rpmsgfs_open(FAR struct file *filep, FAR const char *relpath,
    * file.
    */
 
-  if ((oflags & (O_APPEND | O_WRONLY)) == (O_APPEND | O_WRONLY))
+  if ((oflags & O_APPEND) && (oflags & O_ACCMODE) != O_RDONLY)
     {
       ret = rpmsgfs_client_lseek(fs->handle, hf->fd, 0, SEEK_END);
       if (ret >= 0)
@@ -553,7 +553,7 @@ static ssize_t rpmsgfs_write(FAR struct file *filep, const char *buffer,
    * write flags.
    */
 
-  if ((hf->oflags & O_WROK) == 0)
+  if ((hf->oflags & O_ACCMODE) == O_RDONLY)
     {
       ret = -EACCES;
       goto errout_with_lock;

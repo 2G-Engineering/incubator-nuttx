@@ -31,7 +31,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <time.h>
 #include <fcntl.h>
@@ -110,10 +110,12 @@ struct mac802154_chardevice_s
 
   /* MAC Service notification information */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   bool    md_notify_registered;
   pid_t   md_notify_pid;
   struct sigevent md_notify_event;
   struct sigwork_s md_notify_work;
+#endif
 };
 
 /****************************************************************************
@@ -223,7 +225,6 @@ static int mac802154dev_close(FAR struct file *filep)
   FAR struct mac802154dev_open_s *opriv;
   FAR struct mac802154dev_open_s *curr;
   FAR struct mac802154dev_open_s *prev;
-  irqstate_t flags;
   bool closing;
   int ret;
 
@@ -232,6 +233,15 @@ static int mac802154dev_close(FAR struct file *filep)
   inode = filep->f_inode;
   DEBUGASSERT(inode->i_private);
   dev = inode->i_private;
+
+  /* Get exclusive access to the driver structure */
+
+  ret = nxmutex_lock(&dev->md_lock);
+  if (ret < 0)
+    {
+      wlerr("ERROR: nxsem_wait failed: %d\n", ret);
+      return ret;
+    }
 
   /* Handle an improbable race conditions with the following atomic test
    * and set.
@@ -243,25 +253,15 @@ static int mac802154dev_close(FAR struct file *filep)
    * detection anyway.
    */
 
-  flags = enter_critical_section();
   closing = opriv->md_closing;
   opriv->md_closing = true;
-  leave_critical_section(flags);
 
   if (closing)
     {
       /* Another thread is doing the close */
 
+      nxmutex_unlock(&dev->md_lock);
       return OK;
-    }
-
-  /* Get exclusive access to the driver structure */
-
-  ret = nxmutex_lock(&dev->md_lock);
-  if (ret < 0)
-    {
-      wlerr("ERROR: nxsem_wait failed: %d\n", ret);
-      return ret;
     }
 
   /* Find the open structure in the list of open structures for the device */
@@ -577,6 +577,7 @@ static int mac802154dev_ioctl(FAR struct file *filep, int cmd,
        *              failure with the errno value set appropriately.
        */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
       case MAC802154IOC_NOTIFY_REGISTER:
         {
           /* Save the notification events */
@@ -588,6 +589,7 @@ static int mac802154dev_ioctl(FAR struct file *filep, int cmd,
           ret = OK;
         }
         break;
+#endif
 
       case MAC802154IOC_GET_EVENT:
         {
@@ -723,12 +725,14 @@ static int mac802154dev_notify(FAR struct mac802154_maccb_s *maccb,
           nxsem_post(&dev->geteventsem);
         }
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
       if (dev->md_notify_registered)
         {
           dev->md_notify_event.sigev_value.sival_int = primitive->type;
           nxsig_notification(dev->md_notify_pid, &dev->md_notify_event,
                              SI_QUEUE, &dev->md_notify_work);
         }
+#endif
 
       nxmutex_unlock(&dev->md_lock);
       return OK;

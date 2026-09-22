@@ -5,10 +5,8 @@
 
 if ARCH_CHIP_IMX9_CORTEX_M
 
-menu "i.MX9 Chip Selection"
-
 choice
-	prompt "i.MX9 Core Configuration"
+	prompt "i.MX9 Core Selection"
 	default ARCH_CHIP_IMX95_M7
 
 config ARCH_CHIP_IMX95_M7
@@ -21,9 +19,14 @@ config ARCH_CHIP_IMX95_M7
 	select ARMV7M_HAVE_DTCM
 	select IMX9_HAVE_MU
 
-endchoice # i.MX9 Chip Selection
+config ARCH_CHIP_IMX93_M33
+	bool "i.MX93 Cortex-M33 Processor"
+	select ARCH_CORTEXM33
+	select ARMV8M_HAVE_ITCM
+	select ARMV8M_HAVE_DTCM
+	select IMX9_HAVE_MU
 
-endmenu # "i.MX9 Chip Selection"
+endchoice # i.MX9 Core Selection
 
 config IMX9_HAVE_MU
 	bool
@@ -33,6 +36,24 @@ config IMX9_SCMI
 	bool "SCMI Interface"
 	default y
 	depends on IMX9_MU5
+
+config IMX9_XCACHE
+	bool
+	default n
+
+config IMX9_LPCAC_PC
+	bool "Low Power Cache - Program Cache (ICACHE)"
+	default n
+	depends on ARCH_CHIP_IMX93_M33
+	select ARCH_ICACHE
+	select IMX9_XCACHE
+
+config IMX9_LPCAC_PS
+	bool "Low Power Cache - Peripheral System (DCACHE)"
+	default n
+	depends on ARCH_CHIP_IMX93_M33
+	select ARCH_DCACHE
+	select IMX9_XCACHE
 
 if IMX9_SCMI
 
@@ -49,6 +70,7 @@ endif
 config IMX9_WFI_AWAKES_AT_SYSTICK
 	bool "WFI awakes at systick interrupts"
 	default y
+	depends on ARCH_CHIP_IMX95_M7
 	---help---
 	Configure the GPC to wake up from systick interrupts at WFI
 	instruction
@@ -118,12 +140,12 @@ menu "FLEXCAN1 Configuration"
 
 config FLEXCAN1_BITRATE
 	int "CAN bitrate"
-	depends on !(NET_CAN_CANFD)
+	depends on !NET_CAN_CANFD
 	default 1000000
 
 config FLEXCAN1_SAMPLEP
 	int "CAN sample point"
-	depends on !(NET_CAN_CANFD)
+	depends on !NET_CAN_CANFD
 	default 80
 
 config FLEXCAN1_ARBI_BITRATE
@@ -153,32 +175,32 @@ menu "FLEXCAN2 Configuration"
 
 config FLEXCAN2_BITRATE
 	int "CAN bitrate"
-	depends on !(NET_CAN_CANFD && IMX9_FLEXCAN2_FD)
+	depends on !NET_CAN_CANFD
 	default 1000000
 
 config FLEXCAN2_SAMPLEP
 	int "CAN sample point"
-	depends on !(NET_CAN_CANFD && IMX9_FLEXCAN2_FD)
+	depends on !NET_CAN_CANFD
 	default 80
 
 config FLEXCAN2_ARBI_BITRATE
 	int "CAN FD Arbitration phase bitrate"
-	depends on NET_CAN_CANFD && IMX9_FLEXCAN2_FD
+	depends on NET_CAN_CANFD
 	default 1000000
 
 config FLEXCAN2_ARBI_SAMPLEP
 	int "CAN FD Arbitration phase sample point"
-	depends on NET_CAN_CANFD && IMX9_FLEXCAN2_FD
+	depends on NET_CAN_CANFD
 	default 80
 
 config FLEXCAN2_DATA_BITRATE
 	int "CAN FD Data phase bitrate"
-	depends on NET_CAN_CANFD && IMX9_FLEXCAN2_FD
+	depends on NET_CAN_CANFD
 	default 4000000
 
 config FLEXCAN2_DATA_SAMPLEP
 	int "CAN FD Data phase sample point"
-	depends on NET_CAN_CANFD && IMX9_FLEXCAN2_FD
+	depends on NET_CAN_CANFD
 	default 90
 
 endmenu # IMX9_FLEXCAN2
@@ -223,12 +245,12 @@ menu "FLEXCAN4 Configuration"
 
 config FLEXCAN4_BITRATE
 	int "CAN bitrate"
-	depends on !(NET_CAN_CANFD)
+	depends on !NET_CAN_CANFD
 	default 4000000
 
 config FLEXCAN4_SAMPLEP
 	int "CAN sample point"
-	depends on !(NET_CAN_CANFD)
+	depends on !NET_CAN_CANFD
 	default 80
 
 config FLEXCAN4_ARBI_BITRATE
@@ -258,12 +280,12 @@ menu "FLEXCAN5 Configuration"
 
 config FLEXCAN5_BITRATE
 	int "CAN bitrate"
-	depends on !(NET_CAN_CANFD)
+	depends on !NET_CAN_CANFD
 	default 5000000
 
 config FLEXCAN5_SAMPLEP
 	int "CAN sample point"
-	depends on !(NET_CAN_CANFD)
+	depends on !NET_CAN_CANFD
 	default 80
 
 config FLEXCAN5_ARBI_BITRATE
@@ -287,6 +309,10 @@ config FLEXCAN5_DATA_SAMPLEP
 	default 90
 
 endmenu # IMX9_FLEXCAN5
+
+config IMX9_SAR_ADC
+	bool "SAR ADC"
+	default n
 
 menu "LPUART"
 
@@ -382,17 +408,117 @@ config IMX9_GPIO1_IRQ
 	bool "GPIO1 Interrupt"
 	default n
 
+choice
+	prompt "GPIO1 IRQ output select"
+	depends on IMX9_GPIO1_IRQ
+	default IMX9_GPIO1_IRQ_OUT_LINE1
+	---help---
+		Each IMX9 GPIO controller provides two IRQ output lines. These
+		lines may be shared with other cores or domains in the SoC
+		(e.g. A55 vs M7), so selecting the correct line avoids conflicts.
+
+		By default this subsystem uses IRQ line 1, leaving line 0 available
+		for the A55 or other system components that typically rely on it.
+
+config IMX9_GPIO1_IRQ_OUT_LINE0
+	bool "Use GPIO1 IRQ line 0"
+
+config IMX9_GPIO1_IRQ_OUT_LINE1
+	bool "Use GPIO1 IRQ line 1"
+endchoice
+
 config IMX9_GPIO2_IRQ
 	bool "GPIO2 Interrupt"
 	default n
+
+choice
+	prompt "GPIO2 IRQ output select"
+	depends on IMX9_GPIO2_IRQ
+	default IMX9_GPIO2_IRQ_OUT_LINE1
+	---help---
+		Each IMX9 GPIO controller provides two IRQ output lines. These
+		lines may be shared with other cores or domains in the SoC
+		(e.g. A55 vs M7), so selecting the correct line avoids conflicts.
+
+		By default this subsystem uses IRQ line 1, leaving line 0 available
+		for the A55 or other system components that typically rely on it.
+
+config IMX9_GPIO2_IRQ_OUT_LINE0
+	bool "Use GPIO2 IRQ line 0"
+
+config IMX9_GPIO2_IRQ_OUT_LINE1
+	bool "Use GPIO2 IRQ line 1"
+endchoice
 
 config IMX9_GPIO3_IRQ
 	bool "GPIO3 Interrupt"
 	default n
 
+choice
+	prompt "GPIO3 IRQ output select"
+	depends on IMX9_GPIO3_IRQ
+	default IMX9_GPIO3_IRQ_OUT_LINE1
+	---help---
+		Each IMX9 GPIO controller provides two IRQ output lines. These
+		lines may be shared with other cores or domains in the SoC
+		(e.g. A55 vs M7), so selecting the correct line avoids conflicts.
+
+		By default this subsystem uses IRQ line 1, leaving line 0 available
+		for the A55 or other system components that typically rely on it.
+
+config IMX9_GPIO3_IRQ_OUT_LINE0
+	bool "Use GPIO3 IRQ line 0"
+
+config IMX9_GPIO3_IRQ_OUT_LINE1
+	bool "Use GPIO3 IRQ line 1"
+endchoice
+
 config IMX9_GPIO4_IRQ
 	bool "GPIO4 Interrupt"
 	default n
+
+choice
+	prompt "GPIO4 IRQ output select"
+	depends on IMX9_GPIO4_IRQ
+	default IMX9_GPIO4_IRQ_OUT_LINE1
+	---help---
+		Each IMX9 GPIO controller provides two IRQ output lines. These
+		lines may be shared with other cores or domains in the SoC
+		(e.g. A55 vs M7), so selecting the correct line avoids conflicts.
+
+		By default this subsystem uses IRQ line 1, leaving line 0 available
+		for the A55 or other system components that typically rely on it.
+
+config IMX9_GPIO4_IRQ_OUT_LINE0
+	bool "Use GPIO4 IRQ line 0"
+
+config IMX9_GPIO4_IRQ_OUT_LINE1
+	bool "Use GPIO4 IRQ line 1"
+endchoice
+
+config IMX9_GPIO5_IRQ
+	bool "GPIO5 Interrupt"
+	default n
+
+choice
+	prompt "GPIO5 IRQ output select"
+	depends on IMX9_GPIO5_IRQ
+	default IMX9_GPIO5_IRQ_OUT_LINE1
+	---help---
+		Each IMX9 GPIO controller provides two IRQ output lines. These
+		lines may be shared with other cores or domains in the SoC
+		(e.g. A55 vs M7), so selecting the correct line avoids conflicts.
+
+		By default this subsystem uses IRQ line 1, leaving line 0 available
+		for the A55 or other system components that typically rely on it.
+
+config IMX9_GPIO5_IRQ_OUT_LINE0
+	bool "Use GPIO5 IRQ line 0"
+
+config IMX9_GPIO5_IRQ_OUT_LINE1
+	bool "Use GPIO5 IRQ line 1"
+endchoice
+
 
 endmenu # GPIO Interrupt Configuration
 
@@ -402,6 +528,10 @@ config IMX9_LPI2C
 
 config IMX9_LPSPI
 	bool "LPSPI support"
+	default n
+
+config IMXRT_FLEXIO
+	bool "FLEXIO support"
 	default n
 
 menu "LPI2C Peripherals"
@@ -521,6 +651,11 @@ config IMX9_LPI2C5_BUSYIDLE
 	int "Bus idle timeout period in clock cycles"
 	default 0
 
+config IMX9_LPI2C5_DMA
+	bool "Enable DMA for I2C5"
+	default n
+	depends on IMX9_LPI2C_DMA
+
 config IMX9_LPI2C5_FILTSCL
 	int "I2C master digital glitch filters for SCL input in clock cycles"
 	default 0
@@ -541,6 +676,11 @@ if IMX9_LPI2C6
 config IMX9_LPI2C6_BUSYIDLE
 	int "Bus idle timeout period in clock cycles"
 	default 0
+
+config IMX9_LPI2C6_DMA
+	bool "Enable DMA for I2C6"
+	default n
+	depends on IMX9_LPI2C_DMA
 
 config IMX9_LPI2C6_FILTSCL
 	int "I2C master digital glitch filters for SCL input in clock cycles"
@@ -563,6 +703,11 @@ config IMX9_LPI2C7_BUSYIDLE
 	int "Bus idle timeout period in clock cycles"
 	default 0
 
+config IMX9_LPI2C7_DMA
+	bool "Enable DMA for I2C7"
+	default n
+	depends on IMX9_LPI2C_DMA
+
 config IMX9_LPI2C7_FILTSCL
 	int "I2C master digital glitch filters for SCL input in clock cycles"
 	default 0
@@ -583,6 +728,11 @@ if IMX9_LPI2C8
 config IMX9_LPI2C8_BUSYIDLE
 	int "Bus idle timeout period in clock cycles"
 	default 0
+
+config IMX9_LPI2C8_DMA
+	bool "Enable DMA for I2C8"
+	default n
+	depends on IMX9_LPI2C_DMA
 
 config IMX9_LPI2C8_FILTSCL
 	int "I2C master digital glitch filters for SCL input in clock cycles"
@@ -639,6 +789,20 @@ menuconfig IMX9_LPSPI8
 	select IMX9_LPSPI
 
 endmenu # LPSPI Peripherals
+
+menu "FlexIO Peripherals"
+
+config IMX9_FLEXIO1
+	bool "FLEXIO1"
+	default n
+	select IMX9_FLEXIO
+
+config IMX9_FLEXIO2
+	bool "FLEXIO2"
+	default n
+	select IMX9_FLEXIO
+
+endmenu # FlexIO Peripherals
 
 menu "eDMA Configuration"
 	depends on IMX9_EDMA
@@ -899,23 +1063,40 @@ menuconfig IMX9_MU
 
 if IMX9_MU
 
+config IMX9_MU1
+	bool "MU1 M33 <-> A55"
+	default y
+	depends on ARCH_CHIP_IMX93_M33
+	---help---
+		Enable mailbox 1 that operates between M33 and A55 cores
+
+config IMX9_MU2
+	bool "MU2 M33 <-> A55"
+	default n
+	depends on ARCH_CHIP_IMX93_M33
+	---help---
+		Enable mailbox 2 that operates between M33 and A55 cores
+
 config IMX9_MU5
 	bool "MU5 M7 <-> M33"
 	default y
+	depends on ARCH_CHIP_IMX95_M7
 	---help---
 		Enable mailbox 5 that operates between M7 and M33 cores
 
 config IMX9_MU7
 	bool "MU7 M7 <-> A55"
 	default n
+	depends on ARCH_CHIP_IMX95_M7
 	---help---
 		Enable mailbox 7 that operates between M7 and A55 cores
 
 config IMX9_MU8
 	bool "MU8 M7 <-> A55"
 	default n
+	depends on ARCH_CHIP_IMX95_M7
 	---help---
-		Enable mailbox 5 that operates between M7 and A55 cores
+		Enable mailbox 8 that operates between M7 and A55 cores
 
 endif # IMX9_MU Configuration
 

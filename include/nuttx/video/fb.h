@@ -32,7 +32,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #ifdef CONFIG_VIDEO_FB_SPLASHSCREEN
 #  include <nuttx/video/rgbcolors.h>
 #endif
@@ -313,6 +313,12 @@
 #define FBIOSET_VSYNCOFFSET   _FBIOC(0x001a)  /* Set VSync offset in usec
                                                * Argument:             int */
 
+#define FBIOSET_ROTATION      _FBIOC(0x001e)  /* Set display rotation
+                                               * Argument:             int */
+
+#define FBIOGET_ROTATION      _FBIOC(0x001f)  /* Get display rotation
+                                               * Argument:            int* */
+
 /* Linux Support ************************************************************/
 
 #define FBIOGET_VSCREENINFO   _FBIOC(0x001b)  /* Get video variable info */
@@ -321,6 +327,9 @@
 #define FBIOGET_FSCREENINFO   _FBIOC(0x001c)  /* Get video fix info */
                                               /* Argument: writable struct
                                                *           fb_fix_screeninfo */
+#define FBIOGET_PANINFOCNT    _FBIOC(0x001d)  /* Get pan info count */
+                                              /* Argument: read-only
+                                               *           unsigned long */
 
 #define FB_TYPE_PACKED_PIXELS        0      /* Packed Pixels */
 #define FB_TYPE_PLANES               1      /* Non interleaved planes */
@@ -645,7 +654,7 @@ struct fb_cmap_s
 struct fb_cursorimage_s
 {
   fb_coord_t     width;    /* Width of the cursor image in pixels */
-  fb_coord_t     height    /* Height of the cursor image in pixels */
+  fb_coord_t     height;   /* Height of the cursor image in pixels */
   const uint8_t *image;    /* Pointer to image data */
 };
 #endif

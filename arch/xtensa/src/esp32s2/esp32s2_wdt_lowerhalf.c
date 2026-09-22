@@ -25,7 +25,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <string.h>
@@ -37,9 +37,12 @@
 
 #include "xtensa.h"
 #include "esp32s2_wdt.h"
-#include "esp32s2_rtc.h"
+
 #include "esp32s2_wdt_lowerhalf.h"
 #include "hardware/esp32s2_soc.h"
+
+#include "soc/periph_defs.h"
+#include "esp_private/periph_ctrl.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -90,13 +93,6 @@
 /****************************************************************************
  * Private Types
  ****************************************************************************/
-
-enum wdt_peripheral_e
-{
-  RTC,
-  TIMER,
-  XTAL32K,
-};
 
 /* This structure provides the private representation of the "lower-half"
  * driver state structure.  This structure must be cast-compatible with the
@@ -240,6 +236,33 @@ static int wdt_lh_start(struct watchdog_lowerhalf_s *lower)
 
       ESP32S2_WDT_UNLOCK(priv->wdt);
 
+      /* Re-apply the prescaler for MWDT in case the Timer Group
+       * registers were reset after initialization (e.g. by a
+       * constructor function that resets the peripheral).
+       */
+
+      if (priv->peripheral == TIMER)
+        {
+          ESP32S2_MWDT_PRE(priv->wdt, MWDT_CLK_PRESCALER_VALUE);
+        }
+
+      /* Re-apply the timeout value */
+
+      if (priv->timeout > 0)
+        {
+          if (priv->peripheral == TIMER)
+            {
+              ESP32S2_WDT_STO(priv->wdt, MWDT_TIMEOUT_MS(priv->timeout),
+                              ESP32S2_WDT_STAGE0);
+            }
+          else if (priv->peripheral == RTC)
+            {
+              uint16_t rtc_cycles = ESP32S2_RWDT_CLK(priv->wdt);
+              ESP32S2_WDT_STO(priv->wdt, priv->timeout * rtc_cycles,
+                              ESP32S2_WDT_STAGE0);
+            }
+        }
+
       /* No User Handler */
 
       if (priv->handler == NULL)
@@ -274,6 +297,8 @@ static int wdt_lh_start(struct watchdog_lowerhalf_s *lower)
           leave_critical_section(flags);
           ESP32S2_WDT_ENABLEINT(priv->wdt);
         }
+
+      ESP32S2_WDT_FEED(priv->wdt);
 
       flags = enter_critical_section();
       priv->lastreset = clock_systime_ticks();
@@ -706,6 +731,8 @@ static int wdt_handler(int irq, void *context, void *arg)
 {
   struct esp32s2_wdt_lowerhalf_s *priv =
     (struct esp32s2_wdt_lowerhalf_s *)arg;
+  struct esp32s2_wdt_priv_s *wdt =
+    (struct esp32s2_wdt_priv_s *)priv->wdt;
 
   /* Run the user callback */
 

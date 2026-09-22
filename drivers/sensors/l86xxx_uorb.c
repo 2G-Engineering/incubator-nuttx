@@ -30,7 +30,7 @@
 
 #include <nuttx/config.h>
 #include <nuttx/nuttx.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -57,6 +57,12 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+/* Only float data type supported now */
+
+#ifdef CONFIG_SENSORS_USE_B16
+#  error fixed-point data type not supported yet
+#endif
 
 #ifndef CONFIG_SENSORS_L86_XXX_THREAD_STACKSIZE
 #define CONFIG_SENSORS_L86_XXX_THREAD_STACKSIZE 10000
@@ -311,7 +317,7 @@ static int send_command(l86xxx_dev_s *dev,
   if (cmd == SET_NMEA_BAUDRATE)
   {
 #ifdef CONFIG_SERIAL_TERMIOS
-    nxsig_usleep(20000); /* Should wait for a bit before changing interface baud rate */
+    nxsched_usleep(20000); /* Should wait for a bit before changing interface baud rate */
     err = set_baud_rate(dev, (int)arg);
 #else
     err = -EINVAL;

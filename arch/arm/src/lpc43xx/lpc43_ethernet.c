@@ -33,7 +33,7 @@
 #include <time.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <arpa/inet.h>
@@ -2097,6 +2097,9 @@ static int lpc43_ifup(struct net_driver_s *dev)
   up_enable_irq(LPC43M4_IRQ_ETHERNET);
 
   lpc43_checksetup();
+
+  netdev_carrier_on(dev);
+
   return OK;
 }
 
@@ -2144,6 +2147,9 @@ static int lpc43_ifdown(struct net_driver_s *dev)
 
   priv->ifup = false;
   leave_critical_section(flags);
+
+  netdev_carrier_off(dev);
+
   return OK;
 }
 

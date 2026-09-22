@@ -9,6 +9,7 @@
 *.dSYM
 *.elf
 *.exe
+etctmp/
 *.gcno
 *.gcda
 *.hex
@@ -36,6 +37,10 @@
 *.pyc
 *.mapfile
 *.SystemMap
+*.ld.tmp
+*.script.tmp
+*.script.dfu.tmp
+*.linkcmd.tmp
 *~
 \#*\#
 .\#*
@@ -55,6 +60,7 @@
 /_SAVED_APPS_config
 /cscope.*
 /defconfig
+/defconfig.tmp.bak
 /Make.defs
 /nuttx
 /nuttx32
@@ -79,7 +85,7 @@ uImage
 .DS_Store
 /build_configs/*
 tools/gdb/__pycache__
-/build
+/build*
 .ccls-cache
 compile_commands.json
 imx9-sdimage.img

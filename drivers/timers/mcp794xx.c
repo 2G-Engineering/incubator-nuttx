@@ -27,9 +27,10 @@
 #include <nuttx/config.h>
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <time.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/signal.h>
 #include <nuttx/arch.h>
@@ -498,11 +499,11 @@ int up_rtc_settime(FAR const struct timespec *tp)
       return -EAGAIN;
     }
 
-  rtcinfo("Setting time tp=(%d,%d)\n", (int)tp->tv_sec, (int)tp->tv_nsec);
+  rtcinfo("Setting time tp=(%jd,%ld)\n", (intmax_t)tp->tv_sec, tp->tv_nsec);
 
   /* Get the broken out time */
 
-  newtime = (time_t)tp->tv_sec;
+  newtime = tp->tv_sec;
   if (tp->tv_nsec >= 500000000)
     {
       /* Round up */
@@ -570,7 +571,7 @@ int up_rtc_settime(FAR const struct timespec *tp)
     {
       /* Give time to oscillator to change its status */
 
-      nxsig_usleep(10000);
+      nxsched_usleep(10000);
 
       ret = I2C_TRANSFER(g_mcp794xx.i2c, msg, 2);
       if (ret < 0)
@@ -674,7 +675,7 @@ int up_rtc_settime(FAR const struct timespec *tp)
     {
       /* Give time to oscillator to change its status */
 
-      nxsig_usleep(10000);
+      nxsched_usleep(10000);
 
       ret = I2C_TRANSFER(g_mcp794xx.i2c, msg, 2);
       if (ret < 0)

@@ -38,7 +38,7 @@
  * The RTOS will provide the following interfaces for use by the platform-
  * specific interval timer implementation:
  *
- *   void nxsched_timer_expiration(void):  Called by the platform-specific
+ *   void nxsched_process_timer(void):  Called by the platform-specific
  *     logic when the interval timer expires.
  *
  ****************************************************************************/
@@ -76,7 +76,7 @@
 
 #include <nuttx/arch.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "stm32l4_oneshot.h"
 #include "stm32l4_freerun.h"
@@ -87,44 +87,44 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#ifndef CONFIG_STM32L4_ONESHOT
-#  error CONFIG_STM32L4_ONESHOT must be selected for the Tickless OS option
+#ifndef CONFIG_STM32_ONESHOT
+#  error CONFIG_STM32_ONESHOT must be selected for the Tickless OS option
 #endif
 
-#ifndef CONFIG_STM32L4_FREERUN
-#  error CONFIG_STM32L4_FREERUN must be selected for the Tickless OS option
+#ifndef CONFIG_STM32_FREERUN
+#  error CONFIG_STM32_FREERUN must be selected for the Tickless OS option
 #endif
 
-#ifndef CONFIG_STM32L4_TICKLESS_FREERUN
-#  error CONFIG_STM32L4_TICKLESS_FREERUN must be selected for the Tickless OS option
+#ifndef CONFIG_STM32_TICKLESS_FREERUN
+#  error CONFIG_STM32_TICKLESS_FREERUN must be selected for the Tickless OS option
 #endif
 
-#ifndef CONFIG_STM32L4_TICKLESS_ONESHOT
-#  error CONFIG_STM32L4_TICKLESS_ONESHOT must be selected for the Tickless OS option
+#ifndef CONFIG_STM32_TICKLESS_ONESHOT
+#  error CONFIG_STM32_TICKLESS_ONESHOT must be selected for the Tickless OS option
 #endif
 
 /****************************************************************************
  * Private Types
  ****************************************************************************/
 
-struct stm32l4_tickless_s
+struct stm32_tickless_s
 {
-  struct stm32l4_oneshot_s oneshot;
-  struct stm32l4_freerun_s freerun;
+  struct stm32_oneshot_s oneshot;
+  struct stm32_freerun_s freerun;
 };
 
 /****************************************************************************
  * Private Data
  ****************************************************************************/
 
-static struct stm32l4_tickless_s g_tickless;
+static struct stm32_tickless_s g_tickless;
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_oneshot_handler
+ * Name: stm32_oneshot_handler
  *
  * Description:
  *   Called when the one shot timer expires
@@ -141,10 +141,10 @@ static struct stm32l4_tickless_s g_tickless;
  *
  ****************************************************************************/
 
-static void stm32l4_oneshot_handler(void *arg)
+static void stm32_oneshot_handler(void *arg)
 {
   tmrinfo("Expired...\n");
-  nxsched_timer_expiration();
+  nxsched_process_timer();
 }
 
 /****************************************************************************
@@ -185,22 +185,22 @@ void up_timer_initialize(void)
 
   /* Initialize the one-shot timer */
 
-  ret = stm32l4_oneshot_initialize(&g_tickless.oneshot,
-                                 CONFIG_STM32L4_TICKLESS_ONESHOT,
+  ret = stm32_oneshot_initialize(&g_tickless.oneshot,
+                                 CONFIG_STM32_TICKLESS_ONESHOT,
                                  CONFIG_USEC_PER_TICK);
   if (ret < 0)
     {
-      tmrerr("ERROR: stm32l4_oneshot_initialize failed\n");
+      tmrerr("ERROR: stm32_oneshot_initialize failed\n");
       DEBUGPANIC();
     }
 
 #ifdef CONFIG_SCHED_TICKLESS_LIMIT_MAX_SLEEP
   /* Get the maximum delay of the one-shot timer in microseconds */
 
-  ret = stm32l4_oneshot_max_delay(&g_tickless.oneshot, &max_delay);
+  ret = stm32_oneshot_max_delay(&g_tickless.oneshot, &max_delay);
   if (ret < 0)
     {
-      tmrerr("ERROR: stm32l4_oneshot_max_delay failed\n");
+      tmrerr("ERROR: stm32_oneshot_max_delay failed\n");
       DEBUGPANIC();
     }
 
@@ -219,12 +219,12 @@ void up_timer_initialize(void)
 
   /* Initialize the free-running timer */
 
-  ret = stm32l4_freerun_initialize(&g_tickless.freerun,
-                                 CONFIG_STM32L4_TICKLESS_FREERUN,
+  ret = stm32_freerun_initialize(&g_tickless.freerun,
+                                 CONFIG_STM32_TICKLESS_FREERUN,
                                  CONFIG_USEC_PER_TICK);
   if (ret < 0)
     {
-      tmrerr("ERROR: stm32l4_freerun_initialize failed\n");
+      tmrerr("ERROR: stm32_freerun_initialize failed\n");
       DEBUGPANIC();
     }
 }
@@ -264,7 +264,7 @@ void up_timer_initialize(void)
 
 int up_timer_gettime(struct timespec *ts)
 {
-  return stm32l4_freerun_counter(&g_tickless.freerun, ts);
+  return stm32_freerun_counter(&g_tickless.freerun, ts);
 }
 
 /****************************************************************************
@@ -273,7 +273,7 @@ int up_timer_gettime(struct timespec *ts)
  * Description:
  *   Cancel the interval timer and return the time remaining on the timer.
  *   These two steps need to be as nearly atomic as possible.
- *   nxsched_timer_expiration() will not be called unless the timer is
+ *   nxsched_process_timer() will not be called unless the timer is
  *   restarted with up_timer_start().
  *
  *   If, as a race condition, the timer has already expired when this
@@ -305,21 +305,21 @@ int up_timer_gettime(struct timespec *ts)
 
 int up_timer_cancel(struct timespec *ts)
 {
-  return stm32l4_oneshot_cancel(&g_tickless.oneshot, ts);
+  return stm32_oneshot_cancel(&g_tickless.oneshot, ts);
 }
 
 /****************************************************************************
  * Name: up_timer_start
  *
  * Description:
- *   Start the interval timer.  nxsched_timer_expiration() will be
+ *   Start the interval timer.  nxsched_process_timer() will be
  *   called at the completion of the timeout (unless up_timer_cancel
  *   is called to stop the timing.
  *
  *   Provided by platform-specific code and called from the RTOS base code.
  *
  * Input Parameters:
- *   ts - Provides the time interval until nxsched_timer_expiration() is
+ *   ts - Provides the time interval until nxsched_process_timer() is
  *        called.
  *
  * Returned Value:
@@ -335,7 +335,7 @@ int up_timer_cancel(struct timespec *ts)
 
 int up_timer_start(const struct timespec *ts)
 {
-  return stm32l4_oneshot_start(&g_tickless.oneshot,
-                               stm32l4_oneshot_handler, NULL, ts);
+  return stm32_oneshot_start(&g_tickless.oneshot,
+                               stm32_oneshot_handler, NULL, ts);
 }
 #endif /* CONFIG_SCHED_TICKLESS */

@@ -62,6 +62,12 @@ Reusable LCD drivers reside in the drivers/lcd directory:
 LCDs
 ----
 
+.. _gc9a01:
+
+- ``gc9a01.c``
+
+  GalaxyCore GC9A01 TFT LCD controller.
+
 - ``mio283qt2.c``
 
   This is a driver for the MI0283QT-2 LCD from Multi-Inno
@@ -79,7 +85,7 @@ LCDs
   Generic LCD driver for LCDs based on the Solomon Systech
   SSD1289 LCD controller. Think of this as a template for an LCD driver
   that you will probably have to customize for any particular LCD
-  hardware. (See also boards/arm/stm32/hymini-stm32v/src/ssd1289.c below).
+  hardware. (See also boards/arm/stm32f1/hymini-stm32v/src/ssd1289.c below).
 
 - ``st7567.c``
 
@@ -114,7 +120,7 @@ OLEDs
   OLED Display Module, UUG-2864AMBAG01, Univision Technology Inc.
   Based on the SH1101A controller.  Example usage::
 
-      boards/arm/stm32/stm32f4discovery
+      boards/arm/stm32f4/stm32f4discovery
       boards/arm/lpc214x/zp214xpa
 
 - ``ug-9664hswag01.c``
@@ -134,7 +140,7 @@ OLEDs
   Densitron Technologies DD-12864WO-4A which is based on SSD1309 LCD
   controller. Example usage::
 
-      boards/arm/stm32/stm32f4discovery
+      boards/arm/stm32f4/stm32f4discovery
       boards/arm/sam34/sam4l-xplained
 
 Segment LCDS (SLCDs)

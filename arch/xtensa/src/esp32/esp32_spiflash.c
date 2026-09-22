@@ -28,7 +28,7 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/param.h>
@@ -45,20 +45,18 @@
 #include "sched/sched.h"
 
 #include "xtensa.h"
-#include "xtensa_attr.h"
 
 #include "rom/esp32_spiflash.h"
 
 #include "hardware/esp32_soc.h"
 #include "hardware/esp32_spi.h"
 #include "hardware/esp32_dport.h"
-#include "hardware/esp32_efuse.h"
 
 #include "esp32_spicache.h"
 #ifdef CONFIG_ESP32_SPIRAM
 #include "esp32_spiram.h"
 #endif
-#include "esp32_irq.h"
+#include "esp_irq.h"
 
 #include "esp32_spiflash.h"
 
@@ -509,7 +507,7 @@ void esp32_spiflash_opstart(void)
 
   nxsched_set_priority(tcb, saved_priority);
 
-  esp32_irq_noniram_disable();
+  esp_intr_noniram_disable();
 
   spi_disable_cache(cpu);
 #ifdef CONFIG_SMP
@@ -548,7 +546,7 @@ void esp32_spiflash_opdone(void)
 
   g_flash_op_complete = true;
 
-  esp32_irq_noniram_enable();
+  esp_intr_noniram_enable();
 
   sched_unlock();
 
@@ -683,7 +681,7 @@ static inline void IRAM_ATTR esp32_spiflash_oposyield(void)
   /* Delay 1 tick */
 
   useconds_t us = TICK2USEC(1);
-  nxsig_usleep(us);
+  nxsched_usleep(us);
 }
 
 /****************************************************************************
@@ -2509,7 +2507,7 @@ static int spi_flash_op_block_task(int argc, char *argv[])
 
       sched_lock();
 
-      esp32_irq_noniram_disable();
+      esp_intr_noniram_disable();
 
       /* g_flash_op_complete flag is cleared on *this* CPU, otherwise the
        * other CPU may reset the flag back to false before this task has a
@@ -2532,7 +2530,7 @@ static int spi_flash_op_block_task(int argc, char *argv[])
 
       /* Restore interrupts that aren't located in IRAM */
 
-      esp32_irq_noniram_enable();
+      esp_intr_noniram_enable();
 
       sched_unlock();
     }
@@ -2585,7 +2583,7 @@ int spiflash_init_spi_flash_op_block_task(int cpu)
 
   /* Initialize the task */
 
-  ret = nxtask_init((FAR struct task_tcb_s *)tcb, "spiflash_op",
+  ret = nxtask_init(tcb, "spiflash_op",
                     SCHED_PRIORITY_MAX,
                     NULL, CONFIG_ESP32_SPIFLASH_OP_TASK_STACKSIZE,
                     spi_flash_op_block_task, argv, environ, NULL);

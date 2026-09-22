@@ -28,7 +28,11 @@
 
 #include <assert.h>
 #include <errno.h>
+<<<<<<< HEAD
 #include <debug.h>
+=======
+#include <nuttx/debug.h>
+>>>>>>> nuttx-13.0.0
 #include <netinet/arp.h>
 #include <sys/param.h>
 

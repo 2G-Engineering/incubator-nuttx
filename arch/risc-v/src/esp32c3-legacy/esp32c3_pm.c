@@ -35,7 +35,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <sys/param.h>
 #include <sys/types.h>
@@ -444,8 +444,8 @@ static uint32_t IRAM_ATTR esp32c3_get_power_down_flags(void)
 static void IRAM_ATTR esp32c3_timer_wakeup_prepare(void)
 {
   int64_t ticks;
-  int64_t sleep_duration = (int64_t)s_config.sleep_duration -
-                           (int64_t) s_config.sleep_time_adjustment;
+  int64_t sleep_duration = s_config.sleep_duration -
+                           s_config.sleep_time_adjustment;
   if (sleep_duration < 0)
     {
       sleep_duration = 0;

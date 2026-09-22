@@ -32,7 +32,7 @@
 #include <nuttx/signal.h>
 #include <nuttx/mutex.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <arch/chip/pm.h>
@@ -205,7 +205,7 @@ void farapi_main(int id, void *arg, struct modulelist_s *mlist)
 
       /* NOTE: a workaround to finish rescheduling */
 
-      nxsig_usleep(10 * 1000);
+      nxsched_usleep(10 * 1000);
     }
 #endif
 
@@ -273,7 +273,7 @@ err:
 
       /* NOTE: a workaround to finish rescheduling */
 
-      nxsig_usleep(10 * 1000);
+      nxsched_usleep(10 * 1000);
     }
 #endif
 }

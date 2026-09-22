@@ -61,8 +61,9 @@
 #include <arch/board/board.h>
 
 #include "xtensa.h"
-#include "xtensa_attr.h"
 #include "xtensa_counter.h"
+#include "esp_irq.h"
+#include "esp_attr.h"
 
 #ifdef CONFIG_SCHED_TICKLESS
 
@@ -270,7 +271,7 @@ static int up_timer_expire(int irq, void *regs, void *arg)
       if (do_sched)
         {
           up_timer_cancel(NULL);
-          nxsched_timer_expiration();
+          nxsched_process_timer();
         }
     }
   else
@@ -340,7 +341,7 @@ int IRAM_ATTR up_timer_gettime(struct timespec *ts)
  * Description:
  *   Cancel the interval timer and return the time remaining on the timer.
  *   These two steps need to be as nearly atomic as possible.
- *   nxsched_timer_expiration() will not be called unless the timer is
+ *   nxsched_process_timer() will not be called unless the timer is
  *   restarted with up_timer_start().
  *
  *   If, as a race condition, the timer has already expired when this
@@ -415,14 +416,14 @@ int IRAM_ATTR up_timer_cancel(struct timespec *ts)
  * Name: up_timer_start
  *
  * Description:
- *   Start the interval timer.  nxsched_timer_expiration() will be
+ *   Start the interval timer.  nxsched_process_timer() will be
  *   called at the completion of the timeout (unless up_timer_cancel
  *   is called to stop the timing.
  *
  *   Provided by platform-specific code and called from the RTOS base code.
  *
  * Input Parameters:
- *   ts - Provides the time interval until nxsched_timer_expiration() is
+ *   ts - Provides the time interval until nxsched_process_timer() is
  *        called.
  *
  * Returned Value:
@@ -448,8 +449,8 @@ int IRAM_ATTR up_timer_start(const struct timespec *ts)
       up_timer_cancel(NULL);
     }
 
-  cpu_ticks = SEC_2_CTICK((uint64_t)ts->tv_sec) +
-              NSEC_2_CTICK((uint64_t)ts->tv_nsec);
+  cpu_ticks = SEC_2_CTICK(ts->tv_sec) +
+              NSEC_2_CTICK(ts->tv_nsec);
 
   up_tmr_setcount(cpu_ticks);
 
@@ -494,11 +495,16 @@ void up_timer_initialize(void)
 
   /* Attach the timer interrupt */
 
-  irq_attach(XTENSA_IRQ_TIMER0, (xcpt_t)up_timer_expire, NULL);
+  esp_setup_irq(ETS_INTERNAL_TIMER0_INTR_SOURCE,
+                ESP_IRQ_PRIORITY_1,
+                0,
+                up_timer_expire,
+                NULL);
 
   /* Enable the timer 0 CPU interrupt. */
 
-  up_enable_irq(XTENSA_IRQ_TIMER0);
+  up_enable_irq(ETS_INTERNAL_TIMER0_INTR_SOURCE +
+                ETS_INTERNAL_INTR_SOURCE_OFF);
 }
 
 /****************************************************************************

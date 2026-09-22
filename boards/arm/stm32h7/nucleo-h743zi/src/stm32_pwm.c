@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/timers/pwm.h>
 #include <arch/board/board.h>
@@ -49,11 +49,11 @@
 #  undef HAVE_PWM
 #endif
 
-#ifndef CONFIG_STM32H7_TIM1
+#ifndef CONFIG_STM32_TIM1
 #  undef HAVE_PWM
 #endif
 
-#ifndef CONFIG_STM32H7_TIM1_PWM
+#ifndef CONFIG_STM32_TIM1_PWM
 #  undef HAVE_PWM
 #endif
 

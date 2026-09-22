@@ -28,7 +28,7 @@
 #include <stdint.h>
 #include <sys/param.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/analog/adc.h>
 #include <nuttx/spinlock.h>
@@ -46,7 +46,7 @@
 #include "hal/adc_oneshot_hal.h"
 #include "hal/adc_ll.h"
 #include "hal/sar_ctrl_ll.h"
-#include "soc/adc_periph.h"
+#include "hal/adc_periph.h"
 #include "soc/periph_defs.h"
 #include "esp_clk_tree.h"
 
@@ -66,6 +66,12 @@
         if ((arr)[_i] != 0) _count++; \
     _count;                           \
 })
+
+#ifdef CONFIG_ARCH_CHIP_ESP32P4
+#  define PIN_FUNCTION FUNCTION_1
+#else
+#  define PIN_FUNCTION FUNCTION_2
+#endif
 
 /****************************************************************************
  * Private Types
@@ -436,6 +442,7 @@ static int esp_adc_oneshot_read(struct adc_dev_s *dev)
           adc_set_hw_calibration_code(priv->unit, atten);
         }
 
+      adc_oneshot_ll_disable_all_unit();
       ret = adc_oneshot_hal_convert(hal, &raw_value);
       if (!ret)
         {
@@ -497,6 +504,7 @@ static int esp_adc_oneshot_new_unit(struct adc_dev_s *dev)
   adc_oneshot_hal_cfg_t config;
   irqstate_t flags;
   uint32_t clk_src_freq_hz = 0;
+  soc_module_clk_t clk_src = ADC_DIGI_CLK_SRC_DEFAULT;
 
   DEBUGASSERT(priv);
   DEBUGASSERT(priv->mode == ESP_ADC_MODE_ONE_SHOT);
@@ -509,20 +517,38 @@ static int esp_adc_oneshot_new_unit(struct adc_dev_s *dev)
 
   flags = spin_lock_irqsave(&g_adc_common.esp_adc_spinlock);
 
-  esp_clk_tree_src_get_freq_hz(ADC_DIGI_CLK_SRC_DEFAULT,
+#if SOC_LP_ADC_SUPPORTED && defined(CONFIG_ESPRESSIF_ADC_1_USE_LP)
+  if (priv->unit == ADC_UNIT_1)
+    {
+      clk_src = LP_ADC_CLK_SRC_LP_DYN_FAST;
+    }
+
+#endif
+  esp_clk_tree_src_get_freq_hz(clk_src,
                                ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED,
                                &clk_src_freq_hz);
-
   config.unit = priv->unit;
-  config.work_mode = ADC_HAL_SINGLE_READ_MODE;
-  config.clk_src = ADC_DIGI_CLK_SRC_DEFAULT;
+  config.clk_src = clk_src;
   config.clk_src_freq_hz = clk_src_freq_hz;
+#ifdef CONFIG_ESPRESSIF_ADC_1_USE_LP
+  if (priv->unit == ADC_UNIT_1)
+    {
+      config.work_mode = ADC_HAL_LP_MODE;
+    }
+  else
+#endif
+    {
+      config.work_mode = ADC_HAL_SINGLE_READ_MODE;
+    }
 
   adc_oneshot_hal_init(hal, &config);
 
   /* Enable peripheral and power ADC */
 
-  adc_apb_periph_claim();
+  if (ADC_LL_NEED_APB_PERIPH_CLAIM(priv->unit))
+    {
+      adc_apb_periph_claim();
+    }
 
   sar_periph_ctrl_adc_oneshot_power_acquire();
 
@@ -570,7 +596,7 @@ static int esp_adc_oneshot_config_channel(struct adc_dev_s *dev,
   /* Configure GPIO for ADC */
 
   gpio = ADC_GET_IO_NUM(priv->unit, channel);
-  ret = esp_configgpio(gpio, FUNCTION_2);
+  ret = esp_configgpio(gpio, PIN_FUNCTION);
   if (ret < 0)
     {
       aerr("ERROR: Failed to configure GPIO %d\n", gpio);
@@ -581,6 +607,13 @@ static int esp_adc_oneshot_config_channel(struct adc_dev_s *dev,
 
   flags = spin_lock_irqsave(&g_adc_common.esp_adc_spinlock);
   adc_oneshot_hal_channel_config(hal, &config, channel);
+#ifdef CONFIG_ESPRESSIF_ADC_1_USE_LP
+  if (priv->unit == ADC_UNIT_1)
+    {
+      adc_oneshot_hal_setup(hal, channel);
+    }
+
+#endif
   spin_unlock_irqrestore(&g_adc_common.esp_adc_spinlock, flags);
 
   ainfo("init adc unit %u, ch %u (gpio %d), atten %d, bitwidth %d",
@@ -737,8 +770,20 @@ struct adc_dev_s *esp_adc_initialize(int adc_num,
 #ifdef CONFIG_ESPRESSIF_ADC_1
           dev = &g_adcdev1;
           priv = &g_adcpriv1;
+#  ifdef CONFIG_ARCH_CHIP_ESP32C3
+          adc_ll_enable_calibration_ref(ADC_UNIT_1, false);
+#  endif
           break;
 #endif
+        }
+
+      case 2:
+        {
+#ifdef CONFIG_ESPRESSIF_ADC_2
+          dev = &g_adcdev2;
+          priv = &g_adcpriv2;
+#endif
+          break;
         }
 
       default:

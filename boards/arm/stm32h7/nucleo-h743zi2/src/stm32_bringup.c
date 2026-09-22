@@ -35,12 +35,16 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/usb/usbmonitor.h>
 
-#ifdef CONFIG_STM32H7_OTGFS
+#ifdef CONFIG_STM32_OTGFS
 #include "stm32_usbhost.h"
 #endif
 
-#ifdef CONFIG_STM32H7_FDCAN
+#ifdef CONFIG_STM32_FDCAN
 #include "stm32_fdcan_sock.h"
+#endif
+
+#ifdef CONFIG_PULSECOUNT
+#include "stm32_pulsecount.h"
 #endif
 
 #ifdef CONFIG_SYSTEMTICK_HOOK
@@ -48,6 +52,10 @@
 #endif
 
 #include "nucleo-h743zi2.h"
+
+#ifdef CONFIG_INPUT_BUTTONS
+#  include <nuttx/input/buttons.h>
+#endif
 
 /****************************************************************************
  * Private Functions
@@ -66,14 +74,13 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y &&
- *   CONFIG_NSH_ARCHINIT:
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int stm32_bringup(void)
 {
+#ifdef CONFIG_PULSECOUNT
+  struct pulsecount_lowerhalf_s *pulsecount;
+#endif
   int ret;
 #ifdef CONFIG_RAMMTD
   uint8_t *ramstart;
@@ -157,6 +164,16 @@ int stm32_bringup(void)
     }
 #endif
 
+#if defined(CONFIG_INPUT_BUTTONS_LOWER)
+  /* Register the BUTTON driver */
+
+  ret = btn_lower_initialize("/dev/buttons");
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: btn_lower_initialize() failed: %d\n", ret);
+    }
+#endif /* CONFIG_INPUT_BUTTONS */
+
 #ifdef HAVE_USBHOST
   /* Initialize USB host operation.  stm32_usbhost_initialize()
    * starts a thread will monitor for USB connection and
@@ -194,6 +211,24 @@ int stm32_bringup(void)
     }
 #endif /* CONFIG_ADC */
 
+#ifdef CONFIG_PULSECOUNT
+  /* Initialize and register the pulse count driver. */
+
+  pulsecount = stm32_pulsecountinitialize(8);
+  if (pulsecount == NULL)
+    {
+      syslog(LOG_ERR, "ERROR: stm32_pulsecountinitialize failed\n");
+      return -ENODEV;
+    }
+
+  ret = pulsecount_register("/dev/pulsecount0", pulsecount);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: pulsecount_register failed: %d\n", ret);
+      return ret;
+    }
+#endif
+
 #ifdef CONFIG_DEV_GPIO
   /* Register the GPIO driver */
 
@@ -207,18 +242,18 @@ int stm32_bringup(void)
 
 #ifdef CONFIG_NETDEV_LATEINIT
 
-#  ifdef CONFIG_STM32H7_FDCAN1
+#  ifdef CONFIG_STM32_FDCAN1
   stm32_fdcansockinitialize(0);
 #  endif
 
-#  ifdef CONFIG_STM32H7_FDCAN2
+#  ifdef CONFIG_STM32_FDCAN2
   stm32_fdcansockinitialize(1);
 #  endif
 
 #endif
 
 #ifdef CONFIG_SENSORS_QENCODER
-#ifdef CONFIG_STM32H7_TIM1_QE
+#ifdef CONFIG_STM32_TIM1_QE
   ret = stm32_qencoder_initialize("/dev/qe0", 1);
   if (ret < 0)
     {
@@ -229,7 +264,7 @@ int stm32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_STM32H7_TIM3_QE
+#ifdef CONFIG_STM32_TIM3_QE
   ret = stm32_qencoder_initialize("/dev/qe2", 3);
   if (ret < 0)
     {
@@ -240,7 +275,7 @@ int stm32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_STM32H7_TIM4_QE
+#ifdef CONFIG_STM32_TIM4_QE
   ret = stm32_qencoder_initialize("/dev/qe3", 4);
   if (ret < 0)
     {

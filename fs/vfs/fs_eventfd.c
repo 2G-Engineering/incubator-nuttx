@@ -31,7 +31,7 @@
 #include <errno.h>
 #include <fcntl.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <nuttx/mutex.h>
 #include <sys/ioctl.h>
 #include <sys/eventfd.h>
@@ -255,6 +255,8 @@ static int eventfd_blocking_io(FAR struct eventfd_priv_s *dev,
                   cur_sem->next = sem->next;
                   break;
                 }
+
+              cur_sem = cur_sem->next;
             }
         }
 

@@ -32,6 +32,7 @@ range=0
 spell=0
 encoding=0
 message=0
+breaking_change=0
 
 # CMake
 cmake_warning_once=0
@@ -57,7 +58,10 @@ usage() {
   echo "-r range check only (coupled with -p or -g)"
   echo "-p <patch file names> (default)"
   echo "-m Check commit message (coupled with -g)"
+  echo "-b Enforce breaking change format when checking commit message (requires -m -g; use when PR has breaking change label)"
   echo "-g <commit list>"
+  echo "  Use --stdin as the only argument with -m -g to read commit message from stdin (message-only check, no patch/diff)."
+  echo "  Use --stdin with -p to read patch content from stdin."
   echo "-f <file list>"
   echo "-x format supported files (only .py, requires: pip install black)"
   echo "-  read standard input mainly used by git pre-commit hook as below:"
@@ -284,34 +288,44 @@ check_patch() {
 check_msg() {
   signedoffby_found=0
   num_lines=0
+  # Commit subject line length limit (50/72 are common; NuttX uses 80)
   max_line_len=80
   min_num_lines=5
+  breaking_change_found=0
 
   first=$(head -n1 <<< "$msg")
 
   # check for Merge line and remove from parsed string
   if [[ $first == *Merge* ]]; then
       msg="$(echo "$msg" | tail -n +2)"
-      first=$(head -n2 <<< "$msg")
+      first=$(head -n1 <<< "$msg")
   fi
 
   while IFS= read -r REPLY; do
     if [[ $REPLY =~  ^Change-Id ]]; then
-      echo "Remove Gerrit Change-ID's before submitting upstream"
+      echo "❌ Remove Gerrit Change-ID's before submitting upstream"
       fail=1
     fi
 
     if [[ $REPLY =~  ^VELAPLATO ]]; then
-      echo "Remove VELAPLATO before submitting upstream"
+      echo "❌ Remove VELAPLATO before submitting upstream"
       fail=1
     fi
 
     if [[ $REPLY =~  ^[Ww][Ii][Pp]: ]]; then
-      echo "Remove WIP before submitting upstream"
+      echo "❌ Remove WIP before submitting upstream"
       fail=1
     fi
 
+    if [[ $REPLY =~  ^BREAKING\ CHANGE: ]]; then
+      breaking_change_found=1
+    fi
+
     if [[ $REPLY =~  ^Signed-off-by ]]; then
+      if [ $breaking_change != 0 ] && [ $breaking_change_found == 0 ]; then
+        echo "❌ BREAKING CHANGE: must appear in the commit body before Signed-off-by (see CONTRIBUTING.md 1.13)"
+        fail=1
+      fi
       signedoffby_found=1
     fi
 
@@ -319,30 +333,55 @@ check_msg() {
   done <<< "$msg"
 
   if ! [[ $first =~  : ]]; then
-    echo "Commit subject missing colon (e.g. 'subsystem: msg')"
+    echo "❌ Commit subject missing colon (e.g. 'subsystem: msg')"
     fail=1
   fi
 
   if (( ${#first} > $max_line_len )); then
-    echo "Commit subject too long > $max_line_len"
+    echo "❌ Commit subject too long > $max_line_len"
     fail=1
   fi
 
+  second=$(echo "$msg" | sed -n '2p')
+  if [ $num_lines -ge 2 ] && ! [[ "$second" =~ ^[[:space:]]*$ ]]; then
+    echo "❌ Commit subject must be followed by a blank line"
+    fail=1
+  fi
+
+  if [ $breaking_change != 0 ]; then
+    if [[ "${first:0:1}" != "!" ]]; then
+      echo "❌ Breaking change commit subject must start with '!' (e.g. '!subsystem: description')"
+      fail=1
+    fi
+    if [ $breaking_change_found == 0 ]; then
+      echo "❌ Breaking change commit must contain 'BREAKING CHANGE:' in the body before Signed-off-by (see CONTRIBUTING.md 1.13)"
+      fail=1
+    fi
+  fi
+
   if ! [ $signedoffby_found == 1 ]; then
-    echo "Missing Signed-off-by"
+    echo "❌ Missing Signed-off-by"
     fail=1
   fi
 
   if (( $num_lines < $min_num_lines && $signedoffby_found == 1 )); then
-      echo "Missing git commit message."
-      fail=1
+    echo "❌ Missing git commit message"
+    fail=1
   fi
 }
 
 check_commit() {
   if [ $message != 0 ]; then
-    msg=`git show -s --format=%B $1`
-    check_msg <<< "$msg"
+    # check each commit format separately if this is a series of commits
+    if [[ $1 =~  ..HEAD ]]; then
+      for commit in $(git rev-list --no-merges $1); do
+        msg=`git show -s --format=%B $commit`
+        check_msg <<< "$msg"
+      done
+    else
+      msg=`git show -s --format=%B $1`
+      check_msg <<< "$msg"
+    fi
   fi
   diffs=`git diff $1`
   check_ranges <<< "$diffs"
@@ -375,11 +414,17 @@ while [ ! -z "$1" ]; do
   -m )
     message=1
     ;;
+  -b )
+    breaking_change=1
+    ;;
   -g )
     check=check_commit
     ;;
   -h )
     usage 0
+    ;;
+  --stdin )
+    break
     ;;
   -p )
     check=check_patch
@@ -398,15 +443,35 @@ while [ ! -z "$1" ]; do
 done
 
 for arg in $@; do
-  $check $arg
+  if [ "$arg" = "--stdin" ]; then
+    case "$check" in
+    check_commit)
+      msg=$(cat)
+      check_msg <<< "$msg"
+      ;;
+    check_patch)
+      tmp=$(mktemp)
+      trap "rm -f $tmp" EXIT
+      cat > "$tmp"
+      check_patch "$tmp"
+      rm -f "$tmp"
+      trap - EXIT
+      ;;
+    check_file|format_file)
+      echo "❌ --stdin is only supported with -g (commit message) or -p (patch)"
+      fail=1
+      ;;
+    esac
+  else
+    $check $arg
+  fi
 done
-
 
 if [ $fail == 1 ]; then
     echo "Some checks failed. For contributing guidelines, see:"
     echo "  $COMMIT_URL"
 else
-    echo "All checks pass."
+    echo "✔️ All checks pass."
 fi
 
 exit $fail

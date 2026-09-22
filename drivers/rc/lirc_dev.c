@@ -29,7 +29,7 @@
 #include <stdio.h>
 #include <sys/param.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <poll.h>
 #include <fcntl.h>
@@ -766,7 +766,7 @@ static ssize_t lirc_read(FAR struct file *filep, FAR char *buffer,
  *           devno already exists, -EEXIST will be returned.
  *
  * Returned Value:
- *   OK if the driver was successfully register; A negated errno value is
+ *   OK if the driver was successfully registered; A negated errno value is
  *   returned on any failure.
  *
  ****************************************************************************/

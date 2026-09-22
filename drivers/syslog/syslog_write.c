@@ -56,8 +56,9 @@
 
 static bool syslog_safe_to_block(void)
 {
+#ifdef CONFIG_ENABLE_ALL_SIGNALS
   FAR const struct tcb_s *rtcb;
-
+#endif
   /* It's not safe to block in interrupts or when executing the idle loop */
 
   if (up_interrupt_context() || sched_idletask())
@@ -67,11 +68,13 @@ static bool syslog_safe_to_block(void)
 
   /* It's not safe to block if a signal is being delivered */
 
+#ifdef CONFIG_ENABLE_ALL_SIGNALS
   rtcb = nxsched_self();
   if (rtcb->sigdeliver != NULL)
     {
       return false;
     }
+#endif
 
   return true;
 }
@@ -104,6 +107,7 @@ ssize_t syslog_write_foreach(FAR const char *buffer,
   syslog_write_t write;
   syslog_putc_t  putc;
   size_t nwritten = 0;
+  ssize_t nwritten_max = -EIO;
   ssize_t ret;
   int i;
 
@@ -149,7 +153,7 @@ ssize_t syslog_write_foreach(FAR const char *buffer,
 
                   if (ret < 0)
                     {
-                      return ret;
+                      continue;
                     }
 
                   nwritten = head + 1;
@@ -162,7 +166,7 @@ ssize_t syslog_write_foreach(FAR const char *buffer,
               ret = write(channel, buffer + nwritten, buflen - nwritten);
               if (ret < 0)
                 {
-                  return ret;
+                  continue;
                 }
               else
                 {
@@ -205,9 +209,19 @@ ssize_t syslog_write_foreach(FAR const char *buffer,
             }
 #endif
         }
+
+      /* Instead of returning the number of bytes
+       * written to the last channel, returns the maximum
+       * number of bytes written to any existing channel.
+       */
+
+      if (nwritten > nwritten_max)
+        {
+          nwritten_max = nwritten;
+        }
     }
 
-  return nwritten;
+  return nwritten_max;
 }
 
 /****************************************************************************

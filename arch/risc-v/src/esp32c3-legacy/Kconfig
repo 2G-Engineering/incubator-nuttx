@@ -3,7 +3,7 @@
 # see the file kconfig-language.txt in the NuttX tools repository.
 #
 
-if ARCH_CHIP_ESP32C3
+if ARCH_CHIP_ESP32C3_LEGACY
 
 comment "ESP32-C3 Configuration Options"
 
@@ -185,7 +185,6 @@ config ESP32C3_LEDC
 	bool "LEDC (PWM)"
 	default n
 	select PWM
-	select ARCH_HAVE_PWM_MULTICHAN
 
 config ESP32C3_GPIO_IRQ
 	bool "GPIO pin interrupts"
@@ -1218,4 +1217,4 @@ config ESP32C3_BROWNOUT_DET_LVL
 
 endmenu # ESP32C3_BROWNOUT_DET
 
-endif # ARCH_CHIP_ESP32C3
+endif # ARCH_CHIP_ESP32C3_LEGACY

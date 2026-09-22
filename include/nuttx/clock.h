@@ -29,6 +29,7 @@
 
 #include <nuttx/config.h>
 
+#include <sys/timex.h>
 #include <sys/types.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -76,14 +77,6 @@
 #  define __HAVE_KERNEL_GLOBALS 1
 #endif
 
-/* If CONFIG_SYSTEM_TIME64 is selected and the CPU supports long long types,
- * then a 64-bit system time will be used.
- */
-
-#ifndef CONFIG_HAVE_LONG_LONG
-#  undef CONFIG_SYSTEM_TIME64
-#endif
-
 /* The following are the bit fields of the clockid_t
  * bit 0~2: the clock type
  * CLOCK_REALTIME           - 0
@@ -91,44 +84,48 @@
  * CLOCK_PROCESS_CPUTIME_ID - 2
  * CLOCK_THREAD_CPUTIME_ID  - 3
  * CLOCK_BOOTTIME           - 4
- * bit 3~32: the pid or tid value
+ * CLOCK_FD                 - 5
+ *
+ * if the clockid value exceeds CLOCK_MASK, it indicates a dynamic clockid.
+ * bit 3~32: the fd, pid or tid value
  *
  * The CLOCK_MASK are using to extract the clock_type from the clockid_t
  */
 
+#define CLOCK_FD              5
 #define CLOCK_MASK            7
 #define CLOCK_SHIFT           3
 
 /* Timing constants *********************************************************/
 
-#define NSEC_PER_SEC          1000000000UL /* Seconds */
-#define USEC_PER_SEC             1000000UL
-#define MSEC_PER_SEC                1000UL
-#define DSEC_PER_SEC                  10
-#define HSEC_PER_SEC                   2
+#define NSEC_PER_SEC          1000000000L /* Seconds */
+#define USEC_PER_SEC             1000000L
+#define MSEC_PER_SEC                1000L
+#define DSEC_PER_SEC                  10L
+#define HSEC_PER_SEC                   2L
 
-#define NSEC_PER_HSEC          500000000UL /* Half seconds */
-#define USEC_PER_HSEC             500000UL
-#define MSEC_PER_HSEC                500
-#define DSEC_PER_HSEC                  5
+#define NSEC_PER_HSEC          500000000L /* Half seconds */
+#define USEC_PER_HSEC             500000L
+#define MSEC_PER_HSEC                500L
+#define DSEC_PER_HSEC                  5L
 
-#define NSEC_PER_DSEC          100000000UL /* Deciseconds */
-#define USEC_PER_DSEC             100000UL
-#define MSEC_PER_DSEC                100
+#define NSEC_PER_DSEC          100000000L /* Deciseconds */
+#define USEC_PER_DSEC             100000L
+#define MSEC_PER_DSEC                100L
 
-#define NSEC_PER_MSEC            1000000UL /* Milliseconds */
-#define USEC_PER_MSEC               1000UL
+#define NSEC_PER_MSEC            1000000L /* Milliseconds */
+#define USEC_PER_MSEC               1000L
 
-#define NSEC_PER_USEC               1000UL /* Microseconds */
+#define NSEC_PER_USEC               1000L /* Microseconds */
 
-#define SEC_PER_MIN                   60
+#define SEC_PER_MIN                   60L
 #define NSEC_PER_MIN           (NSEC_PER_SEC * SEC_PER_MIN)
 #define USEC_PER_MIN           (USEC_PER_SEC * SEC_PER_MIN)
 #define MSEC_PER_MIN           (MSEC_PER_SEC * SEC_PER_MIN)
 #define DSEC_PER_MIN           (DSEC_PER_SEC * SEC_PER_MIN)
 #define HSEC_PER_MIN           (HSEC_PER_SEC * SEC_PER_MIN)
 
-#define MIN_PER_HOUR                  60
+#define MIN_PER_HOUR                  60L
 #define NSEC_PER_HOUR          (NSEC_PER_MIN * MIN_PER_HOUR)
 #define USEC_PER_HOUR          (USEC_PER_MIN * MIN_PER_HOUR)
 #define MSEC_PER_HOUR          (MSEC_PER_MIN * MIN_PER_HOUR)
@@ -136,7 +133,7 @@
 #define HSEC_PER_HOUR          (HSEC_PER_MIN * MIN_PER_HOUR)
 #define SEC_PER_HOUR           (SEC_PER_MIN  * MIN_PER_HOUR)
 
-#define HOURS_PER_DAY                 24
+#define HOURS_PER_DAY                 24L
 #define SEC_PER_DAY            (HOURS_PER_DAY * SEC_PER_HOUR)
 
 /* If CONFIG_SCHED_TICKLESS is not defined, then the interrupt interval of
@@ -154,9 +151,9 @@
  */
 
 #ifdef CONFIG_USEC_PER_TICK
-#  define USEC_PER_TICK       (CONFIG_USEC_PER_TICK)
+#  define USEC_PER_TICK       (0L + CONFIG_USEC_PER_TICK)
 #else
-#  define USEC_PER_TICK       (10000)
+#  define USEC_PER_TICK       (10000L)
 #endif
 
 /* MSEC_PER_TICK can be very inaccurate if CONFIG_USEC_PER_TICK is not an
@@ -210,7 +207,11 @@
 
 /* MSEC2SEC */
 
-#define MSEC2SEC(usec)        div_const(msec, MSEC_PER_SEC)
+#define MSEC2SEC(msec)        div_const(msec, MSEC_PER_SEC)
+
+/* USEC2MSEC */
+
+#define USEC2MSEC(usec)       div_const(usec, USEC_PER_MSEC)
 
 /* USEC2SEC */
 
@@ -224,15 +225,14 @@
 
 #define NSEC2MSEC(nsec)       div_const(nsec, NSEC_PER_MSEC)
 
-#if defined(CONFIG_DEBUG_SCHED) && defined(CONFIG_SYSTEM_TIME64) && \
-    !defined(CONFIG_SCHED_TICKLESS)
+#if defined(CONFIG_DEBUG_SCHED) && !defined(CONFIG_SCHED_TICKLESS)
 /* Initial system timer ticks value close to maximum 32-bit value, to test
  * 64-bit system-timer after going over 32-bit value. This is to make errors
  * of casting 64-bit system-timer to 32-bit variables more visible.
  */
 
 #  define INITIAL_SYSTEM_TIMER_TICKS \
-    ((uint64_t)(UINT32_MAX - (TICK_PER_SEC * 5)))
+    (UINT32_MAX - (TICK_PER_SEC * 5))
 #else
 #  define INITIAL_SYSTEM_TIMER_TICKS 0
 #endif
@@ -301,17 +301,6 @@ struct cpuload_s
 };
 #endif
 
-/* This non-standard type used to hold relative clock ticks that may take
- * negative values.  Because of its non-portable nature the type sclock_t
- * should be used only within the OS proper and not by portable applications.
- */
-
-#ifdef CONFIG_SYSTEM_TIME64
-typedef int64_t sclock_t;
-#else
-typedef int32_t sclock_t;
-#endif
-
 /****************************************************************************
  * Public Data
  ****************************************************************************/
@@ -324,18 +313,6 @@ extern "C"
 #define EXTERN extern
 #endif
 
-/* Access to raw system clock ***********************************************/
-
-/* Direct access to the system timer/counter is supported only if (1) the
- * system timer counter is available (i.e., we are not configured to use
- * a hardware periodic timer), and (2) the execution environment has direct
- * access to kernel global data
- */
-
-#ifdef __HAVE_KERNEL_GLOBALS
-EXTERN volatile clock_t g_system_ticks;
-#endif
-
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
@@ -343,53 +320,54 @@ EXTERN volatile clock_t g_system_ticks;
 #define clock_ticks2time(ts, tick) \
   do \
     { \
-      clock_t _tick = (clock_t)(tick); \
-      (ts)->tv_sec = (time_t)div_const(_tick, TICK_PER_SEC); \
-      _tick -= (clock_t)(ts)->tv_sec * TICK_PER_SEC; \
-      (ts)->tv_nsec = (long)_tick * NSEC_PER_TICK; \
+      clock_t _tick = (tick); \
+      (ts)->tv_sec = div_const(_tick, TICK_PER_SEC); \
+      _tick -= (ts)->tv_sec * TICK_PER_SEC; \
+      (ts)->tv_nsec = _tick * NSEC_PER_TICK; \
     } \
   while (0)
 
 #define clock_time2ticks(ts) \
-  ((clock_t)(ts)->tv_sec * TICK_PER_SEC + NSEC2TICK((uint32_t)(ts)->tv_nsec))
+  ((ts)->tv_sec * TICK_PER_SEC + \
+   div_const_roundup((ts)->tv_nsec, NSEC_PER_TICK))
 
 #define clock_time2ticks_floor(ts) \
-  ((clock_t)(ts)->tv_sec * TICK_PER_SEC + \
-   div_const((uint32_t)(ts)->tv_nsec, NSEC_PER_TICK))
+  ((ts)->tv_sec * TICK_PER_SEC + \
+   div_const((ts)->tv_nsec, NSEC_PER_TICK))
 
 #define clock_usec2time(ts, usec) \
   do \
     { \
-      uint64_t _usec = (usec); \
-      (ts)->tv_sec = (time_t)div_const(_usec, USEC_PER_SEC); \
-      _usec -= (uint64_t)(ts)->tv_sec * USEC_PER_SEC; \
-      (ts)->tv_nsec = (long)_usec * NSEC_PER_USEC; \
+      int64_t _usec = (usec); \
+      (ts)->tv_sec = div_const(_usec, USEC_PER_SEC); \
+      _usec -= (ts)->tv_sec * USEC_PER_SEC; \
+      (ts)->tv_nsec = _usec * NSEC_PER_USEC; \
     } \
   while (0)
 
 #define clock_time2usec(ts) \
-  ((uint64_t)(ts)->tv_sec * USEC_PER_SEC + \
-   div_const((uint32_t)(ts)->tv_nsec, NSEC_PER_USEC))
+  ((ts)->tv_sec * USEC_PER_SEC + \
+   div_const((ts)->tv_nsec, NSEC_PER_USEC))
 
 #define clock_nsec2time(ts, nsec) \
   do \
     { \
-      uint64_t _nsec = (nsec); \
-      (ts)->tv_sec = (time_t)div_const(_nsec, NSEC_PER_SEC); \
-      _nsec -= (uint64_t)(ts)->tv_sec * NSEC_PER_SEC; \
-      (ts)->tv_nsec = (long)_nsec; \
+      int64_t _nsec = (nsec); \
+      (ts)->tv_sec = div_const(_nsec, NSEC_PER_SEC); \
+      _nsec -= (ts)->tv_sec * NSEC_PER_SEC; \
+      (ts)->tv_nsec = _nsec; \
     } \
   while (0)
 
 #define clock_time2nsec(ts) \
-  ((uint64_t)(ts)->tv_sec * NSEC_PER_SEC + (uint64_t)(ts)->tv_nsec)
+  ((ts)->tv_sec * NSEC_PER_SEC + (ts)->tv_nsec)
 
 /* Calculate delay+1, forcing the delay into a range that we can handle.
  *
  * NOTE that one is added to the delay.  This is correct and must not be
  * changed:  The contract for the use wdog_start is that the wdog will
  * delay FOR AT LEAST as long as requested, but may delay longer due to
- * variety of factors.  The wdog logic has no knowledge of the the phase
+ * variety of factors.  The wdog logic has no knowledge of the phase
  * of the system timer when it is started:  The next timer interrupt may
  * occur immediately or may be delayed for almost a full cycle. In order
  * to meet the contract requirement, the requested time is also always
@@ -462,7 +440,7 @@ EXTERN volatile clock_t g_system_ticks;
           _nsec += NSEC_PER_SEC; \
           _sec--; \
         } \
-      if ((sclock_t)_sec < 0) \
+      if (_sec < 0) \
         { \
           _sec = 0; \
           _nsec = 0; \
@@ -555,7 +533,7 @@ int clock_realtime2absticks(FAR const struct timespec *reltime,
  *   false         - Otherwise.
  *
  * Assumptions:
- *   The type of delay value should be sclock_t.
+ *   The type of delay value should be clock_t.
  *
  ****************************************************************************/
 
@@ -569,16 +547,16 @@ int clock_realtime2absticks(FAR const struct timespec *reltime,
  *         it is considered not expired.
  *
  * For bit-63 as the sign bit, we can simplify this to:
- * (sclock_t)(tick2 - tick1) >= 0.
+ * (clock_t)(tick2 - tick1) >= 0.
  *
  * However, this function requires an assumption to work correctly:
- * Assumes the timer delay time does not exceed SCLOCK_MAX (2^63 - 1).
+ * Assumes the timer delay time does not exceed CLOCK_MAX (2^63 - 1).
  *
- * The range of the delay data type sclock_t being
- * [- (SCLOCK_MAX + 1), SCLOCK_MAX] ensures this assumption holds.
+ * The range of the delay data type clock_t being
+ * [- (CLOCK_MAX + 1), CLOCK_MAX] ensures this assumption holds.
  */
 
-#define clock_compare(tick1, tick2) ((sclock_t)((tick2) - (tick1)) >= 0)
+#define clock_compare(tick1, tick2) ((clock_t)((tick2) - (tick1)) >= 0)
 
 /****************************************************************************
  * Name:  clock_isleapyear
@@ -731,13 +709,35 @@ clock_t clock_systime_ticks(void);
  *   ts - Location to return the time
  *
  * Returned Value:
- *   OK (0) on success; a negated errno value on failure.
+ *   None
  *
  * Assumptions:
  *
  ****************************************************************************/
 
-int clock_systime_timespec(FAR struct timespec *ts);
+void clock_systime_timespec(FAR struct timespec *ts);
+
+/****************************************************************************
+ * Name: clock_systime_nsec
+ *
+ * Description:
+ *   Return the current value of the system timer counter as
+ *   uint64_t nanoseconds.
+ *
+ * Input Parameters:
+ *   ts - Location to return the time
+ *
+ * Returned Value:
+ *   The current system time in nanoseconds.
+ *
+ ****************************************************************************/
+
+static inline_function uint64_t clock_systime_nsec(void)
+{
+  struct timespec ts;
+  clock_systime_timespec(&ts);
+  return clock_time2nsec(&ts);
+}
 
 /****************************************************************************
  * Name:  clock_cpuload
@@ -825,19 +825,6 @@ void perf_convert(clock_t elapsed, FAR struct timespec *ts);
 unsigned long perf_getfreq(void);
 
 /****************************************************************************
- * Name: nxclock_settime
- *
- * Description:
- *   Clock Functions based on POSIX APIs
- *
- *   CLOCK_REALTIME - POSIX demands this to be present. This is the wall
- *   time clock.
- *
- ****************************************************************************/
-
-void nxclock_settime(clockid_t clock_id, FAR const struct timespec *tp);
-
-/****************************************************************************
  * Name: nxclock_gettime
  *
  * Description:
@@ -845,7 +832,19 @@ void nxclock_settime(clockid_t clock_id, FAR const struct timespec *tp);
  *
  ****************************************************************************/
 
-void nxclock_gettime(clockid_t clock_id, FAR struct timespec *tp);
+int nxclock_gettime(clockid_t clock_id, FAR struct timespec *tp);
+
+/****************************************************************************
+ * Name: nxclock_adjtime
+ *
+ * Description:
+ *   Adjust the frequency and/or phase of a clock.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_CLOCK_ADJTIME
+int nxclock_adjtime(clockid_t clock_id, FAR struct timex *buf);
+#endif
 
 #undef EXTERN
 #ifdef __cplusplus

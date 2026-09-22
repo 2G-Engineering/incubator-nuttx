@@ -29,8 +29,8 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <arch/irq.h>
@@ -371,6 +371,7 @@ void up_irqinitialize(void)
 
   /* And finally, enable interrupts */
 
+  arm_color_intstack();
   up_irq_enable();
 #endif
 }

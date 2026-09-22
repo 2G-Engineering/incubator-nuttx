@@ -26,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <arch/board/board.h>
@@ -52,7 +52,7 @@
 
 void stm32_boardinitialize(void)
 {
-#if defined(CONFIG_STM32H7_OTGFS_HOST) || defined(CONFIG_STM32H7_OTGHS_HOST)
+#if defined(CONFIG_STM32_OTGFS_HOST) || defined(CONFIG_STM32H7_OTGHS_HOST)
   /* Initialize USB */
 
   stm32_usbinitialize();
@@ -76,12 +76,6 @@ void stm32_boardinitialize(void)
 #ifdef CONFIG_BOARD_LATE_INITIALIZE
 void board_late_initialize(void)
 {
-#if defined(CONFIG_NSH_LIBRARY) && !defined(CONFIG_BOARDCTL)
-  /* Perform board bring-up here instead of from the
-   * board_app_initialize().
-   */
-
   stm32_bringup();
-#endif
 }
 #endif

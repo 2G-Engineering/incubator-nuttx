@@ -28,8 +28,8 @@ else
 CSRCS += ra4m1_userleds.c
 endif
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += ra4m1_appinit.c
+ifeq ($(CONFIG_PWM),y)
+CSRCS += ra4m1_pwm.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

@@ -69,7 +69,8 @@ set(SRCS
     lib_getpass.c
     lib_chdir.c
     lib_fchdir.c
-    lib_confstr.c)
+    lib_confstr.c
+    lib_ulimit.c)
 
 if(NOT CONFIG_SCHED_USER_IDENTITY)
   list(
@@ -103,6 +104,10 @@ endif()
 
 if(CONFIG_CRYPTO)
   list(APPEND SRCS lib_crypt.c lib_crypt_r.c)
+endif()
+
+if(CONFIG_PIPES)
+  list(APPEND SRCS lib_pipe.c)
 endif()
 
 target_sources(c PRIVATE ${SRCS})

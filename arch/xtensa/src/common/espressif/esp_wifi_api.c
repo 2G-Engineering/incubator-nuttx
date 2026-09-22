@@ -26,7 +26,11 @@
 
 #include <inttypes.h>
 #include <assert.h>
+<<<<<<< HEAD
 #include <debug.h>
+=======
+#include <nuttx/debug.h>
+>>>>>>> nuttx-13.0.0
 #include <math.h>
 
 #include "esp_mac.h"
@@ -115,6 +119,10 @@ int esp_wifi_api_adapter_init(void)
   esp_wifi_lock(true);
 
   esp_evt_work_init();
+<<<<<<< HEAD
+=======
+  esp_wifi_evt_work_init();
+>>>>>>> nuttx-13.0.0
 
   wifi_cfg.nvs_enable = 0;
 

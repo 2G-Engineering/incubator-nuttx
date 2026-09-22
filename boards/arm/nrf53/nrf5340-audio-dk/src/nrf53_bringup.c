@@ -46,9 +46,6 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int nrf53_bringup(void)
@@ -58,7 +55,7 @@ int nrf53_bringup(void)
 #ifdef CONFIG_USERLED
   /* Register the LED driver */
 
-  ret = userled_lower_initialize(CONFIG_EXAMPLES_LEDS_DEVPATH);
+  ret = userled_lower_initialize("/dev/userleds");
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n", ret);

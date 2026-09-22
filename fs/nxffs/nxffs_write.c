@@ -31,7 +31,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/crc32.h>
 #include <nuttx/fs/fs.h>
@@ -545,7 +545,7 @@ ssize_t nxffs_write(FAR struct file *filep, FAR const char *buffer,
 
   /* Check if the file was opened with write access */
 
-  if ((wrfile->ofile.oflags & O_WROK) == 0)
+  if ((wrfile->ofile.oflags & O_ACCMODE) == O_RDONLY)
     {
       ferr("ERROR: File not open for write access\n");
       ret = -EACCES;

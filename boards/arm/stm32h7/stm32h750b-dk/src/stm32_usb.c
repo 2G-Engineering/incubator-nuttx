@@ -30,7 +30,7 @@
 #include <sched.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kthread.h>
 #include <nuttx/usb/usbdev.h>
@@ -43,7 +43,7 @@
 
 #include "stm32h750b-dk.h"
 
-#ifdef CONFIG_STM32H7_OTGFS
+#ifdef CONFIG_STM32_OTGFS
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -136,7 +136,7 @@ void stm32_usbinitialize(void)
    * Power On, and Overcurrent GPIOs
    */
 
-#ifdef CONFIG_STM32H7_OTGFS
+#ifdef CONFIG_STM32_OTGFS
   stm32_configgpio(GPIO_OTGFS_VBUS);
   stm32_configgpio(GPIO_OTGFS_PWRON);
   stm32_configgpio(GPIO_OTGFS_OVER);

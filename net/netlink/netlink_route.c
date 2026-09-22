@@ -30,7 +30,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <arpa/inet.h>
 
 #include <net/route.h>
@@ -505,9 +505,7 @@ static int netlink_get_devlist(NETLINK_HANDLE handle,
   info.handle = handle;
   info.req    = req;
 
-  net_lock();
   ret = netdev_foreach(netlink_device_callback, &info);
-  net_unlock();
   if (ret < 0)
     {
       return ret;
@@ -538,10 +536,8 @@ static size_t netlink_fill_arptable(
    * the ARP table into the allocated memory.
    */
 
-  net_lock();
   ncopied = arp_snapshot((FAR struct arpreq *)(*entry)->payload.data,
                          CONFIG_NET_ARPTAB_SIZE);
-  net_unlock();
 
   /* Now we have the real number of valid entries in the ARP table and
    * we can trim the allocation.
@@ -591,11 +587,9 @@ static size_t netlink_fill_nbtable(
    * copy the Neighbor table into the allocated memory.
    */
 
-  net_lock();
   ncopied = neighbor_snapshot(
                       (FAR struct neighbor_entry_s *)(*entry)->payload.data,
                       CONFIG_NET_IPv6_NCONF_ENTRIES);
-  net_unlock();
 
   /* Now we have the real number of valid entries in the Neighbor table
    * and we can trim the allocation.
@@ -700,6 +694,7 @@ netlink_get_neighbor(FAR const void *neigh, int domain, int type,
     {
       if (neigh == NULL)
         {
+          kmm_free(alloc);
           return NULL;
         }
 
@@ -1016,21 +1011,20 @@ static int netlink_new_ipv4addr(NETLINK_HANDLE handle,
       return -EINVAL;
     }
 
-  net_lock();
   dev = netdev_findbyindex(ifm->ifa_index);
 
   if (dev == NULL)
     {
-      net_unlock();
       return -ENODEV;
     }
 
+  netdev_lock(dev);
   dev->d_ipaddr  = nla_get_in_addr(tb[IFA_LOCAL]);
   dev->d_netmask = make_mask(ifm->ifa_prefixlen);
 
   netlink_device_notify_ipaddr(dev, RTM_NEWADDR, AF_INET, &dev->d_ipaddr,
                                ifm->ifa_prefixlen);
-  net_unlock();
+  netdev_unlock(dev);
 
   return OK;
 }
@@ -1066,15 +1060,14 @@ static int netlink_new_ipv6addr(NETLINK_HANDLE handle,
       return -EINVAL;
     }
 
-  net_lock();
   dev = netdev_findbyindex(ifm->ifa_index);
 
   if (dev == NULL)
     {
-      net_unlock();
       return -ENODEV;
     }
 
+  netdev_lock(dev);
   ret = netdev_ipv6_add(dev, nla_data(tb[IFA_LOCAL]), ifm->ifa_prefixlen);
   if (ret == OK)
     {
@@ -1082,7 +1075,7 @@ static int netlink_new_ipv6addr(NETLINK_HANDLE handle,
                                 nla_data(tb[IFA_LOCAL]), ifm->ifa_prefixlen);
     }
 
-  net_unlock();
+  netdev_unlock(dev);
 
   return ret;
 }
@@ -1113,18 +1106,17 @@ static int netlink_del_ipv4addr(NETLINK_HANDLE handle,
       return ret;
     }
 
-  net_lock();
   dev = netdev_findbyindex(ifm->ifa_index);
 
   if (dev == NULL)
     {
-      net_unlock();
       return -ENODEV;
     }
 
+  netdev_lock(dev);
   if (tb[IFA_LOCAL] && dev->d_ipaddr != nla_get_in_addr(tb[IFA_LOCAL]))
     {
-      net_unlock();
+      netdev_unlock(dev);
       return -EADDRNOTAVAIL;
     }
 
@@ -1132,7 +1124,7 @@ static int netlink_del_ipv4addr(NETLINK_HANDLE handle,
                                net_ipv4_mask2pref(dev->d_netmask));
   dev->d_ipaddr  = 0;
 
-  net_unlock();
+  netdev_unlock(dev);
 
   return OK;
 }
@@ -1168,18 +1160,17 @@ static int netlink_del_ipv6addr(NETLINK_HANDLE handle,
       return -EINVAL;
     }
 
-  net_lock();
   dev = netdev_findbyindex(ifm->ifa_index);
 
   if (dev == NULL)
     {
-      net_unlock();
       return -ENODEV;
     }
 
+  netdev_lock(dev);
   if (!NETDEV_IS_MY_V6ADDR(dev, nla_data(tb[IFA_LOCAL])))
     {
-      net_unlock();
+      netdev_unlock(dev);
       return -EADDRNOTAVAIL;
     }
 
@@ -1190,7 +1181,7 @@ static int netlink_del_ipv6addr(NETLINK_HANDLE handle,
                                 nla_data(tb[IFA_LOCAL]), ifm->ifa_prefixlen);
     }
 
-  net_unlock();
+  netdev_unlock(dev);
 
   return ret;
 }
@@ -1266,9 +1257,7 @@ static int netlink_get_addr(NETLINK_HANDLE handle,
   info.handle = handle;
   info.req    = req;
 
-  net_lock();
   ret = netdev_foreach(netlink_addr_callback, &info);
-  net_unlock();
   if (ret < 0)
     {
       return ret;

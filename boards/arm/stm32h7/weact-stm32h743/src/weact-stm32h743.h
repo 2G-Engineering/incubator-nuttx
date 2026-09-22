@@ -53,7 +53,7 @@
 
 /* Can't support USB host or device features if USB OTG FS is not enabled */
 
-#ifndef CONFIG_STM32H7_OTGFS
+#ifndef CONFIG_STM32_OTGFS
 #  undef HAVE_USBDEV
 #  undef HAVE_USBHOST
 #endif
@@ -88,7 +88,7 @@
 #  undef HAVE_USBMONITOR
 #endif
 
-#if !defined(CONFIG_STM32H7_PROGMEM) || !defined(CONFIG_MTD_PROGMEM)
+#if !defined(CONFIG_STM32_PROGMEM) || !defined(CONFIG_MTD_PROGMEM)
 #  undef HAVE_PROGMEM_CHARDEV
 #endif
 
@@ -131,7 +131,7 @@
  * PD4  Card detected pin
  */
 
-#if defined(CONFIG_STM32H7_SDMMC1)
+#if defined(CONFIG_STM32_SDMMC1)
 #  define HAVE_SDIO
 #endif
 
@@ -167,10 +167,6 @@ void weak_function stm32_spidev_initialize(void);
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y &&
- *   CONFIG_NSH_ARCHINIT:
- *     Called from the NSH library
  *
  ****************************************************************************/
 

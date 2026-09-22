@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -55,7 +55,9 @@
 #endif
 
 #include "esp_clk_tree.h"
+#include "esp_private/esp_clk_tree_common.h"
 #include "hal/uart_hal.h"
+#include "hal/uart_periph.h"
 #include "soc/clk_tree_defs.h"
 #include "periph_ctrl.h"
 
@@ -307,6 +309,12 @@ static uart_dev_t g_lp_uart0_dev =
 #endif /* CONFIG_ESPRESSIF_UART */
 
 /****************************************************************************
+ * Public Data
+ ****************************************************************************/
+
+extern uart_context_t g_uart_context[UART_NUM_MAX];
+
+/****************************************************************************
  * Private Functions
  ****************************************************************************/
 
@@ -453,15 +461,22 @@ static void set_stop_length(const struct esp_uart_s *priv)
 static int esp_setup(uart_dev_t *dev)
 {
   struct esp_uart_s *priv = dev->priv;
+  soc_module_clk_t src_clk;
   uint32_t sclk_freq;
+  bool success = false;
+  irqstate_t flags;
 
   /* Enable the UART Clock */
 
-  esp_lowputc_enable_sysclk(priv);
+  esp_lowputc_uart_module_enable(priv);
 
-  esp_clk_tree_src_get_freq_hz((soc_module_clk_t)priv->clk_src,
-                           ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED,
-                           &sclk_freq);
+  uart_hal_get_sclk(priv->hal, &src_clk);
+
+  esp_clk_tree_src_get_freq_hz(src_clk,
+                               ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED,
+                               &sclk_freq);
+
+  flags = enter_critical_section();
 
   /* Initialize UART module */
 #ifdef CONFIG_ESPRESSIF_LP_UART
@@ -472,18 +487,24 @@ static int esp_setup(uart_dev_t *dev)
       LP_UART_SRC_CLK_ATOMIC()
         {
           lp_uart_ll_enable_bus_clock(0, true);
-          lp_uart_ll_set_source_clk(priv->hal->dev, sclk_freq);
+          lp_uart_ll_set_source_clk(priv->hal->dev, LP_UART_SCLK_DEFAULT);
           lp_uart_ll_sclk_enable(0);
         }
     }
 #endif
 
   uart_hal_init(priv->hal, priv->id);
+
   uart_hal_set_mode(priv->hal, UART_MODE_UART);
-  if (priv->id < ESP_LP_UART0_ID)
+
+  if (priv->id < SOC_UART_HP_NUM)
     {
-      uart_hal_set_sclk(priv->hal, UART_SCLK_DEFAULT);
-      uart_hal_set_baudrate(priv->hal, priv->baud, sclk_freq);
+      esp_clk_tree_enable_src(UART_SCLK_XTAL, true);
+      PERIPH_RCC_ATOMIC()
+        {
+          uart_hal_set_sclk(priv->hal, UART_SCLK_XTAL);
+          success = uart_hal_set_baudrate(priv->hal, priv->baud, sclk_freq);
+        }
     }
 #ifdef CONFIG_ESPRESSIF_LP_UART
   else
@@ -496,6 +517,8 @@ static int esp_setup(uart_dev_t *dev)
 
           return ESP_FAIL;
         }
+
+      success = true;
     }
 #endif
 
@@ -559,6 +582,13 @@ static int esp_setup(uart_dev_t *dev)
   else
 #endif
 
+  leave_critical_section(flags);
+
+  if (success == false)
+    {
+      return -EIO;
+    }
+
   /* Clear FIFOs */
 
   uart_hal_rxfifo_rst(priv->hal);
@@ -598,7 +628,7 @@ static void esp_shutdown(uart_dev_t *dev)
  * Description:
  *   Configure the UART to operation in interrupt driven mode. This method
  *   is called when the serial port is opened. Normally, this is just after
- *   the the setup() method is called, however, the serial console may
+ *   the setup() method is called, however, the serial console may
  *   operate in a non-interrupt driven mode during the boot phase.
  *
  *   RX and TX interrupts are not enabled when by the attach method (unless
@@ -619,24 +649,30 @@ static int esp_attach(uart_dev_t *dev)
 {
   struct esp_uart_s *priv = dev->priv;
   int ret;
+  int source;
 
   DEBUGASSERT(priv->cpuint == -ENOMEM);
 
   /* Set up to receive peripheral interrupts */
 
-  priv->cpuint = esp_setup_irq(priv->source, priv->int_pri,
-                               ESP_IRQ_TRIGGER_LEVEL);
+  source = uart_periph_signal[priv->id].irq;
+
+  priv->cpuint = esp_setup_irq(source, priv->int_pri,
+                               ESP_IRQ_TRIGGER_LEVEL,
+                               uart_handler,
+                               dev);
 
   /* Attach and enable the IRQ */
 
-  ret = irq_attach(priv->irq, uart_handler, dev);
-  if (ret == OK)
+  if (priv->cpuint >= 0)
     {
-      up_enable_irq(priv->irq);
+      up_enable_irq(ESP_SOURCE2IRQ(source));
+      ret = OK;
     }
   else
     {
-      up_disable_irq(priv->irq);
+      up_disable_irq(ESP_SOURCE2IRQ(source));
+      ret = -EINVAL;
     }
 
   return ret;
@@ -661,17 +697,19 @@ static int esp_attach(uart_dev_t *dev)
 static void esp_detach(uart_dev_t *dev)
 {
   struct esp_uart_s *priv = dev->priv;
+  int source;
 
   DEBUGASSERT(priv->cpuint != -ENOMEM);
 
+  source = uart_periph_signal[priv->id].irq;
+
   /* Disable and detach the CPU interrupt */
 
-  up_disable_irq(priv->irq);
-  irq_detach(priv->irq);
+  up_disable_irq(ESP_SOURCE2IRQ(source));
 
   /* Disassociate the peripheral interrupt from the CPU interrupt */
 
-  esp_teardown_irq(priv->source, priv->cpuint);
+  esp_teardown_irq(source, priv->cpuint);
   priv->cpuint = -ENOMEM;
 }
 
@@ -823,7 +861,11 @@ static bool esp_txempty(uart_dev_t *dev)
 {
   struct esp_uart_s *priv = dev->priv;
 
+#if defined(CONFIG_ARCH_CHIP_ESP32P4)
+  return priv->hal->dev->int_raw.txfifo_empty_int_raw != 0;
+#else
   return priv->hal->dev->int_raw.txfifo_empty != 0;
+#endif
 }
 
 /****************************************************************************

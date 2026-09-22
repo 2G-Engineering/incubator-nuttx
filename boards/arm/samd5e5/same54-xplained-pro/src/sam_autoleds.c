@@ -47,7 +47,7 @@
  *   LED_SIGNAL          In a signal handler          N/C
  *   LED_ASSERTION       An assertion failed          N/C
  *   LED_PANIC           The system has crashed       FLASH
- *   LED_IDLE            MCU is is sleep mode         Not used
+ *   LED_IDLE            MCU is in sleep mode         Not used
  */
 
 /****************************************************************************
@@ -59,7 +59,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/board.h>
 #include <nuttx/power/pm.h>
@@ -120,25 +120,25 @@ static void led_pm_notify(struct pm_callback_s *cb, int domain,
 {
   switch (pmstate)
     {
-      case(PM_NORMAL):
+      case PM_NORMAL:
         {
           /* Restore normal LEDs operation */
         }
         break;
 
-      case(PM_IDLE):
+      case PM_IDLE:
         {
           /* Entering IDLE mode - Turn leds off */
         }
         break;
 
-      case(PM_STANDBY):
+      case PM_STANDBY:
         {
           /* Entering STANDBY mode - Logic for PM_STANDBY goes here */
         }
         break;
 
-      case(PM_SLEEP):
+      case PM_SLEEP:
         {
           /* Entering SLEEP mode - Logic for PM_SLEEP goes here */
         }

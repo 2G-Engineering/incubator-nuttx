@@ -28,7 +28,8 @@
 
 #include <sched.h>
 #include <assert.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/arch.h>
 #include <nuttx/sched.h>
 
@@ -60,10 +61,6 @@ void up_switch_context(struct tcb_s *tcb, struct tcb_s *rtcb)
 
   sinfo("Unblocking TCB=%p\n", tcb);
 
-  /* Update scheduler parameters */
-
-  nxsched_suspend_scheduler(rtcb);
-
   /* Are we in an interrupt handler? */
 
   if (up_interrupt_context())
@@ -73,14 +70,6 @@ void up_switch_context(struct tcb_s *tcb, struct tcb_s *rtcb)
        */
 
       sim_savestate(rtcb->xcp.regs);
-
-      /* Update scheduler parameters */
-
-      nxsched_resume_scheduler(tcb);
-
-      /* Restore the cpu lock */
-
-      restore_critical_section(tcb, this_cpu());
 
       /* Then switch contexts */
 
@@ -101,7 +90,7 @@ void up_switch_context(struct tcb_s *tcb, struct tcb_s *rtcb)
 
       /* Update scheduler parameters */
 
-      nxsched_resume_scheduler(tcb);
+      nxsched_switch_context(rtcb, tcb);
 
       /* Restore the cpu lock */
 
@@ -117,11 +106,13 @@ void up_switch_context(struct tcb_s *tcb, struct tcb_s *rtcb)
     }
   else
     {
+#ifdef CONFIG_ENABLE_ALL_SIGNALS
       /* The way that we handle signals in the simulation is kind of
        * a kludge.  This would be unsafe in a truly multi-threaded,
        * interrupt driven environment.
        */
 
       sim_sigdeliver();
+#endif
     }
 }

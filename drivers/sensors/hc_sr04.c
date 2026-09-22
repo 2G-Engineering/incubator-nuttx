@@ -20,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -27,7 +40,7 @@
 #include <nuttx/config.h>
 #include <sys/types.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -128,7 +141,7 @@ static int hcsr04_start_measuring(FAR struct hcsr04_dev_s *priv)
   /* Send to 10uS trigger pulse */
 
   priv->config->set_trigger(priv->config, true);
-  nxsig_usleep(10);
+  nxsched_usleep(10);
   priv->config->set_trigger(priv->config, false);
 
   return 0;

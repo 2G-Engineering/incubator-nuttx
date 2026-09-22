@@ -36,16 +36,12 @@ ifeq ($(CONFIG_VIDEO_FB),y)
   endif
 endif
 
-ifeq ($(CONFIG_STM32H7_SDMMC),y)
+ifeq ($(CONFIG_STM32_SDMMC),y)
 CSRCS += stm32_sdmmc.c
 endif
 
 ifeq ($(CONFIG_FAT_DMAMEMORY),y)
 CSRCS += stm32_dma_alloc.c
-endif
-
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += stm32_appinitialize.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

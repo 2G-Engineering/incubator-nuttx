@@ -33,7 +33,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
@@ -3805,7 +3805,7 @@ static void mpfs_hw_shutdown(struct mpfs_usbdev_s *priv)
   /* Force disconnect and give some time to finish it up */
 
   mpfs_modifyreg8(MPFS_USB_POWER, POWER_REG_SOFT_CONN_MASK, 0);
-  nxsig_usleep(1000);
+  nxsched_usleep(1000);
 
   /* Disable all interrupts */
 

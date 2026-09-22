@@ -30,7 +30,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <pthread.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -85,12 +85,18 @@
 #endif
 #include "esp_intr_alloc.h"
 #include "esp_ble_adapter.h"
+#ifdef CONFIG_PM
+#  include "include/esp_pm.h"
+#  include "esp_sleep.h"
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
 #define BTDM_MIN_TIMER_UNCERTAINTY_US    (1800)
+
+#define BTDM_RTC_SLOW_CLK_RC_DRIFT_PERCENT  (7)
 
 /* Sleep and wakeup interval control */
 
@@ -113,37 +119,9 @@
 #  define BLE_TASK_EVENT_QUEUE_LEN        8
 #endif
 
-#ifdef CONFIG_ESPRESSIF_BLE_INTERRUPT_SAVE_STATUS
-#  define NR_IRQSTATE_FLAGS   CONFIG_ESPRESSIF_BLE_INTERRUPT_SAVE_STATUS
-#else
-#  define NR_IRQSTATE_FLAGS   3
-#endif
-
 /****************************************************************************
  * Private Types
  ****************************************************************************/
-
-/* Pack using bitfields for better memory use */
-
-typedef struct vector_desc_s vector_desc_t;
-
-struct vector_desc_s
-{
-  int flags: 16;
-  unsigned int cpu: 1;
-  unsigned int intno: 5;
-  int source: 8;
-  void *shared_vec_info;
-  vector_desc_t *next;
-};
-
-/** Interrupt handler associated data structure */
-
-struct intr_handle_data_t
-{
-  vector_desc_t *vector_desc;
-  void *shared_vector_desc;
-};
 
 /* VHCI function interface */
 
@@ -152,16 +130,6 @@ typedef struct vhci_host_callback_s
   void (*notify_host_send_available)(void);               /* callback used to notify that the host can send packet to controller */
   int (*notify_host_recv)(uint8_t *data, uint16_t len);   /* callback used to notify that the controller has a packet to send to the host */
 } vhci_host_callback_t;
-
-typedef struct
-{
-  int source;               /* ISR source */
-  int flags;                /* ISR alloc flag */
-  void (*fn)(void *);       /* ISR function */
-  void *arg;                /* ISR function args */
-  intr_handle_t *handle;    /* ISR handle */
-  esp_err_t ret;
-} btdm_isr_alloc_t;
 
 /* BLE OS function */
 
@@ -641,22 +609,21 @@ static DRAM_ATTR void * g_wakeup_req_sem = NULL;
 
 /* wakeup timer */
 
-static DRAM_ATTR esp_timer_handle_t g_btdm_slp_tmr;
+static DRAM_ATTR esp_timer_handle_t g_btdm_slp_tmr = NULL;
 
 #ifdef CONFIG_PM
+static DRAM_ATTR esp_pm_lock_handle_t g_pm_lock;
 
 /* pm_lock to prevent light sleep due to incompatibility currently */
 
-static DRAM_ATTR void * g_light_sleep_pm_lock;
+static DRAM_ATTR esp_pm_lock_handle_t g_light_sleep_pm_lock;
 #endif
 
 /* BT interrupt private data */
 
-static sq_queue_t g_ble_int_flags_free;
+irqstate_t g_ble_int_flags;
 
-static sq_queue_t g_ble_int_flags_used;
-
-static struct irqstate_list_s g_ble_int_flags[NR_IRQSTATE_FLAGS];
+static int g_ble_int_count = 0;
 
 /* Cached queue control variables */
 
@@ -774,9 +741,7 @@ static int interrupt_alloc_wrapper(int cpu_id,
                                    void *arg,
                                    void **ret_handle)
 {
-  btdm_isr_alloc_t *p;
-  struct intr_handle_data_t *handle;
-  vector_desc_t *vd;
+  struct intr_adapter_to_nuttx *isr_adapter_args;
   int ret = OK;
   int cpuint;
   int irq;
@@ -784,57 +749,24 @@ static int interrupt_alloc_wrapper(int cpu_id,
   wlinfo("cpu_id=%d , source=%d , handler=%p, arg=%p, ret_handle=%p\n",
          cpu_id, source, handler, arg, ret_handle);
 
-  p = kmm_calloc(1, sizeof(btdm_isr_alloc_t));
-  if (p == NULL)
+  isr_adapter_args = kmm_calloc(1, sizeof(struct intr_adapter_to_nuttx));
+  if (isr_adapter_args == NULL)
     {
-      return ESP_ERR_NOT_FOUND;
+      irqerr("Failed to kmm_calloc\n");
+      return ESP_ERR_NO_MEM;
     }
 
-  handle = kmm_calloc(1, sizeof(struct intr_handle_data_t));
-  if (handle == NULL)
-    {
-      free(p);
-      return ESP_ERR_NOT_FOUND;
-    }
+  isr_adapter_args->handler = handler;
+  isr_adapter_args->arg = arg;
 
-  p->source = source;
-  p->flags = ESP_INTR_FLAG_LEVEL2 | ESP_INTR_FLAG_IRAM;
-  p->fn = handler;
-  p->arg = arg;
-  p->handle = (intr_handle_t *)ret_handle;
-
-  cpuint = esp_setup_irq(source, 2, ESP_IRQ_TRIGGER_LEVEL);
+  cpuint = esp_setup_irq(source, 2, ESP_IRQ_TRIGGER_LEVEL, esp_int_adpt_cb,
+                         isr_adapter_args);
   if (cpuint < 0)
     {
-      kmm_free(handle);
       return ESP_ERR_NOT_FOUND;
     }
 
-  vd = kmm_calloc(1, sizeof(vector_desc_t));
-  if (vd == NULL)
-    {
-      kmm_free(handle);
-      return ESP_ERR_NOT_FOUND;
-    }
-
-  vd->intno = cpuint;
-  vd->cpu = cpu_id;
-  vd->source = source;
-
-  irq = esp_get_irq(cpuint);
-
-  handle->vector_desc = vd;
-  handle->shared_vector_desc = vd->shared_vec_info;
-
-  *(p->handle) = handle;
-
-  ret = irq_attach(irq, esp_int_adpt_cb, p);
-  if (ret != OK)
-    {
-      kmm_free(p);
-      kmm_free(handle);
-      return ESP_ERR_NOT_FOUND;
-    }
+  (*ret_handle) = (void *)esp_get_handle(cpu_id, ESP_SOURCE2IRQ(source));
 
   return ESP_OK;
 }
@@ -879,13 +811,12 @@ static void IRAM_ATTR global_interrupt_disable(void)
 {
   struct irqstate_list_s *irqstate;
 
-  irqstate = (struct irqstate_list_s *)sq_remlast(&g_ble_int_flags_free);
+  if (g_ble_int_count == 0)
+    {
+      g_ble_int_flags = enter_critical_section();
+    }
 
-  ASSERT(irqstate != NULL);
-
-  irqstate->flags = enter_critical_section();
-
-  sq_addlast((sq_entry_t *)irqstate, &g_ble_int_flags_used);
+  g_ble_int_count++;
 }
 
 /****************************************************************************
@@ -907,13 +838,12 @@ static void IRAM_ATTR global_interrupt_restore(void)
 {
   struct irqstate_list_s *irqstate;
 
-  irqstate = (struct irqstate_list_s *)sq_remlast(&g_ble_int_flags_used);
+  g_ble_int_count--;
 
-  ASSERT(irqstate != NULL);
-
-  leave_critical_section(irqstate->flags);
-
-  sq_addlast((sq_entry_t *)irqstate, &g_ble_int_flags_free);
+  if (g_ble_int_count == 0)
+    {
+      leave_critical_section(g_ble_int_flags);
+    }
 }
 
 /****************************************************************************
@@ -1099,7 +1029,7 @@ static int semphr_take_wrapper(void *semphr, uint32_t block_time_ms)
 
   if (ret)
     {
-      wlerr("ERROR: Failed to wait sem in %lu ticks. Error=%d\n",
+      wlerr("ERROR: Failed to wait sem in %" PRIu32 " ticks. Error=%d\n",
             MSEC2TICK(block_time_ms), ret);
     }
 
@@ -1298,7 +1228,8 @@ static void *queue_create_wrapper(uint32_t queue_len, uint32_t item_size)
   else
     {
       wlerr("Failed to create queue cache."
-            " Please incresase BLE_TASK_EVENT_QUEUE_LEN to, at least, %ld",
+            " Please incresase BLE_TASK_EVENT_QUEUE_LEN to, at least, "
+            "%" PRIu32 "",
             queue_len);
       return NULL;
     }
@@ -1654,7 +1585,7 @@ static uint32_t IRAM_ATTR btdm_lpcycles_2_hus(uint32_t cycles,
   uint64_t local_error_corr;
   uint64_t res;
 
-  local_error_corr = (error_corr == NULL) ? 0 : (uint64_t)(*error_corr);
+  local_error_corr = (error_corr == NULL) ? 0 : (*error_corr);
   res = (uint64_t)g_btdm_lpcycle_us * cycles * 2;
 
   local_error_corr += res;
@@ -1753,6 +1684,17 @@ static void btdm_sleep_enter_phase1_wrapper(uint32_t lpcycles)
   DEBUGASSERT(us_to_sleep > BTDM_MIN_TIMER_UNCERTAINTY_US);
   uncertainty = (us_to_sleep >> 11);
 
+#ifdef CONFIG_BT_CTRL_MAIN_XTAL_PU_DURING_LIGHT_SLEEP
+  /* Recalculate clock drift when Bluetooth keeps
+   * main XTAL on during light sleep
+   */
+
+  if (rtc_clk_slow_freq_get() == SOC_RTC_SLOW_CLK_SRC_RC_SLOW)
+    {
+      uncertainty = us_to_sleep * BTDM_RTC_SLOW_CLK_RC_DRIFT_PERCENT / 100;
+    }
+#endif
+
   if (uncertainty < BTDM_MIN_TIMER_UNCERTAINTY_US)
     {
       uncertainty = BTDM_MIN_TIMER_UNCERTAINTY_US;
@@ -1760,9 +1702,8 @@ static void btdm_sleep_enter_phase1_wrapper(uint32_t lpcycles)
 
   DEBUGASSERT(g_lp_stat.wakeup_timer_started == 0);
 
-  ets_timer_arm_us((void *)&g_btdm_slp_tmr,
-                   us_to_sleep - uncertainty,
-                   false);
+  esp_timer_start_once(g_btdm_slp_tmr,
+                       us_to_sleep - uncertainty);
   g_lp_stat.wakeup_timer_started = true;
 }
 
@@ -1797,6 +1738,7 @@ static void btdm_sleep_enter_phase2_wrapper(void)
 #ifdef CONFIG_PM
       if (g_lp_stat.pm_lock_released == 0)
         {
+          esp_pm_lock_release(g_pm_lock);
           g_lp_stat.pm_lock_released = 1;
         }
 #endif
@@ -1822,6 +1764,7 @@ static void btdm_sleep_exit_phase3_wrapper(void)
 #ifdef CONFIG_PM
   if (g_lp_stat.pm_lock_released)
     {
+      esp_pm_lock_acquire(g_pm_lock);
       g_lp_stat.pm_lock_released = 0;
     }
 #endif
@@ -1837,7 +1780,7 @@ static void btdm_sleep_exit_phase3_wrapper(void)
 
   if (g_lp_cntl.wakeup_timer_required && g_lp_stat.wakeup_timer_started)
     {
-      ets_timer_disarm((void *)&g_btdm_slp_tmr);
+      esp_timer_stop(g_btdm_slp_tmr);
       g_lp_stat.wakeup_timer_started = 0;
     }
 
@@ -2035,30 +1978,7 @@ static void * coex_schm_curr_phase_get_wrapper(void)
 
 static int interrupt_enable_wrapper(void *handle)
 {
-  intr_handle_t isr = (intr_handle_t)handle;
-  int ret = ESP_OK;
-  int cpuint;
-  int irq;
-
-  cpuint = isr->vector_desc->intno;
-
-  irq = esp_get_irq(cpuint);
-  if (irq == 127)
-    {
-      wlerr("CPU interrupt is not assigned!\n");
-      return ESP_ERR_INVALID_ARG;
-    }
-
-  ret = esp_irq_set_iram_isr(irq);
-  if (ret != ESP_OK)
-    {
-      wlerr("Failed to set IRAM ISR\n");
-      return ESP_ERR_INVALID_ARG;
-    }
-
-  up_enable_irq(irq);
-
-  return ret == OK ? ESP_OK : ESP_ERR_INVALID_ARG;
+  return esp_intr_enable((intr_handle_t)handle);
 }
 
 /****************************************************************************
@@ -2079,23 +1999,7 @@ static int interrupt_enable_wrapper(void *handle)
 
 static int interrupt_disable_wrapper(void *handle)
 {
-  intr_handle_t isr = (intr_handle_t)handle;
-  int ret = ESP_OK;
-  int cpuint;
-  int irq;
-
-  cpuint = isr->vector_desc->intno;
-
-  irq = esp_get_irq(cpuint);
-  if (irq == 127)
-    {
-      wlerr("CPU interrupt is not assigned!\n");
-      return ESP_ERR_INVALID_ARG;
-    }
-
-  up_disable_irq(irq);
-
-  return ret == OK ? ESP_OK : ESP_ERR_INVALID_ARG;
+  return esp_intr_disable((intr_handle_t)handle);
 }
 
 /****************************************************************************
@@ -2326,8 +2230,8 @@ static void esp_update_time(struct timespec *timespec, uint32_t ticks)
 static void IRAM_ATTR btdm_slp_tmr_callback(void *arg)
 {
 #ifdef CONFIG_PM
-  btdm_vnd_offload_post(BTDM_VND_OL_SIG_WAKEUP_TMR,
-                        (void *)BTDM_ASYNC_WAKEUP_SRC_TMR);
+  r_btdm_vnd_offload_post(BTDM_VND_OL_SIG_WAKEUP_TMR,
+                          (void *)BTDM_ASYNC_WAKEUP_SRC_TMR);
 #endif
 }
 
@@ -2338,7 +2242,10 @@ static void IRAM_ATTR btdm_slp_tmr_callback(void *arg)
  *   BT interrupt adapter callback function
  *
  * Input Parameters:
- *   arg - interrupt adapter private data
+ *   irq     - IRQ associated to that interrupt.
+ *   context - Interrupt register state save info.
+ *   arg     - A pointer to the argument provided when the interrupt
+ *             was registered.
  *
  * Returned Value:
  *   NuttX error code
@@ -2347,9 +2254,11 @@ static void IRAM_ATTR btdm_slp_tmr_callback(void *arg)
 
 static int IRAM_ATTR esp_int_adpt_cb(int irq, void *context, void *arg)
 {
-  btdm_isr_alloc_t *p = (btdm_isr_alloc_t *)arg;
+  struct intr_adapter_to_nuttx *isr_adapter_args;
 
-  p->fn(p->arg);
+  isr_adapter_args = (struct intr_adapter_to_nuttx *)arg;
+
+  isr_adapter_args->handler(isr_adapter_args->arg);
 
   return OK;
 }
@@ -2375,6 +2284,7 @@ static void IRAM_ATTR btdm_sleep_exit_phase0(void *param)
 #ifdef CONFIG_PM
   if (g_lp_stat.pm_lock_released)
     {
+      esp_pm_lock_acquire(g_pm_lock);
       g_lp_stat.pm_lock_released = 0;
     }
 #endif
@@ -2389,7 +2299,7 @@ static void IRAM_ATTR btdm_sleep_exit_phase0(void *param)
 
   if (g_lp_cntl.wakeup_timer_required && g_lp_stat.wakeup_timer_started)
     {
-      ets_timer_disarm((void *)&g_btdm_slp_tmr);
+      esp_timer_stop(g_btdm_slp_tmr);
       g_lp_stat.wakeup_timer_started = 0;
     }
 
@@ -2516,9 +2426,7 @@ static esp_err_t btdm_low_power_mode_init(esp_bt_controller_config_t *cfg)
                   .name = "btSlp",
                 };
 
-              ets_timer_setfn((void *)&g_btdm_slp_tmr,
-                              (void *)btdm_slp_tmr_callback,
-                              &create_args);
+              esp_timer_create(&create_args, &g_btdm_slp_tmr);
             }
 
           /* set default bluetooth sleep clock cycle and its
@@ -2580,7 +2488,7 @@ static esp_err_t btdm_low_power_mode_init(esp_bt_controller_config_t *cfg)
       if (g_lp_cntl.lpclk_sel == ESP_BT_SLEEP_CLOCK_MAIN_XTAL)
         {
 #ifdef CONFIG_BT_CTRL_MAIN_XTAL_PU_DURING_LIGHT_SLEEP
-          ASSERT(esp_sleep_pd_config(ESP_PD_DOMAIN_XTAL, ESP_PD_OPTION_ON));
+          esp_sleep_pd_config(ESP_PD_DOMAIN_XTAL, ESP_PD_OPTION_ON);
           g_lp_cntl.main_xtal_pu = 1;
 #endif
           select_src_ret = btdm_lpclk_select_src(BTDM_LPCLK_SEL_XTAL);
@@ -2621,7 +2529,28 @@ static esp_err_t btdm_low_power_mode_init(esp_bt_controller_config_t *cfg)
 #endif
 
 #ifdef CONFIG_PM
-      g_lp_stat.pm_lock_released = 1;
+      if (g_lp_cntl.no_light_sleep)
+        {
+          err = esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0,
+                                   "ble", &g_light_sleep_pm_lock);
+          if (err != OK)
+            {
+              break;
+            }
+
+          wlwarn("Light sleep mode will not be able to"
+                  "apply when bluetooth is enabled.");
+        }
+
+      err = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "ble", &g_pm_lock);
+      if (err != OK)
+        {
+          break;
+        }
+      else
+        {
+          g_lp_stat.pm_lock_released = 1;
+        }
 #endif
     }
   while (0);
@@ -2717,8 +2646,16 @@ static void btdm_low_power_mode_deinit(void)
     {
       if (g_light_sleep_pm_lock != NULL)
         {
+          esp_pm_lock_delete(g_light_sleep_pm_lock);
           g_light_sleep_pm_lock = NULL;
         }
+    }
+
+  if (g_pm_lock != NULL)
+    {
+      esp_pm_lock_delete(g_pm_lock);
+      g_pm_lock = NULL;
+      g_lp_stat.pm_lock_released = 0;
     }
 #endif
 
@@ -2726,11 +2663,11 @@ static void btdm_low_power_mode_deinit(void)
     {
       if (g_lp_stat.wakeup_timer_started)
         {
-          ets_timer_disarm((void *)&g_btdm_slp_tmr);
+          esp_timer_stop(g_btdm_slp_tmr);
         }
 
       g_lp_stat.wakeup_timer_started = 0;
-      ets_timer_done((void *)&g_btdm_slp_tmr);
+      esp_timer_delete(g_btdm_slp_tmr);
       g_btdm_slp_tmr = NULL;
     }
 
@@ -2749,7 +2686,7 @@ static void btdm_low_power_mode_deinit(void)
 #ifdef CONFIG_BT_CTRL_MAIN_XTAL_PU_DURING_LIGHT_SLEEP
       if (g_lp_cntl.main_xtal_pu)
         {
-          ASSERT(esp_sleep_pd_config(ESP_PD_DOMAIN_XTAL, ESP_PD_OPTION_OFF));
+          esp_sleep_pd_config(ESP_PD_DOMAIN_XTAL, ESP_PD_OPTION_OFF);
           g_lp_cntl.main_xtal_pu = 0;
         }
 #endif
@@ -2805,9 +2742,10 @@ static bool async_wakeup_request(int event)
         if (!btdm_power_state_active())
           {
             do_wakeup_request = true;
-#if CONFIG_PM
+#ifdef CONFIG_PM
             if (g_lp_stat.pm_lock_released)
               {
+                esp_pm_lock_acquire(g_pm_lock);
                 g_lp_stat.pm_lock_released = 0;
               }
 #endif
@@ -2817,7 +2755,7 @@ static bool async_wakeup_request(int event)
             if (g_lp_cntl.wakeup_timer_required &&
                 g_lp_stat.wakeup_timer_started)
               {
-                ets_timer_disarm((void *)&g_btdm_slp_tmr);
+                esp_timer_stop(g_btdm_slp_tmr);
                 g_lp_stat.wakeup_timer_started = 0;
               }
           }
@@ -3043,7 +2981,7 @@ static void coex_bt_wakeup_request_end(void)
 
 static IRAM_ATTR int64_t get_time_us_wrapper(void)
 {
-  return (int64_t)esp_hr_timer_time_us();
+  return esp_hr_timer_time_us();
 }
 
 /****************************************************************************
@@ -3091,13 +3029,7 @@ int esp_bt_controller_init(void)
   int i;
   int err;
 
-  sq_init(&g_ble_int_flags_free);
-  sq_init(&g_ble_int_flags_used);
-
-  for (i = 0; i < NR_IRQSTATE_FLAGS; i++)
-    {
-      sq_addlast((sq_entry_t *)&g_ble_int_flags[i], &g_ble_int_flags_free);
-    }
+  g_ble_int_count = 0;
 
   if (g_btdm_controller_status != ESP_BT_CONTROLLER_STATUS_IDLE)
     {
@@ -3203,10 +3135,10 @@ int esp_bt_controller_init(void)
     }
 
 #if (CONFIG_BT_BLUEDROID_ENABLED || CONFIG_BT_NIMBLE_ENABLED)
-    scan_stack_enable_adv_flow_ctrl_vs_cmd(true);
-    adv_stack_enable_clear_legacy_adv_vs_cmd(true);
-    adv_filter_stack_enable_dup_exc_list_vs_cmd(true);
-    chan_sel_stack_enable_set_csa_vs_cmd(true);
+  scan_stack_enable_adv_flow_ctrl_vs_cmd(true);
+  adv_stack_enable_clear_legacy_adv_vs_cmd(true);
+  adv_filter_stack_enable_dup_exc_list_vs_cmd(true);
+  chan_sel_stack_enable_set_csa_vs_cmd(true);
 #endif
 
   g_btdm_controller_status = ESP_BT_CONTROLLER_STATUS_INITED;
@@ -3249,10 +3181,10 @@ int esp_bt_controller_deinit(void)
     }
 
 #if (CONFIG_BT_BLUEDROID_ENABLED || CONFIG_BT_NIMBLE_ENABLED)
-    scan_stack_enable_adv_flow_ctrl_vs_cmd(false);
-    adv_stack_enable_clear_legacy_adv_vs_cmd(false);
-    adv_filter_stack_enable_dup_exc_list_vs_cmd(false);
-    chan_sel_stack_enable_set_csa_vs_cmd(false);
+  scan_stack_enable_adv_flow_ctrl_vs_cmd(false);
+  adv_stack_enable_clear_legacy_adv_vs_cmd(false);
+  adv_filter_stack_enable_dup_exc_list_vs_cmd(false);
+  chan_sel_stack_enable_set_csa_vs_cmd(false);
 #endif
 
   btdm_controller_deinit();
@@ -3310,26 +3242,32 @@ int esp_bt_controller_enable(esp_bt_mode_t mode)
 #ifdef CONFIG_PM
   /* enable low power mode */
 
+  if (g_lp_cntl.no_light_sleep)
+    {
+      esp_pm_lock_acquire(g_light_sleep_pm_lock);
+    }
+
+  esp_pm_lock_acquire(g_pm_lock);
   g_lp_stat.pm_lock_released = 0;
 #endif
 
 #if CONFIG_MAC_BB_PD
   if (esp_register_mac_bb_pd_callback(btdm_mac_bb_power_down_cb) != 0)
     {
-      err = -EINVAL;
+      ret = -EINVAL;
       goto error;
     }
 
   if (esp_register_mac_bb_pu_callback(btdm_mac_bb_power_up_cb) != 0)
     {
-      err = -EINVAL;
+      ret = -EINVAL;
       goto error;
     }
 #endif
 
   if (g_lp_cntl.enable)
     {
-        btdm_controller_enable_sleep(true);
+      btdm_controller_enable_sleep(true);
     }
 
   /* Disable pll track by default in BLE controller on ESP32-C3 and
@@ -3362,8 +3300,14 @@ error:
   btdm_controller_enable_sleep(false);
 
 #ifdef CONFIG_PM
+  if (g_lp_cntl.no_light_sleep)
+    {
+      esp_pm_lock_release(g_light_sleep_pm_lock);
+    }
+
   if (g_lp_stat.pm_lock_released == 0)
     {
+      esp_pm_lock_release(g_pm_lock);
       g_lp_stat.pm_lock_released = 1;
     }
 #endif
@@ -3405,7 +3349,7 @@ int esp_bt_controller_disable(void)
   async_wakeup_request(BTDM_ASYNC_WAKEUP_SRC_DISA);
   while (!btdm_power_state_active())
     {
-      nxsig_usleep(1000); /* wait */
+      nxsched_usleep(1000); /* wait */
     }
 
   btdm_controller_disable();
@@ -3432,8 +3376,14 @@ int esp_bt_controller_disable(void)
 #endif
 
 #ifdef CONFIG_PM
+  if (g_lp_cntl.no_light_sleep)
+    {
+      esp_pm_lock_release(g_light_sleep_pm_lock);
+    }
+
   if (g_lp_stat.pm_lock_released == 0)
     {
+      esp_pm_lock_release(g_pm_lock);
       g_lp_stat.pm_lock_released = 1;
     }
   else

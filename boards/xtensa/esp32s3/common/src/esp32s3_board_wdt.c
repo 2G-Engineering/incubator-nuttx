@@ -27,11 +27,10 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "esp32s3_board_wdt.h"
 #include "esp32s3_wdt_lowerhalf.h"
-#include "esp32s3_wdt.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -95,4 +94,3 @@ int board_wdt_init(void)
 
   return ret;
 }
-

@@ -34,12 +34,12 @@ else
 CSRCS += stm32_userleds.c
 endif
 
-ifeq ($(CONFIG_STM32H7_OTGFS),y)
-CSRCS += stm32_usb.c
+ifeq ($(CONFIG_ARCH_BUTTONS),y)
+CSRCS += stm32_buttons.c
 endif
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += stm32_appinitialize.c
+ifeq ($(CONFIG_STM32_OTGFS),y)
+CSRCS += stm32_usb.c
 endif
 
 ifeq ($(CONFIG_DEV_GPIO),y)

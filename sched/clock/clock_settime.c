@@ -29,34 +29,38 @@
 #include <time.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
+#include <sys/time.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/fs/fs.h>
+#include <nuttx/clock_notifier.h>
 #include <nuttx/irq.h>
 #include <nuttx/spinlock.h>
-#include <sys/time.h>
+#include <nuttx/timers/ptp_clock.h>
 
 #include "clock/clock.h"
 #ifdef CONFIG_CLOCK_TIMEKEEPING
 #  include "clock/clock_timekeeping.h"
 #endif
 
-/****************************************************************************
- * Public Functions
- ****************************************************************************/
+#if defined(CONFIG_RTC) && defined(CONFIG_SCHED_LPWORK)
+static struct work_s g_rtc_work;
+static struct timespec g_rtc_to_set;
+#endif
 
 /****************************************************************************
- * Name: nxclock_settime
- *
- * Description:
- *   Clock Functions based on POSIX APIs
- *
- *   CLOCK_REALTIME - POSIX demands this to be present. This is the wall
- *   time clock.
- *
+ * Private Functions
  ****************************************************************************/
 
-void nxclock_settime(clockid_t clock_id, FAR const struct timespec *tp)
+#if defined(CONFIG_RTC) && defined(CONFIG_SCHED_LPWORK)
+static void rtc_worker(FAR void *arg)
+{
+  up_rtc_settime(arg);
+}
+#endif
+
+static void nxclock_set_realtime(FAR const struct timespec *tp)
 {
 #ifndef CONFIG_CLOCK_TIMEKEEPING
   struct timespec bias;
@@ -81,6 +85,7 @@ void nxclock_settime(clockid_t clock_id, FAR const struct timespec *tp)
   flags = spin_lock_irqsave(&g_basetime_lock);
 
   clock_timespec_subtract(tp, &bias, &g_basetime);
+  clock_notifier_call_chain(CLOCK_REALTIME, tp);
 
   spin_unlock_irqrestore(&g_basetime_lock, flags);
 
@@ -89,7 +94,24 @@ void nxclock_settime(clockid_t clock_id, FAR const struct timespec *tp)
 #  ifdef CONFIG_RTC
   if (g_rtc_enabled)
     {
+#    ifdef CONFIG_SCHED_LPWORK
+      /* Setting the current time in RTC may be a blocking operation (driver
+       * needs to wait for oscillator stabilization after reset and so on).
+       * This may cause the unwanted effect of clock_settime blocking the
+       * code execution for a considerable amount of time.
+       *
+       * The solution is to plan a low priority work that takes care
+       * of setting the time in RTC and let clock_settime continue. We don't
+       * have to check if the work is available, just cancel it if there
+       * is a new time set request.
+       */
+
+      g_rtc_to_set = *tp;
+      work_queue(LPWORK, &g_rtc_work, rtc_worker,
+                 (FAR void *)&g_rtc_to_set, 0);
+#    else
       up_rtc_settime(tp);
+#    endif
     }
 #  endif
 
@@ -104,6 +126,10 @@ void nxclock_settime(clockid_t clock_id, FAR const struct timespec *tp)
 }
 
 /****************************************************************************
+ * Public Functions
+ ****************************************************************************/
+
+/****************************************************************************
  * Name: clock_settime
  *
  * Description:
@@ -116,13 +142,35 @@ void nxclock_settime(clockid_t clock_id, FAR const struct timespec *tp)
 
 int clock_settime(clockid_t clock_id, FAR const struct timespec *tp)
 {
-  if (clock_id != CLOCK_REALTIME || tp == NULL ||
-      tp->tv_nsec < 0 || tp->tv_nsec >= 1000000000)
+  int ret = -EINVAL;
+
+  if (tp != NULL && tp->tv_nsec >= 0 && tp->tv_nsec < 1000000000)
     {
-      set_errno(EINVAL);
+      if (clock_id == CLOCK_REALTIME)
+        {
+          nxclock_set_realtime(tp);
+          ret = 0;
+        }
+#ifdef CONFIG_PTP_CLOCK
+      else if ((clock_id & CLOCK_MASK) == CLOCK_FD)
+        {
+          FAR struct file *filep;
+
+          ret = ptp_clockid_to_filep(clock_id, &filep);
+          if (ret >= 0)
+            {
+              ret = file_ioctl(filep, PTP_CLOCK_SETTIME, tp);
+              fs_putfilep(filep);
+            }
+        }
+#endif
+    }
+
+  if (ret < 0)
+    {
+      set_errno(-ret);
       return ERROR;
     }
 
-  nxclock_settime(clock_id, tp);
   return OK;
 }

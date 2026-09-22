@@ -36,8 +36,8 @@
 #include <assert.h>
 #include <errno.h>
 #include <fixedmath.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/kthread.h>
@@ -276,6 +276,7 @@ struct usbhost_state_s
   struct work_s           work;         /* For cornercase error handling by the worker thread */
   struct mouse_sample_s   sample;       /* Last sampled mouse data */
   usbhost_ep_t            epin;         /* Interrupt IN endpoint */
+  size_t                  packet_len;
 
   /* The following is a list if poll structures of threads waiting for
    * driver events. The 'struct pollfd' reference for each open is also
@@ -820,7 +821,7 @@ static bool usbhost_touchscreen(FAR struct usbhost_state_s *priv,
        * small, then ignore the event.
        */
 
-      else if (!usbhost_xythreshold(priv))
+      else if (!usbhost_threshold(priv))
         {
           return false;
         }
@@ -975,7 +976,7 @@ static int usbhost_mouse_poll(int argc, FAR char *argv[])
 
   priv->polling = true;
   nxsem_post(&g_syncsem);
-  nxsig_sleep(1);
+  nxsched_sleep(1);
 
   /* Loop here until the device is disconnected */
 
@@ -988,7 +989,7 @@ static int usbhost_mouse_poll(int argc, FAR char *argv[])
        */
 
       nbytes = DRVR_TRANSFER(hport->drvr, priv->epin,
-                             priv->tbuffer, priv->tbuflen);
+                             priv->tbuffer, priv->packet_len);
 
       /* Check for errors -- Bail if an excessive number of consecutive
        * errors are encountered.
@@ -1477,6 +1478,8 @@ static inline int usbhost_cfgdesc(FAR struct usbhost_state_s *priv,
                     epindesc.interval     = epdesc->interval;
                     epindesc.mxpacketsize =
                       usbhost_getle16(epdesc->mxpacketsize);
+
+                    priv->packet_len = (size_t)epindesc.mxpacketsize;
 
                     uinfo("Interrupt IN EP addr:%d mxpacketsize:%d\n",
                           epindesc.addr, epindesc.mxpacketsize);

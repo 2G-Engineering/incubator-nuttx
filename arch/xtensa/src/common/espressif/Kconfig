@@ -1,12 +1,101 @@
+menu "Espressif Log Level"
+	visible if DEBUG_FEATURES
+
+config ESPRESSIF_LOG_LEVEL_NONE
+	bool "NONE"
+	depends on !DEBUG_FEATURES && !DEBUG_ERROR && !DEBUG_WARN && !DEBUG_INFO
+	default y
+	---help---
+		No log output from Espressif log messages.
+
+config ESPRESSIF_LOG_LEVEL_ERROR
+	bool "ERROR"
+	depends on DEBUG_ERROR
+	default y
+	---help---
+		Display critical errors from Espressif log messages.
+
+config ESPRESSIF_LOG_LEVEL_WARN
+	bool "WARN"
+	depends on DEBUG_WARN
+	default y
+	---help---
+		Display warning messages from Espressif log messages.
+
+config ESPRESSIF_LOG_LEVEL_INFO
+	bool "INFO"
+	depends on DEBUG_INFO
+	default y
+	---help---
+		Display information messages from Espressif log messages.
+
+config ESPRESSIF_LOG_LEVEL_DEBUG
+	bool "DEBUG"
+	depends on DEBUG_INFO
+	default n
+	---help---
+		Display extra information from Espressif log messages.
+
+config ESPRESSIF_LOG_LEVEL_VERBOSE
+	bool "VERBOSE"
+	depends on DEBUG_INFO
+	default n
+	---help---
+		Display bigger chunks of debugging information, or frequent messages
+		which can potentially flood the output from Espressif log messages.
+
+config ESPRESSIF_LOG_LEVEL
+	int
+	default 5 if ESPRESSIF_LOG_LEVEL_VERBOSE
+	default 4 if ESPRESSIF_LOG_LEVEL_DEBUG
+	default 3 if ESPRESSIF_LOG_LEVEL_INFO
+	default 2 if ESPRESSIF_LOG_LEVEL_WARN
+	default 1 if ESPRESSIF_LOG_LEVEL_ERROR
+	default 0 if ESPRESSIF_LOG_LEVEL_NONE
+
+endmenu # Espressif Log Level
+
+menu "Interrupt Configuration"
+
+config ESPRESSIF_IRAM_ISR_DEBUG
+	bool "Enable debugging of the IRAM-enabled interrupts"
+	default n
+	---help---
+		This option enables keeping track of the IRAM-enabled interrupts by
+		registering its execution when non-IRAM interrupts are disabled. It
+		keeps track of the IRQ executed and register how many times since
+		boot it was executed.
+
+endmenu # Interrupt Configuration
+
 config ESP_RMT
 	bool "Remote Control Module (RMT)"
 	default n
-	depends on RMT
 	---help---
 		The RMT (Remote Control Transceiver) peripheral was designed to act as
 		an infrared transceiver. However, due to the flexibility of its data
 		format, RMT can be extended to a versatile and general-purpose
 		transceiver, transmitting or receiving many other types of signals.
+
+config RMT_LOOP_TEST_MODE
+	bool "Enable RMT loop test pin mapping"
+	default n
+	depends on ESP_RMT
+	---help---
+		Use a loop test pin mapping for RMT RX/TX.
+		When enabled, board pin definitions can route RX/TX to the same
+		GPIO for loopback testing without external wiring.
+
+if ESP_RMT
+
+config RMT_DEFAULT_RX_BUFFER_SIZE
+	int "Default RX buffer size"
+	default 100
+	---help---
+		The RMT RX default buffer size. This is the expected buffer size
+		that should be returned on a receive operation.
+
+endif # ESP_RMT
 
 config ESP_MCPWM
 	bool "Motor Control PWM (MCPWM)"
@@ -51,13 +140,23 @@ config ESPRESSIF_EFUSE
 config ESPRESSIF_EFUSE_VIRTUAL
 	bool "Virtual EFUSE support"
 	depends on ESPRESSIF_EFUSE
+<<<<<<< HEAD
 	default n
 	---help---
 		Enable virtual efuse support to simulate eFuse operations in RAM, changes will be reverted each reboot
+=======
+	default y
+	---help---
+		Enable virtual efuse support to simulate eFuse operations in RAM, changes will be reverted each reboot.
+>>>>>>> nuttx-13.0.0
 
 config ESPRESSIF_EFUSE_VIRTUAL_KEEP_IN_FLASH
 	bool "Keep E-Fuses in flash"
 	depends on ESPRESSIF_EFUSE_VIRTUAL
+<<<<<<< HEAD
+=======
+	default y
+>>>>>>> nuttx-13.0.0
 	---help---
 		In addition to the "Virtual E-Fuses support" option, this option just adds
 		a feature to keep E-Fuses after reboots in flash memory.
@@ -67,23 +166,43 @@ config ESPRESSIF_EFUSE_VIRTUAL_KEEP_IN_FLASH
 		This mode is useful when need to keep changes after reboot (testing secure_boot,
 		flash_encryption or using MCUBoot + encryption).
 
+<<<<<<< HEAD
 if ESPRESSIF_EFUSE_VIRTUAL_KEEP_IN_FLASH
 
 config ESPRESSIF_EFUSE_VIRTUAL_KEEP_IN_FLASH_OFFSET
 	hex "E-Fuses offset in flash"
 	depends on ESPRESSIF_EFUSE_VIRTUAL_KEEP_IN_FLASH
 	default 0x250000
+=======
+if ESPRESSIF_EFUSE_VIRTUAL_KEEP_IN_FLASH || ESPRESSIF_BOOTLOADER_MCUBOOT
+
+menu "Virtual E-Fuse Options"
+
+config ESPRESSIF_EFUSE_VIRTUAL_KEEP_IN_FLASH_OFFSET
+	hex "Virtual E-Fuses offset in flash"
+	default 0x10000 if ESPRESSIF_BOOTLOADER_MCUBOOT
+	default 0x250000 if !ESPRESSIF_BOOTLOADER_MCUBOOT
+>>>>>>> nuttx-13.0.0
 	---help---
 		Offset in flash where the E-Fuses will be stored when using the "E-Fuses size to keep in flash" option.
 
 config ESPRESSIF_EFUSE_VIRTUAL_KEEP_IN_FLASH_SIZE
+<<<<<<< HEAD
 	hex "E-Fuses size to keep in flash"
 	depends on ESPRESSIF_EFUSE_VIRTUAL_KEEP_IN_FLASH
+=======
+	hex "Virtual E-Fuses size to keep in flash"
+>>>>>>> nuttx-13.0.0
 	default 0x2000
 	---help---
 		Size of E-Fuse region to keep in flash.
 
+<<<<<<< HEAD
 endif # ESPRESSIF_EFUSE_VIRTUAL_KEEP_IN_FLASH
+=======
+endmenu # Virtual E-Fuse Options
+endif # ESPRESSIF_EFUSE_VIRTUAL_KEEP_IN_FLASH || ESPRESSIF_BOOTLOADER_MCUBOOT
+>>>>>>> nuttx-13.0.0
 
 config ESPRESSIF_TEMP
 	bool "Internal Temperature Sensor"
@@ -103,7 +222,6 @@ config ESPRESSIF_LEDC
 	default n
 	depends on ARCH_CHIP_ESP32S2 || ARCH_CHIP_ESP32S3
 	select PWM
-	select ARCH_HAVE_PWM_MULTICHAN
 
 config ESPRESSIF_SHA_ACCELERATOR
 	bool "SHA Accelerator"
@@ -111,6 +229,13 @@ config ESPRESSIF_SHA_ACCELERATOR
 	default n
 	---help---
 		Enable SHA accelerator support.
+
+config ESPRESSIF_AES_ACCELERATOR
+	bool "AES Accelerator"
+	depends on !ARCH_CHIP_ESP32
+	default n
+	---help---
+		Enable AES accelerator support.
 
 config ESPRESSIF_I2S
 	bool
@@ -122,9 +247,9 @@ config ESPRESSIF_I2S0
 	select ESPRESSIF_I2S
 	select I2S
 	select ESP32S3_DMA if ARCH_CHIP_ESP32S3
-	select ESP32S3_GPIO_IRQ if ARCH_CHIP_ESP32S3
-	select ESP32S2_GPIO_IRQ if ARCH_CHIP_ESP32S2
-	select ESP32_GPIO_IRQ if ARCH_CHIP_ESP32
+	select ESPRESSIF_GPIO_IRQ if ARCH_CHIP_ESP32S3
+	select ESPRESSIF_GPIO_IRQ if ARCH_CHIP_ESP32S2
+	select ESPRESSIF_GPIO_IRQ if ARCH_CHIP_ESP32
 	select SCHED_HPWORK
 	select ARCH_DMA
 
@@ -135,8 +260,8 @@ config ESPRESSIF_I2S1
 	select ESPRESSIF_I2S
 	select I2S
 	select ESP32S3_DMA if ARCH_CHIP_ESP32S3
-	select ESP32S3_GPIO_IRQ if ARCH_CHIP_ESP32S3
-	select ESP32_GPIO_IRQ if ARCH_CHIP_ESP32
+	select ESPRESSIF_GPIO_IRQ if ARCH_CHIP_ESP32S3
+	select ESPRESSIF_GPIO_IRQ if ARCH_CHIP_ESP32
 	select SCHED_HPWORK
 	select ARCH_DMA
 
@@ -189,9 +314,14 @@ config ESPRESSIF_SPI_BITBANG
 		Software implemented SPI peripheral with GPIOs. Suggested to use if SPI peripherals are already in use.
 
 config ESPRESSIF_SPIFLASH
-	bool "SPI Flash"
-	depends on ARCH_CHIP_ESP32S2
+	bool "SPI Flash (User Storage)"
 	default n
+	depends on !ESP32_PARTITION_TABLE && !ESP32S3_PARTITION_TABLE && !ESP32S3_SPIRAM
+	---help---
+		Enable SPI Flash driver for general storage support. This allows
+		mounting an MTD partition at a configurable region in flash.
+		When using partition table on SPIRAM, legacy drivers for SPI Flash
+		used instead, making this option not available.
 
 config ESPRESSIF_DEDICATED_GPIO
 	bool "Dedicated GPIO"
@@ -203,6 +333,12 @@ config ESPRESSIF_DEDICATED_GPIO
 		applications like simulate serial/parallel interfaces in a bit-banging way.
 		It can work as pin grouping and you can use any pin up to 8 pins for
 		input and 8 pins for output for dedicated gpio in total.
+
+config ESPRESSIF_GPIO_IRQ
+	bool "GPIO pin interrupts"
+	default n
+	---help---
+		Enable support for interrupting GPIO pins.
 
 config ESPRESSIF_DEDICATED_GPIO_IRQ
 	bool "Dedicated GPIO IRQ"
@@ -230,8 +366,8 @@ if ESPRESSIF_LEDC_TIMER0
 
 config ESPRESSIF_LEDC_TIMER0_CHANNELS
 	int "Number of Timer 0 channels"
-	default 2 if PWM_MULTICHAN && PWM_NCHANNELS > 1
-	default 1 if !PWM_MULTICHAN || PWM_NCHANNELS = 1
+	default 2 if PWM_NCHANNELS > 1
+	default 1 if PWM_NCHANNELS = 1
 	range 0 6
 
 config ESPRESSIF_LEDC_TIMER0_RESOLUTION
@@ -253,8 +389,8 @@ if ESPRESSIF_LEDC_TIMER1
 
 config ESPRESSIF_LEDC_TIMER1_CHANNELS
 	int "Number of Timer 1 channels"
-	default 2 if PWM_MULTICHAN && PWM_NCHANNELS > 1
-	default 1 if !PWM_MULTICHAN || PWM_NCHANNELS = 1
+	default 2 if PWM_NCHANNELS > 1
+	default 1 if PWM_NCHANNELS = 1
 	range 0 6
 
 config ESPRESSIF_LEDC_TIMER1_RESOLUTION
@@ -276,8 +412,8 @@ if ESPRESSIF_LEDC_TIMER2
 
 config ESPRESSIF_LEDC_TIMER2_CHANNELS
 	int "Number of Timer 2 channels"
-	default 2 if PWM_MULTICHAN && PWM_NCHANNELS > 1
-	default 1 if !PWM_MULTICHAN || PWM_NCHANNELS = 1
+	default 2 if PWM_NCHANNELS > 1
+	default 1 if PWM_NCHANNELS = 1
 	range 0 6
 
 config ESPRESSIF_LEDC_TIMER2_RESOLUTION
@@ -299,8 +435,8 @@ if ESPRESSIF_LEDC_TIMER3
 
 config ESPRESSIF_LEDC_TIMER3_CHANNELS
 	int "Number of Timer 3 channels"
-	default 2 if PWM_MULTICHAN && PWM_NCHANNELS > 1
-	default 1 if !PWM_MULTICHAN || PWM_NCHANNELS = 1
+	default 2 if PWM_NCHANNELS > 1
+	default 1 if PWM_NCHANNELS = 1
 	range 0 6
 
 config ESPRESSIF_LEDC_TIMER3_RESOLUTION
@@ -340,7 +476,7 @@ config ESPRESSIF_LEDC_CHANNEL3_PIN
 	range 0 48 if ARCH_CHIP_ESP32S3
 	range 0 46 if ARCH_CHIP_ESP32S2
 
-if PWM_MULTICHAN && PWM_NCHANNELS > 1
+if PWM_NCHANNELS > 1
 
 config ESPRESSIF_LEDC_CHANNEL4_PIN
 	int "Channel 4 pin"
@@ -366,7 +502,7 @@ config ESPRESSIF_LEDC_CHANNEL7_PIN
 	range 0 48 if ARCH_CHIP_ESP32S3
 	range 0 46 if ARCH_CHIP_ESP32S2
 
-endif # PWM_MULTICHAN && PWM_NCHANNELS > 1
+endif # PWM_NCHANNELS > 1
 
 endif # !ESP32_LEDC && !ESP32S2_LEDC && !ESP32S3_LEDC
 
@@ -379,7 +515,739 @@ config ESPRESSIF_BOOTLOADER_MCUBOOT
 	---help---
 		Enables the Espressif port of MCUboot to be used as 2nd stage bootloader.
 
+config ESPRESSIF_SECURE_FLASH_ENC_ENABLED
+	bool "Enable Flash Encryption on boot (READ DOCS FIRST)"
+	default n
+	depends on ESPRESSIF_BOOTLOADER_MCUBOOT
+	select ESPRESSIF_EFUSE
+	---help---
+		If this option is set, flash contents will be encrypted by the bootloader on first boot.
+
+		Note: After first boot, the system will be permanently encrypted. Re-flashing an encrypted
+		system is complicated and not always possible.
+
+		Read https://docs.espressif.com/projects/esp-idf/en/latest/security/flash-encryption.html
+		before enabling.
+
+if ESPRESSIF_SECURE_FLASH_ENC_ENABLED
+
+config ESPRESSIF_SECURE_FLASH_UART_BOOTLOADER_ALLOW_ENC
+	bool "Leave UART bootloader encryption enabled"
+	depends on ESPRESSIF_SECURE_FLASH_ENCRYPTION_MODE_DEVELOPMENT
+	default n
+	---help---
+		If not set (default), the bootloader will permanently disable UART bootloader encryption access on
+		first boot. If set, the UART bootloader will still be able to access hardware encryption.
+
+		It is recommended to only set this option in testing environments.
+
+config ESPRESSIF_SECURE_FLASH_UART_BOOTLOADER_ALLOW_DEC
+	bool "Leave UART bootloader decryption enabled"
+	default n
+	depends on ESPRESSIF_SECURE_FLASH_ENCRYPTION_MODE_DEVELOPMENT
+	---help---
+		If not set (default), the bootloader will permanently disable UART bootloader decryption access on
+		first boot. If set, the UART bootloader will still be able to access hardware decryption.
+
+		Only set this option in testing environments. Setting this option allows complete bypass of flash
+		encryption.
+
+config ESPRESSIF_SECURE_FLASH_UART_BOOTLOADER_ALLOW_CACHE
+	bool "Leave UART bootloader flash cache enabled"
+	default n
+	depends on ESPRESSIF_SECURE_FLASH_ENCRYPTION_MODE_DEVELOPMENT
+	---help---
+		If not set (default), the bootloader will permanently disable UART bootloader flash cache access on
+		first boot. If set, the UART bootloader will still be able to access the flash cache.
+
+		Only set this option in testing environments.
+
+choice ESPRESSIF_SECURE_FLASH_ENCRYPTION_MODE
+	bool "Enable usage mode"
+	default ESPRESSIF_SECURE_FLASH_ENCRYPTION_MODE_DEVELOPMENT
+	---help---
+		By default, Development mode is enabled which allows ROM download mode to perform Flash Encryption
+		operations (plaintext is sent to the device, and it encrypts it internally and writes ciphertext
+		to flash). This mode is not secure, it's possible for an attacker to write their own chosen plaintext
+		to flash.
+
+		Release mode should always be selected for production or manufacturing. Once enabled it's no longer
+		possible for the device in ROM Download Mode to use the Flash Encryption hardware.
+
+		Refer to the Flash Encryption section of the ESP-IDF Programmer's Guide for details:
+		https://docs.espressif.com/projects/esp-idf/en/latest/esp32/security/flash-encryption.html#flash-encryption-configuration
+
+config ESPRESSIF_SECURE_FLASH_ENCRYPTION_MODE_DEVELOPMENT
+	bool "Development (NOT SECURE)"
+	select ESPRESSIF_SECURE_FLASH_UART_BOOTLOADER_ALLOW_ENC
+
+config ESPRESSIF_SECURE_FLASH_ENCRYPTION_MODE_RELEASE
+	bool "Release"
+
+endchoice # ESPRESSIF_SECURE_FLASH_ENCRYPTION_MODE
+
+config ESPRESSIF_SECURE_FLASH_ENC_USE_HOST_KEY
+	bool "Require user provided encryption key for flash encryption"
+	default y
+	---help---
+		This option enables the requirement of a host generated flash encryption key.
+
+		If not selected, a random key will be generated by the bootloader on first boot.
+		In this case, the user will not have access to the key and will be unable to reuse it.
+
+if ESPRESSIF_SECURE_FLASH_ENC_USE_HOST_KEY
+
+config ESPRESSIF_SECURE_FLASH_ENC_HOST_KEY_NAME
+	string "Path to flash encryption key"
+	default "flash_enc_key.bin"
+	---help---
+		Path to the key file used to encrypt the flash.
+
+		This key is in a binary format and is generated by espsecure application.
+
+		Path is evaluated relative to the NuttX root directory.
+
+		You can generate a new signing key by running the following command:
+		$ espsecure.py generate_flash_encryption_key <key_name>
+
+endif # ESPRESSIF_SECURE_FLASH_ENC_USE_HOST_KEY
+
+config ESPRESSIF_SECURE_FLASH_ENC_FLASH_DEVICE_ENCRYPTED
+	bool "Device is already encrypted"
+	default n
+	depends on ESPRESSIF_SECURE_FLASH_ENCRYPTION_MODE_DEVELOPMENT
+	depends on !ESPRESSIF_EFUSE_VIRTUAL
+	---help---
+		Append --encrypt to esptool.py write_flash command.
+
+		This option is useful when the device already has a flash encryption key,
+		and the user wants to simply flash a new firmware to it, using the key already present.
+		If requires that the DEVELOPMENT mode is set, it is not possible to reflash
+		in RELEASE mode.
+
+endif # ESPRESSIF_SECURE_FLASH_ENC_ENABLED
+
 endmenu # Bootloader and Image Configuration
+
+menu "LP Core (Low-power core) Coprocessor Configuration"
+
+config ESPRESSIF_USE_ULP_RISCV_CORE
+	bool
+	depends on ARCH_CHIP_ESP32S3 || ARCH_CHIP_ESP32S2
+	default y if ARCH_CHIP_ESP32S2 && ESP32S2_ULP_COPROC_RESERVE_MEM > 0
+	default n
+
+endmenu # LP Core (Low-power core) Coprocessor Configuration
+
+menu "PM Configuration"
+
+config ESPRESSIF_AUTO_SLEEP
+	bool "Auto-sleep"
+	depends on !ARCH_CHIP_ESP32H2
+	default n
+	select PM
+	select ESPRESSIF_HR_TIMER
+	select ESP32_TICKLESS if ARCH_CHIP_ESP32
+	---help---
+		Enable Auto-sleep
+
+if PM
+
+config PM_EXT1_WAKEUP
+	bool "PM EXT1 Wakeup"
+	default n
+	---help---
+		Enable EXT1 wakeup functionality.
+		This allows the system to wake up from PM_STANDBY or PM_SLEEP
+		when a GPIO pin configured as an EXT1 wakeup source is triggered.
+
+menu "PM EXT1 Wakeup Sources"
+	depends on PM_EXT1_WAKEUP
+
+config PM_EXT1_WAKEUP_RTC_GPIO0
+	bool "RTC_GPIO0"
+	default n
+	---help---
+		Enable RTC GPIO0 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO1
+	bool "RTC_GPIO1"
+	default n
+	---help---
+		Enable RTC GPIO1 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO2
+	bool "RTC_GPIO2"
+	default n
+	---help---
+		Enable RTC GPIO2 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO3
+	bool "RTC_GPIO3"
+	default n
+	---help---
+		Enable RTC GPIO3 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO4
+	bool "RTC_GPIO4"
+	default n
+	---help---
+		Enable RTC GPIO4 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO5
+	bool "RTC_GPIO5"
+	default n
+	---help---
+		Enable RTC GPIO5 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO6
+	bool "RTC_GPIO6"
+	default n
+	---help---
+		Enable RTC GPIO6 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO7
+	bool "RTC_GPIO7"
+	default n
+	---help---
+		Enable RTC GPIO7 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO8
+	bool "RTC_GPIO8"
+	default n
+	---help---
+		Enable RTC GPIO8 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO9
+	bool "RTC_GPIO9"
+	default n
+	---help---
+		Enable RTC GPIO9 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO10
+	bool "RTC_GPIO10"
+	default n
+	---help---
+		Enable RTC GPIO10 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO11
+	bool "RTC_GPIO11"
+	default n
+	---help---
+		Enable RTC GPIO11 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO12
+	bool "RTC_GPIO12"
+	default n
+	---help---
+		Enable RTC GPIO12 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO13
+	bool "RTC_GPIO13"
+	default n
+	---help---
+		Enable RTC GPIO13 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO14
+	bool "RTC_GPIO14"
+	default n
+	---help---
+		Enable RTC GPIO14 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO15
+	bool "RTC_GPIO15"
+	default n
+	---help---
+		Enable RTC GPIO15 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO16
+	bool "RTC_GPIO16"
+	default n
+	---help---
+		Enable RTC GPIO16 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO17
+	bool "RTC_GPIO17"
+	default n
+	---help---
+		Enable RTC GPIO17 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO18
+	bool "RTC_GPIO18"
+	depends on ARCH_CHIP_ESP32S2 || ARCH_CHIP_ESP32S3
+	default n
+	---help---
+		Enable RTC GPIO18 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO19
+	bool "RTC_GPIO19"
+	depends on ARCH_CHIP_ESP32S2 || ARCH_CHIP_ESP32S3
+	default n
+	---help---
+		Enable RTC GPIO19 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO20
+	bool "RTC_GPIO20"
+	depends on ARCH_CHIP_ESP32S2 || ARCH_CHIP_ESP32S3
+	default n
+	---help---
+		Enable RTC GPIO20 as an EXT1 wakeup source.
+
+config PM_EXT1_WAKEUP_RTC_GPIO21
+	bool "RTC_GPIO21"
+	depends on ARCH_CHIP_ESP32S2 || ARCH_CHIP_ESP32S3
+	default n
+	---help---
+		Enable RTC GPIO20 as an EXT1 wakeup source.
+
+choice PM_EXT1_WAKEUP_TRIGGER_MODE
+	prompt "PM EXT1 Wakeup Trigger Mode"
+	default PM_EXT1_WAKEUP_TRIGGER_ANY_LOW
+
+config PM_EXT1_WAKEUP_TRIGGER_ANY_LOW
+	bool "Wake the chip when any of the selected GPIOs go low"
+
+config PM_EXT1_WAKEUP_TRIGGER_ANY_HIGH
+	bool "Wake the chip when any of the selected GPIOs go high"
+
+endchoice # PM_EXT1_WAKEUP_TRIGGER_MODE
+
+endmenu # PM_EXT1_WAKEUP_SOURCES
+
+config PM_EXT0_WAKEUP
+	bool "PM EXT0 Wakeup"
+	default n
+	---help---
+		Enable EXT0 wakeup functionality.
+		This allows the system to wake up from PM_STANDBY or PM_SLEEP
+		when a GPIO pin configured as an EXT0 wakeup source is triggered.
+
+menu "PM EXT0 Wakeup Sources"
+	depends on PM_EXT0_WAKEUP
+
+config PM_EXT0_WAKEUP_GPIO
+	int "EXT0 Wakeup GPIO"
+	depends on PM_EXT0_WAKEUP
+	default 0
+	range 0 17 if ARCH_CHIP_ESP32
+	range 0 21 if ARCH_CHIP_ESP32S2 ||  ARCH_CHIP_ESP32S3
+	---help---
+		GPIO to wake the device up from PM_STANDBY or PM_SLEEP using as EXT0 wakeup GPIO
+
+choice PM_EXT0_WAKEUP_TRIGGER_MODE
+	prompt "PM EXT0 Wakeup Trigger Mode"
+	default PM_EXT0_WAKEUP_TRIGGER_LOW
+
+config PM_EXT0_WAKEUP_TRIGGER_LOW
+	bool "Wake the chip when the selected GPIO go low"
+
+config PM_EXT0_WAKEUP_TRIGGER_HIGH
+	bool "Wake the chip when the selected GPIO go high"
+
+endchoice # PM_EXT0_WAKEUP_TRIGGER_MODE
+
+endmenu # PM_EXT0_WAKEUP_SOURCES
+
+config PM_ULP_WAKEUP
+	bool "PM ULP Wakeup"
+	depends on !ARCH_CHIP_ESP32
+	default n
+	---help---
+		Enable ULP coprocessor wakeup functionality.
+		This allows the system to wake up from PM_STANDBY or PM_SLEEP
+		when ULP app triggers HP core to wakeup with "ulp_lp_core_wakeup_main_processor"
+		call on ULP app.
+
+config PM_GPIO_WAKEUP
+	bool "PM GPIO Wakeup"
+	default n
+	---help---
+		Enable GPIO wakeup functionality.
+		This allows the system to wake up from PM_STANDBY
+		when a GPIO pin configured as wakeup source is triggered.
+
+menu "PM GPIO Wakeup Sources"
+	depends on PM_GPIO_WAKEUP
+
+config PM_GPIO_WAKEUP_GPIO0
+	bool "GPIO0"
+	default n
+	---help---
+		Enable GPIO0 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO1
+	bool "GPIO1"
+	default n
+	---help---
+		Enable GPIO1 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO2
+	bool "GPIO2"
+	default n
+	---help---
+		Enable GPIO2 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO3
+	bool "GPIO3"
+	default n
+	---help---
+		Enable GPIO3 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO4
+	bool "GPIO4"
+	default n
+	---help---
+		Enable GPIO4 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO5
+	bool "GPIO5"
+	default n
+	---help---
+		Enable GPIO5 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO6
+	bool "GPIO6"
+	default n
+	---help---
+		Enable GPIO6 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO7
+	bool "GPIO7"
+	default n
+	---help---
+		Enable GPIO7 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO8
+	bool "GPIO8"
+	default n
+	---help---
+		Enable GPIO8 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO9
+	bool "GPIO9"
+	default n
+	---help---
+		Enable GPIO9 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO10
+	bool "GPIO10"
+	default n
+	---help---
+		Enable GPIO10 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO11
+	bool "GPIO11"
+	default n
+	---help---
+		Enable GPIO11 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO12
+	bool "GPIO12"
+	default n
+	---help---
+		Enable GPIO12 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO13
+	bool "GPIO13"
+	default n
+	---help---
+		Enable GPIO13 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO14
+	bool "GPIO14"
+	default n
+	---help---
+		Enable GPIO14 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO15
+	bool "GPIO15"
+	default n
+	---help---
+		Enable GPIO15 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO16
+	bool "GPIO16"
+	default n
+	---help---
+		Enable GPIO16 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO17
+	bool "GPIO17"
+	default n
+	---help---
+		Enable GPIO17 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO18
+	bool "GPIO18"
+	default n
+	---help---
+		Enable GPIO18 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO19
+	bool "GPIO19"
+	default n
+	---help---
+		Enable GPIO19 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO20
+	bool "GPIO20"
+	default n
+	---help---
+		Enable GPIO20 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO21
+	bool "GPIO21"
+	default n
+	---help---
+		Enable GPIO21 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO22
+	bool "GPIO22"
+	default n
+	---help---
+		Enable GPIO22 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO23
+	bool "GPIO23"
+	default n
+	---help---
+		Enable GPIO23 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO24
+	bool "GPIO24"
+	default n
+	---help---
+		Enable GPIO24 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO25
+	bool "GPIO25"
+	default n
+	---help---
+		Enable GPIO25 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO26
+	bool "GPIO26"
+	default n
+	---help---
+		Enable GPIO26 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO27
+	bool "GPIO27"
+	default n
+	---help---
+		Enable GPIO27 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO28
+	bool "GPIO28"
+	default n
+	---help---
+		Enable GPIO28 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO29
+	bool "GPIO29"
+	default n
+	---help---
+		Enable GPIO29 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO30
+	bool "GPIO30"
+	default n
+	---help---
+		Enable GPIO30 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO31
+	bool "GPIO31"
+	default n
+	---help---
+		Enable GPIO31 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO32
+	bool "GPIO32"
+	default n
+	---help---
+		Enable GPIO32 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO33
+	bool "GPIO33"
+	default n
+	---help---
+		Enable GPIO33 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO34
+	bool "GPIO34"
+	default n
+	---help---
+		Enable GPIO34 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO35
+	bool "GPIO35"
+	default n
+	---help---
+		Enable GPIO35 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO36
+	bool "GPIO36"
+	default n
+	---help---
+		Enable GPIO36 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO37
+	bool "GPIO37"
+	default n
+	---help---
+		Enable GPIO37 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO38
+	bool "GPIO38"
+	default n
+	---help---
+		Enable GPIO38 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO39
+	bool "GPIO39"
+	default n
+	---help---
+		Enable GPIO39 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO40
+	bool "GPIO40"
+	depends on ARCH_CHIP_ESP32S2 || ARCH_CHIP_ESP32S3
+	default n
+	---help---
+		Enable GPIO40 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO41
+	bool "GPIO41"
+	depends on ARCH_CHIP_ESP32S2 || ARCH_CHIP_ESP32S3
+	default n
+	---help---
+		Enable GPIO41 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO42
+	bool "GPIO42"
+	depends on ARCH_CHIP_ESP32S2 || ARCH_CHIP_ESP32S3
+	default n
+	---help---
+		Enable GPIO42 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO43
+	bool "GPIO43"
+	depends on ARCH_CHIP_ESP32S2 || ARCH_CHIP_ESP32S3
+	default n
+	---help---
+		Enable GPIO43 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO44
+	bool "GPIO44"
+	depends on ARCH_CHIP_ESP32S2 || ARCH_CHIP_ESP32S3
+	default n
+	---help---
+		Enable GPIO44 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO45
+	bool "GPIO45"
+	depends on ARCH_CHIP_ESP32S2 || ARCH_CHIP_ESP32S3
+	default n
+	---help---
+		Enable GPIO45 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO46
+	bool "GPIO46"
+	depends on ARCH_CHIP_ESP32S2 || ARCH_CHIP_ESP32S3
+	default n
+	---help---
+		Enable GPIO46 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO47
+	bool "GPIO47"
+	depends on ARCH_CHIP_ESP32S3
+	default n
+	---help---
+		Enable GPIO47 as an GPIO wakeup source.
+
+config PM_GPIO_WAKEUP_GPIO48
+	bool "GPIO48"
+	depends on ARCH_CHIP_ESP32S3
+	default n
+	---help---
+		Enable GPIO48 as an GPIO wakeup source.
+
+choice PM_GPIO_WAKEUP_TRIGGER_MODE
+	prompt "PM GPIO Wakeup Trigger Mode"
+	default PM_GPIO_WAKEUP_TRIGGER_ANY_LOW
+
+config PM_GPIO_WAKEUP_TRIGGER_ANY_LOW
+	bool "Wake the chip when any of the selected GPIOs go low"
+
+config PM_GPIO_WAKEUP_TRIGGER_ANY_HIGH
+	bool "Wake the chip when any of the selected GPIOs go high"
+
+endchoice # PM_GPIO_WAKEUP_TRIGGER_MODE
+
+endmenu # PM_GPIO_WAKEUP_SOURCES
+
+config PM_UART_WAKEUP
+	bool "PM UART Wakeup"
+	depends on ESP32_UART0 || ESP32_UART1 || ESP32S3_UART0 || ESP32S3_UART1
+	default n
+	---help---
+		Enable UART wakeup functionality.
+		This allows the system to wake up from PM_STANDBY
+		when a UART configured as an UART wakeup source is triggered.
+
+menu "PM UART Wakeup Sources"
+	depends on PM_UART_WAKEUP
+
+choice PM_UART_WAKEUP_UART_NUM
+	prompt "PM UART Wakeup UART Number"
+	default PM_UART_WAKEUP_UART0 if ESP32_UART0
+	default PM_UART_WAKEUP_UART1 if ESP32_UART1
+	default PM_UART_WAKEUP_UART0 if ESP32S3_UART0
+	default PM_UART_WAKEUP_UART1 if ESP32S3_UART1
+
+config PM_UART_WAKEUP_UART0
+	depends on ESP32_UART0 || ESP32S3_UART0
+	bool "Wake the chip up when UART0 gets a data"
+
+config PM_UART_WAKEUP_UART1
+	depends on ESP32_UART1 || ESP32S3_UART1
+	bool "Wake the chip up when UART1 gets a data"
+
+endchoice # PM_UART_WAKEUP_UART_NUM
+
+config PM_UART_WAKEUP_ACTIVE_EDGE_THRESHOLD
+	int "Number of RXD edge changes to to trigger wake-up"
+	default 3
+
+endmenu # PM UART Wakeup Sources
+
+config PM_ALARM_SEC
+	int "PM_STANDBY delay (seconds)"
+	default 15
+	---help---
+		Number of seconds to wait in PM_STANDBY mode.
+
+config PM_ALARM_NSEC
+	int "PM_STANDBY delay (nanoseconds)"
+	default 0
+	---help---
+		Number of additional nanoseconds to wait in PM_STANDBY mode.
+
+config PM_SLEEP_WAKEUP_SEC
+	int "PM_SLEEP delay (seconds)"
+	default 20
+	---help---
+		Number of seconds to wait in PM_SLEEP.
+
+config PM_SLEEP_WAKEUP_NSEC
+	int "PM_SLEEP delay (nanoseconds)"
+	default 0
+	---help---
+		Number of additional nanoseconds to wait in PM_SLEEP.
+
+endif # PM
+
+endmenu # PM Configuration
 
 menu "Pulse Counter (PCNT) Configuration"
 	depends on ESP_PCNT
@@ -1105,7 +1973,7 @@ comment "Application Image OTA Update support"
 
 config ESPRESSIF_OTA_PRIMARY_SLOT_OFFSET
 	hex "Application image primary slot offset"
-	default 0x10000
+	default 0x20000
 
 config ESPRESSIF_OTA_PRIMARY_SLOT_DEVPATH
 	string "Application image primary slot device path"
@@ -1113,7 +1981,7 @@ config ESPRESSIF_OTA_PRIMARY_SLOT_DEVPATH
 
 config ESPRESSIF_OTA_SECONDARY_SLOT_OFFSET
 	hex "Application image secondary slot offset"
-	default 0x110000
+	default 0x120000
 
 config ESPRESSIF_OTA_SECONDARY_SLOT_DEVPATH
 	string "Application image secondary slot device path"
@@ -1125,7 +1993,7 @@ config ESPRESSIF_OTA_SLOT_SIZE
 
 config ESPRESSIF_OTA_SCRATCH_OFFSET
 	hex "Scratch partition offset"
-	default 0x210000
+	default 0x220000
 
 config ESPRESSIF_OTA_SCRATCH_SIZE
 	hex "Scratch partition size"
@@ -1139,7 +2007,7 @@ endif
 
 if ESPRESSIF_SPIFLASH
 
-comment "General storage MTD configuration"
+comment "User Storage MTD Configuration"
 
 config ESPRESSIF_MTD
 	bool "MTD driver"
@@ -1147,9 +2015,12 @@ config ESPRESSIF_MTD
 	select MTD
 	select MTD_BYTE_WRITE
 	select MTD_PARTITION
+	depends on !ESP32_PARTITION_TABLE && !ESP32S3_PARTITION_TABLE && !ESP32S3_SPIRAM
 	---help---
 		Initialize an MTD driver for the ESP32-S2 SPI Flash, which will
 		add an entry at /dev for application access from userspace.
+		When using partition table on SPIRAM, legacy drivers for SPI Flash
+		used instead, making this option not available.
 
 config ESPRESSIF_SPIFLASH_MTD_BLKSIZE
 	int "Storage MTD block size"
@@ -1163,6 +2034,25 @@ config ESPRESSIF_STORAGE_MTD_DEBUG
 	---help---
 		If this option is enabled, Storage MTD driver read and write functions
 		will output input parameters and return values (if applicable).
+
+if ARCH_CHIP_ESP32S2
+
+config ESPRESSIF_STORAGE_MTD_OFFSET
+	hex "Storage MTD base address in SPI Flash"
+	default 0x180000 if !ESPRESSIF_BOOTLOADER_MCUBOOT
+	default 0x260000 if ESPRESSIF_BOOTLOADER_MCUBOOT
+	depends on ESPRESSIF_MTD
+	---help---
+		MTD base address in SPI Flash.
+
+config ESPRESSIF_STORAGE_MTD_SIZE
+	hex "Storage MTD size in SPI Flash"
+	default 0x100000
+	depends on ESPRESSIF_MTD
+	---help---
+		MTD size in SPI Flash.
+
+endif # ARCH_CHIP_ESP32S2
 
 endif # ESPRESSIF_SPIFLASH
 
@@ -1631,3 +2521,12 @@ config ESPRESSIF_BLE_INTERRUPT_SAVE_STATUS
 		Number of interrupt save status variables to keep track. Increase it if any related bug is found.
 
 endmenu # BLE Configuration
+
+config ESPRESSIF_HR_TIMER
+	bool
+	default RTC_DRIVER
+	---help---
+		A high-resolution hardware timer for supporting the management of
+		kernel events.
+		The HR Timer is built on top of the System Timer (SYSTIMER) peripheral.
+		Timer callbacks are dispatched from a high-priority kernel task.

@@ -25,12 +25,28 @@ config K210_UART0
 	select ARCH_HAVE_SERIAL_TERMIOS
 	select K210_UART
 
-endmenu
+config K210_WDT
+	bool
+	select WATCHDOG
 
-menu "K210 Others"
-
-config K210_WITH_QEMU
-	bool "qemu support"
+config K210_WDT0
+	bool "WDT0"
 	default n
+	select K210_WDT
+
+config K210_WDT1
+	bool "WDT1"
+	default n
+	select K210_WDT
 
 endmenu
+
+config K210_CPU_FREQ
+	int "K210 CPU target frequency (Hz)"
+	default 400000000
+	range 40000000 600000000
+	depends on ARCH_CHIP_K210
+	---help---
+		Set the K210 CPU target frequency in Hz.
+		Default is 400000000 (400 MHz).
+		Valid range: 40000000-600000000 Hz (40-600 MHz).

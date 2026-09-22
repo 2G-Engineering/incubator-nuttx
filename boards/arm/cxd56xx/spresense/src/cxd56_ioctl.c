@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/arch.h>
@@ -85,7 +85,6 @@ int board_ioctl(unsigned int cmd, uintptr_t arg)
        *                and supply current value.
        * ARG:           None
        * CONFIGURATION: CONFIG_BOARDCTL
-       * DEPENDENCIES:  Board logic must provide board_app_initialization
        */
 
       case BOARDIOC_USBDEV_SETNOTIFYSIG:

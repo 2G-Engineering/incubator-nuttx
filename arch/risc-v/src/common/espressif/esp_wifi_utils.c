@@ -28,14 +28,13 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <netinet/arp.h>
 #include <sys/param.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/wireless/wireless.h>
 
-#include "esp_timer.h"
 #include "esp_wifi_utils.h"
 #include "esp_wlan_netdev.h"
 

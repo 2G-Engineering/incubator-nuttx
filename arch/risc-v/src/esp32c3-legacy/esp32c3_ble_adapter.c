@@ -30,7 +30,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <pthread.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -1399,7 +1399,7 @@ static uint32_t IRAM_ATTR btdm_lpcycles_2_hus(uint32_t cycles,
 static uint32_t IRAM_ATTR btdm_hus_2_lpcycles(uint32_t us)
 {
   uint64_t cycles;
-  cycles = ((uint64_t)(us) << g_btdm_lpcycle_us_frac) / g_btdm_lpcycle_us;
+  cycles = ((uint64_t)us << g_btdm_lpcycle_us_frac) / g_btdm_lpcycle_us;
   return (uint32_t)cycles;
 }
 
@@ -2209,7 +2209,7 @@ int esp32c3_bt_controller_disable(void)
 
   while (!btdm_power_state_active())
     {
-      nxsig_usleep(1000); /* wait */
+      nxsched_usleep(1000); /* wait */
     }
 
   btdm_controller_disable();

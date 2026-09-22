@@ -55,8 +55,8 @@ controls the LEDs:
     LED_IRQSENABLED      Interrupts enabled       OFF      OFF
     LED_STACKCREATED     Idle stack created       ON       OFF
     LED_INIRQ            In an interrupt          N/C      ON
-    LED_SIGNAL           In a signal handler      N/C      N/C 
-    LED_ASSERTION        An assertion failed      N/C      N/C 
+    LED_SIGNAL           In a signal handler      N/C      N/C
+    LED_ASSERTION        An assertion failed      N/C      N/C
     LED_PANIC            The system has crashed   OFF      Blinking
     LED_IDLE             STM32 is is sleep mode   N/U      N/U
     ===================  =======================  ======== ========
@@ -79,7 +79,7 @@ Using JTAG
 
 The Clicker2 comes with the mikroBootloader installed.  That bootloader
 has not been used and is possibly incompatible with the Clicker2-STM32
-linker script at boards/arm/stm32/clicker2-stm32/scripts/flash.ld.  Often code must
+linker script at boards/arm/stm32f4/clicker2-stm32/scripts/flash.ld.  Often code must
 be built to execute at an offset in to FLASH when a bootloader is used.
 Certainly that is the case for the ST-Micro DFU bootloader but I am not
 aware of the requirements for use with the mikroBootloader.
@@ -362,8 +362,6 @@ summarized below:
 7. Initialization hooks are provided to enable the MRF24J40 and to
        register the radio character driver.
 
-         CONFIG_NSH_ARCHINIT=y
-
 8. Configuration instructions:  WPAN configuration must be performed
        using the i8sak program.  Detailed instructions are provided in a
        README.txt file at apps/wireless/ieee802154/i8sak.  You should make
@@ -527,7 +525,7 @@ NOTES:
          nsh> telnetd
 
    Note the 'ifconfig' is executed to get the IP address of the node.
-   This is necessary because the IP address is assigned by the the
+   This is necessary because the IP address is assigned by the
    Coordinator and may not be known a priori.
 
 10. This configuration also includes the Telnet client program.  This
@@ -776,7 +774,6 @@ NOTES:
          CONFIG_USBDEV_TRACE=y            : Enable USB trace feature
          CONFIG_USBDEV_TRACE_NRECORDS=128 : Buffer 128 records in memory
          CONFIG_NSH_USBDEV_TRACE=n        : No builtin tracing from NSH
-         CONFIG_NSH_ARCHINIT=y            : Automatically start the USB monitor
          CONFIG_USBMONITOR=y              : Enable the USB monitor daemon
          CONFIG_USBMONITOR_STACKSIZE=2048 : USB monitor daemon stack size
          CONFIG_USBMONITOR_PRIORITY=50    : USB monitor daemon priority

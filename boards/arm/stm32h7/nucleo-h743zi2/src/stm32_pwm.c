@@ -28,7 +28,7 @@
 #include <sys/types.h>
 
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/timers/pwm.h>
 #include <arch/board/board.h>
@@ -84,7 +84,7 @@ int stm32_pwm_setup(void)
 
       /* Register the PWM driver at "/dev/pwm0" */
 
- #if defined(CONFIG_STM32H7_TIM1_PWM)
+ #if defined(CONFIG_STM32_TIM1_PWM)
       ret = pwm_register("/dev/pwm0", pwm);
       if (ret < 0)
         {
@@ -93,7 +93,7 @@ int stm32_pwm_setup(void)
         }
 #endif
 
-#if defined(CONFIG_STM32H7_TIM3_PWM)
+#if defined(CONFIG_STM32_TIM3_PWM)
       ret = pwm_register("/dev/pwm2", pwm);
       if (ret < 0)
         {

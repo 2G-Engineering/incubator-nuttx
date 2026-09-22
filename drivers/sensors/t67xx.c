@@ -20,6 +20,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -28,7 +41,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 #include <time.h>
 
@@ -393,12 +406,12 @@ static bool has_time_passed(struct timespec curr,
                             struct timespec start,
                             unsigned int secs_since_start)
 {
-  if ((long)((start.tv_sec + secs_since_start) - curr.tv_sec) == 0)
+  if ((start.tv_sec + secs_since_start) - curr.tv_sec == 0)
     {
       return start.tv_nsec <= curr.tv_nsec;
     }
 
-  return (long)((start.tv_sec + secs_since_start) - curr.tv_sec) <= 0;
+  return (start.tv_sec + secs_since_start) - curr.tv_sec <= 0;
 }
 
 /****************************************************************************

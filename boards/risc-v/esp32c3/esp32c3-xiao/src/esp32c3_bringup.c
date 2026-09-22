@@ -26,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <fcntl.h>
 #include <syslog.h>
 #include <sys/ioctl.h>
@@ -41,12 +41,14 @@
 #include "esp_board_i2c.h"
 #include "esp_board_bmp180.h"
 
+#include "espressif/esp_start.h"
+
 #ifdef CONFIG_WATCHDOG
 #  include "espressif/esp_wdt.h"
 #endif
 
 #ifdef CONFIG_TIMER
-#  include "espressif/esp_timer.h"
+#  include "espressif/esp_gptimer.h"
 #endif
 
 #ifdef CONFIG_ONESHOT
@@ -124,9 +126,6 @@
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=y && CONFIG_BOARDCTL=y :
- *     Called from the NSH library via board_app_initialize().
  *
  * Input Parameters:
  *   None.
@@ -304,13 +303,13 @@ int esp_bringup(void)
 #endif
 
 #ifdef CONFIG_ESP_RMT
-  ret = board_rmt_txinitialize(RMT_TXCHANNEL, RMT_OUTPUT_PIN);
+  ret = board_rmt_txinitialize(RMT_OUTPUT_PIN);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: board_rmt_txinitialize() failed: %d\n", ret);
     }
 
-  ret = board_rmt_rxinitialize(RMT_RXCHANNEL, RMT_INPUT_PIN);
+  ret = board_rmt_rxinitialize(RMT_INPUT_PIN);
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: board_rmt_txinitialize() failed: %d\n", ret);

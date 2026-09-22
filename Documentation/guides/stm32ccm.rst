@@ -34,7 +34,7 @@ This memory allocator is automatically enabled when the following options are se
 * ``CONFIG_MM_MULTIHEAP`` Support for multiple heaps is enabled.
 
 Under those conditions, the CCM memory allocator is enabled and the allocator
-interfaces prototyped in the ``arch/arm/src/stm32/stm32_ccm.h`` are available.
+interfaces prototyped in the ``arch/arm/src/common/stm32/stm32_ccm.h`` are available.
 
 NOTE: These interfaces are, technically, not prototyped since they are really
 provided via C pre-processor macros.
@@ -43,7 +43,7 @@ NOTE: In order to use the CCM memory allocator functions, you must first call
 ``ccm_initialize()`` somewhere in your early boot-up logic.
 
 With these interfaces you have a (nearly) standard way to manage memory from a
-heap that consists of the the CCM SRAM. And, since the CCM memory is no longer
+heap that consists of the CCM SRAM. And, since the CCM memory is no longer
 a part of the normal heap, all allocated I/O buffers will be DMA-able (unless you
 have included other non-DMA-able memory regions in the stack).
 

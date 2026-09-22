@@ -33,7 +33,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -308,7 +308,7 @@ static void at25_waitwritecomplete(struct at25_dev_s *priv)
       if ((status & AT25_SR_BUSY) != 0)
         {
           at25_unlock(priv->dev);
-          nxsig_usleep(10000);
+          nxsched_usleep(10000);
           at25_lock(priv->dev);
         }
     }

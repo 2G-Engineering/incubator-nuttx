@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/input/buttons.h>
 #include <nuttx/i2c/i2c_master.h>
@@ -45,7 +45,7 @@
  ****************************************************************************/
 
 #undef HAVE_I2C_DRIVER
-#if defined(CONFIG_STM32L4_I2C1) && defined(CONFIG_I2C_DRIVER)
+#if defined(CONFIG_STM32_I2C1) && defined(CONFIG_I2C_DRIVER)
 #  define HAVE_I2C_DRIVER 1
 #endif
 
@@ -61,9 +61,6 @@
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
  *
  ****************************************************************************/
 
@@ -105,7 +102,7 @@ int stm32_bringup(void)
 #ifdef HAVE_I2C_DRIVER
   /* Get the I2C lower half instance */
 
-  i2c = stm32l4_i2cbus_initialize(1);
+  i2c = stm32_i2cbus_initialize(1);
   if (i2c == NULL)
     {
       i2cerr("ERROR: Initialize I2C1: %d\n", ret);
@@ -125,13 +122,13 @@ int stm32_bringup(void)
 #ifdef CONFIG_DAC
   ainfo("Initializing DAC\n");
 
-  stm32l4_dac_setup();
+  stm32_dac_setup();
 #endif
 
 #ifdef CONFIG_ADC
   ainfo("Initializing ADC\n");
 
-  stm32l4_adc_setup();
+  stm32_adc_setup();
 #endif
 
   UNUSED(ret);

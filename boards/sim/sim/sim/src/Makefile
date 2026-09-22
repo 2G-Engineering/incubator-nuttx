@@ -30,10 +30,6 @@ ifeq ($(CONFIG_BOARD_LATE_INITIALIZE),y)
   CSRCS += sim_boot.c
 endif
 
-ifeq ($(CONFIG_BOARDCTL),y)
-  CSRCS += sim_appinit.c
-endif
-
 ifeq ($(CONFIG_BOARD_LATE_INITIALIZE),y)
   CSRCS += sim_bringup.c
 ifeq ($(CONFIG_LIBC_ZONEINFO_ROMFS),y)
@@ -56,7 +52,7 @@ endif
 
 ifeq ($(CONFIG_ETC_ROMFS),y)
   RCSRCS = etc/init.d/rc.sysinit etc/init.d/rcS
-  RCRAWS = etc/group etc/passwd
+  RCRAWS = etc/group
 endif
 
 ifeq ($(CONFIG_ARCH_BUTTONS),y)

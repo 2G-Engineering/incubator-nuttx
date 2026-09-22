@@ -31,7 +31,7 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "arm_internal.h"
 #include "hardware/rp23xx_sio.h"
@@ -47,6 +47,10 @@
 #else
 #define RP23XX_GPIO_NUM    30       /* Number of GPIO pins */
 #endif
+
+/* Number of GPIO interrupt status registers */
+
+#define RP23XX_GPIO_NREGS  ((RP23XX_GPIO_NUM + 7) / 8)
 
 /* GPIO function types ******************************************************/
 

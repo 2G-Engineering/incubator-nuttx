@@ -80,8 +80,8 @@ static void optee_rpc_cmd_get_time(FAR struct optee_msg_arg *arg)
       return;
     }
 
-  arg->params[0].u.value.a = (uint32_t)ts.tv_sec;   /* Seconds since epoch. */
-  arg->params[0].u.value.b = (uint32_t)ts.tv_nsec;  /* Nanoseconds.         */
+  arg->params[0].u.value.a = ts.tv_sec;  /* Seconds since epoch. */
+  arg->params[0].u.value.b = ts.tv_nsec; /* Nanoseconds.         */
 
   arg->ret = TEE_SUCCESS;
 }
@@ -119,13 +119,7 @@ static void optee_rpc_cmd_suspend(FAR struct optee_msg_arg *arg)
 
   if (usec_to_wait)
     {
-      int ret = nxsig_usleep(usec_to_wait);
-
-      if (ret < 0 && ret != -EINTR)
-        {
-            arg->ret = TEE_ERROR_GENERIC;
-            return;
-        }
+      nxsched_usleep(usec_to_wait);
     }
 
   arg->ret = TEE_SUCCESS;

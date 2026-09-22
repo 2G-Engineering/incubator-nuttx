@@ -20,17 +20,51 @@
 #
 # ##############################################################################
 
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+  set(SIM_HOST_LINUX true)
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+  set(SIM_HOST_MACOS true)
+endif()
+
+if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
+  set(SIM_HOST_X86_64 true)
+elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(i[3-6]86|x86)$")
+  set(SIM_HOST_X86_32 true)
+elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+  set(SIM_HOST_ARM64 true)
+elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(arm|armv[0-9].*)$")
+  set(SIM_HOST_ARM true)
+endif()
+
+if(APPLE AND CONFIG_SIM_TOOLCHAIN_GCC)
+  if(SIM_HOST_ARM64)
+    find_program(CMAKE_C_ELF_COMPILER aarch64-elf-gcc)
+    find_program(CMAKE_CXX_ELF_COMPILER aarch64-elf-g++)
+  else()
+    find_program(CMAKE_C_ELF_COMPILER x86_64-elf-gcc)
+    find_program(CMAKE_CXX_ELF_COMPILER x86_64-elf-g++)
+  endif()
+endif()
+
+# Ninja archives large object lists through response files. Use LLVM binutils
+# because macOS /usr/bin/ar does not understand the @rsp syntax.
 if(APPLE)
-  find_program(CMAKE_C_ELF_COMPILER x86_64-elf-gcc)
-  find_program(CMAKE_CXX_ELF_COMPILER x86_64-elf-g++)
+  find_program(CMAKE_AR NAMES llvm-ar REQUIRED)
+  find_program(CMAKE_RANLIB NAMES llvm-ranlib REQUIRED)
 endif()
 
 if(WIN32)
   return()
 endif()
 
+if(SIM_HOST_LINUX)
+  set(CMAKE_LD ld)
+  set(CMAKE_PREPROCESSOR cc -E -P -x c)
+  set(CMAKE_STRIP strip --strip-unneeded)
+endif()
+
 # LLVM style architecture flags
-if(CONFIG_HOST_X86_64)
+if(SIM_HOST_X86_64)
   if(CONFIG_SIM_M32)
     set(LLVM_ARCHTYPE "x86")
     set(LLVM_CPUTYPE "i686")
@@ -38,18 +72,18 @@ if(CONFIG_HOST_X86_64)
     set(LLVM_ARCHTYPE "x86_64")
     set(LLVM_CPUTYPE "skylake")
   endif()
-elseif(CONFIG_HOST_X86_32)
+elseif(SIM_HOST_X86_32)
   set(LLVM_ARCHTYPE "x86")
   set(LLVM_CPUTYPE "i686")
-elseif(CONFIG_HOST_ARM64)
+elseif(SIM_HOST_ARM64)
   set(LLVM_ARCHTYPE "aarch64")
   set(LLVM_CPUTYPE "cortex-a53")
-elseif(CONFIG_HOST_ARM)
+elseif(SIM_HOST_ARM)
   set(LLVM_ARCHTYPE "arm")
   set(LLVM_CPUTYPE "cortex-a9")
 endif()
 
-if(CONFIG_HOST_LINUX OR CONFIG_HOST_MACOS)
+if(SIM_HOST_LINUX OR SIM_HOST_MACOS)
   set(LLVM_ABITYPE "sysv")
 elseif(WIN32)
   set(LLVM_ABITYPE "msvc")
@@ -103,7 +137,7 @@ else()
 endif()
 
 if(CONFIG_STACK_CANARIES)
-  add_compile_options(-fstack-protector-all)
+  add_compile_options(${CONFIG_STACK_CANARIES_LEVEL})
 endif()
 
 if(CONFIG_STACK_USAGE)
@@ -115,7 +149,12 @@ if(CONFIG_STACK_USAGE_WARNING)
 endif()
 
 if(CONFIG_COVERAGE_ALL)
-  add_compile_options(-fprofile-arcs -ftest-coverage -fno-inline)
+  if(CONFIG_ARCH_TOOLCHAIN_GCC)
+    add_compile_options(-fprofile-arcs -ftest-coverage -fno-inline)
+  elseif(CONFIG_ARCH_TOOLCHAIN_CLANG)
+    add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
+    add_link_options(-fprofile-instr-generate)
+  endif()
 endif()
 
 if(CONFIG_PROFILE_ALL OR CONFIG_SIM_PROFILE)
@@ -207,7 +246,14 @@ endif()
 if(CONFIG_SIM_M32)
   add_compile_options(-m32)
   add_link_options(-m32)
-elseif(NOT APPLE)
+elseif(NOT APPLE AND NOT SIM_HOST_ARM64)
+  # To compile 64-bit Sim, adding no-pie is necessary to prevent linking errors
+  # but this may cause other issues on Ubuntu 20.
+  #
+  # NOTE: HOST_ARM64 is also excluded -- Ubuntu/Debian arm64 toolchains ship
+  # only libgcc_s.so.1 (no libgcc_s.a), and -no-pie forces gcc to look for the
+  # static archive; skipping it lets gcc use the default PIE link path which
+  # works correctly on aarch64 hosts.
   add_compile_options(-no-pie)
   add_link_options(-Wl,-no-pie)
 endif()
@@ -220,6 +266,10 @@ if(CONFIG_LIBCXX)
   add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-D_LIBCPP_DISABLE_AVAILABILITY>)
 endif()
 
+if(CONFIG_LIBCXX_TEST)
+  add_link_options(-Wl,-latomic)
+endif()
+
 if(APPLE)
   add_link_options(-Wl,-dead_strip)
 else()
@@ -227,6 +277,6 @@ else()
   add_link_options(-Wl,-Ttext-segment=0x40000000)
 endif()
 
-if(CONFIG_HOST_LINUX)
+if(SIM_HOST_LINUX)
   add_link_options(-Wl,-z,noexecstack)
 endif()

@@ -25,7 +25,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -57,8 +57,6 @@ struct esp32s3_oneshot_lowerhalf_s
 
   struct oneshot_lowerhalf_s lh;    /* Lower-half instance */
   struct esp32s3_oneshot_s oneshot; /* ESP32-S3-specific oneshot state */
-  oneshot_callback_t callback;      /* Upper-half Interrupt callback */
-  void *arg;                        /* Argument passed to handler */
   uint16_t resolution;              /* Timer's resolution in microseconds */
   spinlock_t lock;                  /* Device-specific lock */
 };
@@ -74,8 +72,6 @@ static void oneshot_lh_handler(void *arg);
 static int oneshot_lh_max_delay(struct oneshot_lowerhalf_s *lower,
                                 struct timespec *ts);
 static int oneshot_lh_start(struct oneshot_lowerhalf_s *lower,
-                            oneshot_callback_t callback,
-                            void *arg,
                             const struct timespec *ts);
 static int oneshot_lh_cancel(struct oneshot_lowerhalf_s *lower,
                              struct timespec *ts);
@@ -116,11 +112,8 @@ static void oneshot_lh_handler(void *arg)
 {
   struct esp32s3_oneshot_lowerhalf_s *priv =
     (struct esp32s3_oneshot_lowerhalf_s *)arg;
-  oneshot_callback_t callback;
-  void *cb_arg;
 
   DEBUGASSERT(priv != NULL);
-  DEBUGASSERT(priv->callback != NULL);
 
   tmrinfo("Oneshot LH handler triggered\n");
 
@@ -128,14 +121,7 @@ static void oneshot_lh_handler(void *arg)
    * restarts the oneshot).
    */
 
-  callback       = priv->callback;
-  cb_arg         = priv->arg;
-  priv->callback = NULL;
-  priv->arg      = NULL;
-
-  /* Then perform the callback */
-
-  callback(&priv->lh, cb_arg);
+  oneshot_process_callback(&priv->lh);
 }
 
 /****************************************************************************
@@ -169,7 +155,7 @@ static int oneshot_lh_max_delay(struct oneshot_lowerhalf_s *lower,
   ts->tv_sec  = UINT32_MAX;
   ts->tv_nsec = NSEC_PER_SEC - 1;
 
-  tmrinfo("max sec=%" PRIu32 "\n", ts->tv_sec);
+  tmrinfo("max sec=%jd\n", (intmax_t)ts->tv_sec);
   tmrinfo("max nsec=%ld\n", ts->tv_nsec);
 
   return OK;
@@ -197,8 +183,6 @@ static int oneshot_lh_max_delay(struct oneshot_lowerhalf_s *lower,
  ****************************************************************************/
 
 static int oneshot_lh_start(struct oneshot_lowerhalf_s *lower,
-                            oneshot_callback_t callback,
-                            void *arg,
                             const struct timespec *ts)
 {
   struct esp32s3_oneshot_lowerhalf_s *priv =
@@ -207,16 +191,13 @@ static int oneshot_lh_start(struct oneshot_lowerhalf_s *lower,
   irqstate_t flags;
 
   DEBUGASSERT(priv != NULL);
-  DEBUGASSERT(callback != NULL);
   DEBUGASSERT(ts != NULL);
 
   /* Save the callback information and start the timer */
 
-  flags          = spin_lock_irqsave(&priv->lock);
-  priv->callback = callback;
-  priv->arg      = arg;
-  ret            = esp32s3_oneshot_start(&priv->oneshot, oneshot_lh_handler,
-                                         priv, ts);
+  flags = spin_lock_irqsave(&priv->lock);
+  ret   = esp32s3_oneshot_start(&priv->oneshot, oneshot_lh_handler,
+                                priv, ts);
   spin_unlock_irqrestore(&priv->lock, flags);
 
   if (ret < 0)
@@ -263,10 +244,8 @@ static int oneshot_lh_cancel(struct oneshot_lowerhalf_s *lower,
 
   /* Cancel the timer */
 
-  flags          = spin_lock_irqsave(&priv->lock);
-  ret            = esp32s3_oneshot_cancel(&priv->oneshot, ts);
-  priv->callback = NULL;
-  priv->arg      = NULL;
+  flags = spin_lock_irqsave(&priv->lock);
+  ret   = esp32s3_oneshot_cancel(&priv->oneshot, ts);
   spin_unlock_irqrestore(&priv->lock, flags);
 
   if (ret < 0)
@@ -352,8 +331,6 @@ struct oneshot_lowerhalf_s *oneshot_initialize(int chan, uint16_t resolution)
     }
 
   priv->lh.ops     = &g_esp32s3_timer_ops; /* Pointer to the LH operations */
-  priv->callback   = NULL;                 /* No callback yet */
-  priv->arg        = NULL;                 /* No arg yet */
   priv->resolution = resolution;           /* Configured resolution */
 
   /* Initialize esp32s3_oneshot_s structure */

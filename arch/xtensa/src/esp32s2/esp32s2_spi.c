@@ -27,7 +27,7 @@
 #ifdef CONFIG_ESP32S2_SPI
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <sys/param.h>
 #include <sys/types.h>
 #include <inttypes.h>
@@ -46,8 +46,8 @@
 #include <arch/board/board.h>
 
 #include "esp32s2_spi.h"
-#include "esp32s2_irq.h"
-#include "esp32s2_gpio.h"
+#include "espressif/esp_irq.h"
+#include "espressif/esp_gpio.h"
 
 #if defined(CONFIG_ESP32S2_SPI2_DMA) || defined(CONFIG_ESP32S2_SPI3_DMA)
 #include "esp32s2_dma.h"
@@ -59,10 +59,16 @@
 #include "hardware/esp32s2_spi.h"
 #include "hardware/esp32s2_soc.h"
 #include "hardware/esp32s2_system.h"
+#include "soc/spi_reg.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+#define SPI_INT_EN  SPI_INT_RD_BUF_DONE_EN | SPI_INT_WR_BUF_DONE_EN |  \
+                    SPI_INT_RD_DMA_DONE_EN | SPI_INT_WR_DMA_DONE_EN |  \
+                    SPI_INT_TRANS_DONE_EN | SPI_INT_DMA_SEG_TRANS_EN | \
+                    SPI_SEG_MAGIC_ERR_INT_EN
 
 /* Check if Chip-Select pin will be controlled via software */
 
@@ -400,14 +406,14 @@ static const struct esp32s2_spi_config_s esp32s2_spi3_config =
   .dma_clk_bit  = SYSTEM_SPI3_DMA_CLK_EN,
   .dma_rst_bit  = SYSTEM_SPI3_DMA_RST,
 #endif
-  .cs_insig     = FSPICS0_IN_IDX,
-  .cs_outsig    = FSPICS0_OUT_IDX,
-  .mosi_insig   = FSPID_IN_IDX,
-  .mosi_outsig  = FSPID_OUT_IDX,
-  .miso_insig   = FSPIQ_IN_IDX,
-  .miso_outsig  = FSPIQ_OUT_IDX,
-  .clk_insig    = FSPICLK_IN_IDX,
-  .clk_outsig   = FSPICLK_OUT_IDX
+  .cs_insig     = SPI3_CS0_IN_IDX,
+  .cs_outsig    = SPI3_CS0_OUT_IDX,
+  .mosi_insig   = SPI3_D_IN_IDX,
+  .mosi_outsig  = SPI3_D_OUT_IDX,
+  .miso_insig   = SPI3_Q_IN_IDX,
+  .miso_outsig  = SPI3_Q_OUT_IDX,
+  .clk_insig    = SPI3_CLK_IN_IDX,
+  .clk_outsig   = SPI3_CLK_OUT_MUX_IDX
 };
 
 static const struct spi_ops_s esp32s2_spi3_ops =
@@ -632,7 +638,7 @@ static void esp32s2_spi_select(struct spi_dev_s *dev,
 #if SPI_HAVE_SWCS
   struct esp32s2_spi_priv_s *priv = (struct esp32s2_spi_priv_s *)dev;
 
-  esp32s2_gpiowrite(priv->config->cs_pin, !selected);
+  esp_gpiowrite(priv->config->cs_pin, !selected);
 #endif
 
   spiinfo("devid: %08" PRIx32 " CS: %s\n",
@@ -1023,8 +1029,8 @@ static void esp32s2_spi_dma_exchange(struct esp32s2_spi_priv_s *priv,
     }
 #endif
 
-  esp32s2_spi_clr_regbits(spi_slave_reg, SPI_TRANS_DONE_M);
-  esp32s2_spi_set_regbits(spi_slave_reg, SPI_INT_EN_M);
+  esp32s2_spi_clr_regbits(spi_slave_reg, SPI_INT_TRANS_DONE_EN);
+  esp32s2_spi_set_regbits(spi_slave_reg, SPI_INT_EN);
 
   while (bytes != 0)
     {
@@ -1071,7 +1077,7 @@ static void esp32s2_spi_dma_exchange(struct esp32s2_spi_priv_s *priv,
       bytes -= n;
     }
 
-  esp32s2_spi_clr_regbits(spi_slave_reg, SPI_INT_EN_M);
+  esp32s2_spi_clr_regbits(spi_slave_reg, SPI_INT_EN);
 
 #if defined(CONFIG_ESP32S2_SPIRAM) && defined(CONFIG_ESP32S2_SPI3_DMA)
   if (allocrp)
@@ -1441,6 +1447,7 @@ void esp32s2_spi_dma_init(struct spi_dev_s *dev)
   struct esp32s2_spi_priv_s *priv = (struct esp32s2_spi_priv_s *)dev;
   const uint32_t id = priv->config->id;
   uint32_t regval;
+  uint32_t addr = SPI_DMA_CONF_REG(id);
 
   /* Enable DMA clock for the SPI peripheral */
 
@@ -1455,12 +1462,12 @@ void esp32s2_spi_dma_init(struct spi_dev_s *dev)
   regval = SPI_OUT_DATA_BURST_EN_M |
            SPI_INDSCR_BURST_EN_M |
            SPI_OUTDSCR_BURST_EN_M;
-  putreg32(regval, SPI_DMA_CONF_REG(id));
+  putreg32(regval, addr);
 
   /* Disable segment transaction mode for SPI Master */
 
   putreg32((SPI_SLV_RX_SEG_TRANS_CLR_EN_M | SPI_SLV_TX_SEG_TRANS_CLR_EN_M),
-           SPI_DMA_CONF_REG(id));
+           addr);
 }
 #endif
 
@@ -1489,14 +1496,14 @@ static void esp32s2_spi_init(struct spi_dev_s *dev)
   const uint32_t id = config->id;
   uint32_t regval;
 
-  esp32s2_gpiowrite(config->cs_pin, true);
-  esp32s2_gpiowrite(config->mosi_pin, true);
-  esp32s2_gpiowrite(config->miso_pin, true);
-  esp32s2_gpiowrite(config->clk_pin, true);
+  esp_gpiowrite(config->cs_pin, true);
+  esp_gpiowrite(config->mosi_pin, true);
+  esp_gpiowrite(config->miso_pin, true);
+  esp_gpiowrite(config->clk_pin, true);
 
 #if SPI_HAVE_SWCS
-  esp32s2_configgpio(config->cs_pin, OUTPUT_FUNCTION_1);
-  esp32s2_gpio_matrix_out(config->cs_pin, SIG_GPIO_OUT_IDX, 0, 0);
+  esp_configgpio(config->cs_pin, OUTPUT_FUNCTION_1);
+  esp_gpio_matrix_out(config->cs_pin, SIG_GPIO_OUT_IDX, 0, 0);
 #endif
 
   /* SPI3 doesn't have IOMUX, if SPI3 is enabled use GPIO Matrix for both */
@@ -1504,32 +1511,32 @@ static void esp32s2_spi_init(struct spi_dev_s *dev)
   if (esp32s2_spi_iomux(priv))
     {
 #if !SPI_HAVE_SWCS
-      esp32s2_configgpio(config->cs_pin, OUTPUT_FUNCTION_5);
-      esp32s2_gpio_matrix_out(config->cs_pin, SIG_GPIO_OUT_IDX, 0, 0);
+      esp_configgpio(config->cs_pin, OUTPUT_FUNCTION_5);
+      esp_gpio_matrix_out(config->cs_pin, SIG_GPIO_OUT_IDX, 0, 0);
 #endif
-      esp32s2_configgpio(config->mosi_pin, OUTPUT_FUNCTION_5);
-      esp32s2_gpio_matrix_out(config->mosi_pin, SIG_GPIO_OUT_IDX, 0, 0);
+      esp_configgpio(config->mosi_pin, OUTPUT_FUNCTION_5);
+      esp_gpio_matrix_out(config->mosi_pin, SIG_GPIO_OUT_IDX, 0, 0);
 
-      esp32s2_configgpio(config->miso_pin, INPUT_FUNCTION_5 | PULLUP);
-      esp32s2_gpio_matrix_out(config->miso_pin, SIG_GPIO_OUT_IDX, 0, 0);
+      esp_configgpio(config->miso_pin, INPUT_FUNCTION_5 | PULLUP);
+      esp_gpio_matrix_out(config->miso_pin, SIG_GPIO_OUT_IDX, 0, 0);
 
-      esp32s2_configgpio(config->clk_pin, OUTPUT_FUNCTION_5);
-      esp32s2_gpio_matrix_out(config->clk_pin, SIG_GPIO_OUT_IDX, 0, 0);
+      esp_configgpio(config->clk_pin, OUTPUT_FUNCTION_5);
+      esp_gpio_matrix_out(config->clk_pin, SIG_GPIO_OUT_IDX, 0, 0);
     }
   else
     {
 #if !SPI_HAVE_SWCS
-      esp32s2_configgpio(config->cs_pin, OUTPUT);
-      esp32s2_gpio_matrix_out(config->cs_pin, config->cs_outsig, 0, 0);
+      esp_configgpio(config->cs_pin, OUTPUT);
+      esp_gpio_matrix_out(config->cs_pin, config->cs_outsig, 0, 0);
 #endif
-      esp32s2_configgpio(config->mosi_pin, OUTPUT);
-      esp32s2_gpio_matrix_out(config->mosi_pin, config->mosi_outsig, 0, 0);
+      esp_configgpio(config->mosi_pin, OUTPUT);
+      esp_gpio_matrix_out(config->mosi_pin, config->mosi_outsig, 0, 0);
 
-      esp32s2_configgpio(config->miso_pin, INPUT | PULLUP);
-      esp32s2_gpio_matrix_in(config->miso_pin, config->miso_insig, 0);
+      esp_configgpio(config->miso_pin, INPUT | PULLUP);
+      esp_gpio_matrix_in(config->miso_pin, config->miso_insig, 0);
 
-      esp32s2_configgpio(config->clk_pin, OUTPUT);
-      esp32s2_gpio_matrix_out(config->clk_pin, config->clk_outsig, 0, 0);
+      esp_configgpio(config->clk_pin, OUTPUT);
+      esp_gpio_matrix_out(config->clk_pin, config->clk_outsig, 0, 0);
     }
 
   modifyreg32(SYSTEM_PERIP_CLK_EN0_REG, 0, config->clk_bit);
@@ -1674,35 +1681,22 @@ struct spi_dev_s *esp32s2_spibus_initialize(int port)
       /* Disable the provided CPU Interrupt to configure it. */
 
       up_disable_irq(priv->config->irq);
-      esp32s2_teardown_irq(priv->config->periph, priv->cpuint);
-      irq_detach(priv->config->irq);
+      esp_teardown_irq(priv->config->periph, priv->cpuint);
 
       priv->cpuint = -ENOMEM;
     }
 
   /* Set up to receive peripheral interrupts on the current CPU */
 
-  priv->cpuint = esp32s2_setup_irq(priv->config->periph,
-                                   ESP32S2_INT_PRIO_DEF,
-                                   ESP32S2_CPUINT_LEVEL);
+  priv->cpuint = esp_setup_irq(priv->config->periph,
+                               ESP32S2_INT_PRIO_DEF,
+                               ESP_IRQ_TRIGGER_LEVEL,
+                               esp32s2_spi_interrupt, priv);
   if (priv->cpuint < 0)
     {
       /* Failed to allocate a CPU interrupt of this type. */
 
       nxmutex_unlock(&priv->lock);
-      return NULL;
-    }
-
-  /* Attach and enable the IRQ */
-
-  if (irq_attach(priv->config->irq, esp32s2_spi_interrupt, priv) != OK)
-    {
-      /* Failed to attach IRQ, so CPU interrupt must be freed. */
-
-      esp32s2_teardown_irq(priv->config->periph, priv->cpuint);
-      priv->cpuint = -ENOMEM;
-      nxmutex_unlock(&priv->lock);
-
       return NULL;
     }
 
@@ -1752,8 +1746,7 @@ int esp32s2_spibus_uninitialize(struct spi_dev_s *dev)
 
 #if defined(CONFIG_ESP32S2_SPI2_DMA) || defined(CONFIG_ESP32S2_SPI3_DMA)
   up_disable_irq(priv->config->irq);
-  esp32s2_teardown_irq(priv->config->periph, priv->cpuint);
-  irq_detach(priv->config->irq);
+  esp_teardown_irq(priv->config->periph, priv->cpuint);
 
   priv->cpuint = -ENOMEM;
 

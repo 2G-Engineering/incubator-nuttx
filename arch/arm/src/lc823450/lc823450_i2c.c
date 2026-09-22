@@ -33,7 +33,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stddef.h>
 
 #include <nuttx/arch.h>
@@ -1024,7 +1024,7 @@ static int lc823450_i2c_transfer(struct i2c_master_s *dev,
            * transaction, STOP condition for write transaction
            */
 
-          nxsig_usleep(10 * 1000);
+          nxsched_usleep(10 * 1000);
         }
       else
         {

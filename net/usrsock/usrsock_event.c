@@ -31,7 +31,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/irq.h>
 
@@ -65,7 +65,7 @@ int usrsock_event(FAR struct usrsock_conn_s *conn)
       return OK;
     }
 
-  net_lock();
+  usrsock_lock();
 
   /* Generic state updates. */
 
@@ -118,7 +118,7 @@ int usrsock_event(FAR struct usrsock_conn_s *conn)
   /* Send events to callbacks */
 
   devif_conn_event(NULL, events, conn->sconn.list);
-  net_unlock();
+  usrsock_unlock();
 
   return OK;
 }

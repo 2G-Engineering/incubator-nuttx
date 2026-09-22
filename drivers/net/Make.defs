@@ -30,6 +30,10 @@ ifeq ($(CONFIG_MM_IOB),y)
   CSRCS += netdev_upperhalf.c
 endif
 
+ifeq ($(CONFIG_MDIO_BUS),y)
+  CSRCS += mdio.c
+endif
+
 ifeq ($(CONFIG_NET_LOOPBACK),y)
   CSRCS += loopback.c
 endif
@@ -60,6 +64,10 @@ endif
 
 ifeq ($(CONFIG_NET_TUN),y)
   CSRCS += tun.c
+endif
+
+ifeq ($(CONFIG_NET_VLAN),y)
+  CSRCS += vlan.c
 endif
 
 ifeq ($(CONFIG_NET_FTMAC100),y)
@@ -110,6 +118,8 @@ endif
 ifeq ($(CONFIG_DRIVERS_WIFI_SIM),y)
   CSRCS += wifi_sim.c
 endif
+
+include net/oa_tc6/Make.defs
 
 # Include network build support
 

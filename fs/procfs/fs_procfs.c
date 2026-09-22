@@ -39,8 +39,8 @@
 #include <fnmatch.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/sched.h>
@@ -74,6 +74,9 @@ extern const struct procfs_operations g_thermal_operations;
 extern const struct procfs_operations g_uptime_operations;
 extern const struct procfs_operations g_version_operations;
 extern const struct procfs_operations g_pressure_operations;
+#if defined(CONFIG_FS_PROFILER) && defined(CONFIG_FS_PROCFS_PROFILER)
+extern const struct procfs_operations g_fsprofile_operations;
+#endif
 
 /* This is not good.  These are implemented in other sub-systems.  Having to
  * deal with them here is not a good coupling. What is really needed is a
@@ -207,6 +210,9 @@ static const struct procfs_entry_s g_procfs_entries[] =
 
 #ifndef CONFIG_FS_PROCFS_EXCLUDE_VERSION
   { "version",      &g_version_operations,  PROCFS_FILE_TYPE   },
+#endif
+#if defined(CONFIG_FS_PROFILER) && defined(CONFIG_FS_PROCFS_PROFILER)
+  { "profile",      &g_fsprofile_operations,  PROCFS_FILE_TYPE   },
 #endif
 };
 

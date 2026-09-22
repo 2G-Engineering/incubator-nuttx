@@ -29,7 +29,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
@@ -185,7 +185,7 @@ struct tasklist_s g_tasklisttable[NUM_TASK_STATES];
  * hardware resources may not yet be available to the kernel logic.
  */
 
-volatile uint8_t g_nx_initstate;  /* See enum nx_initstate_e */
+volatile enum nx_initstate_e g_nx_initstate;  /* See enum nx_initstate_e */
 
 /* This is an array of task control block (TCB) for the IDLE thread of each
  * CPU.  For the non-SMP case, this is a a single TCB; For the SMP case,
@@ -270,6 +270,13 @@ static void tasklist_initialize(void)
   tlist[TSTATE_WAIT_SEM].attr = TLIST_ATTR_PRIORITIZED |
                                 TLIST_ATTR_OFFSET;
 
+#ifdef CONFIG_SCHED_EVENTS
+  /* TSTATE_WAIT_EVENT */
+
+  tlist[TSTATE_WAIT_EVENT].list = (FAR void *)offsetof(nxevent_t, waitlist);
+  tlist[TSTATE_WAIT_EVENT].attr = TLIST_ATTR_PRIORITIZED |
+                                  TLIST_ATTR_OFFSET;
+#endif
   /* TSTATE_WAIT_SIG */
 
   tlist[TSTATE_WAIT_SIG].list = list_waitingforsignal();
@@ -438,15 +445,11 @@ static void idle_group_initialize(void)
       /* Allocate the IDLE group */
 
       DEBUGVERIFY(
-        group_initialize((FAR struct task_tcb_s *)tcb, tcb->flags));
+        group_allocate(tcb, tcb->flags));
 
       /* Initialize the task join */
 
       nxtask_joininit(tcb);
-
-#ifndef CONFIG_PTHREAD_MUTEX_UNSAFE
-      spin_lock_init(&tcb->mutex_lock);
-#endif
 
 #ifdef CONFIG_SMP
       /* Create a stack for all CPU IDLE threads (except CPU0 which already
@@ -471,7 +474,7 @@ static void idle_group_initialize(void)
        * of child status in the IDLE group.
        */
 
-      group_postinitialize((FAR struct task_tcb_s *)tcb);
+      group_initialize(tcb);
       tcb->group->tg_flags = GROUP_FLAG_NOCLDWAIT | GROUP_FLAG_PRIVILEGED;
     }
 }
@@ -505,6 +508,7 @@ void nx_start(void)
   /* Boot up is complete */
 
   g_nx_initstate = OSINIT_BOOT;
+  sched_trace_mark("BOOT");
 
   /* Initialize task list table *********************************************/
 
@@ -517,6 +521,7 @@ void nx_start(void)
   /* Task lists are initialized */
 
   g_nx_initstate = OSINIT_TASKLISTS;
+  sched_trace_mark("TASKLISTS");
 
   /* Initialize RTOS Data ***************************************************/
 
@@ -610,6 +615,7 @@ void nx_start(void)
   /* The memory manager is available */
 
   g_nx_initstate = OSINIT_MEMORY;
+  sched_trace_mark("MEMORY");
 
   /* Initialize tasking data structures */
 
@@ -637,7 +643,9 @@ void nx_start(void)
 
   /* Initialize the signal facility (if in link) */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   nxsig_initialize();
+#endif
 
 #if !defined(CONFIG_DISABLE_MQUEUE) || !defined(CONFIG_DISABLE_MQUEUE_SYSV)
   /* Initialize the named message queue facility (if in link) */
@@ -677,12 +685,15 @@ void nx_start(void)
    * that cannot wait until board_late_initialize.
    */
 
+  boards_trace_begin();
   board_early_initialize();
+  boards_trace_end();
 #endif
 
   /* Hardware resources are now available */
 
   g_nx_initstate = OSINIT_HARDWARE;
+  sched_trace_mark("HARDWARE");
 
   /* Setup for Multi-Tasking ************************************************/
 
@@ -698,8 +709,7 @@ void nx_start(void)
         {
           /* Clone stdout, stderr, stdin from the CPU0 IDLE task. */
 
-          DEBUGVERIFY(group_setuptaskfiles(
-            (FAR struct task_tcb_s *)&g_idletcb[i], NULL, true));
+          DEBUGVERIFY(group_setuptaskfiles(&g_idletcb[i], NULL, true));
         }
       else
         {
@@ -730,6 +740,7 @@ void nx_start(void)
   /* The OS is fully initialized and we are beginning multi-tasking */
 
   g_nx_initstate = OSINIT_OSREADY;
+  sched_trace_mark("OSREADY");
 
   /* Create initial tasks and bring-up the system */
 
@@ -738,6 +749,7 @@ void nx_start(void)
   /* Enter to idleloop */
 
   g_nx_initstate = OSINIT_IDLELOOP;
+  sched_trace_mark("IDLELOOP");
 
   /* Let other threads have access to the memory manager */
 

@@ -26,7 +26,7 @@
 
 #include <nuttx/config.h>
 #include <nuttx/ipcc.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <stm32wl5_ipcc.h>
 
@@ -116,9 +116,9 @@ static int init_ipcc(int chan, size_t rxbuflen, size_t txbuflen)
   struct ipcc_lower_s *ipcc;
   int ret;
 
-  if ((ipcc = stm32wl5_ipcc_init(chan)) == NULL)
+  if ((ipcc = stm32_ipcc_init(chan)) == NULL)
     {
-      syslog(LOG_ERR, "ERROR: stm32wl5_ipcc_init(%d) failed\n", chan);
+      syslog(LOG_ERR, "ERROR: stm32_ipcc_init(%d) failed\n", chan);
       return -1;
     }
 

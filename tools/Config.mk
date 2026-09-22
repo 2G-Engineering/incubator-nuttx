@@ -635,7 +635,7 @@ define CLONE
 		if [ ! -d $3 ]; then \
 			git clone --quiet $1 $3; \
 		fi; \
-		cp -fr $3 $2; \
+		$(DIRLINK) $3 $2; \
 	fi
 	$(ECHO_END)
 endef
@@ -728,9 +728,24 @@ $(1)_$(2):
 
 endef
 
-export DEFINE_PREFIX ?= $(subst X,,${shell $(DEFINE) "$(CC)" X 2> ${EMPTYFILE}})
-export INCDIR_PREFIX ?= $(subst "X",,${shell $(INCDIR) "$(CC)" X 2> ${EMPTYFILE}})
-export INCSYSDIR_PREFIX ?= $(subst "X",,${shell $(INCDIR) -s "$(CC)" X 2> ${EMPTYFILE}})
+ifeq ($(origin DEFINE_PREFIX),undefined)
+  DEFINE_PREFIX := $(subst X,,${shell $(DEFINE) "$(CC)" X 2> ${EMPTYFILE}})
+endif
+ifeq ($(origin INCDIR_PREFIX),undefined)
+  # $(INCDIR) points at tools/incdir, a host binary that may not be
+  # built yet when Config.mk is first parsed. Fall back to the
+  # always-present tools/incdir.sh so the parse-time evaluation always
+  # succeeds.
+  INCDIR_PREFIX := $(subst "X",,${shell $(INCDIR) "$(CC)" X 2> ${EMPTYFILE} \
+                                  || "$(TOPDIR)/tools/incdir.sh" "$(CC)" X 2> ${EMPTYFILE}})
+endif
+ifeq ($(origin INCSYSDIR_PREFIX),undefined)
+  INCSYSDIR_PREFIX := $(subst "X",,${shell $(INCDIR) -s "$(CC)" X 2> ${EMPTYFILE} \
+                                     || "$(TOPDIR)/tools/incdir.sh" -s "$(CC)" X 2> ${EMPTYFILE}})
+endif
+export DEFINE_PREFIX
+export INCDIR_PREFIX
+export INCSYSDIR_PREFIX
 
 # ARCHxxx means the predefined setting(either toolchain, arch, or system specific)
 ARCHDEFINES += ${DEFINE_PREFIX}__NuttX__
@@ -746,7 +761,9 @@ ifeq ($(CONFIG_LIBCXX),y)
   ARCHXXINCLUDES += ${INCSYSDIR_PREFIX}$(TOPDIR)$(DELIM)include$(DELIM)libcxx
 else ifeq ($(CONFIG_UCLIBCXX),y)
   ARCHXXINCLUDES += ${INCSYSDIR_PREFIX}$(TOPDIR)$(DELIM)include$(DELIM)uClibc++
-else
+endif
+
+ifeq ($(CONFIG_LIBMINIABI),y)
   ARCHXXINCLUDES += ${INCSYSDIR_PREFIX}$(TOPDIR)$(DELIM)include$(DELIM)cxx
   ifeq ($(CONFIG_ETL),y)
     ARCHXXINCLUDES += ${INCSYSDIR_PREFIX}$(TOPDIR)$(DELIM)include$(DELIM)etl

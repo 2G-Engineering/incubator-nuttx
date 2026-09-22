@@ -22,11 +22,8 @@
 
 CSRCS = esp32s3_boot.c esp32s3_bringup.c
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += esp32s3_appinit.c
 ifeq ($(CONFIG_BOARDCTL_RESET),y)
 CSRCS += esp32s3_reset.c
-endif
 endif
 
 ifeq ($(CONFIG_ARCH_BUTTONS),y)
@@ -57,10 +54,10 @@ DEPPATH += --dep-path board
 VPATH += :board
 CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board
 
-ifeq ($(CONFIG_ETC_ROMFS),y)
-RCSRCS  = etc/init.d/rc.sysinit etc/init.d/rcS
 
-ifeq ($(CONFIG_TXTABLE_PARTITION),y)
-RCRAWS  = etc/txtable.txt
-endif # CONFIG_TXTABLE_PARTITION
+ifeq ($(CONFIG_ESPRESSIF_HR_TIMER),y)
+  CFLAGS += -I$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)chip$(DELIM)esp-hal-3rdparty$(DELIM)components$(DELIM)esp_timer$(DELIM)include
 endif
+  CFLAGS += -I$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)chip$(DELIM)esp-hal-3rdparty$(DELIM)components$(DELIM)esp_system$(DELIM)include
+  CFLAGS += -I$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)chip$(DELIM)esp-hal-3rdparty$(DELIM)components$(DELIM)esp_common$(DELIM)include
+  CFLAGS += -I$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)chip$(DELIM)esp-hal-3rdparty$(DELIM)nuttx$(DELIM)esp32s3$(DELIM)include

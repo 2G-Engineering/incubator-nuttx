@@ -37,7 +37,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/sched.h>
@@ -168,8 +168,8 @@ static int skel_open(FAR struct file *filep, FAR const char *relpath,
    * can not be permitted.
    */
 
-  if (((oflags & O_WRONLY) != 0 || (oflags & O_RDONLY) == 0) &&
-      (skel_procfsoperations.write == NULL))
+  if ((oflags & O_ACCMODE) != O_RDONLY &&
+      skel_procfsoperations.write == NULL)
     {
       ferr("ERROR: Only O_RDONLY supported\n");
       return -EACCES;

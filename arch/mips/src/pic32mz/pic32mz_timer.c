@@ -32,7 +32,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
@@ -1148,7 +1148,7 @@ static bool  pic32mz_timer_checkint(struct pic32mz_timer_dev_s *dev)
 }
 
 /****************************************************************************
- * Pubic Functions
+ * Public Functions
  ****************************************************************************/
 
 /****************************************************************************

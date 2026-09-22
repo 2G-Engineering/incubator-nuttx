@@ -32,7 +32,7 @@ CRYPTO_CSRCS += crypto.c testmngr.c
 
 ifeq ($(CONFIG_CRYPTO_CRYPTODEV),y)
   CRYPTO_CSRCS += cryptodev.c
-ifeq ($(CONFIG_CRYPTO_CRYPTODEV_SOFTWARE),y)
+ifneq ($(CONFIG_CRYPTO_CRYPTODEV_SOFTWARE_CRYPTO)$(CONFIG_CRYPTO_CRYPTODEV_SOFTWARE_KEYMGMT),)
   CRYPTO_CSRCS += cryptosoft.c
   CRYPTO_CSRCS += xform.c
 endif
@@ -49,6 +49,7 @@ CRYPTO_CSRCS += cast.c
 CRYPTO_CSRCS += chachapoly.c
 CRYPTO_CSRCS += ecb_enc.c
 CRYPTO_CSRCS += ecb3_enc.c
+CRYPTO_CSRCS += ecc.c
 CRYPTO_CSRCS += set_key.c
 CRYPTO_CSRCS += md5.c
 CRYPTO_CSRCS += poly1305.c
@@ -59,10 +60,14 @@ CRYPTO_CSRCS += sha2.c
 CRYPTO_CSRCS += gmac.c
 CRYPTO_CSRCS += cmac.c
 CRYPTO_CSRCS += hmac.c
-ifeq ($(CONFIG_CRYPTO_RANDOM_POOL),y)
+ifeq ($(CONFIG_CRYPTO_IDGEN),y)
   CRYPTO_CSRCS += idgen.c
+endif
+
+ifeq ($(CONFIG_CRYPTO_CURVE25519),y)
   CRYPTO_CSRCS += curve25519.c
 endif
+
 CRYPTO_CSRCS += key_wrap.c
 CRYPTO_CSRCS += siphash.c
 CRYPTO_CSRCS += hmac_buff.c
@@ -116,6 +121,7 @@ clean:
 	$(call CLEAN)
 
 distclean: clean
+	$(call DELFILE, $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds))
 	$(call DELFILE, Make.dep)
 	$(call DELFILE, .depend)
 

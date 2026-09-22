@@ -31,7 +31,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/irq.h>
 
@@ -44,10 +44,11 @@
  * families
  */
 
-#if defined(CONFIG_STM32H7_STM32H7X3XX) || \
-    defined(CONFIG_STM32H7_STM32H7B3XX) || \
-    defined(CONFIG_STM32H7_STM32H7X5XX) || \
-    defined(CONFIG_STM32H7_STM32H7X7XX)
+#if defined(CONFIG_STM32_STM32H7X0XX) || \
+    defined(CONFIG_STM32_STM32H7X3XX) || \
+    defined(CONFIG_STM32_STM32H7B3XX) || \
+    defined(CONFIG_STM32_STM32H7X5XX) || \
+    defined(CONFIG_STM32_STM32H7X7XX)
 
 /****************************************************************************
  * Private Types
@@ -377,4 +378,4 @@ int stm32_gpiosetevent(uint32_t pinset, bool risingedge, bool fallingedge,
   return OK;
 }
 
-#endif /* CONFIG_STM32H7_STM32H7X3XX || CONFIG_STM32H7_STM32H7X7XX || CONFIG_STM32H7_STM32H7B3XX */
+#endif /* CONFIG_STM32_STM32H7X3XX || CONFIG_STM32_STM32H7X7XX || CONFIG_STM32_STM32H7B3XX */

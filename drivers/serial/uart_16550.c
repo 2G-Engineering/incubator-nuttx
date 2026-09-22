@@ -35,7 +35,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/spinlock.h>
 #include <nuttx/irq.h>
@@ -108,6 +108,8 @@ static void u16550_dmarxfree(FAR struct uart_dev_s *dev);
 static void u16550_dmarxconfig(FAR struct uart_dev_s *dev);
 #endif
 static void u16550_send(FAR struct uart_dev_s *dev, int ch);
+static ssize_t u16550_sendbuf(struct uart_dev_s *dev,
+                              const void *buffer, size_t size);
 static void u16550_txint(FAR struct uart_dev_s *dev, bool enable);
 static bool u16550_txready(FAR struct uart_dev_s *dev);
 static bool u16550_txempty(FAR struct uart_dev_s *dev);
@@ -154,6 +156,7 @@ static const struct uart_ops_s g_uart_ops =
   .txint          = u16550_txint,
   .txready        = u16550_txready,
   .txempty        = u16550_txempty,
+  .sendbuf        = u16550_sendbuf,
 };
 
 /* I/O buffers */
@@ -804,11 +807,6 @@ static int u16550_setup(FAR struct uart_dev_s *dev)
       return -EPERM;
     }
 
-  /* Clear fifos */
-
-  u16550_serialout(priv, UART_FCR_OFFSET,
-                   (UART_FCR_RXRST | UART_FCR_TXRST));
-
   /* Set up the IER */
 
   priv->ier = u16550_serialin(priv, UART_IER_OFFSET);
@@ -889,10 +887,16 @@ static int u16550_setup(FAR struct uart_dev_s *dev)
 
   /* Configure the FIFOs */
 
+  /* Some 16550-compatible UARTs, including the AM62x console block, need
+   * FIFO enable, reset, and trigger configuration as separate writes.
+   */
+
+  u16550_serialout(priv, UART_FCR_OFFSET, UART_FCR_FIFOEN);
   u16550_serialout(priv, UART_FCR_OFFSET,
-                   (priv->rxtrigger << UART_FCR_RXTRIGGER_SHIFT |
-                    UART_FCR_TXRST | UART_FCR_RXRST |
-                    UART_FCR_FIFOEN));
+                   UART_FCR_FIFOEN | UART_FCR_TXRST | UART_FCR_RXRST);
+  u16550_serialout(priv, UART_FCR_OFFSET,
+                   UART_FCR_FIFOEN |
+                   (priv->rxtrigger << UART_FCR_RXTRIGGER_SHIFT));
 
 #ifdef CONFIG_16550_SET_MCR_OUT2
   /* Set OUT2 bit in MCR register */
@@ -1569,6 +1573,26 @@ static void u16550_send(struct uart_dev_s *dev, int ch)
 }
 
 /****************************************************************************
+ * Name: u16550_sendbuf
+ *
+ * Description:
+ *   This method will send a buffer of bytes on the UART
+ *
+ ****************************************************************************/
+
+static ssize_t u16550_sendbuf(struct uart_dev_s *dev,
+                              const void *buffer, size_t size)
+{
+  for (size_t i = 0; i < size; i++)
+    {
+      while (!u16550_txready(dev));
+      u16550_send(dev, ((const unsigned char *)buffer)[i]);
+    }
+
+  return (ssize_t)size;
+}
+
+/****************************************************************************
  * Name: u16550_txint
  *
  * Description:
@@ -1588,9 +1612,21 @@ static void u16550_txint(struct uart_dev_s *dev, bool enable)
     }
 #endif
 
-  flags = enter_critical_section();
   if (enable)
     {
+#ifdef CONFIG_16550_POLLING
+      /* In polling mode, we loop until the buffer is empty */
+
+      while (dev->xmit.head != dev->xmit.tail)
+        {
+          while (!u16550_txready(dev))
+            {
+            }
+
+          uart_xmitchars(dev);
+        }
+#else
+      flags = enter_critical_section();
       priv->ier |= UART_IER_ETBEI;
       u16550_serialout(priv, UART_IER_OFFSET, priv->ier);
 
@@ -1599,14 +1635,16 @@ static void u16550_txint(struct uart_dev_s *dev, bool enable)
        */
 
       uart_xmitchars(dev);
+      leave_critical_section(flags);
+#endif
     }
   else
     {
+      flags = enter_critical_section();
       priv->ier &= ~UART_IER_ETBEI;
       u16550_serialout(priv, UART_IER_OFFSET, priv->ier);
+      leave_critical_section(flags);
     }
-
-  leave_critical_section(flags);
 }
 
 /****************************************************************************
@@ -1660,7 +1698,8 @@ void u16550_earlyserialinit(void)
 
 #ifdef CONSOLE_DEV
   CONSOLE_DEV.isconsole = true;
-#ifndef CONFIG_16550_SUPRESS_INITIAL_CONFIG
+#if !defined(CONFIG_16550_SUPRESS_INITIAL_CONFIG) && \
+    !defined(CONFIG_16550_SUPRESS_CONFIG)
   u16550_setup(&CONSOLE_DEV);
 #endif
 #endif

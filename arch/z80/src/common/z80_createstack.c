@@ -30,7 +30,7 @@
 #include <stdint.h>
 #include <sched.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/arch.h>
@@ -191,7 +191,7 @@ int up_create_stack(FAR struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
 
       top_of_stack = (uintptr_t)tcb->stack_alloc_ptr + stack_size;
 
-      /* The Z80 stack does not need to be aligned.  Here is is aligned at
+      /* The Z80 stack does not need to be aligned.  Here it is aligned at
        * word (4 byte) boundary.
        */
 

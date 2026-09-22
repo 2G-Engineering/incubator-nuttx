@@ -34,16 +34,12 @@ if(CONFIG_VIDEO_FB)
   endif()
 endif()
 
-if(CONFIG_STM32H7_SDMMC)
+if(CONFIG_STM32_SDMMC)
   list(APPEND SRCS stm32_sdmmc.c)
 endif()
 
 if(CONFIG_FAT_DMAMEMORY)
   list(APPEND SRCS stm32_dma_alloc.c)
-endif()
-
-if(CONFIG_BOARDCTL)
-  list(APPEND SRCS stm32_appinitialize.c)
 endif()
 
 target_sources(board PRIVATE ${SRCS})

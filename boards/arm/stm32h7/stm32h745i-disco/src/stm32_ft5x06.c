@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/input/ft5x06.h>
@@ -49,8 +49,8 @@
 #  error "FT5x06 support requires CONFIG_INPUT"
 #endif
 
-#ifndef CONFIG_STM32H7_I2C4
-#  error "FT5x06 support requires CONFIG_STM32H7_I2C4"
+#ifndef CONFIG_STM32_I2C4
+#  error "FT5x06 support requires CONFIG_STM32_I2C4"
 #endif
 
 #ifndef CONFIG_FT5X06_I2CDEV

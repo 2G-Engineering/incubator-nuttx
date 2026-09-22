@@ -28,7 +28,7 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/sched.h>
@@ -76,10 +76,6 @@ int arm_start_handler(int irq, void *context, void *arg)
 
   sched_note_cpu_started(tcb);
 #endif
-
-  /* Reset scheduler parameters */
-
-  nxsched_resume_scheduler(tcb);
 
   UNUSED(tcb);
 

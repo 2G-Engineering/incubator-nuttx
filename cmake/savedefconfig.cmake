@@ -27,10 +27,14 @@ set(TARGET_FILE ${CMAKE_ARGV4})
 
 file(STRINGS ${SOURCE_FILE} ConfigContents)
 encode_brackets(ConfigContents)
+set(PASSWD_AUTOGEN_ENABLED FALSE)
 
 foreach(NameAndValue ${ConfigContents})
   decode_brackets(NameAndValue)
   encode_semicolon(NameAndValue)
+  if("${NameAndValue}" MATCHES "^CONFIG_BOARD_ETC_ROMFS_PASSWD_ENABLE=y$")
+    set(PASSWD_AUTOGEN_ENABLED TRUE)
+  endif()
   if("${NameAndValue}" MATCHES "CONFIG_ARCH="
      OR "${NameAndValue}" MATCHES "^CONFIG_ARCH_CHIP_"
      OR "${NameAndValue}" MATCHES "CONFIG_ARCH_CHIP="
@@ -45,8 +49,11 @@ endforeach()
 
 get_filename_component(BINARY_DIR "${TARGET_FILE}" DIRECTORY)
 
-set(OUTPUT_FILE ${BINARY_DIR}/defconfig)
-
+if(CMAKE_ARGV5)
+  set(OUTPUT_FILE ${CMAKE_ARGV5})
+else()
+  set(OUTPUT_FILE ${BINARY_DIR}/defconfig)
+endif()
 # cmake-format: off
 file(WRITE ${OUTPUT_FILE} "")
 file(APPEND ${OUTPUT_FILE} "\#\n")
@@ -69,8 +76,19 @@ list(SORT LINES)
 foreach(LINE IN LISTS LINES)
   decode_brackets(LINE)
   decode_semicolon(LINE)
-  file(APPEND ${OUTPUT_FILE} "${LINE}\n")
+  if(NOT "${LINE}" MATCHES "^CONFIG_FSUTILS_PASSWD_KEY[0-9]"
+     AND NOT "${LINE}" MATCHES "^CONFIG_BOARD_ETC_ROMFS_PASSWD_PASSWORD=")
+    file(APPEND ${OUTPUT_FILE} "${LINE}\n")
+  endif()
 endforeach()
+
+if(PASSWD_AUTOGEN_ENABLED)
+  message(
+    WARNING
+      "CONFIG_BOARD_ETC_ROMFS_PASSWD_PASSWORD and CONFIG_FSUTILS_PASSWD_KEY1-4 "
+      "were intentionally excluded from defconfig by savedefconfig. Add them "
+      "manually in local defconfig if needed.")
+endif()
 
 # Converts the newline style for the output file.
 configure_file(${OUTPUT_FILE} ${OUTPUT_FILE} @ONLY NEWLINE_STYLE LF)

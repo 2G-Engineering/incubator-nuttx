@@ -28,7 +28,8 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <sched.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/tls.h>
@@ -93,7 +94,7 @@
 
 int up_create_stack(struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
 {
-  stack_size = STACK_ALIGN_UP(stack_size);
+  stack_size = STACKFRAME_ALIGN_UP(stack_size);
 
 #ifdef CONFIG_TLS_ALIGNED
   /* The allocated stack size must not exceed the maximum possible for the

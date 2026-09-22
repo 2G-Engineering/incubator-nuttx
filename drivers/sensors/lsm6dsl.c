@@ -38,6 +38,19 @@
  *
  ****************************************************************************/
 
+/* WARNING for developers:
+ *
+ * This driver uses the legacy style of writing sensor drivers for NuttX. The
+ * project has since decided to adopt a new sensor framework in order to
+ * have a consistent API and feature-set.
+ *
+ * Sensors which use the uORB framework are typically suffixed "_uorb". You
+ * can also visit the documentation about the new sensor framework to learn
+ * more.
+ */
+
+#warning "This is a deprecated legacy sensor driver."
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
@@ -46,7 +59,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdlib.h>
 #include <math.h>
 
@@ -526,7 +539,7 @@ static int lsm6dsl_selftest(FAR struct lsm6dsl_dev_s *priv, uint32_t mode)
   lsm6dsl_writereg8(priv, LSM6DSL_CTRL9_XL, 0x00);
   lsm6dsl_writereg8(priv, LSM6DSL_CTRL10_C, 0x00);
 
-  nxsig_usleep(100000);         /* 100ms */
+  nxsched_usleep(100000);         /* 100ms */
 
   /* Read the output registers after checking XLDA bit 5 times */
 
@@ -547,7 +560,7 @@ static int lsm6dsl_selftest(FAR struct lsm6dsl_dev_s *priv, uint32_t mode)
         }
     }
 
-  nxsig_usleep(100000);    /* 100ms */
+  nxsched_usleep(100000);    /* 100ms */
 
   /* Read OUT registers Gyro is starting at 22h and Accelero at 28h */
 
@@ -632,7 +645,7 @@ static int lsm6dsl_selftest(FAR struct lsm6dsl_dev_s *priv, uint32_t mode)
       lsm6dsl_writereg8(priv, LSM6DSL_CTRL5_C, 0x04);
     }
 
-  nxsig_usleep(100000);         /* 100ms */
+  nxsched_usleep(100000);         /* 100ms */
 
   checkbit = false;
   while (checkbit)              /* wait until first sample and data is
@@ -649,7 +662,7 @@ static int lsm6dsl_selftest(FAR struct lsm6dsl_dev_s *priv, uint32_t mode)
         }
     }
 
-  nxsig_usleep(100000);         /* 100ms */
+  nxsched_usleep(100000);         /* 100ms */
 
   /* Now do all the ST values */
 
@@ -686,7 +699,7 @@ static int lsm6dsl_selftest(FAR struct lsm6dsl_dev_s *priv, uint32_t mode)
           checkbit = lsm6dsl_isbitset(value, LSM6DSL_STATUS_REG_GDA);
         }
 
-      nxsig_usleep(100000);     /* 100ms */
+      nxsched_usleep(100000);     /* 100ms */
 
       lsm6dsl_readreg8(priv,
                        LSM6DSL_OUTX_L_G + registershift,
@@ -794,7 +807,7 @@ static int lsm6dsl_selftest(FAR struct lsm6dsl_dev_s *priv, uint32_t mode)
       sninfo("\n");
     }
 
-  nxsig_sleep(2);
+  nxsched_sleep(2);
 
   /* Disable test */
 

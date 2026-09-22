@@ -28,14 +28,14 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/spi/spi.h>
 #include <arch/board/board.h>
 
 #include "chip.h"
-#include <stm32l4.h>
+#include <stm32.h>
 
 #include "stm32l476-mdk.h"
 

@@ -33,7 +33,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/sched.h>
 #include <nuttx/kmalloc.h>
@@ -1490,7 +1490,7 @@ static int tmpfs_open(FAR struct file *filep, FAR const char *relpath,
    */
 
   offset = 0;
-  if ((oflags & (O_APPEND | O_WRONLY)) == (O_APPEND | O_WRONLY))
+  if ((oflags & O_APPEND) && (oflags & O_ACCMODE) != O_RDONLY)
     {
       offset = tfo->tfo_size;
     }
@@ -2047,14 +2047,18 @@ static int tmpfs_opendir(FAR struct inode *mountpt, FAR const char *relpath,
     {
       tdir->tf_tdo   = tdo;
       tdir->tf_index = tdo->tdo_nentries;
-
+      *dir = &tdir->tf_base;
       tmpfs_unlock_directory(tdo);
     }
 
   /* Release the lock on the file system and return the result */
 
   tmpfs_unlock(fs);
-  *dir = &tdir->tf_base;
+  if (ret < 0)
+    {
+      fs_heap_free(tdir);
+    }
+
   return ret;
 }
 

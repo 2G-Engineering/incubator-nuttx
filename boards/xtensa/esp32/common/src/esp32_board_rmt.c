@@ -27,13 +27,15 @@
 #include <nuttx/config.h>
 
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 
 #include "xtensa.h"
 
 #include <nuttx/kmalloc.h>
-#include <nuttx/rmt/rmtchar.h>
+#ifdef CONFIG_DRIVERS_RC
+#include "espressif/esp_lirc.h"
+#endif
 #ifdef CONFIG_WS2812_NON_SPI_DRIVER
 #include <nuttx/leds/ws2812.h>
 
@@ -79,7 +81,6 @@
  *   Initialize the RMT peripheral and register an RX device.
  *
  * Input Parameters:
- *   ch  - The RMT's channel that will be used
  *   pin - The pin used for the RX channel
  *
  * Returned Value:
@@ -87,18 +88,26 @@
  *
  ****************************************************************************/
 
-int board_rmt_rxinitialize(int ch, int pin)
+int board_rmt_rxinitialize(int pin)
 {
   int ret;
+  struct rmt_dev_s *rmt;
 
-  struct rmt_dev_s *rmt = esp_rmt_rx_init(ch, pin);
+  rmt = esp_rmt_rx_init(pin);
+  if (rmt == NULL)
+    {
+      rmterr("ERROR: esp_rmt_rx_init failed\n");
+      return -ENODEV;
+    }
 
-  ret = rmtchar_register(rmt);
+#ifdef CONFIG_DRIVERS_RC
+  ret = esp_lirc_rx_initialize(0, rmt);
   if (ret < 0)
     {
-      rmterr("ERROR: rmtchar_register failed: %d\n", ret);
+      rmterr("ERROR: esp_lirc_rx_initialize failed: %d\n", ret);
       return ret;
     }
+#endif
 
   return ret;
 }
@@ -110,7 +119,6 @@ int board_rmt_rxinitialize(int ch, int pin)
  *   Initialize the RMT peripheral and register an TX device.
  *
  * Input Parameters:
- *   ch  - The RMT's channel that will be used
  *   pin - The pin used for the TX channel
  *
  * Returned Value:
@@ -118,7 +126,7 @@ int board_rmt_rxinitialize(int ch, int pin)
  *
  ****************************************************************************/
 
-int board_rmt_txinitialize(int ch, int pin)
+int board_rmt_txinitialize(int pin)
 {
   int ret;
   struct rmt_dev_s *rmt;
@@ -126,20 +134,21 @@ int board_rmt_txinitialize(int ch, int pin)
   struct ws2812_dev_s *led;
 #endif
 
-  rmt = esp_rmt_tx_init(ch, pin);
-
+  rmt = esp_rmt_tx_init(pin);
   if (rmt == NULL)
     {
       rmterr("ERROR: esp_rmt_tx_init failed\n");
       return -ENODEV;
     }
 
-  ret = rmtchar_register(rmt);
+#ifdef CONFIG_DRIVERS_RC
+  ret = esp_lirc_tx_initialize(1, rmt);
   if (ret < 0)
     {
-      rmterr("ERROR: rmtchar_register failed: %d\n", ret);
+      rmterr("ERROR: esp_lirc_tx_initialize failed: %d\n", ret);
       return ret;
     }
+#endif
 
 #ifdef CONFIG_WS2812_NON_SPI_DRIVER
   led = esp_ws2812_setup("/dev/leds0", rmt,

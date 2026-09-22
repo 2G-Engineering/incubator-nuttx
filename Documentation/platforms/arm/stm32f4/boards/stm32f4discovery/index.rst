@@ -4,17 +4,30 @@ ST STM32F4-Discovery
 
 .. tags:: chip:stm32, chip:stm32f4, chip:stm32f407
 
-This page discusses issues unique to NuttX configurations for the
-STMicro STM32F4Discovery development board featuring the STM32F407VGT6
-MCU. The STM32F407VGT6 is a 168MHz Cortex-M4 operation with 1Mbit Flash
-memory and 128kbytes. The board features:
+The STM32F4Discover board (also known as STM32F407G-DISC1) is a low cost
+development board released by STMicroelectronics.
 
+.. figure:: stm32f4discovery.png
+   :align: center
+
+Features
+========
+
+- Processor
+    - STM32F407VGT6 (Cortex-M4 running at 168MHz)
+- Memory
+    - 192 KiB SRAM memory
+    - 1024 MiB Flash
+- Connectivity
+    - USB host/device (OTG) over Micro-AB connector 
+    - Note: the board also supports Ethernet, CAN, RS485 (but requires baseboard)
+- Multimedia
+    - Audio Input and Output (over P2 connector)
 - On-board ST-LINK/V2 for programming and debugging,
 - LIS302DL, ST MEMS motion sensor, 3-axis digital output accelerometer,
 - MP45DT02, ST MEMS audio sensor, omni-directional digital microphone,
 - CS43L22, audio DAC with integrated class D speaker driver,
 - Four user LEDs and two push-buttons,
-- USB OTG FS with micro-AB connector, and
 - Easy access to most MCU pins.
 
 Refer to http://www.st.com/internet/evalboard/product/252419.jsp for
@@ -50,7 +63,7 @@ events as follows:
   LED_SIGNAL           In a signal handler[3]   N/C      ON       N/C      OFF
   LED_ASSERTION        An assertion failed      ON       ON       N/C      OFF
   LED_PANIC            The system has crashed   N/C      N/C      N/C      ON
-  LED_IDLE             STM32 is is sleep mode   
+  LED_IDLE             STM32 is is sleep mode
   ===================  =======================  =======  =======  =======  ======
 
 [1] If LED1, LED2, LED3 are statically on, then NuttX probably failed to boot
@@ -310,7 +323,6 @@ file:
 - These settings enable the STM32 Quadrature encoder on timer 2::
 
     CONFIG_STM32_TIM2_QE=y
-    CONFIG_STM32_TIM4_QECLKOUT=2800000
     CONFIG_STM32_QENCODER_FILTER=y
     CONFIG_STM32_QENCODER_SAMPLE_EVENT_6=y
     CONFIG_STM32_QENCODER_SAMPLE_FDTS_4=y
@@ -505,7 +517,7 @@ MAPPING TO STM32 F4::
    4 Also the reset pin for the CS43L22 audio Codec.
 
 NOTE:  The configuration to test this LCD configuration is available at
-boards/arm/stm32/stm32f4discovery/nxlines.  As of this writing, I have not seen the
+boards/arm/stm32f4/stm32f4discovery/nxlines.  As of this writing, I have not seen the
 LCD working so I probably have some things wrong.
 
 I might need to use a bit-banging interface.  Below is the pin configuration
@@ -601,7 +613,7 @@ that I am using::
 
 Darcy Gong recently added support for the UG-2864HSWEG01 OLED which is also
 an option with this configuration.  I have little technical information about
-the UG-2864HSWEG01 interface (see boards/arm/stm32/stm32f4discovery/src/up_ug2864hsweg01.c).
+the UG-2864HSWEG01 interface (see boards/arm/stm32f4/stm32f4discovery/src/up_ug2864hsweg01.c).
 
 NiceRF LoRa (2AD66-LoRa V2)
 ===========================
@@ -627,7 +639,7 @@ connect the CS to PA4, connect RST to PE1 and finally connect INT to PE4.
 
 The next step is to enable the ENC28J60 in the menuconfig ("make menuconfig")
 and the necessary Network configuration, you can use the
-boards/arm/stm32/fire-stm32v2/configs/nsh/defconfig as reference.
+boards/arm/stm32f1/fire-stm32v2/configs/nsh/defconfig as reference.
 
 HCI UART
 ========
@@ -776,8 +788,8 @@ BASIC interpreter that you can find at apps/interpreters/bas.::
 There is also a test suite for the interpreter that can be found at
 apps/examples/bastest.
 
-Configuration
--------------
+BAS
+---
 
 Below are the recommended configuration changes to use BAS with the
 stm32f4discovery/nsh configuration:
@@ -794,7 +806,7 @@ Dependencies::
 Enable the BASIC interpreter.  Other default options should be okay::
 
     CONFIG_INTERPRETERS_BAS=y    : Enables the interpreter
-    CONFIG_INTERPRETER_BAS_VT100=y
+    CONFIG_INTERPRETERS_BAS_VT100=y
 
 The BASIC test suite can be included::
 
@@ -1190,7 +1202,7 @@ NOTES:
 The HCI UART selection can be changed by re-configuring and assigning
 the different U[S]ART to the HCI.  The U[S]ART pin selections can be
 changed by modifying the disambiguation definitions in
-boards/arm/stm32/stm32f4discovery/include/board.h
+boards/arm/stm32f4/stm32f4discovery/include/board.h
 
 I have been testing with the DVK_BT960_SA board via J10 as follows::
 
@@ -1463,6 +1475,109 @@ because code cannot be executed from CCM memory.
 STATUS:
 2018-06-02: Configuration added by Alan Carvalho de Assis.
 
+mpr121_keypad
+-------------
+
+This board config enables the usage of an external MPR121 Capacitive
+Keypad connected to STM32F4Discovery board this way:
+
+================ =============
+STM32F4Discovery MPR121 Keypad
+================ =============
+GND              GND
+3V [1]           3V3
+I2C1 SDA (PB9)   SDA
+I2C1 SCL (PB6)   SCL
+PB0              IRQ
+================ =============
+
+1: You need to remove the diode D3 and short-circuit the PADs in the
+board to get 3.3V. Be aware: although my board works fine, it could
+damage something that expects 3V in our board (double check).
+
+After compiling and flashing the firmware in our board, run kbd command.
+
+.. code:: console
+
+   NuttShell (NSH) NuttX-12.13.0
+   nsh> ls /dev
+   /dev:
+    console
+    keypad0
+    null
+    ttyS0
+    zero
+   nsh> kbd
+   kbd_main: nsamples: 0
+   kbd_main: Opening /dev/keypad0
+   Sample  :
+      code : 48
+      type : 0
+   Sample  :
+      code : 48
+      type : 1
+   Sample  :
+      code : 49
+      type : 0
+   Sample  :
+      code : 49
+      type : 1
+
+mt6816
+------
+
+This board config enables the MagTek MT6816 Magnetic Rotary Encoder connected
+to STM32F4Discovery board SPI1 this way:
+
+================ ======
+STM32F4Discovery MT6816
+================ ======
+3V [1]           VCC
+GND              GND
+PE3              CSN
+SPI1 MOSI (PA7)  MOSI
+SPI1 MISO (PA6)  MISO
+SPI1 SCK (PA5)   SCK
+================ ======
+
+1: You need to remove the diode D3 and short-circuit the PADs in the
+board to get 3.3V. Be aware: although my board works fine, it could
+damage something that expects 3V in our board (double check).
+
+IMPORTANT: You need to connect the HVPP (pin 2) to VCC in order to get
+MT6816 working in SPI mode. Just short-circuit R3 pads will work:
+
+.. figure:: mt6816.png
+   :align: center
+      
+After compiling and flashing the firmware in our board, run qe command:
+
+.. code:: console
+
+   NuttShell (NSH) NuttX-12.13.0
+   nsh> ls /dev
+   /dev:
+    console
+    null
+    qe0
+    ttyS0
+    zero
+   nsh> qe
+   qe_main: Hardware initialized. Opening the encoder device: /dev/qe0
+   qe_main: Number of samples: 0
+   qe_main:   1. 6546
+   qe_main:   2. 6620
+   qe_main:   3. 7384
+   qe_main:   4. 7808
+   qe_main:   5. 7900
+   qe_main:   6. 7984
+   qe_main:   7. 7989
+   qe_main:   8. 7993
+   qe_main:   9. 7998
+   qe_main:  10. 8008
+   qe_main:  11. 8052
+   qe_main:  12. 8064
+
 netnsh
 ------
 
@@ -1586,7 +1701,6 @@ NOTES:
         CONFIG_USBDEV=y               : USB device support must be enabled
         CONFIG_CDCACM=y               : The CDC/ACM driver must be built
         CONFIG_NSH_BUILTIN_APPS=y     : NSH built-in application support must be enabled
-        CONFIG_NSH_ARCHINIT=y         : To perform USB initialization
 
 7. Using the USB console.
 
@@ -1631,7 +1745,7 @@ NOTES:
         for this.
 
       - /dev/console still exists and still refers to the serial port. So
-        you can still use certain kinds of debug output (see include/debug.h, all
+        you can still use certain kinds of debug output (see include/nuttx/debug.h, all
         of the debug output from interrupt handlers will be lost.
 
       - But don't enable USB debug output!  Since USB is console is used for
@@ -1668,11 +1782,7 @@ NOTES:
          CONFIG_FS_FAT=y          : Needed by the USB host mass storage class.
 
        Board Selection ->
-         CONFIG_BOARDCTL=y    : Needed for CONFIG_NSH_ARCHINIT
-
-       Application Configuration -> NSH Library
-         CONFIG_NSH_ARCHINIT=y    : Architecture specific USB initialization
-                                  : is needed for NSH
+         CONFIG_BOARDCTL=y
 
      With those changes, you can use NSH with a FLASH pen driver as shown
      belong.  Here NSH is started with nothing in the USB host slot::
@@ -1911,7 +2021,7 @@ NOTES:
          CONFIG_ARCH_CUSTOM_PMINIT=y
 
    CONFIG_ARCH_CUSTOM_PMINIT moves the PM initialization from
-   arch/arm/src/stm32/stm32_pminitialiaze.c to boards/arm/stm32/stm3210-eval/src/stm32_pm.c.
+   arch/arm/src/common/stm32/stm32_pminitialize_m3m4_v1.c to boards/arm/stm32f1/stm3210e-eval/src/stm32_pm.c.
    This allows us to support board-specific PM initialization.::
 
          CONFIG_ARCH_IDLE_CUSTOM=y
@@ -1923,8 +2033,8 @@ NOTES:
    management.
 
    The configuration CONFIG_ARCH_IDLE_CUSTOM allows us to "steal" the
-   normal STM32 IDLE loop (of arch/arm/src/stm32/stm32_idle.c) and replace
-   this with our own custom IDLE loop (at boards/arm/stm32/stm3210-eval/src/up_idle.c).
+   normal STM32 IDLE loop (of arch/arm/src/common/stm32/stm32_idle_m3m4_v1.c) and replace
+   this with our own custom IDLE loop (at boards/arm/stm32f1/stm3210e-eval/src/up_idle.c).
 
 3. Here are some additional things to note in the configuration::
 
@@ -1998,6 +2108,78 @@ This is an NSH configuration that includes apps/testing/ostest as a builtin.
 The sporadic scheduler is enabled and the purpose of this configuration is
 to investigate an error in that scheduler.  See Issue 2035.  The serial
 console is on USART6.
+
+st7567
+------
+
+Configures the board to support a ST7567 monochromatic LCD like the
+OPEN-SMART 1.8INCH LCD.
+
+Connect the STM32F4Discovery board to ST7567 LCD this way:
+
+================ ===========
+STM32F4Discovery ST7567 LCD
+================ ===========
+GND              GND
+3V [1]           3V3
+SPI1 MOSI (PA7)  SDI
+SPI1 SCK (PA5)   SCK
+PB8              DC
+SPI1 CS (PB7)    CS
+PB6              RST
+GND              LED
+================ ===========
+
+1: You need to remove the diode D3 and short-circuit the PADs in the
+board to get 3.3V. Be aware: although my board works fine, it could
+damage something that expects 3V in our board (double check).
+
+After compiling and flashing the firmware in our board, run fb command.
+
+.. code:: console
+
+   NuttShell (NSH) NuttX-12.12.0
+   nsh> ?
+   help usage:  help [-v] [<cmd>]
+
+       .           cp          expr        mount       kill        uname
+       [           cmp         false       mv          pkill       umount
+       ?           dirname     fdinfo      pidof       sleep       unset
+       alias       df          free        printf      usleep      uptime
+       unalias     dmesg       help        ps          source      watch
+       basename    echo        hexdump     pwd         test        xd
+       break       env         ls          rm          time        wait
+       cat         exec        mkdir       rmdir       true
+       cd          exit        mkrd        set         truncate
+
+     Builtin Apps:
+     dd       fb       hello    nsh      sh
+   nsh> fb
+   VideoInfo:
+         fmt: 0
+         xres: 128
+        yres: 64
+     nplanes: 1
+   PlaneInfo (plane 0):
+       fbmem: 0x10000a98
+       fblen: 1024
+      stride: 16 
+     display: 0
+         bpp: 1
+   Mapped FB: 0x10000a98
+    0: (  0,  0) (128, 64)
+    1: ( 11,  5) (106, 54)
+    2: ( 22, 10) ( 84, 44)
+    3: ( 33, 15) ( 62, 34)
+    4: ( 44, 20) ( 40, 24)
+    5: ( 55, 25) ( 18, 14)
+   Test finished
+   nsh> 
+
+You should see this image:
+
+.. figure:: st7567.png
+   :align: center
 
 testlibcxx
 ----------
@@ -2141,7 +2323,6 @@ NOTES:
        CONFIG_USBDEV_TRACE=y                   : Enable USB trace feature
        CONFIG_USBDEV_TRACE_NRECORDS=128        : Buffer 128 records in memory
        CONFIG_NSH_USBDEV_TRACE=n               : No builtin tracing from NSH
-       CONFIG_NSH_ARCHINIT=y                   : Automatically start the USB monitor
        CONFIG_USBMONITOR=y              : Enable the USB monitor daemon
        CONFIG_USBMONITOR_STACKSIZE=2048 : USB monitor daemon stack size
        CONFIG_USBMONITOR_PRIORITY=50    : USB monitor daemon priority
@@ -2238,7 +2419,7 @@ Connect the HX711 to the STM32F4 board using the following pins:
 
 ::
 
-    NuttShell (NSH) NuttX-12.10.0 
+    NuttShell (NSH) NuttX-12.10.0
     nsh> hx711 -D
     Current settings for: /dev/hx711_0
     average.............: 1
@@ -2260,3 +2441,10 @@ Connect the HX711 to the STM32F4 board using the following pins:
     -4
 
 For more details, refer to the official `HX711 NuttX documentation <https://nuttx.apache.org/docs/latest/components/drivers/character/analog/adc/hx711/index.html>`_.
+
+nxscope_cdcacm
+--------------
+
+Configuration demonstrating NxScope stream over CDC-ACM interface.
+See :doc:`/applications/examples/nxscope/index` and
+:doc:`/applications/logging/nxscope/index` for more details.

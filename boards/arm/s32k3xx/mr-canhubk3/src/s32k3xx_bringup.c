@@ -28,7 +28,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -79,9 +79,6 @@ struct mtd_dev_s *g_mtd_fs;
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
  *
  ****************************************************************************/
 

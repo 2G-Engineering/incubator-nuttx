@@ -28,7 +28,7 @@
 
 #include <sys/types.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
@@ -54,7 +54,7 @@
 #define HAVE_EXTSRAM2_REGION  0 /* Assume no external SRAM at CS2 */
 #define HAVE_EXTSRAM3_REGION  0 /* Assume no external SRAM at CS3 */
 
-/* Check if external SDRAM is supported and, if so, it is is intended
+/* Check if external SDRAM is supported and, if so, it is intended
  * to be used as heap.
  */
 

@@ -27,7 +27,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include "eoss3.h"
@@ -46,9 +46,6 @@
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
  *
  ****************************************************************************/
 

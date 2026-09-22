@@ -39,7 +39,7 @@
 #include <poll.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -85,9 +85,11 @@ struct btn_open_s
 
   /* Button event notification information */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   pid_t bo_pid;
   struct btn_notify_s bo_notify;
   struct sigwork_s bo_work;
+#endif
 
   /* Poll event information */
 
@@ -184,8 +186,10 @@ static void btn_enable(FAR struct btn_upperhalf_s *priv)
 
       /* OR in the signal events */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
       press   |= opriv->bo_notify.bn_press;
       release |= opriv->bo_notify.bn_release;
+#endif
     }
 
   /* Enable/disable button interrupts */
@@ -297,6 +301,7 @@ static void btn_sample(wdparm_t arg)
 
       /* Have any signal events occurred? */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
       if ((press & opriv->bo_notify.bn_press)     != 0 ||
           (release & opriv->bo_notify.bn_release) != 0)
         {
@@ -306,6 +311,7 @@ static void btn_sample(wdparm_t arg)
           nxsig_notification(opriv->bo_pid, &opriv->bo_notify.bn_event,
                              SI_QUEUE, &opriv->bo_work);
         }
+#endif
     }
 
   priv->bu_sample = sample;
@@ -426,7 +432,9 @@ static int btn_close(FAR struct file *filep)
 
   /* Cancel any pending notification */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   nxsig_cancel_notification(&opriv->bo_work);
+#endif
 
   /* And free the open structure */
 
@@ -625,6 +633,7 @@ static int btn_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
     case BTNIOC_REGISTER:
       {
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
         FAR struct btn_notify_s *notify =
           (FAR struct btn_notify_s *)((uintptr_t)arg);
 
@@ -642,6 +651,9 @@ static int btn_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
             btn_enable(priv);
             ret = OK;
           }
+#else
+        ret = -ENOSYS;
+#endif
       }
       break;
 

@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/spi/spi.h>
 #include <arch/board/board.h>
@@ -57,7 +57,7 @@
 
 void weak_function k64_spidev_initialize(void)
 {
-# warning "Missing logic"
+  kinetis_pinconfig(GPIO_SPI0_CS);
 }
 
 /****************************************************************************
@@ -98,7 +98,7 @@ void kinetis_spi0select(struct spi_dev_s *dev, uint32_t devid,
 {
   spiinfo("devid: %d CS: %s\n", (int)devid,
           selected ? "assert" : "de-assert");
-# warning "Missing logic"
+  kinetis_gpiowrite(GPIO_SPI0_CS, !selected);
 }
 
 uint8_t kinetis_spi0status(struct spi_dev_s *dev, uint32_t devid)

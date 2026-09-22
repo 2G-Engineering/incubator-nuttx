@@ -30,7 +30,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/sched.h>
@@ -455,7 +455,9 @@ void nxtask_exithook(FAR struct tcb_s *tcb, int status)
 
   /* Deallocate anything left in the TCB's queues */
 
+#ifndef CONFIG_DISABLE_ALL_SIGNALS
   nxsig_cleanup(tcb); /* Deallocate Signal lists */
+#endif
 
 #ifdef CONFIG_SCHED_DUMP_LEAK
   if ((tcb->flags & TCB_FLAG_TTYPE_MASK) == TCB_FLAG_TTYPE_KERNEL)

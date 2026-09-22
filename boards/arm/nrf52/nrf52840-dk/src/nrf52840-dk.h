@@ -99,9 +99,6 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int nrf52_bringup(void);
@@ -213,6 +210,18 @@ int nrf52_mx25_initialize(void);
 
 #ifdef CONFIG_NRF52840DK_BTNLEDS_GPIO
 int nrf52_gpioleds_initialize(void);
+#endif
+
+/****************************************************************************
+ * Name: nrf52_qencoder_initialize
+ *
+ * Description:
+ *   Initialize quadrature encoder driver.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_SENSORS_QENCODER
+int nrf52_qencoder_initialize(int devno);
 #endif
 
 #endif /* __ASSEMBLY__ */

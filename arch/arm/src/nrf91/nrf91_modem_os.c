@@ -28,13 +28,15 @@
 
 #include <arch/irq.h>
 
+#include <nuttx/arch.h>
+#include <nuttx/clock.h>
 #include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/signal.h>
 
 #include <nuttx/mm/mm.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -265,7 +267,6 @@ int32_t nrf_modem_os_timedwait(uint32_t context, int32_t *timeout)
 {
   struct nrf91_modem_os_waiting_s *waiting   = NULL;
   struct timespec                  ts_now;
-  struct timespec                  abstime;
   int32_t                          remaining = 0;
   int32_t                          diff      = 0;
   int                              ret       = -EAGAIN;
@@ -306,12 +307,12 @@ int32_t nrf_modem_os_timedwait(uint32_t context, int32_t *timeout)
     }
   else
     {
-      /* Wait for event or timeout */
+      /* Wait for event or timeout (relative timeout in milliseconds).
+       * Capture the return value so a posted event is reported as success
+       * instead of a timeout.
+       */
 
-      abstime.tv_sec  = *timeout / 1000;
-      abstime.tv_nsec = (*timeout % 1000) * 1000000;
-
-      nxsem_timedwait(&waiting->sem, &abstime);
+      ret = nxsem_tickwait(&waiting->sem, MSEC2TICK(*timeout));
     }
 
   /* Free a waiting slot */
@@ -389,7 +390,7 @@ int nrf_modem_os_sleep(uint32_t timeout)
 {
   /* Timeout in ms */
 
-  nxsig_usleep(timeout * 1000);
+  nxsched_usleep(timeout * 1000);
   return OK;
 }
 
@@ -476,12 +477,9 @@ int nrf_modem_os_sem_take(void *sem, int timeout)
     }
   else
     {
-      struct timespec abstime;
+      /* Relative timeout in milliseconds. */
 
-      abstime.tv_sec  = timeout / 1000;
-      abstime.tv_nsec = (timeout % 1000) * 1000000;
-
-      ret = nxsem_timedwait(s, &abstime);
+      ret = nxsem_tickwait(s, MSEC2TICK(timeout));
     }
 
   return ret;

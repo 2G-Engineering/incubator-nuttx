@@ -33,7 +33,7 @@
 #include <time.h>
 #include <string.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <endian.h>
 
@@ -61,6 +61,7 @@
 #include "chip.h"
 #include "hardware/imx9_enet.h"
 #include "imx9_enet.h"
+#include "imx9_clockconfig.h"
 
 #include "imx9_ccm.h"
 #include "imx9_iomuxc.h"
@@ -74,15 +75,22 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* If processing is not done at the interrupt level, then work queue support
- * is required.
+/* Select work queue for normal operation */
+
+#  if defined(CONFIG_IMX9_ENET_HPWORK)
+#    define ETHWORK HPWORK
+#  else
+#    define ETHWORK LPWORK
+#  endif
+
+/* LPWORK support is always required. Even if HPWORK were used for normal
+ * operation, timeouts are only handled in LPWORK since phy communication
+ * might cause delays due to polling
  */
 
-#if !defined(CONFIG_SCHED_LPWORK)
-#  error LPWORK queue support is required
-#endif
-
-#define ETHWORK LPWORK
+#  if !defined(CONFIG_SCHED_LPWORK)
+#    error LPWORK queue support is required
+#  endif
 
 /* We need at least two TX buffers for reliable operation */
 
@@ -120,16 +128,6 @@
 /* PHY reset tim in loop counts */
 
 #define PHY_RESET_WAIT_COUNT (10)
-
-/* Estimate the MII_SPEED in order to get an MDC close to 2.5MHz,
- * based on the internal module (ENET) clock:
-
- * MII clock frequency = 133 MHz / ((26 + 1) x 2) = 2.5 MHz
- *
- * TODO: This is hard-coded for now, could be properly calculated
- */
-
-#define IMX9_MII_SPEED  26
 
 /* Interrupt groups */
 
@@ -175,6 +173,7 @@ enum phy_type_t
 struct imx9_driver_s
 {
   struct net_driver_s          dev;         /* Interface understood by the network */
+  int                          intf;        /* Interface number within the driver */
   const uint32_t               base;        /* Base address of ENET controller */
   const int                    clk_gate;    /* Enet clock gate */
   const int                    irq;         /* Enet interrupt */
@@ -1282,10 +1281,13 @@ static void imx9_txtimeout_expiry(wdparm_t arg)
   priv->ints = 0;
 
   /* Schedule to perform the TX timeout processing on the worker thread,
-   * canceling any pending interrupt work.
+   * canceling any pending interrupt work. Note: this runs always in the
+   * low-priority queue instead of ETHWORK. It is too intrusive for the
+   * high-priority queue, running ifdown / ifup sequence and communicating
+   * with PHY.
    */
 
-  work_queue(ETHWORK, &priv->irqwork, imx9_txtimeout_work, priv, 0);
+  work_queue(LPWORK, &priv->irqwork, imx9_txtimeout_work, priv, 0);
 }
 
 /****************************************************************************
@@ -1430,7 +1432,14 @@ static int imx9_ifup(struct net_driver_s *dev)
 {
   /* The externally available ifup action includes resetting the phy */
 
-  return imx9_ifup_action(dev, true);
+  int ret = imx9_ifup_action(dev, true);
+
+  if (ret == OK)
+    {
+      netdev_carrier_on(dev);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -1482,6 +1491,8 @@ static int imx9_ifdown(struct net_driver_s *dev)
   /* Mark the device "down" */
 
   priv->bifup = false;
+
+  netdev_carrier_off(dev);
 
   return OK;
 }
@@ -1908,12 +1919,43 @@ static int imx9_phyintenable(struct imx9_driver_s *priv)
 
 static void imx9_initmii(struct imx9_driver_s *priv)
 {
-  /* Speed is based on the peripheral (bus) clock; hold time is 2 module
-   * clock.  This hold time value may need to be increased on some platforms
+  uint32_t divider;
+  uint32_t freq = 0;
+
+  /* Wakeup_axi_clk is root clock for MII */
+
+  imx9_get_rootclock(CCM_WAKEUP_AXI_CLK_ROOT, &freq);
+  if (!freq)
+    {
+       nerr("Root clock is zero\n");
+       return;
+    }
+
+  /* MII clock frequency must be <= 2,5 MHz
+   *
+   * Divider = (root clock / (2 * 2,5MHZ)) - 1
+   *
+   */
+
+  divider = freq / 5000000;
+
+  /* round up */
+
+  if (freq % 5000000)
+    {
+      divider++;
+    }
+
+  divider--;
+
+  DEBUGASSERT(divider > 0 && divider < 64);
+
+  /* Hold time is 2 module clock.  This hold time value may need
+   * to be increased on some platforms
    */
 
   imx9_enet_putreg32(priv, ENET_MSCR_HOLDTIME_2CYCLES |
-                      IMX9_MII_SPEED << ENET_MSCR_MII_SPEED_SHIFT,
+                      divider << ENET_MSCR_MII_SPEED_SHIFT,
                       IMX9_ENET_MSCR_OFFSET);
 }
 
@@ -2160,6 +2202,17 @@ static int imx9_determine_phy(struct imx9_driver_s *priv)
   int retries;
   int ret;
 
+#ifdef CONFIG_IMX9_ENET_PHYINIT
+  /* Perform any necessary, one-time, board-specific PHY initialization */
+
+  ret = imx9_phy_boardinitialize(priv->intf);
+  if (ret < 0)
+    {
+      nerr("ERROR: Failed to initialize the PHY: %d\n", ret);
+      return ret;
+    }
+#endif
+
   for (i = 0; i < priv->n_phys; i++)
     {
       priv->phyaddr = (uint8_t)priv->phy_list[i].address_lo;
@@ -2172,7 +2225,7 @@ static int imx9_determine_phy(struct imx9_driver_s *priv)
           retries = 0;
           do
             {
-              nxsig_usleep(100);
+              nxsched_usleep(100);
               phydata = 0xffff;
               ret = imx9_readmii(priv, MII_PHYID1, &phydata);
               ninfo("phy %s addr %d received PHYID1 %x\n",
@@ -2186,7 +2239,7 @@ static int imx9_determine_phy(struct imx9_driver_s *priv)
             {
               do
                 {
-                  nxsig_usleep(100);
+                  nxsched_usleep(100);
                   phydata = 0xffff;
                   ret = imx9_readmii(priv, MII_PHYID2, &phydata);
                   ninfo("phy %s addr %d received PHYID2 %x\n",
@@ -2448,7 +2501,7 @@ int imx9_reset_phy(struct imx9_driver_s *priv)
   ret = -ETIMEDOUT;
   for (timeout = 0; timeout < PHY_RESET_WAIT_COUNT; timeout++)
     {
-      nxsig_usleep(100);
+      nxsched_usleep(100);
       result = imx9_readmii(priv, MII_MCR, &mcr);
       if (result < 0)
         {
@@ -2670,7 +2723,7 @@ static int imx9_phy_wait_autoneg_complete(struct imx9_driver_s *priv)
           break;
         }
 
-      nxsig_usleep(LINK_WAITUS);
+      nxsched_usleep(LINK_WAITUS);
     }
 
   if (timeout == LINK_NLOOPS)
@@ -2821,7 +2874,7 @@ static inline int imx9_initphy(struct imx9_driver_s *priv, bool renogphy)
       retries = 0;
       do
         {
-          nxsig_usleep(LINK_WAITUS);
+          nxsched_usleep(LINK_WAITUS);
 
           ninfo("%s: Read PHYID1, retries=%d\n", phy_name, retries + 1);
 
@@ -3191,6 +3244,7 @@ int imx9_netinitialize(int intf)
   /* Get the interface structure associated with this interface number. */
 
   priv = &g_enet[intf];
+  priv->intf = intf;
 
   /* Disable the ENET clock */
 
@@ -3280,17 +3334,6 @@ int imx9_netinitialize(int intf)
   mac[4] = (uidl &  0x0000ff00) >> 8;
   mac[5] = (uidl &  0x000000ff);
 
-#endif
-
-#ifdef CONFIG_IMX9_ENET_PHYINIT
-  /* Perform any necessary, one-time, board-specific PHY initialization */
-
-  ret = imx9_phy_boardinitialize(intf);
-  if (ret < 0)
-    {
-      nerr("ERROR: Failed to initialize the PHY: %d\n", ret);
-      return ret;
-    }
 #endif
 
   /* Put the interface in the down state.  This usually amounts to resetting

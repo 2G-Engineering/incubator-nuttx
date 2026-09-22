@@ -28,7 +28,7 @@
 #include <sys/types.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -422,8 +422,8 @@ static int audio_fake_process_buffer(FAR struct audio_lowerhalf_s *dev,
 
   frame_time = ((int64_t)apb->nbytes * 1000 * 1000) / priv->scaler;
 
-  diff_time = (int64_t)tv2.tv_sec * 1000000 + tv2.tv_usec -
-              ((int64_t)tv1.tv_sec * 1000000 + tv1.tv_usec);
+  diff_time = tv2.tv_sec * 1000000 + tv2.tv_usec -
+              (tv1.tv_sec * 1000000 + tv1.tv_usec);
 
   if (diff_time >= frame_time)
     {
@@ -436,7 +436,7 @@ static int audio_fake_process_buffer(FAR struct audio_lowerhalf_s *dev,
 
   sleep_time = frame_time - diff_time;
 
-  nxsig_usleep(sleep_time);
+  nxsched_usleep(sleep_time);
 
   ret = OK;
 

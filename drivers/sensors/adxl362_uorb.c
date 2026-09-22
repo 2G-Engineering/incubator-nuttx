@@ -26,7 +26,7 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/param.h>
@@ -106,7 +106,7 @@ struct adxl362_sensor_s
   struct sensor_lowerhalf_s  lower;
   FAR struct spi_dev_s      *spi;
   int                        devno;
-  float                      scale;
+  sensor_data_t              scale;
 #ifdef CONFIG_SENSORS_ADXL362_POLL
   bool                       enabled;
   uint32_t                   interval;
@@ -164,6 +164,7 @@ static const struct sensor_ops_s g_adxl362_accel_ops =
   NULL,                 /* set_calibvalue */
   NULL,                 /* calibrate */
   NULL,                 /* get_info */
+  NULL,                 /* set_nonwakeup */
   NULL,                 /* control */
 };
 
@@ -482,10 +483,12 @@ static int adxl362_fetch(FAR struct sensor_lowerhalf_s *lower,
   adxl362_getregs(priv, ADXL362_XDATA_L, (FAR uint8_t *)data, 8);
 
   accel.timestamp   = sensor_get_timestamp();
-  accel.x           = (float)adxl362_data(&data[0]) * priv->scale;
-  accel.y           = (float)adxl362_data(&data[2]) * priv->scale;
-  accel.z           = (float)adxl362_data(&data[4]) * priv->scale;
-  accel.temperature = (float)adxl362_data(&data[6]) * ADXL362_TEMP_SCALE;
+
+  accel.x           = sensor_data_muli(priv->scale, adxl362_data(&data[0]));
+  accel.y           = sensor_data_muli(priv->scale, adxl362_data(&data[2]));
+  accel.z           = sensor_data_muli(priv->scale, adxl362_data(&data[4]));
+  accel.temperature = sensor_data_muli(
+    sensor_data_ftof(ADXL362_TEMP_SCALE), adxl362_data(&data[6]));
 
   memcpy(buffer, &accel, sizeof(accel));
 
@@ -539,18 +542,21 @@ static int adxl362_thread(int argc, FAR char **argv)
           adxl362_getregs(priv, ADXL362_XDATA_L, (FAR uint8_t *)data, 8);
 
           accel.timestamp   = sensor_get_timestamp();
-          accel.x           = (float)adxl362_data(&data[0]) * priv->scale;
-          accel.y           = (float)adxl362_data(&data[2]) * priv->scale;
-          accel.z           = (float)adxl362_data(&data[4]) * priv->scale;
-          accel.temperature =
-            (float)adxl362_data(&data[6]) * ADXL362_TEMP_SCALE;
+          accel.x           = sensor_data_muli(priv->scale,
+                                               adxl362_data(&data[0]));
+          accel.y           = sensor_data_muli(priv->scale,
+                                               adxl362_data(&data[2]));
+          accel.z           = sensor_data_muli(priv->scale,
+                                               adxl362_data(&data[4]));
+          accel.temperature = sensor_data_muli(
+            sensor_data_ftof(ADXL362_TEMP_SCALE), adxl362_data(&data[6]));
 
           priv->lower.push_event(priv->lower.priv, &accel, sizeof(accel));
         }
 
       /* Sleeping thread before fetching the next sensor data */
 
-      nxsig_usleep(priv->interval);
+      nxsched_usleep(priv->interval);
     }
 
   return OK;
@@ -602,7 +608,7 @@ int adxl362_register(int devno, FAR struct spi_dev_s *spi)
   priv->lower.ops     = &g_adxl362_accel_ops;
   priv->lower.type    = SENSOR_TYPE_ACCELEROMETER;
   priv->lower.nbuffer = 1;
-  priv->scale         = (CONSTANTS_ONE_G / 1000.0f);
+  priv->scale         = sensor_data_ftof(CONSTANTS_ONE_G / 1000.0f);
   priv->devno         = devno;
 #ifdef CONFIG_SENSORS_ADXL362_POLL
   priv->enabled       = false;

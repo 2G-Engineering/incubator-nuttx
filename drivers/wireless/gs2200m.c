@@ -44,7 +44,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <poll.h>
 
 #include <nuttx/ascii.h>
@@ -711,7 +711,7 @@ static ssize_t gs2200m_read(FAR struct file *filep, FAR char *buffer,
   ret = nxmutex_lock(&dev->dev_lock);
   if (ret < 0)
     {
-      /* Return if a signal is received or if the the task was canceled
+      /* Return if a signal is received or if the task was canceled
        * while we were waiting.
        */
 
@@ -867,7 +867,7 @@ retry:
   if (RD_RESP_NOK == res[1])
     {
       wlwarn("*** warning: RD_RESP_NOK received.. retrying. (n=%d)\n", n);
-      nxsig_usleep(100 * 1000);
+      nxsched_usleep(100 * 1000);
       n++;
       goto retry;
     }
@@ -931,7 +931,7 @@ retry:
                      (FAR void *)dev, 0);
         }
 
-      nxsig_usleep(100 * 1000);
+      nxsched_usleep(100 * 1000);
       n++;
       goto retry;
     }
@@ -957,7 +957,7 @@ retry:
     {
       wlwarn("*** warning: 0x%x received.. retrying. (n=%d)\n",
              res[1], n);
-      nxsig_usleep(10 * 1000);
+      nxsched_usleep(10 * 1000);
 
       if (WR_MAX_RETRY < n)
         {
@@ -1270,7 +1270,7 @@ static void _parse_pkt_in_s4(FAR struct pkt_ctx_s *pkt_ctx,
 
       memset(addr, 0, sizeof(addr));
       memset(port, 0, sizeof(port));
-      n = sscanf((FAR const char *)pkt_ctx->ptr, "%s %s\t", addr, port);
+      n = sscanf((FAR const char *)pkt_ctx->ptr, "%16s %5s\t", addr, port);
       ASSERT(2 == n);
 
       wlinfo("from (%s:%s)\n", addr, port);
@@ -1716,7 +1716,7 @@ static enum pkt_type_e gs2200m_join_network(FAR struct gs2200m_dev_s *dev,
   ASSERT(3 == pkt_dat.n);
 
   n = sscanf(pkt_dat.msg[1] + 1,
-             " %[^:]:%[^:]:%[^ ]",
+             " %16[^:]:%16[^:]:%16[^ ]",
              addr[0], addr[1], addr[2]);
   ASSERT(3 == n);
 
@@ -2793,7 +2793,7 @@ static int gs2200m_ioctl_iwreq(FAR struct gs2200m_dev_s *dev,
           goto errout;
         }
 
-      n = sscanf(pkt_dat.msg[2], "BSSID=%c:%c:%c:%c:%c:%c %s",
+      n = sscanf(pkt_dat.msg[2], "BSSID=%c:%c:%c:%c:%c:%c %63s",
                  &res->u.ap_addr.sa_data[0], &res->u.ap_addr.sa_data[1],
                  &res->u.ap_addr.sa_data[2], &res->u.ap_addr.sa_data[3],
                  &res->u.ap_addr.sa_data[4], &res->u.ap_addr.sa_data[5],
@@ -2812,7 +2812,7 @@ static int gs2200m_ioctl_iwreq(FAR struct gs2200m_dev_s *dev,
           goto errout;
         }
 
-      n = sscanf(pkt_dat.msg[2], "%s CHANNEL=%" SCNd32 " %s",
+      n = sscanf(pkt_dat.msg[2], "%63s CHANNEL=%" SCNd32 " %63s",
                  cmd, &res->u.freq.m, cmd2);
       ASSERT(3 == n);
       wlinfo("CHANNEL:%" PRId32 "\n", res->u.freq.m);
@@ -3220,7 +3220,7 @@ repeat:
 
           while (gs2200m_recv_pkt(dev, NULL) != TYPE_TIMEOUT)
             {
-              nxsig_usleep(100 * 1000);
+              nxsched_usleep(100 * 1000);
             }
         }
       while (gs2200m_ioctl_assoc_sta(dev, &dev->reconnect_msg) != OK);

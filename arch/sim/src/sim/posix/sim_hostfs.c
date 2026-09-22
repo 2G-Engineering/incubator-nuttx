@@ -134,17 +134,19 @@ int host_open(const char *pathname, int flags, int mode)
 
   /* Perform flag mapping */
 
-  if ((flags & NUTTX_O_RDWR) == NUTTX_O_RDWR)
+  switch (flags & NUTTX_O_ACCMODE)
     {
-      mapflags = O_RDWR;
-    }
-  else if (flags & NUTTX_O_RDONLY)
-    {
-      mapflags = O_RDONLY;
-    }
-  else if (flags & NUTTX_O_WRONLY)
-    {
-      mapflags = O_WRONLY;
+      case NUTTX_O_RDONLY:
+        mapflags = O_RDONLY;
+        break;
+
+      case NUTTX_O_WRONLY:
+        mapflags = O_WRONLY;
+        break;
+
+      case NUTTX_O_RDWR:
+        mapflags = O_RDWR;
+        break;
     }
 
   if (flags & NUTTX_O_APPEND)
@@ -194,7 +196,13 @@ int host_open(const char *pathname, int flags, int mode)
       mapflags |= O_DIRECTORY;
     }
 
-  return host_uninterruptible_errno(open, pathname, mapflags, mode);
+  int ret = open(pathname, mapflags, mode);
+  if (ret == -1)
+    {
+      ret = host_errno_convert(-errno);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -205,7 +213,13 @@ int host_close(int fd)
 {
   /* Just call the close routine */
 
-  return host_uninterruptible_errno(close, fd);
+  int ret = close(fd);
+  if (ret == -1)
+    {
+      ret = host_errno_convert(-errno);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -216,7 +230,13 @@ nuttx_ssize_t host_read(int fd, void *buf, nuttx_size_t count)
 {
   /* Just call the read routine */
 
-  return host_uninterruptible_errno(read, fd, buf, count);
+  nuttx_ssize_t ret = read(fd, buf, count);
+  if (ret == -1)
+    {
+      ret = host_errno_convert(-errno);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -227,7 +247,13 @@ nuttx_ssize_t host_write(int fd, const void *buf, nuttx_size_t count)
 {
   /* Just call the write routine */
 
-  return host_uninterruptible_errno(write, fd, buf, count);
+  nuttx_ssize_t ret = write(fd, buf, count);
+  if (ret == -1)
+    {
+      ret = host_errno_convert(-errno);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -239,7 +265,13 @@ nuttx_off_t host_lseek(int fd, nuttx_off_t pos, nuttx_off_t offset,
 {
   /* Just call the lseek routine */
 
-  return host_uninterruptible_errno(lseek, fd, offset, whence);
+  nuttx_off_t ret = lseek(fd, offset, whence);
+  if (ret == (nuttx_off_t)-1)
+    {
+      ret =  host_errno_convert(-errno);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -250,7 +282,13 @@ int host_ioctl(int fd, int request, unsigned long arg)
 {
   /* Just call the ioctl routine */
 
-  return host_uninterruptible_errno(ioctl, fd, request, arg);
+  int ret = ioctl(fd, request, arg);
+  if (ret < 0)
+    {
+      ret = host_errno_convert(-errno);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -270,7 +308,13 @@ void host_sync(int fd)
 
 int host_dup(int fd)
 {
-  return host_uninterruptible_errno(dup, fd);
+  int ret = dup(fd);
+  if (ret < 0)
+    {
+      ret = host_errno_convert(-errno);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -284,7 +328,11 @@ int host_fstat(int fd, struct nuttx_stat_s *buf)
 
   /* Call the host's stat routine */
 
-  ret = host_uninterruptible_errno(fstat, fd, &hostbuf);
+  ret = fstat(fd, &hostbuf);
+  if (ret < 0)
+    {
+      ret = host_errno_convert(-errno);
+    }
 
   /* Map the return values */
 
@@ -303,19 +351,19 @@ int host_fchstat(int fd, const struct nuttx_stat_s *buf, int flags)
 
   if (flags & NUTTX_CH_STAT_MODE)
     {
-      ret = host_uninterruptible_errno(fchmod, fd, buf->st_mode);
+      ret = fchmod(fd, buf->st_mode);
       if (ret < 0)
         {
-          return ret;
+          return host_errno_convert(-errno);
         }
     }
 
   if (flags & (NUTTX_CH_STAT_UID | NUTTX_CH_STAT_GID))
     {
-      ret = host_uninterruptible_errno(fchown, fd, buf->st_uid, buf->st_gid);
+      ret = fchown(fd, buf->st_uid, buf->st_gid);
       if (ret < 0)
         {
-          return ret;
+          return host_errno_convert(-errno);
         }
     }
 
@@ -343,10 +391,10 @@ int host_fchstat(int fd, const struct nuttx_stat_s *buf, int flags)
           times[1].tv_nsec = UTIME_OMIT;
         }
 
-      ret = host_uninterruptible_errno(futimens, fd, times);
+      ret = futimens(fd, times);
       if (ret < 0)
         {
-          return ret;
+          return host_errno_convert(-errno);
         }
     }
 
@@ -359,7 +407,13 @@ int host_fchstat(int fd, const struct nuttx_stat_s *buf, int flags)
 
 int host_ftruncate(int fd, nuttx_off_t length)
 {
-  return host_uninterruptible_errno(ftruncate, fd, length);
+  int ret = ftruncate(fd, length);
+  if (ret < 0)
+    {
+      ret = host_errno_convert(-errno);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -449,7 +503,13 @@ void host_rewinddir(void *dirp)
 
 int host_closedir(void *dirp)
 {
-  return host_uninterruptible_errno(closedir, dirp);
+  int ret = closedir(dirp);
+  if (ret < 0)
+    {
+      ret = host_errno_convert(-errno);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -463,7 +523,11 @@ int host_statfs(const char *path, struct nuttx_statfs_s *buf)
 
   /* Call the host's statfs routine */
 
-  ret = host_uninterruptible_errno(statvfs, path, &hostbuf);
+  ret = statvfs(path, &hostbuf);
+  if (ret < 0)
+    {
+      ret = host_errno_convert(-errno);
+    }
 
   /* Map the struct statfs value */
 
@@ -485,7 +549,13 @@ int host_statfs(const char *path, struct nuttx_statfs_s *buf)
 
 int host_unlink(const char *pathname)
 {
-  return host_uninterruptible_errno(unlink, pathname);
+  int ret = unlink(pathname);
+  if (ret < 0)
+    {
+      ret = host_errno_convert(-errno);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -496,7 +566,13 @@ int host_mkdir(const char *pathname, int mode)
 {
   /* Just call the host's mkdir routine */
 
-  return host_uninterruptible_errno(mkdir, pathname, mode);
+  int ret = mkdir(pathname, mode);
+  if (ret < 0)
+    {
+      ret = host_errno_convert(-errno);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -505,7 +581,13 @@ int host_mkdir(const char *pathname, int mode)
 
 int host_rmdir(const char *pathname)
 {
-  return host_uninterruptible_errno(rmdir, pathname);
+  int ret = rmdir(pathname);
+  if (ret < 0)
+    {
+      ret = host_errno_convert(-errno);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -514,7 +596,13 @@ int host_rmdir(const char *pathname)
 
 int host_rename(const char *oldpath, const char *newpath)
 {
-  return host_uninterruptible_errno(rename, oldpath, newpath);
+  int ret = rename(oldpath, newpath);
+  if (ret < 0)
+    {
+      ret = host_errno_convert(-errno);
+    }
+
+  return ret;
 }
 
 /****************************************************************************
@@ -528,7 +616,11 @@ int host_stat(const char *path, struct nuttx_stat_s *buf)
 
   /* Call the host's stat routine */
 
-  ret = host_uninterruptible_errno(stat, path, &hostbuf);
+  ret = stat(path, &hostbuf);
+  if (ret < 0)
+    {
+      ret = host_errno_convert(-errno);
+    }
 
   /* Map the return values */
 
@@ -547,20 +639,19 @@ int host_chstat(const char *path, const struct nuttx_stat_s *buf, int flags)
 
   if (flags & NUTTX_CH_STAT_MODE)
     {
-      ret = host_uninterruptible_errno(chmod, path, buf->st_mode);
+      ret = chmod(path, buf->st_mode);
       if (ret < 0)
         {
-          return ret;
+          return host_errno_convert(-errno);
         }
     }
 
   if (flags & (NUTTX_CH_STAT_UID | NUTTX_CH_STAT_GID))
     {
-      ret = host_uninterruptible_errno(chown, path,
-                                       buf->st_uid, buf->st_gid);
+      ret = chown(path, buf->st_uid, buf->st_gid);
       if (ret < 0)
         {
-          return ret;
+          return host_errno_convert(-errno);
         }
     }
 
@@ -588,10 +679,10 @@ int host_chstat(const char *path, const struct nuttx_stat_s *buf, int flags)
           times[1].tv_nsec = UTIME_OMIT;
         }
 
-      ret = host_uninterruptible_errno(utimensat, AT_FDCWD, path, times, 0);
+      ret = utimensat(AT_FDCWD, path, times, 0);
       if (ret < 0)
         {
-          return ret;
+          return host_errno_convert(-errno);
         }
     }
 

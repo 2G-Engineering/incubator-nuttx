@@ -5,6 +5,14 @@
 
 if 16550_UART
 
+config 16550_POLLING
+	bool "Force polling mode for TX"
+	default n
+	---help---
+		Force using polling mode for transmission. This avoids using TX interrupts
+		and potentially reduces interrupt latency, at the cost of blocking execution
+		during transmission.
+
 config 16550_SERIAL_DISABLE_REORDERING
 	bool "Disable reordering of ttySx devices."
 	default n
@@ -92,7 +100,8 @@ config 16550_UART0_DMA
 	bool "16550 UART0 DMA support"
 	default n
 	select ARCH_DMA
-	select SERIAL_DMA
+	select SERIAL_TXDMA
+	select SERIAL_RXDMA
 	---help---
 		Enable DMA transfers on 16550 UART0
 
@@ -205,7 +214,8 @@ config 16550_UART1_DMA
 	bool "16550 UART1 DMA support"
 	default n
 	select ARCH_DMA
-	select SERIAL_DMA
+	select SERIAL_TXDMA
+	select SERIAL_RXDMA
 	---help---
 		Enable DMA transfers on 16550 UART1
 
@@ -318,7 +328,8 @@ config 16550_UART2_DMA
 	bool "16550 UART2 DMA support"
 	default n
 	select ARCH_DMA
-	select SERIAL_DMA
+	select SERIAL_TXDMA
+	select SERIAL_RXDMA
 	---help---
 		Enable DMA transfers on 16550 UART2
 
@@ -431,7 +442,8 @@ config 16550_UART3_DMA
 	bool "16550 UART3 DMA support"
 	default n
 	select ARCH_DMA
-	select SERIAL_DMA
+	select SERIAL_TXDMA
+	select SERIAL_RXDMA
 	---help---
 		Enable DMA transfers on 16550 UART3
 

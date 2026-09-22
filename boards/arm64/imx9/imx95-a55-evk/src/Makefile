@@ -24,8 +24,12 @@ include $(TOPDIR)/Make.defs
 
 CSRCS = imx9_boardinit.c imx9_bringup.c
 
-ifeq ($(CONFIG_BOARDCTL),y)
-CSRCS += imx9_appinit.c
+ifeq ($(CONFIG_BOARDCTL_RESET),y)
+CSRCS += imx9_reset.c
+endif
+
+ifeq ($(CONFIG_IMX9_USDHC),y)
+CSRCS += imx9_usdhc.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

@@ -28,7 +28,7 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
@@ -122,6 +122,8 @@ void riscv_cpu_boot(int cpu)
 
   sched_note_cpu_started(this_task());
 #endif
+
+  riscv_timer_secondary_init();
 
   up_irq_enable();
 

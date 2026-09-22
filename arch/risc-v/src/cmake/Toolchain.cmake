@@ -106,7 +106,7 @@ elseif(CONFIG_LTO_FULL)
   if(CONFIG_ARCH_TOOLCHAIN_GNU)
     add_compile_options(-fno-builtin)
     add_compile_options(-fuse-linker-plugin)
-    add_link_options(-wl,--print-memory-usage)
+    add_link_options(-Wl,--print-memory-usage)
   endif()
 endif()
 
@@ -156,7 +156,7 @@ else()
 endif()
 
 if(CONFIG_STACK_CANARIES)
-  add_compile_options(-fstack-protector-all)
+  add_compile_options(${CONFIG_STACK_CANARIES_LEVEL})
 endif()
 
 if(CONFIG_STACK_USAGE)

@@ -62,6 +62,7 @@ arm_gcc_toolchain() {
     local basefile
     basefile=arm-gnu-toolchain-13.2.rel1-darwin-x86_64-arm-none-eabi
     cd "${NUTTXTOOLS}"
+    # Download the latest ARM GCC toolchain prebuilt by ARM
     curl -O -L -s https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/${basefile}.tar.xz
     xz -d ${basefile}.tar.xz
     tar xf ${basefile}.tar
@@ -92,8 +93,28 @@ arm64_gcc_toolchain() {
 
 avr_gcc_toolchain() {
   if ! type avr-gcc > /dev/null 2>&1; then
-    brew tap osx-cross/avr
-    brew install avr-gcc
+    # Latest version not available for Intel,
+    # so it needs to be built from source, which takes over an hour.
+    # The latest version prebuilt for Intel is 9.4.0
+    # This is a workaround for installation.
+
+    local basefile
+    basefile=avr-gcc@9-9.4.0_1
+    cd /usr/local/Homebrew
+
+    git checkout 4.6.3
+    cd "${NUTTXTOOLS}"
+    curl -O -L -s https://github.com/osx-cross/homebrew-avr/archive/refs/tags/${basefile}.tar.gz
+    tar zxf ${basefile}.tar.gz
+
+    cd "${NUTTXTOOLS}"/homebrew-avr-avr-gcc-9-9.4.0_1/Formula
+    brew install --formula ./avr-binutils.rb
+    brew install --formula ./avr-gcc@9.rb
+    cd ../..
+    rm -f ${basefile}.tar.gz
+    rm -rf homebrew-avr-avr-gcc-9-9.4.0_1
+    cd /usr/local/Homebrew
+    git checkout main
   fi
 
   command avr-gcc --version
@@ -132,7 +153,7 @@ bloaty() {
     # https://github.com/google/bloaty/pull/326
     # https://github.com/google/bloaty/pull/347
     # https://github.com/google/bloaty/pull/385
-    git checkout 8026607280ef139bc0ea806e88cfe4fd0af60bad
+    # git checkout 8026607280ef139bc0ea806e88cfe4fd0af60bad
     mkdir -p "${NUTTXTOOLS}"/bloaty
     cmake -B build/bloaty -GNinja -D BLOATY_PREFER_SYSTEM_CAPSTONE=NO -D CMAKE_INSTALL_PREFIX="${NUTTXTOOLS}"/bloaty
     cmake --build build/bloaty
@@ -194,7 +215,7 @@ kconfig_frontends() {
   add_path "${NUTTXTOOLS}"/kconfig-frontends/bin
 
   if [ ! -f "${NUTTXTOOLS}/kconfig-frontends/bin/kconfig-conf" ]; then
-    git clone --depth 1 https://bitbucket.org/nuttx/tools.git "${NUTTXTOOLS}"/nuttx-tools
+    git clone --depth 1 https://github.com/patacongo/tools.git "${NUTTXTOOLS}"/nuttx-tools
     cd "${NUTTXTOOLS}"/nuttx-tools/kconfig-frontends
     ./configure --prefix="${NUTTXTOOLS}"/kconfig-frontends \
       --disable-kconfig --disable-nconf --disable-qconf \
@@ -258,7 +279,7 @@ python_tools() {
     construct \
     cvt2utf \
     cxxfilt \
-    esptool==4.8.dev4 \
+    esptool==5.2.0 \
     imgtool==1.9.0 \
     kconfiglib \
     pexpect==4.8.0 \
@@ -415,6 +436,8 @@ install_build_tools() {
   rm -f /usr/local/bin/python3-config || :
   # same for openssl
   rm -f /usr/local/bin/openssl || :
+
+  brew update
 
   oldpath=$(cd . && pwd -P)
   for func in ${install}; do

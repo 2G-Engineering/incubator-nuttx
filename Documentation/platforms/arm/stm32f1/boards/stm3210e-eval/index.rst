@@ -87,13 +87,13 @@ OpenOCD
 =======
 
 I have also used OpenOCD with the STM3210E-EVAL.  In this case, I used
-the Olimex USB ARM OCD.  See the script in boards/arm/stm32/stm3210e-eval/tools/oocd.sh
+the Olimex USB ARM OCD.  See the script in boards/arm/stm32f1/stm3210e-eval/tools/oocd.sh
 for more information.  Using the script:
 
 - Start the OpenOCD GDB server::
 
     cd <nuttx-build-directory>
-    boards/arm/stm32/stm3210e-eval/tools/oocd.sh $PWD
+    boards/arm/stm32f1/stm3210e-eval/tools/oocd.sh $PWD
 
 - Load NuttX::
 
@@ -129,7 +129,7 @@ events as follows:
        LED_SIGNAL           In a signal handler[3]  N/C     ON      N/C     OFF
        LED_ASSERTION        An assertion failed     ON      ON      N/C     OFF
        LED_PANIC            The system has crashed  N/C     N/C     N/C     ON
-       LED_IDLE             STM32 is is sleep mode  
+       LED_IDLE             STM32 is is sleep mode
        ===================  ======================= ======= ======= ======= ======
 
        [1] If LED1, LED2, LED3 are statically on, then NuttX probably failed to boot
@@ -171,7 +171,7 @@ More complex temperature sensor operations are also available.  See the
 IOCTL commands enumerated in include/nuttx/sensors/lm75.h.  Also read the
 descriptions of the stm32_lm75initialize() and stm32_lm75attach()
 interfaces in the arch/board/board.h file (sames as
-boards/arm/stm32/stm3210e-eval/include/board.h).
+boards/arm/stm32f1/stm3210e-eval/include/board.h).
 
 NSH Command Line Application
 ----------------------------
@@ -185,9 +185,6 @@ configuration options::
     Library
       CONFIG_LIBM=y
       CONFIG_LIBC_FLOATINGPOINT=y
-
-    Applications -> NSH Library
-      CONFIG_NSH_ARCHINIT=y
 
     Applications -> System Add-Ons
       CONFIG_SYSTEM_LM75=y
@@ -815,7 +812,7 @@ NOTES:
          CONFIG_ARCH_CUSTOM_PMINIT=y
 
    CONFIG_ARCH_CUSTOM_PMINIT moves the PM initialization from
-   arch/arm/src/stm32/stm32_pminitialiaze.c to boards/arm/stm32/stm3210-eval/src/stm32_pm.c.
+   arch/arm/src/common/stm32/stm32_pminitialize_m3m4_v1.c to boards/arm/stm32f1/stm3210e-eval/src/stm32_pm.c.
    This allows us to support board-specific PM initialization.::
 
          CONFIG_ARCH_IDLE_CUSTOM=y
@@ -827,8 +824,8 @@ NOTES:
    management.
 
    The configuration CONFIG_ARCH_IDLE_CUSTOM allows us to "steal" the
-   normal STM32 IDLE loop (of arch/arm/src/stm32/stm32_idle.c) and replace
-   this with our own custom IDLE loop (at boards/arm/stm32/stm3210-eval/src/up_idle.c).
+   normal STM32 IDLE loop (of arch/arm/src/common/stm32/stm32_idle_m3m4_v1.c) and replace
+   this with our own custom IDLE loop (at boards/arm/stm32f1/stm3210e-eval/src/up_idle.c).
 
 4. Here are some additional things to note in the configuration::
 

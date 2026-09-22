@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/can/can.h>
 #include <arch/board/board.h>
@@ -46,7 +46,7 @@
 
 /* Configuration ************************************************************/
 
-#if !defined(CONFIG_STM32H5_FDCAN1) && !defined(CONFIG_STM32H5_FDCAN2)
+#if !defined(CONFIG_STM32_FDCAN1) && !defined(CONFIG_STM32_FDCAN2)
 #  error "No CAN device is enabled. Please enable at least one CAN device"
 #endif
 

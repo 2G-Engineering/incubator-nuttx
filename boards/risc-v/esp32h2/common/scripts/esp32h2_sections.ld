@@ -149,6 +149,7 @@ SECTIONS
     *libarch.a:*rtc_clk_init.*(.text .text.* .literal .literal.*)
     *libarch.a:*pmu_sleep.*(.text .text.* .literal .literal.*)
     *libarch.a:*pmu_param.*(.text .text.* .literal .literal.*)
+    *libarch.a:*sleep_modes.*(.text .text.* .literal .literal.*)
     *libarch.a:*rtc_time.*(.text .text.* .literal .literal.*)
     *libarch.a:*systimer.*(.text .text.* .literal .literal.*)
     *libarch.a:*systimer_hal.*(.text .text.* .literal .literal.*)
@@ -197,9 +198,31 @@ SECTIONS
     *libarch.a:*log_timestamp_common.*(.literal .literal.* .text .text.*)
     *libarch.a:*log_write.*(.literal.esp_log_write .text.esp_log_write)
     *libarch.a:*log_write.*(.literal.esp_log_writev .text.esp_log_writev)
+    *libarch.a:*riscv_modifyreg32.*(.literal .literal.* .text .text.*)
     *libarch.a:esp_spiflash.*(.literal .text .literal.* .text.*)
+    *libarch.a:esp_flash_api.*(.text .text.* .literal .literal.*)
+    *libarch.a:esp_flash_spi_init.*(.text .text.* .literal .literal.*)
+    *libarch.a:spi_flash_hal_iram.*(.literal .literal.* .text .text.*)
+    *libarch.a:spi_flash_encrypt_hal_iram.*(.text .text.* .literal .literal.*)
+    *libarch.a:spi_flash_hal_gpspi.*(.literal .literal.* .text .text.*)
+    *libarch.a:spi_flash_chip*.*(.literal .literal.* .text .text.*)
+    *libarch.a:spi_flash_wrap.*(.literal .literal.* .text .text.*)
+    *libarch.a:spi_flash_os_func_noos.*(.literal .literal.* .text .text.*)
+    *libarch.a:spi_flash_os_func_app.*(.literal .literal.* .text .text.*)
+    *libarch.a:flash_brownout_hook.*(.literal .literal.* .text .text.*)
+    *libarch.a:esp_cache_utils.*(.literal .literal.* .text .text.*)
+    *libarch.a:cache_utils.*(.literal .literal.* .text .text.*)
+    *libarch.a:memspi_host_driver.*(.literal .literal.* .text .text.*)
     *libarch.a:*interrupt_plic.*(.literal .literal.* .text .text.*)
-
+    *libarch.a:critical_section.*(.literal .literal.* .text .text.*)
+    *libarch.a:os.*(.literal.nuttx_enter_critical .text.nuttx_enter_critical)
+    *libarch.a:os.*(.literal.nuttx_exit_critical .text.nuttx_exit_critical)
+    *libarch.a:*sleep_modes.*(.literal.esp_sleep_pd_config* .text.esp_sleep_pd_config*)
+    *libarch.a:intr_alloc.*(.literal.esp_intr_get_intno .text.esp_intr_get_intno)
+    *libarch.a:intr_alloc.*(.literal.esp_intr_get_cpu .text.esp_intr_get_cpu)
+    *libarch.a:interrupt.*(.literal.intr_handler_get .text.intr_handler_get)
+    *libarch.a:interrupt.*(.literal.intr_handler_get_arg .text.intr_handler_get_arg)
+    *libarch.a:interrupt.*(.literal.intr_get_item .text.intr_get_item)
     *libc.a:sq_remlast.*(.literal .text .literal.* .text.*)
 
     esp_head.*(.literal .text .literal.* .text.*)
@@ -299,6 +322,7 @@ SECTIONS
     *libarch.a:*rtc_clk_init.*(.rodata .rodata.*)
     *libarch.a:*pmu_param.*(.rodata .rodata.*)
     *libarch.a:*pmu_sleep.*(.rodata .rodata.*)
+    *libarch.a:*sleep_modes.*(.rodata .rodata.*)
     *libarch.a:*rtc_time.*(.rodata .rodata.*)
     *libarch.a:*systimer.*(.rodata .rodata.*)
     *libarch.a:*systimer_hal.*(.rodata .rodata.*)
@@ -339,6 +363,22 @@ SECTIONS
     *libarch.a:*esp_efuse_utility.*(.rodata .rodata.*)
     *libarch.a:*efuse_hal.*(.rodata .rodata.*)
     *libarch.a:esp_spiflash.*(.rodata .rodata.*)
+    *libarch.a:esp_flash_api.*(.rodata .rodata.*)
+    *libarch.a:esp_flash_spi_init.*(.rodata .rodata.*)
+    *libarch.a:spi_flash_hal_iram.*(.rodata .rodata.*)
+    *libarch.a:spi_flash_encrypt_hal_iram.*(.rodata .rodata.*)
+    *libarch.a:spi_flash_hal_gpspi.*(.rodata .rodata.*)
+    *libarch.a:spi_flash_chip*.*(.rodata .rodata.*)
+    *libarch.a:spi_flash_wrap.*(.rodata .rodata.*)
+    *libarch.a:spi_flash_os_func_noos.*(.rodata .rodata.*)
+    *libarch.a:spi_flash_os_func_app.*(.rodata .rodata.*)
+    *libarch.a:flash_brownout_hook.*(.rodata .rodata.*)
+    *libarch.a:esp_cache_utils.*(.rodata .rodata.*)
+    *libarch.a:cache_utils.*(.rodata .rodata.*)
+    *libarch.a:memspi_host_driver.*(.rodata .rodata.*)
+    *libarch.a:critical_section.*(.rodata .rodata.*)
+    *libarch.a:os.*(.rodata.g_int_flags_count .rodata.g_int_flags)
+    *libarch.a:*sleep_modes.*(.rodata.esp_sleep_pd_config*)
 
     esp_head.*(.rodata .rodata.*)
     esp_start.*(.rodata .rodata.*)
@@ -391,6 +431,17 @@ SECTIONS
     _text_start = ABSOLUTE(.);
 
     *(.literal .text .literal.* .text.* .stub .gnu.warning .gnu.linkonce.literal.* .gnu.linkonce.t.*.literal .gnu.linkonce.t.*)
+
+#ifdef CONFIG_ESPRESSIF_BLE
+    /* BLE controller (libble_app.a) uses custom section names; collect them
+     * here so elf2image does not see one ESP segment per input section (max 16).
+     */
+    *(.high_perf_code_iram1)
+    *(.high_perf_code_iram1.*)
+    *(.adv_fast_execute_code_iram1)
+    *(.adv_fast_execute_code_iram1.*)
+#endif
+
     *(.irom0.text) /* catch stray ICACHE_RODATA_ATTR */
     *(.fini.literal)
     *(.fini)
@@ -531,7 +582,21 @@ SECTIONS
     _rtc_text_start = ABSOLUTE(.);
     *(.rtc.entry.text)
 
-    *(.rtc.literal .rtc.text)
+    *(.rtc.literal .rtc.literal.*)
+    *(.rtc.text .rtc.text.*)
+    _rtc_text_end = ABSOLUTE(.);
+  } >rtc_iram_seg
+
+  /* RTC fast memory section */
+
+  .rtc.force_fast :
+  {
+    . = ALIGN(4);
+    _rtc_force_fast_start = ABSOLUTE(.);
+
+    *(.rtc.force_fast .rtc.force_fast.*)
+    . = ALIGN(4);
+    _rtc_force_fast_end = ABSOLUTE(.);
   } >rtc_iram_seg
 
   /* RTC BSS section. */
@@ -549,6 +614,28 @@ SECTIONS
     *(.rtc.data.*)
     *(.rtc.rodata)
     *(.rtc.rodata.*)
+  } >rtc_iram_seg
+
+  /* RTC NOINIT section. */
+
+  .rtc_noinit (NOLOAD) :
+  {
+    . = ALIGN(4);
+    _rtc_noinit_start = ABSOLUTE(.);
+    *(.rtc_noinit .rtc_noinit.*)
+    . = ALIGN(4) ;
+    _rtc_noinit_end = ABSOLUTE(.);
+  } >rtc_iram_seg
+
+  /* RTC slow memory section */
+
+  .rtc.force_slow :
+  {
+    . = ALIGN(4);
+    _rtc_force_slow_start = ABSOLUTE(.);
+    *(.rtc.force_slow .rtc.force_slow.*)
+    . = ALIGN(4);
+    _rtc_force_slow_end = ABSOLUTE(.);
   } >rtc_iram_seg
 
   /* This section holds RTC data that should have fixed addresses.

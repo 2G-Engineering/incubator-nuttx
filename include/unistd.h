@@ -97,7 +97,7 @@
 
 #define _POSIX_SYNC_IO 1
 #undef  _POSIX_ASYNC_IO
-#undef  _POSIX_PRIO_IO
+#define  _POSIX_PRIO_IO 1
 
 #define _XOPEN_UNIX 1
 #define _XOPEN_VERSION 700L
@@ -394,7 +394,7 @@ FAR void *sbrk(intptr_t incr);
 
 /* Special devices */
 
-#define pipe(fd) pipe2(fd, 0)
+int     pipe(int pipefd[2]);
 int     pipe2(int pipefd[2], int flags);
 
 /* Schedule an alarm */

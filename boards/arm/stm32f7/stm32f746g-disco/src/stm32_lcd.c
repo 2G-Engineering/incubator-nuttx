@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
@@ -40,7 +40,7 @@
 #include "stm32_gpio.h"
 #include "stm32_ltdc.h"
 
-#ifdef CONFIG_STM32F7_LTDC
+#ifdef CONFIG_STM32_LTDC
 /****************************************************************************
  * Public Functions
  ****************************************************************************/

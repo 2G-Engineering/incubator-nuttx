@@ -111,9 +111,6 @@
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int stm32_bringup(void);
@@ -129,7 +126,7 @@ int stm32_bringup(void);
 int stm32_adc_setup(void);
 #endif
 
-#ifdef CONFIG_STM32H5_DTS
+#ifdef CONFIG_STM32_DTS
 int stm32_dts_setup(int devno);
 #endif
 
@@ -141,8 +138,24 @@ int stm32_dts_setup(int devno);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H5_FDCAN_CHARDRIVER
+#ifdef CONFIG_STM32_FDCAN_CHARDRIVER
 int stm32_can_setup(uint8_t port);
+#endif
+
+/****************************************************************************
+ * Name: stm32_pwm_setup
+ *
+ * Description:
+ *   Initialize PWM and register the PWM device.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_PWM
+int stm32_pwm_setup(void);
+#endif
+
+#ifdef CONFIG_USBHOST
+int stm32_usbhost_initialize(void);
 #endif
 
 #endif /* __ASSEMBLY__ */

@@ -77,7 +77,7 @@
 #define LED_SIGNAL       2 /* In a signal handler     N/C      */
 #define LED_ASSERTION    2 /* An assertion failed     N/C      */
 #define LED_PANIC        3 /* The system has crashed  FLASH    */
-#undef  LED_IDLE           /* MCU is is sleep mode    Not used */
+#undef  LED_IDLE           /* MCU is in sleep mode    Not used */
 
 /* Thus if LED is statically on, NuttX has successfully  booted and is,
  * apparently, running normally.  If LED is flashing at approximately
@@ -130,8 +130,8 @@
 
 /* UART4: Connected to arduino compatible pins DO/D1 via PA0, PA1 */
 
-#define GPIO_UART4_RX GPIO_UART4_RX_1
-#define GPIO_UART4_TX GPIO_UART4_TX_1
+#define GPIO_UART4_RX  GPIO_UART4_RX_1
+#define GPIO_UART4_TX  GPIO_UART4_TX_1
 
 /* SPSGRF
  *

@@ -87,8 +87,23 @@
  * Public Type Definitions
  ****************************************************************************/
 
-/* Structure type returned by the div() function. */
+/* Structure type returned by the div() function.
+ *
+ * When CONFIG_LIBCXXTOOLCHAIN is active the toolchain's <cstdlib> uses
+ * #include_next <stdlib.h> which bypasses this file and lands on the
+ * toolchain's own stdlib.h (e.g. newlib's _STDLIB_H_ guard).  That file
+ * defines div_t/ldiv_t/lldiv_t with an anonymous struct that GCC internally
+ * names struct div_t.  A subsequent inclusion of this file (through the
+ * cstdio -> stdio.h -> kmalloc.h chain) would then attempt to redefine the
+ * same typedef with a different struct tag, causing a "conflicting
+ * declaration" error.  Guard against that by skipping our own struct/typedef
+ * definitions when a toolchain stdlib.h has already been included.
+ *
+ * _STDLIB_H_  - newlib (ARM GNU Toolchain, picolibc, avr-libc, ...)
+ * _STDLIB_H   - glibc / musl (native host toolchains)
+ */
 
+#if !defined(_STDLIB_H_) && !defined(_STDLIB_H)
 struct div_s
 {
   int quot;     /* Quotient */
@@ -111,11 +126,12 @@ typedef struct ldiv_s ldiv_t;
 
 struct lldiv_s
 {
-  long quot;    /* Quotient */
-  long rem;     /* Remainder */
+  long long quot;    /* Quotient */
+  long long rem;     /* Remainder */
 };
 
 typedef struct lldiv_s lldiv_t;
+#endif /* !defined(_STDLIB_H_) && !defined(_STDLIB_H) */
 
 /****************************************************************************
  * Public Function Prototypes
@@ -138,7 +154,6 @@ int       rand_r(FAR unsigned int *seedp);
 void      lcong48(FAR unsigned short int param[7]);
 FAR unsigned short int *seed48(FAR unsigned short int seed16v[3]);
 void      srand48(long int seedval);
-#ifdef CONFIG_HAVE_LONG_LONG
 long int  jrand48(FAR unsigned short int xsubi[3]);
 long int  lrand48(void);
 long int  mrand48(void);
@@ -147,7 +162,6 @@ long int  nrand48(FAR unsigned short int xsubi[3]);
 double    drand48(void);
 double    erand48(FAR unsigned short int xsubi[3]);
 #  endif
-#endif
 
 #define   srandom(s) srand(s)
 long      random(void);
@@ -193,11 +207,9 @@ FAR char *realpath(FAR const char *path, FAR char *resolved);
 
 long      strtol(FAR const char *nptr, FAR char **endptr, int base);
 unsigned long strtoul(FAR const char *nptr, FAR char **endptr, int base);
-#ifdef CONFIG_HAVE_LONG_LONG
 long long strtoll(FAR const char *nptr, FAR char **endptr, int base);
 unsigned long long strtoull(FAR const char *nptr, FAR char **endptr,
                             int base);
-#endif
 float     strtof(FAR const char *str, FAR char **endptr);
 #ifdef CONFIG_HAVE_DOUBLE
 double    strtod(FAR const char *str, FAR char **endptr);
@@ -208,9 +220,7 @@ long double strtold(FAR const char *str, FAR char **endptr);
 
 int       atoi(FAR const char *nptr);
 long      atol(FAR const char *nptr);
-#ifdef CONFIG_HAVE_LONG_LONG
 long long atoll(FAR const char *nptr);
-#endif
 #ifdef CONFIG_HAVE_DOUBLE
 double    atof(FAR const char *nptr);
 #endif
@@ -257,15 +267,11 @@ int       unlockpt(int fd);
 
 int       abs(int j);
 long int  labs(long int j);
-#ifdef CONFIG_HAVE_LONG_LONG
 long long int llabs(long long int j);
-#endif
 
 div_t     div(int number, int denom);
 ldiv_t    ldiv(long number, long denom);
-#ifdef CONFIG_HAVE_LONG_LONG
 lldiv_t   lldiv(long long number, long long denom);
-#endif
 
 /* Temporary files */
 

@@ -36,6 +36,13 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+#if defined(CONFIG_STM32_USBFS_HOST) && !defined(CONFIG_STM32_USE_HSE)
+    #error "This board config requires HSE to use the USB HOST."
+    "HSI48 is not stable enough to use as a host."
+    "To use HSE on the nucleo-H563ZI,"
+    "you need to connect SB3/SB4 and disconnect SB49"
+#endif
+
 /* Clocking *****************************************************************/
 
 /* The Nucleo-H563ZI-Q supports using a HSE crystal (X3). It is shipped with
@@ -58,7 +65,7 @@
 #define STM32_LSI_FREQUENCY         32000
 #define STM32_LSE_FREQUENCY         32768
 
-#ifdef CONFIG_STM32H5_USE_HSE
+#ifdef CONFIG_STM32_USE_HSE
 
 #define STM32_HSE_FREQUENCY     25000000ul
 #define STM32_BOARD_USEHSE
@@ -82,7 +89,7 @@
                                    STM32_PLLCFG_PLL1Q | \
                                    STM32_PLLCFG_PLL1R)
 
-#define STM32_VC01_FRQ            ((STM32_HSE_FREQUENCY / 5) * 100)
+#define STM32_VCO1_FRQ            ((STM32_HSE_FREQUENCY / 5) * 100)
 #define STM32_PLL1P_FREQUENCY     (STM32_VCO1_FRQ / 2)
 #define STM32_PLL1Q_FREQUENCY     (STM32_VCO1_FRQ / 4)
 #define STM32_PLL1R_FREQUENCY     (STM32_VCO1_FRQ / 2)
@@ -100,6 +107,34 @@
 
 #define STM32_VCO2_FRQ            ((STM32_HSE_FREQUENCY / 5) * 60)
 #define STM32_PLL2R_FREQUENCY     (STM32_VCO2_FRQ / 4)
+
+#if defined(CONFIG_STM32_USBFS_HOST)
+/* PLL3 config: Generate 48 MHz for USB from 25 MHz HSE.
+ * VCO input = 25 MHz / 5 = 5 MHz
+ * VCO output = 5 MHz * 96 = 480 MHz
+ * PLL3Q = 480 MHz / 10 = 48 MHz
+ */
+
+#define STM32_PLLCFG_PLL3CFG      (RCC_PLL3CFGR_PLL3SRC_HSE | \
+                                   RCC_PLL3CFGR_PLL3RGE_4_8M | \
+                                   RCC_PLL3CFGR_PLL3M(5) | \
+                                   RCC_PLL3CFGR_PLL3QEN)
+#define STM32_PLLCFG_PLL3N         RCC_PLL3DIVR_PLL3N(96)  /* VCO 480 MHz */
+#define STM32_PLLCFG_PLL3P         RCC_PLL3DIVR_PLL3P(2)   /* Not used */
+#define STM32_PLLCFG_PLL3Q         RCC_PLL3DIVR_PLL3Q(10)  /* 3Q 48 MHz */
+#define STM32_PLLCFG_PLL3R         RCC_PLL3DIVR_PLL3R(2)   /* Not used */
+#define STM32_PLLCFG_PLL3DIVR     (STM32_PLLCFG_PLL3N | \
+                                   STM32_PLLCFG_PLL3P | \
+                                   STM32_PLLCFG_PLL3Q | \
+                                   STM32_PLLCFG_PLL3R)
+
+#define STM32_VCO3_FRQ            ((STM32_HSE_FREQUENCY / 5) * 96)  /* 480 MHz */
+#define STM32_PLL3Q_FREQUENCY     (STM32_VCO3_FRQ / 10)             /* 48 MHz */
+
+/* Use PLL3Q (48 MHz) for USB - more stable than HSI48 */
+#define STM32_CLKUSB_SEL      RCC_CCIPR4_USBSEL_PLL3QCK
+
+#endif /* CONFIG_STM32_USBFS_HOST */
 
 #else
 
@@ -146,19 +181,23 @@
 #define STM32_VCO2_FRQ            ((STM32_HSI_FREQUENCY / 8) * 75)
 #define STM32_PLL2R_FREQUENCY     (STM32_VCO2_FRQ / 4)
 
-#endif /* CONFIG_STM32H5_USE_HSE*/
+#endif /* CONFIG_STM32_USE_HSE*/
 
 /* Enable CLK48; get it from HSI48 */
 
-#if defined(CONFIG_STM32H5_USBFS) || defined(CONFIG_STM32H5_RNG)
-#  define STM32H5_USE_CLK48       1
+#if defined(CONFIG_STM32_USBFS) || defined(CONFIG_STM32_RNG)
+#  define STM32_USE_CLK48       1
 #endif
 
-#if defined(CONFIG_STM32H5_USBFS)
-#  define STM32H5_CLKUSB_SEL      RCC_CCIPR4_USBSEL_HSI48KERCK
-#  define STM32H5_HSI48_SYNCSRC   SYNCSRC_USB
+#if defined(CONFIG_STM32_USBFS)
+#  define STM32_CLKUSB_SEL      RCC_CCIPR4_USBSEL_HSI48KERCK
+#  define STM32_HSI48_SYNCSRC   SYNCSRC_USB
 #else
-#  define STM32H5_HSI48_SYNCSRC   SYNCSRC_NONE
+#  define STM32_HSI48_SYNCSRC   SYNCSRC_NONE
+#endif
+
+#if defined(CONFIG_STM32_RNG)
+#  define STM32_CLKRNG_SEL      RCC_CCIPR5_RNGSEL_HSI48KERCK
 #endif
 
 /* Enable LSE (for the RTC) */
@@ -296,7 +335,7 @@
 #define LED_SIGNAL         5 /* In a signal handler      N/C    GLOW  N/C  */
 #define LED_ASSERTION      6 /* An assertion failed      GLOW   N/C   GLOW */
 #define LED_PANIC          7 /* The system has crashed   Blink  OFF   N/C  */
-#define LED_IDLE           8 /* MCU is is sleep mode     ON     OFF   OFF  */
+#define LED_IDLE           8 /* MCU is in sleep mode     ON     OFF   OFF  */
 
 /* Thus if the Green LED is statically on, NuttX has successfully booted and
  * is, apparently, running normally.  If the Red LED is flashing at
@@ -319,8 +358,12 @@
 
 /* ADC GPIOs ****************************************************************/
 
-#define GPIO_ADC1_IN3   (GPIO_ADC1_IN3_0)
-#define GPIO_ADC1_IN10  (GPIO_ADC1_IN10_0)
+#define GPIO_ADC1_INP3   (GPIO_ADC1_INP3_0)
+#define GPIO_ADC1_INP10  (GPIO_ADC1_INP10_0)
+
+/* Timers / PWM */
+
+#define GPIO_TIM1_CH1OUT GPIO_TIM1_CH1OUT_2 /* PE9 */
 
 /* USART3 GPIOs *************************************************************/
 

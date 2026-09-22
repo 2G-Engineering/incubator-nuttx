@@ -70,7 +70,7 @@
  *   LED_SIGNAL           In a signal handler        N/C      GLOW     OFF
  *   LED_ASSERTION        An assertion failed        N/C      GLOW     OFF
  *   LED_PANIC            The system has crashed     N/C      N/C    Blinking
- *   LED_IDLE             MCU is is sleep mode       ------ Not used --------
+ *   LED_IDLE             MCU is in sleep mode       ------ Not used --------
  *
  * Thus if LED L is statically on, NuttX has successfully booted and is,
  * apparently, running normmally.  If LED RX is glowing, then NuttX is
@@ -347,9 +347,6 @@
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=y && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
  *
  ****************************************************************************/
 

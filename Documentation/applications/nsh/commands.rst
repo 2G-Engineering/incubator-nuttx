@@ -198,6 +198,51 @@ Also sets the previous working directory environment variable
 ``cd ..`` 	        sets the current working directory to the parent directory.
 ==================  =====================================
 
+.. _cmdchmod:
+
+``chmod`` Change File Permissions
+==================================
+
+**Command Syntax**::
+
+  chmod <octal-mode> <path>
+
+**Synopsis**. Change the permission bits of ``<path>``. Only numeric
+(octal) modes are supported.
+
+**Example**::
+
+  nsh> chmod 600 /tmp/secret
+  nsh> chmod 755 /usr/bin/app
+
+.. _cmdchown:
+
+``chown`` Change File Owner and Group
+======================================
+
+**Command Syntax**::
+
+  chown <uid>[:gid] <path>
+
+**Synopsis**. Change the owner and/or group of ``<path>``. Only
+numeric uid and gid values are accepted. Omitted uid or gid fields
+are left unchanged.
+
+**Forms:**
+
+===================  ===============================================================
+``chown uid:gid``    Sets owner to uid and group to gid.
+``chown uid``        Sets owner to uid; group is unchanged.
+``chown uid:``       Sets owner to uid; group is unchanged.
+``chown :gid``       Sets group to gid; owner is unchanged.
+===================  ===============================================================
+
+**Example**::
+
+  nsh> chown 1000:1000 /tmp/file
+  nsh> chown 0: /tmp/file
+  nsh> chown :100 /tmp/file
+
 .. _cmdcmp:
 
 ``cmp`` Compare Files
@@ -1074,7 +1119,7 @@ select either the FAT12 or FAT16 format. For historical reasons,
 if you want the FAT32 format, it must be explicitly specified on
 the command line.
 
-The ``-r`` option may be specified to select the the number of
+The ``-r`` option may be specified to select the number of
 entries in the root directory for FAT12 and FAT16 file systems.
 Typical values for small volumes would be 112 or 224; 512 should
 be used for large volumes, such as hard disks or very large SD
@@ -1640,7 +1685,7 @@ automatically started in ``nsh_main.c``. The exception is when
 enabled at initialization but rather must be enabled from the NSH
 command line or via other applications.
 
-In that case, when ``nsh_telnetstart()`` is called before the the
+In that case, when ``nsh_telnetstart()`` is called before the
 network is initialized, it will fail.
 
 .. _cmdtime:
@@ -1725,11 +1770,17 @@ reads as zero bytes.
 
 **Command Syntax**::
 
-  umount <dir-path>
+  umount [-f] <dir-path>
 
 **Synopsis**. Un-mount the file system at mount point ``<dir-path>``.
 The ``umount`` command can only be used to un-mount volumes previously
 mounted using :ref:`mount <cmdmount>` command.
+
+**Options**
+
+======  ======================================================
+``-f``  Force unmounting of the filesystem even if it is busy.
+======  ======================================================
 
 **Example**::
 

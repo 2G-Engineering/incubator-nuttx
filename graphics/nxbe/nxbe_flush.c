@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/nx/nxglib.h>
 #include <nuttx/nx/nxbe.h>
@@ -59,7 +59,7 @@
  * Input Parameters (same as for nxbe_flush):
  *   wnd    - The window that will receive the bitmap image
  *   dest   - Describes the rectangular region in the window that will
- *            receive the the bit map (window coordinate frame).
+ *            receive the bit map (window coordinate frame).
  *   src    - The start of the source image.
  *   origin - The origin of the upper, left-most corner of the full bitmap.
  *            Both dest and origin are in window coordinates, however, origin

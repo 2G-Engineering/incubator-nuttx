@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
@@ -39,7 +39,7 @@
 
 #include "stm32h745i_disco.h"
 
-#ifdef CONFIG_STM32H7_LTDC
+#ifdef CONFIG_STM32_LTDC
 /****************************************************************************
  * Public Functions
  ****************************************************************************/

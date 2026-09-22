@@ -33,7 +33,8 @@
 #include <stdio.h>
 #include <syslog.h>
 #include <errno.h>
-#include <debug.h>
+
+#include <nuttx/debug.h>
 #include <nuttx/signal.h>
 
 #ifdef CONFIG_USBMONITOR
@@ -92,6 +93,10 @@
 
 #ifdef HAVE_PROGMEM_CHARDEV
 #  include "board_progmem.h"
+#endif
+
+#ifdef CONFIG_NET_OA_TC6
+#  include "board_oa_tc6.h"
 #endif
 
 /****************************************************************************
@@ -229,7 +234,7 @@ int sam_bringup(void)
 #ifdef HAVE_LED_DRIVER
   /* Register the LED driver */
 
-  ret = userled_lower_initialize(LED_DRIVER_PATH);
+  ret = userled_lower_initialize("/dev/userleds");
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n",
@@ -353,7 +358,7 @@ int sam_bringup(void)
     {
       if (sam_cardinserted(HSMCI0_SLOTNO))
         {
-          nxsig_usleep(1000 * 1000);
+          nxsched_usleep(1000 * 1000);
 
           /* Mount the volume on HSMCI0 */
 
@@ -564,6 +569,14 @@ int sam_bringup(void)
       syslog(LOG_ERR, "ERROR: fb_register() failed: %d\n", ret);
     }
 #  endif
+#endif
+
+#ifdef CONFIG_NET_OA_TC6
+  ret = board_oa_tc6_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_oa_tc6_initialize() failed: %d\n", ret);
+    }
 #endif
 
   /* If we got here then perhaps not all initialization was successful, but

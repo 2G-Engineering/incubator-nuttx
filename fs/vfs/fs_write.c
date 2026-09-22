@@ -71,6 +71,11 @@ static ssize_t file_writev_compat(FAR struct file *filep,
           continue;
         }
 
+      if (iov[i].iov_base == NULL)
+        {
+          return -EINVAL;
+        }
+
       /* Sanity check to avoid total length overflow */
 
       if (SSIZE_MAX - ntotal < iov[i].iov_len)
@@ -148,7 +153,7 @@ ssize_t file_writev(FAR struct file *filep,
 
   /* Was this file opened for write access? */
 
-  if ((filep->f_oflags & O_WROK) == 0)
+  if ((filep->f_oflags & O_ACCMODE) == O_RDONLY)
     {
       return -EACCES;
     }
@@ -183,6 +188,10 @@ ssize_t file_writev(FAR struct file *filep,
   inode = filep->f_inode;
   if (inode != NULL && inode->u.i_ops)
     {
+      clock_t start_time;
+
+      FS_PROFILE_START(start_time);
+
       if (inode->u.i_ops->writev)
         {
           struct uio uio;
@@ -197,6 +206,9 @@ ssize_t file_writev(FAR struct file *filep,
         {
           ret = file_writev_compat(filep, iov, iovcnt);
         }
+
+      FS_PROFILE_STOP(start_time, g_fs_profile.total_write_time,
+                      g_fs_profile.writes);
     }
 
 #ifdef CONFIG_FS_NOTIFY

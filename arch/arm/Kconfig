@@ -55,7 +55,7 @@ endchoice # ARM Toolchain Selection
 
 choice
 	prompt "ARM MCU selection"
-	default ARCH_CHIP_STM32
+	default ARCH_CHIP_STM32F1
 
 config ARCH_CHIP_A1X
 	bool "Allwinner A1X"
@@ -84,6 +84,15 @@ config ARCH_CHIP_AM335X
 	select ARCH_NEED_ADDRENV_MAPPING
 	---help---
 		TI AM335X family: AM3356, AM3357, AM3358, AM3359 (ARM Cortex-A8)
+
+config ARCH_CHIP_AM67
+	bool "AM67"
+	select ARCH_CORTEXR5
+	select ARCH_HAVE_FETCHADD
+	select ARCH_HAVE_LOWVECTORS
+	select ARCH_HAVE_TICKLESS
+	---help---
+		TI AM67 family
 
 config ARCH_CHIP_FVP_ARMV8R_AARCH32
 	bool "ARM FVP virt platform (ARMv8r AARCH32)"
@@ -115,7 +124,6 @@ config ARCH_CHIP_CSK6
 	select ARCH_HAVE_TICKLESS
 	select ARCH_HAVE_TIMEKEEPING
 	select ARM_HAVE_MPU_UNIFIED
-	select ARMV8M_HAVE_STACKCHECK
 	select ARCH_HAVE_ADJTIME
 	select ARCH_CORTEXM33
 	---help---
@@ -320,7 +328,6 @@ config ARCH_CHIP_NRF52
 	#select ARM_HAVE_MPU_UNIFIED
 	select ARCH_HAVE_SPI_BITORDER
 	select ARCH_HAVE_FPU
-	select ARCH_HAVE_PWM_MULTICHAN
 	select ARCH_HAVE_SERIAL_TERMIOS
 	select ARCH_DMA_NO_FLASH_TRANSFER
 	---help---
@@ -329,7 +336,6 @@ config ARCH_CHIP_NRF52
 config ARCH_CHIP_NRF53
 	bool "Nordic nRF53"
 	select ARCH_CORTEXM33
-	select ARCH_HAVE_PWM_MULTICHAN
 	select ARCH_DMA_NO_FLASH_TRANSFER
 	depends on EXPERIMENTAL
 	---help---
@@ -338,7 +344,6 @@ config ARCH_CHIP_NRF53
 config ARCH_CHIP_NRF91
 	bool "Nordic nRF91"
 	select ARCH_CORTEXM33
-	select ARCH_HAVE_PWM_MULTICHAN
 	select ARCH_HAVE_TRUSTZONE
 	select ARCH_HAVE_TICKLESS
 	select ARCH_DMA_NO_FLASH_TRANSFER
@@ -374,7 +379,6 @@ config ARCH_CHIP_RP2040
 	select ARCH_HAVE_MULTICPU
 	select ARCH_HAVE_I2CRESET
 	select ARM_HAVE_WFE_SEV
-	select ARCH_HAVE_PWM_MULTICHAN
 	select ARCH_BOARD_COMMON
 	select ARCH_HAVE_CUSTOM_TESTSET
 	---help---
@@ -390,7 +394,6 @@ config ARCH_CHIP_RP23XX
 	select ARM_HAVE_DSP
 	select ARCH_HAVE_FPU
 	select ARCH_HAVE_CUSTOM_TESTSET
-	select ARCH_HAVE_PWM_MULTICHAN
 	select ARCH_BOARD_COMMON
 	---help---
 		Raspberry Pi RP23XX architectures (ARM dual Cortex-M33 or RISC-V).
@@ -486,8 +489,9 @@ config ARCH_CHIP_SIMPLELINK
 	---help---
 		TI SimpleLink CCxxx architectures (ARM Cortex-M3 or M4)
 
-config ARCH_CHIP_STM32
-	bool "STMicro STM32 F1/F2/F3/F4/G4/L1"
+config ARCH_CHIP_STM32F1
+	bool "STMicro STM32 F1"
+	select ARCH_CHIP_STM32
 	select ARCH_HAVE_MPU
 	select ARCH_HAVE_FETCHADD
 	select ARCH_HAVE_I2CRESET
@@ -500,22 +504,110 @@ config ARCH_CHIP_STM32
 	select ARMV7M_HAVE_STACKCHECK
 	select ARCH_HAVE_ADJTIME
 	---help---
-		STMicro STM32 architectures (ARM Cortex-M3/4).
+		STMicro STM32F1 architectures (ARM Cortex-M3).
+
+config ARCH_CHIP_STM32F2
+	bool "STMicro STM32 F2"
+	select ARCH_CHIP_STM32
+	select ARCH_HAVE_MPU
+	select ARCH_HAVE_FETCHADD
+	select ARCH_HAVE_I2CRESET
+	select ARCH_HAVE_HEAPCHECK
+	select ARCH_HAVE_PROGMEM
+	select ARCH_HAVE_SPI_BITORDER
+	select ARCH_HAVE_TICKLESS
+	select ARCH_HAVE_TIMEKEEPING
+	select ARM_HAVE_MPU_UNIFIED
+	select ARMV7M_HAVE_STACKCHECK
+	select ARCH_HAVE_ADJTIME
+	---help---
+		STMicro STM32F2 architectures (ARM Cortex-M3).
+
+config ARCH_CHIP_STM32F3
+	bool "STMicro STM32 F3"
+	select ARCH_CHIP_STM32
+	select ARCH_HAVE_MPU
+	select ARCH_HAVE_FETCHADD
+	select ARCH_HAVE_I2CRESET
+	select ARCH_HAVE_HEAPCHECK
+	select ARCH_HAVE_PROGMEM
+	select ARCH_HAVE_SPI_BITORDER
+	select ARCH_HAVE_TICKLESS
+	select ARCH_HAVE_TIMEKEEPING
+	select ARM_HAVE_MPU_UNIFIED
+	select ARMV7M_HAVE_STACKCHECK
+	select ARCH_HAVE_ADJTIME
+	---help---
+		STMicro STM32F3 architectures (ARM Cortex-M4).
+
+config ARCH_CHIP_STM32F4
+	bool "STMicro STM32 F4"
+	select ARCH_CHIP_STM32
+	select ARCH_HAVE_MPU
+	select ARCH_HAVE_FETCHADD
+	select ARCH_HAVE_I2CRESET
+	select ARCH_HAVE_HEAPCHECK
+	select ARCH_HAVE_PROGMEM
+	select ARCH_HAVE_SPI_BITORDER
+	select ARCH_HAVE_TICKLESS
+	select ARCH_HAVE_TIMEKEEPING
+	select ARM_HAVE_MPU_UNIFIED
+	select ARMV7M_HAVE_STACKCHECK
+	select ARCH_HAVE_ADJTIME
+	---help---
+		STMicro STM32F4 architectures (ARM Cortex-M4).
+
+config ARCH_CHIP_STM32G4
+	bool "STMicro STM32 G4"
+	select ARCH_CHIP_STM32
+	select ARCH_HAVE_MPU
+	select ARCH_HAVE_FETCHADD
+	select ARCH_HAVE_I2CRESET
+	select ARCH_HAVE_HEAPCHECK
+	select ARCH_HAVE_PROGMEM
+	select ARCH_HAVE_SPI_BITORDER
+	select ARCH_HAVE_TICKLESS
+	select ARCH_HAVE_TIMEKEEPING
+	select ARM_HAVE_MPU_UNIFIED
+	select ARMV7M_HAVE_STACKCHECK
+	select ARCH_HAVE_ADJTIME
+	---help---
+		STMicro STM32G4 architectures (ARM Cortex-M4).
+
+config ARCH_CHIP_STM32L1
+	bool "STMicro STM32 L1"
+	select ARCH_CHIP_STM32
+	select ARCH_HAVE_MPU
+	select ARCH_HAVE_FETCHADD
+	select ARCH_HAVE_I2CRESET
+	select ARCH_HAVE_HEAPCHECK
+	select ARCH_HAVE_PROGMEM
+	select ARCH_HAVE_SPI_BITORDER
+	select ARCH_HAVE_TICKLESS
+	select ARCH_HAVE_TIMEKEEPING
+	select ARM_HAVE_MPU_UNIFIED
+	select ARMV7M_HAVE_STACKCHECK
+	select ARCH_HAVE_ADJTIME
+	---help---
+		STMicro STM32L1 architectures (ARM Cortex-M3).
 
 config ARCH_CHIP_STM32F0
 	bool "STMicro STM32 F0"
+	select ARCH_CHIP_STM32
 	select ARCH_CORTEXM0
 	---help---
 		STMicro STM32F0 architectures (ARM Cortex-M0).
 
 config ARCH_CHIP_STM32L0
 	bool "STMicro STM32 L0"
+	select ARCH_CHIP_STM32
 	select ARCH_CORTEXM0
 	---help---
 		STMicro STM32L0 architectures (ARM Cortex-M0+).
 
 config ARCH_CHIP_STM32G0
 	bool "STMicro STM32 G0"
+	select ARCH_CHIP_STM32
 	select ARCH_CORTEXM0
 	select ARCH_HAVE_PROGMEM
 	---help---
@@ -523,12 +615,14 @@ config ARCH_CHIP_STM32G0
 
 config ARCH_CHIP_STM32C0
 	bool "STMicro STM32 C0"
+	select ARCH_CHIP_STM32
 	select ARCH_CORTEXM0
 	---help---
 		STMicro STM32C0 architectures (ARM Cortex-M0+).
 
 config ARCH_CHIP_STM32F7
 	bool "STMicro STM32 F7"
+	select ARCH_CHIP_STM32
 	select ARCH_CORTEXM7
 	select ARCH_HAVE_MPU
 	select ARCH_HAVE_FETCHADD
@@ -545,6 +639,7 @@ config ARCH_CHIP_STM32F7
 
 config ARCH_CHIP_STM32H7
 	bool "STMicro STM32 H7"
+	select ARCH_CHIP_STM32
 	select ARCH_HAVE_MPU
 	select ARCH_HAVE_I2CRESET
 	select ARCH_HAVE_PROGMEM
@@ -561,6 +656,7 @@ config ARCH_CHIP_STM32H7
 
 config ARCH_CHIP_STM32L4
 	bool "STMicro STM32 L4"
+	select ARCH_CHIP_STM32
 	select ARCH_CORTEXM4
 	select ARCH_HAVE_MPU
 	select ARCH_HAVE_FETCHADD
@@ -576,6 +672,7 @@ config ARCH_CHIP_STM32L4
 
 config ARCH_CHIP_STM32H5
 	bool "STMicro STM32 H5"
+	select ARCH_CHIP_STM32
 	select ARCH_CORTEXM33
 	select ARCH_HAVE_MPU
 	select ARM_HAVE_DSP
@@ -586,12 +683,26 @@ config ARCH_CHIP_STM32H5
 	select ARCH_HAVE_TICKLESS
 	select ARCH_HAVE_TRUSTZONE
 	select ARM_HAVE_MPU_UNIFIED
-	select ARMV8M_HAVE_STACKCHECK
 	---help---
 		STMicro STM32 H5 architectures (ARM Cortex-M33).
 
+config ARCH_CHIP_STM32N6
+	bool "STMicro STM32 N6"
+	select ARCH_CHIP_STM32
+	select ARCH_CORTEXM55
+	select ARCH_HAVE_FPU
+	select ARCH_HAVE_MPU
+	select ARM_HAVE_DSP
+	select ARM_HAVE_MPU_UNIFIED
+	select ARCH_HAVE_TRUSTZONE
+	select ARCH_HAVE_FETCHADD
+	select ARCH_HAVE_HEAPCHECK
+	---help---
+		STMicro STM32N6 architectures (ARM Cortex-M55).
+
 config ARCH_CHIP_STM32L5
 	bool "STMicro STM32 L5"
+	select ARCH_CHIP_STM32
 	select ARCH_CORTEXM33
 	select ARCH_HAVE_MPU
 	select ARM_HAVE_DSP
@@ -602,12 +713,12 @@ config ARCH_CHIP_STM32L5
 	select ARCH_HAVE_TICKLESS
 	select ARCH_HAVE_TRUSTZONE
 	select ARM_HAVE_MPU_UNIFIED
-	select ARMV8M_HAVE_STACKCHECK
 	---help---
 		STMicro STM32 L5 architectures (ARM Cortex-M33).
 
 config ARCH_CHIP_STM32U5
 	bool "STMicro STM32 U5"
+	select ARCH_CHIP_STM32
 	select ARCH_CORTEXM33
 	select ARCH_HAVE_MPU
 	select ARM_HAVE_DSP
@@ -618,13 +729,13 @@ config ARCH_CHIP_STM32U5
 	select ARCH_HAVE_SPI_BITORDER
 	select ARCH_HAVE_TICKLESS
 	select ARM_HAVE_MPU_UNIFIED
-	select ARMV8M_HAVE_STACKCHECK
 	select ARCH_HAVE_TRUSTZONE
 	---help---
 		STMicro STM32 U5 architectures (ARM Cortex-M33).
 
 config ARCH_CHIP_STM32WB
 	bool "STMicro STM32 WB"
+	select ARCH_CHIP_STM32
 	select ARCH_CORTEXM4
 	select ARCH_HAVE_FPU
 	select ARCH_HAVE_MPU
@@ -641,6 +752,7 @@ config ARCH_CHIP_STM32WB
 
 config ARCH_CHIP_STM32WL5
 	bool "STMicro STM32 WL5"
+	select ARCH_CHIP_STM32
 	select ARCH_CORTEXM4
 	select ARCH_HAVE_MPU
 	select ARCH_HAVE_FETCHADD
@@ -784,6 +896,14 @@ config ARCH_CHIP_CXD32XX
 	---help---
 		Sony CXD32XX (ARM Cortex-M4) architectures
 
+config ARCH_CHIP_HT32F491X3
+	bool "Holtek HT32F491x3"
+	select ARCH_CORTEXM4
+	select ARCH_HAVE_FPU
+	select LIBC_ARCH_ATOMIC
+	---help---
+		Holtek HT32F491x3 (ARM Cortex-M4) architectures
+
 config ARCH_CHIP_ARM_CUSTOM
 	bool "Custom ARM chip"
 	select ARCH_CHIP_CUSTOM
@@ -791,6 +911,13 @@ config ARCH_CHIP_ARM_CUSTOM
 		Select this option if there is no directory for the chip under arch/arm/src/.
 
 endchoice # ARM MCU selection
+
+config ARCH_CHIP_STM32
+	bool
+	default n
+	---help---
+		Common STM32 architecture selector.  This is selected by the concrete
+		STM32 family options and gates shared STM32 Kconfig options.
 
 config ARCH_ARM7TDMI
 	bool
@@ -1006,6 +1133,7 @@ config ARCH_ARMV7R
 	default n
 	select ARCH_HAVE_CPUINFO
 	select ARCH_HAVE_PERF_EVENTS
+	select ARCH_HAVE_PERF_EVENTS_USER_ACCESS
 
 config ARCH_CORTEXR4
 	bool
@@ -1135,6 +1263,7 @@ config ARCH_ARMV8R
 	select ARCH_HAVE_CPUINFO
 	select ARCH_HAVE_PERF_EVENTS
 	select ONESHOT
+	select ONESHOT_COUNT
 	select ALARM_ARCH
 
 
@@ -1152,6 +1281,7 @@ config ARCH_CHIP
 	string
 	default "a1x"		if ARCH_CHIP_A1X
 	default "am335x"	if ARCH_CHIP_AM335X
+	default "am67"		if ARCH_CHIP_AM67
 	default "fvp-v8r-aarch32"	if ARCH_CHIP_FVP_ARMV8R_AARCH32
 	default "c5471"		if ARCH_CHIP_C5471
 	default "dm320"		if ARCH_CHIP_DM320
@@ -1188,12 +1318,21 @@ config ARCH_CHIP
 	default "samd5e5"	if ARCH_CHIP_SAMD5X || ARCH_CHIP_SAME5X
 	default "sam34"		if ARCH_CHIP_SAM34
 	default "samv7"		if ARCH_CHIP_SAMV7
-	default "stm32"		if ARCH_CHIP_STM32
-	default "stm32f0l0g0"	if ARCH_CHIP_STM32F0 || ARCH_CHIP_STM32L0 || ARCH_CHIP_STM32G0 || ARCH_CHIP_STM32C0
+	default "stm32f1"	if ARCH_CHIP_STM32F1
+	default "stm32f2"	if ARCH_CHIP_STM32F2
+	default "stm32f3"	if ARCH_CHIP_STM32F3
+	default "stm32f4"	if ARCH_CHIP_STM32F4
+	default "stm32g4"	if ARCH_CHIP_STM32G4
+	default "stm32l1"	if ARCH_CHIP_STM32L1
+	default "stm32f0"	if ARCH_CHIP_STM32F0
+	default "stm32l0"	if ARCH_CHIP_STM32L0
+	default "stm32g0"	if ARCH_CHIP_STM32G0
+	default "stm32c0"	if ARCH_CHIP_STM32C0
 	default "stm32f7"	if ARCH_CHIP_STM32F7
 	default "stm32h7"	if ARCH_CHIP_STM32H7
 	default "stm32l4"	if ARCH_CHIP_STM32L4
 	default "stm32h5"	if ARCH_CHIP_STM32H5
+	default "stm32n6"	if ARCH_CHIP_STM32N6
 	default "stm32l5"	if ARCH_CHIP_STM32L5
 	default "stm32u5"	if ARCH_CHIP_STM32U5
 	default "stm32wb"	if ARCH_CHIP_STM32WB
@@ -1210,6 +1349,7 @@ config ARCH_CHIP
 	default "goldfish"	if ARCH_CHIP_GOLDFISH_ARM
 	default "at32"		if ARCH_CHIP_AT32
 	default "cxd32xx"	if ARCH_CHIP_CXD32XX
+	default "ht32f491x3"	if ARCH_CHIP_HT32F491X3
 	default "csk6"		if ARCH_CHIP_CSK6
 	default "mcx-nxxx"	if ARCH_CHIP_MCX_NXXX
 
@@ -1279,6 +1419,26 @@ config ARM_FPU_ABI_SOFT
 	depends on ARCH_HAVE_FPU
 	---help---
 		Pass float value via integer register (-mfloat-abi=softfp)
+
+config ARM_BUSY_WAIT
+	bool "Busy wait when boot"
+	default n
+	depends on ARCH_HAVE_MULTICPU
+	---help---
+		On a system with multiple CPU cores, when the system is powered on,
+		multiple cores may start running simultaneously. In this case, software
+		is required to handle the startup logic for multi-core synchronization.
+		One approach is to use global variables.
+		however, the global variable region may not have been initialized yet.
+		In such scenarios, we can use a busywait flag to
+		implement the synchronization strategy.
+
+config ARM_BUSY_WAIT_FLAG_ADDR
+	hex "Busy wait flag address"
+	depends on ARM_BUSY_WAIT
+	---help---
+		The busywait address is typically a region that is initialized to 0
+		during the boot phase.
 
 config ARM_DPFPU32
 	bool "FPU with 32 double-precision register"
@@ -1557,6 +1717,9 @@ endif
 if ARCH_CHIP_AM335X
 source "arch/arm/src/am335x/Kconfig"
 endif
+if ARCH_CHIP_AM67
+source "arch/arm/src/am67/Kconfig"
+endif
 if ARCH_CHIP_FVP_ARMV8R_AARCH32
 source "arch/arm/src/fvp-v8r-aarch32/Kconfig"
 endif
@@ -1665,11 +1828,35 @@ endif
 if ARCH_CHIP_SAMV7
 source "arch/arm/src/samv7/Kconfig"
 endif
-if ARCH_CHIP_STM32
-source "arch/arm/src/stm32/Kconfig"
+if ARCH_CHIP_STM32F1
+source "arch/arm/src/stm32f1/Kconfig"
 endif
-if ARCH_CHIP_STM32F0 || ARCH_CHIP_STM32L0 || ARCH_CHIP_STM32G0 || ARCH_CHIP_STM32C0
-source "arch/arm/src/stm32f0l0g0/Kconfig"
+if ARCH_CHIP_STM32F2
+source "arch/arm/src/stm32f2/Kconfig"
+endif
+if ARCH_CHIP_STM32F3
+source "arch/arm/src/stm32f3/Kconfig"
+endif
+if ARCH_CHIP_STM32F4
+source "arch/arm/src/stm32f4/Kconfig"
+endif
+if ARCH_CHIP_STM32G4
+source "arch/arm/src/stm32g4/Kconfig"
+endif
+if ARCH_CHIP_STM32L1
+source "arch/arm/src/stm32l1/Kconfig"
+endif
+if ARCH_CHIP_STM32F0
+source "arch/arm/src/stm32f0/Kconfig"
+endif
+if ARCH_CHIP_STM32L0
+source "arch/arm/src/stm32l0/Kconfig"
+endif
+if ARCH_CHIP_STM32G0
+source "arch/arm/src/stm32g0/Kconfig"
+endif
+if ARCH_CHIP_STM32C0
+source "arch/arm/src/stm32c0/Kconfig"
 endif
 if ARCH_CHIP_STM32F7
 source "arch/arm/src/stm32f7/Kconfig"
@@ -1683,6 +1870,9 @@ endif
 if ARCH_CHIP_STM32H5
 source "arch/arm/src/stm32h5/Kconfig"
 endif
+if ARCH_CHIP_STM32N6
+source "arch/arm/src/stm32n6/Kconfig"
+endif
 if ARCH_CHIP_STM32L5
 source "arch/arm/src/stm32l5/Kconfig"
 endif
@@ -1694,6 +1884,9 @@ source "arch/arm/src/stm32wb/Kconfig"
 endif
 if ARCH_CHIP_STM32WL5
 source "arch/arm/src/stm32wl5/Kconfig"
+endif
+if ARCH_CHIP_STM32
+source "arch/arm/src/common/stm32/Kconfig"
 endif
 if ARCH_CHIP_STR71X
 source "arch/arm/src/str71x/Kconfig"
@@ -1730,6 +1923,9 @@ source "arch/arm/src/at32/Kconfig"
 endif
 if ARCH_CHIP_CXD32XX
 source "arch/arm/src/cxd32xx/Kconfig"
+endif
+if ARCH_CHIP_HT32F491X3
+source "arch/arm/src/ht32f491x3/Kconfig"
 endif
 if ARCH_CHIP_MCX_NXXX
 source "arch/arm/src/mcx-nxxx/Kconfig"

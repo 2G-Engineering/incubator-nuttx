@@ -23,17 +23,16 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <sys/param.h>
 
 #include "xtensa.h"
-#include "esp32s3_gpio.h"
+#include "esp_gpio.h"
 #include "esp32s3_psram.h"
 #include "esp32s3_spi_timing.h"
 #include "hardware/esp32s3_iomux.h"
 #include "hardware/esp32s3_gpio.h"
 #include "hardware/esp32s3_gpio_sigmap.h"
-#include "rom/esp32s3_spiflash.h"
 #include "rom/opi_flash.h"
 
 #include "soc/spi_mem_reg.h"

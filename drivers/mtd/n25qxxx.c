@@ -36,7 +36,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -891,7 +891,7 @@ static int n25qxxx_erase_chip(FAR struct n25qxxx_dev_s *priv)
   status = n25qxxx_read_status(priv);
   while ((status & STATUS_BUSY_MASK) != 0)
     {
-      nxsig_usleep(200 * 1000);
+      nxsched_usleep(200 * 1000);
       status = n25qxxx_read_status(priv);
     }
 

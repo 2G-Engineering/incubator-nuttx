@@ -30,7 +30,7 @@
 #include <sched.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
@@ -44,7 +44,7 @@
 
 #include <arch/board/board.h>
 
-#ifdef CONFIG_STM32H7_RTC
+#ifdef CONFIG_STM32_RTC
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -65,17 +65,17 @@
 #  error "CONFIG_RTC_HIRES must NOT be set with this driver"
 #endif
 
-#ifndef CONFIG_STM32H7_PWR
-#  error "CONFIG_STM32H7_PWR must selected to use this driver"
+#ifndef CONFIG_STM32_PWR
+#  error "CONFIG_STM32_PWR must selected to use this driver"
 #endif
 
 /* Constants ****************************************************************/
 
-#if defined(CONFIG_STM32H7_RTC_HSECLOCK)
+#if defined(CONFIG_STM32_RTC_HSECLOCK)
 #  define  RCC_BDCR_RTCSEL RCC_BDCR_RTCSEL_HSE
-#elif defined(CONFIG_STM32H7_RTC_LSICLOCK)
+#elif defined(CONFIG_STM32_RTC_LSICLOCK)
 #  define  RCC_BDCR_RTCSEL RCC_BDCR_RTCSEL_LSI
-#elif defined(CONFIG_STM32H7_RTC_LSECLOCK)
+#elif defined(CONFIG_STM32_RTC_LSECLOCK)
 #  define  RCC_BDCR_RTCSEL RCC_BDCR_RTCSEL_LSE
 #else
 #  warning "RCC_BDCR_RTCSEL_NOCLK has been selected - RTC will not count"
@@ -165,23 +165,23 @@ static void rtc_dumpregs(const char *msg)
   int rtc_state;
 
   rtcinfo("%s:\n", msg);
-  rtcinfo("      TR: %08x\n", getreg32(STM32_RTC_TR));
-  rtcinfo("      DR: %08x\n", getreg32(STM32_RTC_DR));
-  rtcinfo("      CR: %08x\n", getreg32(STM32_RTC_CR));
-  rtcinfo("     ISR: %08x\n", getreg32(STM32_RTC_ISR));
-  rtcinfo("    PRER: %08x\n", getreg32(STM32_RTC_PRER));
-  rtcinfo("    WUTR: %08x\n", getreg32(STM32_RTC_WUTR));
-  rtcinfo("  ALRMAR: %08x\n", getreg32(STM32_RTC_ALRMAR));
-  rtcinfo("  ALRMBR: %08x\n", getreg32(STM32_RTC_ALRMBR));
-  rtcinfo("  SHIFTR: %08x\n", getreg32(STM32_RTC_SHIFTR));
-  rtcinfo("    TSTR: %08x\n", getreg32(STM32_RTC_TSTR));
-  rtcinfo("    TSDR: %08x\n", getreg32(STM32_RTC_TSDR));
-  rtcinfo("   TSSSR: %08x\n", getreg32(STM32_RTC_TSSSR));
-  rtcinfo("    CALR: %08x\n", getreg32(STM32_RTC_CALR));
-  rtcinfo("  TAMPCR: %08x\n", getreg32(STM32_RTC_TAMPCR));
-  rtcinfo("ALRMASSR: %08x\n", getreg32(STM32_RTC_ALRMASSR));
-  rtcinfo("ALRMBSSR: %08x\n", getreg32(STM32_RTC_ALRMBSSR));
-  rtcinfo("MAGICREG: %08x\n", getreg32(RTC_MAGIC_REG));
+  rtcinfo("      TR: %08" PRIx32 "\n", getreg32(STM32_RTC_TR));
+  rtcinfo("      DR: %08" PRIx32 "\n", getreg32(STM32_RTC_DR));
+  rtcinfo("      CR: %08" PRIx32 "\n", getreg32(STM32_RTC_CR));
+  rtcinfo("     ISR: %08" PRIx32 "\n", getreg32(STM32_RTC_ISR));
+  rtcinfo("    PRER: %08" PRIx32 "\n", getreg32(STM32_RTC_PRER));
+  rtcinfo("    WUTR: %08" PRIx32 "\n", getreg32(STM32_RTC_WUTR));
+  rtcinfo("  ALRMAR: %08" PRIx32 "\n", getreg32(STM32_RTC_ALRMAR));
+  rtcinfo("  ALRMBR: %08" PRIx32 "\n", getreg32(STM32_RTC_ALRMBR));
+  rtcinfo("  SHIFTR: %08" PRIx32 "\n", getreg32(STM32_RTC_SHIFTR));
+  rtcinfo("    TSTR: %08" PRIx32 "\n", getreg32(STM32_RTC_TSTR));
+  rtcinfo("    TSDR: %08" PRIx32 "\n", getreg32(STM32_RTC_TSDR));
+  rtcinfo("   TSSSR: %08" PRIx32 "\n", getreg32(STM32_RTC_TSSSR));
+  rtcinfo("    CALR: %08" PRIx32 "\n", getreg32(STM32_RTC_CALR));
+  rtcinfo("  TAMPCR: %08" PRIx32 "\n", getreg32(STM32_RTC_TAMPCR));
+  rtcinfo("ALRMASSR: %08" PRIx32 "\n", getreg32(STM32_RTC_ALRMASSR));
+  rtcinfo("ALRMBSSR: %08" PRIx32 "\n", getreg32(STM32_RTC_ALRMBSSR));
+  rtcinfo("MAGICREG: %08" PRIx32 "\n", getreg32(RTC_MAGIC_REG));
 
   rtc_state =
     ((getreg32(STM32_EXTI_RTSR1)   & EXTI_RTC_ALARM) ? 0x1000 : 0) |
@@ -491,7 +491,7 @@ static int rtc_setup(void)
 
       /* Configure RTC pre-scaler with the required values */
 
-#ifdef CONFIG_STM32H7_RTC_HSECLOCK
+#ifdef CONFIG_STM32_RTC_HSECLOCK
       /* STMicro app note AN4759 suggests using 7999 and 124 to
        * get exactly 1MHz when using the RTC at 8MHz.
        */
@@ -803,7 +803,7 @@ static int rtchw_set_alrmbr(rtc_alarmreg_t alarmreg)
 
   putreg32(alarmreg, STM32_RTC_ALRMBR);
   putreg32(0, STM32_RTC_ALRMBSSR);
-  rtcinfo("  ALRMBR: %08x\n", getreg32(STM32_RTC_ALRMBR));
+  rtcinfo("  ALRMBR: %08" PRIx32 "\n", getreg32(STM32_RTC_ALRMBR));
 
   /* Enable RTC alarm B */
 
@@ -940,17 +940,17 @@ int up_rtc_initialize(void)
        * external high rate clock
        */
 
-#ifdef CONFIG_STM32H7_RTC_HSECLOCK
+#ifdef CONFIG_STM32_RTC_HSECLOCK
       /* Use the HSE clock as the input to the RTC block */
 
       rtc_dumpregs("On reset HSE");
 
-#elif defined(CONFIG_STM32H7_RTC_LSICLOCK)
+#elif defined(CONFIG_STM32_RTC_LSICLOCK)
       /* Use the LSI clock as the input to the RTC block */
 
       rtc_dumpregs("On reset LSI");
 
-#elif defined(CONFIG_STM32H7_RTC_LSECLOCK)
+#elif defined(CONFIG_STM32_RTC_LSECLOCK)
       /* Use the LSE clock as the input to the RTC block */
 
       rtc_dumpregs("On reset LSE");
@@ -1102,7 +1102,7 @@ int up_rtc_initialize(void)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H7_HAVE_RTC_SUBSECONDS
+#ifdef CONFIG_STM32_HAVE_RTC_SUBSECONDS
 int stm32_rtc_getdatetime_with_subseconds(struct tm *tp, long *nsec)
 #else
 int up_rtc_getdatetime(struct tm *tp)
@@ -1111,7 +1111,7 @@ int up_rtc_getdatetime(struct tm *tp)
   uint32_t dr;
   uint32_t tr;
   uint32_t tmp;
-#ifdef CONFIG_STM32H7_HAVE_RTC_SUBSECONDS
+#ifdef CONFIG_STM32_HAVE_RTC_SUBSECONDS
   uint32_t ssr;
   uint32_t prediv_s;
   uint32_t usecs;
@@ -1129,7 +1129,7 @@ int up_rtc_getdatetime(struct tm *tp)
     {
       dr  = getreg32(STM32_RTC_DR);
       tr  = getreg32(STM32_RTC_TR);
-#ifdef CONFIG_STM32H7_HAVE_RTC_SUBSECONDS
+#ifdef CONFIG_STM32_HAVE_RTC_SUBSECONDS
       ssr = getreg32(STM32_RTC_SSR);
       tmp = getreg32(STM32_RTC_TR);
       if (tmp != tr)
@@ -1186,7 +1186,7 @@ int up_rtc_getdatetime(struct tm *tp)
     clock_daysbeforemonth(tp->tm_mon, clock_isleapyear(tp->tm_year + 1900));
   tp->tm_isdst = 0;
 
-#ifdef CONFIG_STM32H7_HAVE_RTC_SUBSECONDS
+#ifdef CONFIG_STM32_HAVE_RTC_SUBSECONDS
   /* Return RTC sub-seconds if a non-NULL value
    * of nsec has been provided to receive the sub-second value.
    */
@@ -1207,7 +1207,7 @@ int up_rtc_getdatetime(struct tm *tp)
     }
 
   rtc_dumptime((const struct tm *)tp, &usecs, "Returning");
-#else /* CONFIG_STM32H7_HAVE_RTC_SUBSECONDS */
+#else /* CONFIG_STM32_HAVE_RTC_SUBSECONDS */
   rtc_dumptime((const struct tm *)tp, NULL, "Returning");
 #endif
 
@@ -1237,7 +1237,7 @@ int up_rtc_getdatetime(struct tm *tp)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H7_HAVE_RTC_SUBSECONDS
+#ifdef CONFIG_STM32_HAVE_RTC_SUBSECONDS
 int up_rtc_getdatetime(struct tm *tp)
 {
   return stm32_rtc_getdatetime_with_subseconds(tp, NULL);
@@ -1270,8 +1270,8 @@ int up_rtc_getdatetime(struct tm *tp)
  ****************************************************************************/
 
 #ifdef CONFIG_ARCH_HAVE_RTC_SUBSECONDS
-#  ifndef CONFIG_STM32H7_HAVE_RTC_SUBSECONDS
-#    error "Invalid config, enable CONFIG_STM32H7_HAVE_RTC_SUBSECONDS."
+#  ifndef CONFIG_STM32_HAVE_RTC_SUBSECONDS
+#    error "Invalid config, enable CONFIG_STM32_HAVE_RTC_SUBSECONDS."
 #  endif
 int up_rtc_getdatetime_with_subseconds(struct tm *tp, long *nsec)
 {
@@ -1775,11 +1775,11 @@ int stm32_rtc_setperiodic(const struct timespec *period,
   uint32_t secs;
   uint32_t millisecs;
 
-#if defined(CONFIG_STM32H7_RTC_HSECLOCK)
+#if defined(CONFIG_STM32_RTC_HSECLOCK)
 #  error "Periodic wakeup not available for HSE"
-#elif defined(CONFIG_STM32H7_RTC_LSICLOCK)
+#elif defined(CONFIG_STM32_RTC_LSICLOCK)
 #  error "Periodic wakeup not available for LSI (and it is too inaccurate!)"
-#elif defined(CONFIG_STM32H7_RTC_LSECLOCK)
+#elif defined(CONFIG_STM32_RTC_LSECLOCK)
   const uint32_t rtc_div16_max_msecs = 16 * 1000 * 0xffffu /
                                        STM32_LSE_FREQUENCY;
 #else
@@ -1950,4 +1950,4 @@ int stm32_rtc_cancelperiodic(void)
 }
 #endif
 
-#endif /* CONFIG_STM32H7_RTC */
+#endif /* CONFIG_STM32_RTC */

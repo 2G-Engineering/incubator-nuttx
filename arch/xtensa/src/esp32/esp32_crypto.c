@@ -25,6 +25,8 @@
 #include <errno.h>
 #include <stddef.h>
 #include <sys/queue.h>
+#include <sys/param.h>
+#include <endian.h>
 
 #include <crypto/cryptodev.h>
 #include <crypto/xform.h>
@@ -32,6 +34,7 @@
 #include <nuttx/crypto/crypto.h>
 
 #include "esp32_sha.h"
+#include "esp32_aes.h"
 #include <stdio.h>
 
 /****************************************************************************
@@ -58,7 +61,7 @@ const struct auth_hash g_auth_hash_sha1_esp32 =
 {
   CRYPTO_SHA1, "SHA1",
   0, 20, 12, sizeof(struct esp32_sha_context_s),
-  0,
+  HMAC_SHA1_BLOCK_LEN,
   sha1_init, NULL, NULL,
   sha_update,
   sha_final
@@ -68,7 +71,7 @@ const struct auth_hash g_auth_hash_sha2_256_esp32 =
 {
   CRYPTO_SHA2_256, "SHA256",
   0, 32, 12, sizeof(struct esp32_sha_context_s),
-  0,
+  HMAC_SHA2_256_BLOCK_LEN,
   sha256_init, NULL, NULL,
   sha_update,
   sha_final
@@ -78,7 +81,7 @@ const struct auth_hash g_auth_hash_sha2_384_esp32 =
 {
   CRYPTO_SHA2_384, "SHA384",
   0, 48, 12, sizeof(struct esp32_sha_context_s),
-  0,
+  HMAC_SHA2_384_BLOCK_LEN,
   sha384_init, NULL, NULL,
   sha_update,
   sha_final
@@ -88,8 +91,28 @@ const struct auth_hash g_auth_hash_sha2_512_esp32 =
 {
   CRYPTO_SHA2_512, "SHA512",
   0, 64, 12, sizeof(struct esp32_sha_context_s),
-  0,
+  HMAC_SHA2_512_BLOCK_LEN,
   sha512_init, NULL, NULL,
+  sha_update,
+  sha_final
+};
+
+const struct auth_hash g_auth_hash_hmac_sha1_esp32 =
+{
+  CRYPTO_SHA1_HMAC, "HMAC-SHA1",
+  HMAC_SHA1_BLOCK_LEN, 20, 12, sizeof(struct esp32_sha_context_s),
+  HMAC_SHA1_BLOCK_LEN,
+  sha1_init, NULL, NULL,
+  sha_update,
+  sha_final
+};
+
+const struct auth_hash g_auth_hash_hmac_sha256_esp32 =
+{
+  CRYPTO_SHA2_256_HMAC, "HMAC-SHA2-256",
+  HMAC_SHA2_256_BLOCK_LEN, 32, 16, sizeof(struct esp32_sha_context_s),
+  HMAC_SHA2_256_BLOCK_LEN,
+  sha256_init, NULL, NULL,
   sha_update,
   sha_final
 };
@@ -287,6 +310,147 @@ static int hash(struct cryptop *crp,
 }
 
 /****************************************************************************
+ * Name: authcompute
+ *
+ * Description:
+ *   Calculate the hash.
+ *
+ ****************************************************************************/
+
+static int authcompute(struct cryptop *crp, struct cryptodesc *crd,
+                       struct esp32_crypto_data *data,
+                       caddr_t buf)
+{
+  unsigned char aalg[AALG_MAX_RESULT_LEN];
+  const struct auth_hash *axf;
+  int err = 0;
+
+  axf = data->hw_axf;
+  err = axf->update(data->hw_ictx, (uint8_t *)buf, crd->crd_len);
+  if (err)
+    {
+      return err;
+    }
+
+  switch (data->alg)
+    {
+      case CRYPTO_SHA1_HMAC:
+      case CRYPTO_SHA2_256_HMAC:
+      case CRYPTO_PBKDF2_HMAC_SHA1:
+      case CRYPTO_PBKDF2_HMAC_SHA256:
+        if (data->hw_octx == NULL)
+          {
+            return -EINVAL;
+          }
+
+          axf->final(aalg, data->hw_ictx);
+
+          for (int k = 0; k < crd->crd_klen / 8; k++)
+          {
+            crd->crd_key[k] ^= HMAC_OPAD_VAL;
+          }
+
+          axf->update(data->hw_octx, (uint8_t *)crd->crd_key,
+                      crd->crd_klen / 8);
+
+          axf->update(data->hw_octx, hmac_opad_buffer,
+                      axf->blocksize - (crd->crd_klen / 8));
+
+          axf->update(data->hw_octx, aalg, axf->hashsize);
+          axf->final(aalg, data->hw_octx);
+
+        break;
+    }
+
+  /* Inject the authentication data */
+
+  bcopy(aalg, crp->crp_mac, axf->hashsize);
+  return 0;
+}
+
+static void esp32_pbkdf2_rekey(struct esp32_crypto_data *data,
+                               const struct auth_hash *axf,
+                               const caddr_t key, size_t klen)
+{
+  uint8_t keybuf[128];
+  size_t k;
+
+  memcpy(keybuf, key, klen);
+  for (k = 0; k < klen; k++)
+    keybuf[k] ^= HMAC_IPAD_VAL;
+
+  axf->init(data->hw_ictx);
+  axf->update(data->hw_ictx, keybuf, klen);
+  axf->update(data->hw_ictx, hmac_ipad_buffer, axf->blocksize - klen);
+  axf->init(data->hw_octx);
+}
+
+int esp32_pbkdf2(struct cryptop *crp,
+                 struct cryptodesc *crd,
+                 struct esp32_crypto_data *data,
+                 caddr_t buf)
+{
+  const struct auth_hash *axf = data->hw_axf;
+  uint8_t U[64];
+  uint8_t T[64];
+  uint8_t macbuf[64];
+  uint8_t key_backup[128];
+  char key_work[128];
+  struct cryptop crp_dummy;
+  struct cryptodesc crd_dummy;
+
+  size_t generated = 0;
+  uint32_t blocknum;
+  uint32_t i;
+  uint32_t j;
+
+  crp_dummy.crp_mac  = (caddr_t)macbuf;
+  crd_dummy.crd_key  = key_work;
+  crd_dummy.crd_klen = crd->crd_klen;
+
+  for (blocknum = 1; generated < crp->crp_olen; blocknum++)
+    {
+      uint8_t saltblk[crp->crp_ilen + 4];
+      uint32_t block_be = htobe32(blocknum);
+
+      memcpy(saltblk, crp->crp_buf, crp->crp_ilen);
+      memcpy(saltblk + crp->crp_ilen, &block_be, 4);
+
+      /* U1 */
+
+      esp32_pbkdf2_rekey(data, axf, crd->crd_key, crd->crd_klen / 8);
+      memcpy(key_work, crd->crd_key, crd->crd_klen / 8);
+      crd_dummy.crd_len = crp->crp_ilen + 4;
+      authcompute(&crp_dummy, &crd_dummy, data, (caddr_t)saltblk);
+      memcpy(U, macbuf, axf->hashsize);
+      memcpy(T, U, axf->hashsize);
+
+      /* U2..Uc */
+
+      for (i = 1; i < crp->crp_iter; i++)
+        {
+          uint8_t u_prev[64];
+
+          memcpy(u_prev, U, axf->hashsize);
+          esp32_pbkdf2_rekey(data, axf, crd->crd_key, crd->crd_klen / 8);
+          memcpy(key_work, crd->crd_key, crd->crd_klen / 8);
+          crd_dummy.crd_len = axf->hashsize;
+          authcompute(&crp_dummy, &crd_dummy, data, (caddr_t)u_prev);
+          memcpy(U, macbuf, axf->hashsize);
+
+          for (j = 0; j < axf->hashsize; j++)
+            T[j] ^= U[j];
+        }
+
+      size_t tocopy = MIN(crp->crp_olen - generated, axf->hashsize);
+      memcpy(crp->crp_mac + generated, T, tocopy);
+      generated += tocopy;
+    }
+
+  return 0;
+}
+
+/****************************************************************************
  * Name: esp32_newsession
  *
  * Description:
@@ -368,6 +532,10 @@ static int esp32_newsession(uint32_t *sid, struct cryptoini *cri)
 
       switch (cri->cri_alg)
         {
+          case CRYPTO_AES_CBC:
+            break;
+          case CRYPTO_AES_CTR:
+            break;
           case CRYPTO_SHA1:
             axf = &g_auth_hash_sha1_esp32;
             goto common;
@@ -390,6 +558,63 @@ static int esp32_newsession(uint32_t *sid, struct cryptoini *cri)
 
               axf->init(data->hw_ictx);
               data->hw_axf = axf;
+            break;
+          case CRYPTO_SHA1_HMAC:
+          case CRYPTO_PBKDF2_HMAC_SHA1:
+            axf = &g_auth_hash_hmac_sha1_esp32;
+            goto common__hmac;
+          case CRYPTO_SHA2_256_HMAC:
+          case CRYPTO_PBKDF2_HMAC_SHA256:
+            axf = &g_auth_hash_hmac_sha256_esp32;
+            goto common__hmac;
+          common__hmac:
+            data->hw_ictx = kmm_malloc(axf->ctxsize);
+            if (data->hw_ictx == NULL)
+              {
+                kmm_free(data);
+                return -ENOBUFS;
+              }
+
+            data->hw_octx = kmm_malloc(axf->ctxsize);
+            if (data->hw_octx == NULL)
+              {
+                kmm_free(data->hw_ictx);
+                kmm_free(data);
+                return -ENOBUFS;
+              }
+
+            /* If the key is too long, hash it first using ictx */
+
+            if (cri->cri_klen / 8 > axf->keysize)
+              {
+                axf->init(data->hw_ictx);
+                axf->update(data->hw_ictx,
+                            (FAR uint8_t *)cri->cri_key,
+                            cri->cri_klen / 8);
+                axf->final((unsigned char *)cri->cri_key,
+                           data->hw_ictx);
+                cri->cri_klen = axf->hashsize * 8;
+              }
+
+            for (k = 0; k < cri->cri_klen / 8; k++)
+              {
+                cri->cri_key[k] ^= HMAC_IPAD_VAL;
+              }
+
+            axf->init(data->hw_ictx);
+            axf->update(data->hw_ictx, (uint8_t *)cri->cri_key,
+                        cri->cri_klen / 8);
+            axf->update(data->hw_ictx, hmac_ipad_buffer,
+                        axf->blocksize - (cri->cri_klen / 8));
+
+            axf->init(data->hw_octx);
+
+            for (k = 0; k < cri->cri_klen / 8; k++)
+              {
+                cri->cri_key[k] ^= HMAC_IPAD_VAL;
+              }
+
+            data->hw_axf = axf;
             break;
 
           default:
@@ -519,6 +744,30 @@ static int esp32_process(struct cryptop *crp)
 
       switch (data->alg)
         {
+          case CRYPTO_AES_CBC:
+            err = aes_cypher(crp->crp_dst, crp->crp_buf, crd->crd_len,
+                             crp->crp_iv, crd->crd_key, 16, AES_MODE_CBC,
+                             crd->crd_flags & CRD_F_ENCRYPT);
+            if (err < 0)
+              {
+                return err;
+              }
+
+            break;
+          case CRYPTO_AES_CTR:
+            memset(iv, 0, sizeof(iv));
+            memcpy(iv, crd->crd_key + crd->crd_klen / 8 - 4, 4);
+            memcpy(iv + 4, crp->crp_iv, 8);
+            iv[15] = 0x1;
+            err = aes_cypher(crp->crp_dst, crp->crp_buf, crd->crd_len, iv,
+                             crd->crd_key, crd->crd_klen / 8 - 4,
+                             AES_MODE_CTR, crd->crd_flags & CRD_F_ENCRYPT);
+            if (err < 0)
+              {
+                return err;
+              }
+
+            break;
           case CRYPTO_SHA1:
           case CRYPTO_SHA2_256:
           case CRYPTO_SHA2_384:
@@ -530,6 +779,19 @@ static int esp32_process(struct cryptop *crp)
               }
 
             break;
+          case CRYPTO_SHA1_HMAC:
+          case CRYPTO_SHA2_256_HMAC:
+            if ((crp->crp_etype = authcompute(crp, crd, data,
+                 crp->crp_buf)) != 0)
+              {
+                return crp->crp_etype;
+              }
+            break;
+          case CRYPTO_PBKDF2_HMAC_SHA1:
+          case CRYPTO_PBKDF2_HMAC_SHA256:
+            esp32_pbkdf2(crp, crd, data, crp->crp_buf);
+
+          break;
           default:
             return -EINVAL;
         }
@@ -556,10 +818,16 @@ void hwcr_init(void)
 
   memset(algs, 0, sizeof(algs));
 
+  algs[CRYPTO_AES_CBC] = CRYPTO_ALG_FLAG_SUPPORTED;
+  algs[CRYPTO_AES_CTR] = CRYPTO_ALG_FLAG_SUPPORTED;
   algs[CRYPTO_SHA1] = CRYPTO_ALG_FLAG_SUPPORTED;
   algs[CRYPTO_SHA2_256] = CRYPTO_ALG_FLAG_SUPPORTED;
   algs[CRYPTO_SHA2_384] = CRYPTO_ALG_FLAG_SUPPORTED;
   algs[CRYPTO_SHA2_512] = CRYPTO_ALG_FLAG_SUPPORTED;
+  algs[CRYPTO_SHA1_HMAC] = CRYPTO_ALG_FLAG_SUPPORTED;
+  algs[CRYPTO_SHA2_256_HMAC] = CRYPTO_ALG_FLAG_SUPPORTED;
+  algs[CRYPTO_PBKDF2_HMAC_SHA1] = CRYPTO_ALG_FLAG_SUPPORTED;
+  algs[CRYPTO_PBKDF2_HMAC_SHA256] = CRYPTO_ALG_FLAG_SUPPORTED;
 
   esp32_sha_init();
   crypto_register(hwcr_id, algs, esp32_newsession,

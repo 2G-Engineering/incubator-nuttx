@@ -72,27 +72,20 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_bringup
+ * Name: stm32_bringup
  *
  * Description:
  *   Perform architecture specific initialization
  *
- *   CONFIG_BOARDCTL=y:
- *     If CONFIG_NSH_ARCHINITIALIZE=y:
- *       Called from the NSH library (or other application)
- *     Otherwise, assumed to be called from some other application.
- *
- *   Otherwise CONFIG_BOARD_LATE_INITIALIZE=y:
+ *   CONFIG_BOARD_LATE_INITIALIZE=y:
  *     Called from board_late_initialize().
- *
- *   Otherwise, bad news:  Never called
  *
  ****************************************************************************/
 
-int stm32l4_bringup(void);
+int stm32_bringup(void);
 
 /****************************************************************************
- * Name: stm32l4_usbinitialize
+ * Name: stm32_usbinitialize
  *
  * Description:
  *   Called from stm32_usbinitialize very early in initialization to setup
@@ -100,8 +93,8 @@ int stm32l4_bringup(void);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32L4_OTGFS
-void weak_function stm32l4_usbinitialize(void);
+#ifdef CONFIG_STM32_OTGFS
+void weak_function stm32_usbinitialize(void);
 #endif
 
 #endif /* __BOARDS_ARM_STM32L4_STEVAL_STLCS01V1_SRC_STEVAL_STLCS01V1_H */

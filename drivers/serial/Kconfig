@@ -114,6 +114,25 @@ if UART_PL011
 source "drivers/serial/Kconfig-pl011"
 endif
 
+menuconfig UART_XLNXPS
+	bool "Xilinx UART Peripheral System (XUARTPS) Chip support"
+	default n
+	---help---
+		This option enables support for the Xilinx UART Peripheral System
+		(XUARTPS) controller, which is commonly found in Xilinx Zynq-7000
+		and Zynq UltraScale+ MPSoC platforms.
+
+		The XUARTPS controller provides full-duplex UART functionality with
+		features such as baud rate generation, FIFO buffers, interrupt
+		support, and hardware flow control (RTS/CTS).
+
+		If you are building a kernel for Xilinx Zynq/Zynq MPSoC platforms
+		and need serial communication via the XUARTPS peripheral, say Y here.
+
+if UART_XLNXPS
+source "drivers/serial/Kconfig-xlnxps"
+endif # UART_XLNXPS
+
 menuconfig CMSDK_UART
 	bool "CMSDK UART Chip support"
 	select ARCH_HAVE_SERIAL_TERMIOS
@@ -168,6 +187,30 @@ config RPMSG_UART_CONSOLE
 		as the console device.
 		NOTE: support for this option must be implemented in the board logic by
 		setting the \"isconsole\" argument in the uart_rpmsg_init() function to true.
+
+config RPMSG_UART_RAW
+	bool "UART RPMSG RAW support"
+	default n
+	depends on RPMSG
+	select ARCH_HAVE_SERIAL_TERMIOS
+	select SERIAL_RXDMA
+	select SERIAL_TXDMA
+	select SERIAL_REMOVABLE
+	---help---
+		Similar to RPMSG_UART but using data transfer without encapsulation or
+		flow control. This implementation is compatible with the upstream linux
+		implementation of tty_rpmsg. This connects to a static service name
+		(rpmsg-tty), independent from the local name.
+
+config RPMSG_UART_RAW_CONSOLE
+	bool "UART RPMSG RAW console support"
+	default n
+	depends on RPMSG_UART_RAW
+	---help---
+		Register the RAW UART RPMSG device as /dev/console so that is will be used
+		as the console device.
+		NOTE: support for this option must be implemented in the board logic by
+		setting the \"isconsole\" argument in the uart_rpmsg_raw_init() function to true.
 
 #
 # Standard serial driver configuration

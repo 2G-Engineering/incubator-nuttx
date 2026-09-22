@@ -28,7 +28,7 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/mqueue.h>
 
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <assert.h>
 #include <netinet/in.h>
 #include <sys/param.h>
@@ -38,25 +38,24 @@
 #include "hardware/esp32_dport.h"
 #include "hardware/esp32_emac.h"
 #include "hardware/esp32_soc.h"
-#include "esp32_irq.h"
+#include "esp_irq.h"
 #include "esp32_partition.h"
 #elif CONFIG_ARCH_CHIP_ESP32S2
-#include "hardware/esp32s2_efuse.h"
-#include "hardware/esp32s2_rtccntl.h"
+#include "soc/efuse_reg.h"
 #include "hardware/esp32s2_soc.h"
 #include "hardware/esp32s2_syscon.h"
 #include "hardware/esp32s2_system.h"
-#include "esp32s2_irq.h"
+#include "espressif/esp_irq.h"
 /* #include "esp32s2_partition.h" */
 #elif CONFIG_ARCH_CHIP_ESP32S3
-#include "hardware/esp32s3_efuse.h"
-#include "hardware/esp32s3_rtccntl.h"
+#include "soc/efuse_reg.h"
 #include "hardware/esp32s3_soc.h"
 #include "hardware/esp32s3_syscon.h"
 #include "hardware/esp32s3_system.h"
-#include "esp32s3_irq.h"
+#include "esp_irq.h"
 #include "esp32s3_partition.h"
 #endif
+#include "esp_hr_timer.h"
 
 #include "esp_private/phy.h"
 #ifdef CONFIG_ESPRESSIF_WIFI
@@ -85,26 +84,16 @@
 #  define SWI_PERIPH          ESP32_PERIPH_CPU_CPU2
 #  define esp_partition_read  esp32_partition_read
 #  define esp_partition_write esp32_partition_write
-#  define esp_setup_irq       esp32_setup_irq
-#  define esp_teardown_irq    esp32_teardown_irq
 #elif CONFIG_ARCH_CHIP_ESP32S2
 #  define SWI_IRQ             ESP32S2_IRQ_INT_FROM_CPU2
 #  define SWI_PERIPH          ESP32S2_PERIPH_INT_FROM_CPU2
 #  define esp_partition_read  esp32s2_partition_read
 #  define esp_partition_write esp32s2_partition_write
-#  define esp_setup_irq       esp32s2_setup_irq
-#  define esp_teardown_irq    esp32s2_teardown_irq
 #elif CONFIG_ARCH_CHIP_ESP32S3
 #  define SWI_IRQ             ESP32S3_IRQ_INT_FROM_CPU2
 #  define SWI_PERIPH          ESP32S3_PERIPH_INT_FROM_CPU2
 #  define esp_partition_read  esp32s3_partition_read
 #  define esp_partition_write esp32s3_partition_write
-#  define rt_timer_create     esp32s3_rt_timer_create
-#  define rt_timer_start      esp32s3_rt_timer_start
-#  define rt_timer_stop       esp32s3_rt_timer_stop
-#  define rt_timer_delete     esp32s3_rt_timer_delete
-#  define esp_setup_irq       esp32s3_setup_irq
-#  define esp_teardown_irq    esp32s3_teardown_irq
 #endif
 
 /****************************************************************************
@@ -302,13 +291,13 @@ static inline void phy_digital_regs_load(void)
  *   Wireless software interrupt callback function.
  *
  * Parameters:
- *   cpuint  - CPU interrupt index
- *   context - Context data from the ISR
- *   arg     - NULL
+ *   irq     - The IRQ number;
+ *   context - The interrupt context;
+ *   arg     - Parameter for the interrupt handler
  *
  * Returned Value:
- *   Zero (OK) is returned on success. A negated errno value is returned on
- *   failure.
+ *   Zero (OK) is returned on success; A negated errno value is returned
+ *   to indicate the nature of any failure.
  *
  ****************************************************************************/
 
@@ -942,6 +931,7 @@ int esp_phy_update_country_info(const char *country)
 }
 
 /****************************************************************************
+<<<<<<< HEAD
  * Name: esp_timer_create
  *
  * Description:
@@ -1073,6 +1063,8 @@ int esp_timer_delete(esp_timer_handle_t timer)
 }
 
 /****************************************************************************
+=======
+>>>>>>> nuttx-13.0.0
  * Name: esp_init_semcache
  *
  * Description:
@@ -1274,11 +1266,24 @@ int esp_wireless_init(void)
     }
 
 #ifdef CONFIG_ARCH_CHIP_ESP32
-  priv->cpuint = esp_setup_irq(0, SWI_PERIPH, 1, ESP32_CPUINT_LEVEL);
+  priv->cpuint = esp_setup_irq(SWI_PERIPH,
+                               1,
+                               ESP_IRQ_TRIGGER_LEVEL,
+                               esp_swi_irq,
+                               NULL);
 #elif CONFIG_ARCH_CHIP_ESP32S2
-  priv->cpuint = esp_setup_irq(SWI_PERIPH, ESP32S2_INT_PRIO_DEF, 0);
+  priv->cpuint = esp_setup_irq(SWI_PERIPH,
+                               ESP32S2_INT_PRIO_DEF,
+                               ESP_IRQ_TRIGGER_LEVEL,
+                               esp_swi_irq,
+                               NULL);
 #elif CONFIG_ARCH_CHIP_ESP32S3
-  priv->cpuint = esp_setup_irq(0, SWI_PERIPH, ESP32S3_INT_PRIO_DEF, 0);
+  ASSERT(this_cpu() == 0);
+  priv->cpuint = esp_setup_irq(SWI_PERIPH,
+                               ESP32S3_INT_PRIO_DEF,
+                               ESP_IRQ_TRIGGER_LEVEL,
+                               esp_swi_irq,
+                               NULL);
 #endif
   if (priv->cpuint < 0)
     {
@@ -1287,22 +1292,6 @@ int esp_wireless_init(void)
       wlerr("ERROR: Failed to attach IRQ ret=%d\n", ret);
       ret = priv->cpuint;
       leave_critical_section(flags);
-
-      return ret;
-    }
-
-  ret = irq_attach(SWI_IRQ, esp_swi_irq, NULL);
-  if (ret < 0)
-    {
-#ifdef CONFIG_ARCH_CHIP_ESP32
-      esp_teardown_irq(0, SWI_PERIPH, priv->cpuint);
-#elif CONFIG_ARCH_CHIP_ESP32S2
-      esp_teardown_irq(SWI_PERIPH, priv->cpuint);
-#elif CONFIG_ARCH_CHIP_ESP32S3
-      esp_teardown_irq(0, SWI_PERIPH, priv->cpuint);
-#endif
-      leave_critical_section(flags);
-      wlerr("ERROR: Failed to attach IRQ ret=%d\n", ret);
 
       return ret;
     }
@@ -1349,14 +1338,7 @@ int esp_wireless_deinit(void)
       if (priv->ref == 0)
         {
           up_disable_irq(SWI_IRQ);
-          irq_detach(SWI_IRQ);
-#ifdef CONFIG_ARCH_CHIP_ESP32
-          esp_teardown_irq(0, SWI_PERIPH, priv->cpuint);
-#elif CONFIG_ARCH_CHIP_ESP32S2
           esp_teardown_irq(SWI_PERIPH, priv->cpuint);
-#elif CONFIG_ARCH_CHIP_ESP32S3
-          esp_teardown_irq(0, SWI_PERIPH, priv->cpuint);
-#endif
         }
     }
 

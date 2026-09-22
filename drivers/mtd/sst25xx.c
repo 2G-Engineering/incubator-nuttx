@@ -33,7 +33,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -345,7 +345,7 @@ static void sst25xx_waitwritecomplete(struct sst25xx_dev_s *priv)
       if ((status & SST25_SR_WIP) != 0)
         {
           sst25xx_unlock(priv->dev);
-          nxsig_usleep(1000);
+          nxsched_usleep(1000);
           sst25xx_lock(priv->dev);
         }
     }

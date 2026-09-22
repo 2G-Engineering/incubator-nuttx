@@ -99,7 +99,11 @@ int esp_freq_to_channel(uint16_t freq);
  * Name: esp_evt_work_init
  *
  * Description:
+<<<<<<< HEAD
  *   Initialize the event work queue
+=======
+ *   Initialize the generic esp_event backend queue.
+>>>>>>> nuttx-13.0.0
  *
  * Input Parameters:
  *   None
@@ -111,6 +115,25 @@ int esp_freq_to_channel(uint16_t freq);
 
 void esp_evt_work_init(void);
 
+<<<<<<< HEAD
+=======
+/****************************************************************************
+ * Name: esp_wifi_evt_work_init
+ *
+ * Description:
+ *   Initialize the event work queue
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+void esp_wifi_evt_work_init(void);
+
+>>>>>>> nuttx-13.0.0
 /****************************************************************************
  * Name: esp_wifi_start_scan
  *
@@ -212,6 +235,7 @@ wifi_mode_t esp_wifi_mode_translate(uint32_t wireless_mode);
 
 int esp_wifi_lock(bool lock);
 
+<<<<<<< HEAD
 /****************************************************************************
  * Name: esp_event_post
  *
@@ -245,6 +269,8 @@ int esp_event_post(const char *event_base,
                          size_t event_data_size,
                          uint32_t ticks);
 
+=======
+>>>>>>> nuttx-13.0.0
 #ifdef __cplusplus
 }
 #endif

@@ -33,7 +33,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
@@ -303,7 +303,7 @@ static int stepper_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
  *           as long as the driver persists.
  *
  * Returned Value:
- *   OK if the driver was successfully register; A negated errno value is
+ *   OK if the driver was successfully registered; A negated errno value is
  *   returned on any failure.
  *
  ****************************************************************************/

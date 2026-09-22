@@ -59,6 +59,46 @@ SLIST_HEAD(esp_crypto_list, esp_crypto_data);
 static struct esp_crypto_list *g_esp_sessions = NULL;
 static uint32_t g_esp_sesnum = 0;
 
+const struct auth_hash g_auth_hash_sha1_esp =
+{
+  CRYPTO_SHA1, "SHA1",
+  0, 20, 12, sizeof(struct esp_sha1_context_s),
+  0,
+  sha1_init, NULL, NULL,
+  sha1_update,
+  sha1_final
+};
+
+const struct auth_hash g_auth_hash_sha256_esp =
+{
+  CRYPTO_SHA2_256, "SHA256",
+  0, 32, 12, sizeof(struct esp_sha256_context_s),
+  0,
+  sha256_init, NULL, NULL,
+  sha256_update,
+  sha256_final
+};
+
+const struct auth_hash g_auth_hash_sha384_esp =
+{
+  CRYPTO_SHA2_384, "SHA384",
+  0, 48, 12, sizeof(struct esp_sha512_context_s),
+  0,
+  sha384_init, NULL, NULL,
+  sha512_update,
+  sha512_final
+};
+
+const struct auth_hash g_auth_hash_sha512_esp =
+{
+  CRYPTO_SHA2_512, "SHA512",
+  0, 64, 12, sizeof(struct esp_sha512_context_s),
+  0,
+  sha512_init, NULL, NULL,
+  sha512_update,
+  sha512_final
+};
+
 const struct auth_hash g_auth_hash_hmac_sha1_esp =
 {
   CRYPTO_SHA1_HMAC, "HMAC-SHA1",
@@ -345,6 +385,50 @@ static void sha512_final(uint8_t *out, void *ctx)
 }
 
 /****************************************************************************
+ * Name: hash
+ *
+ * Description:
+ *   Calculate the hash.
+ *
+ * Input Parameters:
+ *   crp      - The description of the crypto operation
+ *   crd      - Boundaries of the crypto operation
+ *   data     - Specific crypto operation data
+ *   buf      - Input data to be hashed
+ *
+ * Returned Value:
+ *   OK is returned on success.
+ *   Otherwise, a negated errno value is returned.
+ *
+ ****************************************************************************/
+
+static int hash(struct cryptop *crp,
+                struct cryptodesc *crd,
+                struct esp_crypto_data *data,
+                caddr_t buf)
+{
+  const struct auth_hash *axf;
+
+  if (data->hw_ictx == 0)
+    {
+      return -EINVAL;
+    }
+
+  axf = data->hw_axf;
+
+  if (crd->crd_flags & CRD_F_UPDATE)
+    {
+      return axf->update(data->hw_ictx, (uint8_t *)buf, crd->crd_len);
+    }
+  else
+    {
+      axf->final((uint8_t *)crp->crp_mac, data->hw_ictx);
+    }
+
+  return 0;
+}
+
+/****************************************************************************
  * Name: authcompute
  *
  * Description:
@@ -390,6 +474,8 @@ static int authcompute(struct cryptop *crp, struct cryptodesc *crd,
     {
       case CRYPTO_SHA1_HMAC:
       case CRYPTO_SHA2_256_HMAC:
+      case CRYPTO_SHA2_384_HMAC:
+      case CRYPTO_SHA2_512_HMAC:
         if (data->hw_octx == NULL)
           {
             return -EINVAL;
@@ -488,19 +574,59 @@ static int esp_newsession(uint32_t *sid, struct cryptoini *cri)
 
       switch (cri->cri_alg)
         {
+#ifdef CONFIG_CRYPTO_AES
+          case CRYPTO_AES_CBC:
+              break;
+
+          case CRYPTO_AES_CTR:
+            if ((cri->cri_klen / 8 - 4) != 16 &&
+                (cri->cri_klen / 8 -4) != 32)
+              {
+                /* esp aes-ctr key bits just support 128 & 256 */
+
+                esp_freesession(i);
+                kmm_free(data);
+                return -EINVAL;
+              }
+
+            break;
+#endif
+          case CRYPTO_SHA1:
+            axf = &g_auth_hash_sha1_esp;
+            goto sha_common;
+          case CRYPTO_SHA2_256:
+            axf = &g_auth_hash_sha256_esp;
+            goto sha_common;
+          case CRYPTO_SHA2_384:
+            axf = &g_auth_hash_sha384_esp;
+            goto sha_common;
+          case CRYPTO_SHA2_512:
+            axf = &g_auth_hash_sha512_esp;
+            goto sha_common;
+          sha_common:
+              data->hw_ictx = kmm_malloc(axf->ctxsize);
+              if (data->hw_ictx == NULL)
+                {
+                  kmm_free(data);
+                  return -ENOBUFS;
+                }
+
+              axf->init(data->hw_ictx);
+              data->hw_axf = axf;
+            break;
           case CRYPTO_SHA1_HMAC:
             axf = &g_auth_hash_hmac_sha1_esp;
-            goto common;
+            goto hmac_common;
           case CRYPTO_SHA2_256_HMAC:
             axf = &g_auth_hash_hmac_sha256_esp;
-            goto common;
+            goto hmac_common;
           case CRYPTO_SHA2_384_HMAC:
             axf = &g_auth_hash_hmac_sha384_esp;
-            goto common;
+            goto hmac_common;
           case CRYPTO_SHA2_512_HMAC:
             axf = &g_auth_hash_hmac_sha512_esp;
-            goto common;
-          common:
+            goto hmac_common;
+          hmac_common:
             data->hw_ictx = kmm_malloc(axf->ctxsize);
             if (data->hw_ictx == NULL)
               {
@@ -514,6 +640,15 @@ static int esp_newsession(uint32_t *sid, struct cryptoini *cri)
                 kmm_free(data->hw_ictx);
                 kmm_free(data);
                 return -ENOBUFS;
+              }
+
+            if (cri->cri_klen / 8 > axf->keysize)
+              {
+                axf->init(data->hw_ictx);
+                axf->update(data->hw_ictx, (uint8_t *)cri->cri_key,
+                            cri->cri_klen / 8);
+                axf->final((uint8_t *)cri->cri_key, data->hw_ictx);
+                cri->cri_klen = axf->hashsize * 8;
               }
 
             for (k = 0; k < cri->cri_klen / 8; k++)
@@ -649,6 +784,7 @@ static int esp_process(struct cryptop *crp)
   struct cryptodesc *crd;
   struct esp_crypto_list *session;
   struct esp_crypto_data *data;
+  uint8_t iv[AESCTR_BLOCKSIZE];
   uint32_t lid;
   int err = 0;
 
@@ -675,6 +811,45 @@ static int esp_process(struct cryptop *crp)
 
       switch (data->alg)
         {
+#ifdef CONFIG_CRYPTO_AES
+          case CRYPTO_AES_CBC:
+            err = aes_cypher(crp->crp_dst, crp->crp_buf, crd->crd_len,
+                             crp->crp_iv, crd->crd_key, crd->crd_klen / 8,
+                             AES_MODE_CBC, crd->crd_flags & CRD_F_ENCRYPT);
+
+            if (err < 0)
+              {
+                return err;
+              }
+            break;
+          case CRYPTO_AES_CTR:
+            memcpy(iv, crd->crd_key + crd->crd_klen / 8 - AESCTR_NONCESIZE,
+                   AESCTR_NONCESIZE);
+            memcpy(iv + AESCTR_NONCESIZE, crp->crp_iv, AESCTR_IVSIZE);
+            memcpy(iv + AESCTR_NONCESIZE + AESCTR_IVSIZE,
+                   (uint8_t *)crp->crp_iv + AESCTR_IVSIZE, 4);
+            err = aes_cypher(crp->crp_dst, crp->crp_buf, crd->crd_len, iv,
+                             crd->crd_key,
+                             crd->crd_klen / 8 - AESCTR_NONCESIZE,
+                             AES_MODE_CTR, crd->crd_flags & CRD_F_ENCRYPT);
+
+            if (err < 0)
+              {
+                return err;
+              }
+
+            break;
+#endif
+          case CRYPTO_SHA1:
+          case CRYPTO_SHA2_256:
+          case CRYPTO_SHA2_384:
+          case CRYPTO_SHA2_512:
+            if ((crp->crp_etype = hash(crp, crd, data,
+                crp->crp_buf)) != 0)
+              {
+                return 0;
+              }
+            break;
           case CRYPTO_SHA1_HMAC:
           case CRYPTO_SHA2_256_HMAC:
           case CRYPTO_SHA2_384_HMAC:
@@ -718,10 +893,18 @@ void hwcr_init(void)
 
   memset(algs, 0, sizeof(algs));
 
+  algs[CRYPTO_SHA1] = CRYPTO_ALG_FLAG_SUPPORTED;
+  algs[CRYPTO_SHA2_256] = CRYPTO_ALG_FLAG_SUPPORTED;
+  algs[CRYPTO_SHA2_384] = CRYPTO_ALG_FLAG_SUPPORTED;
+  algs[CRYPTO_SHA2_512] = CRYPTO_ALG_FLAG_SUPPORTED;
   algs[CRYPTO_SHA1_HMAC] = CRYPTO_ALG_FLAG_SUPPORTED;
   algs[CRYPTO_SHA2_256_HMAC] = CRYPTO_ALG_FLAG_SUPPORTED;
   algs[CRYPTO_SHA2_384_HMAC] = CRYPTO_ALG_FLAG_SUPPORTED;
   algs[CRYPTO_SHA2_512_HMAC] = CRYPTO_ALG_FLAG_SUPPORTED;
+#ifdef CONFIG_CRYPTO_AES
+  algs[CRYPTO_AES_CBC] = CRYPTO_ALG_FLAG_SUPPORTED;
+  algs[CRYPTO_AES_CTR] = CRYPTO_ALG_FLAG_SUPPORTED;
+#endif
 
   esp_sha_init();
   crypto_register(hwcr_id, algs, esp_newsession,

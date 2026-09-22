@@ -30,7 +30,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "nuttx/net/netdev.h"
 #include "nuttx/net/radiodev.h"
@@ -295,12 +295,8 @@ ssize_t psock_6lowpan_udp_sendto(FAR struct socket *psock,
    * packet.
    */
 
-  ret = sixlowpan_send(dev,
-                       &conn->sconn.list,
-                       &conn->sconn.list_tail,
-                       (FAR const struct ipv6_hdr_s *)&ipv6udp,
-                       buf, buflen, &destmac,
-                       _SO_TIMEOUT(conn->sconn.s_sndtimeo));
+  ret = sixlowpan_send(dev, conn, (FAR const struct ipv6_hdr_s *)&ipv6udp,
+                       buf, buflen, &destmac);
   if (ret < 0)
     {
       nerr("ERROR: sixlowpan_send() failed: %d\n", ret);

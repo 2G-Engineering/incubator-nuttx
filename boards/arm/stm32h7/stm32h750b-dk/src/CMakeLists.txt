@@ -26,12 +26,8 @@ else()
   list(APPEND SRCS stm32_userleds.c)
 endif()
 
-if(CONFIG_STM32H7_OTGFS)
+if(CONFIG_STM32_OTGFS)
   list(APPEND SRCS stm32_usb.c)
-endif()
-
-if(CONFIG_BOARDCTL)
-  list(APPEND SRCS stm32_appinitialize.c)
 endif()
 
 if(CONFIG_TESTING_OSTEST)
@@ -46,7 +42,7 @@ if(CONFIG_INPUT_FT5X06)
   list(APPEND SRCS stm32_ft5x06.c)
 endif()
 
-if(CONFIG_STM32H7_LTDC)
+if(CONFIG_STM32_LTDC)
   list(APPEND SRCS stm32_lcd.c)
 endif()
 

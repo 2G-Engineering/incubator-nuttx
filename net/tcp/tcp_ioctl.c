@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <net/if.h>
@@ -38,6 +38,7 @@
 #include <nuttx/mm/iob.h>
 #include <nuttx/net/net.h>
 
+#include "utils/utils.h"
 #include "tcp/tcp.h"
 
 /****************************************************************************
@@ -121,7 +122,7 @@ int tcp_ioctl(FAR struct tcp_conn_s *conn, int cmd, unsigned long arg)
 {
   int ret = OK;
 
-  net_lock();
+  conn_lock(&conn->sconn);
 
   switch (cmd)
     {
@@ -156,7 +157,7 @@ int tcp_ioctl(FAR struct tcp_conn_s *conn, int cmd, unsigned long arg)
         break;
     }
 
-  net_unlock();
+  conn_unlock(&conn->sconn);
 
   return ret;
 }

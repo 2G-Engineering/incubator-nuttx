@@ -232,6 +232,42 @@ was successful by running ``cxxtest``::
     Invalid file! /invalid
     File /proc/version exists!
 
+efuse
+-----
+
+This configuration demonstrates the use of the E-Fuse driver. It can be accessed
+through the ``/dev/efuse`` device file.
+Virtual E-Fuse mode can be used by enabling `CONFIG_ESPRESSIF_EFUSE_VIRTUAL`
+option to prevent possible damages on chip.
+
+The following snippet demonstrates how to read MAC address:
+
+.. code-block:: C
+
+   int fd;
+   int ret;
+   uint8_t mac[6];
+   struct efuse_param_s param;
+   struct efuse_desc_s mac_addr =
+   {
+     .bit_offset = 1,
+     .bit_count = 48
+   };
+
+   const efuse_desc_t* desc[] =
+   {
+       &mac_addr,
+       NULL
+   };
+   param.field = desc;
+   param.size = 48;
+   param.data = mac;
+
+   fd = open("/dev/efuse", O_RDONLY);
+   ret = ioctl(fd, EFUSEIOC_READ_FIELD, &param);
+
+To find offset and count variables for related E-Fuse, please refer to Espressif's Technical Reference Manuals.
+
 gpio
 ----
 
@@ -423,6 +459,69 @@ using 1 second delay)::
 
     nsh> qe
 
+pm
+-------
+
+This config demonstrate the use of power management.
+You can use the ``pmconfig`` command to check current power state and time spent in other power states.
+Also you can define time will spend in standby and sleep modes::
+
+    $ make menuconfig
+    -> Board Selection
+        -> (15) PM_STANDBY delay (seconds)
+           (0)  PM_STANDBY delay (nanoseconds)
+           (20) PM_SLEEP delay (seconds)
+           (0)  PM_SLEEP delay (nanoseconds)
+
+Timer wakeup is not only way to wake up the chip. Other wakeup modes include:
+
+- EXT1 wakeup mode: Uses RTC GPIO pins to wake up the chip. Enabled with ``CONFIG_PM_EXT1_WAKEUP`` option.
+- ULP coprocessor wakeup mode: Uses ULP RISC-V co-processor to wake up the chip. Enabled with ``CONFIG_PM_ULP_WAKEUP`` option.
+- GPIO wakeup mode: Uses GPIO pins to wakeup the chip. Only wakes up the chip from ``PM_STANDBY`` mode and requires ``CONFIG_PM_GPIO_WAKEUP``.
+- UART wakeup mode: Uses UART to wakeup the chip. Only wakes up the chip from ``PM_STANDBY`` mode and requires ``CONFIG_PM_GPIO_WAKEUP``.
+
+Before switching PM status, you need to query the current PM status to call correct number of relax command to correct modes::
+
+    nsh> pmconfig
+    Last state 0, Next state 0
+
+    /proc/pm/state0:
+    DOMAIN0           WAKE         SLEEP         TOTAL
+    normal          0s 00%        0s 00%        0s 00%
+    idle            0s 00%        0s 00%        0s 00%
+    standby         0s 00%        0s 00%        0s 00%
+    sleep           0s 00%        0s 00%        0s 00%
+
+    /proc/pm/wakelock0:
+    DOMAIN0      STATE     COUNT      TIME
+    system       normal        2        1s
+    system       idle          1        1s
+    system       standby       1        1s
+    system       sleep         1        1s
+
+In this case, needed commands to switch the system into PM idle mode::
+
+    nsh> pmconfig relax normal
+    nsh> pmconfig relax normal
+
+In this case, needed commands to switch the system into PM standby mode::
+
+    nsh> pmconfig relax idle
+    nsh> pmconfig relax normal
+    nsh> pmconfig relax normal
+
+System switch to the PM sleep mode, you need to enter::
+
+    nsh> pmconfig relax standby
+    nsh> pmconfig relax idle
+    nsh> pmconfig relax normal
+    nsh> pmconfig relax normal
+
+Note: When normal mode COUNT is 0, it will switch to the next PM state where COUNT is not 0.
+
+Note: During light sleep, overall current consumption of board should drop from 26ma (without any system load) to 3.5 mA on ESP32-S2 Saola-1.
+During deep sleep, current consumption of board should drop from 26 (without any system load) to 1.24 mA.
+
 pwm
 ------
 
@@ -459,11 +558,16 @@ RMT symbol, which is represented by ``rmt_item32_t`` in the driver:
 .. figure:: rmt_symbol.png
    :align: center
 
-The example ``rmtchar`` can be used to test the RMT peripheral. Connecting
+The example ``irtest`` can be used to test the RMT peripheral. Connecting
 these pins externally to each other will make the transmitter send RMT items
 and demonstrates the usage of the RMT peripheral::
 
-    nsh> rmtchar
+    nsh> irtest
+    $open_device(/dev/lirc0)
+    $open_device(/dev/lirc1)
+    $write_data(1) 16777229 16 16777235 23
+    $read_data(0,4)
+    16777229, 16, 16777235, 23
 
 **WS2812 addressable RGB LEDs**
 
@@ -474,6 +578,59 @@ This same configuration enables the usage of the RMT peripheral and the example
 
 Please note that this board contains an on-board WS2812 LED connected to GPIO18
 and, by default, this config configures the RMT transmitter in the same pin.
+
+romfs
+-----
+
+This configuration demonstrates the use of ROMFS (Read-Only Memory File System) to provide
+automated system initialization and startup scripts. ROMFS allows embedding a read-only
+filesystem directly into the NuttX binary, which is mounted at ``/etc`` during system startup.
+
+**What ROMFS provides:**
+
+* **System initialization script** (``/etc/init.d/rc.sysinit``): Executed after board bring-up
+* **Startup script** (``/etc/init.d/rcS``): Executed after system init, typically used to start applications
+
+**Default behavior:**
+
+When this configuration is used, NuttX will:
+
+1. Create a read-only RAM disk containing the ROMFS filesystem
+2. Mount the ROMFS at ``/etc``
+3. Execute ``/etc/init.d/rc.sysinit`` during system initialization
+4. Execute ``/etc/init.d/rcS`` for application startup
+
+**Customizing startup scripts:**
+
+The startup scripts are located in:
+``boards/xtensa/esp32s2/common/src/etc/init.d/``
+
+* ``rc.sysinit`` - System initialization script
+* ``rcS`` - Application startup script
+
+To customize these scripts:
+
+1. **Edit the script files** in ``boards/xtensa/esp32s2/common/src/etc/init.d/``
+2. **Add your initialization commands** using any NSH-compatible commands
+
+**Example customizations:**
+
+* **rc.sysinit** - Set up system services, mount additional filesystems, configure network.
+* **rcS** - Start your application, launch daemons, configure peripherals. This is executed after the rc.sysinit script.
+
+Example output::
+
+    *** Booting NuttX ***
+    [...]
+    rc.sysinit is called!
+    rcS file is called!
+    NuttShell (NSH) NuttX-12.8.0
+    nsh> ls /etc/init.d
+    /etc/init.d:
+    .
+    ..
+    rc.sysinit
+    rcS
 
 rtc
 ---
@@ -537,6 +694,17 @@ For example, you can read a file and write to it::
     NuttX RTOS
     nsh>
 
+spi
+---
+
+This configuration enables the support for the SPI driver.
+You can test it by connecting MOSI and MISO pins which are GPIO11 and GPIO13
+by default to each other and running the ``spi`` example::
+
+    nsh> spi exch -b 2 "AB"
+    Sending:	AB
+    Received:	AB
+
 timer
 -----
 
@@ -567,6 +735,47 @@ the ``Device Drivers -> CAN Driver Support -> CAN loopback mode`` option and run
       TSEG2: 4
         SJW: 3
       ID:    1 DLC: 1
+
+ulp
+---
+
+This configuration enables the support for the ULP RISC-V core coprocessor.
+To get more information about LP Core please check :ref:`ULP LP Core Coprocessor docs. <esp32s2_ulp>`
+
+Configuration uses a pre-built binary in ``Documentation/platforms/xtensa/esp32s3/boards/esp32s3-devkit/ulp_riscv_blink.bin``
+which is a blink example for GPIO0. After flashing operation, GPIO0 pin will blink.
+
+Prebuild binary runs this code:
+
+.. code-block:: C
+
+   #include <stdio.h>
+   #include <stdint.h>
+   #include <stdbool.h>
+   #include "ulp_riscv.h"
+   #include "ulp_riscv_utils.h"
+   #include "ulp_riscv_gpio.h"
+
+   #define GPIO_PIN 0
+
+   #define nop() __asm__ __volatile__ ("nop")
+
+   bool gpio_level_previous = true;
+
+   int main (void)
+    {
+       while (1)
+           {
+           ulp_riscv_gpio_output_level(GPIO_PIN, gpio_level_previous);
+           gpio_level_previous = !gpio_level_previous;
+           for (int i = 0; i < 10000; i++)
+             {
+               nop();
+             }
+           }
+
+       return 0;
+    }
 
 watchdog
 --------

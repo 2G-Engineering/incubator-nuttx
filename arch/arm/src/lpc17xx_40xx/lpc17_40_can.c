@@ -57,7 +57,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 #include <nuttx/irq.h>
@@ -2828,6 +2828,8 @@ static int lpc17can_ifup(struct net_driver_s *dev)
   lpc17can_rxint(priv, true);
   lpc17can_txint(priv, true);
 
+  netdev_carrier_on(dev);
+
   return OK;
 }
 
@@ -2855,6 +2857,9 @@ static int lpc17can_ifdown(struct net_driver_s *dev)
   lpc17can_reset(priv);
 
   priv->bifup = false;
+
+  netdev_carrier_off(dev);
+
   return OK;
 }
 

@@ -28,8 +28,8 @@
 
 #include <stdint.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 
@@ -94,10 +94,11 @@ void up_irqinitialize(void)
 
   /* And finally, enable interrupts */
 
-  /* Interrupts are enabled by setting the the bit in the psr status
+  /* Interrupts are enabled by setting the bit in the psr status
    * register
    */
 
+  sparc_color_intstack();
   up_irq_enable();
 }
 

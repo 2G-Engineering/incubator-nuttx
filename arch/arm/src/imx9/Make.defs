@@ -21,7 +21,11 @@
 #
 ############################################################################
 
-include armv7-m/Make.defs
+ifeq ($(CONFIG_ARCH_ARMV7M),y)
+  include armv7-m/Make.defs
+else ifeq ($(CONFIG_ARCH_ARMV8M),y)
+  include armv8-m/Make.defs
+endif
 
 # i.MX9-specific C source files
 
@@ -30,6 +34,12 @@ CHIP_CSRCS = imx9_allocateheap.c imx9_start.c imx9_clockconfig.c imx9_gpio.c imx
 ifeq ($(CONFIG_IMX9_SCMI),y)
   CHIP_CSRCS += imx9_scmi.c
   # NXP SDK SCMI interface for pinctrl and clocking
+else
+  CHIP_CSRCS += imx9_ccm.c
+endif
+
+ifeq ($(CONFIG_IMX9_XCACHE),y)
+  CHIP_CSRCS += imx9_xcache.c
 endif
 
 ifeq ($(CONFIG_RPTUN),y)
@@ -48,6 +58,10 @@ ifeq ($(CONFIG_IMX9_FLEXCAN),y)
   CHIP_CSRCS += imx9_flexcan.c
 endif
 
+ifeq ($(CONFIG_IMX9_SAR_ADC),y)
+  CHIP_CSRCS += imx9_sar_adc.c
+endif
+
 ifeq ($(CONFIG_IMX9_LPUART),y)
   CHIP_CSRCS += imx9_lpuart.c imx9_lowputc.c
 endif
@@ -56,8 +70,8 @@ ifeq ($(CONFIG_IMX9_GPIO_IRQ),y)
   CHIP_CSRCS += imx9_gpioirq.c
 endif
 
-ifeq ($(CONFIG_IMX9_FLEXIO_PWM),y)
-  CHIP_CSRCS += imx9_flexio_pwm.c
+ifeq ($(CONFIG_IMX9_FLEXIO),y)
+  CHIP_CSRCS += imx9_flexio.c
 endif
 
 ifeq ($(CONFIG_IMX9_TPM_PWM),y)
@@ -72,10 +86,10 @@ ifeq ($(CONFIG_IMX9_LPI2C),y)
   CHIP_CSRCS += imx9_lpi2c.c
 endif
 
-ifeq ($(CONFIG_IMX9_LPSPI), y)
+ifeq ($(CONFIG_IMX9_LPSPI),y)
   CHIP_CSRCS += imx9_lpspi.c
 endif
 
-ifeq ($(CONFIG_IMX9_EDMA), y)
+ifeq ($(CONFIG_IMX9_EDMA),y)
   CHIP_CSRCS += imx9_edma.c
 endif

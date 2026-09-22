@@ -28,7 +28,7 @@
 
 #include <sys/mount.h>
 #include <sys/types.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/input/buttons.h>
 #include <nuttx/leds/userled.h>
@@ -85,9 +85,6 @@ int up_rtc_initialize(void)
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
  *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
  ****************************************************************************/
 
 int stm32_bringup(void)
@@ -121,7 +118,7 @@ int stm32_bringup(void)
       return -1;
     }
 
-#if defined(STM32U5_I2C2)
+#if defined(STM32_I2C2)
   i2c2_m = stm32_i2cbus_initialize(2);
   if (i2c2_m == NULL)
     {

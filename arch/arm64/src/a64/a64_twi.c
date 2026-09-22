@@ -34,7 +34,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/wdog.h>
@@ -1845,7 +1845,8 @@ static void twi_hw_initialize(struct a64_twi_priv_s *priv)
 
   /* Set Interrupt Priority in Generic Interrupt Controller v2 */
 
-  arm64_gic_irq_set_priority(priv->config->irq, IRQ_TYPE_LEVEL, 0);
+  up_prioritize_irq(priv->config->irq, 0);
+  up_set_irq_type(priv->config->irq, IRQ_HIGH_LEVEL);
 
   /* Enable TWI Interrupt */
 

@@ -30,13 +30,14 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/queue.h>
 #include <nuttx/net/net.h>
 
 #include "devif/devif.h"
+#include "utils/utils.h"
 #include "tcp/tcp.h"
 
 /****************************************************************************
@@ -118,7 +119,7 @@ int tcp_backlogcreate(FAR struct tcp_conn_s *conn, int nblg)
 
   /* Destroy any existing backlog (shouldn't be any) */
 
-  net_lock();
+  conn_lock(&conn->sconn);
   tcp_backlogdestroy(conn);
 
   /* Now install the backlog tear-off in the connection.  NOTE that bls may
@@ -128,7 +129,7 @@ int tcp_backlogcreate(FAR struct tcp_conn_s *conn, int nblg)
    */
 
   conn->backlog = bls;
-  net_unlock();
+  conn_unlock(&conn->sconn);
   return OK;
 }
 

@@ -25,7 +25,7 @@
  ****************************************************************************/
 
 #include <sys/mman.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 
 #include <nuttx/fs/fs.h>
@@ -78,13 +78,19 @@ int msync(FAR void *start, size_t length, int flags)
       goto out;
     }
 
-  if (entry->msync == NULL)
+  /* Don't synchronize a file if this is private mapping or there is
+   * no msync handler for this file.
+   */
+
+  if (entry->msync && (entry->flags & MAP_PRIVATE) == 0)
+    {
+      ret = entry->msync(entry, start, length, flags);
+    }
+  else
     {
       ret = OK;
-      goto out;
     }
 
-  ret = entry->msync(entry, start, length, flags);
 out:
   mm_map_unlock();
   if (ret < 0)

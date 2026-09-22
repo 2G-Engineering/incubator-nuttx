@@ -31,7 +31,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/mutex.h>
 #include <nuttx/fs/fs.h>
@@ -475,7 +475,7 @@ ssize_t net_writeroute_ipv6(FAR struct file *filep,
   while (ntotal < sizeof(struct net_route_ipv6_s));
 
   net_unlockroute_ipv6();
-  return ret;
+  return ntotal;
 }
 #endif
 

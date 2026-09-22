@@ -197,7 +197,7 @@ extern enum task_deliver_e g_delivertasks[CONFIG_SMP_NCPUS];
 
 /* This is the list of idle tasks */
 
-extern FAR struct tcb_s g_idletcb[CONFIG_SMP_NCPUS];
+extern struct tcb_s g_idletcb[CONFIG_SMP_NCPUS];
 
 #endif
 
@@ -344,8 +344,8 @@ void nxsched_reassess_timer(void);
 /* Scheduler policy support */
 
 #if CONFIG_RR_INTERVAL > 0
-uint32_t nxsched_process_roundrobin(FAR struct tcb_s *tcb, uint32_t ticks,
-                                    bool noswitches);
+clock_t nxsched_process_roundrobin(FAR struct tcb_s *tcb, clock_t ticks,
+                                   bool noswitches);
 #endif
 
 #ifdef CONFIG_SCHED_SPORADIC
@@ -355,8 +355,8 @@ int  nxsched_stop_sporadic(FAR struct tcb_s *tcb);
 int  nxsched_reset_sporadic(FAR struct tcb_s *tcb);
 int  nxsched_resume_sporadic(FAR struct tcb_s *tcb);
 int  nxsched_suspend_sporadic(FAR struct tcb_s *tcb);
-uint32_t nxsched_process_sporadic(FAR struct tcb_s *tcb, uint32_t ticks,
-                                  bool noswitches);
+clock_t nxsched_process_sporadic(FAR struct tcb_s *tcb, clock_t ticks,
+                                 bool noswitches);
 void nxsched_sporadic_lowpriority(FAR struct tcb_s *tcb);
 #endif
 
@@ -393,6 +393,13 @@ static inline_function FAR struct tcb_s *this_task(void)
 }
 #endif
 
+#if defined(CONFIG_STACKCHECK_MARGIN) && \
+           (CONFIG_STACKCHECK_MARGIN != -1)
+void nxsched_checkstackoverflow(FAR struct tcb_s *tcb);
+#else
+#  define nxsched_checkstackoverflow(tcb)
+#endif
+
 #ifdef CONFIG_SMP
 bool nxsched_switch_running(int cpu, bool switch_equal);
 void nxsched_process_delivered(int cpu);
@@ -413,9 +420,10 @@ void nxsched_process_cpuload_ticks(clock_t ticks);
 
 /* Critical section monitor */
 
+void nxsched_switch_context(FAR struct tcb_s *from, FAR struct tcb_s *to);
+
 #ifdef CONFIG_SCHED_CRITMONITOR
-void nxsched_resume_critmon(FAR struct tcb_s *tcb);
-void nxsched_suspend_critmon(FAR struct tcb_s *tcb);
+void nxsched_switch_critmon(FAR struct tcb_s *from, FAR struct tcb_s *to);
 void nxsched_update_critmon(FAR struct tcb_s *tcb);
 #endif
 
@@ -563,7 +571,7 @@ static inline_function int nxsched_select_cpu(cpu_set_t affinity)
   int i;
 
   minprio = SCHED_PRIORITY_MAX;
-  cpu     = CONFIG_SMP_NCPUS;
+  cpu     = 0xff;
 
   for (i = 0; i < CONFIG_SMP_NCPUS; i++)
     {
@@ -586,8 +594,7 @@ static inline_function int nxsched_select_cpu(cpu_set_t affinity)
               DEBUGASSERT(rtcb->sched_priority == 0);
               return i;
             }
-          else if (rtcb->sched_priority <= minprio &&
-                   !nxsched_islocked_tcb(rtcb))
+          else if (rtcb->sched_priority <= minprio)
             {
               DEBUGASSERT(rtcb->sched_priority > 0);
               minprio = rtcb->sched_priority;
@@ -596,6 +603,7 @@ static inline_function int nxsched_select_cpu(cpu_set_t affinity)
         }
     }
 
+  DEBUGASSERT(cpu != 0xff);
   return cpu;
 }
 #  endif

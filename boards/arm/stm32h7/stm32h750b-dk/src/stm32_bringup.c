@@ -33,7 +33,7 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/usb/usbmonitor.h>
 
-#ifdef CONFIG_STM32H7_OTGFS
+#ifdef CONFIG_STM32_OTGFS
 #include "stm32_usbhost.h"
 #endif
 
@@ -112,10 +112,6 @@ void rpmsg_serialinit(void)
  *
  *   CONFIG_BOARD_LATE_INITIALIZE=y :
  *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y &&
- *   CONFIG_NSH_ARCHINIT:
- *     Called from the NSH library
  *
  ****************************************************************************/
 

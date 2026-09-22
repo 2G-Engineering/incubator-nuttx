@@ -31,7 +31,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/crc32.h>
 #include <nuttx/fs/fs.h>
@@ -168,7 +168,7 @@ ssize_t nxffs_read(FAR struct file *filep, FAR char *buffer, size_t buflen)
 
   /* Check if the file was opened with read access */
 
-  if ((ofile->oflags & O_RDOK) == 0)
+  if ((ofile->oflags & O_ACCMODE) == O_WRONLY)
     {
       ferr("ERROR: File not open for read access\n");
       ret = -EACCES;

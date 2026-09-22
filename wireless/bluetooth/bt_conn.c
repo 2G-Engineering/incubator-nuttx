@@ -48,7 +48,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kthread.h>
 #include <nuttx/mm/iob.h>
@@ -974,7 +974,7 @@ int bt_conn_disconnect(FAR struct bt_conn_s *conn, uint8_t reason)
  *
  * Description:
  *  Allows initiate new LE link to remote peer using its address.
- *  Returns a new reference that the the caller is responsible for managing.
+ *  Returns a new reference that the caller is responsible for managing.
  *
  * Input Parameters:
  *   peer - Remote address.

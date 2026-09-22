@@ -27,6 +27,7 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
+#include <sys/param.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -37,7 +38,7 @@
 #include <assert.h>
 #include <poll.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/clock.h>
@@ -87,6 +88,13 @@
 
 #define HALF_SECOND_MSEC 500
 #define HALF_SECOND_USEC 500000L
+
+/* can_close waits for SW queue and H/W TX to drain.  Without a second bus
+ * node (no ACK) bxCAN may retry indefinitely; dev_txempty() then never
+ * becomes true.  Bound the wait so close() does not hang forever.
+ */
+
+#define CAN_CLOSE_DRAIN_LOOPS 20u  /* 20 * 500 ms = 10 s per stage */
 
 /****************************************************************************
  * Private Function Prototypes
@@ -193,6 +201,7 @@ static FAR struct can_reader_s *init_can_reader(FAR struct file *filep)
   DEBUGASSERT(reader != NULL);
 
   nxsem_init(&reader->fifo.rx_sem, 0, 0);
+  reader->msgalign = 1;
   filep->f_priv = reader;
 
   return reader;
@@ -255,14 +264,22 @@ static int can_open(FAR struct file *filep)
 
       if (ret == OK)
         {
+          FAR struct can_reader_s *reader;
+
           dev->cd_crefs++;
 
-          /* Update the reader list only if driver was open for reading */
+          /* Per-file context (msgalign, optional ioctl FIFO).  Always
+           * allocated: write-only path needs msgalign / CANIOC_* even
+           * without O_RDONLY.  Receive path and poll() only use readers
+           * that are also queued on cd_readers (see below).
+           */
 
-          if ((filep->f_oflags & O_RDOK) != 0)
+          reader = init_can_reader(filep);
+
+          if ((filep->f_oflags & O_ACCMODE) != O_WRONLY)
             {
               list_add_head(&dev->cd_readers,
-                            (FAR struct list_node *)init_can_reader(filep));
+                            (FAR struct list_node *)reader);
             }
         }
 
@@ -285,11 +302,14 @@ errout:
 
 static int can_close(FAR struct file *filep)
 {
-  FAR struct inode     *inode = filep->f_inode;
-  FAR struct can_dev_s *dev   = inode->i_private;
-  irqstate_t            flags;
-  FAR struct list_node *node;
-  int                   ret;
+  FAR struct inode        *inode = filep->f_inode;
+  FAR struct can_dev_s    *dev   = inode->i_private;
+  irqstate_t              flags;
+  FAR struct list_node    *node;
+  FAR struct can_reader_s *priv  = (FAR struct can_reader_s *)filep->f_priv;
+  bool                    onlist = false;
+  int                     ret;
+  unsigned int            n;
 
 #ifdef  CONFIG_DEBUG_CAN_INFO
   caninfo("ocount: %u\n", dev->cd_crefs);
@@ -305,10 +325,10 @@ static int can_close(FAR struct file *filep)
 
   list_for_every(&dev->cd_readers, node)
     {
-      if (((FAR struct can_reader_s *)node) ==
-          ((FAR struct can_reader_s *)filep->f_priv))
+      if (((FAR struct can_reader_s *)node) == priv)
         {
-          FAR struct can_reader_s *reader = (FAR struct can_reader_s *)node;
+          FAR struct can_reader_s *reader =
+            (FAR struct can_reader_s *)node;
           FAR struct can_rxfifo_s *fifo   = &reader->fifo;
 
           /* Unlock the binary semaphore, waking up can_read if it
@@ -317,16 +337,24 @@ static int can_close(FAR struct file *filep)
 
           nxsem_post(&fifo->rx_sem);
 
-          /* Notify specific poll/select waiter that they can read from the
-           * cd_recv buffer
+          /* Notify specific poll/select waiter that they can read from
+           * the cd_recv buffer
            */
 
           poll_notify(&reader->cd_fds, 1, POLLHUP);
           reader->cd_fds = NULL;
           list_delete(node);
           kmm_free(node);
+          onlist = true;
           break;
         }
+    }
+
+  /* Write-only opens use init_can_reader() but are not on cd_readers */
+
+  if (!onlist && priv != NULL)
+    {
+      kmm_free(priv);
     }
 
   filep->f_priv = NULL;
@@ -345,16 +373,29 @@ static int can_close(FAR struct file *filep)
 
   /* Now we wait for the sender to clear */
 
-  while (!TX_EMPTY(&dev->cd_sender))
+  for (n = 0;
+       !TX_EMPTY(&dev->cd_sender) && n < CAN_CLOSE_DRAIN_LOOPS;
+       n++)
     {
-      nxsig_usleep(HALF_SECOND_USEC);
+      nxsched_usleep(HALF_SECOND_USEC);
+    }
+
+  if (!TX_EMPTY(&dev->cd_sender))
+    {
+      canerr("CAN close: SW TX queue still not empty after timeout\n");
     }
 
   /* And wait for the hardware sender to drain */
 
-  while (!dev_txempty(dev))
+  for (n = 0; !dev_txempty(dev) && n < CAN_CLOSE_DRAIN_LOOPS; n++)
     {
-      nxsig_usleep(HALF_SECOND_USEC);
+      nxsched_usleep(HALF_SECOND_USEC);
+    }
+
+  if (!dev_txempty(dev))
+    {
+      canerr("CAN close: H/W TX still busy after timeout "
+              "(no ACK / bus-off / stuck mailbox)\n");
     }
 
   /* Free the IRQ and disable the CAN device */
@@ -380,6 +421,7 @@ static ssize_t can_read(FAR struct file *filep, FAR char *buffer,
 {
   FAR struct can_reader_s *reader;
   FAR struct can_rxfifo_s *fifo;
+  unsigned int             msgalign;
   irqstate_t               flags;
   int                      ret = 0;
 
@@ -395,6 +437,7 @@ static ssize_t can_read(FAR struct file *filep, FAR char *buffer,
       DEBUGASSERT(filep->f_priv != NULL);
       reader = (FAR struct can_reader_s *)filep->f_priv;
       fifo = &reader->fifo;
+      msgalign = reader->msgalign;
 
       /* Interrupts must be disabled while accessing the cd_recv FIFO */
 
@@ -453,6 +496,9 @@ static ssize_t can_read(FAR struct file *filep, FAR char *buffer,
 
       if (fifo->rx_head == fifo->rx_tail)
         {
+          /* This happens either due to bug or on reader close. */
+
+          ret = -EIO;
           canerr("RX FIFO sem posted but FIFO is empty.\n");
           goto return_with_irqdisabled;
         }
@@ -479,6 +525,13 @@ static ssize_t can_read(FAR struct file *filep, FAR char *buffer,
           memcpy(&buffer[ret], msg, msglen);
           ret += msglen;
 
+          if (msgalign > 1)
+            {
+              ret = powerof2(msgalign)
+                ? roundup2(ret, msgalign)
+                : roundup(ret, msgalign);
+            }
+
           /* Increment the head of the circular message buffer */
 
           if (++fifo->rx_head >= CONFIG_CAN_RXFIFOSIZE)
@@ -486,7 +539,7 @@ static ssize_t can_read(FAR struct file *filep, FAR char *buffer,
               fifo->rx_head = 0;
             }
         }
-      while (fifo->rx_head != fifo->rx_tail);
+      while (fifo->rx_head != fifo->rx_tail && msgalign != 0);
 
       if (fifo->rx_head != fifo->rx_tail)
         {
@@ -502,7 +555,9 @@ return_with_irqdisabled:
       leave_critical_section(flags);
     }
 
-  return ret;
+  /* ret can be more than buflen due to roundup, so return at most buflen */
+
+  return ret ? MIN(ret, (ssize_t)buflen) : -EMSGSIZE;
 }
 
 /****************************************************************************
@@ -579,6 +634,48 @@ static int can_xmit(FAR struct can_dev_s *dev)
         }
     }
 
+  /* When the hardware transmit buffer, not H/W FIFO, is full and
+   * there are frames in the tx_pending list.
+   *
+   * the cancel logic requires hardware transmit buffer must have ability
+   * of Canceling the transmission of frames.
+   *
+   * The can_txneed_cancel function checks whether the ID of the first
+   * frame in the tx_pending list is smaller than the minimum ID in the
+   * tx_sending list.
+   *
+   * If this condition is met, the can_cancel_mbmsg function is invoked
+   * to attempt to cancel the transmission of the frame with the largest
+   * ID in the tx_sending list, and this frame with the largest ID in the
+   * tx_sending list is then reinserted into the tx_pending list at a
+   * specified position, can_cancel_mbmsg return true if cancel succeed.
+   *
+   * Afterwards, dev_send is called to load the first frame(minimum ID)
+   * from the tx_pending list into the hardware transmit buffer. make
+   * this frame with the minimum ID appear on the bus in real time.
+   */
+
+#ifdef CONFIG_CAN_STRICT_TX_PRIORITY
+  if (TX_PENDING(&dev->cd_sender) && can_txneed_cancel(&dev->cd_sender))
+    {
+      DEBUGASSERT(dev->cd_ops->co_cancel != NULL);
+
+      if (can_cancel_mbmsg(dev))
+        {
+          msg = can_get_msg(&dev->cd_sender);
+
+          /* Send the next message at the sender */
+
+          ret = dev_send(dev, msg);
+          if (ret < 0)
+            {
+              canerr("dev_send failed: %d\n", ret);
+              can_revert_msg(&dev->cd_sender, msg);
+            }
+        }
+    }
+#endif
+
   /* Make sure that TX interrupts are enabled */
 
   dev_txint(dev, true);
@@ -592,9 +689,11 @@ static int can_xmit(FAR struct can_dev_s *dev)
 static ssize_t can_write(FAR struct file *filep, FAR const char *buffer,
                          size_t buflen)
 {
-  FAR struct inode         *inode   = filep->f_inode;
-  FAR struct can_dev_s     *dev     = inode->i_private;
-  FAR struct can_txcache_s *sender  = &dev->cd_sender;
+  FAR struct inode         *inode    = filep->f_inode;
+  FAR struct can_dev_s     *dev      = inode->i_private;
+  FAR struct can_txcache_s *sender   = &dev->cd_sender;
+  FAR struct can_reader_s  *reader   = filep->f_priv;
+  unsigned int              msgalign = reader->msgalign;
   FAR struct can_msg_s     *msg;
   bool                      inactive;
   ssize_t                   nsent   = 0;
@@ -609,13 +708,18 @@ static ssize_t can_write(FAR struct file *filep, FAR const char *buffer,
 
   flags = enter_critical_section();
 
-  /* Check if the H/W TX is inactive when we started. In certain race
-   * conditions, there may be a pending interrupt to kick things back off,
-   * but we will be sure here that there is not.  That the hardware is IDLE
-   * and will need to be kick-started.
+  /* if CONFIG_CAN_STRICT_TX_PRIORITY is enable, inactive will be always
+   * true, else check if the H/W TX is inactive when we started. In certain
+   * race conditions, there may be a pending interrupt to kick things back
+   * off, but we will be sure here that there is not.  That the hardware
+   * is IDLE and will need to be kick-started.
    */
 
-  inactive = dev_txempty(dev);
+#ifdef CONFIG_CAN_STRICT_TX_PRIORITY
+  inactive = true;
+#else
+  inactive = dev_txready(dev);
+#endif
 
   /* Add the messages to the sender.  Ignore any trailing messages that are
    * shorter than the minimum.
@@ -629,6 +733,21 @@ static ssize_t can_write(FAR struct file *filep, FAR const char *buffer,
 
       while (TX_FULL(sender))
         {
+          /* The transmit sender is full. In order to resolve the Lower half
+           * interrupt exception, attempt to release invalid unconfirm
+           * messages and trigger can_xmit.
+           */
+
+          if (dev_txempty(dev))
+            {
+              can_send_done(sender);
+
+              if (!TX_FULL(sender))
+                {
+                  break;
+                }
+            }
+
           /* The transmit sender is full  -- non-blocking mode selected? */
 
           if ((filep->f_oflags & O_NONBLOCK) != 0)
@@ -668,22 +787,53 @@ static ssize_t can_write(FAR struct file *filep, FAR const char *buffer,
 
           /* Re-check the H/W sender state */
 
-          inactive = dev_txempty(dev);
+#ifdef CONFIG_CAN_STRICT_TX_PRIORITY
+          inactive = true;
+#else
+          inactive = dev_txready(dev);
+#endif
         }
 
       /* We get here if there is space in sender.  Add the new
        * CAN message at sutibal.
        */
 
-      msg    = (FAR struct can_msg_s *)&buffer[nsent];
-      nbytes = can_dlc2bytes(msg->cm_hdr.ch_dlc);
+      msg = (FAR struct can_msg_s *)&buffer[nsent];
+      if (msg->cm_hdr.ch_rtr)
+        {
+          nbytes = 0;
+        }
+      else
+        {
+          nbytes = can_dlc2bytes(msg->cm_hdr.ch_dlc);
+        }
+
       msglen = CAN_MSGLEN(nbytes);
+
+      if (nsent + msglen > buflen)
+        {
+          /* Do not send message if not fully passed. */
+
+          break;
+        }
 
       can_add_sendnode(sender, msg, msglen);
 
       /* Increment the number of bytes that were sent */
 
       nsent += msglen;
+
+      if (msgalign > 1)
+        {
+          nsent = powerof2(msgalign)
+            ? roundup2(nsent, msgalign)
+            : roundup(nsent, msgalign);
+        }
+
+      if (msgalign == 0)
+        {
+          break;
+        }
     }
 
   /* We get here after all messages have been added to the sender.  Check if
@@ -695,9 +845,11 @@ static ssize_t can_write(FAR struct file *filep, FAR const char *buffer,
       can_xmit(dev);
     }
 
-  /* Return the number of bytes that were sent */
+  /* Return the number of bytes that were sent, but at most buflen as nsent
+   * can be more due to roundup.
+   */
 
-  ret = nsent;
+  ret = MIN(nsent, (ssize_t)buflen);
 
 return_with_irqdisabled:
   leave_critical_section(flags);
@@ -959,6 +1111,21 @@ static int can_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
           }
           break;
 
+      /* Set message alignment for read and write operations */
+
+      case CANIOC_SET_MSGALIGN:
+        {
+          reader->msgalign = *(FAR unsigned int *)arg;
+        }
+        break;
+
+      /* Get message alignment for read and write operations */
+
+      case CANIOC_GET_MSGALIGN:
+        {
+          *(FAR unsigned int *)arg = reader->msgalign;
+        }
+        break;
 
       /* Not a "built-in" ioctl command.. perhaps it is unique to this
        * lower-half, device driver.
@@ -1169,6 +1336,7 @@ int can_receive(FAR struct can_dev_s *dev, FAR struct can_hdr_s *hdr,
   int                      ret = -ENOMEM;
   int                      i;
   int                      sval;
+  bool                     was_empty;
 
   caninfo("ID: %" PRId32 " DLC: %d\n", (uint32_t)hdr->ch_id, hdr->ch_dlc);
 
@@ -1233,6 +1401,7 @@ int can_receive(FAR struct can_dev_s *dev, FAR struct can_hdr_s *hdr,
     {
       FAR struct can_reader_s *reader = (FAR struct can_reader_s *)node;
       fifo = &reader->fifo;
+      was_empty = fifo->rx_head == fifo->rx_tail;
 
       nexttail = fifo->rx_tail + 1;
       if (nexttail >= CONFIG_CAN_RXFIFOSIZE)
@@ -1269,22 +1438,12 @@ int can_receive(FAR struct can_dev_s *dev, FAR struct can_hdr_s *hdr,
 
           fifo->rx_tail = nexttail;
 
-          if (nxsem_get_value(&fifo->rx_sem, &sval) < 0)
-            {
-#ifdef CONFIG_CAN_ERRORS
-              /* Report unspecified error */
-
-              fifo->rx_error |= CAN_ERROR5_UNSPEC;
-#endif
-              continue;
-            }
-
           /* Unlock the binary semaphore, waking up can_read if it is
            * blocked. If can_read were not blocked, we would not be
            * executing this because interrupts would be disabled.
            */
 
-          if (sval <= 0)
+          if (was_empty)
             {
               nxsem_post(&fifo->rx_sem);
             }

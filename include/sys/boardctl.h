@@ -48,6 +48,11 @@
 #  include <nuttx/spinlock.h>
 #endif
 
+#ifdef CONFIG_BOARDCTL_MACADDR
+#  include <net/if.h>
+#  include <nuttx/net/netdev.h>
+#endif
+
 #ifdef CONFIG_BOARDCTL
 
 /****************************************************************************
@@ -55,23 +60,6 @@
  ****************************************************************************/
 
 /* Common commands
- *
- * CMD:           BOARDIOC_INIT
- * DESCRIPTION:   Perform one-time application initialization.
- * ARG:           The boardctl() argument is passed to the
- *                board_app_initialize() implementation without modification.
- *                The argument has no meaning to NuttX; the meaning of the
- *                argument is a contract between the board-specific
- *                initialization logic and the matching application logic.
- *                The value could be such things as a mode enumeration value,
- *                a set of DIP switch switch settings, a pointer to
- *                configuration data read from a file or serial FLASH, or
- *                whatever you would like to do with it.  Every
- *                implementation should accept zero/NULL as a default
- *                configuration.
- * CONFIGURATION: CONFIG_BOARDCTL
- * DEPENDENCIES:  Board logic must provide board_app_initialize()
- *
  * CMD:           BOARDIOC_POWEROFF
  * DESCRIPTION:   Power off the board
  * ARG:           Integer value providing power off status information
@@ -193,29 +181,29 @@
  * DEPENDENCIES:  Board logic must provide the board_reset_cause() interface.
  */
 
-#define BOARDIOC_INIT              _BOARDIOC(0x0001)
-#define BOARDIOC_FINALINIT         _BOARDIOC(0x0002)
-#define BOARDIOC_POWEROFF          _BOARDIOC(0x0003)
-#define BOARDIOC_RESET             _BOARDIOC(0x0004)
-#define BOARDIOC_PM_CONTROL        _BOARDIOC(0x0005)
-#define BOARDIOC_UNIQUEID          _BOARDIOC(0x0006)
-#define BOARDIOC_MKRD              _BOARDIOC(0x0007)
-#define BOARDIOC_ROMDISK           _BOARDIOC(0x0008)
-#define BOARDIOC_APP_SYMTAB        _BOARDIOC(0x0009)
-#define BOARDIOC_OS_SYMTAB         _BOARDIOC(0x000a)
-#define BOARDIOC_BUILTINS          _BOARDIOC(0x000b)
-#define BOARDIOC_USBDEV_CONTROL    _BOARDIOC(0x000c)
-#define BOARDIOC_NX_START          _BOARDIOC(0x000d)
-#define BOARDIOC_VNC_START         _BOARDIOC(0x000e)
-#define BOARDIOC_NXTERM            _BOARDIOC(0x000f)
-#define BOARDIOC_NXTERM_IOCTL      _BOARDIOC(0x0010)
-#define BOARDIOC_SPINLOCK          _BOARDIOC(0x0011)
-#define BOARDIOC_UNIQUEKEY         _BOARDIOC(0x0012)
-#define BOARDIOC_SWITCH_BOOT       _BOARDIOC(0x0013)
-#define BOARDIOC_BOOT_IMAGE        _BOARDIOC(0x0014)
-#define BOARDIOC_RESET_CAUSE       _BOARDIOC(0x0015)
-#define BOARDIOC_IRQ_AFFINITY      _BOARDIOC(0x0016)
-#define BOARDIOC_START_CPU         _BOARDIOC(0x0017)
+#define BOARDIOC_FINALINIT         _BOARDIOC(0x0001)
+#define BOARDIOC_POWEROFF          _BOARDIOC(0x0002)
+#define BOARDIOC_RESET             _BOARDIOC(0x0003)
+#define BOARDIOC_PM_CONTROL        _BOARDIOC(0x0004)
+#define BOARDIOC_UNIQUEID          _BOARDIOC(0x0005)
+#define BOARDIOC_MKRD              _BOARDIOC(0x0006)
+#define BOARDIOC_ROMDISK           _BOARDIOC(0x0007)
+#define BOARDIOC_APP_SYMTAB        _BOARDIOC(0x0008)
+#define BOARDIOC_OS_SYMTAB         _BOARDIOC(0x0009)
+#define BOARDIOC_BUILTINS          _BOARDIOC(0x000a)
+#define BOARDIOC_USBDEV_CONTROL    _BOARDIOC(0x000b)
+#define BOARDIOC_NX_START          _BOARDIOC(0x000c)
+#define BOARDIOC_VNC_START         _BOARDIOC(0x000d)
+#define BOARDIOC_NXTERM            _BOARDIOC(0x000e)
+#define BOARDIOC_NXTERM_IOCTL      _BOARDIOC(0x000f)
+#define BOARDIOC_SPINLOCK          _BOARDIOC(0x0010)
+#define BOARDIOC_UNIQUEKEY         _BOARDIOC(0x0011)
+#define BOARDIOC_SWITCH_BOOT       _BOARDIOC(0x0012)
+#define BOARDIOC_BOOT_IMAGE        _BOARDIOC(0x0013)
+#define BOARDIOC_RESET_CAUSE       _BOARDIOC(0x0014)
+#define BOARDIOC_IRQ_AFFINITY      _BOARDIOC(0x0015)
+#define BOARDIOC_START_CPU         _BOARDIOC(0x0016)
+#define BOARDIOC_MACADDR           _BOARDIOC(0x0017)
 
 /* If CONFIG_BOARDCTL_IOCTL=y, then board-specific commands will be support.
  * In this case, all commands not recognized by boardctl() will be forwarded
@@ -224,7 +212,7 @@
  * User defined board commands may begin with this value:
  */
 
-#define BOARDIOC_USER              _BOARDIOC(0x0018)
+#define BOARDIOC_USER              _BOARDIOC(0x0019)
 
 /****************************************************************************
  * Public Type Definitions
@@ -367,6 +355,9 @@ enum boardioc_usbdev_identifier_e
 #ifdef CONFIG_USBMSC
   , BOARDIOC_USBDEV_MSC           /* Mass storage class */
 #endif
+#ifdef CONFIG_USBUVC
+  , BOARDIOC_USBDEV_UVC           /* USB Video Class */
+#endif
 #ifdef CONFIG_USBDEV_COMPOSITE
   , BOARDIOC_USBDEV_COMPOSITE     /* Composite device */
 #endif
@@ -475,6 +466,14 @@ struct boardioc_reset_cause_s
   enum boardioc_reset_cause_e cause;  /* The reason of last reset */
   uint32_t flag;                      /* watchdog number when watchdog reset,
                                        * or soft-reset subreason */
+};
+#endif
+
+#ifdef CONFIG_BOARDCTL_MACADDR
+struct boardioc_macaddr_s
+{
+  char ifname[IFNAMSIZ];
+  uint8_t macaddr[RADIO_MAX_ADDRLEN];
 };
 #endif
 

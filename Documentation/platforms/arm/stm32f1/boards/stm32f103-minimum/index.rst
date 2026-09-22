@@ -85,7 +85,7 @@ Problems with both boards:
 - No user button
 
 This is the board pinout based on its form-factor for the Blue board:
-  
+
 ..
               USB
               ___
@@ -186,7 +186,7 @@ instead of 64KiB as documented in the datasheet and reported by its internal
 register.
 
 In order to enable 128KiB you need modify the linker script to reflect this
-new size. Open the boards/arm/stm32/stm32f103-minimum/scripts/ld.script and replace::
+new size. Open the boards/arm/stm32f1/stm32f103-minimum/scripts/ld.script and replace::
 
     flash (rx) : ORIGIN = 0x08000000, LENGTH = 64K
 
@@ -299,7 +299,6 @@ file:
 
     CONFIG_STM32_TIM4_CAP=y
     CONFIG_STM32_TIM4_QE=y
-    CONFIG_STM32_TIM4_QECLKOUT=2800000
     CONFIG_STM32_QENCODER_FILTER=y
     CONFIG_STM32_QENCODER_SAMPLE_EVENT_6=y
     CONFIG_STM32_QENCODER_SAMPLE_FDTS_4=y
@@ -359,7 +358,7 @@ enable/disable these options using "make menuconfig" ::
   Memory Management  --->
       [*] Small memory model
 
-  Also change the boards/arm/stm32/stm32f103-minimum/scripts/ld.script file to use 128KB
+  Also change the boards/arm/stm32f1/stm32f103-minimum/scripts/ld.script file to use 128KB
   of Flash instead 64KB (since this board has a hidden 64KB flash) :
 
   MEMORY
@@ -537,7 +536,7 @@ The STM32F103C8 has a USB Device controller, then we can use NuttX support
 to USB Device. We can the console over USB enabling these options:
 
 ::
-    
+
      System Type  --->
        STM32 Peripheral Support  --->
          [*] USB Device
@@ -599,6 +598,44 @@ one Write-only. Flash the first firmware in the first board and the second
 firmware in the second board. Now you can start the both boards, run the
 "can" command in the Write-only board and then run the "can" command in the
 Read-only board. You should see the data coming.
+
+CAN support
+===========
+
+The STM32F103C8 has a on-chip bxCAN controller, then we can use it for
+CAN bus communication.
+It has limitations:
+
+- USB is not available together with on-chip CAN, because they share the SRAM
+  buffer (see the MCP2515 External Module section);
+- you need to use transceivers (SN65HVD230, ...) to connect the CAN bus;
+- you need a second device on the CAN bus to test the communication.
+
+If you want only to check the CAN bus, you can use mode 'loopback' in the CAN device.
+
+CAN PINS
+--------
+
+  ..
+     CAN1 (default pin mapping; ``CONFIG_STM32_CAN1_REMAP1`` is not set)
+       RX      PA11
+       TX      PA12
+
+     CAN1 (alternate mapping; enable ``CONFIG_STM32_CAN1_REMAP1``)
+       RX      PB8
+       TX      PB9
+
+  On STM32F103Cx in LQFP48, CAN1_REMAP2 is not available.
+
+Transceivers
+------------
+
+The MCU CAN peripheral only provides single-ended TTL-level ``CAN_RX`` / ``CAN_TX``
+lines. A CAN transceiver interfaces those to the differential **CANH** / **CANL**
+bus (dominant/recessive signaling), drives the correct line impedance, and
+typically adds short-circuit and ESD protection so the chip can safely connect
+to a real vehicle or bench network. Common parts include SN65HVD230, MCP2551,
+and TJA1050.
 
 STM32F103 Minimum - specific Configuration Options
 ==================================================
@@ -854,7 +891,6 @@ NOTES:
        CONFIG_USBDEV_TRACE=y                   : Enable USB trace feature
        CONFIG_USBDEV_TRACE_NRECORDS=128        : Buffer 128 records in memory
        CONFIG_NSH_USBDEV_TRACE=n               : No builtin tracing from NSH
-       CONFIG_NSH_ARCHINIT=y                   : Automatically start the USB monitor
        CONFIG_USBMONITOR=y              : Enable the USB monitor daemon
        CONFIG_USBMONITOR_STACKSIZE=2048 : USB monitor daemon stack size
        CONFIG_USBMONITOR_PRIORITY=50    : USB monitor daemon priority
@@ -886,3 +922,14 @@ veml6070
 This is a config example to use the Vishay VEML6070 UV-A sensor. To use this
 sensor you need to connect PB6 (I2C1 CLK) to SCL; PB7 (I2C1 SDA) to SDA of
 sensor module. I used a GY-VEML6070 module to test this driver.
+
+can
+---
+
+This is a config example to use on-chip CAN1 and the CAN example application.
+Wire PA11 (CAN_RX) and PA12 (CAN_TX) to a CAN transceiver;
+connect the transceiver's CANH and CANL to the bus.
+See the 'CAN support' section above for pins, transceivers, and limitations.
+
+A UART adapter on USART1 (PA9/PA10) is required for the NSH console on a
+host PC.

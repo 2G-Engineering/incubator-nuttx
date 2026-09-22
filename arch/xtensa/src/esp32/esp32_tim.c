@@ -27,13 +27,13 @@
 #include <nuttx/irq.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include "xtensa.h"
 
 #include "hardware/esp32_tim.h"
 
-#include "esp32_irq.h"
+#include "espressif/esp_irq.h"
 
 #include "esp32_tim.h"
 
@@ -351,10 +351,10 @@ static void esp32_tim_getcounter(struct esp32_tim_dev_s *dev,
   /* Read value */
 
   value_32 = esp32_tim_getreg(dev, TIM_HI_OFFSET); /* High 32 bits */
-  *value |= (uint64_t)value_32;
+  *value |= value_32;
   *value <<= SHIFT_32;
   value_32 = esp32_tim_getreg(dev, TIM_LO_OFFSET); /* Low 32 bits */
-  *value |= (uint64_t)value_32;
+  *value |= value_32;
 }
 
 /****************************************************************************
@@ -420,10 +420,10 @@ static void esp32_tim_getalarmvalue(struct esp32_tim_dev_s *dev,
   /* Read value */
 
   value_32 = esp32_tim_getreg(dev, TIMG_ALARM_HI_OFFSET); /* High 32 bits */
-  *value |= (uint64_t)value_32;
+  *value |= value_32;
   *value <<= SHIFT_32;
   value_32 = esp32_tim_getreg(dev, TIMG_ALARM_LO_OFFSET); /* Low 32 bits */
-  *value |= (uint64_t)value_32;
+  *value |= value_32;
 }
 
 /****************************************************************************
@@ -530,8 +530,8 @@ static int esp32_tim_setisr(struct esp32_tim_dev_s *dev, xcpt_t handler,
            */
 
           up_disable_irq(tim->irq);
-          esp32_teardown_irq(tim->core, tim->periph, tim->cpuint);
-          irq_detach(tim->irq);
+          esp_teardown_irq(tim->periph, tim->cpuint);
+
           tim->cpuint = -ENOMEM;
           tim->core = -ENODEV;
         }
@@ -551,22 +551,14 @@ static int esp32_tim_setisr(struct esp32_tim_dev_s *dev, xcpt_t handler,
       /* Set up to receive peripheral interrupts on the current CPU */
 
       tim->core = this_cpu();
-      tim->cpuint = esp32_setup_irq(tim->core, tim->periph,
-                                    tim->priority, ESP32_CPUINT_LEVEL);
+      tim->cpuint = esp_setup_irq(tim->periph,
+                                  tim->priority,
+                                  ESP_IRQ_TRIGGER_LEVEL,
+                                  handler, arg);
       if (tim->cpuint < 0)
         {
           tmrerr("ERROR: No CPU Interrupt available");
           ret = tim->cpuint;
-          goto errout;
-        }
-
-      /* Associate an IRQ Number (from the timer) to an ISR */
-
-      ret = irq_attach(tim->irq, handler, arg);
-      if (ret != OK)
-        {
-          esp32_teardown_irq(tim->core, tim->periph, tim->cpuint);
-          tmrerr("ERROR: Failed to associate an IRQ Number");
           goto errout;
         }
 

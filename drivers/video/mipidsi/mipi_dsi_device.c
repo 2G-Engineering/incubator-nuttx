@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
@@ -998,8 +998,8 @@ int mipi_dsi_dcs_get_display_brightness(FAR struct mipi_dsi_device *device,
  *   channel - The channel used by dsi device
  *
  * Returned Value:
- *   struct mipi_dsi_device* if the driver was successfully register; NULL is
- *   returned on any failure.
+ *   struct mipi_dsi_device* if the driver was successfully registered;
+ *   NULL is returned on any failure.
  *
  ****************************************************************************/
 

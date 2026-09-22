@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <arch/board/board.h>
 
@@ -43,6 +43,9 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+static_assert(CONFIG_BOARD_LOOPSPERMSEC != -1,
+              "Configure BOARD_LOOPSPERMSEC to non-default value.");
+
 /* Allow up to 100 milliseconds for the high speed clock to become ready.
  * that is a very long delay, but if the clock does not become ready we are
  * hosed anyway.
@@ -52,9 +55,9 @@
 
 #define LSERDY_TIMEOUT (500 * CONFIG_BOARD_LOOPSPERMSEC)
 
-#ifdef CONFIG_STM32H5_RTC_LSECLOCK_START_DRV_CAPABILITY
-#  if CONFIG_STM32H5_RTC_LSECLOCK_START_DRV_CAPABILITY < 0 || \
-      CONFIG_STM32H5_RTC_LSECLOCK_START_DRV_CAPABILITY > 3
+#ifdef CONFIG_STM32_RTC_LSECLOCK_START_DRV_CAPABILITY
+#  if CONFIG_STM32_RTC_LSECLOCK_START_DRV_CAPABILITY < 0 || \
+      CONFIG_STM32_RTC_LSECLOCK_START_DRV_CAPABILITY > 3
 #    error "Invalid LSE drive capability setting"
 #  endif
 #endif
@@ -63,7 +66,7 @@
  * Private Data
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H5_RTC_AUTO_LSECLOCK_START_DRV_CAPABILITY
+#ifdef CONFIG_STM32_RTC_AUTO_LSECLOCK_START_DRV_CAPABILITY
 static const uint32_t drives[4] =
 {
     RCC_BDCR_LSEDRV_LOW,
@@ -98,7 +101,7 @@ static const uint32_t drives[4] =
  *
  ****************************************************************************/
 
-#if defined(CONFIG_STM32H5_PWR) && defined(CONFIG_STM32H5_RTC)
+#if defined(CONFIG_STM32_PWR) && defined(CONFIG_STM32_RTC)
 static inline void rcc_resetbkp(void)
 {
   bool init_stat;
@@ -108,14 +111,14 @@ static inline void rcc_resetbkp(void)
   init_stat = stm32h5_rtc_is_initialized();
   if (!init_stat)
     {
-      uint32_t bkregs[STM32H5_RTC_BKCOUNT];
+      uint32_t bkregs[STM32_RTC_BKCOUNT];
       int i;
 
       /* Backup backup-registers before RTC reset. */
 
-      for (i = 0; i < STM32H5_RTC_BKCOUNT; i++)
+      for (i = 0; i < STM32_RTC_BKCOUNT; i++)
         {
-          bkregs[i] = getreg32(STM32H5_RTC_BKR(i));
+          bkregs[i] = getreg32(STM32_RTC_BKR(i));
         }
 
       /* Enable write access to the backup domain (RTC registers, RTC
@@ -133,14 +136,14 @@ static inline void rcc_resetbkp(void)
 
       /* Restore backup-registers, except RTC related. */
 
-      for (i = 0; i < STM32H5_RTC_BKCOUNT; i++)
+      for (i = 0; i < STM32_RTC_BKCOUNT; i++)
         {
-          if (RTC_MAGIC_REG == STM32H5_RTC_BKR(i))
+          if (RTC_MAGIC_REG == STM32_RTC_BKR(i))
             {
               continue;
             }
 
-          putreg32(bkregs[i], STM32H5_RTC_BKR(i));
+          putreg32(bkregs[i], STM32_RTC_BKR(i));
         }
 
       stm32_pwr_enablebkp(false);
@@ -163,7 +166,7 @@ static inline void rcc_resetbkp(void)
  *   and enable peripheral clocking for all peripherals enabled in the NuttX
  *   configuration file.
  *
- *   If CONFIG_ARCH_BOARD_STM32H5_CUSTOM_CLOCKCONFIG is defined, then
+ *   If CONFIG_ARCH_BOARD_STM32_CUSTOM_CLOCKCONFIG is defined, then
  *   clocking will be enabled by an externally provided, board-specific
  *   function called stm32_board_clockconfig().
  *
@@ -186,7 +189,7 @@ void stm32_clockconfig(void)
 
   rcc_resetbkp();
 #endif
-#if defined(CONFIG_ARCH_BOARD_STM32H5_CUSTOM_CLOCKCONFIG)
+#if defined(CONFIG_ARCH_BOARD_STM32_CUSTOM_CLOCKCONFIG)
 
   /* Invoke Board Custom Clock Configuration */
 
@@ -220,7 +223,7 @@ void stm32_clockconfig(void)
  *   stm32_clockconfig()
  *   reset the currently enabled peripheral clocks.
  *
- *   If CONFIG_ARCH_BOARD_STM32H5_CUSTOM_CLOCKCONFIG is defined, then
+ *   If CONFIG_ARCH_BOARD_STM32_CUSTOM_CLOCKCONFIG is defined, then
  *   clocking will be enabled by an externally provided, board-specific
  *   function called stm32_board_clockconfig().
  *
@@ -235,7 +238,7 @@ void stm32_clockconfig(void)
 #ifdef CONFIG_PM
 void stm32_clockenable(void)
 {
-#if defined(CONFIG_ARCH_BOARD_STM32H5_CUSTOM_CLOCKCONFIG)
+#if defined(CONFIG_ARCH_BOARD_STM32_CUSTOM_CLOCKCONFIG)
 
   /* Invoke Board Custom Clock Configuration */
 

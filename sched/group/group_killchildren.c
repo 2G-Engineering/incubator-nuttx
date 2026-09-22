@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 #include <pthread.h>
 #include <sched.h>
 #include <stdint.h>
@@ -191,7 +191,7 @@ int group_kill_children(FAR struct tcb_s *tcb)
               break;
             }
 
-          nxsig_usleep(USEC_PER_MSEC);
+          nxsched_usleep(USEC_PER_MSEC);
 
 #  if CONFIG_GROUP_KILL_CHILDREN_TIMEOUT_MS > 0
           if (--ret < 0)

@@ -29,7 +29,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/signal.h>
 #include <nuttx/spi/spi.h>
@@ -134,7 +134,7 @@ int spi_transfer(FAR struct spi_dev_s *spi, FAR struct spi_sequence_s *seq)
 
       if (trans->delay > 0)
         {
-          nxsig_usleep(trans->delay);
+          nxsched_usleep(trans->delay);
         }
     }
 

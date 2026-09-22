@@ -108,6 +108,112 @@ show in units of mV)::
     3: channel: 2 value: 1
     4: channel: 3 value: 0
 
+analog_cmpr
+-----------
+
+Enables the analog comparator driver. Driver unit is registered as ``/dev/anacmpr0``
+for analog comparator unit0. For each unit, the reference is either internal,
+comparing the source input against a fraction of VDD in 10% steps from 0% to 70%
+(for example, 50% VDD triggers when the source crosses half the supply voltage), or
+external, comparing the source GPIO against the voltage on the external reference
+pin. Reference source and debounce timeout for each unit can be adjusted in
+``Analog Comparator Configuration``.
+
+Comparator GPIOs are fixed by hardware and cannot be remapped. Following table demonstrates
+which pins are dedicated for comparator:
+
+======== =================================================================================
+Pin      Role
+======== =================================================================================
+GPIO11   Input source for unit0
+GPIO10   External reference input (if external reference source is selected for unit0)
+======== =================================================================================
+
+The following snippet demonstrates how to read the comparator result:
+
+.. code-block:: C
+
+   int fd;
+   int ret;
+   int res;
+
+   fd = open("/dev/anacmpr0", O_RDONLY);
+   ret = read(fd, &res, sizeof(res));
+
+autopm
+------
+
+This configuration makes the device automatically enter the low power consumption mode
+when in the idle state, powering off the cpu and other peripherals.
+
+ble
+---
+
+This configuration is used to enable the Bluetooth Low Energy (BLE) of
+ESP32-H2 chip.
+
+To test it, just run the following commands below.
+
+Confirm that bnep interface exist::
+
+    nsh> ifconfig
+    bnep0   Link encap:UNSPEC at DOWN mtu -9
+        inet addr:0.0.0.0 DRaddr:0.0.0.0 Mask:0.0.0.0
+
+Get basic information from it::
+
+    nsh> bt bnep0 info
+    Device: bnep0
+    BDAddr: 58:41:81:40:02:08
+    Flags:  0000
+    Free:   20
+      ACL:  20
+      SCO:  0
+    Max:
+      ACL:  24
+      SCO:  0
+    MTU:
+      ACL:  70
+      SCO:  70
+    Policy: 0
+    Type:   0
+
+Start the scanning process::
+
+    nsh> bt bnep0 scan start
+
+Wait a little bit before stopping it.
+
+Then after some minutes stop it::
+
+    nsh> bt bnep0 scan stop
+
+Get the list of BLE devices found around you::
+
+    nsh> bt bnep0 scan get
+    Scan result:
+    1.     addr:           d7:c4:e6:xx:xx:xx type: 0
+           rssi:            -62
+           response type:   4
+           advertiser data: 10 09 4d 69 20 XX XX XX XX XX XX XX XX XX XX 20                      e
+    2.     addr:           cb:23:18:xx:xx:xx type: 0
+           rssi:            -60
+           response type:   0
+           advertiser data: 02 01 06 1b ff XX XX XX ff ff ff ff ff ff ff ff                      8
+    3.     addr:           cb:23:18:xx:xx:xx type: 0
+           rssi:            -60
+           response type:   4
+           advertiser data: 10 09 4d 69 20 XX XX XX XX XX XX XX XX XX XX 20                      e
+    4.     addr:           d7:c4:e6:xx:xx:xx type: 0
+           rssi:            -62
+           response type:   0
+           advertiser data: 02 01 06 1b ff XX XX XX ff ff ff ff ff ff ff ff                      e
+    5.     addr:           d7:c4:e6:xx:xx:xx type: 0
+           rssi:            -62
+           response type:   4
+           advertiser data: 10 09 4d 69 20 XX XX XX XX XX XX XX XX XX XX 20                      e
+    nsh>
+
 bmp180
 ------
 
@@ -134,6 +240,25 @@ the ``buttons`` application and pressing the ``BOOT`` button on the board::
     nsh> Sample = 1
     Sample = 0
 
+<<<<<<< HEAD
+=======
+capture
+--------
+
+The capture configuration enables the capture driver and the capture example, allowing
+the user to measure duty cycle and frequency of a signal. Default pin is GPIO12 with
+an internal pull-up resistor enabled. When connecting a 50 Hz pulse with 50% duty cycle,
+the following output is expected::
+
+    nsh> cap
+    cap_main: Hardware initialized. Opening the capture device: /dev/capture0
+    cap_main: Number of samples: 0
+    pwm duty cycle: 50 %
+    pwm frequency: 50 Hz
+    pwm duty cycle: 50 %
+    pwm frequency: 50 Hz
+
+>>>>>>> nuttx-13.0.0
 coremark
 --------
 
@@ -310,6 +435,18 @@ This configuration is the same as the ``nsh`` configuration, but it generates th
 image in a format that can be used by MCUboot. It also makes the ``make bootloader`` command to
 build the MCUboot bootloader image using the Espressif HAL.
 
+motor
+-------
+
+The motor configuration enables the MCPWM peripheral with support to brushed DC motor
+control.
+
+It creates a ``/dev/motor0`` device with speed and direction control capabilities
+by using two GPIOs (GPIO10 and GPIO11) for PWM output. PWM frequency is configurable
+from 25 Hz to 3 kHz, however it defaults to 1 kHz.
+There is also support for an optional fault GPIO (defaults to GPIO9), which can be used
+for quick motor braking. All GPIOs are configurable in ``menuconfig``.
+
 nsh
 ---
 
@@ -320,6 +457,73 @@ ostest
 
 This is the NuttX test at ``apps/testing/ostest`` that is run against all new
 architecture ports to assure a correct implementation of the OS.
+
+pm
+-------
+
+This config demonstrate the use of power management.
+You can use the ``pmconfig`` command to check current power state and time spent in other power states.
+Also you can define time will spend in standby and sleep modes::
+
+    $ make menuconfig
+    -> Board Selection
+        -> (15) PM_STANDBY delay (seconds)
+           (0)  PM_STANDBY delay (nanoseconds)
+           (20) PM_SLEEP delay (seconds)
+           (0)  PM_SLEEP delay (nanoseconds)
+
+Timer wakeup is not only way to wake up the chip. Other wakeup modes include:
+
+- EXT1 wakeup mode: Uses RTC GPIO pins to wake up the chip. Enabled with ``CONFIG_PM_EXT1_WAKEUP`` option.
+- ULP coprocessor wakeup mode: Uses ULP co-processor to wake up the chip. Enabled with ``CONFIG_PM_ULP_WAKEUP`` option.
+- GPIO wakeup mode: Uses GPIO pins to wakeup the chip. Only wakes up the chip from ``PM_STANDBY`` mode and requires ``CONFIG_PM_GPIO_WAKEUP``.
+- UART wakeup mode: Uses UART to wakeup the chip. Only wakes up the chip from ``PM_STANDBY`` mode and requires ``CONFIG_PM_GPIO_WAKEUP``.
+
+Before switching PM status, you need to query the current PM status to call correct number of relax command to correct modes::
+
+    nsh> pmconfig
+    Last state 0, Next state 0
+
+    /proc/pm/state0:
+    DOMAIN0           WAKE         SLEEP         TOTAL
+    normal          0s 00%        0s 00%        0s 00%
+    idle            0s 00%        0s 00%        0s 00%
+    standby         0s 00%        0s 00%        0s 00%
+    sleep           0s 00%        0s 00%        0s 00%
+
+    /proc/pm/wakelock0:
+    DOMAIN0      STATE     COUNT      TIME
+    system       normal        2        1s
+    system       idle          1        1s
+    system       standby       1        1s
+    system       sleep         1        1s
+
+In this case, needed commands to switch the system into PM idle mode::
+
+    nsh> pmconfig relax normal
+    nsh> pmconfig relax normal
+
+In this case, needed commands to switch the system into PM standby mode::
+
+    nsh> pmconfig relax idle
+    nsh> pmconfig relax normal
+    nsh> pmconfig relax normal
+
+System switch to the PM sleep mode, you need to enter::
+
+    nsh> pmconfig relax standby
+    nsh> pmconfig relax idle
+    nsh> pmconfig relax normal
+    nsh> pmconfig relax normal
+
+Note: When normal mode COUNT is 0, it will switch to the next PM state where COUNT is not 0.
+
+Note: During light sleep, overall current consumption of board should drop from 14mA (without any system load) to 880 μA on ESP32-H2 DevkitM-1.
+During deep sleep, current consumption of module (ESP32-H2-MINI-1) should drop from 9mA (without any system load) to 8 μA.
+
+To save power without using sleep modes, lowering the clock speed is another approach. For dynamic frequency scaling
+``CONFIG_ESPRESSIF_DFS`` option needs to enabled and minimum CPU frequency needs to set under ``CONFIG_ESPRESSIF_MIN_CPU_FREQ`` option.
+With these options, the device scales the CPU clock according to workload.
 
 pwm
 ---
@@ -341,6 +545,18 @@ using 1 second delay)::
 
     nsh> qe
 
+random
+------
+
+This configuration shows the use of the ESP32-H2's hardware True Random Number Generator.
+To test it, just run ``rand`` to get 32 randomly generated bytes::
+
+    nsh> rand
+    Reading 8 random numbers
+    Random values (0x3ffe0b00):
+    0000  98 b9 66 a2 a2 c0 a2 ae 09 70 93 d1 b5 91 86 c8  ..f......p......
+    0010  8f 0e 0b 04 29 64 21 72 01 92 7c a2 27 60 6f 90  ....)d!r..|.'`o.
+
 rmt
 ---
 
@@ -354,11 +570,16 @@ RMT symbol, which is represented by ``rmt_item32_t`` in the driver:
 .. figure:: rmt_symbol.png
    :align: center
 
-The example ``rmtchar`` can be used to test the RMT peripheral. Connecting
+The example ``irtest`` can be used to test the RMT peripheral. Connecting
 these pins externally to each other will make the transmitter send RMT items
 and demonstrates the usage of the RMT peripheral::
 
-    nsh> rmtchar
+    nsh> irtest
+    $open_device(/dev/lirc0)
+    $open_device(/dev/lirc1)
+    $write_data(1) 16777229 16 16777235 23
+    $read_data(0,4)
+    16777229, 16, 16777235, 23
 
 **WS2812 addressable RGB LEDs**
 
@@ -369,6 +590,59 @@ This same configuration enables the usage of the RMT peripheral and the example
 
 Please note that this board contains an on-board WS2812 LED connected to GPIO8
 and, by default, this config configures the RMT transmitter in the same pin.
+
+romfs
+-----
+
+This configuration demonstrates the use of ROMFS (Read-Only Memory File System) to provide
+automated system initialization and startup scripts. ROMFS allows embedding a read-only
+filesystem directly into the NuttX binary, which is mounted at ``/etc`` during system startup.
+
+**What ROMFS provides:**
+
+* **System initialization script** (``/etc/init.d/rc.sysinit``): Executed after board bring-up
+* **Startup script** (``/etc/init.d/rcS``): Executed after system init, typically used to start applications
+
+**Default behavior:**
+
+When this configuration is used, NuttX will:
+
+1. Create a read-only RAM disk containing the ROMFS filesystem
+2. Mount the ROMFS at ``/etc``
+3. Execute ``/etc/init.d/rc.sysinit`` during system initialization
+4. Execute ``/etc/init.d/rcS`` for application startup
+
+**Customizing startup scripts:**
+
+The startup scripts are located in:
+``boards/risc-v/esp32h2/common/src/etc/init.d/``
+
+* ``rc.sysinit`` - System initialization script
+* ``rcS`` - Application startup script
+
+To customize these scripts:
+
+1. **Edit the script files** in ``boards/risc-v/esp32h2/common/src/etc/init.d/``
+2. **Add your initialization commands** using any NSH-compatible commands
+
+**Example customizations:**
+
+* **rc.sysinit** - Set up system services, mount additional filesystems, configure network.
+* **rcS** - Start your application, launch daemons, configure peripherals. This is executed after the rc.sysinit script.
+
+Example output::
+
+    *** Booting NuttX ***
+    [...]
+    rc.sysinit is called!
+    rcS file is called!
+    NuttShell (NSH) NuttX-12.8.0
+    nsh> ls /etc/init.d
+    /etc/init.d:
+    .
+    ..
+    rc.sysinit
+    rcS
 
 rtc
 ---
@@ -471,6 +745,20 @@ To test it, just run the following::
   nsh> timer -d /dev/timerx
 
 Where x in the timer instance.
+
+temperature_sensor
+------------------
+
+This configuration enables the on-chip temperature sensor driver. The sensor is
+exposed through the uORB interface and can be read with the ``sensortest``
+utility::
+
+    nsh> sensortest temp
+
+tickless
+--------
+
+This configuration enables the support for tickless scheduler mode.
 
 twai
 ----

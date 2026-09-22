@@ -61,18 +61,18 @@
 
 /* Macros to retrieve sem count and to check if nxsem is mutex */
 
-#define NXSEM_COUNT(s)        ((FAR atomic_t *)&(s)->val.semcount)
+#define NXSEM_COUNT(s)        ((FAR atomic_t *)&((s)->val.semcount))
 #define NXSEM_IS_MUTEX(s)     (((s)->flags & SEM_TYPE_MUTEX) != 0)
 
 /* Mutex related helper macros */
 
-#define NXSEM_MBLOCKING_BIT   (((uint32_t)1) << 31)
+#define NXSEM_MBLOCKING_BIT   ((uint32_t)0x80000000)
 #define NXSEM_NO_MHOLDER      ((uint32_t)0x7ffffffe)
 #define NXSEM_MRESET          ((uint32_t)0x7fffffff)
 
 /* Macro to retrieve mutex's atomic holder's ptr */
 
-#define NXSEM_MHOLDER(s)      ((FAR atomic_t *)&(s)->val.mholder)
+#define NXSEM_MHOLDER(s)      ((FAR atomic_t *)&((s)->val.mholder))
 
 /* Check if holder value (TID) is not NO_HOLDER or RESET */
 
@@ -411,6 +411,27 @@ int nxsem_post_slow(FAR sem_t *sem);
  ****************************************************************************/
 
 int nxsem_get_value(FAR sem_t *sem, FAR int *sval);
+
+#ifdef CONFIG_CUSTOM_SEMAPHORE_MAXVALUE
+/****************************************************************************
+ * Name:  nxsem_setmaxvalue
+ *
+ * Description:
+ *   This function sets the maximum allowed value for a specific semaphore.
+ *
+ * Input Parameters:
+ *   sem - Semaphore descriptor
+ *   maxvalue - The maximum allowed value
+ *
+ * Returned Value:
+ *   This is an internal OS interface and should not be used by applications.
+ *   It follows the NuttX internal error return policy:  Zero (OK) is
+ *   returned on success.  A negated errno value is returned on failure.
+ *
+ ****************************************************************************/
+
+int nxsem_setmaxvalue(FAR sem_t *sem, int32_t maxvalue);
+#endif
 
 /****************************************************************************
  * Name: nxsem_open

@@ -8,14 +8,11 @@ if ARCH_BOARD_NUCLEO_WL55JC
 config ARCH_BOARD_NUCLEO_WL55JC_DEMO_LED_IRQ
 	bool "[demo] LED on button interrupt"
 	depends on ARCH_BUTTONS
-	depends on NSH_ARCHINIT
+	depends on BOARD_LATE_INITIALIZE
 	---help---
 		When enabled, pressing B3 button will toggle red LED.
 		This options is mostly for demo purposes of how one
 		can install GPIO interrupt.
-
-comment "[demo] LED on button interrupt requires NSH_ARCHINIT"
-	depends on !NSH_ARCHINIT || !ARCH_BUTTONS
 
 config ARCH_BOARD_ENABLE_CPU2
 	bool "Enable CPU2 on startup"
@@ -27,7 +24,7 @@ config ARCH_BOARD_ENABLE_CPU2
 menuconfig ARCH_BOARD_IPCC
 	bool "Enabled IPCC"
 	select IPCC
-	select STM32WL5_IPCC
+	select STM32_IPCC
 	default n
 	---help---
 		Enables IPCC (inter processor communication controller)
@@ -55,7 +52,7 @@ config ARCH_BOARD_IPCC_CHAN1_TXBUF
 config ARCH_BOARD_IPCC_CHAN2
 	bool "Enable channel 2"
 	default n
-	select STM32WL5_IPCC_CHAN2
+	select STM32_IPCC_CHAN2
 
 if ARCH_BOARD_IPCC_CHAN2
 
@@ -72,7 +69,7 @@ config ARCH_BOARD_IPCC_CHAN2_TXBUF
 config ARCH_BOARD_IPCC_CHAN3
 	bool "Enable channel 3"
 	default n
-	select STM32WL5_IPCC_CHAN3
+	select STM32_IPCC_CHAN3
 
 if ARCH_BOARD_IPCC_CHAN3
 
@@ -89,7 +86,7 @@ config ARCH_BOARD_IPCC_CHAN3_TXBUF
 config ARCH_BOARD_IPCC_CHAN4
 	bool "Enable channel 4"
 	default n
-	select STM32WL5_IPCC_CHAN4
+	select STM32_IPCC_CHAN4
 
 if ARCH_BOARD_IPCC_CHAN4
 
@@ -106,7 +103,7 @@ config ARCH_BOARD_IPCC_CHAN4_TXBUF
 config ARCH_BOARD_IPCC_CHAN5
 	bool "Enable channel 5"
 	default n
-	select STM32WL5_IPCC_CHAN5
+	select STM32_IPCC_CHAN5
 
 if ARCH_BOARD_IPCC_CHAN5
 
@@ -123,7 +120,7 @@ config ARCH_BOARD_IPCC_CHAN5_TXBUF
 config ARCH_BOARD_IPCC_CHAN6
 	bool "Enable channel 6"
 	default n
-	select STM32WL5_IPCC_CHAN6
+	select STM32_IPCC_CHAN6
 
 if ARCH_BOARD_IPCC_CHAN6
 
@@ -271,7 +268,7 @@ config ARCH_BOARD_FLASH_PART1_FS_SMARTFS
 		is absolute minimum (so a 16KiB!).
 
 config ARCH_BOARD_FLASH_PART1_FS_MTDCONFIG
-	select MTD_CONFIG
+	depends on !MTD_CONFIG_NONE
 	bool "mtdconfig"
 	---help---
 		Purpose build filesystem to hold application's configuration.
@@ -319,7 +316,7 @@ config ARCH_BOARD_FLASH_PART2_FS_SMARTFS
 	bool "smartfs"
 
 config ARCH_BOARD_FLASH_PART2_FS_MTDCONFIG
-	select MTD_CONFIG
+	depends on !MTD_CONFIG_NONE
 	bool "mtdconfig"
 
 endchoice # Filesystem of user partition 2
@@ -362,7 +359,7 @@ config ARCH_BOARD_FLASH_PART3_FS_SMARTFS
 	bool "smartfs"
 
 config ARCH_BOARD_FLASH_PART3_FS_MTDCONFIG
-	select MTD_CONFIG
+	depends on !MTD_CONFIG_NONE
 	bool "mtdconfig"
 
 endchoice # Filesystem of user partition 3
@@ -405,7 +402,7 @@ config ARCH_BOARD_FLASH_PART4_FS_SMARTFS
 	bool "smartfs"
 
 config ARCH_BOARD_FLASH_PART4_FS_MTDCONFIG
-	select MTD_CONFIG
+	depends on !MTD_CONFIG_NONE
 	bool "mtdconfig"
 
 endchoice # Filesystem of user partition 4

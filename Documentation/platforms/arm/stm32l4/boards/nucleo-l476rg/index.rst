@@ -107,7 +107,7 @@ Here are a few tips before you start that effort:
    on the command line.
 
 Startup files will probably cause you some headaches.  The NuttX startup file
-is arch/arm/src/stm32/stm32_vectors.S.  With RIDE, I have to build NuttX
+is arch/arm/src/stm32f4/gnu/stm32_vectors.S.  With RIDE, I have to build NuttX
 one time from the Cygwin command line in order to obtain the pre-built
 startup object needed by RIDE.
 
@@ -470,7 +470,6 @@ There is nothing in the configuration that currently uses the joystick.
 For testing, you can add the following configuration options to enable the
 analog joystick example at apps/examples/ajoystick::
 
-    CONFIG_NSH_ARCHINIT=y
     CONFIG_EXAMPLES_AJOYSTICK=y
     CONFIG_EXAMPLES_AJOYSTICK_DEVNAME="/dev/ajoy0"
 

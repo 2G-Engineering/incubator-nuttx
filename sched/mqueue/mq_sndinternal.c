@@ -34,8 +34,8 @@
 #include <assert.h>
 #include <errno.h>
 #include <sched.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/sched.h>
@@ -126,7 +126,7 @@ static void nxmq_sndtimeout(wdparm_t arg)
 
 int nxmq_wait_send(FAR struct mqueue_inode_s *msgq,
                    FAR const struct timespec *abstime,
-                   sclock_t ticks)
+                   clock_t ticks)
 {
   FAR struct tcb_s *rtcb = this_task();
 

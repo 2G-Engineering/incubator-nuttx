@@ -1,42 +1,43 @@
-/************************************************************************************
+/****************************************************************************
  * drivers/mtd/w25n.c
- * Driver for Winbond W25Nxx SPI nand flash.
  *
- *   Copyright (C) 2019 FishSemi Inc. All rights reserved.
- *   Author: zhuyanlin <zhuyanlin@fishsemi.com>
+ * Driver for Winbond W25N SPI NAND flash.
+ * Currently only W25N01GV (1Gbit/128MB) is supported and tested.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
+ * Bad block management uses the chip's built-in 20-entry hardware Bad
+ * Block Management Look-Up Table (datasheet section 8.2.7). Factory bad
+ * blocks are scanned at init by reading the OOB marker (byte 0 of the
+ * spare area of page 0) and remapped to spares from a reserved pool at
+ * the top of the array. Runtime erase/program failures (E-FAIL/P-FAIL)
+ * trigger the same remap path and retry the operation once. The chip
+ * routes accesses to remapped LBAs to the spare PBA transparently.
  *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
+ * Limitations:
+ *   - No Quad SPI support (standard SPI only).
+ *   - No access to OTP region.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: Apache-2.0
  *
- ************************************************************************************/
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ *
+ ****************************************************************************/
 
-/************************************************************************************
+/****************************************************************************
  * Included Files
- ************************************************************************************/
+ ****************************************************************************/
 
 #include <nuttx/config.h>
 
@@ -46,7 +47,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -54,733 +55,1225 @@
 #include <nuttx/spi/spi.h>
 #include <nuttx/mtd/mtd.h>
 
-/************************************************************************************
+/****************************************************************************
  * Pre-processor Definitions
- ************************************************************************************/
+ ****************************************************************************/
 
-/* Configuration ********************************************************************/
+/* Configuration ************************************************************/
 
 #ifndef CONFIG_W25N_SPIMODE
 #  define CONFIG_W25N_SPIMODE SPIDEV_MODE0
 #endif
 
 #ifndef CONFIG_W25N_SPIFREQUENCY
-#  define CONFIG_W25N_SPIFREQUENCY  20000000
+#  define CONFIG_W25N_SPIFREQUENCY 20000000
 #endif
 
-/* W25N Instructions ****************************************************************/
+/* W25N Commands ************************************************************/
 
-/*      Command                    Value     Description             Addr   Data    */
-/*                                                                      Dummy       */
+#define W25N_RESET              0xff  /* Device reset */
+#define W25N_READ_ID            0x9f  /* Read JEDEC ID */
+#define W25N_READ_STATUS        0x0f  /* Read status register */
+#define W25N_WRITE_STATUS       0x1f  /* Write status register */
+#define W25N_WRITE_ENABLE       0x06  /* Write enable */
+#define W25N_WRITE_DISABLE      0x04  /* Write disable */
+#define W25N_PAGE_READ          0x13  /* Page data read (array to buffer) */
+#define W25N_READ_DATA          0x03  /* Read data (from buffer) */
+#define W25N_PROGRAM_LOAD       0x02  /* Program load (to buffer) */
+#define W25N_PROGRAM_EXECUTE    0x10  /* Program execute (buffer to array) */
+#define W25N_BLOCK_ERASE        0xd8  /* Block erase */
+#define W25N_BBM_SWAP           0xa1  /* Bad Block Management (swap blocks) */
+#define W25N_READ_BBM_LUT       0xa5  /* Read BBM Look-Up Table */
 
-#define W25N_GET_FEATURE            0x0f   /* Get features           1   0   1      */
-#define W25N_SET_FEATURE            0x1f   /* Set features           1   0   1      */
-#define W25N_PAGE_READ              0x13   /* Array read             3   0   0      */
-#define W25N_READ_FROM_CACHE        0x03   /* Output cache data
-                                            *  on SO                 2   1   1-2112 */
-#define W25N_READ_ID                0x9f   /* Read device ID         0   1   2      */
-#define W25N_ECC_STATUS_READ        0x7c   /* Internal ECC status
-                                            *  output                0   1   1      */
-#define W25N_BLOCK_ERASE            0xd8   /* Block erase            3   0   0      */
-#define W25N_PROGRAM_EXECUTE        0x10   /* Enter block/page
-                                            *  address, execute      3   0   0      */
-#define W25N_PROGRAM_LOAD           0x02   /* Load program data with
-                                            *  cache reset first     2   0   1-2112 */
-#define W25N_PROGRAM_LOAD_RANDOM    0x84   /* Load program data
-                                            *  without cache reset   2   0   1-2112 */
-#define W25N_WRITE_ENABLE           0x06   /*                        0   0   0      */
-#define W25N_WRITE_DISABLE          0x04   /*                        0   0   0      */
-#define W25N_RESET                  0xff   /* Reset the device       0   0   0      */
+#define W25N_DUMMY              0x00  /* Dummy byte for SPI */
 
-#define W25N_DUMMY                  0x00   /* No Operation           0   0   0      */
+/* Status Register Addresses ************************************************/
 
-/* Feature register *****************************************************************/
+#define W25N_SR1_ADDR           0xa0  /* Protection register */
+#define W25N_SR2_ADDR           0xb0  /* Configuration register */
+#define W25N_SR3_ADDR           0xc0  /* Status register */
 
-/* JEDEC Read ID register values */
+/* Status Register 1 (Protection) bits **************************************/
 
-#define W25N_MANUFACTURER           0xEF
+#define W25N_SR1_SRP0           (1 << 7)
+#define W25N_SR1_BP3            (1 << 6)
+#define W25N_SR1_BP2            (1 << 5)
+#define W25N_SR1_BP1            (1 << 4)
+#define W25N_SR1_BP0            (1 << 3)
+#define W25N_SR1_TB             (1 << 2)
+#define W25N_SR1_WPE            (1 << 1)
+#define W25N_SR1_SRP1           (1 << 0)
 
-#define W25N_CAPACITY_512MBIT_B0    0x20  /* 512 Mb */
-#define W25N_CAPACITY_512MBIT_B1    0xAA  /* 512 Mb */
-#define W25N_CAPACITY_1GBIT_B0      0x21  /* 1 Gb */
-#define W25N_CAPACITY_1GBIT_B1      0xAA  /* 1 Gb */
-#define W25N_CAPACITY_2GBIT_B0      0x21  /* 2 Gb */
-#define W25N_CAPACITY_2GBIT_B1      0xAB  /* 2 Gb */
+/* Status Register 2 (Configuration) bits ***********************************/
 
-#define W25N_NSECTORS_512MBIT       512   /* 512x131072 = 512Mbit memory capacity */
-#define W25N_NSECTORS_1GBIT         1024  /* 1024x131072 = 1Gbit memory capacity */
-#define W25N_NSECTORS_2GBIT         2048  /* 2048x131072 = 2Gbit memory capacity */
+#define W25N_SR2_OTPL           (1 << 7)
+#define W25N_SR2_OTPE           (1 << 6)
+#define W25N_SR2_SR1L           (1 << 5)
+#define W25N_SR2_ECCE           (1 << 4)
+#define W25N_SR2_BUF            (1 << 3)
 
-#define W25N_SECTOR_SHIFT           17    /* 131072 byte */
-#define W25N_PAGE_SHIFT             11    /* 2048 */
+/* Status Register 3 (Status) bits ******************************************/
 
-/* Register address */
+#define W25N_SR3_LUTF           (1 << 6)
+#define W25N_SR3_ECC1           (1 << 5)
+#define W25N_SR3_ECC0           (1 << 4)
+#define W25N_SR3_PFAIL          (1 << 3)
+#define W25N_SR3_EFAIL          (1 << 2)
+#define W25N_SR3_WEL            (1 << 1)
+#define W25N_SR3_BUSY           (1 << 0)
 
-#define W25N_SECURE_OTP             0xb0
-#define W25N_STATUS                 0xc0
-#define W25N_BLOCK_PROTECTION       0xa0
+#define W25N_SR3_ECC_MASK       (W25N_SR3_ECC1 | W25N_SR3_ECC0)
+#define W25N_SR3_ECC_OK         (0x00)
+#define W25N_SR3_ECC_CORRECTED  (W25N_SR3_ECC0)
+#define W25N_SR3_ECC_ERROR      (W25N_SR3_ECC1)
 
-/* Bit definitions */
+/* Device Identification ****************************************************/
 
-/* Secure OTP (On-Time-Programmable) register */
+#define W25N_MANUFACTURER_ID    0xef  /* Winbond */
+#define W25N01GV_DEVICE_ID      0xaa21
 
-#define W25N_SOTP_QE                (1 << 0)  /* Bit 0: Quad Enable */
-#define W25N_SOTP_BUF               (1 << 3)  /* Bit 3: Buffer Read Mode */
-#define W25N_SOTP_ECC               (1 << 4)  /* Bit 4: ECC enabled */
-#define W25N_SOTP_SOTP_EN           (1 << 6)  /* Bit 6: Secure OTP Enable */
-#define W25N_SOTP_SOTP_PROT         (1 << 7)  /* Bit 7: Secure OTP Protect */
+/* Memory Organization ******************************************************/
 
-/* Status register */
+#define W25N_PAGE_SIZE          2048  /* Bytes per page (data only) */
+#define W25N_PAGE_SHIFT         11    /* 2^11 = 2048 */
+#define W25N_PAGES_PER_BLOCK    64
+#define W25N_BLOCK_SIZE         (W25N_PAGE_SIZE * W25N_PAGES_PER_BLOCK)
+#define W25N_BLOCK_SHIFT        17    /* 2^17 = 128KB */
+#define W25N01GV_BLOCKS         1024  /* Total blocks for 1Gbit device */
 
-#define W25N_SR_OIP                 (1 << 0)  /* Bit 0: Operation in progress */
-#define W25N_SR_WEL                 (1 << 1)  /* Bit 1: Write enable latch */
-#define W25N_SR_E_FAIL              (1 << 2)  /* Bit 2: Erase fail */
-#define W25N_SR_P_FAIL              (1 << 3)  /* Bit 3: Program Fail */
-#define W25N_SR_ECC_S0              (1 << 4)  /* Bit 4-5: ECC Status  */
-#define W25N_SR_ECC_S1              (1 << 5)
+/* Bad Block Management *****************************************************/
 
-/* Block Protection register */
-
-#define W25N_BP_SP                  (1 << 0)  /* Bit 0: Solid-protection (1Gb only) */
-#define W25N_BP_COMPL               (1 << 1)  /* Bit 1: Complementary (1Gb only) */
-#define W25N_BP_INV                 (1 << 2)  /* Bit 2: Invert (1Gb only) */
-#define W25N_BP_BP0                 (1 << 3)  /* Bit 3: Block Protection 0 */
-#define W25N_BP_BP1                 (1 << 4)  /* Bit 4: Block Protection 1 */
-#define W25N_BP_BP2                 (1 << 5)  /* Bit 5: Block Protection 2 */
-#define W25N_BP_BPRWD               (1 << 7)  /* Bit 7: Block Protection Register
-                                               *        Write Disable */
-
-/* ECC Status register */
-
-#define W25N_FEATURE_ECC_MASK       (0x03 << 4)
-#define W25N_FEATURE_ECC_ERROR      (0x02 << 4)
-#define W25N_FEATURE_ECC_OFFSET     4
-#define W25N_ECC_STATUS_MASK        0x0f
-
-/************************************************************************************
- * Private Types
- ************************************************************************************/
-
-/* This type represents the state of the MTD device.  The struct mtd_dev_s
- * must appear at the beginning of the definition so that you can freely
- * cast between pointers to struct mtd_dev_s and struct w25n_dev_s.
+/* The chip has a 20-entry hardware BBM LUT. We reserve 24 blocks at the
+ * top of the array as a spare pool to remap into; 24 > 20 gives headroom
+ * in case some spares are themselves factory bad. The remaining blocks
+ * (W25N_USER_BLOCKS) are exposed to the upper layer.
  */
+
+#define W25N_BBM_LUT_ENTRIES    20
+#define W25N_SPARE_RESERVE      24
+#define W25N_USER_BLOCKS        (W25N01GV_BLOCKS - W25N_SPARE_RESERVE)
+#define W25N_OOB_BBM_COL        2048  /* Column of bad block marker in spare */
+#define W25N_BBM_LBA_ENABLE     (1 << 15)
+#define W25N_BBM_LBA_INVALID    (1 << 14)
+#define W25N_BBM_BLOCK_MASK     0x03ff
+
+/****************************************************************************
+ * Private Types
+ ****************************************************************************/
 
 struct w25n_dev_s
 {
-  struct mtd_dev_s     mtd;             /* MTD interface */
-  FAR struct spi_dev_s *dev;            /* Saved SPI interface instance */
-  uint32_t             spi_devid;       /* Chip select inputs */
-  uint16_t             nsectors;        /* 1024 or 2048 */
-  uint8_t              sectorshift;     /* 17 */
-  uint8_t              pageshift;       /* 11 */
-  uint8_t              eccstatus;       /* Internal ECC status */
+  struct mtd_dev_s       mtd;         /* MTD interface */
+  FAR struct spi_dev_s  *spi;         /* SPI device */
+  uint32_t               spi_devid;   /* SPI device ID for chip select */
+  uint16_t               nblocks;     /* Number of erase blocks */
+  uint8_t                blockshift;  /* Block size shift (17 = 128KB) */
+  uint8_t                pageshift;   /* Page size shift (11 = 2KB) */
+  uint8_t                eccstatus;   /* Last ECC status */
+
+  /* Cached copy of the chip's BBM LUT */
+
+  uint32_t               bbm[W25N_BBM_LUT_ENTRIES];
 };
 
-/************************************************************************************
+/****************************************************************************
  * Private Function Prototypes
- ************************************************************************************/
+ ****************************************************************************/
 
-/* Helpers */
+/* SPI helpers */
 
-static inline void w25n_lock(FAR struct spi_dev_s *dev);
-static inline void w25n_unlock(FAR struct spi_dev_s *dev);
+static void w25n_lock(FAR struct w25n_dev_s *priv);
+static void w25n_unlock(FAR struct w25n_dev_s *priv);
 
-static int w25n_readid(FAR struct w25n_dev_s *priv);
-static bool w25n_waitstatus(FAR struct w25n_dev_s *priv, uint8_t mask,
-                            bool successif);
-static bool w25n_waitstatustimeout(FAR struct w25n_dev_s *priv, uint8_t mask,
-                            bool successif, int32_t ustimeout);
-static inline void w25n_writeenable(FAR struct w25n_dev_s *priv);
-static inline void w25n_writedisable(FAR struct w25n_dev_s *priv);
-static bool w25n_sectorerase(FAR struct w25n_dev_s *priv, off_t startsector);
-static void w25n_readbuffer(FAR struct w25n_dev_s *priv, uint32_t address,
-                            uint8_t *buffer, size_t length);
-static bool w25n_read_page(FAR struct w25n_dev_s *priv, uint32_t position);
+/* Command helpers */
 
-static void w25n_write_to_cache(FAR struct w25n_dev_s *priv, uint32_t address,
-                                const uint8_t *buffer, size_t length);
-static bool w25n_execute_write(FAR struct w25n_dev_s *priv, uint32_t position);
+static void    w25n_reset(FAR struct w25n_dev_s *priv);
+static int     w25n_readid(FAR struct w25n_dev_s *priv);
+static uint8_t w25n_read_status(FAR struct w25n_dev_s *priv, uint8_t reg);
+static void    w25n_write_status(FAR struct w25n_dev_s *priv,
+                                 uint8_t reg, uint8_t val);
+static void    w25n_writeenable(FAR struct w25n_dev_s *priv);
+static void    w25n_writedisable(FAR struct w25n_dev_s *priv);
+static int     w25n_waitready(FAR struct w25n_dev_s *priv);
+static int     w25n_waitready_erase(FAR struct w25n_dev_s *priv);
 
-static inline void w25n_eccstatusread(FAR struct w25n_dev_s *priv);
-static inline void w25n_enable_ecc(FAR struct w25n_dev_s *priv);
-static inline void w25n_unlockblocks(FAR struct w25n_dev_s *priv);
+/* Page operations */
+
+static int     w25n_read_page(FAR struct w25n_dev_s *priv, uint32_t page);
+static void    w25n_read_buffer(FAR struct w25n_dev_s *priv, uint16_t col,
+                                FAR uint8_t *buf, size_t len);
+static void    w25n_load_buffer(FAR struct w25n_dev_s *priv, uint16_t col,
+                                FAR const uint8_t *buf, size_t len);
+static int     w25n_program_execute(FAR struct w25n_dev_s *priv,
+                                    uint32_t page);
+static int     w25n_block_erase(FAR struct w25n_dev_s *priv, uint32_t block);
+
+/* Configuration */
+
+static void    w25n_enable_ecc(FAR struct w25n_dev_s *priv);
+static void    w25n_unprotect(FAR struct w25n_dev_s *priv);
+
+/* Bad block management */
+
+static void    w25n_read_bbm_lut(FAR struct w25n_dev_s *priv);
+static int     w25n_bbm_swap(FAR struct w25n_dev_s *priv,
+                             uint16_t lba, uint16_t pba);
+static int     w25n_read_oob_marker(FAR struct w25n_dev_s *priv,
+                                    uint16_t block);
+static bool    w25n_is_factory_bad(FAR struct w25n_dev_s *priv,
+                                   uint16_t block);
+static uint16_t w25n_pick_free_spare(FAR struct w25n_dev_s *priv);
+static int     w25n_remap_bad_block(FAR struct w25n_dev_s *priv,
+                                    uint16_t block);
+static void    w25n_scan_factory_bad(FAR struct w25n_dev_s *priv);
 
 /* MTD driver methods */
 
+static int     w25n_erase(FAR struct mtd_dev_s *dev, off_t startblock,
+                          size_t nblocks);
 static ssize_t w25n_bread(FAR struct mtd_dev_s *dev, off_t startblock,
-                          size_t nblocks, FAR uint8_t *buffer);
-static ssize_t w25n_read(FAR struct mtd_dev_s *dev, off_t offset, size_t nbytes,
-                         FAR uint8_t *buffer);
+                          size_t nblocks, FAR uint8_t *buf);
 static ssize_t w25n_bwrite(FAR struct mtd_dev_s *dev, off_t startblock,
-                           size_t nblocks, FAR const uint8_t *buffer);
-static ssize_t w25n_write(FAR struct mtd_dev_s *dev, off_t offset, size_t nbytes,
-                         FAR const uint8_t *buffer);
-static int w25n_ioctl(FAR struct mtd_dev_s *dev, int cmd, unsigned long arg);
-static int w25n_erase(FAR struct mtd_dev_s *dev, off_t startblock, size_t nblocks);
+                           size_t nblocks, FAR const uint8_t *buf);
+static ssize_t w25n_read(FAR struct mtd_dev_s *dev, off_t offset,
+                         size_t nbytes, FAR uint8_t *buf);
+static int     w25n_ioctl(FAR struct mtd_dev_s *dev, int cmd,
+                          unsigned long arg);
 
-/************************************************************************************
+/****************************************************************************
  * Private Functions
- ************************************************************************************/
+ ****************************************************************************/
 
-/************************************************************************************
+/****************************************************************************
  * Name: w25n_lock
- ************************************************************************************/
+ ****************************************************************************/
 
-static inline void w25n_lock(FAR struct spi_dev_s *dev)
+static void w25n_lock(FAR struct w25n_dev_s *priv)
 {
-  SPI_LOCK(dev, true);
-
-  SPI_SETMODE(dev, CONFIG_W25N_SPIMODE);
-  SPI_SETBITS(dev, 8);
-  SPI_HWFEATURES(dev, 0);
-  SPI_SETFREQUENCY(dev, CONFIG_W25N_SPIFREQUENCY);
+  SPI_LOCK(priv->spi, true);
+  SPI_SETMODE(priv->spi, CONFIG_W25N_SPIMODE);
+  SPI_SETBITS(priv->spi, 8);
+  SPI_HWFEATURES(priv->spi, 0);
+  SPI_SETFREQUENCY(priv->spi, CONFIG_W25N_SPIFREQUENCY);
 }
 
-/************************************************************************************
+/****************************************************************************
  * Name: w25n_unlock
- ************************************************************************************/
+ ****************************************************************************/
 
-static inline void w25n_unlock(FAR struct spi_dev_s *dev)
+static void w25n_unlock(FAR struct w25n_dev_s *priv)
 {
-  SPI_LOCK(dev, false);
+  SPI_LOCK(priv->spi, false);
 }
 
-/************************************************************************************
+/****************************************************************************
+ * Name: w25n_reset
+ ****************************************************************************/
+
+static void w25n_reset(FAR struct w25n_dev_s *priv)
+{
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), true);
+  SPI_SEND(priv->spi, W25N_RESET);
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), false);
+
+  /* Wait for reset to complete (tRST max 500us) */
+
+  nxsig_usleep(500);
+}
+
+/****************************************************************************
  * Name: w25n_readid
- ************************************************************************************/
+ ****************************************************************************/
 
 static int w25n_readid(FAR struct w25n_dev_s *priv)
 {
-  uint16_t manufacturer;
-  uint16_t deviceid0;
-  uint16_t deviceid1;
+  uint8_t manufacturer;
+  uint8_t device_hi;
+  uint8_t device_lo;
 
-  finfo("priv: %p\n", priv);
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), true);
+  SPI_SEND(priv->spi, W25N_READ_ID);
+  SPI_SEND(priv->spi, W25N_DUMMY);
+  manufacturer = SPI_SEND(priv->spi, W25N_DUMMY);
+  device_hi = SPI_SEND(priv->spi, W25N_DUMMY);
+  device_lo = SPI_SEND(priv->spi, W25N_DUMMY);
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), false);
 
-  /* Lock the SPI bus, configure the bus, and select this FLASH part. */
+  finfo("W25N: Manufacturer=0x%02x Device=0x%02x%02x\n",
+        manufacturer, device_hi, device_lo);
 
-  w25n_lock(priv->dev);
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
-
-  /* Send the "Read ID" command and read three ID bytes */
-
-  SPI_SEND(priv->dev, W25N_READ_ID);
-  SPI_SEND(priv->dev, W25N_DUMMY);
-  manufacturer = SPI_SEND(priv->dev, W25N_DUMMY);
-  deviceid1    = SPI_SEND(priv->dev, W25N_DUMMY);
-  deviceid0    = SPI_SEND(priv->dev, W25N_DUMMY);
-
-  /* De-select the FLASH and unlock the bus */
-
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-  w25n_unlock(priv->dev);
-
-  finfo("manufacturer: %02x deviceid: %02x, %02x\n",
-           manufacturer, deviceid1, deviceid0);
-
-  /* Check for a valid manufacturer */
-
-  if (manufacturer == W25N_MANUFACTURER)
+  if (manufacturer != W25N_MANUFACTURER_ID)
     {
-
-      if ((deviceid0 == W25N_CAPACITY_512MBIT_B0) &&
-          (deviceid1 == W25N_CAPACITY_512MBIT_B1))
-        {
-          priv->nsectors = W25N_NSECTORS_512MBIT;
-        }
-      else if ((deviceid0 == W25N_CAPACITY_1GBIT_B0) &&
-               (deviceid1 == W25N_CAPACITY_1GBIT_B1))
-        {
-          priv->nsectors = W25N_NSECTORS_1GBIT;
-        }
-      /* 2Gb part will require some additional work to
-       * handle dual-die functionality and is not
-       * currently supported by this driver */
-      else
-        {
-          return -ENODEV;
-        }
-
-      priv->sectorshift = W25N_SECTOR_SHIFT;
-      priv->pageshift   = W25N_PAGE_SHIFT;
-      return OK;
+      ferr("ERROR: Unexpected manufacturer ID: 0x%02x\n", manufacturer);
+      return -ENODEV;
     }
 
-  return -ENODEV;
+  if (device_hi == 0xaa && device_lo == 0x21)
+    {
+      /* W25N01GV - 1Gbit */
+
+      priv->nblocks = W25N01GV_BLOCKS;
+      finfo("W25N01GV detected: %d blocks\n", priv->nblocks);
+    }
+  else
+    {
+      ferr("ERROR: Unsupported device ID: 0x%02x%02x\n",
+           device_hi, device_lo);
+      return -ENODEV;
+    }
+
+  priv->blockshift = W25N_BLOCK_SHIFT;
+  priv->pageshift = W25N_PAGE_SHIFT;
+
+  return OK;
 }
 
-/************************************************************************************
- * Name: w25n_waitstatus
- ************************************************************************************/
+/****************************************************************************
+ * Name: w25n_read_status
+ ****************************************************************************/
 
-static bool w25n_waitstatus(FAR struct w25n_dev_s *priv, uint8_t mask, bool successif)
+static uint8_t w25n_read_status(FAR struct w25n_dev_s *priv, uint8_t reg)
 {
   uint8_t status;
 
-  /* Loop as long as the memory is busy with a write cycle */
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), true);
+  SPI_SEND(priv->spi, W25N_READ_STATUS);
+  SPI_SEND(priv->spi, reg);
+  status = SPI_SEND(priv->spi, W25N_DUMMY);
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), false);
 
-  do
-    {
-      /* Select this FLASH part */
-
-      SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
-
-      /* Get feature command */
-
-      SPI_SEND(priv->dev, W25N_GET_FEATURE);
-      SPI_SEND(priv->dev, W25N_STATUS);
-      status = SPI_SEND(priv->dev, W25N_DUMMY);
-
-      /* Deselect the FLASH */
-
-      SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-      nxsig_usleep(1000);
-    }
-  while ((status & W25N_SR_OIP) != 0);
-
-  finfo("Complete %02x\n", status);
-
-  return successif ? ((status & mask) != 0) : ((status & mask) == 0);
+  return status;
 }
 
-/************************************************************************************
- * Name: w25n_waitstatustimeout
- ************************************************************************************/
+/****************************************************************************
+ * Name: w25n_write_status
+ ****************************************************************************/
 
-static bool w25n_waitstatustimeout(FAR struct w25n_dev_s *priv, uint8_t mask,
-                                   bool successif, int32_t ustimeout)
+static void w25n_write_status(FAR struct w25n_dev_s *priv,
+                              uint8_t reg, uint8_t val)
+{
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), true);
+  SPI_SEND(priv->spi, W25N_WRITE_STATUS);
+  SPI_SEND(priv->spi, reg);
+  SPI_SEND(priv->spi, val);
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), false);
+}
+
+/****************************************************************************
+ * Name: w25n_writeenable
+ ****************************************************************************/
+
+static void w25n_writeenable(FAR struct w25n_dev_s *priv)
+{
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), true);
+  SPI_SEND(priv->spi, W25N_WRITE_ENABLE);
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), false);
+}
+
+/****************************************************************************
+ * Name: w25n_writedisable
+ ****************************************************************************/
+
+static void w25n_writedisable(FAR struct w25n_dev_s *priv)
+{
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), true);
+  SPI_SEND(priv->spi, W25N_WRITE_DISABLE);
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), false);
+}
+
+/****************************************************************************
+ * Name: w25n_waitready
+ ****************************************************************************/
+
+static int w25n_waitready(FAR struct w25n_dev_s *priv)
 {
   uint8_t status;
+  int timeout = 10000;
 
-  /* Loop as long as the memory is busy with a write cycle */
+  /* Busy-wait for fast operations (page read ~60us, page program ~250us) */
 
   do
     {
-      /* Select this FLASH part */
-
-      SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
-
-      /* Get feature command */
-
-      SPI_SEND(priv->dev, W25N_GET_FEATURE);
-      SPI_SEND(priv->dev, W25N_STATUS);
-      status = SPI_SEND(priv->dev, W25N_DUMMY);
-
-      /* Deselect the FLASH */
-
-      SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-      ustimeout -= 1000;
+      status = w25n_read_status(priv, W25N_SR3_ADDR);
+      if ((status & W25N_SR3_BUSY) == 0)
+        {
+          priv->eccstatus = (status & W25N_SR3_ECC_MASK);
+          return OK;
+        }
     }
-  while (((status & W25N_SR_OIP) != 0) && (!nxsig_usleep(1000)) && (ustimeout > 0));
+  while (--timeout > 0);
 
-  finfo("Complete %02x\n", status);
-
-  return successif ? ((status & mask) != 0) : ((status & mask) == 0);
+  ferr("ERROR: Timeout waiting for device ready\n");
+  return -ETIMEDOUT;
 }
 
-/************************************************************************************
- * Name:  w25n_writeenable
- ************************************************************************************/
+/****************************************************************************
+ * Name: w25n_waitready_erase
+ *
+ * Description:
+ *   Wait for block erase to complete. Uses sleep since erase is slow
+ *   (2-10ms typical) and we can release the SPI bus for other tasks.
+ *
+ ****************************************************************************/
 
-static inline void w25n_writeenable(FAR struct w25n_dev_s *priv)
+static int w25n_waitready_erase(FAR struct w25n_dev_s *priv)
 {
-  /* Select this FLASH part */
+  uint8_t status;
+  int timeout = 100;  /* 100 iterations, ~1 second max */
 
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
+  do
+    {
+      status = w25n_read_status(priv, W25N_SR3_ADDR);
+      if ((status & W25N_SR3_BUSY) == 0)
+        {
+          priv->eccstatus = (status & W25N_SR3_ECC_MASK);
+          return OK;
+        }
 
-  /* Send Write Enable command */
+      /* Unlock SPI, sleep, re-lock - allows other SPI access while waiting */
 
-  SPI_SEND(priv->dev, W25N_WRITE_ENABLE);
+      w25n_unlock(priv);
+      nxsched_usleep(1000);
+      w25n_lock(priv);
+    }
+  while (--timeout > 0);
 
-  /* Deselect the FLASH */
-
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
+  ferr("ERROR: Timeout waiting for erase to complete\n");
+  return -ETIMEDOUT;
 }
 
-/************************************************************************************
- * Name:  w25n_writedisable
- ************************************************************************************/
+/****************************************************************************
+ * Name: w25n_read_page
+ *
+ * Description:
+ *   Load a page from the NAND array into the device buffer.
+ *
+ ****************************************************************************/
 
-static inline void w25n_writedisable(FAR struct w25n_dev_s *priv)
+static int w25n_read_page(FAR struct w25n_dev_s *priv, uint32_t page)
 {
-  /* Select this FLASH part */
+  int ret;
 
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
+  /* Send Page Data Read command with 16-bit page address */
 
-  /* Send Write Enable command */
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), true);
+  SPI_SEND(priv->spi, W25N_PAGE_READ);
+  SPI_SEND(priv->spi, W25N_DUMMY);
+  SPI_SEND(priv->spi, (page >> 8) & 0xff);
+  SPI_SEND(priv->spi, page & 0xff);
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), false);
 
-  SPI_SEND(priv->dev, W25N_WRITE_DISABLE);
+  /* Wait for page read to complete (tRD max 60us with ECC) */
 
-  /* Deselect the FLASH */
+  ret = w25n_waitready(priv);
+  if (ret < 0)
+    {
+      return ret;
+    }
 
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
+  /* Check ECC status */
+
+  if (priv->eccstatus == W25N_SR3_ECC_ERROR)
+    {
+      ferr("ERROR: Uncorrectable ECC error on page %lu\n",
+           (unsigned long)page);
+      return -EIO;
+    }
+
+  return OK;
 }
 
-/************************************************************************************
- * Name:  w25n_sectorerase (128K)
- ************************************************************************************/
+/****************************************************************************
+ * Name: w25n_read_buffer
+ *
+ * Description:
+ *   Read data from the device buffer (after page read).
+ *
+ ****************************************************************************/
 
-static bool w25n_sectorerase(FAR struct w25n_dev_s *priv, off_t startsector)
+static void w25n_read_buffer(FAR struct w25n_dev_s *priv, uint16_t col,
+                             FAR uint8_t *buf, size_t len)
 {
-  const uint16_t block = (uint16_t) (startsector << (priv->sectorshift - priv->pageshift));
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), true);
+  SPI_SEND(priv->spi, W25N_READ_DATA);
+  SPI_SEND(priv->spi, (col >> 8) & 0xff);
+  SPI_SEND(priv->spi, col & 0xff);
+  SPI_SEND(priv->spi, W25N_DUMMY);
+  SPI_RECVBLOCK(priv->spi, buf, len);
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), false);
+}
 
-  finfo("block sector: %08lx\n", (long)block);
+/****************************************************************************
+ * Name: w25n_load_buffer
+ *
+ * Description:
+ *   Load data into the device program buffer.
+ *
+ ****************************************************************************/
 
-  /* Send write enable instruction */
+static void w25n_load_buffer(FAR struct w25n_dev_s *priv, uint16_t col,
+                             FAR const uint8_t *buf, size_t len)
+{
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), true);
+  SPI_SEND(priv->spi, W25N_PROGRAM_LOAD);
+  SPI_SEND(priv->spi, (col >> 8) & 0xff);
+  SPI_SEND(priv->spi, col & 0xff);
+  SPI_SNDBLOCK(priv->spi, buf, len);
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), false);
+}
+
+/****************************************************************************
+ * Name: w25n_program_execute
+ *
+ * Description:
+ *   Program the buffer contents to the specified page.
+ *
+ ****************************************************************************/
+
+static int w25n_program_execute(FAR struct w25n_dev_s *priv, uint32_t page)
+{
+  uint8_t status;
+  int ret;
+
+  /* Send Program Execute command with 16-bit page address */
+
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), true);
+  SPI_SEND(priv->spi, W25N_PROGRAM_EXECUTE);
+  SPI_SEND(priv->spi, W25N_DUMMY);
+  SPI_SEND(priv->spi, (page >> 8) & 0xff);
+  SPI_SEND(priv->spi, page & 0xff);
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), false);
+
+  /* Wait for program to complete (tPP max 700us) */
+
+  ret = w25n_waitready(priv);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  /* Check for program failure */
+
+  status = w25n_read_status(priv, W25N_SR3_ADDR);
+  if (status & W25N_SR3_PFAIL)
+    {
+      ferr("ERROR: Program failed on page %lu\n", (unsigned long)page);
+      return -EIO;
+    }
+
+  return OK;
+}
+
+/****************************************************************************
+ * Name: w25n_block_erase
+ *
+ * Description:
+ *   Erase a 128KB block.
+ *
+ ****************************************************************************/
+
+static int w25n_block_erase(FAR struct w25n_dev_s *priv, uint32_t block)
+{
+  uint32_t page;
+  uint8_t status;
+  int ret;
+
+  /* Convert block number to page address (block * 64) */
+
+  page = block << 6;
+
+  finfo("Erasing block %lu (page %lu)\n",
+        (unsigned long)block, (unsigned long)page);
 
   w25n_writeenable(priv);
 
-  /* Select this FLASH part */
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), true);
+  SPI_SEND(priv->spi, W25N_BLOCK_ERASE);
+  SPI_SEND(priv->spi, W25N_DUMMY);
+  SPI_SEND(priv->spi, (page >> 8) & 0xff);
+  SPI_SEND(priv->spi, page & 0xff);
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), false);
 
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
+  /* Wait for erase to complete (2-10ms typical) */
 
-  /* Send the Block Erase instruction */
+  ret = w25n_waitready_erase(priv);
+  if (ret < 0)
+    {
+      return ret;
+    }
 
-  SPI_SEND(priv->dev, W25N_BLOCK_ERASE);
-  SPI_SEND(priv->dev, W25N_DUMMY);
-  SPI_SEND(priv->dev, (block >> 8) & 0xff);
-  SPI_SEND(priv->dev, block & 0xff);
+  /* Check for erase failure */
 
-  /* De-select the FLASH */
+  status = w25n_read_status(priv, W25N_SR3_ADDR);
+  if (status & W25N_SR3_EFAIL)
+    {
+      ferr("ERROR: Erase failed on block %lu\n", (unsigned long)block);
+      w25n_writedisable(priv);
+      return -EIO;
+    }
 
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-
-  finfo("Erased\n");
-  return w25n_waitstatus(priv, W25N_SR_E_FAIL, false);
+  w25n_writedisable(priv);
+  return OK;
 }
 
-/************************************************************************************
+/****************************************************************************
+ * Name: w25n_enable_ecc
+ ****************************************************************************/
+
+static void w25n_enable_ecc(FAR struct w25n_dev_s *priv)
+{
+  uint8_t sr2;
+
+  sr2 = w25n_read_status(priv, W25N_SR2_ADDR);
+
+  /* Enable internal ECC and force Buffer Read mode (BUF=1). The W25N01GV*T*
+   * variant ships with BUF=0 (Continuous Read), in which Read Data ignores
+   * the column address and always starts at byte 0 - which silently breaks
+   * any read that targets a non-zero column (OOB markers, sub-page reads).
+   */
+
+  sr2 |= W25N_SR2_ECCE | W25N_SR2_BUF;
+  w25n_write_status(priv, W25N_SR2_ADDR, sr2);
+
+  finfo("ECC enabled, BUF=1\n");
+}
+
+/****************************************************************************
+ * Name: w25n_unprotect
+ ****************************************************************************/
+
+static void w25n_unprotect(FAR struct w25n_dev_s *priv)
+{
+  /* Clear all block protection bits */
+
+  w25n_write_status(priv, W25N_SR1_ADDR, 0x00);
+
+  finfo("All blocks unprotected\n");
+}
+
+/****************************************************************************
+ * Name: w25n_read_bbm_lut
+ *
+ * Description:
+ *   Read all 20 entries of the hardware Bad Block Management Look-Up Table
+ *   into priv->bbm. Each entry is encoded as (lba_raw << 16) | pba_raw,
+ *   where the high two LBA bits are status flags (Enable, Invalid).
+ *   See datasheet section 8.2.8.
+ *
+ * Input Parameters:
+ *   priv - W25N device instance; priv->bbm is overwritten with the chip's
+ *          current LUT contents.
+ *
+ ****************************************************************************/
+
+static void w25n_read_bbm_lut(FAR struct w25n_dev_s *priv)
+{
+  int i;
+
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), true);
+  SPI_SEND(priv->spi, W25N_READ_BBM_LUT);
+  SPI_SEND(priv->spi, W25N_DUMMY);
+
+  /* Decode 4 bytes at a time straight into priv->bbm to avoid an 80-byte
+   * temporary on the stack. The runtime remap path is called from the
+   * logger thread and we have to keep this lean.
+   */
+
+  for (i = 0; i < W25N_BBM_LUT_ENTRIES; i++)
+    {
+      uint8_t b[4];
+
+      SPI_RECVBLOCK(priv->spi, b, 4);
+      priv->bbm[i] = ((uint32_t)b[0] << 24) |
+                     ((uint32_t)b[1] << 16) |
+                     ((uint32_t)b[2] <<  8) |
+                      (uint32_t)b[3];
+    }
+
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), false);
+}
+
+/****************************************************************************
+ * Name: w25n_bbm_swap
+ *
+ * Description:
+ *   Add an LBA->PBA link to the chip's non-volatile BBM LUT. Subsequent
+ *   accesses to the LBA are transparently routed to the PBA by the chip.
+ *
+ * Input Parameters:
+ *   priv - W25N device instance.
+ *   lba  - Logical block that should be remapped. Must be within the user
+ *          area (< W25N_USER_BLOCKS).
+ *   pba  - Physical block in the spare pool to route the LBA to. Must be
+ *          in [W25N_USER_BLOCKS, W25N01GV_BLOCKS).
+ *
+ * Returned Value:
+ *   OK on success, -EINVAL if the LBA/PBA fall outside the allowed ranges,
+ *   or a negative errno propagated from w25n_waitready.
+ *
+ ****************************************************************************/
+
+static int w25n_bbm_swap(FAR struct w25n_dev_s *priv,
+                         uint16_t lba, uint16_t pba)
+{
+  int ret;
+
+  /* Last-line sanity check: a bad LBA or PBA here would burn a LUT slot
+   * permanently. Refuse to issue A1h unless LBA is in the user area and
+   * PBA is in the spare pool.
+   */
+
+  if (lba >= W25N_USER_BLOCKS ||
+      pba < W25N_USER_BLOCKS || pba >= W25N01GV_BLOCKS)
+    {
+      ferr("ERROR: BBM swap rejected: LBA=%u PBA=%u\n", lba, pba);
+      return -EINVAL;
+    }
+
+  w25n_writeenable(priv);
+
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), true);
+  SPI_SEND(priv->spi, W25N_BBM_SWAP);
+  SPI_SEND(priv->spi, (lba >> 8) & 0xff);
+  SPI_SEND(priv->spi, lba & 0xff);
+  SPI_SEND(priv->spi, (pba >> 8) & 0xff);
+  SPI_SEND(priv->spi, pba & 0xff);
+  SPI_SELECT(priv->spi, SPIDEV_FLASH(priv->spi_devid), false);
+
+  ret = w25n_waitready(priv);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (w25n_read_status(priv, W25N_SR3_ADDR) & W25N_SR3_LUTF)
+    {
+      finfo("BBM LUT is now full\n");
+    }
+
+  return OK;
+}
+
+/****************************************************************************
+ * Name: w25n_read_oob_marker
+ *
+ * Description:
+ *   Read byte 0 of the spare area of the first page of `block`. The factory
+ *   marks bad blocks with a non-FFh value here.
+ *
+ * Input Parameters:
+ *   priv  - W25N device instance.
+ *   block - Block index to inspect (0..W25N01GV_BLOCKS - 1).
+ *
+ * Returned Value:
+ *   The marker byte (0..255), or 0x00 if the page read failed or hit an
+ *   uncorrectable ECC error (both cases are treated as bad).
+ *
+ ****************************************************************************/
+
+static int w25n_read_oob_marker(FAR struct w25n_dev_s *priv, uint16_t block)
+{
+  uint32_t page = (uint32_t)block << 6;
+  uint8_t marker = 0xff;
+  int ret;
+
+  ret = w25n_read_page(priv, page);
+  if (ret < 0 && ret != -EIO)
+    {
+      return 0x00;
+    }
+
+  w25n_read_buffer(priv, W25N_OOB_BBM_COL, &marker, 1);
+
+  if (ret == -EIO)
+    {
+      /* Uncorrectable ECC on the first page of the block: treat as bad. */
+
+      return 0x00;
+    }
+
+  return marker;
+}
+
+/****************************************************************************
+ * Name: w25n_is_factory_bad
+ ****************************************************************************/
+
+static bool w25n_is_factory_bad(FAR struct w25n_dev_s *priv, uint16_t block)
+{
+  return w25n_read_oob_marker(priv, block) != 0xff;
+}
+
+/****************************************************************************
+ * Name: w25n_pick_free_spare
+ *
+ * Description:
+ *   Find an unused, non-factory-bad block in the spare pool that is not
+ *   already a remap target in the cached LUT (priv->bbm). Callers must
+ *   refresh priv->bbm via w25n_read_bbm_lut beforehand. As a proof of
+ *   life, the candidate is erased before being returned.
+ *
+ * Input Parameters:
+ *   priv - W25N device instance with a freshly read priv->bbm.
+ *
+ * Returned Value:
+ *   A usable spare block index in [W25N_USER_BLOCKS, W25N01GV_BLOCKS), or
+ *   0xffff if no candidate remains.
+ *
+ ****************************************************************************/
+
+static uint16_t w25n_pick_free_spare(FAR struct w25n_dev_s *priv)
+{
+  uint16_t b;
+  int i;
+
+  for (b = W25N_USER_BLOCKS; b < W25N01GV_BLOCKS; b++)
+    {
+      bool taken = false;
+
+      for (i = 0; i < W25N_BBM_LUT_ENTRIES; i++)
+        {
+          uint16_t lba_raw = priv->bbm[i] >> 16;
+          uint16_t pba     = priv->bbm[i] & W25N_BBM_BLOCK_MASK;
+
+          if ((lba_raw & W25N_BBM_LBA_ENABLE) &&
+              !(lba_raw & W25N_BBM_LBA_INVALID) &&
+              pba == b)
+            {
+              taken = true;
+              break;
+            }
+        }
+
+      if (taken || w25n_is_factory_bad(priv, b))
+        {
+          continue;
+        }
+
+      /* Active proof that the block actually works: erase it. The factory
+       * OOB marker can be missing or corrupted on a block that is still
+       * unusable (worn-out, latent defect). Burning a precious LUT slot on
+       * a dead spare would be permanent, so we verify before committing.
+       * The spare is virgin space - erasing it has no data cost.
+       */
+
+      if (w25n_block_erase(priv, b) != OK)
+        {
+          fwarn("spare %u failed erase test, skipping\n", b);
+          continue;
+        }
+
+      return b;
+    }
+
+  return 0xffff;
+}
+
+/****************************************************************************
+ * Name: w25n_remap_bad_block
+ *
+ * Description:
+ *   Allocate a spare and add a BBM LUT entry mapping `block` to it. After
+ *   this returns OK the chip transparently routes accesses to `block` to
+ *   the allocated spare PBA.
+ *
+ * Input Parameters:
+ *   priv  - W25N device instance.
+ *   block - Bad user-area block that should be remapped.
+ *
+ * Returned Value:
+ *   OK on success, -ENOSPC if the BBM LUT is already full or no free
+ *   spare could be found, or a negative errno from w25n_bbm_swap.
+ *
+ ****************************************************************************/
+
+static int w25n_remap_bad_block(FAR struct w25n_dev_s *priv, uint16_t block)
+{
+  uint16_t spare;
+
+  if (w25n_read_status(priv, W25N_SR3_ADDR) & W25N_SR3_LUTF)
+    {
+      ferr("ERROR: BBM LUT full, cannot remap block %u\n", block);
+      return -ENOSPC;
+    }
+
+  w25n_read_bbm_lut(priv);
+
+  spare = w25n_pick_free_spare(priv);
+  if (spare == 0xffff)
+    {
+      ferr("ERROR: No free spare available to remap block %u\n", block);
+      return -ENOSPC;
+    }
+
+  finfo("remap block %u -> spare %u\n", block, spare);
+  return w25n_bbm_swap(priv, block, spare);
+}
+
+/****************************************************************************
+ * Name: w25n_scan_factory_bad
+ *
+ * Description:
+ *   Scan all blocks for factory bad markers and remap any user-area bad
+ *   blocks via the chip's BBM LUT. Idempotent across reboots: blocks that
+ *   are already remapped (present in the LUT) are skipped, so repeated
+ *   scans don't consume LUT slots. Takes ~200 ms (1024 OOB reads).
+ *
+ * Input Parameters:
+ *   priv - W25N device instance; priv->bbm is refreshed as a side effect.
+ *
+ ****************************************************************************/
+
+static void w25n_scan_factory_bad(FAR struct w25n_dev_s *priv)
+{
+  uint16_t block;
+  int factory_bad = 0;
+  int remapped = 0;
+  int unremapped = 0;
+  int already_in_lut = 0;
+  int lut_used = 0;
+  int i;
+
+  w25n_read_bbm_lut(priv);
+
+  for (i = 0; i < W25N_BBM_LUT_ENTRIES; i++)
+    {
+      uint16_t lba_raw = priv->bbm[i] >> 16;
+      if (lba_raw & W25N_BBM_LBA_ENABLE)
+        {
+          lut_used++;
+          if (!(lba_raw & W25N_BBM_LBA_INVALID) &&
+              (lba_raw & W25N_BBM_BLOCK_MASK) < W25N_USER_BLOCKS)
+            {
+              already_in_lut++;
+            }
+        }
+    }
+
+  for (block = 0; block < W25N_USER_BLOCKS; block++)
+    {
+      bool already_mapped = false;
+
+      for (i = 0; i < W25N_BBM_LUT_ENTRIES; i++)
+        {
+          uint16_t lba_raw = priv->bbm[i] >> 16;
+
+          if ((lba_raw & W25N_BBM_LBA_ENABLE) &&
+              !(lba_raw & W25N_BBM_LBA_INVALID) &&
+              (lba_raw & W25N_BBM_BLOCK_MASK) == block)
+            {
+              already_mapped = true;
+              break;
+            }
+        }
+
+      /* Already-mapped: remapped on a previous boot, the chip handles
+       * routing. Not factory bad: nothing to do either.
+       */
+
+      if (already_mapped || !w25n_is_factory_bad(priv, block))
+        {
+          continue;
+        }
+
+      factory_bad++;
+
+      if (w25n_read_status(priv, W25N_SR3_ADDR) & W25N_SR3_LUTF)
+        {
+          unremapped++;
+          continue;
+        }
+
+      if (w25n_remap_bad_block(priv, block) == OK)
+        {
+          remapped++;
+        }
+      else
+        {
+          unremapped++;
+        }
+    }
+
+  finfo("BBM: %d new bad blocks found (%d remapped, %d unremapped); "
+        "%d previously remapped; LUT %d/%d slots used\n",
+        factory_bad, remapped, unremapped, already_in_lut,
+        lut_used + remapped, W25N_BBM_LUT_ENTRIES);
+}
+
+/****************************************************************************
  * Name: w25n_erase
- ************************************************************************************/
+ ****************************************************************************/
 
-static int w25n_erase(FAR struct mtd_dev_s *dev, off_t startblock, size_t nblocks)
+static int w25n_erase(FAR struct mtd_dev_s *dev, off_t startblock,
+                      size_t nblocks)
 {
   FAR struct w25n_dev_s *priv = (FAR struct w25n_dev_s *)dev;
-  size_t blocksleft = nblocks;
+  size_t i;
+  int ret;
 
-  finfo("Erase: startblock: %08lx nblocks: %d\n", (long)startblock, (int)nblocks);
+  finfo("startblock=%lu nblocks=%zu\n", (unsigned long)startblock, nblocks);
 
-  /* Lock access to the SPI bus until we complete the erase */
+  w25n_lock(priv);
 
-  w25n_lock(priv->dev);
-
-  /* Wait all operations complete */
-
-  w25n_waitstatus(priv, W25N_SR_OIP, false);
-
-  while (blocksleft > 0)
+  ret = w25n_waitready(priv);
+  if (ret < 0)
     {
-      if (!w25n_sectorerase(priv, startblock))
+      w25n_unlock(priv);
+      return ret;
+    }
+
+  for (i = 0; i < nblocks; i++)
+    {
+      uint32_t block = startblock + i;
+      int attempt;
+
+      for (attempt = 0; attempt < 2; attempt++)
         {
-          break;
+          ret = w25n_block_erase(priv, block);
+
+          /* Only retry on -EIO, which w25n_block_erase returns on the
+           * chip's E-FAIL status (the block itself failed to erase).
+           * Other errors like -ETIMEDOUT from w25n_waitready_erase are
+           * SPI/comms faults, not block-level failures - remapping a
+           * block because of a transient bus issue would waste a
+           * non-recoverable BBM LUT slot.
+           */
+
+          if (ret == OK || ret != -EIO)
+            {
+              break;
+            }
+
+          /* Erase failed (E-FAIL). Try to remap the block to a spare and
+           * retry once. The chip will route the second attempt to the
+           * spare PBA transparently.
+           */
+
+          fwarn("erase failed on block %lu, attempting remap\n",
+                (unsigned long)block);
+          if (w25n_remap_bad_block(priv, (uint16_t)block) != OK)
+            {
+              ret = -EIO;
+              break;
+            }
         }
 
-      startblock++;
-      blocksleft--;
-    }
-
-  w25n_unlock(priv->dev);
-  return nblocks - blocksleft;
-}
-
-/************************************************************************************
- * Name: w25n_readbuffer
- ************************************************************************************/
-
-static void w25n_readbuffer(FAR struct w25n_dev_s *priv, uint32_t address,
-                            uint8_t *buffer, size_t length)
-{
-  const uint16_t offset = address & ((1 << priv->pageshift) - 1);
-
-  /* Select the FLASH */
-
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
-
-  SPI_SEND(priv->dev, W25N_READ_FROM_CACHE);
-
-  /* Send the address high byte first. */
-
-  SPI_SEND(priv->dev, (offset >> 8) & 0xff);
-  SPI_SEND(priv->dev, (offset) & 0xff);
-
-  /* Send a dummy byte */
-
-  SPI_SEND(priv->dev, W25N_DUMMY);
-
-  /* Then read all of the requested bytes */
-
-  SPI_RECVBLOCK(priv->dev, buffer, length);
-
-  /* Deselect the FLASH */
-
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-}
-
-/************************************************************************************
- * Name: w25n_read_page
- ************************************************************************************/
-
-static bool w25n_read_page(FAR struct w25n_dev_s *priv, uint32_t pageaddress)
-{
-  const uint16_t row = (uint16_t) (pageaddress >> priv->pageshift);
-
-  /* Select this FLASH part */
-
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
-
-  /* Send the Read Page instruction */
-
-  SPI_SEND(priv->dev, W25N_PAGE_READ);
-  SPI_SEND(priv->dev, W25N_DUMMY);
-  SPI_SEND(priv->dev, (row >> 8) & 0xff);
-  SPI_SEND(priv->dev, row & 0xff);
-
-
-  /* Deselect the FLASH */
-
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-
-  /* Wait Page Read Complete */
-
-  w25n_waitstatus(priv, W25N_SR_OIP, false);
-
-  /* Check HardWare ECC result */
-
-  w25n_eccstatusread(priv);
-  if ((priv->eccstatus & W25N_FEATURE_ECC_ERROR))
-    {
-      /* ECC report uncorrectable, discard data */
-      ferr("ECC reports uncorrectable error in page %08lx\n", pageaddress);
-      return false;
-    }
-
-  return true;
-}
-
-/************************************************************************************
- * Name: w25n_read
- ************************************************************************************/
-
-static ssize_t w25n_read(FAR struct mtd_dev_s *dev, off_t offset, size_t nbytes,
-                         FAR uint8_t *buffer)
-{
-  FAR struct w25n_dev_s *priv = (FAR struct w25n_dev_s *)dev;
-  size_t bytesleft = nbytes;
-  uint32_t position = offset;
-
-  finfo("Read: offset: %08lx nbytes: %d\n", (long)offset, (int)nbytes);
-
-  /* Lock the SPI bus and select this FLASH part */
-
-  w25n_lock(priv->dev);
-
-  /* Wait all operations complete */
-
-  w25n_waitstatus(priv, W25N_SR_OIP, false);
-
-  while (bytesleft)
-    {
-      const uint32_t pageaddress = (position >> priv->pageshift) << priv->pageshift;
-      const uint32_t spaceleft = pageaddress + (1 << priv->pageshift) - position;
-      const size_t chunklength = bytesleft < spaceleft ? bytesleft : spaceleft;
-
-      finfo("w25 read: page=%d, pos=%d, nb=%d\n",
-            pageaddress >> priv->pageshift, position & ((1 << priv->pageshift) - 1),
-            nbytes);
-
-      if (!w25n_read_page(priv, pageaddress))
+      if (ret < 0)
         {
-          break;
+          w25n_unlock(priv);
+          return ret;
         }
-
-      w25n_readbuffer(priv, position, buffer, chunklength);
-
-      position += chunklength;
-      buffer += chunklength;
-      bytesleft -= chunklength;
     }
 
-  w25n_unlock(priv->dev);
-
-  finfo("return nbytes: %d\n", (int)(nbytes - bytesleft));
-  return nbytes - bytesleft;
+  w25n_unlock(priv);
+  return (int)nblocks;
 }
 
-/**************************************************************************
+/****************************************************************************
  * Name: w25n_bread
- **************************************************************************/
+ ****************************************************************************/
 
 static ssize_t w25n_bread(FAR struct mtd_dev_s *dev, off_t startblock,
-                          size_t nblocks, FAR uint8_t *buffer)
-{
-  ssize_t nbytes;
-  FAR struct w25n_dev_s *priv = (FAR struct w25n_dev_s *)dev;
-
-  finfo("Bread: startblock: %08lx nblocks: %d\n",
-        (long)startblock, (int)nblocks);
-
-  nbytes = w25n_read(dev, startblock << priv->pageshift,
-                     nblocks << priv->pageshift, buffer);
-  if (nbytes > 0)
-    {
-      nbytes >>= priv->pageshift;
-    }
-
-  return nbytes;
-}
-
-/************************************************************************************
- * Name: w25n_write_to_cache
- ************************************************************************************/
-
-static void w25n_write_to_cache(FAR struct w25n_dev_s *priv, uint32_t address,
-                                const uint8_t *buffer, size_t length)
-{
-  const uint16_t offset = address & ((1 << priv->pageshift) - 1);
-
-  /* Select the FLASH */
-
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
-
-  /* Send the Program Load command */
-
-  SPI_SEND(priv->dev, W25N_PROGRAM_LOAD);
-
-  /* Send the address high byte first. */
-
-  SPI_SEND(priv->dev, (offset >> 8) & 0xff);
-  SPI_SEND(priv->dev, (offset) & 0xff);
-
-  /* Send block of bytes */
-
-  SPI_SNDBLOCK(priv->dev, buffer, length);
-
-  /* De-select the FLASH */
-
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-}
-
-/************************************************************************************
- * Name: w25n_execute_write
- ************************************************************************************/
-
-static bool w25n_execute_write(FAR struct w25n_dev_s *priv, uint32_t pageaddress)
-{
-  const uint16_t row = (uint16_t) (pageaddress >> priv->pageshift);
-
-  /* Select this FLASH part */
-
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
-
-  /* Send the Program Execute instruction */
-
-  SPI_SEND(priv->dev, W25N_PROGRAM_EXECUTE);
-  SPI_SEND(priv->dev, W25N_DUMMY);
-  SPI_SEND(priv->dev, (row >> 8) & 0xff);
-  SPI_SEND(priv->dev, row & 0xff);
-
-  /* De-select the FLASH */
-
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-
-  return w25n_waitstatus(priv, W25N_SR_P_FAIL, false);
-}
-
-/************************************************************************************
- * Name: w25n_write
- ************************************************************************************/
-
-static ssize_t w25n_write(FAR struct mtd_dev_s *dev, off_t offset, size_t nbytes,
-                          FAR const uint8_t *buffer)
+                          size_t nblocks, FAR uint8_t *buf)
 {
   FAR struct w25n_dev_s *priv = (FAR struct w25n_dev_s *)dev;
-  size_t bytesleft = nbytes;
-  uint32_t position = offset;
+  size_t i;
+  int ret;
 
-  finfo("Write: offset: %08lx nbytes: %d \n", (long)offset, (int)nbytes);
-  w25n_lock(priv->dev);
+  finfo("startblock=%lu nblocks=%zu\n", (unsigned long)startblock, nblocks);
 
-  /* Wait all operations complete */
+  w25n_lock(priv);
 
-  w25n_waitstatus(priv, W25N_SR_OIP, false);
-
-  while (bytesleft)
+  for (i = 0; i < nblocks; i++)
     {
-      const uint32_t pageaddress = (position >> priv->pageshift) << priv->pageshift;
-      const uint32_t spaceleft = pageaddress + (1 << priv->pageshift) - position;
-      const size_t chunklength = bytesleft < spaceleft ? bytesleft : spaceleft;
+      uint32_t page = startblock + i;
 
-      w25n_writeenable(priv);
-      w25n_write_to_cache(priv, position, buffer, chunklength);
-      if (!w25n_execute_write(priv, pageaddress))
+      ret = w25n_read_page(priv, page);
+      if (ret < 0)
         {
-          break;
+          w25n_unlock(priv);
+          return ret;
         }
 
-      position += chunklength;
-      buffer += chunklength;
-      bytesleft -= chunklength;
+      w25n_read_buffer(priv, 0, buf + (i * W25N_PAGE_SIZE), W25N_PAGE_SIZE);
     }
 
-  w25n_unlock(priv->dev);
-
-  return nbytes - bytesleft;
+  w25n_unlock(priv);
+  return nblocks;
 }
 
-/**************************************************************************
+/****************************************************************************
  * Name: w25n_bwrite
- **************************************************************************/
+ ****************************************************************************/
 
 static ssize_t w25n_bwrite(FAR struct mtd_dev_s *dev, off_t startblock,
-    size_t nblocks, FAR const uint8_t *buffer)
+                           size_t nblocks, FAR const uint8_t *buf)
 {
-  ssize_t nbytes;
-
   FAR struct w25n_dev_s *priv = (FAR struct w25n_dev_s *)dev;
+  size_t i;
+  int ret;
 
-  finfo("Bwrite: startblock: %08lx nblocks: %d\n",
-        (long)startblock, (int)nblocks);
+  finfo("startblock=%lu nblocks=%zu\n", (unsigned long)startblock, nblocks);
 
-  /* Lock the SPI bus and write all of the pages to FLASH */
+  w25n_lock(priv);
 
-  nbytes = w25n_write(dev, startblock << priv->pageshift,
-                nblocks << priv->pageshift, buffer);
-  if (nbytes > 0)
+  ret = w25n_waitready(priv);
+  if (ret < 0)
     {
-      nbytes >>= priv->pageshift;
+      w25n_unlock(priv);
+      return ret;
     }
 
-  return nbytes;
+  for (i = 0; i < nblocks; i++)
+    {
+      uint32_t page = startblock + i;
+      int attempt;
+
+      for (attempt = 0; attempt < 2; attempt++)
+        {
+          /* Write Enable must be set before each Program Load. */
+
+          w25n_writeenable(priv);
+          w25n_load_buffer(priv, 0, buf + (i * W25N_PAGE_SIZE),
+                           W25N_PAGE_SIZE);
+          ret = w25n_program_execute(priv, page);
+
+          /* As in w25n_erase, only retry on -EIO (chip P-FAIL); other
+           * errors indicate bus/comms faults rather than a bad block.
+           */
+
+          if (ret == OK || ret != -EIO)
+            {
+              break;
+            }
+
+          /* Program failed (P-FAIL). Remap the underlying block and retry;
+           * the chip will route the next program to the spare PBA. The
+           * data buffer is reloaded above on the retry pass.
+           */
+
+          fwarn("program failed on page %lu, remapping block %lu\n",
+                (unsigned long)page, (unsigned long)(page >> 6));
+          if (w25n_remap_bad_block(priv, (uint16_t)(page >> 6)) != OK)
+            {
+              ret = -EIO;
+              break;
+            }
+        }
+
+      if (ret < 0)
+        {
+          w25n_writedisable(priv);
+          w25n_unlock(priv);
+          return ret;
+        }
+    }
+
+  w25n_writedisable(priv);
+  w25n_unlock(priv);
+  return nblocks;
 }
 
-/************************************************************************************
- * Name: mx25l_ioctl
- ************************************************************************************/
+/****************************************************************************
+ * Name: w25n_read
+ ****************************************************************************/
+
+static ssize_t w25n_read(FAR struct mtd_dev_s *dev, off_t offset,
+                         size_t nbytes, FAR uint8_t *buf)
+{
+  FAR struct w25n_dev_s *priv = (FAR struct w25n_dev_s *)dev;
+  size_t bytesread = 0;
+  int ret;
+
+  finfo("offset=%lu nbytes=%zu\n", (unsigned long)offset, nbytes);
+
+  w25n_lock(priv);
+
+  while (bytesread < nbytes)
+    {
+      uint32_t page = offset >> priv->pageshift;
+      uint16_t col = offset & ((1 << priv->pageshift) - 1);
+      size_t chunk = nbytes - bytesread;
+
+      if (chunk > W25N_PAGE_SIZE - col)
+        {
+          chunk = W25N_PAGE_SIZE - col;
+        }
+
+      ret = w25n_read_page(priv, page);
+      if (ret < 0)
+        {
+          w25n_unlock(priv);
+          return ret;
+        }
+
+      w25n_read_buffer(priv, col, buf + bytesread, chunk);
+
+      bytesread += chunk;
+      offset += chunk;
+    }
+
+  w25n_unlock(priv);
+  return bytesread;
+}
+
+/****************************************************************************
+ * Name: w25n_ioctl
+ ****************************************************************************/
 
 static int w25n_ioctl(FAR struct mtd_dev_s *dev, int cmd, unsigned long arg)
 {
   FAR struct w25n_dev_s *priv = (FAR struct w25n_dev_s *)dev;
   int ret = -EINVAL;
 
-  finfo("cmd: %d \n", cmd);
+  finfo("cmd=%d arg=%lu\n", cmd, arg);
 
   switch (cmd)
     {
       case MTDIOC_GEOMETRY:
         {
           FAR struct mtd_geometry_s *geo =
-                  (FAR struct mtd_geometry_s *)((uintptr_t)arg);
+            (FAR struct mtd_geometry_s *)((uintptr_t)arg);
+
           if (geo)
             {
-              geo->blocksize    = (1 << priv->pageshift);
-              geo->erasesize    = (1 << priv->sectorshift);
-              geo->neraseblocks = priv->nsectors;
+              memset(geo, 0, sizeof(*geo));
+
+              /* Block size is the page size (smallest writable unit) */
+
+              geo->blocksize = W25N_PAGE_SIZE;
+
+              /* Erase size is the block size (smallest erasable unit) */
+
+              geo->erasesize = W25N_BLOCK_SIZE;
+
+              /* Number of erase blocks */
+
+              geo->neraseblocks = priv->nblocks;
 
               ret = OK;
 
-              finfo("blocksize: %d erasesize: %d neraseblocks: %d\n",
-                       geo->blocksize, geo->erasesize, geo->neraseblocks);
+              finfo("blocksize=%lu erasesize=%lu neraseblocks=%lu\n",
+                    (unsigned long)geo->blocksize,
+                    (unsigned long)geo->erasesize,
+                    (unsigned long)geo->neraseblocks);
+            }
+        }
+        break;
+
+      case BIOC_PARTINFO:
+        {
+          FAR struct partition_info_s *info =
+            (FAR struct partition_info_s *)((uintptr_t)arg);
+
+          if (info != NULL)
+            {
+              info->numsectors = (uint32_t)priv->nblocks *
+                                 W25N_PAGES_PER_BLOCK;
+              info->sectorsize = W25N_PAGE_SIZE;
+              info->startsector = 0;
+              info->parent[0] = '\0';
+              ret = OK;
             }
         }
         break;
@@ -789,205 +1282,131 @@ static int w25n_ioctl(FAR struct mtd_dev_s *dev, int cmd, unsigned long arg)
         {
           /* Erase the entire device */
 
-          ret = w25n_erase(dev, 0, priv->nsectors);
+          ret = w25n_erase(dev, 0, priv->nblocks);
+          if (ret >= 0)
+            {
+              ret = OK;
+            }
         }
         break;
 
       case MTDIOC_ECCSTATUS:
         {
-          uint8_t *result = (uint8_t *)arg;
-          *result =
-              (priv->eccstatus & W25N_FEATURE_ECC_MASK) >> W25N_FEATURE_ECC_OFFSET;
+          FAR uint8_t *result = (FAR uint8_t *)((uintptr_t)arg);
 
-          ret = OK;
+          if (result)
+            {
+              *result = priv->eccstatus >> 4;
+              ret = OK;
+            }
         }
-      break;
+        break;
 
       default:
-        ret = -ENOTTY; /* Bad command */
+        ret = -ENOTTY;
         break;
     }
 
-  finfo("return %d\n", ret);
   return ret;
 }
 
-/************************************************************************************
- * Name:  w25n_eccstatusread
- ************************************************************************************/
-
-static inline void w25n_eccstatusread(FAR struct w25n_dev_s *priv)
-{
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
-  SPI_SEND(priv->dev, W25N_GET_FEATURE);
-  SPI_SEND(priv->dev, W25N_STATUS);
-  priv->eccstatus = SPI_SEND(priv->dev, W25N_DUMMY);
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-}
-
-/************************************************************************************
- * Name:  w25n_enable_ecc
- ************************************************************************************/
-
-static inline void w25n_enable_buffer(FAR struct w25n_dev_s *priv)
-{
-
-    uint8_t regval;
-  w25n_lock(priv->dev);
-
-  /* Read the existing configuration register value */
-
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
-  SPI_SEND(priv->dev, W25N_GET_FEATURE);
-  SPI_SEND(priv->dev, W25N_SECURE_OTP);
-  regval = SPI_SEND(priv->dev, W25N_DUMMY);
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-
-  /* Set the enable buffer bit */
-  regval |= W25N_SOTP_BUF;
-
-  /* Write the modified register back to the chip */
-
-  w25n_writeenable(priv);
-
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
-  SPI_SEND(priv->dev, W25N_SET_FEATURE);
-  SPI_SEND(priv->dev, W25N_SECURE_OTP);
-  SPI_SEND(priv->dev, regval);
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-
-  w25n_writedisable(priv);
-  w25n_unlock(priv->dev);
-}
-
-/************************************************************************************
- * Name:  w25n_enable_ecc
- ************************************************************************************/
-
-static inline void w25n_enable_ecc(FAR struct w25n_dev_s *priv)
-{
-  uint8_t regval;
-
-  w25n_lock(priv->dev);
-
-  /* Read the existing configuration register value */
-
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
-  SPI_SEND(priv->dev, W25N_GET_FEATURE);
-  SPI_SEND(priv->dev, W25N_SECURE_OTP);
-  regval = SPI_SEND(priv->dev, W25N_DUMMY);
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-
-  /* Set the enable ECC bit */
-  regval |= W25N_SOTP_ECC;
-
-  /* Write the modified register back to the chip */
-
-  w25n_writeenable(priv);
-
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
-  SPI_SEND(priv->dev, W25N_SET_FEATURE);
-  SPI_SEND(priv->dev, W25N_SECURE_OTP);
-  SPI_SEND(priv->dev, regval);
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-
-  w25n_writedisable(priv);
-  w25n_unlock(priv->dev);
-}
-
-/************************************************************************************
- * Name:  w25n_unlockblocks
- ************************************************************************************/
-
-static inline void w25n_unlockblocks(FAR struct w25n_dev_s *priv)
-{
-  uint8_t blockprotection = 0x00;
-
-  w25n_lock(priv->dev);
-  w25n_writeenable(priv);
-
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
-  SPI_SEND(priv->dev, W25N_SET_FEATURE);
-  SPI_SEND(priv->dev, W25N_BLOCK_PROTECTION);
-  SPI_SEND(priv->dev, blockprotection);
-  SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-
-  w25n_writedisable(priv);
-  w25n_unlock(priv->dev);
-}
-
-/************************************************************************************
+/****************************************************************************
  * Public Functions
- ************************************************************************************/
+ ****************************************************************************/
 
-/************************************************************************************
+/****************************************************************************
  * Name: w25n_initialize
  *
  * Description:
- *   Create an initialize MTD device instance.  MTD devices are not registered
- *   in the file system, but are created as instances that can be bound to
- *   other functions (such as a block or character driver front end).
+ *   Create an initialized MTD device instance for W25N SPI NAND FLASH.
  *
- ************************************************************************************/
+ ****************************************************************************/
 
-FAR struct mtd_dev_s *w25n_initialize(FAR struct spi_dev_s *dev,
+FAR struct mtd_dev_s *w25n_initialize(FAR struct spi_dev_s *spi,
                                       uint32_t spi_devid)
 {
   FAR struct w25n_dev_s *priv;
+  uint32_t actual_freq;
   int ret;
 
-  finfo("dev: %p\n", dev);
+  finfo("spi=%p spi_devid=%lu\n", spi, (unsigned long)spi_devid);
 
-  priv = (FAR struct w25n_dev_s *)kmm_zalloc(sizeof(struct w25n_dev_s));
-  if (priv)
+  /* Allocate device structure */
+
+  priv = kmm_zalloc(sizeof(struct w25n_dev_s));
+  if (priv == NULL)
     {
-      /* Initialize the allocated structure. (unsupported methods were
-       * nullified by kmm_zalloc).
-       */
-
-      priv->mtd.erase  = w25n_erase;
-      priv->mtd.bread  = w25n_bread;
-      priv->mtd.bwrite = w25n_bwrite;
-      priv->mtd.ioctl  = w25n_ioctl;
-      priv->mtd.name   = "w25n";
-      priv->dev        = dev;
-      priv->spi_devid  = spi_devid;
-
-      /* De-select the FLASH */
-
-      SPI_SELECT(dev, SPIDEV_FLASH(priv->spi_devid), false);
-
-      /* Reset the flash */
-      w25n_lock(priv->dev);
-      SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), true);
-      SPI_SEND(priv->dev, W25N_RESET);
-      SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->spi_devid), false);
-
-      /* Wait reset complete */
-
-      w25n_waitstatustimeout(priv, W25N_SR_OIP, false, 50 * USEC_PER_MSEC);
-      w25n_unlock(priv->dev);
-
-      /* Identify the FLASH chip and get its capacity */
-
-      ret = w25n_readid(priv);
-      if (ret != OK)
-        {
-          /* Unrecognized! Discard all of that work we just did and return NULL */
-
-          ferr("ERROR: Unrecognized\n");
-          kmm_free(priv);
-          return NULL;
-        }
-
-      w25n_enable_ecc(priv);
-      w25n_waitstatus(priv, W25N_SR_OIP, false);
-      w25n_unlockblocks(priv);
-      w25n_enable_buffer(priv);
+      ferr("ERROR: Failed to allocate device structure\n");
+      return NULL;
     }
 
-  /* Return the implementation-specific state structure as the MTD device */
+  /* Initialize the device structure */
 
-  finfo("Return %p\n", priv);
-  return (FAR struct mtd_dev_s *)priv;
+  priv->mtd.erase  = w25n_erase;
+  priv->mtd.bread  = w25n_bread;
+  priv->mtd.bwrite = w25n_bwrite;
+  priv->mtd.read   = w25n_read;
+  priv->mtd.ioctl  = w25n_ioctl;
+  priv->mtd.name   = "w25n";
+  priv->spi        = spi;
+  priv->spi_devid  = spi_devid;
+
+  /* Deselect the device */
+
+  SPI_SELECT(spi, SPIDEV_FLASH(spi_devid), false);
+
+  /* Lock and configure SPI */
+
+  w25n_lock(priv);
+
+  /* Reset the device */
+
+  w25n_reset(priv);
+
+  /* Wait for reset and read ID */
+
+  ret = w25n_readid(priv);
+  if (ret < 0)
+    {
+      w25n_unlock(priv);
+      kmm_free(priv);
+      return NULL;
+    }
+
+  /* Unprotect all blocks */
+
+  w25n_unprotect(priv);
+
+  /* Enable ECC */
+
+  w25n_enable_ecc(priv);
+
+  /* Reserve the top of the array as the BBM spare pool and scan the user
+   * area for factory bad blocks, remapping any we find via the chip's
+   * hardware BBM LUT.
+   */
+
+  priv->nblocks = W25N_USER_BLOCKS;
+  w25n_scan_factory_bad(priv);
+
+  w25n_unlock(priv);
+
+  /* Log actual SPI frequency */
+
+  w25n_lock(priv);
+  actual_freq = SPI_SETFREQUENCY(priv->spi, CONFIG_W25N_SPIFREQUENCY);
+  w25n_unlock(priv);
+
+  finfo("W25N: SPI freq: requested=%lu, actual=%lu Hz\n",
+        (unsigned long)CONFIG_W25N_SPIFREQUENCY,
+        (unsigned long)actual_freq);
+
+  finfo("W25N01GV ready: %u user blocks (%u spare), "
+        "%u bytes/block, %u total user MB, SPI %lu Hz\n",
+        (unsigned)priv->nblocks, (unsigned)W25N_SPARE_RESERVE,
+        (unsigned)W25N_BLOCK_SIZE,
+        (unsigned)(((uint32_t)priv->nblocks * W25N_BLOCK_SIZE) >> 20),
+        (unsigned long)actual_freq);
+
+  return &priv->mtd;
 }

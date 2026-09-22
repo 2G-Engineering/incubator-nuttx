@@ -33,7 +33,7 @@
 #include <semaphore.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #ifdef CONFIG_SERIAL_TERMIOS
 #  include <termios.h>
@@ -455,7 +455,7 @@ static void up_shutdown(struct uart_dev_s *dev)
  * Description:
  *   Configure the UART to operation in interrupt driven mode.  This method
  *   is called when the serial port is opened.  Normally, this is just after
- *   the the setup() method is called, however, the serial console may
+ *   the setup() method is called, however, the serial console may
  *   operate in a non-interrupt driven mode during the boot phase.
  *
  *   RX and TX interrupts are not enabled by the attach method (unless the

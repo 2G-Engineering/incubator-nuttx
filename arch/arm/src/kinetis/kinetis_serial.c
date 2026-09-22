@@ -33,8 +33,8 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/debug.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/fs/ioctl.h>
@@ -292,6 +292,9 @@ struct up_dev_s
   uint8_t   stop2;     /* Use 2 stop bits */
 #ifdef CONFIG_SERIAL_IFLOWCONTROL
   bool      iflow;     /* input flow control (RTS) enabled */
+#ifdef CONFIG_SERIAL_RS485CONTROL
+  bool      rs485control;     /* RTS used as transmit enable */
+#endif
 #endif
 #ifdef CONFIG_SERIAL_OFLOWCONTROL
   bool      oflow;     /* output flow control (CTS) enabled */
@@ -482,6 +485,9 @@ static struct up_dev_s g_uart0priv =
 #  if defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_UART0_IFLOWCONTROL)
   .iflow          = true,
   .rts_gpio       = PIN_UART0_RTS,
+#  if defined(CONFIG_SERIAL_RS485CONTROL) && defined(CONFIG_UART0_RS485CONTROL)
+  .rs485control   = true,
+#  endif
 #  endif
 #  ifdef CONFIG_KINETIS_UART0_RXDMA
   .rxdma_reqsrc   = KINETIS_DMA_REQUEST_SRC_UART0_RX,
@@ -533,6 +539,9 @@ static struct up_dev_s g_uart1priv =
 #  if defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_UART1_IFLOWCONTROL)
   .iflow          = true,
   .rts_gpio       = PIN_UART1_RTS,
+#  if defined(CONFIG_SERIAL_RS485CONTROL) && defined(CONFIG_UART1_RS485CONTROL)
+  .rs485control     = true,
+#  endif
 #  endif
 #  ifdef CONFIG_KINETIS_UART1_RXDMA
   .rxdma_reqsrc   = KINETIS_DMA_REQUEST_SRC_UART1_RX,
@@ -584,6 +593,9 @@ static struct up_dev_s g_uart2priv =
 #  if defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_UART2_IFLOWCONTROL)
   .iflow          = true,
   .rts_gpio       = PIN_UART2_RTS,
+#  if defined(CONFIG_SERIAL_RS485CONTROL) && defined(CONFIG_UART2_RS485CONTROL)
+  .rs485control   = true,
+#  endif
 #  endif
 #  ifdef CONFIG_KINETIS_UART2_RXDMA
   .rxdma_reqsrc   = KINETIS_DMA_REQUEST_SRC_UART2_RX,
@@ -635,6 +647,9 @@ static struct up_dev_s g_uart3priv =
 #  if defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_UART3_IFLOWCONTROL)
   .iflow          = true,
   .rts_gpio       = PIN_UART3_RTS,
+#  if defined(CONFIG_SERIAL_RS485CONTROL) && defined(CONFIG_UART3_RS485CONTROL)
+  .rs485control   = true,
+#  endif
 #  endif
 #  ifdef CONFIG_KINETIS_UART3_RXDMA
   .rxdma_reqsrc   = KINETIS_DMA_REQUEST_SRC_UART3_RX,
@@ -686,6 +701,9 @@ static struct up_dev_s g_uart4priv =
 #  if defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_UART4_IFLOWCONTROL)
   .iflow          = true,
   .rts_gpio       = PIN_UART4_RTS,
+#  if defined(CONFIG_SERIAL_RS485CONTROL) && defined(CONFIG_UART4_RS485CONTROL)
+  .rs485control   = true,
+#  endif
 #  endif
 #  ifdef CONFIG_KINETIS_UART4_RXDMA
   .rxdma_reqsrc   = KINETIS_DMA_REQUEST_SRC_UART4_RXTX,
@@ -737,6 +755,9 @@ static struct up_dev_s g_uart5priv =
 #  if defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_UART5_IFLOWCONTROL)
   .iflow          = true,
   .rts_gpio       = PIN_UART5_RTS,
+#  if defined(CONFIG_SERIAL_RS485CONTROL) && defined(CONFIG_UART5_RS485CONTROL)
+  .rs485control   = true,
+#  endif
 #  endif
 #  ifdef CONFIG_KINETIS_UART5_RXDMA
   .rxdma_reqsrc   = KINETIS_DMA_REQUEST_SRC_UART5_RX,
@@ -904,8 +925,14 @@ static int up_setup(struct uart_dev_s *dev)
   struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
 #ifdef CONFIG_SERIAL_IFLOWCONTROL
   bool iflow = priv->iflow;
+#ifdef CONFIG_SERIAL_RS485CONTROL
+  bool rs485control = priv->rs485control;
+#else
+  bool rs485control = false;
+#endif
 #else
   bool iflow = false;
+  bool rs485control = false;
 #endif
 #ifdef CONFIG_SERIAL_OFLOWCONTROL
   bool oflow = priv->oflow;
@@ -917,7 +944,7 @@ static int up_setup(struct uart_dev_s *dev)
 
   kinetis_uartconfigure(priv->uartbase, priv->baud, priv->clock,
                         priv->parity, priv->bits, priv->stop2,
-                        iflow, oflow);
+                        iflow, oflow, rs485control);
 #endif
 
   /* Make sure that all interrupts are disabled */
@@ -1064,7 +1091,7 @@ static void up_dma_shutdown(struct uart_dev_s *dev)
  * Description:
  *   Configure the UART to operation in interrupt driven mode.  This method
  *   is called when the serial port is opened.  Normally, this is just after
- *   the the setup() method is called, however, the serial console may
+ *   the setup() method is called, however, the serial console may
  *   operate in a non-interrupt driven mode during the boot phase.
  *
  *   RX and TX interrupts are not enabled when by the attach method (unless
@@ -1261,13 +1288,114 @@ static int up_interrupts(int irq, void *context, void *arg)
        * the TX data register.
        */
 
-      if ((s1 & UART_S1_TDRE) != 0)
+      if ((s1 & UART_S1_TDRE) != 0 && dev->xmit.head != dev->xmit.tail)
 #endif
         {
           /* Process outgoing bytes */
 
           uart_xmitchars(dev);
           handled = true;
+        }
+
+      if ((s1 & UART_S1_TC) == 0)
+        {
+          /* TC cleared, transmission started. */
+
+#if defined(CONFIG_UART0_RS485CONTROL_RTSISGPIO)
+          if (&g_uart0priv == priv)
+            {
+              kinetis_gpiowrite(g_uart0priv.rts_gpio, 1);
+              handled = true;
+            }
+
+#endif
+#if defined(CONFIG_UART1_RS485CONTROL_RTSISGPIO)
+          if (&g_uart1priv == priv)
+            {
+              kinetis_gpiowrite(g_uart1priv.rts_gpio, 1);
+              handled = true;
+            }
+
+#endif
+#if defined(CONFIG_UART2_RS485CONTROL_RTSISGPIO)
+          if (&g_uart2priv == priv)
+            {
+              kinetis_gpiowrite(g_uart2priv.rts_gpio, 1);
+              handled = true;
+            }
+
+#endif
+#if defined(CONFIG_UART3_RS485CONTROL_RTSISGPIO)
+          if (&g_uart3priv == priv)
+            {
+              kinetis_gpiowrite(g_uart3priv.rts_gpio, 1);
+              handled = true;
+            }
+
+#endif
+#if defined(CONFIG_UART4_RS485CONTROL_RTSISGPIO)
+          if (&g_uart4priv == priv)
+            {
+              kinetis_gpiowrite(g_uart4priv.rts_gpio, 1);
+              handled = true;
+            }
+
+#endif
+#if defined(CONFIG_UART5_RS485CONTROL_RTSISGPIO)
+          if (&g_uart5priv == priv)
+            {
+              kinetis_gpiowrite(g_uart5priv.rts_gpio, 1);
+              handled = true;
+            }
+
+#endif
+        }
+      else
+        {
+          /* Transmission complete. Do not set handle, exit immediately. */
+
+#if defined(CONFIG_UART0_RS485CONTROL_RTSISGPIO)
+          if (&g_uart0priv == priv)
+            {
+              kinetis_gpiowrite(g_uart0priv.rts_gpio, 0);
+            }
+
+#endif
+#if defined(CONFIG_UART1_RS485CONTROL_RTSISGPIO)
+          if (&g_uart1priv == priv)
+            {
+              kinetis_gpiowrite(g_uart1priv.rts_gpio, 0);
+            }
+
+#endif
+#if defined(CONFIG_UART2_RS485CONTROL_RTSISGPIO)
+          if (&g_uart2priv == priv)
+            {
+              kinetis_gpiowrite(g_uart2priv.rts_gpio, 0);
+            }
+
+#endif
+#if defined(CONFIG_UART3_RS485CONTROL_RTSISGPIO)
+          if (&g_uart3priv == priv)
+            {
+              kinetis_gpiowrite(g_uart3priv.rts_gpio, 0);
+            }
+
+#endif
+#if defined(CONFIG_UART4_RS485CONTROL_RTSISGPIO)
+          if (&g_uart4priv == priv)
+            {
+              kinetis_gpiowrite(g_uart4priv.rts_gpio, 0);
+            }
+
+#endif
+#if defined(CONFIG_UART5_RS485CONTROL_RTSISGPIO)
+          if (&g_uart5priv == priv)
+            {
+              kinetis_gpiowrite(g_uart5priv.rts_gpio, 0);
+            }
+
+#endif
         }
     }
 
@@ -1440,9 +1568,15 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
          * TCSADRAIN / TCSAFLUSH
          */
 
+#if defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_SERIAL_RS485CONTROL)
         kinetis_uartconfigure(priv->uartbase, priv->baud, priv->clock,
                                 priv->parity, priv->bits, priv->stop2,
-                                iflow, oflow);
+                                iflow, oflow, priv->rs485control);
+#else
+        kinetis_uartconfigure(priv->uartbase, priv->baud, priv->clock,
+                                priv->parity, priv->bits, priv->stop2,
+                                iflow, oflow, false);
+#endif
       }
       break;
 #endif /* CONFIG_SERIAL_TERMIOS */
@@ -1886,13 +2020,8 @@ static void up_txint(struct uart_dev_s *dev, bool enable)
 
 #ifndef CONFIG_SUPPRESS_SERIAL_INTS
       priv->ie |= UART_C2_TIE;
+      priv->ie |= UART_C2_TCIE;
       up_setuartint(priv);
-
-      /* Fake a TX interrupt here by just calling uart_xmitchars() with
-       * interrupts disabled (note this may recurse).
-       */
-
-      uart_xmitchars(dev);
 #endif
     }
   else
@@ -1900,6 +2029,7 @@ static void up_txint(struct uart_dev_s *dev, bool enable)
       /* Disable the TX interrupt */
 
       priv->ie &= ~UART_C2_TIE;
+      priv->ie &= ~UART_C2_TCIE;
       up_setuartint(priv);
     }
 

@@ -27,7 +27,7 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
@@ -68,6 +68,6 @@
 
 void up_allocate_heap(void **heap_start, size_t *heap_size)
 {
-  *heap_start = _edata;
-  *heap_size = (size_t)((uintptr_t)_eheap - (uintptr_t)_edata);
+  *heap_start = _sheap;
+  *heap_size = (size_t)((uintptr_t)_eheap - (uintptr_t)_sheap);
 }

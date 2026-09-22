@@ -17,7 +17,6 @@ config ARCH_CHIP_IMX93
 	select ARMV8A_HAVE_GICv3
 	select ARCH_CORTEX_A55 if !IMX9_BOOTLOADER
 	select ARCH_CORTEX_A53 if IMX9_BOOTLOADER
-	select ARCH_HAVE_PWM_MULTICHAN
 	select ARCH_HAVE_RESET
 	---help---
 		EL3/OCRAM is a bad combination for atomic instructions, they don't work.
@@ -28,6 +27,7 @@ config ARCH_CHIP_IMX95
 	select ARCH_HAVE_MULTICPU
 	select ARMV8A_HAVE_GICv3
 	select ARCH_CORTEX_A55
+	select ARCH_HAVE_RESET
 	select IMX9_HAVE_MU
 
 endchoice # i.MX9 Chip Selection
@@ -66,7 +66,6 @@ endmenu # DMA Allocator Configuration
 
 config IMX9_FLEXIO_PWM
 	bool
-	select PWM_MULTICHAN
 	default n
 
 config IMX9_HAVE_ATF_FIRMWARE
@@ -201,6 +200,9 @@ choice
 	depends on IMX9_USDHC2
 	prompt "Bus width for USDHC2"
 	default IMX9_USDHC2_WIDTH_D1_D4
+	---help---
+		USDHC2 supports up to 4-bit data width only according to chip
+		spec. No 8-bit option is provided.
 
 config IMX9_USDHC2_WIDTH_D1_ONLY
 	bool "One bit"
@@ -352,9 +354,95 @@ config IMX9_FLEXIO2_PWM_CHANNEL_PINS
 	hex "FlexIO outputs used for FLEXIO2 timers"
 	default 0x0000000000000000
 
+config IMX9_FLEXIO_DSHOT
+	bool
+	default n
+	select DSHOT
+
+choice
+	prompt "DShot timestamp source"
+	default IMX9_FLEXIO_DSHOT_TS_SYSTIME
+	depends on IMX9_FLEXIO_DSHOT
+
+config IMX9_FLEXIO_DSHOT_TS_SYSTIME
+	bool "Use clock_systime"
+	---help---
+		Use clock_systime for dshot response timestamping
+
+config IMX9_FLEXIO_DSHOT_TS_BOARDTIME
+	bool "Use board provided timestamping function"
+	---help---
+		Board-specific sources provide "board_systime_timespec"
+		function, which is called to get timestamp. This can be used
+		e.g. if some special time base is required for the timestamping.
+
+config IMX9_FLEXIO_DSHOT_TS_NONE
+	bool "Timestamping disabled"
+	---help---
+		No timestamping, timestamps stay at 0
+
+endchoice # DShot timestamp source
+
+config IMX9_FLEXIO1_DSHOT
+	bool "Enable FLEXIO1 based DShot"
+	default n
+	select IMX9_FLEXIO_DSHOT
+
+config IMX9_FLEXIO1_DSHOT_NCHANNELS
+	int "Number of channels for FLEXIO1 DShot"
+	depends on IMX9_FLEXIO1_DSHOT
+	default 4
+	range 1 8
+
+config IMX9_FLEXIO1_DSHOT_TX_TIMER
+	int "FlexIO timer to use for TX on all channels"
+	depends on IMX9_FLEXIO1_DSHOT
+	default 6
+	range -1 7
+	---help---
+		If set to -1, each DSHOT channel uses it's own individual timer.
+		When set to timer 0-7, all the DSHOT TX channels use this common
+		timer to clock out the TX messages. This reduces interrupt load
+		and synchronizes all the channels to send out messages simultaneously.
+
+config IMX9_FLEXIO1_DSHOT_CHANNEL_PINS
+	hex "FlexIO outputs used for FLEXIO1 DShot channels"
+	depends on IMX9_FLEXIO1_DSHOT
+	default 0x0000000007060504
+	---help---
+		Packed pin-index array: one byte per channel, byte 0 is channel 0.
+
+config IMX9_FLEXIO2_DSHOT
+	bool "Enable FLEXIO2 based DShot"
+	default n
+	select IMX9_FLEXIO_DSHOT
+
+config IMX9_FLEXIO2_DSHOT_NCHANNELS
+	int "Number of channels for FLEXIO2 DShot"
+	depends on IMX9_FLEXIO2_DSHOT
+	default 8
+	range 1 8
+
+config IMX9_FLEXIO2_DSHOT_CHANNEL_PINS
+	hex "FlexIO outputs used for FLEXIO2 DShot channels"
+	depends on IMX9_FLEXIO2_DSHOT
+	default 0x0000000007060504
+	---help---
+		Packed pin-index array: one byte per channel, byte 0 is channel 0.
+
+config IMX9_FLEXIO2_DSHOT_TX_TIMER
+	int "FlexIO timer to use for TX on all channels"
+	depends on IMX9_FLEXIO2_DSHOT
+	default 6
+	range -1 7
+	---help---
+		If set to -1, each DSHOT channel uses it's own individual timer.
+		When set to timer 0-7, all the DSHOT TX channels use this common
+		timer to clock out the TX messages. This reduces interrupt load
+		and synchronizes all the channels to send out messages simultaneously.
+
 config IMX9_TPM_PWM
 	bool
-	select PWM_MULTICHAN
 	default n
 
 config IMX9_TPM1_PWM
@@ -452,6 +540,11 @@ config IMX9_TPM6_PWM_CHMUX
 	depends on IMX9_TPM6_PWM
 	hex "Channel mux for TPM6"
 	default 0x03020100
+
+config IMX9_SAR_ADC
+	bool "i.MX9 SAR ADC"
+	depends on ARCH_CHIP_IMX93
+	default n
 
 config IMX9_USBDEV
 	bool
@@ -1013,6 +1106,26 @@ config IMX9_ENET_USE_OTP_MAC
 	default n
 	depends on IMX9_ENET
 
+config IMX9_ENET_HPWORK
+	bool "Use high priority work queue for ethernet"
+	depends on IMX9_ENET
+	depends on SCHED_HPWORK
+	default n
+	---help---
+		Use high-priority work-queue for ethernet packet handling.
+		Enable if low-latency ethernet packet handling is required.
+
+config IMX9_ENET_PHYINIT
+	bool "Board-specific PHY Initialization for ENET"
+	default n
+	---help---
+		Some boards require specialized initialization of the PHY before it
+		can be used.  This may include such things as configuring GPIOs,
+		resetting the PHY, etc.  If CONFIG_IMX9_ENET_PHYINIT is defined in
+		the configuration then the board specific logic must provide
+		imx9_phy_boardinitialize();  The i.MX9 ENET driver will call this
+		function one time before it first uses the PHY.
+
 config IMX9_ENET1_OTP_MAC_ADDR
 	hex "MAC address offset in OCOTP"
 	default 0x4ec
@@ -1110,17 +1223,6 @@ config IMX9_ENET1_PHY_FORCE_SPEED
 		if the link partner has got autonegotiation enabled, the
 		duplex mode is not auto-detected by the link partner. Only
 		enable if you really know what you are doing!
-
-config IMX9_ENET1_PHYINIT
-	bool "Board-specific PHY Initialization for ENET1"
-	default n
-	---help---
-		Some boards require specialized initialization of the PHY before it
-		can be used.  This may include such things as configuring GPIOs,
-		resetting the PHY, etc.  If CONFIG_IMX9_ENET_PHYINIT is defined in
-		the configuration then the board specific logic must provide
-		imx9_phy_boardinitialize();  The i.MX9 ENET driver will call this
-		function one time before it first uses the PHY.
 
 endmenu # IMX9_ENET
 

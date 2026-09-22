@@ -50,7 +50,7 @@
 #include <sched.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
+#include <nuttx/debug.h>
 
 #include <sys/param.h>
 
@@ -1539,7 +1539,7 @@ static void cmd_queue_deinit(void)
 
   while (g_btdev.tx_status == ENOTCONN)
     {
-      nxsig_usleep(1000);
+      nxsched_usleep(1000);
     }
 
   /* Deinitialization */
