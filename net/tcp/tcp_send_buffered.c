@@ -607,7 +607,11 @@ static uint16_t psock_send_eventhandler(FAR struct net_driver_s *dev,
                        * driver to send the message and marked as rexmit
                        */
 
+#ifdef CONFIG_NET_TCP_CC_NEWRENO
+                      conn->dupacks = 0;
+#else
                       TCP_WBNACK(wrb) = 0;
+#endif
                       conn->timeout = true;
                       netdev_txnotify_dev(conn->dev);
                       return flags;

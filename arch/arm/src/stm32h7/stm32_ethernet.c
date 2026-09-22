@@ -3417,14 +3417,12 @@ static int stm32_phyinit(struct stm32_ethmac_s *priv)
       return ret;
     }
 
-#ifdef STM32H7_PHYID1
   if (phyval != STM32H7_PHYID1)
     {
       nerr("ERROR: Incorrect PHYID1: %u expected: %u\n",
             phyval, STM32H7_PHYID1);
       return -ENXIO;
     }
-#endif
 
   ninfo("MII_PHYID1: phyval: %u ret: %d\n", phyval, ret);
 
@@ -3436,14 +3434,12 @@ static int stm32_phyinit(struct stm32_ethmac_s *priv)
       return ret;
     }
 
-#ifdef STM32H7_PHYID2
   if ((phyval & 0xfff0) != (STM32H7_PHYID2 & 0xfff0))
     {
       nerr("ERROR: Incorrect PHYID2: %u expected: %u\n",
             phyval, STM32H7_PHYID2);
       return -ENXIO;
     }
-#endif
 
   ninfo("MII_PHYID2: phyval: %u ret: %d\n", phyval, ret);
 

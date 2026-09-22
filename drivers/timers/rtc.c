@@ -740,6 +740,7 @@ static int rtc_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
     default:
       {
+        ret = -ENOTTY;
 #ifdef CONFIG_RTC_IOCTL
         if (ops->ioctl)
           {
