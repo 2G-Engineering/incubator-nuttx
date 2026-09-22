@@ -115,11 +115,6 @@ CHIP_CSRCS += esp32_himem.c
 CHIP_CSRCS += esp32_himem_chardev.c
 endif
 
-CHIP_CSRCS += esp32_efuse.c
-ifeq ($(CONFIG_ESP32_EFUSE),y)
-CHIP_CSRCS += esp32_efuse_lowerhalf.c
-endif
-
 ifeq ($(CONFIG_ESP32_EMAC),y)
 CHIP_CSRCS += esp32_emac.c
 endif
@@ -228,7 +223,7 @@ endif
 
 ESP_HAL_3RDPARTY_REPO   = esp-hal-3rdparty
 ifndef ESP_HAL_3RDPARTY_VERSION
-	ESP_HAL_3RDPARTY_VERSION = 3f02f2139e79ddc60f98ca35ed65c62c6914f079
+	ESP_HAL_3RDPARTY_VERSION = b6fa6c9098318007a61acc7c9f0f180443bb80c2
 endif
 
 ifndef ESP_HAL_3RDPARTY_URL
@@ -278,12 +273,13 @@ include chip/hal.mk
 include common/espressif/Make.defs
 
 context:: chip/$(ESP_HAL_3RDPARTY_REPO)
-ifeq ($(CONFIG_ESPRESSIF_WIRELESS),y)
 	$(Q) echo "Espressif HAL for 3rd Party Platforms: initializing submodules..."
 	$(Q) git -C chip/$(ESP_HAL_3RDPARTY_REPO) submodule --quiet update --init $(GIT_DEPTH_PARAMETER) components/mbedtls/mbedtls components/esp_phy/lib components/esp_wifi/lib components/bt/controller/lib_esp32 components/esp_coex/lib
 	$(Q) git -C chip/$(ESP_HAL_3RDPARTY_REPO)/components/mbedtls/mbedtls reset --quiet --hard
 	$(Q) echo "Applying patches..."
 	$(Q) cd chip/$(ESP_HAL_3RDPARTY_REPO)/components/mbedtls/mbedtls && git apply ../../../nuttx/patches/components/mbedtls/mbedtls/*.patch
+ifeq ($(CONFIG_ESPRESSIF_WIRELESS),y)
+	$(Q) git -C chip/$(ESP_HAL_3RDPARTY_REPO) submodule --quiet update --init $(GIT_DEPTH_PARAMETER) components/esp_phy/lib components/esp_wifi/lib components/bt/controller/lib_esp32 components/esp_coex/lib
 endif
 
 distclean::

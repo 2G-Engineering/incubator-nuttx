@@ -71,7 +71,7 @@
 #  include "esp32_ble.h"
 #endif
 
-#ifdef CONFIG_ESPRESSIF_WLAN
+#ifdef CONFIG_ESPRESSIF_WIFI
 #  include "esp32_board_wlan.h"
 #endif
 
@@ -118,6 +118,10 @@
 
 #ifdef CONFIG_LCD_BACKPACK
 #  include "esp32_lcd_backpack.h"
+#endif
+
+#ifdef CONFIG_MMCSD_SPI
+#  include "esp32_board_sdmmc.h"
 #endif
 
 #include "esp32-sparrow-kit.h"
@@ -184,8 +188,8 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_MMCSD
-  ret = esp32_mmcsd_initialize(0);
+#ifdef CONFIG_MMCSD_SPI
+  ret = board_sdmmc_initialize();
   if (ret < 0)
     {
       syslog(LOG_ERR, "Failed to initialize SD slot: %d\n", ret);
@@ -225,7 +229,7 @@ int esp32_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESPRESSIF_WLAN
+#ifdef CONFIG_ESPRESSIF_WIFI
   ret = board_wlan_init();
   if (ret < 0)
     {

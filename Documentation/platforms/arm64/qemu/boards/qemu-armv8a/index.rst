@@ -299,6 +299,84 @@ Running with QEMU + hvf on M1/MacBook Pro (macOS 12.6.1)
      -mon chardev=con,mode=readline -kernel ./nuttx
 
 ----------------------------------
+Single Core /w Xedge
+----------------------------------
+
+Configuring NuttX and compile:
+
+.. code:: console
+
+   $ ./tools/configure.sh -l qemu-armv8a:xedge_demo
+   $ make
+
+Running with QEMU:
+
+.. code:: console
+
+   $ qemu-system-aarch64 -cpu cortex-a53 -smp 4 -nographic \
+      -machine virt,virtualization=on,gic-version=3 \
+      -chardev stdio,id=con,mux=on -serial chardev:con \
+      -netdev user,id=u1,hostfwd=tcp:127.0.0.1:8080-10.0.2.15:80,hostfwd=tcp:127.0.0.1:8443-10.0.2.15:443,hostfwd=tcp:127.0.0.1:10023-10.0.2.15:23 \
+      -device virtio-net-device,netdev=u1 \
+      -fsdev local,security_model=none,id=fsdev0,path=/mnt/xxx \
+      -device virtio-9p-device,id=fs0,fsdev=fsdev0,mount_tag=host \
+      -mon chardev=con,mode=readline -kernel ./nuttx
+
+.. note:: Replace **/mnt/xxx** with your actual host directory path. This directory will be shared between your host system and the NuttX environment.
+
+Before running Xedge, you need to create and mount a filesystem that Xedge will use for storing configuration files and web content:
+
+.. code:: console
+
+   nsh> mkdir mnt
+   nsh> mount -t v9fs -o trans=virtio,tag=host mnt
+   nsh> mkdir /mnt/lfs
+
+Running Xedge in NuttX terminal
+
+.. code:: console
+
+   nsh> xedge_demo
+      [   18.490000] [CPU0] Xedge: Server listening on IPv4 port 80
+      [   18.500000] [CPU0] Xedge: SharkSSL server listening on IPv4 port 443
+      [   18.510000] [CPU0] Xedge: Configuration file: /mnt/lfs/xcfg.bin: enoent
+      [   38.240000] [CPU1] 10.0.2.2 GET "rtl/"
+      [   38.240000] [CPU1] Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138
+      [   38.240000] [CPU1] .0.0.0 Safari/537.36
+      [   38.240000] [CPU1] Host: 127.0.0.1:8080
+      [   38.240000] [CPU1] Connection: keep-alive
+      [   38.240000] [CPU1] sec-ch-ua: "Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"
+      [   38.240000] [CPU1] sec-ch-ua-mobile: ?0
+      [   38.240000] [CPU1] sec-ch-ua-platform: "Linux"
+      [   38.240000] [CPU1] Upgrade-Insecure-Requests: 1
+      [   38.240000] [CPU1] User-Agent: c
+      [   38.240000] [CPU1] Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138
+      [   38.240000] [CPU1] .0.0.0 Safari/537.36
+      [   38.240000] [CPU1] Sec-Purpose: prefetch;prerender
+      [   38.240000] [CPU1] Purpose: prefetch
+      [   38.240000] [CPU1] Accept:
+      [   38.240000] [CPU1] text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image
+      [   38.240000] [CPU1] /apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7
+      [   38.240000] [CPU1] Sec-Fetch-Site: none
+      [   38.240000] [CPU1] Sec-Fetch-Mode: navigate
+      [   38.240000] [CPU1] Sec-Fetch-User: ?1
+      [   38.240000] [CPU1] Sec-Fetch-Dest: document
+      [   38.240000] [CPU1] Accept-Encoding: gzip, deflate, br, zstd
+      [   38.240000] [CPU1] Accept-Language: pt,en-US;q=0.9,en;q=0.8
+      [   38.240000] [CPU1]
+      [   38.240000] [CPU0] 10.0.2.2 Response:
+      ,
+      [   38.240000] [CPU0] no-store, no-cache, must-revalidate, max-age=0
+      Transfer-Encoding: chunked
+      Keep-
+      [   38.240000] [CPU0] Alive: Keep-Alive
+
+Launch your web browser and access 127.0.0.1:8080
+
+You should see the Xedge IDE, which is enabled in developer mode.
+
+For more details about the xedge example, please refer to the `xedge_demo documentation <https://nuttx.apache.org/docs/latest/applications/examples/xedge_demo/index.html>`_.
+
 Single Core /w kernel mode (GICv3)
 ----------------------------------
 
@@ -438,6 +516,78 @@ Steps for Using NuttX as IVSHMEM host and guest
          server recv data normal exit
          server Complete ret 0, errno 0
 
+fastboot
+--------
+Fastboot TCP network device configuration with reference to qemu-armv8a:netnsh.
+More details about usage of fastboot, please refer to `fastbootd — NuttX latest documentation <https://nuttx.apache.org/docs/latest/applications/system/fastboot/index.html>`_.
+
+You can run the configuration procedure::
+
+  $ ./tools/configure.sh -l qemu-armv8a:fastboot
+  $ make
+  $ dd if=/dev/zero of=./mydisk-1gb.img bs=1M count=1024
+
+To test it, there are two example ways:
+
+1. NAT::
+
+    # a. Add "hostfwd=tcp:127.0.0.1:15002-10.0.2.15:5554" for option "-netdev"
+    qemu-system-aarch64 -cpu cortex-a53 -nographic \
+                    -machine virt,virtualization=on,gic-version=3 \
+                    -chardev stdio,id=con,mux=on -serial chardev:con \
+                    -global virtio-mmio.force-legacy=false \
+                    -device virtio-serial-device,bus=virtio-mmio-bus.0 \
+                    -chardev socket,telnet=on,host=127.0.0.1,port=3450,server=on,wait=off,id=foo \
+                    -device virtconsole,chardev=foo \
+                    -device virtio-rng-device,bus=virtio-mmio-bus.1 \
+                    -netdev user,id=u1,hostfwd=tcp:127.0.0.1:10023-10.0.2.15:23,hostfwd=tcp:127.0.0.1:15002-10.0.2.15:5554 \
+                    -device virtio-net-device,netdev=u1,bus=virtio-mmio-bus.2 \
+                    -drive file=./mydisk-1gb.img,if=none,format=raw,id=hd \
+                    -device virtio-blk-device,bus=virtio-mmio-bus.3,drive=hd \
+                    -mon chardev=con,mode=readline -kernel ./nuttx
+
+    # b. Run fastboot daemon on qemu device
+    fastbootd &
+
+    # c. Exec fastboot command on host side with device IP and PORT
+    fastboot -s tcp:127.0.0.1:15002 getvar version
+
+2. Bridge::
+
+    # a. Set option "-netdev" to "-netdev bridge,br=br0,id=u1"
+    qemu-system-aarch64 -cpu cortex-a53 -nographic \
+                    -machine virt,virtualization=on,gic-version=3 \
+                    -chardev stdio,id=con,mux=on -serial chardev:con \
+                    -global virtio-mmio.force-legacy=false \
+                    -device virtio-serial-device,bus=virtio-mmio-bus.0 \
+                    -chardev socket,telnet=on,host=127.0.0.1,port=3450,server=on,wait=off,id=foo \
+                    -device virtconsole,chardev=foo \
+                    -device virtio-rng-device,bus=virtio-mmio-bus.1 \
+                    -netdev bridge,br=br0,id=u1 \
+                    -device virtio-net-device,netdev=u1,bus=virtio-mmio-bus.2 \
+                    -drive file=./mydisk-1gb.img,if=none,format=raw,id=hd \
+                    -device virtio-blk-device,bus=virtio-mmio-bus.3,drive=hd \
+                    -mon chardev=con,mode=readline -kernel ./nuttx
+
+    # b. Init network bridge and ACL for host
+    sudo ip link add name br0 type bridge
+    ip addr add 192.168.100.1/24 brd + dev br0
+    ip link set br0 up
+    sysctl -w net.ipv4.ip_forward=1
+    iptables -t filter -A FORWARD -i br0 -j ACCEPT
+    iptables -t filter -A FORWARD -o br0 -j ACCEPT
+    echo "allow all" | sudo tee /etc/qemu/${USER}.conf
+    echo "include /etc/qemu/${USER}.conf" | sudo tee --append /etc/qemu/bridge.conf
+    sudo chown root:${USER} /etc/qemu/${USER}.conf
+    sudo chmod 640 /etc/qemu/${USER}.conf
+
+    # c. Configure IP address for qemu device, and run fastboot daemon
+    ifconfig eth0 192.168.100.2
+    fastbootd &
+
+    # d. Exec fastboot command on host side with device IP
+    fastboot -s tcp:192.168.100.2 getvar version
+
 Status
 ======
 
@@ -491,16 +641,17 @@ ostest crash at signal testing
 Platform Features
 =================
 
+
 The following hardware features are supported:
-+--------------+------------+----------------------+
-| Interface    | Controller | Driver/Component     |
-+==============+============+======================+
-| GIC          | on-chip    | interrupt controller |
-+--------------+------------+----------------------+
-| PL011 UART   | on-chip    | serial port          |
-+--------------+------------+----------------------+
-| ARM TIMER    | on-chip    | system clock         |
-+--------------+------------+----------------------+
+
+============== ============ ======================
+Interface      Controller   Driver/Component
+============== ============ ======================
+GIC            on-chip      interrupt controller
+PL011 UART     on-chip      serial port
+ARM TIMER      on-chip      system clock
+============== ============ ======================
+
 
 The kernel currently does not support other hardware features on this
 QEMU platform.

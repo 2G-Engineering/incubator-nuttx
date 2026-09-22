@@ -202,7 +202,7 @@ config SENSORS_BH1750FVI
 config SENSORS_NAU7802
 	bool "Adafruit NAU7802 ADC sensor support"
 	default n
-	select I2C 
+	select I2C
 	---help---
 		Enable driver support for the Adafruit NAU7802 sensor.
 
@@ -838,6 +838,26 @@ config KXTJ9_I2C_BUS_SPEED
 
 endif # SENSORS_KXTJ9
 
+config SENSORS_L86_XXX
+	bool "Quectel L86-XXX GNSS support"
+	default n
+	depends on SERIAL && STANDARD_SERIAL && UORB && SENSORS_GNSS
+	---help---
+		Enable driver support for the L86-XXX series of GNSS modules.
+
+config SENSORS_L86_XXX_THREAD_STACKSIZE
+	int "Stack size for L86XXX module collection thread"
+	default 1024
+	depends on SENSORS_L86_XXX
+
+config L86_XXX_BAUD
+	int "Quectel L86-XXX baud rate"
+	default 9600
+	depends on SENSORS_L86_XXX && SERIAL_TERMIOS
+	range 4800 115200
+	---help---
+		Supported values are: 4800, 9600, 14400, 19200, 38400, 57600 and 115200
+
 config SENSORS_LIS2DH
 	bool "STMicro LIS2DH device support"
 	default n
@@ -951,8 +971,25 @@ config SENSORS_LSM6DSO32_I2C_FREQUENCY
 config SENSORS_LSM6DSO32_THREAD_STACKSIZE
 	int "LSM6DSO32 worker thread stack size"
 	default 1024
+	depends on SENSORS_LSM6DSO32
 	---help---
 		The stack size for the worker threads that perform measurements.
+
+config SENSORS_LSM6DSO32_ACCEL_ORB_BUFSIZE
+	int "LSM6DSO32 accelerometer uORB buffer size"
+	default 10
+	range 0 500
+	depends on SENSORS_LSM6DSO32
+	---help---
+		The circular buffer size for the accelerometer uORB measurements
+
+config SENSORS_LSM6DSO32_GYRO_ORB_BUFSIZE
+	int "LSM6DSO32 gyro uORB buffer size"
+	default 10
+	range 0 500
+	depends on SENSORS_LSM6DSO32
+	---help---
+		The circular buffer size for the gyroscope uORB measurements
 
 config SENSORS_LSM9DS1
 	bool "STMicro LSM9DS1 support"
@@ -1634,6 +1671,13 @@ config SENSORS_LIS2MDL_THREAD_STACKSIZE
 	---help---
 		The stack size for the worker thread that performs measurements
 
+config SENSORS_LIS2MDL_ORB_BUFSIZE
+	int "LIS2MDL uORB buffer size"
+	default 10
+	range 0 100
+	---help---
+		The size of the uORB circular buffer for storing measurements.
+
 config SENSORS_LIS2MDL_FETCH
 	bool "Enable LIS2MDL fetch capability"
 	default n
@@ -2113,5 +2157,20 @@ config SENSORS_FS3000_THREAD_STACKSIZE
 		The stack size for the worker thread.
 
 endif # SENSORS_FS3000
+
+config SENSORS_TMP112
+	bool "Texas Instruments TMP112x Temperature Sensor support"
+	default n
+	select I2C
+	---help---
+		Enable driver support for the Texas Instruments TMP112x temperature sensor.
+
+if SENSORS_TMP112
+
+config TMP112_I2C_FREQUENCY
+	int "TMP112 I2C frequency"
+	default 400000
+
+endif #SENSORS_TMP112
 
 endif # SENSORS

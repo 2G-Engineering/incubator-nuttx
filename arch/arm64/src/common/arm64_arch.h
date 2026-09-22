@@ -207,12 +207,14 @@
 #define ICC_EOIR0_EL1               S3_0_C12_C8_1
 #define ICC_EOIR1_EL1               S3_0_C12_C12_1
 #define ICC_SGI0R_EL1               S3_0_C12_C11_7
+#define ICC_DIR_EL1                 S3_0_C12_C11_1
 
 /* register constants */
 #define ICC_SRE_ELX_SRE_BIT         BIT(0)
 #define ICC_SRE_ELX_DFB_BIT         BIT(1)
 #define ICC_SRE_ELX_DIB_BIT         BIT(2)
 #define ICC_SRE_EL3_EN_BIT          BIT(3)
+#define ICC_CTLR_EOIMODE_BIT        BIT(1)
 
 /* ICC SGI macros */
 #define SGIR_TGT_MASK               (0xffff)
@@ -491,7 +493,7 @@ void arm64_cpu_enable(void);
 #ifdef CONFIG_SMP
 uint64_t arm64_get_mpid(int cpu);
 #else
-#  define arm64_get_mpid(cpu) (GET_MPIDR() & MPIDR_ID_MASK)
+#  define arm64_get_mpid(cpu) ((void)(cpu), (GET_MPIDR() & MPIDR_ID_MASK))
 #endif /* CONFIG_SMP */
 
 /****************************************************************************
@@ -506,11 +508,15 @@ uint64_t arm64_get_mpid(int cpu);
 int arm64_get_cpuid(uint64_t mpid);
 #endif
 
-#ifdef CONFIG_ARM64_MTE
-void arm64_enable_mte(void);
-#else
-#define arm64_enable_mte()
-#endif
+/****************************************************************************
+ * Name: arm64_mte_init
+ *
+ * Description:
+ *   Initialize MTE settings and enable memory tagging
+ *
+ ****************************************************************************/
+
+void arm64_mte_init(void);
 
 #endif /* __ASSEMBLY__ */
 

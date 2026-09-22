@@ -42,7 +42,7 @@
 #include "sched/sched.h"
 #include "inode/inode.h"
 #include "driver/driver.h"
-#include "notify/notify.h"
+#include "vfs.h"
 
 /****************************************************************************
  * Private Functions
@@ -202,10 +202,11 @@ static int file_vopen(FAR struct file *filep, FAR const char *path,
       /* Get the file structure of the opened character driver proxy */
 
 #ifdef CONFIG_BCH_DEVICE_READONLY
-      ret = block_proxy(filep, path, O_RDOK);
-#else
-      ret = block_proxy(filep, path, oflags);
+      oflags &= ~O_RDWR;
+      oflags |= O_RDOK;
 #endif
+
+      ret = block_proxy(filep, path, oflags);
 #ifdef CONFIG_FS_NOTIFY
       if (ret >= 0)
         {
@@ -227,7 +228,6 @@ static int file_vopen(FAR struct file *filep, FAR const char *path,
 
   /* Associate the inode with a file structure */
 
-  memset(filep, 0, sizeof(*filep));
   filep->f_oflags = oflags;
   filep->f_inode  = inode;
 
@@ -308,28 +308,29 @@ errout_with_search:
  *
  ****************************************************************************/
 
-static int nx_vopen(FAR struct tcb_s *tcb,
+static int nx_vopen(FAR struct fdlist *list,
                     FAR const char *path, int oflags, va_list ap)
 {
-  struct file filep;
+  FAR struct file *filep;
   int ret;
   int fd;
 
-  /* Let file_vopen() do all of the work */
-
-  ret = file_vopen(&filep, path, oflags, getumask(), ap);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
   /* Allocate a new file descriptor for the inode */
 
-  fd = file_allocate_from_tcb(tcb, filep.f_inode, filep.f_oflags,
-                              filep.f_pos, filep.f_priv, 0, false);
+  fd = fdlist_allocate(list, oflags, 0, &filep);
   if (fd < 0)
     {
-      file_close(&filep);
+      return fd;
+    }
+
+  /* Let file_vopen() do all of the work */
+
+  ret = file_vopen(filep, path, oflags, getumask(), ap);
+  file_put(filep);
+  if (ret < 0)
+    {
+      fdlist_close(list, fd);
+      return ret;
     }
 
   return fd;
@@ -366,27 +367,24 @@ int file_open(FAR struct file *filep, FAR const char *path, int oflags, ...)
   va_list ap;
   int ret;
 
+  memset(filep, 0, sizeof(*filep));
+
   va_start(ap, oflags);
   ret = file_vopen(filep, path, oflags, 0, ap);
   va_end(ap);
-
-  if (ret >= OK)
-    {
-      FS_ADD_BACKTRACE(filep);
-    }
 
   return ret;
 }
 
 /****************************************************************************
- * Name: nx_open_from_tcb
+ * Name: fdlist_open
  *
  * Description:
- *   nx_open_from_tcb() is similar to the standard 'open' interface except
+ *   fdlist_open() is similar to the standard 'open' interface except
  *   that it is not a cancellation point and it does not modify the errno
  *   variable.
  *
- *   nx_open_from_tcb() is an internal NuttX interface and should not be
+ *   fdlist_open() is an internal NuttX interface and should not be
  *   called from applications.
  *
  * Input Parameters:
@@ -401,8 +399,8 @@ int file_open(FAR struct file *filep, FAR const char *path, int oflags, ...)
  *
  ****************************************************************************/
 
-int nx_open_from_tcb(FAR struct tcb_s *tcb,
-                     FAR const char *path, int oflags, ...)
+int fdlist_open(FAR struct fdlist *list,
+                FAR const char *path, int oflags, ...)
 {
   va_list ap;
   int fd;
@@ -410,7 +408,7 @@ int nx_open_from_tcb(FAR struct tcb_s *tcb,
   /* Let nx_vopen() do all of the work */
 
   va_start(ap, oflags);
-  fd = nx_vopen(tcb, path, oflags, ap);
+  fd = nx_vopen(list, path, oflags, ap);
   va_end(ap);
 
   return fd;
@@ -445,7 +443,7 @@ int nx_open(FAR const char *path, int oflags, ...)
   /* Let nx_vopen() do all of the work */
 
   va_start(ap, oflags);
-  fd = nx_vopen(this_task(), path, oflags, ap);
+  fd = nx_vopen(nxsched_get_fdlist_from_tcb(this_task()), path, oflags, ap);
   va_end(ap);
 
   return fd;
@@ -475,7 +473,7 @@ int open(FAR const char *path, int oflags, ...)
   /* Let nx_vopen() do most of the work */
 
   va_start(ap, oflags);
-  fd = nx_vopen(this_task(), path, oflags, ap);
+  fd = nx_vopen(nxsched_get_fdlist_from_tcb(this_task()), path, oflags, ap);
   va_end(ap);
 
   /* Set the errno value if any errors were reported by nx_open() */

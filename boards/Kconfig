@@ -94,6 +94,7 @@ config ARCH_BOARD_AVRDX_BREADXAVR
 	select ARCH_HAVE_LEDS
 	select ARCH_HAVE_BUTTONS
 	select ARCH_HAVE_IRQBUTTONS
+	select AVR_HAVE_BOARD_FLMAP
 	---help---
 		This is a board used to make something use an AVRnDx core
 		so it can be developed and tested.
@@ -434,8 +435,8 @@ config ARCH_BOARD_ESP32C3_XIAO
 	select ARCH_HAVE_BUTTONS
 	select ARCH_HAVE_IRQBUTTONS
 	---help---
-	    The XIAO-ESP32C3 from Seeed Studio features the ESP32-C3 CPU with a RISC-V core,
-	    supporting IEEE 802.11 b/g/n WiFi, and Bluetooth 5 (BLE) protocols.
+		The XIAO-ESP32C3 from Seeed Studio features the ESP32-C3 CPU with a RISC-V core,
+		supporting IEEE 802.11 b/g/n WiFi, and Bluetooth 5 (BLE) protocols.
 
 config ARCH_BOARD_ESP32S2_KALUGA_1
 	bool "Espressif ESP32-S2-Kaluga-1 V1.3"
@@ -476,6 +477,14 @@ config ARCH_BOARD_ESP32S3_DEVKIT
 		The ESP32-S3-DevKitM-1 version contains the ESP32-S3-MINI-1/1U module and the
 		ESP32-S3-DevKitC-1 version may be based either on ESP32-S3-WROOM-1/1U or
 		ESP32-S3-WROOM-2/2U.
+
+config ARCH_BOARD_ESP32S3_8048S043
+	bool "ESP32-S3 8048S043"
+	depends on ARCH_CHIP_ESP32S3WROOM1N4 || ARCH_CHIP_ESP32S3MINI1N8 || ARCH_CHIP_ESP32S3WROOM1N8R2 || ARCH_CHIP_ESP32S3WROOM1N16R8 || ARCH_CHIP_ESP32S3WROOM2N16R8V || ARCH_CHIP_ESP32S3WROOM2N32R8V || ARCH_CHIP_ESP32S3CUSTOM || ARCH_CHIP_ESP32S3WROOM1N8R8
+	select ARCH_HAVE_BUTTONS
+	select ARCH_HAVE_IRQBUTTONS if ESP32S3_GPIO_IRQ
+	---help---
+		The ESP32-S3 8048S043 features the ESP32-S3 CPU with dual Xtensa LX7 cores.
 
 config ARCH_BOARD_ESP32S3_EYE
 	bool "Espressif ESP32-S3-EYE Board"
@@ -814,6 +823,17 @@ config ARCH_BOARD_IMXRT1050_EVK
 	---help---
 		This is the board configuration for the port of NuttX to the NXP i.MXRT
 		evaluation kit, MIMXRT1050-EVKB.  This board features the MIMXRT1052DVL6A MCU.
+
+config ARCH_BOARD_ARCX_SOCKET_GRID
+	bool "ARCX Socket Grid board"
+	depends on ARCH_CHIP_MIMXRT1052DVL6A
+	select ARCH_HAVE_LEDS
+	select ARCH_HAVE_BUTTONS
+	select ARCH_HAVE_IRQBUTTONS
+	select ARCH_PHY_INTERRUPT
+	---help---
+		This is the board configuration for the port of NuttX for
+		ARC Socket Grid board.
 
 config ARCH_BOARD_IMXRT1060_EVK
 	bool "NXP i.MX RT 1060 EVK"
@@ -2063,6 +2083,13 @@ config ARCH_BOARD_RASPBERRYPI_PICO_2
 	---help---
 		This is a port to the Raspberry Pi Pico 2 board.
 
+config ARCH_BOARD_RASPBERRYPI_PICO_2_RV
+	bool "Raspberry Pi Pico 2 board RISC-V (not Pico, not W)"
+	depends on ARCH_CHIP_RP23XX_RV
+	select ARCH_HAVE_LEDS
+	---help---
+		This is a port to the Raspberry Pi Pico 2 RISC-V board.
+
 config ARCH_BOARD_XIAO_RP2350
 	bool "Seeed Xiao RP2350"
 	depends on ARCH_CHIP_RP23XX
@@ -2304,7 +2331,7 @@ config ARCH_BOARD_SABRE_6QUAD
 		This options selects support for NuttX on the NXP/Freescale Sabre
 		board featuring the iMX 6Quad CPU.
 
-config ARCH_BOARD_TC397
+config ARCH_BOARD_A2G_TC397_5V_TFT
 	bool "Infineon's AURIX TC397 board: KIT_A2G_TC397_5V_TFT"
 	depends on ARCH_CHIP_TC397
 	---help---
@@ -2392,6 +2419,14 @@ config ARCH_BOARD_IMX93_EVK
 	select ARCH_HAVE_IRQBUTTONS
 	---help---
 		This options selects support for NuttX on the NXP i.MX93 CPUs EVK
+		board with ARM Cortex-A55.
+
+config ARCH_BOARD_IMX95_A55_EVK
+	bool "NXP i.MX95 CPUs EVK board"
+	depends on ARCH_CHIP_IMX95
+	select ARCH_HAVE_IRQBUTTONS
+	---help---
+		This options selects support for NuttX on the NXP i.MX95 CPUs EVK
 		board with ARM Cortex-A55.
 
 config ARCH_BOARD_AVAOTA_A1
@@ -2599,6 +2634,19 @@ config ARCH_BOARD_SAMV71_XULT
 	select ARCH_PHY_INTERRUPT
 	---help---
 		The port of NuttX to the Atmel SAMV71 Xplained Ultra evaluation board.
+
+config ARCH_BOARD_PIC32CZCA70_CURIOSITY
+	bool "Microchip PIC32CZ CA70 Curiosity Ultra Evaluation Board"
+	depends on ARCH_CHIP_PIC32CZCA70144
+	select ARCH_HAVE_LEDS
+	select ARCH_HAVE_BUTTONS
+	select ARCH_HAVE_IRQBUTTONS
+	select ARCH_PHY_INTERRUPT
+	---help---
+		The port of NuttX to the PIC32CZ CA70 Curiosity Ultra Evaluation
+		Board. The used microcontroller is pin to pin and binary compatible
+		with SAMV70/SAME70 series, but the evaluation board's pinout differs
+		from Xplained evaluation kits.
 
 config ARCH_BOARD_SHENZHOU
 	bool "Shenzhou STM32F107 board"
@@ -3478,6 +3526,7 @@ config ARCH_BOARD
 	default "esp32s2-saola-1"           if ARCH_BOARD_ESP32S2_SAOLA_1
 	default "franzininho-wifi"          if ARCH_BOARD_FRANZININHO_WIFI
 	default "esp32s3-devkit"            if ARCH_BOARD_ESP32S3_DEVKIT
+	default "esp32s3-8048S043"          if ARCH_BOARD_ESP32S3_8048S043
 	default "esp32s3-eye"               if ARCH_BOARD_ESP32S3_EYE
 	default "esp32s3-meadow"            if ARCH_BOARD_ESP32S3_MEADOW
 	default "esp32s3-lcd-ev"            if ARCH_BOARD_ESP32S3_LCD_EV
@@ -3512,6 +3561,7 @@ config ARCH_BOARD
 	default "hymini-stm32v"             if ARCH_BOARD_HYMINI_STM32V
 	default "imxrt1020-evk"             if ARCH_BOARD_IMXRT1020_EVK
 	default "imxrt1050-evk"             if ARCH_BOARD_IMXRT1050_EVK
+	default "arcx-socket-grid"          if ARCH_BOARD_ARCX_SOCKET_GRID
 	default "imxrt1060-evk"             if ARCH_BOARD_IMXRT1060_EVK
 	default "imxrt1064-evk"             if ARCH_BOARD_IMXRT1064_EVK
 	default "imxrt1170-evk"             if ARCH_BOARD_IMXRT1170_EVK
@@ -3646,6 +3696,7 @@ config ARCH_BOARD
 	default "adafruit-qt-py-rp2040"     if ARCH_BOARD_ADAFRUIT_QT_PY_RP2040
 	default "waveshare-rp2040-lcd-1.28" if ARCH_BOARD_WAVESHARE_RP2040_LCD_1_28
 	default "raspberrypi-pico-2"        if ARCH_BOARD_RASPBERRYPI_PICO_2
+	default "raspberrypi-pico-2-rv"  if ARCH_BOARD_RASPBERRYPI_PICO_2_RV
 	default "xiao-rp2350"               if ARCH_BOARD_XIAO_RP2350
 	default "pimoroni-pico-2-plus"      if ARCH_BOARD_PIMORONI_PICO_2_PLUS
 	default "w5500-evb-pico"            if ARCH_BOARD_W5500_EVB_PICO
@@ -3673,7 +3724,7 @@ config ARCH_BOARD
 	default "milkv_duos"                if ARCH_BOARD_SG2000_MILKV_DUOS
 	default "starpro64"                 if ARCH_BOARD_EIC7700X_STARPRO64
 	default "sabre-6quad"               if ARCH_BOARD_SABRE_6QUAD
-	default "tc397"                     if ARCH_BOARD_TC397
+    default "a2g-tc397-5v-tft"          if ARCH_BOARD_A2G_TC397_5V_TFT
 	default "qemu-armv7a"               if ARCH_BOARD_QEMU_ARMV7A
 	default "qemu-armv7r"               if ARCH_BOARD_QEMU_ARMV7R
 	default "qemu-armv8a"               if ARCH_BOARD_QEMU_ARMV8A
@@ -3684,6 +3735,7 @@ config ARCH_BOARD
 	default "fvp-armv8r-aarch32"        if ARCH_BOARD_FVP_ARMV8R_AARCH32
 	default "imx8qm-mek"                if ARCH_BOARD_IMX8QM_MEK
 	default "imx93-evk"                 if ARCH_BOARD_IMX93_EVK
+	default "imx95-a55-evk"             if ARCH_BOARD_IMX95_A55_EVK
 	default "avaota-a1"                 if ARCH_BOARD_AVAOTA_A1
 	default "zcu111"                    if ARCH_BOARD_ZCU111
 	default "sama5d2-xult"              if ARCH_BOARD_SAMA5D2_XULT
@@ -3706,6 +3758,7 @@ config ARCH_BOARD
 	default "same70-qmtech"             if ARCH_BOARD_SAME70_QMTECH
 	default "same70-xplained"           if ARCH_BOARD_SAME70_XPLAINED
 	default "samv71-xult"               if ARCH_BOARD_SAMV71_XULT
+	default "pic32czca70-curiosity"     if ARCH_BOARD_PIC32CZCA70_CURIOSITY
 	default "shenzhou"                  if ARCH_BOARD_SHENZHOU
 	default "skp16c26"                  if ARCH_BOARD_SKP16C26
 	default "photon"                    if ARCH_BOARD_PHOTON
@@ -3886,8 +3939,8 @@ endif
 if ARCH_BOARD_SABRE_6QUAD
 source "boards/arm/imx6/sabre-6quad/Kconfig"
 endif
-if ARCH_BOARD_TC397
-source "boards/tricore/tc3xx/tc397/Kconfig"
+if ARCH_BOARD_A2G_TC397_5V_TFT
+source "boards/tricore/tc397/a2g-tc397-5v-tft/Kconfig"
 endif
 if ARCH_BOARD_MPS2_AN500
 source "boards/arm/mps/mps2-an500/Kconfig"
@@ -3922,6 +3975,9 @@ endif
 if ARCH_BOARD_IMX93_EVK
 source "boards/arm64/imx9/imx93-evk/Kconfig"
 endif
+if ARCH_BOARD_IMX95_A55_EVK
+source "boards/arm64/imx9/imx95-a55-evk/Kconfig"
+endif
 if ARCH_BOARD_AVAOTA_A1
 source "boards/arm64/a527/avaota-a1/Kconfig"
 endif
@@ -3933,6 +3989,9 @@ source "boards/arm/imxrt/imxrt1020-evk/Kconfig"
 endif
 if ARCH_BOARD_IMXRT1050_EVK
 source "boards/arm/imxrt/imxrt1050-evk/Kconfig"
+endif
+if ARCH_BOARD_ARCX_SOCKET_GRID
+source "boards/arm/imxrt/arcx-socket-grid/Kconfig"
 endif
 if ARCH_BOARD_IMXRT1060_EVK
 source "boards/arm/imxrt/imxrt1060-evk/Kconfig"
@@ -4228,6 +4287,9 @@ endif
 if ARCH_BOARD_SAMV71_XULT
 source "boards/arm/samv7/samv71-xult/Kconfig"
 endif
+if ARCH_BOARD_PIC32CZCA70_CURIOSITY
+source "boards/arm/samv7/pic32czca70-curiosity/Kconfig"
+endif
 if ARCH_BOARD_B_G474E_DPOW1
 source "boards/arm/stm32/b-g474e-dpow1/Kconfig"
 endif
@@ -4318,7 +4380,7 @@ endif
 if ARCH_BOARD_STM32H745I_DISCO
 source "boards/arm/stm32h7/stm32h745i-disco/Kconfig"
 endif
-if ARCH_BOARD_STM32H750B_DB
+if ARCH_BOARD_STM32H750B_DK
 source "boards/arm/stm32h7/stm32h750b-dk/Kconfig"
 endif
 if ARCH_BOARD_LINUM_STM32H753BI
@@ -4720,6 +4782,9 @@ endif
 if ARCH_BOARD_ESP32S3_DEVKIT
 source "boards/xtensa/esp32s3/esp32s3-devkit/Kconfig"
 endif
+if ARCH_BOARD_ESP32S3_8048S043
+source "boards/xtensa/esp32s3/esp32s3-8048S043/Kconfig"
+endif
 if ARCH_BOARD_ESP32S3_EYE
 source "boards/xtensa/esp32s3/esp32s3-eye/Kconfig"
 endif
@@ -4873,6 +4938,9 @@ endif
 if ARCH_BOARD_FRDM_MCXN236
 source "boards/arm/mcx-nxxx/frdm-mcxn236/Kconfig"
 endif
+if ARCH_BOARD_RASPBERRYPI_PICO_2_RV
+source "boards/risc-v/rp23xx-rv/raspberrypi-pico-2-rv/Kconfig"
+endif
 
 comment "Board-Common Options"
 
@@ -4931,6 +4999,10 @@ endif
 if ARCH_CHIP_NRF91
 source "boards/arm/nrf91/common/Kconfig"
 endif
+if ARCH_CHIP_RP23XX_RV
+source "boards/risc-v/rp23xx-rv/common/Kconfig"
+endif
+
 endif
 
 choice

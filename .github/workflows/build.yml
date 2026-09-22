@@ -15,10 +15,14 @@ name: Build
 on:
   pull_request:
     paths-ignore:
+      - 'AUTHORS'
+      - 'CONTRIBUTING.md'
       - 'Documentation/**'
       - 'tools/ci/docker/linux/**'
   push:
     paths-ignore:
+      - 'AUTHORS'
+      - 'CONTRIBUTING.md'
       - 'Documentation/**'
     branches:
       - 'releases/*'
@@ -90,7 +94,7 @@ jobs:
           echo "apps_ref=$APPS_REF" >> $GITHUB_OUTPUT
 
       - name: Checkout nuttx repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: apache/nuttx
           ref: ${{ steps.gittargets.outputs.os_ref }}
@@ -100,7 +104,7 @@ jobs:
         run: git -C sources/nuttx fetch --tags
 
       - name: Checkout apps repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: apache/nuttx-apps
           ref: ${{ steps.gittargets.outputs.apps_ref }}
@@ -149,7 +153,7 @@ jobs:
     steps:
 
       - name: Download Source Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: source-bundle
           path: .
@@ -217,7 +221,7 @@ jobs:
         boards: ${{ fromJSON(needs.macOS-Arch.outputs.selected_builds) }}
     steps:
       - name: Download Source Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: source-bundle
           path: .
@@ -279,7 +283,7 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: msys2/setup-msys2@v2
         with:
           msystem: MSYS
@@ -311,7 +315,7 @@ jobs:
       - run: git config --global core.autocrlf false
 
       - name: Download Source Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: source-bundle
           path: .
@@ -352,7 +356,7 @@ jobs:
     if: ${{ needs.msvc-Arch.outputs.skip_all_builds != '1' }}
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # Set up Python environment and install kconfiglib
       - name: Set up Python and install kconfiglib
         uses: actions/setup-python@v5
@@ -365,7 +369,7 @@ jobs:
       - run: git config --global core.autocrlf false
 
       - name: Download Source Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: source-bundle
           path: .
@@ -373,7 +377,7 @@ jobs:
       - name: Extract sources
         run: |
           7z x sources.tar.gz -y
-          7z x sources.tar -y
+          7z x sources.tar -y -snld
 
       - name: Run Builds
         run: |

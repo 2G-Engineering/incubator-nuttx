@@ -109,6 +109,7 @@
 #define _PCIBASE        (0x4100) /* Pci ioctl commands */
 #define _I3CBASE        (0x4200) /* I3C driver ioctl commands */
 #define _MSIOCBASE      (0x4300) /* Mouse ioctl commands */
+#define _I2SOCBASE      (0x4400) /* I2S driver ioctl commands */
 #define _WLIOCBASE      (0x8b00) /* Wireless modules ioctl network commands */
 
 /* boardctl() commands share the same number space */
@@ -233,6 +234,16 @@
                                            */
 #define FIOC_XIPBASE        _FIOC(0x0015) /* IN:  uinptr_t *
                                            * OUT: Current file xip base address
+                                           */
+
+#define FIOC_GETFLAGS       _FIOC(0x0016) /* IN:  None
+                                           * OUT: None
+                                           */
+#define FIOC_SETFLAGS       _FIOC(0x0017) /* IN:  The flags that need to set to file
+                                           * OUT: None
+                                           */
+#define FIOGCLEX            _FIOC(0x0018) /* IN:  FAR int *
+                                           * OUT: None
                                            */
 
 /* NuttX file system ioctl definitions **************************************/
@@ -764,6 +775,13 @@
 
 #define _PINCTRLIOCVALID(c) (_IOC_TYPE(c)==_PINCTRLBASE)
 #define _PINCTRLIOC(nr)     _IOC(_PINCTRLBASE,nr)
+
+/* NuttX i2s driver ioctl definitions ***************************************/
+
+/* (see nuttx/audio/i2s.h) */
+
+#define _I2SOCVALID(c) (_IOC_TYPE(c)==_I2SOCBASE)
+#define _I2SOC(nr)     _IOC(_I2SOCBASE,nr)
 
 /****************************************************************************
  * Public Type Definitions

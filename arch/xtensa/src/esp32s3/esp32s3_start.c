@@ -52,6 +52,7 @@
 #include "rom/esp32s3_spiflash.h"
 #include "espressif/esp_loader.h"
 
+#include "esp_app_desc.h"
 #include "hal/mmu_hal.h"
 #include "hal/mmu_types.h"
 #include "hal/cache_types.h"
@@ -69,6 +70,8 @@
 
 #include "esp_clk_internal.h"
 #include "periph_ctrl.h"
+
+#include "esp_private/startup_internal.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -451,6 +454,8 @@ noinstrument_function void noreturn_function IRAM_ATTR __esp32s3_start(void)
   showprogress('C');
 #endif
 
+  SYS_STARTUP_FN();
+
   /* Bring up NuttX */
 
   nx_start();
@@ -476,6 +481,8 @@ noinstrument_function void noreturn_function IRAM_ATTR __esp32s3_start(void)
 
 noinstrument_function void IRAM_ATTR __start(void)
 {
+  const esp_app_desc_t *app_desc;
+
 #if defined(CONFIG_ESP32S3_APP_FORMAT_MCUBOOT) || \
     defined(CONFIG_ESPRESSIF_SIMPLE_BOOT)
   size_t partition_offset = PRIMARY_SLOT_OFFSET;
@@ -503,6 +510,14 @@ noinstrument_function void IRAM_ATTR __start(void)
       while (true);
     }
 #endif
+
+  app_desc = esp_app_get_description();
+  if (app_desc->magic_word != ESP_APP_DESC_MAGIC_WORD)
+    {
+      ets_printf("Magic Word check failed: %08" PRIx32 "\n",
+                 app_desc->magic_word);
+      ets_printf("Trying to boot anyway...\n");
+    }
 
   configure_cpu_caches();
 

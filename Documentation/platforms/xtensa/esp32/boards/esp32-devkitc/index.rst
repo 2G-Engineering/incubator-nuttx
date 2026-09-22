@@ -588,6 +588,22 @@ to demonstrate the use of the userleds subsystem::
     led_daemon: LED set 0x00
     led_daemon: LED set 0x01
 
+match4
+------
+
+This configuration enables match4 game using led matrix (ws2812) and gpio pins.
+Alternatively, you can use serial console for input with enabling `GAMES_MATCH4_USE_CONSOLEKEY`
+option.
+
+You can run the game by using ``match`` command::
+
+    nsh> match
+
+Here is the sample wiring diagram that demonstrates how to wire ws2812 with buttons for match4 example:
+
+.. figure:: esp32-brickmatch-game-schematic.jpg
+    :align: center
+
 max6675
 -------
 
@@ -633,11 +649,19 @@ The MCP2515 interrupt (INT) pin is connected to the pin 22 of the
 ESP32-Devkit.
 
 mcuboot_nsh
---------------------
+-----------
 
 This configuration is the same as the ``nsh`` configuration, but it generates the application
 image in a format that can be used by MCUboot. It also makes the ``make bootloader`` command to
 build the MCUboot bootloader image using the Espressif HAL.
+
+mcuboot_update_agent
+--------------------
+
+This configuration is used to represent an MCUboot image that contains an update agent
+to perform over-the-air (OTA) updates. Wi-Fi settings are already enabled and image confirmation program is included.
+
+Follow the instructions in the :ref:`MCUBoot and OTA Update <MCUBoot and OTA Update ESP32>` section to execute OTA update.
 
 mcuboot_slot_confirm
 --------------------
@@ -647,28 +671,6 @@ after flashing. The image can be confirmed by using the following command::
 
     nsh> mcuboot_confirm
     Application Image successfully confirmed!
-
-For more information, check `this demo <https://www.youtube.com/watch?v=Vzy0rl-ixbc>`_.
-
-mcuboot_update_agent
---------------------
-
-This configuration is used to represent an MCUboot image that contains an update agent
-to perform OTA updates. First, you will have to setup a HTTP server to provide the update
-image. To do that, we can run a simple Python server on the same folder that contains our
-binary file on the computer::
-
-    sudo python -m http.server 8080
-
-After this, we can use NSH to connect to our network and use the agent to perform the firmware
-update::
-
-    nsh> ifup wlan0
-    nsh> wapi mode wlan0 2
-    nsh> wapi psk wlan0 mypasswd 3
-    nsh> wapi essid wlan0 myssid 1
-    nsh> renew wlan0
-    nsh> mcuboot_agent http://<SERVER_IP>:8080/nuttx.bin
 
 For more information, check `this demo <https://www.youtube.com/watch?v=Vzy0rl-ixbc>`_.
 
@@ -950,6 +952,39 @@ DAC feature with following command with connecting simple LED on GPIO5
     nsh> dac -d 100 -s 10 test
 
 After this command you will see LED will light up in different brightness.
+
+sdmmc_spi
+---------
+
+This configuration is used to mount a FAT/FAT32 SD Card into the OS' filesystem.
+It uses SPI to communicate with the SD Card, defaulting to SPI3.
+
+The SD slot number, SPI port number and minor number can be modified in ``Application Configuration → NSH Library``.
+
+To access the card's files, make sure ``/dev/mmcsd0`` exists and then execute the following commands::
+
+    nsh> ls /dev
+    /dev:
+    console
+    mmcsd0
+    null
+    ttyS0
+    zero
+    nsh> mount -t vfat /dev/mmcsd0 /mnt
+
+This will mount the SD Card to ``/mnt``. Now, you can use the SD Card as a normal filesystem.
+For example, you can read a file and write to it::
+
+    nsh> ls /mnt
+    /mnt:
+    hello.txt
+    nsh> cat /mnt/hello.txt
+    Hello World
+    nsh> echo 'NuttX RTOS' >> /mnt/hello.txt
+    nsh> cat /mnt/hello.txt
+    Hello World!
+    NuttX RTOS
+    nsh>
 
 smp
 ---

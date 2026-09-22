@@ -39,11 +39,9 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/mtd/mtd.h>
 #include <nuttx/spi/spi.h>
+#include <nuttx/fs/partition.h>
 #ifdef CONFIG_ESP32_SPIFLASH_NXFFS
 #include <nuttx/fs/nxffs.h>
-#endif
-#ifdef CONFIG_BCH
-#include <nuttx/drivers/drivers.h>
 #endif
 
 #include "esp32_spiflash.h"
@@ -69,15 +67,6 @@
  * Private Types
  ****************************************************************************/
 
-#ifdef CONFIG_ESP32_HAVE_OTA_PARTITION
-struct ota_partition_s
-{
-  uint32_t    offset;          /* Partition offset from the beginning of MTD */
-  uint32_t    size;            /* Partition size in bytes */
-  const char *devpath;         /* Partition device path */
-};
-#endif
-
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
@@ -91,22 +80,25 @@ static int init_ota_partitions(void);
  ****************************************************************************/
 
 #ifdef CONFIG_ESP32_HAVE_OTA_PARTITION
-static const struct ota_partition_s g_ota_partition_table[] =
+static const struct partition_s g_ota_partition_table[] =
 {
   {
-    .offset  = CONFIG_ESP32_OTA_PRIMARY_SLOT_OFFSET,
-    .size    = CONFIG_ESP32_OTA_SLOT_SIZE,
-    .devpath = CONFIG_ESP32_OTA_PRIMARY_SLOT_DEVPATH
+    .name       = CONFIG_ESP32_OTA_PRIMARY_SLOT_DEVPATH,
+    .index      = 0,
+    .firstblock = CONFIG_ESP32_OTA_PRIMARY_SLOT_OFFSET,
+    .blocksize  = CONFIG_ESP32_OTA_SLOT_SIZE,
   },
   {
-    .offset  = CONFIG_ESP32_OTA_SECONDARY_SLOT_OFFSET,
-    .size    = CONFIG_ESP32_OTA_SLOT_SIZE,
-    .devpath = CONFIG_ESP32_OTA_SECONDARY_SLOT_DEVPATH
+    .name       = CONFIG_ESP32_OTA_SECONDARY_SLOT_DEVPATH,
+    .index      = 1,
+    .firstblock = CONFIG_ESP32_OTA_SECONDARY_SLOT_OFFSET,
+    .blocksize  = CONFIG_ESP32_OTA_SLOT_SIZE,
   },
   {
-    .offset  = CONFIG_ESP32_OTA_SCRATCH_OFFSET,
-    .size    = CONFIG_ESP32_OTA_SCRATCH_SIZE,
-    .devpath = CONFIG_ESP32_OTA_SCRATCH_DEVPATH
+    .name       = CONFIG_ESP32_OTA_SCRATCH_DEVPATH,
+    .index      = 2,
+    .firstblock = CONFIG_ESP32_OTA_SCRATCH_OFFSET,
+    .blocksize  = CONFIG_ESP32_OTA_SCRATCH_SIZE,
   }
 };
 #endif
@@ -119,36 +111,21 @@ static const struct ota_partition_s g_ota_partition_table[] =
 static int init_ota_partitions(void)
 {
   struct mtd_dev_s *mtd;
-#ifdef CONFIG_BCH
-  char blockdev[18];
-#endif
   int ret = OK;
 
   for (int i = 0; i < nitems(g_ota_partition_table); ++i)
     {
-      const struct ota_partition_s *part = &g_ota_partition_table[i];
-      mtd = esp32_spiflash_alloc_mtdpart(part->offset, part->size,
+      const struct partition_s *part = &g_ota_partition_table[i];
+      mtd = esp32_spiflash_alloc_mtdpart(part->firstblock, part->blocksize,
                                          OTA_ENCRYPT);
 
-      ret = ftl_initialize(i, mtd);
+      ret = register_mtddriver(part->name, mtd, 0755, NULL);
       if (ret < 0)
         {
-          syslog(LOG_ERR, "ERROR: Failed to initialize the FTL layer: %d\n",
-                 ret);
+          syslog(LOG_ERR, "register_mtddriver %s failed: %d\n",
+                 part->name, ret);
           return ret;
         }
-
-#ifdef CONFIG_BCH
-      snprintf(blockdev, sizeof(blockdev), "/dev/mtdblock%d", i);
-
-      ret = bchdev_register(blockdev, part->devpath, false);
-      if (ret < 0)
-        {
-          syslog(LOG_ERR, "ERROR: bchdev_register %s failed: %d\n",
-                 part->devpath, ret);
-          return ret;
-        }
-#endif
     }
 
   return ret;
@@ -420,26 +397,27 @@ static int init_storage_partition(void)
       return ret;
     }
 
-#else
+#elif defined(CONFIG_MTD_NVBLK)
 
-  ret = register_mtddriver("/dev/esp32flash", mtd, 0755, NULL);
+  ret = nvblk_initialize("/dev/mtdblock0", mtd,
+                         CONFIG_MTD_NVBLK_DEFAULT_LBS,
+                         CONFIG_MTD_NVBLK_DEFAULT_IOBS,
+                         CONFIG_MTD_NVBLK_DEFAULT_SPEB);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: Failed to register MTD: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: Failed to setup nvblk\n");
       return ret;
     }
 
-#ifdef CONFIG_ESP32_HAVE_OTA_PARTITION
-  ret = ftl_initialize(nitems(g_ota_partition_table), mtd);
 #else
-  ret = ftl_initialize(0, mtd);
-#endif
+
+  ret = register_mtddriver("/dev/mtdblock0", mtd, 0755, NULL);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: Failed to initialize the FTL layer: %d\n",
-              ret);
+      syslog(LOG_ERR, "ERROR: Failed to register MTD mtdblock0: %d\n", ret);
       return ret;
     }
+
 #endif
 
   return ret;

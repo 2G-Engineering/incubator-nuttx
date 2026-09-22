@@ -28,7 +28,7 @@ HEAD_CSRC  = esp32s3_start.c
 
 # Required ESP32-S3 files (arch/xtensa/src/esp32s3)
 
-CHIP_CSRCS  = esp32s3_irq.c esp32s3_clockconfig.c esp32s3_region.c
+CHIP_CSRCS  = esp32s3_cache.c esp32s3_irq.c esp32s3_clockconfig.c esp32s3_region.c
 CHIP_CSRCS += esp32s3_systemreset.c esp32s3_user.c esp32s3_allocateheap.c esp32s3_reset_reasons.c
 CHIP_CSRCS += esp32s3_wdt.c esp32s3_gpio.c esp32s3_lowputc.c esp32s3_serial.c
 CHIP_CSRCS += esp32s3_rtc_gpio.c esp32s3_libc_stubs.c esp32s3_spi_timing.c
@@ -47,22 +47,12 @@ ifeq ($(CONFIG_SMP),y)
 CHIP_CSRCS += esp32s3_cpuidlestack.c esp32s3_cpustart.c esp32s3_intercpu_interrupt.c
 endif
 
-ifeq ($(CONFIG_ESP32S3_EFUSE),y)
-CHIP_CSRCS += esp32s3_efuse.c
-CHIP_CSRCS += esp32s3_efuse_table.c
-CHIP_CSRCS += esp32s3_efuse_lowerhalf.c
-endif
-
 ifeq ($(CONFIG_ESP32S3_RNG),y)
 CHIP_CSRCS += esp32s3_rng.c
 endif
 
 ifeq ($(CONFIG_ESP32S3_TWAI),y)
 CHIP_CSRCS += esp32s3_twai.c
-endif
-
-ifeq ($(CONFIG_ESP32S3_LEDC),y)
-CHIP_CSRCS += esp32s3_ledc.c
 endif
 
 ifeq ($(CONFIG_ESP32S3_USBSERIAL),y)
@@ -217,7 +207,7 @@ endif
 
 ESP_HAL_3RDPARTY_REPO = esp-hal-3rdparty
 ifndef ESP_HAL_3RDPARTY_VERSION
-	ESP_HAL_3RDPARTY_VERSION = 65d20bfeed8dc22ff6eb096cea4486f925b92f1e
+	ESP_HAL_3RDPARTY_VERSION = b6fa6c9098318007a61acc7c9f0f180443bb80c2
 endif
 
 ifndef ESP_HAL_3RDPARTY_URL
@@ -270,12 +260,13 @@ include chip/hal.mk
 include common/espressif/Make.defs
 
 context:: chip/$(ESP_HAL_3RDPARTY_REPO)
-ifeq ($(CONFIG_ESPRESSIF_WIRELESS),y)
 	$(Q) echo "Espressif HAL for 3rd Party Platforms: initializing submodules..."
-	$(Q) git -C chip/$(ESP_HAL_3RDPARTY_REPO) submodule --quiet update --init $(GIT_DEPTH_PARAMETER) components/mbedtls/mbedtls components/esp_phy/lib components/esp_wifi/lib components/bt/controller/lib_esp32c3_family components/esp_coex/lib
+	$(Q) git -C chip/$(ESP_HAL_3RDPARTY_REPO) submodule --quiet update --init $(GIT_DEPTH_PARAMETER) components/mbedtls/mbedtls
 	$(Q) git -C chip/$(ESP_HAL_3RDPARTY_REPO)/components/mbedtls/mbedtls reset --quiet --hard
 	$(Q) echo "Applying patches..."
 	$(Q) cd chip/$(ESP_HAL_3RDPARTY_REPO)/components/mbedtls/mbedtls && git apply ../../../nuttx/patches/components/mbedtls/mbedtls/*.patch
+ifeq ($(CONFIG_ESPRESSIF_WIRELESS),y)
+	$(Q) git -C chip/$(ESP_HAL_3RDPARTY_REPO) submodule --quiet update --init $(GIT_DEPTH_PARAMETER) components/esp_phy/lib components/esp_wifi/lib components/bt/controller/lib_esp32c3_family components/esp_coex/lib
 endif
 
 distclean::

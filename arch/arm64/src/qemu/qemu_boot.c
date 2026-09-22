@@ -161,7 +161,9 @@ void arm64_chip_boot(void)
 
   arm64_mmu_init(true);
 
-  arm64_enable_mte();
+#ifdef CONFIG_ARM64_MTE
+  arm64_mte_init();
+#endif
 
 #ifdef CONFIG_DEVICE_TREE
   fdt_register((const char *)0x40000000);
@@ -177,7 +179,9 @@ void arm64_chip_boot(void)
    * configuration of board specific resources such as GPIOs, LEDs, etc.
    */
 
+#ifndef CONFIG_ARCH_CHIP_CUSTOM
   qemu_board_initialize();
+#endif
 
 #ifdef USE_EARLYSERIALINIT
   /* Perform early serial initialization if we are going to use the serial

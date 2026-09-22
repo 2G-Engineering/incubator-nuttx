@@ -283,6 +283,11 @@ config ARCH_TOOLCHAIN_GNU
 	bool
 	default n
 
+config ARCH_TOOLCHAIN_ARMCLANG
+	bool
+	select ARCH_TOOLCHAIN_GNU
+	default n
+
 config ARCH_TOOLCHAIN_CLANG
 	bool
 	select ARCH_TOOLCHAIN_GNU
@@ -544,6 +549,10 @@ config ARCH_HAVE_BACKTRACE
 
 config ARCH_HAVE_DEBUG
 	bool "Architecture have debug support"
+	default n
+
+config ARCH_HAVE_MEMTAG
+	bool "Architecture have memory tagging support"
 	default n
 
 config ARCH_HAVE_PERF_EVENTS

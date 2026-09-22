@@ -50,7 +50,7 @@
 #  include "esp32s2_tim_lowerhalf.h"
 #endif
 
-#ifdef CONFIG_ESPRESSIF_WLAN
+#ifdef CONFIG_ESPRESSIF_WIFI
 #  include "esp32s2_board_wlan.h"
 #endif
 
@@ -62,12 +62,12 @@
 #  include "esp32s2_rt_timer.h"
 #endif
 
-#ifdef CONFIG_ESP32S2_EFUSE
-#  include "esp32s2_efuse.h"
+#ifdef CONFIG_ESPRESSIF_EFUSE
+#  include "espressif/esp_efuse.h"
 #endif
 
-#ifdef CONFIG_ESP32S2_LEDC
-#  include "esp32s2_ledc.h"
+#ifdef CONFIG_ESPRESSIF_LEDC
+#  include "espressif/esp_ledc.h"
 #endif
 
 #ifdef CONFIG_WATCHDOG
@@ -117,6 +117,14 @@
 #  include "espressif/esp_sdm.h"
 #endif
 
+#ifdef CONFIG_ESPRESSIF_SHA_ACCELERATOR
+#  include "espressif/esp_sha.h"
+#endif
+
+#ifdef CONFIG_MMCSD_SPI
+#  include "esp32s2_board_sdmmc.h"
+#endif
+
 #include "esp32s2-saola-1.h"
 
 /****************************************************************************
@@ -162,11 +170,21 @@ int esp32s2_bringup(void)
     }
 #endif
 
-#if defined(CONFIG_ESP32S2_EFUSE)
-  ret = esp32s2_efuse_initialize("/dev/efuse");
+#if defined(CONFIG_ESPRESSIF_EFUSE)
+  ret = esp_efuse_initialize("/dev/efuse");
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: Failed to init EFUSE: %d\n", ret);
+    }
+#endif
+
+#if defined(CONFIG_ESPRESSIF_SHA_ACCELERATOR) && \
+    !defined(CONFIG_CRYPTO_CRYPTODEV_HARDWARE)
+  ret = esp_sha_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to initialize SHA: %d\n", ret);
     }
 #endif
 
@@ -180,13 +198,13 @@ int esp32s2_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESP32S2_LEDC
+#ifdef CONFIG_ESPRESSIF_LEDC
   ret = esp32s2_pwm_setup();
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: esp32s2_pwm_setup() failed: %d\n", ret);
     }
-#endif /* CONFIG_ESP32S2_LEDC */
+#endif /* CONFIG_ESPRESSIF_LEDC */
 
 #ifdef CONFIG_ESPRESSIF_SPIFLASH
   ret = board_spiflash_init();
@@ -323,16 +341,14 @@ int esp32s2_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESPRESSIF_WIRELESS
+#ifdef CONFIG_ESPRESSIF_WIFI
 
-#ifdef CONFIG_ESPRESSIF_WLAN
   ret = board_wlan_init();
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: Failed to initialize wlan subsystem=%d\n",
-             ret);
+              ret);
     }
-#endif
 
 #endif
 
@@ -477,6 +493,14 @@ int esp32s2_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: board_adc_init failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_MMCSD_SPI
+  ret = board_sdmmc_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize SDMMC: %d\n", ret);
     }
 #endif
 

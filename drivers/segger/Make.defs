@@ -24,6 +24,7 @@ TARGET_ZIP =
 SGDIR      = segger
 
 ifeq ($(CONFIG_SEGGER_RTT),y)
+  CSRCS += segger/segger.c
   CSRCS += segger/SystemView/SEGGER/SEGGER_RTT.c
 
   CFLAGS += -Wno-shadow -Wno-pointer-to-int-cast
@@ -71,7 +72,7 @@ endif
 ifneq ($(CONFIG_SEGGER_RTT)$(CONFIG_SEGGER_SYSVIEW),)
   CFLAGS += ${INCDIR_PREFIX}segger$(DELIM)SystemView$(DELIM)SEGGER
 
-  SYSVIEW_VERSION ?= 356
+  SYSVIEW_VERSION ?= $(CONFIG_SEGGER_SYSVIEW_TARGET_SOURCE)
   SYSVIEW_ZIP = SystemView_Src_V$(SYSVIEW_VERSION).zip
 
 # Download and unpack tarball if no git repo found

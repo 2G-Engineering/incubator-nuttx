@@ -88,6 +88,7 @@ SECTIONS
     *libarch.a:xtensa_irqdispatch.*(.literal .text .literal.* .text.*)
     *libarch.a:xtensa_modifyreg32.*(.literal .text .literal.* .text.*)
     *libarch.a:xtensa_testset.*(.literal .text .literal.* .text.*)
+    *libarch.a:esp_app_desc.*(.literal .text .literal.* .text.*)
 
     *libarch.a:*esp_rom_spiflash.*(.literal .text .literal.* .text.*)
     *libarch.a:*esp_rom_cache_esp32s2_esp32s3.*(.literal .text .literal.* .text.*)
@@ -294,12 +295,16 @@ SECTIONS
      */
 
     . = ALIGN(0x10000) + 0x20;
-    _rodata_reserved_start = .;
   } >default_rodata_seg
 
   .flash.rodata : ALIGN(0x10)
   {
+    _rodata_reserved_start = ABSOLUTE(.);
     _srodata = ABSOLUTE(.);
+
+    /* !DO NOT PUT ANYTHING BEFORE THIS! */
+    /* Should be the first.  App version info. */
+    *(.rodata_desc .rodata_desc.*)
 
     *(.rodata)
     *(.rodata.*)
@@ -326,15 +331,24 @@ SECTIONS
     /* C++ constructor and destructor tables, properly ordered: */
 
     _sinit = ABSOLUTE(.);
+    __init_array_start = ABSOLUTE(.);
     KEEP (*crtbegin.o(.ctors))
     KEEP (*(EXCLUDE_FILE (*crtend.o) .ctors))
     KEEP (*(SORT(.ctors.*)))
     KEEP (*(.ctors))
+    __init_array_end = ABSOLUTE(.);
     _einit = ABSOLUTE(.);
     KEEP (*crtbegin.o(.dtors))
     KEEP (*(EXCLUDE_FILE (*crtend.o) .dtors))
     KEEP (*(SORT(.dtors.*)))
     KEEP (*(.dtors))
+
+    /* System init functions registered via ESP_SYSTEM_INIT_FN */
+
+    . = ALIGN(4);
+    _esp_system_init_fn_array_start = ABSOLUTE(.);
+    KEEP (*(SORT_BY_INIT_PRIORITY(.esp_system_init_fn.*)))
+    _esp_system_init_fn_array_end = ABSOLUTE(.);
 
     /* C++ exception handlers table: */
 

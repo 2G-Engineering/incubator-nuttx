@@ -42,7 +42,8 @@ RUN apt-get update -qq && DEBIAN_FRONTEND="noninteractive" apt-get install -y -q
   ninja-build \
   nodejs \
   npm \
-  unzip
+  unzip \
+  zip
 
 RUN mkdir -p /tools
 WORKDIR /tools
@@ -68,6 +69,9 @@ RUN mkdir -p /tools/gn \
   && git clone https://gn.googlesource.com/gn gn \
   && cd gn && ./build/gen.py \
   && cd out && ninja
+
+# Upgrade nodejs to the stable version we need before install zap
+RUN npm install -g n && n 20.10.0 node && hash -r
 
 ENV ZAP_INSTALL_PATH=/tools/zap_release
 RUN mkdir -p $ZAP_INSTALL_PATH \
@@ -243,7 +247,7 @@ RUN cd /tools/renesas-tools/build/gcc && \
 FROM nuttx-toolchain-base AS nuttx-toolchain-riscv
 # Download the latest RISCV GCC toolchain prebuilt by xPack
 RUN mkdir -p riscv-none-elf-gcc && \
-  curl -s -L "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz" \
+  curl -s -L "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v14.2.0-3/xpack-riscv-none-elf-gcc-14.2.0-3-linux-x64.tar.gz" \
   | tar -C riscv-none-elf-gcc --strip-components 1 -xz
 
 ###############################################################################
@@ -259,18 +263,10 @@ RUN mkdir -p sparc-gaisler-elf-gcc && \
 # Build image for tool required by ESP32 builds
 ###############################################################################
 FROM nuttx-toolchain-base AS nuttx-toolchain-esp32
-# Download the latest ESP32 GCC toolchain prebuilt by Espressif
-RUN mkdir -p xtensa-esp32-elf-gcc && \
-  curl -s -L "https://github.com/espressif/crosstool-NG/releases/download/esp-12.2.0_20230208/xtensa-esp32-elf-12.2.0_20230208-x86_64-linux-gnu.tar.xz" \
-  | tar -C xtensa-esp32-elf-gcc --strip-components 1 -xJ
-
-RUN mkdir -p xtensa-esp32s2-elf-gcc && \
-  curl -s -L "https://github.com/espressif/crosstool-NG/releases/download/esp-12.2.0_20230208/xtensa-esp32s2-elf-12.2.0_20230208-x86_64-linux-gnu.tar.xz" \
-  | tar -C xtensa-esp32s2-elf-gcc --strip-components 1 -xJ
-
-RUN mkdir -p xtensa-esp32s3-elf-gcc && \
-  curl -s -L "https://github.com/espressif/crosstool-NG/releases/download/esp-12.2.0_20230208/xtensa-esp32s3-elf-12.2.0_20230208-x86_64-linux-gnu.tar.xz" \
-  | tar -C xtensa-esp32s3-elf-gcc --strip-components 1 -xJ
+# Download the latest ESP32, ESP32-S2 and ESP32-S3 GCC toolchain prebuilt by Espressif
+RUN mkdir -p xtensa-esp-elf-gcc && \
+  curl -s -L "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20241119/xtensa-esp-elf-14.2.0_20241119-x86_64-linux-gnu.tar.xz" \
+  | tar -C xtensa-esp-elf-gcc --strip-components 1 -xJ
 
 RUN echo "ESP Binaries: 2022/01/26"
 RUN mkdir -p /tools/blobs && cd /tools/blobs \
@@ -296,6 +292,15 @@ RUN mkdir -p wasi-sdk && \
 RUN mkdir -p wamrc && \
   curl -s -L  "https://github.com/bytecodealliance/wasm-micro-runtime/releases/download/WAMR-1.1.2/wamrc-1.1.2-x86_64-ubuntu-20.04.tar.gz" \
   | tar -C wamrc -xz
+
+###############################################################################
+# Build image for tool required by Raspberry Pi pico-sdk builds
+###############################################################################
+FROM nuttx-toolchain-base AS nuttx-toolchain-raspberrypi-pico-sdk
+# Download the latest pico-sdk source archive
+RUN mkdir -p pico-sdk && \
+  curl -s -L "https://github.com/raspberrypi/pico-sdk/releases/download/2.2.0/pico-sdk-2.2.0.tar.gz" \
+  | tar -C pico-sdk --strip-components 1 -xz
 
 ###############################################################################
 # Final Docker image used for running CI system.  This includes all toolchains
@@ -360,6 +365,7 @@ RUN apt-get update -qq && DEBIAN_FRONTEND="noninteractive" TZ=Etc/UTC apt-get in
   file \
   subversion \
   tclsh \
+  zip \
   && rm -rf /var/lib/apt/lists/*
 
 # Set GCC-12 as Default compiler
@@ -404,8 +410,8 @@ RUN pip3 install stringcase
 RUN pip3 install jinja2
 RUN pip3 install coloredlogs
 
-# Upgrade nodejs to the latest version
-RUN npm install -g n && n stable && hash -r
+# Upgrade nodejs to the stable version we need
+RUN npm install -g n && n 20.10.0 node && hash -r
 
 # Used to generate symbol table files
 
@@ -470,17 +476,9 @@ ENV PATH="/tools/riscv-none-elf-gcc/bin:$PATH"
 COPY --from=nuttx-toolchain-sparc /tools/sparc-gaisler-elf-gcc/ sparc-gaisler-elf-gcc/
 ENV PATH="/tools/sparc-gaisler-elf-gcc/bin:$PATH"
 
-# ESP32 toolchain
-COPY --from=nuttx-toolchain-esp32 /tools/xtensa-esp32-elf-gcc/ xtensa-esp32-elf-gcc/
-ENV PATH="/tools/xtensa-esp32-elf-gcc/bin:$PATH"
-
-# ESP32-S2 toolchain
-COPY --from=nuttx-toolchain-esp32 /tools/xtensa-esp32s2-elf-gcc/ xtensa-esp32s2-elf-gcc/
-ENV PATH="/tools/xtensa-esp32s2-elf-gcc/bin:$PATH"
-
-# ESP32-S3 toolchain
-COPY --from=nuttx-toolchain-esp32 /tools/xtensa-esp32s3-elf-gcc/ xtensa-esp32s3-elf-gcc/
-ENV PATH="/tools/xtensa-esp32s3-elf-gcc/bin:$PATH"
+# ESP32, ESP32-S2, ESP32-S3 toolchain
+COPY --from=nuttx-toolchain-esp32 /tools/xtensa-esp-elf-gcc/ xtensa-esp-elf-gcc/
+ENV PATH="/tools/xtensa-esp-elf-gcc/bin:$PATH"
 
 RUN mkdir -p /tools/blobs/esp-bins
 COPY --from=nuttx-toolchain-esp32 /tools/blobs/* /tools/blobs/esp-bins/
@@ -489,6 +487,11 @@ COPY --from=nuttx-toolchain-esp32 /tools/blobs/* /tools/blobs/esp-bins/
 COPY --from=nuttx-toolchain-wasm /tools/wasi-sdk/ wasi-sdk/
 ENV WASI_SDK_PATH="/tools/wasi-sdk"
 ENV PATH="/tools/wamr:$PATH"
+COPY --from=nuttx-toolchain-esp32 /tools/blobs/* /tools/blobs/esp-bins/
+
+# Raspberry Pi pico-sdk source
+COPY --from=nuttx-toolchain-raspberrypi-pico-sdk /tools/pico-sdk/ pico-sdk/
+ENV PICO_SDK_PATH="/tools/pico-sdk"
 
 # gn tool
 RUN mkdir -p /tools/gn

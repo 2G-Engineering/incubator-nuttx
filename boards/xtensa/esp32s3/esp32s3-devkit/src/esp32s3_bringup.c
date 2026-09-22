@@ -44,7 +44,7 @@
 #  include "esp32s3_board_tim.h"
 #endif
 
-#ifdef CONFIG_ESPRESSIF_WLAN
+#ifdef CONFIG_ESPRESSIF_WIFI
 #  include "esp32s3_board_wlan.h"
 #endif
 
@@ -88,11 +88,11 @@
 #include <nuttx/video/fb.h>
 #endif
 
-#ifdef CONFIG_ESP32S3_EFUSE
-#  include "esp32s3_efuse.h"
+#ifdef CONFIG_ESPRESSIF_EFUSE
+#  include "espressif/esp_efuse.h"
 #endif
 
-#ifdef CONFIG_ESP32S3_LEDC
+#ifdef CONFIG_ESPRESSIF_LEDC
 #  include "esp32s3_board_ledc.h"
 #endif
 
@@ -116,7 +116,11 @@
 #  endif
 #endif
 
-#ifdef CONFIG_ESP32S3_SDMMC
+#ifdef CONFIG_SPI_SLAVE_DRIVER
+#include "esp32s3_board_spislavedev.h"
+#endif
+
+#if defined(CONFIG_ESP32S3_SDMMC) || defined(CONFIG_MMCSD_SPI)
 #include "esp32s3_board_sdmmc.h"
 #endif
 
@@ -143,6 +147,10 @@
 
 #ifdef CONFIG_ESP_SDM
 #  include "espressif/esp_sdm.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_SHA_ACCELERATOR
+#  include "espressif/esp_sha.h"
 #endif
 
 #include "esp32s3-devkit.h"
@@ -184,15 +192,34 @@ int esp32s3_bringup(void)
 #endif
 
 #if defined(CONFIG_ESP32S3_SPI) && defined(CONFIG_SPI_DRIVER)
-  #ifdef CONFIG_ESP32S3_SPI2
-  ret = board_spidev_initialize(ESP32S3_SPI2);
+
+  #if defined(CONFIG_SPI_SLAVE_DRIVER) && defined(CONFIG_ESP32S3_SPI2)
+  ret = board_spislavedev_initialize(ESP32S3_SPI2);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: Failed to init spidev 2: %d\n", ret);
+      syslog(LOG_ERR, "Failed to initialize SPI%d Slave driver: %d\n",
+             ESP32S3_SPI2, ret);
     }
   #endif
 
-  #ifdef CONFIG_ESP32S3_SPI3
+  #if defined(CONFIG_SPI_SLAVE_DRIVER) && defined(CONFIG_ESP32S3_SPI3)
+  ret = board_spislavedev_initialize(ESP32S3_SPI3);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize SPI%d Slave driver: %d\n",
+             ESP32S3_SPI2, ret);
+    }
+  #endif
+
+  #if defined(CONFIG_ESP32S3_SPI2) && !defined(CONFIG_SPI_SLAVE_DRIVER)
+  ret = board_spidev_initialize(ESP32S3_SPI2);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to init spidev 3: %d\n", ret);
+    }
+  #endif
+
+  #if defined(CONFIG_ESP32S3_SPI3) && !defined(CONFIG_SPI_SLAVE_DRIVER)
   ret = board_spidev_initialize(ESP32S3_SPI3);
   if (ret < 0)
     {
@@ -209,11 +236,21 @@ int esp32s3_bringup(void)
   #endif /* CONFIG_ESPRESSIF_SPI_BITBANG */
 #endif /* CONFIG_ESP32S3_SPI && CONFIG_SPI_DRIVER*/
 
-#if defined(CONFIG_ESP32S3_EFUSE)
-  ret = esp32s3_efuse_initialize("/dev/efuse");
+#if defined(CONFIG_ESPRESSIF_EFUSE)
+  ret = esp_efuse_initialize("/dev/efuse");
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: Failed to init EFUSE: %d\n", ret);
+    }
+#endif
+
+#if defined(CONFIG_ESPRESSIF_SHA_ACCELERATOR) && \
+    !defined(CONFIG_CRYPTO_CRYPTODEV_HARDWARE)
+  ret = esp_sha_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to initialize SHA: %d\n", ret);
     }
 #endif
 
@@ -238,13 +275,13 @@ int esp32s3_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESP32S3_LEDC
+#ifdef CONFIG_ESPRESSIF_LEDC
   ret = esp32s3_pwm_setup();
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: esp32s3_pwm_setup() failed: %d\n", ret);
     }
-#endif /* CONFIG_ESP32S3_LEDC */
+#endif /* CONFIG_ESPRESSIF_LEDC */
 
 #ifdef CONFIG_ESP32S3_TIMER
   /* Configure general purpose timers */
@@ -455,7 +492,7 @@ int esp32s3_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_ESPRESSIF_WLAN
+#ifdef CONFIG_ESPRESSIF_WIFI
   ret = board_wlan_init();
   if (ret < 0)
     {
@@ -506,6 +543,14 @@ int esp32s3_bringup(void)
 
 #ifdef CONFIG_ESP32S3_SDMMC
   ret = board_sdmmc_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize SDMMC: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_MMCSD_SPI
+  ret = board_sdmmc_spi_initialize();
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: Failed to initialize SDMMC: %d\n", ret);

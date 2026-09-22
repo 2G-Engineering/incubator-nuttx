@@ -94,9 +94,16 @@
 #define REG_SAR             (18)
 #define REG_EXCCAUSE        (19)
 #define REG_EXCVADDR        (20)
-#define REG_THREADPTR       (21)
 
-#define _REG_EXTRA_START    (22)
+#ifdef CONFIG_SCHED_THREAD_LOCAL
+#  ifndef XCHAL_HAVE_THREADPTR || XCHAL_HAVE_THREADPTR == 0
+#    error architecture-specific TLS depends on ISA THREADPTR(Thread Porinter)
+#  endif
+#  define REG_THREADPTR     (21)
+#  define _REG_EXTRA_START  (22)
+#else
+#  define _REG_EXTRA_START  (21)
+#endif
 
 #if XCHAL_HAVE_S32C1I != 0
 #  define REG_SCOMPARE1       (_REG_EXTRA_START + 0)
@@ -331,7 +338,16 @@ static inline_function void xtensa_disable_all(void)
   __asm__ __volatile__
   (
     "movi a2, 0\n"
-    "xsr a2, INTENABLE\n"
+    "wsr a2, INTENABLE\n"
+#if XCHAL_NUM_INTERRUPTS > 32
+    "wsr a2, INTENABLE1\n"
+#endif
+#if XCHAL_NUM_INTERRUPTS > 64
+    "wsr a2, INTENABLE2\n"
+#endif
+#if XCHAL_NUM_INTERRUPTS > 96
+    "wsr a2, INTENABLE3\n"
+#endif
     "rsync\n"
     : : : "a2"
   );
@@ -341,16 +357,60 @@ static inline_function void xtensa_disable_all(void)
  * Name: xtensa_intclear
  ****************************************************************************/
 
-static inline_function void xtensa_intclear(uint32_t mask)
+static inline_function void xtensa_intclear(uint32_t intnum)
 {
-  __asm__ __volatile__
-  (
-    "wsr %0, INTCLEAR\n"
-    "rsync\n"
-    :
-    : "r"(mask)
-    :
-  );
+  DEBUGASSERT(intnum < XCHAL_NUM_INTERRUPTS);
+
+  if (intnum < 32)
+    {
+      __asm__ __volatile__
+      (
+        "wsr %0, INTCLEAR\n"
+        "rsync\n"
+        :
+        : "r"(1 << intnum)
+        :
+      );
+    }
+#if XCHAL_NUM_INTERRUPTS > 32
+  else if (intnum < 64)
+    {
+      __asm__ __volatile__
+      (
+        "wsr %0, INTCLEAR1\n"
+        "rsync\n"
+        :
+        : "r"(1 << (intnum - 32))
+        :
+      );
+    }
+#endif
+#if XCHAL_NUM_INTERRUPTS > 64
+  else if (intnum < 96)
+    {
+      __asm__ __volatile__
+      (
+        "wsr %0, INTCLEAR2\n"
+        "rsync\n"
+        :
+        : "r"(1 << (intnum - 64))
+        :
+      );
+    }
+#endif
+#if XCHAL_NUM_INTERRUPTS > 96
+  else if (intnum < 128)
+    {
+      __asm__ __volatile__
+      (
+        "wsr %0, INTCLEAR3\n"
+        "rsync\n"
+        :
+        : "r"(1 << (intnum - 96))
+        :
+      );
+    }
+#endif
 }
 
 #ifdef __cplusplus

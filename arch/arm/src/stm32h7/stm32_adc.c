@@ -102,25 +102,11 @@
 
 /* ADC Channels/DMA *********************************************************/
 
-/* The maximum number of channels that can be sampled.  While DMA support is
- * very nice for reliable multi-channel sampling, the STM32H7 can function
- * without, although there is a risk of overrun.
- */
-
-#define ADC_MAX_CHANNELS_DMA   20
-#define ADC_MAX_CHANNELS_NODMA 20
-
 #ifdef ADC_HAVE_DMA
 #  if !defined(CONFIG_STM32H7_DMA1) && !defined(CONFIG_STM32H7_DMA2)
 #    /* REVISIT: check accordingly to which one is configured in board.h */
 #    error "STM32H7 ADC DMA support requires CONFIG_STM32H7_DMA1 or CONFIG_STM32H7_DMA2"
 #  endif
-#endif
-
-#ifdef ADC_HAVE_DMA
-#  define ADC_MAX_SAMPLES ADC_MAX_CHANNELS_DMA
-#else
-#  define ADC_MAX_SAMPLES ADC_MAX_CHANNELS_NODMA
 #endif
 
 #define ADC_DMA_CONTROL_WORD (DMA_CCR_MSIZE_16BITS | \
@@ -199,13 +185,15 @@ struct stm32_dev_s
 #ifdef ADC_HAVE_DMA
   uint8_t dmachan;      /* DMA channel needed by this ADC */
   bool    hasdma;       /* True: This ADC supports DMA */
+  uint16_t dmabatch;    /* Number of conversions for DMA batch */
 #endif
 #ifdef ADC_HAVE_DFSDM
   bool    hasdfsdm;     /* True: This ADC routes its output to DFSDM */
 #endif
 #ifdef ADC_HAVE_TIMER
   uint8_t trigger;      /* Timer trigger channel: 0=CC1, 1=CC2, 2=CC3,
-                         * 3=CC4, 4=TRGO, 5=TRGO2 */
+                         * 3=CC4, 4=TRGO, 5=TRGO2
+                         */
 #endif
 #ifdef CONFIG_STM32H7_ADC_CHANGE_SAMPLETIME
   /* Sample time selection. These bits must be written only when ADON=0.
@@ -244,12 +232,12 @@ struct stm32_dev_s
 
   /* DMA transfer buffer */
 
-  uint16_t dmabuffer[ADC_MAX_SAMPLES];
+  uint16_t *r_dmabuffer;
 #endif
 
   /* List of selected ADC channels to sample */
 
-  uint8_t  r_chanlist[ADC_MAX_SAMPLES];
+  uint8_t  r_chanlist[CONFIG_STM32H7_ADC_MAX_SAMPLES];
 
 #ifdef ADC_HAVE_INJECTED
   /* List of selected ADC injected channels to sample */
@@ -276,6 +264,8 @@ static void     tim_putreg(struct stm32_dev_s *priv, int offset,
                            uint16_t value);
 static void     tim_modifyreg(struct stm32_dev_s *priv, int offset,
                               uint16_t clrbits, uint16_t setbits);
+static void     tim_modifyreg32(struct stm32_dev_s *priv, int offset,
+                                uint32_t clrbits, uint32_t setbits);
 static void     tim_dumpregs(struct stm32_dev_s *priv,
                              const char *msg);
 #endif
@@ -445,6 +435,12 @@ static const struct stm32_adc_ops_s g_adc_llops =
 /* ADC1 state */
 
 #ifdef CONFIG_STM32H7_ADC1
+
+#ifdef ADC1_HAVE_DMA
+static uint16_t g_adc1_dmabuffer[CONFIG_STM32H7_ADC_MAX_SAMPLES *
+                                 CONFIG_STM32H7_ADC1_DMA_BATCH];
+#endif
+
 static struct stm32_dev_s g_adcpriv1 =
 {
   .irq         = STM32_IRQ_ADC12,
@@ -473,6 +469,8 @@ static struct stm32_dev_s g_adcpriv1 =
 #ifdef ADC1_HAVE_DMA
   .dmachan     = ADC1_DMA_CHAN,
   .hasdma      = true,
+  .r_dmabuffer = g_adc1_dmabuffer,
+  .dmabatch    = CONFIG_STM32H7_ADC1_DMA_BATCH,
 #endif
 #ifdef ADC1_HAVE_DFSDM
   .hasdfsdm    = true,
@@ -498,6 +496,12 @@ static struct adc_dev_s g_adcdev1 =
 /* ADC2 state */
 
 #ifdef CONFIG_STM32H7_ADC2
+
+#ifdef ADC2_HAVE_DMA
+static uint16_t g_adc2_dmabuffer[CONFIG_STM32H7_ADC_MAX_SAMPLES *
+                                 CONFIG_STM32H7_ADC2_DMA_BATCH];
+#endif
+
 static struct stm32_dev_s g_adcpriv2 =
 {
   .irq         = STM32_IRQ_ADC12,
@@ -526,6 +530,8 @@ static struct stm32_dev_s g_adcpriv2 =
 #ifdef ADC2_HAVE_DMA
   .dmachan     = ADC2_DMA_CHAN,
   .hasdma      = true,
+  .r_dmabuffer = g_adc2_dmabuffer,
+  .dmabatch    = CONFIG_STM32H7_ADC2_DMA_BATCH,
 #endif
 #ifdef ADC2_HAVE_DFSDM
   .hasdfsdm    = true,
@@ -551,6 +557,12 @@ static struct adc_dev_s g_adcdev2 =
 /* ADC3 state */
 
 #ifdef CONFIG_STM32H7_ADC3
+
+#ifdef ADC3_HAVE_DMA
+static uint16_t g_adc3_dmabuffer[CONFIG_STM32H7_ADC_MAX_SAMPLES *
+                                 CONFIG_STM32H7_ADC3_DMA_BATCH];
+#endif
+
 static struct stm32_dev_s g_adcpriv3 =
 {
   .irq         = STM32_IRQ_ADC3,
@@ -579,6 +591,8 @@ static struct stm32_dev_s g_adcpriv3 =
 #ifdef ADC3_HAVE_DMA
   .dmachan     = ADC3_DMA_CHAN,
   .hasdma      = true,
+  .r_dmabuffer = g_adc3_dmabuffer,
+  .dmabatch    = CONFIG_STM32H7_ADC3_DMA_BATCH,
 #endif
 #ifdef ADC3_HAVE_DFSDM
   .hasdfsdm    = true,
@@ -737,6 +751,7 @@ static void adc_modifyregm(struct stm32_dev_s *priv, int offset,
               (adc_getregm(priv, offset) & ~clrbits) | setbits);
 }
 
+#ifdef ADC_HAVE_TIMER
 /****************************************************************************
  * Name: tim_getreg
  *
@@ -752,12 +767,10 @@ static void adc_modifyregm(struct stm32_dev_s *priv, int offset,
  *
  ****************************************************************************/
 
-#ifdef ADC_HAVE_TIMER
 static uint16_t tim_getreg(struct stm32_dev_s *priv, int offset)
 {
   return getreg16(priv->tbase + offset);
 }
-#endif
 
 /****************************************************************************
  * Name: tim_putreg
@@ -775,13 +788,11 @@ static uint16_t tim_getreg(struct stm32_dev_s *priv, int offset)
  *
  ****************************************************************************/
 
-#ifdef ADC_HAVE_TIMER
 static void tim_putreg(struct stm32_dev_s *priv, int offset,
                        uint16_t value)
 {
   putreg16(value, priv->tbase + offset);
 }
-#endif
 
 /****************************************************************************
  * Name: tim_modifyreg
@@ -800,13 +811,35 @@ static void tim_putreg(struct stm32_dev_s *priv, int offset,
  *
  ****************************************************************************/
 
-#ifdef ADC_HAVE_TIMER
 static void tim_modifyreg(struct stm32_dev_s *priv, int offset,
                           uint16_t clrbits, uint16_t setbits)
 {
   tim_putreg(priv, offset, (tim_getreg(priv, offset) & ~clrbits) | setbits);
 }
-#endif
+
+/****************************************************************************
+ * Name: tim_modifyreg32
+ *
+ * Description:
+ *   Modify the value of an ADC timer register (not atomic).
+ *
+ * Input Parameters:
+ *   priv    - A reference to the ADC block status
+ *   offset  - The offset to the register to modify
+ *   clrbits - The bits to clear
+ *   setbits - The bits to set
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+static void tim_modifyreg32(struct stm32_dev_s *priv, int offset,
+                            uint32_t clrbits, uint32_t setbits)
+{
+  uint32_t addr = priv->tbase + offset;
+  putreg32((getreg32(addr) & ~clrbits) | setbits, addr);
+}
 
 /****************************************************************************
  * Name: tim_dumpregs
@@ -822,7 +855,6 @@ static void tim_modifyreg(struct stm32_dev_s *priv, int offset,
  *
  ****************************************************************************/
 
-#ifdef ADC_HAVE_TIMER
 static void tim_dumpregs(struct stm32_dev_s *priv, const char *msg)
 {
   ainfo("%s:\n", msg);
@@ -861,7 +893,6 @@ static void tim_dumpregs(struct stm32_dev_s *priv, const char *msg)
             tim_getreg(priv, STM32_GTIM_DMAR_OFFSET));
     }
 }
-#endif
 
 /****************************************************************************
  * Name: adc_timstart
@@ -877,7 +908,6 @@ static void tim_dumpregs(struct stm32_dev_s *priv, const char *msg)
  *
  ****************************************************************************/
 
-#ifdef ADC_HAVE_TIMER
 static void adc_timstart(struct stm32_dev_s *priv, bool enable)
 {
   ainfo("enable: %d\n", enable ? 1 : 0);
@@ -895,7 +925,6 @@ static void adc_timstart(struct stm32_dev_s *priv, bool enable)
       tim_modifyreg(priv, STM32_GTIM_CR1_OFFSET, GTIM_CR1_CEN, 0);
     }
 }
-#endif
 
 /****************************************************************************
  * Name: adc_timinit
@@ -912,7 +941,6 @@ static void adc_timstart(struct stm32_dev_s *priv, bool enable)
  *
  ****************************************************************************/
 
-#ifdef ADC_HAVE_TIMER
 static int adc_timinit(struct stm32_dev_s *priv)
 {
   uint32_t prescaler;
@@ -1134,18 +1162,25 @@ static int adc_timinit(struct stm32_dev_s *priv)
 
       case 4: /* TimerX TRGO event */
         {
-          /* TODO: TRGO support not yet implemented */
-
           /* Set the event TRGO */
 
           ccenable = 0;
           egr      = GTIM_EGR_TG;
 
-          /* Set the duty cycle by writing to the CCR register for this
-           * channel
-           */
+          tim_modifyreg(priv, STM32_GTIM_CR2_OFFSET, clrbits,
+                        GTIM_CR2_MMS_UPDATE);
+        }
+        break;
 
-          tim_putreg(priv, STM32_GTIM_CCR4_OFFSET, (uint16_t)(reload >> 1));
+      case 5: /* TimerX TRGO2 event */
+        {
+          /* Set the event TRGO2 */
+
+          ccenable = 0;
+          egr      = GTIM_EGR_TG;
+
+          tim_modifyreg32(priv, STM32_GTIM_CR2_OFFSET, clrbits,
+                          ATIM_CR2_MMS2_UPDATE);
         }
         break;
 
@@ -1709,10 +1744,10 @@ static int adc_setup(struct adc_dev_s *dev)
       priv->dma = stm32_dmachannel(priv->dmachan);
 
       stm32_dmasetup(priv->dma,
-                       priv->base + STM32_ADC_DR_OFFSET,
-                       (uint32_t)priv->dmabuffer,
-                       priv->rnchannels,
-                       ADC_DMA_CONTROL_WORD);
+                     priv->base + STM32_ADC_DR_OFFSET,
+                     (uint32_t)priv->r_dmabuffer,
+                     priv->rnchannels * priv->dmabatch,
+                     ADC_DMA_CONTROL_WORD);
 
       stm32_dmastart(priv->dma, adc_dmaconvcallback, dev, false);
     }
@@ -2147,7 +2182,7 @@ static bool adc_internal(struct stm32_dev_s * priv, uint32_t *adc_ccr)
 
   if (priv->intf == 3)
     {
-      for (i = 0; i < priv->cr_channels; i++)
+      for (i = 0; i < priv->rnchannels; i++)
         {
           if (priv->r_chanlist[i] > ADC_EXTERNAL_CHAN_MAX)
             {
@@ -2242,7 +2277,7 @@ static int adc_set_ch(struct adc_dev_s *dev, uint8_t ch)
       priv->rnchannels = 1;
     }
 
-  DEBUGASSERT(priv->rnchannels <= ADC_MAX_SAMPLES);
+  DEBUGASSERT(priv->rnchannels <= CONFIG_STM32H7_ADC_MAX_SAMPLES);
 
   bits = adc_sqrbits(priv, ADC_SQR4_FIRST, ADC_SQR4_LAST,
                      ADC_SQR4_SQ_OFFSET);
@@ -2688,10 +2723,10 @@ static void adc_dmaconvcallback(DMA_HANDLE handle, uint8_t isr,
     {
       DEBUGASSERT(priv->cb->au_receive != NULL);
 
-      for (i = 0; i < priv->rnchannels; i++)
+      for (i = 0; i < priv->rnchannels * priv->dmabatch; i++)
         {
           priv->cb->au_receive(dev, priv->r_chanlist[priv->current],
-                               priv->dmabuffer[priv->current]);
+                               priv->r_dmabuffer[i]);
           priv->current++;
           if (priv->current >= priv->rnchannels)
             {
@@ -3280,10 +3315,10 @@ struct adc_dev_s *stm32h7_adc_initialize(int intf,
   priv = (struct stm32_dev_s *)dev->ad_priv;
   priv->cb = NULL;
 
-  DEBUGASSERT(channels <= ADC_MAX_SAMPLES);
-  if (cr_channels > ADC_MAX_SAMPLES)
+  DEBUGASSERT(channels <= CONFIG_STM32H7_ADC_MAX_SAMPLES);
+  if (cr_channels > CONFIG_STM32H7_ADC_MAX_SAMPLES)
     {
-      cr_channels = ADC_MAX_SAMPLES;
+      cr_channels = CONFIG_STM32H7_ADC_MAX_SAMPLES;
     }
 
   priv->cr_channels = cr_channels;

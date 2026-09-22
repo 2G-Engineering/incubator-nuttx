@@ -56,6 +56,7 @@
 #include "utils/memory_reserve.h"
 #include "esp32_rt_timer.h"
 #include "espressif/esp_wireless.h"
+#include "espressif/esp_wifi_utils.h"
 #include "esp32_irq.h"
 #include "esp32_spicache.h"
 
@@ -3262,7 +3263,7 @@ int esp32_bt_controller_disable(void)
 }
 
 /****************************************************************************
- * Name: esp32_bt_controller_get_status
+ * Name: esp_bt_controller_get_status
  *
  * Description:
  *   Returns the status of the BT Controller
@@ -3275,7 +3276,7 @@ int esp32_bt_controller_disable(void)
  *
  ****************************************************************************/
 
-esp_bt_controller_status_t esp32_bt_controller_get_status(void)
+esp_bt_controller_status_t esp_bt_controller_get_status(void)
 {
   return g_btdm_controller_status;
 }

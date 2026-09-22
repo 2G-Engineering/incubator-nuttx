@@ -43,12 +43,6 @@ ifeq ($(CONFIG_ESP32S2_UART),y)
 CHIP_CSRCS += esp32s2_serial.c
 endif
 
-ifeq ($(CONFIG_ESP32S2_EFUSE),y)
-CHIP_CSRCS += esp32s2_efuse.c
-CHIP_CSRCS += esp32s2_efuse_table.c
-CHIP_CSRCS += esp32s2_efuse_lowerhalf.c
-endif
-
 ifeq ($(CONFIG_ESP32S2_RNG),y)
 CHIP_CSRCS += esp32s2_rng.c
 endif
@@ -61,10 +55,6 @@ endif
 
 ifeq ($(CONFIG_ESP32S2_TWAI),y)
 CHIP_CSRCS += esp32s2_twai.c
-endif
-
-ifeq ($(CONFIG_ESP32S2_LEDC),y)
-CHIP_CSRCS += esp32s2_ledc.c
 endif
 
 ifeq ($(CONFIG_ESP32S2_SPI),y)
@@ -143,7 +133,7 @@ endif
 
 ESP_HAL_3RDPARTY_REPO   = esp-hal-3rdparty
 ifndef ESP_HAL_3RDPARTY_VERSION
-	ESP_HAL_3RDPARTY_VERSION = 3f02f2139e79ddc60f98ca35ed65c62c6914f079
+	ESP_HAL_3RDPARTY_VERSION = b6fa6c9098318007a61acc7c9f0f180443bb80c2
 endif
 
 ifndef ESP_HAL_3RDPARTY_URL
@@ -184,12 +174,13 @@ include common/espressif/Make.defs
 include chip/Bootloader.mk
 
 context:: chip/$(ESP_HAL_3RDPARTY_REPO)
-ifeq ($(CONFIG_ESPRESSIF_WIRELESS),y)
 	$(Q) echo "Espressif HAL for 3rd Party Platforms: initializing submodules..."
-	$(Q) git -C chip/$(ESP_HAL_3RDPARTY_REPO) submodule --quiet update --init $(GIT_DEPTH_PARAMETER) components/mbedtls/mbedtls components/esp_phy/lib components/esp_wifi/lib
+	$(Q) git -C chip/$(ESP_HAL_3RDPARTY_REPO) submodule --quiet update --init $(GIT_DEPTH_PARAMETER) components/mbedtls/mbedtls
 	$(Q) git -C chip/$(ESP_HAL_3RDPARTY_REPO)/components/mbedtls/mbedtls reset --quiet --hard
 	$(Q) echo "Applying patches..."
 	$(Q) cd chip/$(ESP_HAL_3RDPARTY_REPO)/components/mbedtls/mbedtls && git apply ../../../nuttx/patches/components/mbedtls/mbedtls/*.patch
+ifeq ($(CONFIG_ESPRESSIF_WIRELESS),y)
+	$(Q) git -C chip/$(ESP_HAL_3RDPARTY_REPO) submodule --quiet update --init $(GIT_DEPTH_PARAMETER) components/esp_phy/lib components/esp_wifi/lib
 endif
 
 distclean::

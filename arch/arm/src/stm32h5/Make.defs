@@ -56,7 +56,7 @@ ifeq ($(CONFIG_ADC),y)
 CHIP_CSRCS += stm32_adc.c
 endif
 
-ifeq ($(STM32H5_FDCAN_CHARDRIVER),y)
+ifeq ($(CONFIG_STM32H5_FDCAN_CHARDRIVER),y)
 CHIP_CSRCS += stm32_fdcan.c
 endif
 
@@ -86,6 +86,14 @@ endif
 
 ifeq ($(CONFIG_STM32H5_ETHMAC),y)
 CHIP_CSRCS += stm32_ethernet.c
+endif
+
+ifeq ($(CONFIG_STM32H5_DMA),y)
+CHIP_CSRCS += stm32_dma.c
+endif
+
+ifeq ($(CONFIG_STM32H5_DTS),y)
+CHIP_CSRCS += stm32_dts.c
 endif
 
 # Required chip type specific files

@@ -986,6 +986,20 @@ static int mpfs_emmcsd_interrupt(int irq, void *context, void *arg)
 
   DEBUGASSERT(priv != NULL);
 
+#ifdef CONFIG_SPINLOCK
+  spin_lock(&priv->lock);
+
+  /* Check if any of the interrupt sources are even enabled */
+
+  if (priv->xfrmask == 0 && priv->waitmask == 0 && priv->xfr_blkmask == 0)
+    {
+      spin_unlock(&priv->lock);
+      return OK;
+    }
+
+  spin_unlock(&priv->lock);
+#endif
+
   status = getreg32(MPFS_EMMCSD_SRS12);
 
   mcinfo("status: %08" PRIx32 "\n", status);
@@ -2768,6 +2782,17 @@ static sdio_eventset_t mpfs_eventwait(struct sdio_dev_s *dev)
   struct mpfs_dev_s *priv = (struct mpfs_dev_s *)dev;
   sdio_eventset_t wkupevent = 0;
   int ret;
+
+#if defined(CONFIG_MMCSD_SDIOWAIT_WRCOMPLETE)
+  if ((priv->waitevents & SDIOWAIT_WRCOMPLETE) != 0)
+    {
+      /* Do not wait for SDIOWAIT_WRCOMPLETE as the SDIOWAIT_TRANSFERDONE
+       * event has already taken care of that part also.
+       */
+
+      return SDIOWAIT_WRCOMPLETE;
+    }
+#endif
 
   mcinfo("wait\n");
 

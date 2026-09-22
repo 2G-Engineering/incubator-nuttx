@@ -142,6 +142,14 @@ if(CONFIG_TIMER)
   list(APPEND SRCS stm32_tim_lowerhalf.c)
 endif()
 
+if(CONFIG_STM32H7_TIMX_CAP)
+  list(APPEND SRCS stm32_capture.c)
+endif()
+
+if(CONFIG_CAPTURE)
+  list(APPEND SRCS stm32_capture_lowerhalf.c)
+endif()
+
 if(CONFIG_USBDEV)
   list(APPEND SRCS stm32_otgdev.c)
 endif()

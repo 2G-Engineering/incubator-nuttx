@@ -38,6 +38,10 @@ ifeq ($(CONFIG_SPI_DRIVER),y)
   CSRCS += esp32s3_board_spidev.c
 endif
 
+ifeq ($(CONFIG_SPI_SLAVE_DRIVER),y)
+  CSRCS += esp32s3_board_spislavedev.c
+endif
+
 ifeq ($(CONFIG_ESPRESSIF_WIFI),y)
   CSRCS += esp32s3_board_wlan.c
 endif
@@ -86,6 +90,10 @@ ifeq ($(CONFIG_ESP_MCPWM),y)
   CSRCS += esp32s3_board_mcpwm.c
 endif
 
+ifeq ($(CONFIG_MMCSD_SPI),y)
+  CSRCS += esp32s3_board_sdmmc.c
+endif
+
 ifeq ($(CONFIG_ESP32S3_SDMMC),y)
   CSRCS += esp32s3_board_sdmmc.c
 endif
@@ -94,7 +102,7 @@ ifeq ($(CONFIG_USBMSC),y)
   CSRCS += esp32s3_usbmsc.c
 endif
 
-ifeq ($(CONFIG_ESP32S3_LEDC),y)
+ifeq ($(CONFIG_ESPRESSIF_LEDC),y)
 CSRCS += esp32s3_board_ledc.c
 endif
 

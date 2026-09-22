@@ -54,11 +54,14 @@ if(TOOLCHAIN_CLANG_CONFIG)
     set(TOOLCHAIN_CLANG_CONFIG ${TOOLCHAIN_CLANG_CONFIG}_nosys)
   elseif(CLANGVER STRGREATER_EQUAL "17.0")
     set(TOOLCHAIN_CLANG_OPTION -target)
-    add_compile_options(--target=arm-none-eabi)
+    set(TOOLCHAIN_CLANG_TARGET --target=arm-none-eabi)
   else()
     set(TOOLCHAIN_CLANG_OPTION --config)
   endif()
-  add_compile_options(${TOOLCHAIN_CLANG_OPTION} ${TOOLCHAIN_CLANG_CONFIG}.cfg)
+  add_compile_options(${TOOLCHAIN_CLANG_OPTION} ${TOOLCHAIN_CLANG_CONFIG}.cfg
+                      ${TOOLCHAIN_CLANG_TARGET})
+  add_link_options(${TOOLCHAIN_CLANG_OPTION} ${TOOLCHAIN_CLANG_CONFIG}.cfg
+                   ${TOOLCHAIN_CLANG_TARGET})
 endif()
 
 # override the ARCHIVE command
@@ -137,18 +140,22 @@ endif()
 
 if(CONFIG_MM_KASAN_INSTRUMENT_ALL)
   add_compile_options(-fsanitize=kernel-address)
-endif()
+  add_compile_options(-mllvm=asan-stack=0)
+  add_compile_options(-mllvm=-asan-instrumentation-with-call-threshold=0)
 
-if(CONFIG_MM_KASAN_GLOBAL)
-  add_compile_options(--param=asan-globals=1)
-endif()
+  if(CONFIG_MM_KASAN_GLOBAL)
+    add_compile_options(-mllvm=asan-globals=1)
+  else()
+    add_compile_options(-mllvm=asan-globals=0)
+  endif()
 
-if(CONFIG_MM_KASAN_DISABLE_READS_CHECK)
-  add_compile_options(--param=asan-instrument-reads=0)
-endif()
+  if(CONFIG_MM_KASAN_DISABLE_READS_CHECK)
+    add_compile_options(-mllvm=asan-instrument-reads=0)
+  endif()
 
-if(CONFIG_MM_KASAN_DISABLE_WRITES_CHECK)
-  add_compile_options(--param=asan-instrument-writes=0)
+  if(CONFIG_MM_KASAN_DISABLE_WRITES_CHECK)
+    add_compile_options(-mllvm=asan-instrument-writes=0)
+  endif()
 endif()
 
 # Instrumentation options
@@ -240,17 +247,15 @@ set(PREPROCESS ${CMAKE_C_COMPILER} ${CMAKE_C_FLAG_ARGS} -E -P -x c)
 set(NUTTX_FIND_TOOLCHAIN_LIB_DEFINED true)
 
 if(CONFIG_BUILTIN_TOOLCHAIN)
-  if(ARGN)
-    function(nuttx_find_toolchain_lib)
+  function(nuttx_find_toolchain_lib)
+    if(ARGN)
       execute_process(
         COMMAND ${CMAKE_C_COMPILER} ${CMAKE_C_FLAG_ARGS} ${NUTTX_EXTRA_FLAGS}
                 --print-file-name=${ARGN}
         OUTPUT_STRIP_TRAILING_WHITESPACE
         OUTPUT_VARIABLE extra_lib_path)
       nuttx_add_extra_library(${extra_lib_path})
-    endfunction()
-  else()
-    function(nuttx_find_toolchain_lib)
+    else()
       execute_process(
         COMMAND ${CMAKE_C_COMPILER} ${CMAKE_C_FLAG_ARGS} ${NUTTX_EXTRA_FLAGS}
                 --print-libgcc-file-name
@@ -263,8 +268,8 @@ if(CONFIG_BUILTIN_TOOLCHAIN)
         OUTPUT_STRIP_TRAILING_WHITESPACE
         OUTPUT_VARIABLE libgcc)
       nuttx_add_extra_library(${libgcc})
-    endfunction()
-  endif()
+    endif()
+  endfunction()
 else()
   function(nuttx_find_toolchain_lib)
     if(ARGN)
