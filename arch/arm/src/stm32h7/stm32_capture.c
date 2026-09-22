@@ -1355,7 +1355,7 @@ const struct stm32_cap_priv_s stm32_tim1_priv =
 {
   .ops          = &stm32_cap_ops,
   .base         = STM32_TIM1_BASE,
-  .irq          = STM32_IRQ_TIM1CC,
+  .irq          = STM32_IRQ_TIMCC,
 #ifdef USE_ADVANCED_TIM
   .irq_of       = STM32_IRQ_TIM1UP,
 #endif
