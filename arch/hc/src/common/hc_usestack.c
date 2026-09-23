@@ -103,15 +103,9 @@ int up_use_stack(FAR struct tcb_s *tcb, FAR void *stack, size_t stack_size)
   /* Save the new stack allocation */
 
   tcb->stack_alloc_ptr = stack;
-<<<<<<< HEAD
-  tcb->stack_base_ptr  = (void *)STACK_ALIGN_UP((uintptr_t)stack);
-
-  top_of_stack = STACK_ALIGN_DOWN((uintptr_t)stack + stack_size);
-=======
   tcb->stack_base_ptr  = (void *)STACKFRAME_ALIGN_UP((uintptr_t)stack);
 
   top_of_stack = STACKFRAME_ALIGN_DOWN((uintptr_t)stack + stack_size);
->>>>>>> nuttx-13.0.0
   size_of_stack = top_of_stack - (uintptr_t)tcb->stack_base_ptr;
   tcb->adj_stack_size  = size_of_stack;
 

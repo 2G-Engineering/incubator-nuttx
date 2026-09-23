@@ -26,18 +26,11 @@
 
 #include <nuttx/config.h>
 
-<<<<<<< HEAD
-#include <debug.h>
-#include <nuttx/spinlock.h>
-#include <nuttx/signal.h>
-
-=======
 #include <nuttx/debug.h>
 #include <nuttx/signal.h>
 #include <nuttx/wqueue.h>
 
 #include "esp_event.h"
->>>>>>> nuttx-13.0.0
 #include "esp_wifi.h"
 
 #include "esp_wifi_utils.h"
@@ -77,31 +70,13 @@ struct wifi_notify
   struct sigwork_s work;    /* Signal work private data */
 };
 
-<<<<<<< HEAD
-/* Wi-Fi event private data */
-
-struct evt_adpt
-{
-  sq_entry_t entry;         /* Sequence entry */
-  wifi_event_t id;          /* Event ID */
-  uint8_t buf[0];           /* Event private data */
-};
-
-=======
->>>>>>> nuttx-13.0.0
 /****************************************************************************
  * Private Data
  ****************************************************************************/
 
 static struct wifi_notify g_wifi_notify[WIFI_EVENT_MAX];
-<<<<<<< HEAD
-static struct work_s g_wifi_evt_work;
-static sq_queue_t g_wifi_evt_queue;
-static spinlock_t g_lock;
-=======
 static struct work_s g_wifi_reconnect_work;
 static bool g_wifi_handler_registered;
->>>>>>> nuttx-13.0.0
 
 /****************************************************************************
  * Private Functions
@@ -118,11 +93,7 @@ static bool g_wifi_handler_registered;
  *   asked to disconnect from the AP.
  *
  * Input Parameters:
-<<<<<<< HEAD
- *   arg - Not used.
-=======
  *   arg - Unused work queue argument.
->>>>>>> nuttx-13.0.0
  *
  * Returned Value:
  *   None.
@@ -149,18 +120,6 @@ static void esp_reconnect_work_cb(void *arg)
       wlerr("Failed to reconnect to Wi-Fi on callback\n");
     }
 }
-<<<<<<< HEAD
-#endif /* ESP_WLAN_HAS_STA */
-
-/****************************************************************************
- * Name: esp_evt_work_cb
- *
- * Description:
- *   Process Wi-Fi events.
- *
- * Input Parameters:
- *   arg - Not used.
-=======
 #endif
 
 /****************************************************************************
@@ -180,127 +139,12 @@ static void esp_reconnect_work_cb(void *arg)
  *                enumeration.
  *   event_data - Pointer to the event-specific payload, whose concrete
  *                type depends on event_id.
->>>>>>> nuttx-13.0.0
  *
  * Returned Value:
  *   None.
  *
  ****************************************************************************/
 
-<<<<<<< HEAD
-static void esp_evt_work_cb(void *arg)
-{
-  int ret;
-  irqstate_t flags;
-  struct evt_adpt *evt_adpt;
-  struct wifi_notify *notify;
-  wifi_ps_type_t ps_type = DEFAULT_PS_MODE;
-
-  while (1)
-    {
-      flags = spin_lock_irqsave(&g_lock);
-      evt_adpt = (struct evt_adpt *)sq_remfirst(&g_wifi_evt_queue);
-      spin_unlock_irqrestore(&g_lock, flags);
-      if (evt_adpt == NULL)
-        {
-          break;
-        }
-
-      /* Some of the following logic (eg. esp_wlan_sta_set_linkstatus)
-       * can take net_lock(). To maintain the consistent locking order,
-       * we take net_lock() here before taking esp_wifi_lock. Note that
-       * net_lock() is a recursive lock.
-       */
-
-      net_lock();
-      esp_wifi_lock(true);
-
-      switch (evt_adpt->id)
-        {
-#ifdef ESP_WLAN_DEVS
-          case WIFI_EVENT_SCAN_DONE:
-            esp_wifi_scan_event_parse();
-            break;
-#endif
-          case WIFI_EVENT_HOME_CHANNEL_CHANGE:
-            wlinfo("Wi-Fi home channel change\n");
-            break;
-
-#ifdef ESP_WLAN_HAS_STA
-          case WIFI_EVENT_STA_START:
-            wlinfo("Wi-Fi sta start\n");
-
-            ret = esp_wifi_set_ps(ps_type);
-            if (ret != 0)
-              {
-                wlerr("Failed to set power save type\n");
-                break;
-              }
-            break;
-
-          case WIFI_EVENT_STA_STOP:
-            wlinfo("Wi-Fi station stopped\n");
-            break;
-
-          case WIFI_EVENT_STA_CONNECTED:
-            wlinfo("Wi-Fi station connected\n");
-            esp_wlan_sta_connect_success_hook();
-            break;
-
-          case WIFI_EVENT_STA_DISCONNECTED:
-            wifi_event_sta_disconnected_t *event =
-              (wifi_event_sta_disconnected_t *)evt_adpt->buf;
-            wifi_err_reason_t reason = event->reason;
-
-            wlinfo("Wi-Fi station disconnected, reason: %u\n", reason);
-            esp_wlan_sta_disconnect_hook();
-            if (reason == WIFI_REASON_ASSOC_LEAVE)
-              {
-                work_queue(LPWORK, &g_wifi_evt_work, esp_reconnect_work_cb,
-                           NULL, 0);
-              }
-
-            break;
-
-          case WIFI_EVENT_STA_AUTHMODE_CHANGE:
-            wlinfo("Wi-Fi station auth mode change\n");
-            break;
-#endif /* ESP_WLAN_HAS_STA */
-
-#ifdef ESP_WLAN_HAS_SOFTAP
-          case WIFI_EVENT_AP_START:
-            wlinfo("INFO: Wi-Fi softap start\n");
-            esp_wlan_softap_connect_success_hook();
-            ret = esp_wifi_set_ps(ps_type);
-            if (ret != 0)
-              {
-                wlerr("Failed to set power save type\n");
-                break;
-              }
-            break;
-
-          case WIFI_EVENT_AP_STOP:
-            wlinfo("Wi-Fi softap stop\n");
-            esp_wlan_softap_disconnect_hook();
-            break;
-
-          case WIFI_EVENT_AP_STACONNECTED:
-            wlinfo("Wi-Fi station joined AP\n");
-            break;
-
-          case WIFI_EVENT_AP_STADISCONNECTED:
-            wlinfo("Wi-Fi station left AP\n");
-            break;
-#endif /* ESP_WLAN_HAS_SOFTAP */
-          default:
-            break;
-        }
-
-      notify = &g_wifi_notify[evt_adpt->id];
-      if (notify->assigned)
-        {
-          notify->event.sigev_value.sival_ptr = evt_adpt->buf;
-=======
 static void esp_wifi_event_handler(void *arg, esp_event_base_t event_base,
                                    int32_t event_id, void *event_data)
 {
@@ -411,24 +255,12 @@ static void esp_wifi_event_handler(void *arg, esp_event_base_t event_base,
       if (notify->assigned)
         {
           notify->event.sigev_value.sival_ptr = event_data;
->>>>>>> nuttx-13.0.0
 
           ret = nxsig_notification(notify->pid, &notify->event,
                                    SI_QUEUE, &notify->work);
           if (ret < 0)
             {
               wlwarn("nxsig_notification event ID=%d failed: %d\n",
-<<<<<<< HEAD
-                     evt_adpt->id, ret);
-            }
-        }
-
-      esp_wifi_lock(false);
-      net_unlock();
-
-      kmm_free(evt_adpt);
-    }
-=======
                      (int)event_id, ret);
             }
         }
@@ -436,7 +268,6 @@ static void esp_wifi_event_handler(void *arg, esp_event_base_t event_base,
 
   esp_wifi_lock(false);
   net_unlock();
->>>>>>> nuttx-13.0.0
 }
 
 /****************************************************************************
@@ -444,85 +275,6 @@ static void esp_wifi_event_handler(void *arg, esp_event_base_t event_base,
  ****************************************************************************/
 
 /****************************************************************************
-<<<<<<< HEAD
- * Name: esp_event_post
- *
- * Description:
- *   Posts an event to the event loop system. The event is queued in a FIFO
- *   and processed asynchronously in the low-priority work queue.
- *
- * Input Parameters:
- *   event_base      - Identifier for the event category (e.g. WIFI_EVENT)
- *   event_id        - Event ID within the event base category
- *   event_data      - Pointer to event data structure
- *   event_data_size - Size of event data structure
- *   ticks           - Number of ticks to wait (currently unused)
- *
- * Returned Value:
- *   0 on success
- *   -1 on failure with following error conditions:
- *      - Invalid event ID
- *      - Memory allocation failure
- *
- * Assumptions/Limitations:
- *   - Event data is copied into a new buffer, so the original can be freed
- *   - Events are processed in FIFO order in the low priority work queue
- *   - The function is thread-safe and can be called from interrupt context
- *
- ****************************************************************************/
-
-int esp_event_post(const char *event_base,
-                         int32_t event_id,
-                         void *event_data,
-                         size_t event_data_size,
-                         uint32_t ticks)
-{
-  size_t size;
-  int32_t id;
-  irqstate_t flags;
-  struct evt_adpt *evt_adpt;
-
-  wlinfo("Event: base=%s id=%ld data=%p data_size=%u ticks=%lu\n",
-         event_base, event_id, event_data, event_data_size, ticks);
-
-  size = event_data_size + sizeof(struct evt_adpt);
-  evt_adpt = kmm_malloc(size);
-  if (evt_adpt == NULL)
-    {
-      wlerr("ERROR: Failed to alloc %d memory\n", size);
-      return -1;
-    }
-
-  evt_adpt->id = event_id;
-  memcpy(evt_adpt->buf, event_data, event_data_size);
-
-  flags = enter_critical_section();
-  sq_addlast(&evt_adpt->entry, &g_wifi_evt_queue);
-  leave_critical_section(flags);
-
-  work_queue(LPWORK, &g_wifi_evt_work, esp_evt_work_cb, NULL, 0);
-
-  return 0;
-}
-
-/****************************************************************************
- * Name: esp_evt_work_init
- *
- * Description:
- *   Initialize the event work queue
- *
- * Input Parameters:
- *   None.
- *
- * Returned Value:
- *   None.
- *
- ****************************************************************************/
-
-void esp_evt_work_init(void)
-{
-  sq_init(&g_wifi_evt_queue);
-=======
  * Name: esp_wifi_evt_work_init
  *
  * Description:
@@ -549,5 +301,4 @@ void esp_wifi_evt_work_init(void)
   esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
                              esp_wifi_event_handler, NULL);
   g_wifi_handler_registered = true;
->>>>>>> nuttx-13.0.0
 }

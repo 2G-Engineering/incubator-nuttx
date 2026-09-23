@@ -240,8 +240,6 @@ the ``buttons`` application and pressing the ``BOOT`` button on the board::
     nsh> Sample = 1
     Sample = 0
 
-<<<<<<< HEAD
-=======
 capture
 --------
 
@@ -258,7 +256,6 @@ the following output is expected::
     pwm duty cycle: 50 %
     pwm frequency: 50 Hz
 
->>>>>>> nuttx-13.0.0
 coremark
 --------
 

@@ -131,9 +131,6 @@ ifeq ($(CONFIG_ESPRESSIF_ADC),y)
 CHIP_CSRCS += esp_adc.c
 endif
 
-<<<<<<< HEAD
-CHIP_CSRCS += esp_efuse.c
-=======
 ifeq ($(CONFIG_PM),y)
 ifneq ($(CONFIG_ARCH_CUSTOM_PMINIT),y)
 CHIP_CSRCS += esp_pm_initialize.c
@@ -153,7 +150,6 @@ endif
 
 LDFLAGS += -u esp_system_include_startup_funcs
 LDFLAGS += -u esp_timer_init_include_func
->>>>>>> nuttx-13.0.0
 
 ifeq ($(CONFIG_ESPRESSIF_EFUSE),y)
 LDFLAGS    += -u esp_efuse_startup_include_func

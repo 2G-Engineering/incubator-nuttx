@@ -40,11 +40,7 @@
 
 #include "xtensa.h"
 #include "espressif/esp_efuse.h"
-<<<<<<< HEAD
-#include "esp32s3_gpio.h"
-=======
 #include "espressif/esp_gpio.h"
->>>>>>> nuttx-13.0.0
 #ifdef CONFIG_LAN9250_SPI
 #include "esp32s3_spi.h"
 #else
@@ -184,16 +180,11 @@ static void lan9250_disable(const struct lan9250_lower_s *lower)
 static int lan9250_getmac(const struct lan9250_lower_s *lower, uint8_t *mac)
 {
   int fd;
-<<<<<<< HEAD
-  int i;
-  int ret;
-=======
   int ret;
   int i;
 #ifndef CONFIG_ESP32S3_UNIVERSAL_MAC_ADDRESSES_FOUR
   uint8_t tmp;
 #endif
->>>>>>> nuttx-13.0.0
 
   struct efuse_param_s param;
   struct efuse_desc_s mac_addr =
@@ -201,8 +192,6 @@ static int lan9250_getmac(const struct lan9250_lower_s *lower, uint8_t *mac)
     .bit_offset = ESP_EFUSE_MAC_OFFSET,
     .bit_count  = ESP_EFUSE_MAC_BITLEN
   };
-<<<<<<< HEAD
-=======
 
   const efuse_desc_t *desc[] = {
       &mac_addr,
@@ -230,38 +219,11 @@ static int lan9250_getmac(const struct lan9250_lower_s *lower, uint8_t *mac)
     }
 
   close(fd);
->>>>>>> nuttx-13.0.0
 
-  const efuse_desc_t *desc[] = {
-      &mac_addr,
-      NULL
-  };
-
-  fd = open("/dev/efuse", O_RDWR);
-  if (fd < 0)
+  for (i = 0; i < 6; i++)
     {
-<<<<<<< HEAD
-      printf("Failed to open /dev/efuse, error = %d!\n", errno);
-      return -EINVAL;
-=======
       mac[i] = mac[5 - i];
->>>>>>> nuttx-13.0.0
     }
-
-  param.field = desc;
-  param.size  = ESP_EFUSE_MAC_BITLEN;
-  param.data  = mac;
-
-  ret = ioctl(fd, EFUSEIOC_READ_FIELD, &param);
-  if (ret < 0)
-    {
-      printf("Failed to run ioctl EFUSEIOC_READ_FIELD_BIT, error = %d!\n",
-             errno);
-      close(fd);
-      return -EINVAL;
-    }
-
-  close(fd);
 
 #ifdef CONFIG_ESP32S3_UNIVERSAL_MAC_ADDRESSES_FOUR
   mac[5] += 3;

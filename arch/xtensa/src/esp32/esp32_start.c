@@ -34,10 +34,6 @@
 
 #include "xtensa.h"
 
-<<<<<<< HEAD
-#include "esp32_clockconfig.h"
-=======
->>>>>>> nuttx-13.0.0
 #include "esp32_region.h"
 #include "esp32_start.h"
 #include "esp32_spiram.h"
@@ -53,15 +49,12 @@
 #include "espressif/esp_loader.h"
 #include "espressif/esp_efuse.h"
 #include "esp_private/startup_internal.h"
-<<<<<<< HEAD
-=======
 #include "esp_clk_internal.h"
 #include "esp_cpu.h"
 #include "esp_sleep.h"
 #include "esp_private/spi_flash_os.h"
 #include "esp_private/esp_mmu_map_private.h"
 #include "bootloader_flash_config.h"
->>>>>>> nuttx-13.0.0
 
 #ifdef CONFIG_ESPRESSIF_SIMPLE_BOOT
 #  include "bootloader_init.h"
@@ -393,20 +386,6 @@ static noreturn_function void __esp32_start(void)
   showprogress('C');
 #endif
 
-<<<<<<< HEAD
-  SYS_STARTUP_FN();
-
-  showprogress('D');
-
-  chip_rev = esp_efuse_hal_chip_revision();
-
-  _info("ESP32 chip revision is v%" PRId32 ".%01ld\n",
-        chip_rev / 100, chip_rev % 100);
-
-  if (chip_rev < 300)
-    {
-#ifndef ESP32_IGNORE_CHIP_REVISION_CHECK
-=======
   chip_rev = esp_efuse_hal_chip_revision();
 
   ets_printf("ESP32 chip revision is v%" PRId32 ".%01ld\n",
@@ -415,7 +394,6 @@ static noreturn_function void __esp32_start(void)
   if (chip_rev < 300)
     {
 #ifndef CONFIG_ESP32_IGNORE_CHIP_REVISION_CHECK
->>>>>>> nuttx-13.0.0
       ets_printf("ERROR: NuttX supports ESP32 chip revision >= v3.0"
                  " (chip revision is v%" PRId32 ".%01ld)\n",
                  chip_rev / 100, chip_rev % 100);

@@ -61,13 +61,6 @@
 #  include "esp32s2_i2c.h"
 #endif
 
-<<<<<<< HEAD
-#ifdef CONFIG_ESP32S2_RT_TIMER
-#  include "esp32s2_rt_timer.h"
-#endif
-
-=======
->>>>>>> nuttx-13.0.0
 #ifdef CONFIG_ESPRESSIF_EFUSE
 #  include "espressif/esp_efuse.h"
 #endif

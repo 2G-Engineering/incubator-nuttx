@@ -2999,9 +2999,7 @@ static void stm32_rxdescinit(struct stm32_ethmac_s *priv,
 static int stm32_ioctl(struct net_driver_s *dev, int cmd, unsigned long arg)
 {
 #ifndef CONFIG_STM32_NO_PHY
-#ifdef CONFIG_ARCH_PHY_INTERRUPT
   struct stm32_ethmac_s *priv = (struct stm32_ethmac_s *)dev->d_private;
-#endif
   int ret;
 
   switch (cmd)

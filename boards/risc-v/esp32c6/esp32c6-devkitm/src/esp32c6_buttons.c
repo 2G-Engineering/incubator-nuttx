@@ -75,11 +75,7 @@
 
 uint32_t board_button_initialize(void)
 {
-<<<<<<< HEAD
-  esp_configgpio(BUTTON_BOOT, INPUT_FUNCTION_2 | PULLUP);
-=======
   esp_configgpio(BUTTON_BOOT, INPUT_FUNCTION_2 | PULLUP | CHANGE);
->>>>>>> nuttx-13.0.0
   return 1;
 }
 

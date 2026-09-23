@@ -47,12 +47,6 @@
 #include "hardware/esp32_emac.h"
 #include "espressif/esp_wireless.h"
 #include "esp32_wifi_adapter.h"
-<<<<<<< HEAD
-#include "esp32_rt_timer.h"
-
-#include "espressif/esp_wireless.h"
-#include "espressif/esp_wifi_utils.h"
-=======
 #include "esp_hr_timer.h"
 #include "esp_irq.h"
 #include "esp_intr_alloc.h"
@@ -60,7 +54,6 @@
 #include "espressif/esp_wireless.h"
 #include "espressif/esp_wifi_utils.h"
 #include "platform/os.h"
->>>>>>> nuttx-13.0.0
 
 #include "periph_ctrl.h"
 
@@ -87,26 +80,6 @@
  * Private Types
  ****************************************************************************/
 
-<<<<<<< HEAD
-/* Wi-Fi interrupt adapter private data */
-
-struct irq_adpt
-{
-  void (*func)(void *arg);  /* Interrupt callback function */
-  void *arg;                /* Interrupt private data */
-};
-
-/* Wi-Fi message queue private data */
-
-struct mq_adpt
-{
-  struct file mq;           /* Message queue handle */
-  uint32_t    msgsize;      /* Message size */
-  char        name[16];     /* Message queue name */
-};
-
-=======
->>>>>>> nuttx-13.0.0
 /* Wi-Fi time private data */
 
 struct time_adpt
@@ -115,8 +88,6 @@ struct time_adpt
   suseconds_t usec;         /* Micro second value */
 };
 
-<<<<<<< HEAD
-=======
 typedef struct shared_vector_desc_t shared_vector_desc_t;
 typedef struct vector_desc_t vector_desc_t;
 
@@ -136,7 +107,6 @@ struct vector_desc_t
   vector_desc_t *next;
 };
 
->>>>>>> nuttx-13.0.0
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
@@ -483,34 +453,6 @@ wifi_osi_funcs_t g_wifi_osi_funcs =
  ****************************************************************************/
 
 /****************************************************************************
-<<<<<<< HEAD
- * Name: esp_int_adpt_cb
- *
- * Description:
- *   Wi-Fi interrupt adapter callback function
- *
- * Input Parameters:
- *   irq     - Number of the IRQ that generated the interrupt
- *   context - Interrupt register state save info (not used)
- *   arg     - Argument passed to the interrupt callback
- *
- * Returned Value:
- *   OK
- *
- ****************************************************************************/
-
-static int esp_int_adpt_cb(int irq, void *context, void *arg)
-{
-  struct irq_adpt *adapter = (struct irq_adpt *)arg;
-
-  adapter->func(adapter->arg);
-
-  return 0;
-}
-
-/****************************************************************************
-=======
->>>>>>> nuttx-13.0.0
  * Name: esp_thread_semphr_free
  *
  * Description:

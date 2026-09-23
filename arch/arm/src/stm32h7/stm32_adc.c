@@ -449,8 +449,8 @@ static struct stm32_dev_s g_adcpriv1 =
   .base        = STM32_ADC1_BASE,
   .mbase       = STM32_ADC1_BASE,
   .initialized = false,
-  .anioc_trg   = CONFIG_STM32H7_ADC1_ANIOC_TRIGGER,
-  .resolution  = CONFIG_STM32H7_ADC1_RESOLUTION,
+  .anioc_trg   = CONFIG_STM32_ADC1_ANIOC_TRIGGER,
+  .resolution  = CONFIG_STM32_ADC1_RESOLUTION,
 #ifdef ADC1_HAVE_EXTCFG
   .extcfg      = ADC1_EXTCFG_VALUE,
 #endif
@@ -510,8 +510,8 @@ static struct stm32_dev_s g_adcpriv2 =
   .base        = STM32_ADC2_BASE,
   .mbase       = STM32_ADC1_BASE,
   .initialized = false,
-  .anioc_trg   = CONFIG_STM32H7_ADC2_ANIOC_TRIGGER,
-  .resolution  = CONFIG_STM32H7_ADC2_RESOLUTION,
+  .anioc_trg   = CONFIG_STM32_ADC2_ANIOC_TRIGGER,
+  .resolution  = CONFIG_STM32_ADC2_RESOLUTION,
 #ifdef ADC2_HAVE_EXTCFG
   .extcfg      = ADC2_EXTCFG_VALUE,
 #endif
@@ -571,8 +571,8 @@ static struct stm32_dev_s g_adcpriv3 =
   .base        = STM32_ADC3_BASE,
   .mbase       = STM32_ADC3_BASE,
   .initialized = false,
-  .anioc_trg   = CONFIG_STM32H7_ADC3_ANIOC_TRIGGER,
-  .resolution  = CONFIG_STM32H7_ADC3_RESOLUTION,
+  .anioc_trg   = CONFIG_STM32_ADC3_ANIOC_TRIGGER,
+  .resolution  = CONFIG_STM32_ADC3_RESOLUTION,
 #ifdef ADC3_HAVE_EXTCFG
   .extcfg      = ADC3_EXTCFG_VALUE,
 #endif
@@ -3254,7 +3254,7 @@ struct adc_dev_s *stm32_adc_initialize(int intf, const uint8_t *chanlist,
       case 1:
         ainfo("ADC1 selected\n");
         dev = &g_adcdev1;
-        cj_channels = CONFIG_STM32H7_ADC1_INJECTED_CHAN;
+        cj_channels = CONFIG_STM32_ADC1_INJECTED_CHAN;
         cr_channels = cchannels - cj_channels;
 #  ifdef ADC_HAVE_INJECTED
         if (cj_channels > 0)
@@ -3268,7 +3268,7 @@ struct adc_dev_s *stm32_adc_initialize(int intf, const uint8_t *chanlist,
       case 2:
         ainfo("ADC2 selected\n");
         dev = &g_adcdev2;
-        cj_channels = CONFIG_STM32H7_ADC2_INJECTED_CHAN;
+        cj_channels = CONFIG_STM32_ADC2_INJECTED_CHAN;
         cr_channels = cchannels - cj_channels;
 #  ifdef ADC_HAVE_INJECTED
         if (cj_channels > 0)
@@ -3282,7 +3282,7 @@ struct adc_dev_s *stm32_adc_initialize(int intf, const uint8_t *chanlist,
       case 3:
         ainfo("ADC3 selected\n");
         dev = &g_adcdev3;
-        cj_channels = CONFIG_STM32H7_ADC3_INJECTED_CHAN;
+        cj_channels = CONFIG_STM32_ADC3_INJECTED_CHAN;
         cr_channels = cchannels - cj_channels;
 #  ifdef ADC_HAVE_INJECTED
         if (cj_channels > 0)

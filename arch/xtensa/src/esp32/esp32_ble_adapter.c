@@ -57,12 +57,7 @@
 #include "esp_hr_timer.h"
 #include "espressif/esp_wireless.h"
 #include "espressif/esp_wifi_utils.h"
-<<<<<<< HEAD
-#include "esp32_irq.h"
-#include "esp32_spicache.h"
-=======
 #include "esp_irq.h"
->>>>>>> nuttx-13.0.0
 
 #include "esp_bt.h"
 #include "esp_log.h"

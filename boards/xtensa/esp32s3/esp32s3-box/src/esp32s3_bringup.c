@@ -69,13 +69,10 @@
 #  include "espressif/esp_rtc.h"
 #endif
 
-<<<<<<< HEAD
-=======
 #ifdef CONFIG_ESPRESSIF_HR_TIMER
 #  include "espressif/esp_hr_timer.h"
 #endif
 
->>>>>>> nuttx-13.0.0
 #ifdef CONFIG_ESPRESSIF_EFUSE
 #  include "espressif/esp_efuse.h"
 #endif
@@ -110,8 +107,6 @@ int esp32s3_bringup(void)
 {
   int ret;
 
-<<<<<<< HEAD
-=======
 #ifdef CONFIG_ESPRESSIF_HR_TIMER
   ret = esp_hr_timer_init();
   if (ret < 0)
@@ -120,7 +115,6 @@ int esp32s3_bringup(void)
     }
 #endif
 
->>>>>>> nuttx-13.0.0
 #if defined(CONFIG_ESPRESSIF_EFUSE)
   ret = esp_efuse_initialize("/dev/efuse");
   if (ret < 0)

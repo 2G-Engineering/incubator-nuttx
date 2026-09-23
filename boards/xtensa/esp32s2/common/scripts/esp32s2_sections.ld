@@ -218,13 +218,6 @@ SECTIONS
     *libarch.a:*esp_rom_spiflash.*(.text .text.* .literal .literal.*)
     *libarch.a:*esp_rom_cache_esp32s2_esp32s3.*(.text .text.* .literal .literal.*)
     *libarch.a:*esp_rom_wdt.*(.text .text.* .literal .literal.*)
-<<<<<<< HEAD
-    *libarch.a:*esp_efuse_fields.*(.text .text.* .literal .literal.*)
-    *libarch.a:*esp_efuse_utility.*(.text .text.* .literal .literal.*)
-    *libarch.a:*esp_efuse_startup.*(.text .text.* .literal .literal.*)
-    *libarch.a:*esp_efuse_api_key.*(.text .text.* .literal .literal.*)
-=======
->>>>>>> nuttx-13.0.0
     *libarch.a:*log.*(.text .text.* .literal .literal.*)
     *libarch.a:*log_lock.*(.literal .literal.* .text .text.*)
     *libarch.a:*log_print.*(.literal .literal.* .text .text.*)
@@ -412,16 +405,8 @@ SECTIONS
     *libarch.a:*esp_rom_spiflash.*(.rodata .rodata.*)
     *libarch.a:*esp_rom_cache_esp32s2_esp32s3.*(.rodata .rodata.*)
     *libarch.a:*esp_rom_wdt.*(.rodata .rodata.*)
-<<<<<<< HEAD
-    *libarch.a:*esp_efuse_fields.*(.rodata .rodata.*)
-    *libarch.a:*esp_efuse_api_key.*(.rodata .rodata.*)
-    *libarch.a:*esp_efuse_utility.*(.rodata .rodata.*)
-    *libarch.a:*esp_efuse_startup.*(.rodata .rodata.*)
-    *libarch.a:*efuse_hal.*(.rodata .rodata.*)
-=======
     *libarch.a:*efuse_hal.*(.rodata .rodata.*)
     *libarch.a:*efuse_utility.*(.rodata .rodata.*)
->>>>>>> nuttx-13.0.0
     *libarch.a:*log.*(.rodata .rodata.*)
     *libarch.a:*log_noos.*(.rodata .rodata.*)
     *libarch.a:*cpu_region_protect.*(.rodata .rodata.*)
@@ -567,13 +552,7 @@ SECTIONS
 
     . = ALIGN(4);
     _sinit = ABSOLUTE(.);
-<<<<<<< HEAD
-    __init_array_start = ABSOLUTE(.);
     KEEP (*(EXCLUDE_FILE (*crtend.* *crtbegin.*) .ctors SORT(.ctors.*)))
-    __init_array_end = ABSOLUTE(.);
-=======
-    KEEP (*(EXCLUDE_FILE (*crtend.* *crtbegin.*) .ctors SORT(.ctors.*)))
->>>>>>> nuttx-13.0.0
     _einit = ABSOLUTE(.);
 
     /* Addresses of memory regions reserved via SOC_RESERVE_MEMORY_REGION() */

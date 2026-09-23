@@ -55,13 +55,10 @@
 #  include "espressif/esp_rtc.h"
 #endif
 
-<<<<<<< HEAD
-=======
 #ifdef CONFIG_ESPRESSIF_HR_TIMER
 #  include "espressif/esp_hr_timer.h"
 #endif
 
->>>>>>> nuttx-13.0.0
 #ifdef CONFIG_ESPRESSIF_EFUSE
 #  include "espressif/esp_efuse.h"
 #endif

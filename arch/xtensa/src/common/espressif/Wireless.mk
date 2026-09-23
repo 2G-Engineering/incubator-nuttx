@@ -311,10 +311,6 @@ CHIP_CSRCS += crypto_mbedtls.c
 CHIP_CSRCS += tls_mbedtls.c
 CHIP_CSRCS += aes-siv.c
 
-<<<<<<< HEAD
-CHIP_CSRCS += chip$(DELIM)$(ESP_HAL_3RDPARTY_REPO)$(DELIM)components$(DELIM)esp_wifi$(DELIM)src$(DELIM)wifi_init.c
-=======
->>>>>>> nuttx-13.0.0
 CHIP_CSRCS += chip$(DELIM)$(ESP_HAL_3RDPARTY_REPO)$(DELIM)components$(DELIM)esp_wifi$(DELIM)src$(DELIM)lib_printf.c
 CHIP_CSRCS += chip$(DELIM)$(ESP_HAL_3RDPARTY_REPO)$(DELIM)components$(DELIM)esp_wifi$(DELIM)regulatory$(DELIM)esp_wifi_regulatory.c
 

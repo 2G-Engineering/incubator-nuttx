@@ -522,7 +522,7 @@ void stm32_gpiodir(uint32_t pinset, uint32_t dir)
   irqstate_t flags;
 
   port = (pinset & GPIO_PORT_MASK) >> GPIO_PORT_SHIFT;
-  if (port < STM32H7_NGPIO)
+  if (port < STM32_NGPIO)
     {
       /* Get the port base address */
 
@@ -584,7 +584,7 @@ void stm32_gpiowriteanddir(uint32_t pinset, bool value, uint32_t dir)
   irqstate_t flags;
 
   port = (pinset & GPIO_PORT_MASK) >> GPIO_PORT_SHIFT;
-  if (port < STM32H7_NGPIO)
+  if (port < STM32_NGPIO)
     {
       /* Get the port base address */
 
