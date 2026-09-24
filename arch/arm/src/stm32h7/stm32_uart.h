@@ -71,8 +71,7 @@
 #if defined(CONFIG_STM32_USART1) || defined(CONFIG_STM32_USART2) || \
     defined(CONFIG_STM32_USART3) || defined(CONFIG_STM32_UART4)  || \
     defined(CONFIG_STM32_UART5)  || defined(CONFIG_STM32_USART6) || \
-    defined(CONFIG_STM32_UART7)  || defined(CONFIG_STM32_UART8)  || \
-    defined(CONFIG_STM32_LPUART)
+    defined(CONFIG_STM32_UART7)  || defined(CONFIG_STM32_UART8)
 #  define HAVE_UART 1
 #endif
 

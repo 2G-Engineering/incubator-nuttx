@@ -42,6 +42,4 @@ ifeq ($(CONFIG_GD32VW55X_SPI),y)
 CSRCS += gd32_spi.c
 endif
 
-DEPPATH += --dep-path board
-VPATH += :board
-CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board
+include $(TOPDIR)/boards/Board.mk

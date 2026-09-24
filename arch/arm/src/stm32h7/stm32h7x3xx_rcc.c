@@ -1115,15 +1115,6 @@ void stm32_stdclockconfig(void)
       putreg32(regval, STM32_RCC_D2CCIP1R);
 #endif
 
-      /* Configure UART source clock */
-
-#if defined(STM32_RCC_D3CCIPR_LPUART1SEL)
-      regval = getreg32(STM32_RCC_D3CCIPR);
-      regval &= ~RCC_D3CCIPR_LPUART1SEL_MASK;
-      regval |= STM32_RCC_D3CCIPR_LPUART1SEL;
-      putreg32(regval, STM32_RCC_D3CCIPR);
-#endif
-
 #if defined(CONFIG_STM32_IWDG) || defined(CONFIG_STM32_RTC_LSICLOCK)
       /* Low speed internal clock source LSI */
 

@@ -65,7 +65,7 @@
 
 /* Total number of possible serial devices */
 
-#define STM32_NSERIAL (STM32_NUSART + STM32_NUART + STM32_NLPUART)
+#define STM32_NSERIAL (STM32_NUSART + STM32_NUART)
 
 /* DMA configuration */
 
@@ -566,11 +566,6 @@
 
 #  if defined(CONFIG_UART8_RXDMA) && defined(CONFIG_UART8_IFLOWCONTROL)
 #    warning "RXDMA and IFLOWCONTROL both enabled for UART8. \
-              This combination can lead to data loss."
-#  endif
-
-#  if defined(CONFIG_LPUART_RXDMA) && defined(CONFIG_LPUART_IFLOWCONTROL)
-#    warning "RXDMA and IFLOWCONTROL both enabled for LPUART. \
               This combination can lead to data loss."
 #  endif
 #endif /* CONFIG_STM32_FLOWCONTROL_BROKEN */
