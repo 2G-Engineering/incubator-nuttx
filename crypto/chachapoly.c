@@ -48,10 +48,7 @@ int chacha20_setkey(FAR void *sched, FAR uint8_t *key, int len)
       return -1;
     }
 
-  /* initial counter is 1 */
-
-  ctx->nonce[0] = 1;
-  memcpy(ctx->nonce + CHACHA20_CTR, key + CHACHA20_KEYSIZE,
+  memcpy(ctx->nonce, key + CHACHA20_KEYSIZE,
          CHACHA20_SALT);
   chacha_keysetup((FAR chacha_ctx *)&ctx->block, key, CHACHA20_KEYSIZE * 8);
   return 0;
@@ -64,12 +61,53 @@ void chacha20_reinit(caddr_t key, FAR uint8_t *iv)
   chacha_ivsetup((FAR chacha_ctx *)ctx->block, iv, ctx->nonce);
 }
 
-void chacha20_crypt(caddr_t key, FAR uint8_t *data)
+void chacha20_crypt(caddr_t key, FAR uint8_t *data, size_t len)
 {
   FAR struct chacha20_ctx *ctx = (FAR struct chacha20_ctx *)key;
 
-  chacha_encrypt_bytes((FAR chacha_ctx *)ctx->block, data, data,
-                       CHACHA20_BLOCK_LEN);
+  /* The underlying chacha state keeps its own block counter (input[12]),
+   * so successive calls continue the keystream seamlessly.  This mirrors
+   * how aes_ctr_crypt relies on swcr_encdec feeding whole blocks (only the
+   * final block may be shorter), keeping every stream cipher on one path.
+   */
+
+  chacha_encrypt_bytes((FAR chacha_ctx *)ctx, data, data, len);
+}
+
+void chachapoly_reinit(caddr_t key, FAR uint8_t *iv)
+{
+  FAR struct chacha20_ctx *ctx = (FAR struct chacha20_ctx *)key;
+
+  /* initial counter is 1 */
+
+  ctx->nonce[0] = 1;
+  chacha_ivsetup((FAR chacha_ctx *)ctx->block, iv, ctx->nonce);
+}
+
+int chacha20_djb_setkey(FAR void *sched, FAR uint8_t *key, int len)
+{
+  FAR struct chacha20_ctx *ctx = (FAR struct chacha20_ctx *)sched;
+
+  if (len != CHACHA20_KEYSIZE)
+    {
+      return -1;
+    }
+
+  chacha_keysetup((FAR chacha_ctx *)ctx->block, key, CHACHA20_KEYSIZE * 8);
+  return 0;
+}
+
+void chacha20_djb_reinit(caddr_t key, FAR uint8_t *iv)
+{
+  FAR struct chacha20_ctx *ctx = (FAR struct chacha20_ctx *)key;
+
+  /* Original DJB ChaCha20 layout, as used by chacha20-poly1305@openssh.com
+   * (libtomcrypt chacha_ivctr64): the 16-byte IV is loaded verbatim into
+   * state words 12..15 as a 64-bit little-endian block counter followed by
+   * a 64-bit nonce.
+   */
+
+  chacha_ivsetup((FAR chacha_ctx *)ctx->block, iv + 4, iv);
 }
 
 void chacha20_poly1305_init(FAR void *xctx)
@@ -156,9 +194,12 @@ void chacha20poly1305_encrypt(
   };
 
   uint64_t le_nonce = htole64(nonce);
+  uint8_t le_nonce_array[12];
+  explicit_bzero(le_nonce_array, sizeof(le_nonce_array));
+  memcpy(le_nonce_array, &le_nonce, sizeof(uint64_t));
 
   chacha_keysetup(&ctx, key, CHACHA20POLY1305_KEY_SIZE * 8);
-  chacha_ivsetup(&ctx, (FAR uint8_t *) &le_nonce, NULL);
+  chacha_ivsetup(&ctx, le_nonce_array, NULL);
   chacha_encrypt_bytes(&ctx, b.b0, b.b0, sizeof(b.b0));
   poly1305_begin(&poly1305_ctx, b.b0);
 
@@ -205,6 +246,9 @@ int chacha20poly1305_decrypt(
   };
 
   uint64_t le_nonce = htole64(nonce);
+  uint8_t le_nonce_array[12];
+  explicit_bzero(le_nonce_array, sizeof(le_nonce_array));
+  memcpy(le_nonce_array, &le_nonce, sizeof(uint64_t));
 
   if (src_len < CHACHA20POLY1305_AUTHTAG_SIZE)
     {
@@ -212,7 +256,7 @@ int chacha20poly1305_decrypt(
     }
 
   chacha_keysetup(&ctx, key, CHACHA20POLY1305_KEY_SIZE * 8);
-  chacha_ivsetup(&ctx, (FAR uint8_t *) &le_nonce, NULL);
+  chacha_ivsetup(&ctx, le_nonce_array, NULL);
   chacha_encrypt_bytes(&ctx, b.b0, b.b0, sizeof(b.b0));
   poly1305_begin(&poly1305_ctx, b.b0);
 

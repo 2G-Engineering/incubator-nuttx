@@ -100,6 +100,13 @@ int mkdir(const char *pathname, mode_t mode)
           goto errout_with_inode;
         }
 
+      ret = inode_checkpathperm(inode, 0, 0);
+      if (ret < 0)
+        {
+          errcode = -ret;
+          goto errout_with_inode;
+        }
+
       /* Perform the mkdir operation using the relative path
        * at the mountpoint.
        */
@@ -150,6 +157,10 @@ int mkdir(const char *pathname, mode_t mode)
         }
 
       /* Create an inode in the pseudo-filesystem at this path.
+       * inode_reserve() resolves the path and checks parent-directory
+       * permissions while the inode tree lock is held, closing symlink
+       * TOCTOU windows.
+       *
        * NOTE that the new inode will be created with a reference
        * count of zero.
        */

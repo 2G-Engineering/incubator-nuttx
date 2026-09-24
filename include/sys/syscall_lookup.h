@@ -71,6 +71,16 @@ SYSCALL_LOOKUP(sethostname,                2)
   SYSCALL_LOOKUP(geteuid,                  0)
   SYSCALL_LOOKUP(setegid,                  1)
   SYSCALL_LOOKUP(getegid,                  0)
+#  if CONFIG_SCHED_NGROUPS > 0
+  SYSCALL_LOOKUP(setgroups,                2)
+  SYSCALL_LOOKUP(getgroups,                2)
+#  endif
+  SYSCALL_LOOKUP(setreuid,                 2)
+  SYSCALL_LOOKUP(setregid,                 2)
+  SYSCALL_LOOKUP(setresuid,                3)
+  SYSCALL_LOOKUP(setresgid,                3)
+  SYSCALL_LOOKUP(getresuid,                3)
+  SYSCALL_LOOKUP(getresgid,                3)
 #endif
 
 /* Semaphores */
@@ -112,8 +122,8 @@ SYSCALL_LOOKUP(nxsem_wait_slow,            1)
 
 /* The following can be individually enabled */
 
-#ifdef CONFIG_ARCH_HAVE_FORK
-  SYSCALL_LOOKUP(up_fork,                  0)
+#if defined(CONFIG_ARCH_HAVE_VFORK) || defined(CONFIG_ARCH_HAVE_FORK)
+  SYSCALL_LOOKUP(up_fork,                  1)
 #endif
 
 #ifdef CONFIG_SCHED_WAITPID
@@ -172,6 +182,7 @@ SYSCALL_LOOKUP(clock_nanosleep,            4)
  */
 
 SYSCALL_LOOKUP(clock,                      0)
+SYSCALL_LOOKUP(clock_getres,               2)
 SYSCALL_LOOKUP(clock_gettime,              2)
 SYSCALL_LOOKUP(clock_settime,              2)
 #ifdef CONFIG_CLOCK_ADJTIME
@@ -246,6 +257,9 @@ SYSCALL_LOOKUP(dup2,                       2)
 SYSCALL_LOOKUP(fcntl,                      3)
 SYSCALL_LOOKUP(ftruncate,                  2)
 SYSCALL_LOOKUP(lseek,                      3)
+SYSCALL_LOOKUP(mlock,                      2)
+SYSCALL_LOOKUP(mlockall,                   1)
+SYSCALL_LOOKUP(mprotect,                   3)
 SYSCALL_LOOKUP(mmap,                       6)
 SYSCALL_LOOKUP(open,                       3)
 SYSCALL_LOOKUP(rename,                     2)
@@ -268,6 +282,8 @@ SYSCALL_LOOKUP(lutimens,                   2)
 SYSCALL_LOOKUP(futimens,                   2)
 SYSCALL_LOOKUP(msync,                      3)
 SYSCALL_LOOKUP(munmap,                     2)
+SYSCALL_LOOKUP(munlock,                    2)
+SYSCALL_LOOKUP(munlockall,                 0)
 
 #if defined(CONFIG_PSEUDOFS_SOFTLINKS)
   SYSCALL_LOOKUP(link,                     2)

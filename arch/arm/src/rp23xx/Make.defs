@@ -60,8 +60,20 @@ ifeq ($(CONFIG_RP23XX_PWM),y)
 CHIP_CSRCS += rp23xx_pwm.c
 endif
 
+ifeq ($(CONFIG_RP23XX_TIMER),y)
+CHIP_CSRCS += rp23xx_timer.c
+endif
+
+ifeq ($(CONFIG_RP23XX_SYSTIMER_TICKLESS),y)
+CHIP_CSRCS += rp23xx_oneshot.c
+endif
+
 ifeq ($(CONFIG_RP23XX_I2C),y)
 CHIP_CSRCS += rp23xx_i2c.c
+endif
+
+ifeq ($(CONFIG_RP23XX_RNG),y)
+CHIP_CSRCS += rp23xx_rng.c
 endif
 
 ifeq ($(CONFIG_RP23XX_I2C_SLAVE),y)
@@ -91,4 +103,25 @@ endif
 
 ifeq ($(CONFIG_CRYPTO_CRYPTODEV_HARDWARE),y)
 CHIP_CSRCS += rp23xx_crypto.c
+endif
+
+ifeq ($(CONFIG_RP23XX_FLASH_MTD),y)
+CHIP_CSRCS += rp23xx_flash_mtd.c
+endif
+
+ifeq ($(CONFIG_RP23XX_PSRAM),y)
+CHIP_CSRCS += rp23xx_psram.c
+CHIP_CSRCS += rp23xx_heaps.c
+endif
+
+ifeq ($(CONFIG_RP23XX_RTC),y)
+CHIP_CSRCS += rp23xx_rtc.c
+endif
+
+ifeq ($(CONFIG_RP23XX_OTP),y)
+CHIP_CSRCS += rp23xx_otp.c
+endif
+
+ifeq ($(CONFIG_IEEE80211_INFINEON_CYW43439),y)
+CHIP_CSRCS += rp23xx_cyw43439.c
 endif

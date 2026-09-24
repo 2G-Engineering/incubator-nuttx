@@ -210,6 +210,10 @@
                                      STM32_SDMMC_CLKCR_EDGE       |     \
                                      STM32_SDMMC_CLKCR_PWRSAV     |     \
                                      STM32_SDMMC_CLKCR_WIDBUS_D1)
+#define STM32_SDMMC_CLKCR_MMCXFR4   (STM32_SDMMC_MMCXFR_CLKDIV    |     \
+                                     STM32_SDMMC_CLKCR_EDGE       |     \
+                                     STM32_SDMMC_CLKCR_PWRSAV     |     \
+                                     STM32_SDMMC_CLKCR_WIDBUS_D4)
 #define STM32_SDMMC_CLCKR_SDXFR     (STM32_SDMMC_SDXFR_CLKDIV     |     \
                                      STM32_SDMMC_CLKCR_EDGE       |     \
                                      STM32_SDMMC_CLKCR_PWRSAV     |     \
@@ -1355,7 +1359,22 @@ static void stm32_recvdma(struct stm32_dev_s *priv)
     }
   else
     {
-      /* In an aligned case, we have always received all blocks */
+      /* In an aligned case, we have always received all blocks.
+       *
+       * The destination buffer was invalidated before the DMA in
+       * stm32_dmarecvsetup(), but on the Cortex-M7 the cache can
+       * speculatively prefetch into this (cacheable) buffer between that
+       * point and DMA completion, leaving stale lines that shadow the
+       * data just written by the IDMA.  Invalidate again now that the
+       * transfer is complete, before the buffer is consumed, so the CPU
+       * reads the freshly received data instead of a previously cached
+       * sector.  The buffer and length are cache-line aligned here (that
+       * is why this aligned path was taken), so no adjacent memory is
+       * affected.
+       */
+
+      up_invalidate_dcache((uintptr_t)priv->buffer,
+                           (uintptr_t)priv->buffer + priv->receivecnt);
 
       priv->remaining = 0;
     }
@@ -2045,7 +2064,24 @@ static sdio_statset_t stm32_status(struct sdio_dev_s *dev)
 static void stm32_widebus(struct sdio_dev_s *dev, bool wide)
 {
   struct stm32_dev_s *priv = (struct stm32_dev_s *)dev;
+  uint32_t regval;
+
   priv->widebus = wide;
+
+  regval  = sdmmc_getreg32(priv, STM32_SDMMC_CLKCR_OFFSET);
+  regval &= ~STM32_SDMMC_CLKCR_WIDBUS_MASK;
+
+  if (wide)
+    {
+      regval |= STM32_SDMMC_CLKCR_WIDBUS_D4;
+      regval &= ~STM32_SDMMC_CLKCR_PWRSAV;
+    }
+  else
+    {
+      regval |= STM32_SDMMC_CLKCR_WIDBUS_D1;
+    }
+
+  sdmmc_putreg32(priv, regval, STM32_SDMMC_CLKCR_OFFSET);
 }
 
 /****************************************************************************
@@ -2087,6 +2123,12 @@ static void stm32_clock(struct sdio_dev_s *dev, enum sdio_clock_e rate)
 
     case CLOCK_MMC_TRANSFER:
       clckr = STM32_SDMMC_CLKCR_MMCXFR;
+      break;
+
+    /* Enable in MMC wide (4-bit) operation clocking */
+
+    case CLOCK_MMC_TRANSFER_4BIT:
+      clckr = STM32_SDMMC_CLKCR_MMCXFR4;
       break;
 
     /* SD normal operation clocking (wide 4-bit mode) */

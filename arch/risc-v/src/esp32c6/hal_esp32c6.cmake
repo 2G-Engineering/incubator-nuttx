@@ -199,8 +199,11 @@ set(_esp32c6_rom_ld_files
     ${ESP_SOC_LD_DIR}/${CHIP_SERIES}.peripherals.ld)
 
 if(CONFIG_ESPRESSIF_USE_LP_CORE)
-  list(APPEND _esp32c6_rom_ld_files
-       ${NUTTX_DIR}/arch/${CONFIG_ARCH}/src/board/scripts/ulp_aliases.ld)
+  list(
+    APPEND
+    _esp32c6_rom_ld_files
+    ${NUTTX_DIR}/boards/${CONFIG_ARCH}/${CHIP_SERIES}/common/scripts/ulp_aliases.ld
+  )
 endif()
 
 if(CONFIG_ESPRESSIF_SPI_FLASH_USE_ROM_CODE)
@@ -267,6 +270,7 @@ list(
   ${ESP_HAL_3RDPARTY_REPO}/components/esp_hw_support/mac_addr.c
   ${ESP_HAL_3RDPARTY_REPO}/components/esp_hw_support/modem_clock.c
   ${ESP_HAL_3RDPARTY_REPO}/components/esp_hw_support/periph_ctrl.c
+  ${ESP_HAL_3RDPARTY_REPO}/components/esp_hw_support/pmu_share_hw.c
   ${ESP_HAL_3RDPARTY_REPO}/components/esp_hw_support/regi2c_ctrl.c
   ${ESP_HAL_3RDPARTY_REPO}/components/esp_hw_support/rtc_module.c
   ${ESP_HAL_3RDPARTY_REPO}/components/esp_hw_support/sleep_console.c
@@ -501,6 +505,9 @@ list(
   HAL_SRCS
   ${ESP_HAL_3RDPARTY_REPO}/components/ulp/lp_core/lp_core_i2c.c
   ${ESP_HAL_3RDPARTY_REPO}/components/ulp/lp_core/lp_core.c
+  ${ESP_HAL_3RDPARTY_REPO}/components/ulp/lp_core/lp_core_mailbox.c
+  ${ESP_HAL_3RDPARTY_REPO}/components/ulp/lp_core/lp_core_mailbox_impl_sw.c
+  ${ESP_HAL_3RDPARTY_REPO}/components/ulp/lp_core/shared/ulp_lp_core_critical_section_shared.c
   ${ESP_HAL_3RDPARTY_REPO}/components/ulp/lp_core/shared/ulp_lp_core_memory_shared.c
   ${ESP_HAL_3RDPARTY_REPO}/components/ulp/lp_core/shared/ulp_lp_core_lp_timer_shared.c
 )

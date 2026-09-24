@@ -30,17 +30,17 @@
 #include "chip.h"
 #include "hardware/rp23xx_memorymap.h"
 #include "riscv_internal.h"
+#include "riscv_macros.S"
 
 /****************************************************************************
  * Public Symbols
  ****************************************************************************/
 
-  /* Imported symbols */
-
-  .extern __trap_vec
+  /* Exported Symbols */
 
   .section .text
   .global __start
+  .type   __start, function
 
 __start:
 

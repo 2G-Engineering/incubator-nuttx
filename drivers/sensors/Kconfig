@@ -617,6 +617,12 @@ config BME680_I2C_FREQUENCY
 	int "BME680 I2C frequency"
 	default 400000
 
+config BME680_DISABLE_TEMP_MEAS
+	bool "Disable Temperature Measurement"
+	default n
+	---help---
+		If enabled, the sensor will not measure temperature.
+
 config BME680_DISABLE_PRESS_MEAS
 	bool "Disable Pressure Measurement"
 	default n
@@ -855,17 +861,19 @@ config SENSORS_L3GD20
 	bool "STMicro L3GD20 Gyroscope Sensor support"
 	default n
 	select SPI
-	select SCHED_HPWORK if SENSORS_L3GD20_BUFFER_SIZE > 0
+	select SCHED_HPWORK
 	---help---
 		Enable driver support for the STMicro L3GD20 gyroscope sensor.
 
 config SENSORS_L3GD20_BUFFER_SIZE
 	int "size of buffer"
 	default 1
+	range 1 32
 	depends on SENSORS_L3GD20
 	---help---
-		The size of the circular buffer used. If the value equal to zero,
-		indicates that the circular buffer is disabled.
+		The number of events that the circular buffer can hold. The data
+		ready interrupt pushes each sample into it, so at least one event
+		is required.
 
 config SENSOR_KXTJ9
 	bool "Kionix KXTJ9 Accelerometer support"
@@ -940,6 +948,39 @@ config LIS3DSH
 	select SPI
 	---help---
 		Enable driver support for the STMicro LIS3DSH 3-Axis accelerometer.
+
+config SENSORS_LIS3DSH_UORB
+	bool "STMicro LIS3DSH 3-Axis accelerometer support (UORB)"
+	default n
+	select SPI
+	---help---
+		Enable UORB driver support for the STMicro LIS3DSH 3-Axis
+		accelerometer.  Registers /dev/uorb/sensor_accelN.
+
+if SENSORS_LIS3DSH_UORB
+
+config SENSORS_LIS3DSH_UORB_POLL
+	bool "Enable polling worker thread"
+	default n
+	---help---
+		Enables polling of sensor.
+
+config SENSORS_LIS3DSH_UORB_POLL_INTERVAL
+	int "Polling interval in microseconds"
+	depends on SENSORS_LIS3DSH_UORB_POLL
+	default 100000
+	range 0 4294967295
+	---help---
+		The interval until a new sensor measurement will be triggered.
+
+config SENSORS_LIS3DSH_UORB_STACKSIZE
+	int "Worker thread stack size"
+	depends on SENSORS_LIS3DSH_UORB_POLL
+	default 1024
+	---help---
+		The stack size for the worker thread.
+
+endif # SENSORS_LIS3DSH_UORB
 
 config LIS3DH
 	bool "STMicro LIS3DH 3-Axis accelerometer support"
@@ -1538,6 +1579,27 @@ config MPU60X0_ACCEL_AFS_SEL
 				3 -> ± 16 g
 
 endif # SENSORS_MPU60X0
+
+config SENSORS_MPU6050
+	bool "Invensense MPU6050 Sensor support"
+	default n
+	depends on I2C
+	---help---
+		Enable uORB driver support for Invensense MPU6050 6-axis MotionTracker device over I2C.
+
+if SENSORS_MPU6050
+
+config SENSORS_MPU6050_INT
+	bool "Deliver samples from the data ready interrupt"
+	default n
+	select SCHED_HPWORK
+	---help---
+		Take samples from the MPU6050 INT pin instead of reading the device
+		on demand, which timestamps them when they were actually measured.
+		The board must wire that pin and supply mpu6050_config_s::attach;
+		registration fails with -EINVAL otherwise.
+
+endif # SENSORS_MPU6050
 
 config SENSORS_MPU9250
 	bool "Invensense MPU9250 Sensor support"

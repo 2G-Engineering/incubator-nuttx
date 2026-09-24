@@ -39,7 +39,9 @@
 #endif
 
 #include "stm32.h"
-#include "stm32_romfs.h"
+#ifdef CONFIG_STM32_ROMFS
+#  include "stm32_romfs.h"
+#endif
 
 #ifdef CONFIG_STM32_OTGFS
 #  include "stm32_usbhost.h"
@@ -131,7 +133,7 @@
 #include "stm32_bh1750.h"
 #endif
 
-#ifdef CONFIG_LIS3DSH
+#if defined(CONFIG_LIS3DSH) || defined(CONFIG_SENSORS_LIS3DSH_UORB)
 #include "stm32_lis3dsh.h"
 #endif
 
@@ -277,6 +279,16 @@ int stm32_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: board_mt6816_initialize failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_SENSORS_LIS3DSH_UORB
+  /* Initialize the on-board LIS3DSH accelerometer as a uORB sensor on SPI1 */
+
+  ret = board_lis3dsh_initialize(0, 1);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_lis3dsh_initialize failed: %d\n", ret);
     }
 #endif
 

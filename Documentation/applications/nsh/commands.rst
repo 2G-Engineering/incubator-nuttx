@@ -143,6 +143,23 @@ default gateway.
 removing the preceding path segments and (optionally) removing any
 trailing ``<suffix>``.
 
+.. _cmdboot:
+
+``boot`` Boot an Application Image
+==================================
+
+**Command Syntax**::
+
+  boot [<image path> [<header size>]]
+
+**Synopsis**. Boot a new application firmware image by invoking
+``boardctl(BOARDIOC_BOOT_IMAGE)``. The ``<image path>`` may be
+absolute or relative; relative paths are resolved against the NSH
+current working directory, consistent with ``cp``, ``cat``, and
+``rm``. This command depends on ``CONFIG_BOARDCTL_BOOT_IMAGE``; if
+the boot image cannot be started, ``boardctl()`` returns and an
+error is reported.
+
 .. _cmdbreak:
 
 ``break`` Terminate a Loop
@@ -430,6 +447,47 @@ buffer. Entering the ``dmesg`` command will dump the content of
 that in-memory, circular buffer to the NSH console output.
 ``dmesg`` has the side effect of clearing the buffered data so
 that entering ``dmesg`` again will show only newly buffered data.
+
+.. _cmddu:
+
+``du`` Estimate File Space Usage
+================================
+
+**Command Syntax**::
+
+  du [-h] [-s] [-a] [-d N] <path>...
+
+**Synopsis**. Recursively summarize the apparent size of each
+``<path>`` in 1K-blocks, or in human-readable form with ``-h``. If
+no ``<path>`` is given, the current working directory is used. As
+an example::
+
+  nsh> du
+  397449  /data/test/elf
+  71993   /data/test/coredump
+  5       /data/test/log2
+  3251    /data/test/log1
+  472700  /data/test
+  nsh> du -h
+  388.1M  /data/test/elf
+  70.3M   /data/test/coredump
+  4.1K    /data/test/log2
+  3.1M    /data/test/log1
+  461.6M  /data/test
+  nsh>
+
+**Options**
+
+========  ===========================================================
+``-s``    Summary only: print only the total for each ``<path>``.
+``-a``    List all files, not only directories.
+``-d N``  Print at most N directory depth levels.
+``-h``    Human-readable sizes (K/M/G, one decimal; ``B`` below 1K).
+========  ===========================================================
+
+Sizes are apparent sizes (``st_size``), not block usage. ``-h``
+prints one decimal using integer arithmetic and does not require
+float printf support.
 
 .. _cmdecho:
 
@@ -739,6 +797,50 @@ supported:
 **Example**::
 
   ifup eth0
+
+.. _cmdid:
+
+``id`` Show User and Group Identity
+===================================
+
+**Command Syntax**::
+
+  id
+
+**Synopsis**. Print the real and effective user and group IDs for the
+current NSH session in the form::
+
+  uid=<uid> euid=<euid> gid=<gid> egid=<egid>
+
+File permission checks use the effective UID and GID.
+
+On flat builds where NSH retains a real UID of zero, ``id`` may report
+``uid=0`` even when the session is running as a non-root user. The
+``euid`` and ``egid`` fields reflect the active session identity, and
+the prompt marker (``#`` or ``$``) follows ``euid``.
+
+This command is available only when ``CONFIG_SCHED_USER_IDENTITY`` is
+enabled. It may be disabled with ``CONFIG_NSH_DISABLE_ID``.
+
+**Related configuration**
+
+===============================  =======================================
+Option                           Purpose
+===============================  =======================================
+``CONFIG_SCHED_USER_IDENTITY``   Enable UID/GID tracking
+``CONFIG_NSH_LOGIN_SETUID``      Set identity after login
+``CONFIG_LIBC_PASSWD_FILE``      User database for name lookup
+===============================  =======================================
+
+**Example**::
+
+  nsh> su testuser
+  nsh$ id
+  uid=0 euid=1000 gid=0 egid=1000
+  nsh$ su root
+  Password:
+  nsh# id
+  uid=0 euid=0 gid=0 egid=0
 
 .. _cmdinsmod:
 
@@ -1663,6 +1765,74 @@ NOTE: The ``shutdown`` command duplicates the behavior of the
 
 **Synopsis**. Pause execution (sleep) for ``<sec>`` seconds.
 
+.. _cmdsu:
+
+``su`` Switch User Identity
+===========================
+
+**Command Syntax**::
+
+  su [<username>]
+
+**Synopsis**. Switch the NSH session to the credentials of ``<username>``.
+If no user name is provided, ``su`` defaults to ``root``.
+
+Users with root privileges (effective UID or GID of zero) may switch to
+any user without a password. Other users may switch to their own
+identity without a password, or to another user after entering that
+user's password (when login support is enabled).
+
+When the real UID is still zero, NSH changes only the effective UID and
+GID so that a later ``su root`` can restore root privileges after
+password verification.
+
+**Prompt update.** After a successful ``su``, NSH calls
+``nsh_update_prompt()`` and changes the privilege marker in the prompt:
+
+===================  ================================================
+Marker               Session
+===================  ================================================
+``#``                Effective UID is zero (root)
+``$``                Effective UID is non-zero (non-root)
+===================  ================================================
+
+For the default prompt ``nsh>``, the marker replaces the character
+before ``>`` (for example ``nsh$`` or ``nsh#``).
+
+This command is available only when ``CONFIG_SCHED_USER_IDENTITY`` is
+enabled. It may be disabled with ``CONFIG_NSH_DISABLE_SU``. User names
+are looked up from the passwd database when ``CONFIG_LIBC_PASSWD_FILE``
+is enabled. Password verification requires one of the NSH login options
+(``CONFIG_NSH_LOGIN_PASSWD`` or ``CONFIG_NSH_LOGIN_PLATFORM``).
+
+**Related configuration**
+
+===============================  =======================================
+Option                           Purpose
+===============================  =======================================
+``CONFIG_SCHED_USER_IDENTITY``   Enable UID/GID identity commands
+``CONFIG_LIBC_PASSWD_FILE``      Resolve user names from ``/etc/passwd``
+``CONFIG_NSH_LOGIN_SETUID``      Apply identity after login
+``CONFIG_NSH_DISABLE_SU``        Disable the ``su`` command
+===============================  =======================================
+
+**Example**::
+
+  nsh> su testuser
+  nsh$ whoami
+  testuser
+  nsh$ su newuser
+  Password:
+  nsh$ whoami
+  newuser
+  nsh$ su root
+  Password:
+  nsh# whoami
+  root
+  nsh# su testuser
+  nsh$ whoami
+  testuser
+
 .. _cmdtelnetd:
 
 ``telnetd`` Time Start the Telnet Daemon
@@ -1743,6 +1913,47 @@ command is run in background with the sleep command::
   time [3:100]
   nsh>
   2.0100 sec
+
+.. _cmdtop:
+
+``top`` Monitor Tasks
+=====================
+
+**Command Syntax**::
+
+  top [ -n <num>] [ -d <delay>] [ -p <pidlist>] [ -h ]
+
+**Synopsis**. Live task monitor similar to the UNIX ``top`` command. It
+periodically shows a summary header (uptime, task counts, CPU busy/idle
+and memory usage) followed by the same per-task information reported by
+the :ref:`ps <cmdps>` command, sorted by CPU load. The screen is
+refreshed in place. Press ``q``, ``ESC`` or ``Ctrl-C`` to exit.
+
+Options:
+
+========================= =================================================
+``-n <num>``              Show at most ``<num>`` tasks (highest CPU first)
+``-d <delay>``            Refresh interval in seconds (default 3)
+``-p <pidlist>``          Show only the given PIDs, comma-separated
+                          (e.g. ``-p 0,2``)
+``-h``                    Show the per-task heap usage column
+========================= =================================================
+
+**Example**::
+
+  nsh> top
+  top - up 00:01:01
+  Tasks: 2 total, 2 running, 0 sleeping
+  %Cpu(s):  9.2 busy, 90.8 idle
+  Mem :  1004876 total,     8140 used,   996736 free
+
+    TID   PID  PPID PRI POLICY   TYPE    NPX STATE    EVENT     SIGMASK            STACK    USED FILLED    CPU COMMAND
+      0     0     0   0 FIFO     Kthread   - Ready              0000000000000000 0002024 0000500  24.7%  90.7% Idle_Task
+      2     2     0 100 RR       Task      - Running            0000000000000000 0004048 0001952  48.2%   9.2% nsh_main
+
+NOTE: This command depends upon the *procfs* file system and CPU load
+measurement (``CONFIG_SCHED_CPULOAD``). The stack usage columns require
+``CONFIG_STACK_COLORATION``.
 
 .. _cmdtruncate:
 
@@ -1932,6 +2143,37 @@ directory.
                      directory and with the same name as on the HTTP server
                      unless <local-path> is provided.
 ===================  =================================================
+
+.. _cmdwhoami:
+
+``whoami`` Show Effective User Name
+===================================
+
+**Command Syntax**::
+
+  whoami
+
+**Synopsis**. Print the user name associated with the effective UID of
+the current NSH session. If the name cannot be resolved from the passwd
+database, ``whoami`` prints ``root`` when the effective UID is zero, or
+the numeric UID otherwise.
+
+The result should match the privilege marker shown in the NSH prompt
+(``#`` for root, ``$`` for non-root) when
+``CONFIG_SCHED_USER_IDENTITY`` is enabled.
+
+This command is available only when ``CONFIG_SCHED_USER_IDENTITY`` is
+enabled. It may be disabled with ``CONFIG_NSH_DISABLE_WHOAMI``.
+
+**Example**::
+
+  nsh> su testuser
+  nsh$ whoami
+  testuser
+  nsh$ su root
+  Password:
+  nsh# whoami
+  root
 
 .. _cmdxd:
 

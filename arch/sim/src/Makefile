@@ -37,12 +37,12 @@ ifeq ($(CONFIG_VIDEOUTILS_LIBX264),y)
 INCLUDES += ${INCDIR_PREFIX}$(APPSDIR)/videoutils/x264/x264
 endif
 
-ifeq ($(CONFIG_VIDEOUTILS_LIBMAD),y)
+ifeq ($(CONFIG_AUDIOUTILS_LIBMAD),y)
 INCLUDES += ${INCDIR_PREFIX}$(APPSDIR)/audioutils/libmad/libmad
 endif
 
-ifeq ($(CONFIG_VIDEOUTILS_LAME),y)
-INCLUDES += ${INCDIR_PREFIX}$(APPSDIR)/audioutils/lame/lame
+ifeq ($(CONFIG_AUDIOUTILS_LAME),y)
+INCLUDES += ${INCDIR_PREFIX}$(APPSDIR)/audioutils/lame/lame/include
 endif
 
 CPPFLAGS += $(INCLUDES)
@@ -57,7 +57,8 @@ NUTTX = $(call CONVERT_PATH,$(TOPDIR)$(DELIM)nuttx$(EXEEXT))
 # there are a fews that must be included because they
 # are called only from the host OS-specific logic(HOSTOBJS)
 
-LINKOBJS = sim_head$(OBJEXT)
+LINKSRCS = sim_head.c
+LINKOBJS = $(LINKSRCS:.c=$(OBJEXT))
 REQUIREDOBJS = $(LINKOBJS) sim_doirq$(OBJEXT)
 ifeq ($(CONFIG_SIM_NETUSRSOCK),y)
   REQUIREDOBJS += sim_usrsock$(OBJEXT)
@@ -94,7 +95,7 @@ ifeq ($(CONFIG_SCHED_BACKTRACE),y)
 CSRCS += sim_backtrace.c
 endif
 
-ifeq ($(CONFIG_ARCH_HAVE_FORK),y)
+ifneq ($(CONFIG_ARCH_HAVE_VFORK)$(CONFIG_ARCH_HAVE_FORK),)
 CSRCS += sim_fork.c
 endif
 
@@ -206,6 +207,9 @@ endif
   STDLIBS += -lX11 -lXext
 ifeq ($(CONFIG_SIM_TOUCHSCREEN),y)
   CSRCS += sim_touchscreen.c
+  HOSTSRCS += sim_x11eventloop.c
+else ifeq ($(CONFIG_SIM_MOUSE),y)
+  CSRCS += sim_mouse.c
   HOSTSRCS += sim_x11eventloop.c
 else ifeq ($(CONFIG_SIM_AJOYSTICK),y)
   CSRCS += sim_ajoystick.c
@@ -346,7 +350,7 @@ NUTTXOBJS = $(AOBJS) $(COBJS)
 HOSTOBJS = $(HOSTCOBJS) $(HOSTMOBJS)
 HEADOBJ = $(HEADSRC:.c=$(OBJEXT))
 
-SRCS = $(ASRCS) $(CSRCS) $(HOSTSRCS) $(HOSTMSRCS)
+SRCS = $(ASRCS) $(CSRCS) $(HOSTSRCS) $(HOSTMSRCS) $(LINKSRCS)
 OBJS = $(AOBJS) $(COBJS) $(HOSTOBJS)
 
 $(foreach lib,$(notdir $(wildcard $(APPDIR)$(DELIM)staging$(DELIM)*$(LIBEXT))), \
@@ -416,7 +420,7 @@ $(HOSTMOBJS): %$(OBJEXT): %.m
 # The architecture-specific library
 
 libarch$(LIBEXT): $(NUTTXOBJS)
-	$(call ARCHIVE, $@, $(NUTTXOBJS))
+	$(call ARCHIVE_REBUILD, $@, $(NUTTXOBJS))
 
 # The "board"-specific library. Of course, there really are no boards in
 # the simulation.  However, this is a good place to keep parts of the simulation
@@ -529,7 +533,8 @@ export_startup: sim_head.o $(HOSTOBJS) nuttx-names.dat
 
 # Dependencies
 
-makedepfile: $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds) $(HOSTSRCS:.c=.ddh)
+makedepfile: $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds) \
+             $(HOSTSRCS:.c=.ddh) $(LINKSRCS:.c=.ddc)
 	$(call CATFILE, Make.dep, $^)
 	$(call DELFILE, $^)
 
@@ -565,7 +570,8 @@ distclean:: clean
 	$(Q) if [ -e board/Makefile ]; then \
 		$(MAKE) -C board distclean ; \
 	fi
-	$(call DELFILE, $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds) $(HOSTSRCS:.c=.ddh))
+	$(call DELFILE, $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds) \
+	                   $(HOSTSRCS:.c=.ddh) $(LINKSRCS:.c=.ddc))
 	$(call DELFILE, Make.dep)
 	$(call DELFILE, .depend)
 	$(call DELFILE, config.h)

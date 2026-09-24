@@ -116,6 +116,16 @@ config ARCH_BOARD_BL602EVB
 		This is the board configuration for the port of NuttX to the BouffaloLab BL602EVB
 		board.  This board features the RISC-V rv32imfc core
 
+config ARCH_BOARD_GD32VW553K_START
+	bool "GigaDevice GD32VW553K-START Board"
+	depends on ARCH_CHIP_GD32VW55X
+	select ARCH_HAVE_LEDS
+	select ARCH_HAVE_RESET
+	---help---
+		This is the board configuration for the port of NuttX to the
+		GigaDevice GD32VW553K-START devkit (GD32VW553KMQ7, QFN32,
+		4 MB flash, on-board GD-Link with VCP wired to UART2).
+
 config ARCH_BOARD_C5471EVM
 	bool "Spectrum Digital C5471 evaluation board"
 	depends on ARCH_CHIP_C5471
@@ -126,6 +136,13 @@ config ARCH_BOARD_C5471EVM
 		purpose processor and a c54 DSP.  It is also known as TMS320DA180 or just DA180.
 		NuttX runs on the ARM core and is built with a GNU arm-nuttx-elf toolchain*.
 		This port is complete and verified.
+
+config ARCH_BOARD_CI20
+	bool "MIPS Creator CI20"
+	depends on ARCH_CHIP_JZ4780
+	select BOARDCTL_RESET
+	---help---
+		This MIPS Creator CI20 port is incomplete.
 
 config ARCH_BOARD_CIRCUIT_EXPRESS
 	bool "Adafruit Circuit Express"
@@ -496,6 +513,17 @@ config ARCH_BOARD_ESP32S3_DEVKIT
 		ESP32-S3-DevKitC-1 version may be based either on ESP32-S3-WROOM-1/1U or
 		ESP32-S3-WROOM-2/2U.
 
+config ARCH_BOARD_ESP32S3_M5_CARDPUTER
+	bool "M5Stack Cardputer (ESP32-S3)"
+	depends on ARCH_CHIP_ESP32S3MINI1N8 || ARCH_CHIP_ESP32S3WROOM1N8R2 || ARCH_CHIP_ESP32S3WROOM1N8R8 || ARCH_CHIP_ESP32S3CUSTOM
+	select ARCH_HAVE_BUTTONS
+	select ARCH_HAVE_IRQBUTTONS if ESPRESSIF_GPIO_IRQ
+	---help---
+		The M5Stack Cardputer is a portable computer kit built around the
+		ESP32-S3FN8 (dual Xtensa LX7 @ 240 MHz, 8 MB flash, no PSRAM).  It
+		integrates a 56-key keyboard, a 1.14" ST7789 TFT, an NS4168 I2S
+		speaker, an SPM1423 microphone, an IR transmitter and a microSD slot.
+
 config ARCH_BOARD_ESP32S3_8048S043
 	bool "ESP32-S3 8048S043"
 	depends on ARCH_CHIP_ESP32S3WROOM1N4 || ARCH_CHIP_ESP32S3MINI1N8 || ARCH_CHIP_ESP32S3WROOM1N8R2 || ARCH_CHIP_ESP32S3WROOM1N16R8 || ARCH_CHIP_ESP32S3WROOM2N16R8V || ARCH_CHIP_ESP32S3WROOM2N32R8V || ARCH_CHIP_ESP32S3CUSTOM || ARCH_CHIP_ESP32S3WROOM1N8R8
@@ -672,6 +700,13 @@ config ARCH_BOARD_ESP32P4_PICO_WIFI_WARESHARE
 	select ARCH_HAVE_IRQBUTTONS
 	---help---
 		The Waveshare ESP32-P4-PICO-WIFI features the ESP32-P4 CPU with two RISC-V cores.
+
+config ARCH_BOARD_ESP32P4_TAB5
+	bool "M5Stack Tab5 (ESP32-P4)"
+	depends on ARCH_CHIP_ESP32P4
+	---help---
+		The M5Stack Tab5 features the ESP32-P4 (dual RISC-V) plus an ESP32-C6
+		wireless companion.  This port brings up NSH and the I2C0 bus.
 
 config ARCH_BOARD_ET_STM32_STAMP
 	bool "Futurlec: ET-STM32 Stamp"
@@ -1455,6 +1490,7 @@ config ARCH_BOARD_THINGY91
 	bool "Nordic Thingy:91 cellular IoT prototyping platform - nRF9160"
 	depends on ARCH_CHIP_NRF91
 	select ARCH_HAVE_BUTTONS
+	select ARCH_HAVE_IRQBUTTONS
 	---help---
 		This option selects the Thingy:91 cellular IoT prototyping platform - nRF9160 chip
 
@@ -1957,6 +1993,15 @@ config ARCH_BOARD_WEACT_STM32H743
 	---help---
 		This is WeAct MiniSTM32H7xx (STM32H743VIT6) board.
 
+config ARCH_BOARD_DEVEBOX_STM32H743
+	bool "DevEbox Studio STM32H743"
+	depends on ARCH_CHIP_STM32H743VI
+	select ARCH_HAVE_LEDS
+	select ARCH_HAVE_BUTTONS
+	select ARCH_HAVE_IRQBUTTONS
+	---help---
+		This is DevEbox MiniSTM32H7xx (STM32H743VIT6) board.
+
 config ARCH_BOARD_WEACT_STM32H750
 	bool "WeAct Studio STM32H750"
 	depends on ARCH_CHIP_STM32H750VB
@@ -2230,6 +2275,23 @@ config ARCH_BOARD_PIMORONI_PICO_2_PLUS
 	---help---
 		This is a port to the Pimoroni Pico 2 Plus board.
 
+config ARCH_BOARD_PIMORONI_PICO_PLUS_2_W
+	bool "Pimoroni Pico Plus 2 W"
+	depends on ARCH_CHIP_RP23XX
+	select ARCH_HAVE_LEDS
+	select ARCH_HAVE_BUTTONS
+	select ARCH_HAVE_IRQBUTTONS
+	select RP23XX_RP2350B
+	---help---
+		This is a port to the Pimoroni Pico Plus 2 W board, which adds an
+		Infineon CYW43439 WiFi/Bluetooth chip to the Pico Plus 2.
+
+		The board's only LED is wired to a GPIO of the CYW43439 rather than
+		to a pin of the RP2350, so driving it means a transaction on the gSPI
+		bus.  That works for the CONFIG_USERLED interface but not for
+		CONFIG_ARCH_LEDS, which is called from interrupt context, so
+		CONFIG_ARCH_LEDS is rejected at build time on this board.
+
 config ARCH_BOARD_WAVESHARE_RP2040_LCD_1_28
 	bool "Waveshare RP2040 LCD 1.28 board"
 	depends on ARCH_CHIP_RP2040
@@ -2444,6 +2506,30 @@ config ARCH_BOARD_MPS3_AN547
 		This options selects support for NuttX on the MPS3 AN547
 		board featuring the Cortex-M55.
 
+config ARCH_BOARD_PKE8721DAF
+	bool "Realtek pke8721daf"
+	depends on ARCH_CHIP_RTL8721DX
+	---help---
+		This options selects support for NuttX on the pke8721daf
+		board featuring the Realtek RTL8721Dx (KM4,
+		Cortex-M33).
+
+config ARCH_BOARD_RTL8720F_EVB
+	bool "Realtek RTL8720F_EVB"
+	depends on ARCH_CHIP_RTL8720F
+	---help---
+		This options selects support for NuttX on the RTL8720F_EVB
+		board featuring the Realtek RTL8720F (km4tz application/host
+		core, Cortex-M33).
+
+config ARCH_BOARD_RTL8721F_EVB
+	bool "Realtek RTL8721F_EVB"
+	depends on ARCH_CHIP_RTL8721F
+	---help---
+		This options selects support for NuttX on the RTL8721F_EVB
+		board featuring the Realtek RTL8721F (SDK codename Green2;
+		km4tz application/host core, Cortex-M33).
+
 config ARCH_BOARD_SABRE_6QUAD
 	bool "NXP/Freescale i.MX6 Sabre-6Quad board"
 	depends on ARCH_CHIP_IMX6_6QUAD
@@ -2527,6 +2613,13 @@ config ARCH_BOARD_PINEPHONE_PRO
 	---help---
 		This options selects support for NuttX on PINE64 PinePhone based
 		on Rockchip RK3399 SoC with ARM Cortex-A53
+
+config ARCH_BOARD_ORANGEPI_5_PRO
+	bool "Orange Pi 5 Pro"
+	depends on ARCH_CHIP_RK3588
+	---help---
+		This option selects support for NuttX on the Orange Pi 5 Pro
+		based on Rockchip RK3588S SoC with ARM Cortex-A76/Cortex-A55.
 
 config ARCH_BOARD_NANOPI_M4
 	bool "FriendlyElec NanoPi M4"
@@ -3658,6 +3751,7 @@ config ARCH_BOARD
 	default "bambino-200e"                 if ARCH_BOARD_BAMBINO_200E
 	default "bl602evb"                     if ARCH_BOARD_BL602EVB
 	default "c5471evm"                     if ARCH_BOARD_C5471EVM
+	default "ci20"                         if ARCH_BOARD_CI20
 	default "circuit-express"              if ARCH_BOARD_CIRCUIT_EXPRESS
 	default "clicker2-stm32"               if ARCH_BOARD_CLICKER2_STM32
 	default "cloudctrl"                    if ARCH_BOARD_CLOUDCTRL
@@ -3691,6 +3785,7 @@ config ARCH_BOARD
 	default "esp32s2-saola-1"              if ARCH_BOARD_ESP32S2_SAOLA_1
 	default "franzininho-wifi"             if ARCH_BOARD_FRANZININHO_WIFI
 	default "esp32s3-devkit"               if ARCH_BOARD_ESP32S3_DEVKIT
+	default "esp32s3-m5-cardputer"         if ARCH_BOARD_ESP32S3_M5_CARDPUTER
 	default "esp32s3-8048S043"             if ARCH_BOARD_ESP32S3_8048S043
 	default "esp32s3-eye"                  if ARCH_BOARD_ESP32S3_EYE
 	default "esp32s3-meadow"               if ARCH_BOARD_ESP32S3_MEADOW
@@ -3707,6 +3802,7 @@ config ARCH_BOARD
 	default "esp32h2-devkit"               if ARCH_BOARD_ESP32H2_DEVKIT
 	default "esp32p4-function-ev-board"    if ARCH_BOARD_ESP32P4_FUNCTION_EV_BOARD
 	default "esp32p4-pico-wifi-wareshare"  if ARCH_BOARD_ESP32P4_PICO_WIFI_WARESHARE
+	default "esp32p4-tab5"                 if ARCH_BOARD_ESP32P4_TAB5
 	default "et-stm32-stamp"               if ARCH_BOARD_ET_STM32_STAMP
 	default "tlsr8278adk80d"               if ARCH_BOARD_TLSR8278ADK80D
 	default "ez80f910200kitg"              if ARCH_BOARD_EZ80F910200KITG
@@ -3725,6 +3821,7 @@ config ARCH_BOARD
 	default "gd32f470zk-eval"              if ARCH_BOARD_GD32F470ZK_EVAL
 	default "gd32f470zk-aiotbox"           if ARCH_BOARD_GD32F470ZK_AIOTBOX
 	default "gd32f470ik-eval"              if ARCH_BOARD_GD32F470IK_EVAL
+	default "gd32vw553k-start"             if ARCH_BOARD_GD32VW553K_START
 	default "hifive1-revb"                 if ARCH_BOARD_HIFIVE1_REVB
 	default "hymini-stm32v"                if ARCH_BOARD_HYMINI_STM32V
 	default "imxrt1020-evk"                if ARCH_BOARD_IMXRT1020_EVK
@@ -3873,6 +3970,7 @@ config ARCH_BOARD
 	default "raspberrypi-pico-2-rv"        if ARCH_BOARD_RASPBERRYPI_PICO_2_RV
 	default "xiao-rp2350"                  if ARCH_BOARD_XIAO_RP2350
 	default "pimoroni-pico-2-plus"         if ARCH_BOARD_PIMORONI_PICO_2_PLUS
+	default "pimoroni-pico-plus-2-w"       if ARCH_BOARD_PIMORONI_PICO_PLUS_2_W
 	default "w5500-evb-pico"               if ARCH_BOARD_W5500_EVB_PICO
 	default "waveshare-rp2040-zero"        if ARCH_BOARD_WAVESHARE_RP2040_ZERO
 	default "rx65n"                        if ARCH_BOARD_RX65N
@@ -3890,6 +3988,9 @@ config ARCH_BOARD
 	default "mps2-an500"                   if ARCH_BOARD_MPS2_AN500
 	default "mps2-an521"                   if ARCH_BOARD_MPS2_AN521
 	default "mps3-an547"                   if ARCH_BOARD_MPS3_AN547
+	default "pke8721daf"                   if ARCH_BOARD_PKE8721DAF
+	default "rtl8720f_evb"                 if ARCH_BOARD_RTL8720F_EVB
+	default "rtl8721f_evb"                 if ARCH_BOARD_RTL8721F_EVB
 	default "rv32m1-vega"                  if ARCH_BOARD_RV32M1_VEGA
 	default "rv-virt"                      if ARCH_BOARD_QEMU_RV_VIRT
 	default "star64"                       if ARCH_BOARD_JH7110_STAR64
@@ -3905,6 +4006,7 @@ config ARCH_BOARD
 	default "qemu-armv8a"                  if ARCH_BOARD_QEMU_ARMV8A
 	default "pinephone"                    if ARCH_BOARD_PINEPHONE
 	default "pinephonepro"                 if ARCH_BOARD_PINEPHONE_PRO
+	default "orangepi-5-pro"               if ARCH_BOARD_ORANGEPI_5_PRO
 	default "pocketbeagle2"                if ARCH_BOARD_POCKETBEAGLE2
 	default "beagleplay"                   if ARCH_BOARD_BEAGLEPLAY
 	default "nanopi_m4"                    if ARCH_BOARD_NANOPI_M4
@@ -4024,6 +4126,7 @@ config ARCH_BOARD
 	default "esk32"                        if ARCH_BOARD_ESK32
 	default "csk6011a-nano"                if ARCH_BOARD_CSK6011A_NANO
 	default "frdm-mcxn236"                 if ARCH_BOARD_FRDM_MCXN236
+	default "devebox-stm32h743"            if ARCH_BOARD_DEVEBOX_STM32H743
 
 comment "Common Board Options"
 
@@ -4080,6 +4183,9 @@ endif
 if ARCH_BOARD_C5471EVM
 source "boards/arm/c5471/c5471evm/Kconfig"
 endif
+if ARCH_BOARD_CI20
+source "boards/mips/jz4780/ci20/Kconfig"
+endif
 if ARCH_BOARD_SPRESENSE
 source "boards/arm/cxd56xx/spresense/Kconfig"
 endif
@@ -4134,6 +4240,15 @@ endif
 if ARCH_BOARD_MPS3_AN547
 source "boards/arm/mps/mps3-an547/Kconfig"
 endif
+if ARCH_BOARD_PKE8721DAF
+source "boards/arm/rtl8721dx/pke8721daf/Kconfig"
+endif
+if ARCH_BOARD_RTL8720F_EVB
+source "boards/arm/rtl8720f/rtl8720f_evb/Kconfig"
+endif
+if ARCH_BOARD_RTL8721F_EVB
+source "boards/arm/rtl8721f/rtl8721f_evb/Kconfig"
+endif
 if ARCH_BOARD_QEMU_ARMV7A
 source "boards/arm/qemu/qemu-armv7a/Kconfig"
 endif
@@ -4145,6 +4260,9 @@ source "boards/arm64/a64/pinephone/Kconfig"
 endif
 if ARCH_BOARD_PINEPHONE_PRO
 source "boards/arm64/rk3399/pinephonepro/Kconfig"
+endif
+if ARCH_BOARD_ORANGEPI_5_PRO
+source "boards/arm64/rk3588/orangepi-5-pro/Kconfig"
 endif
 if ARCH_BOARD_POCKETBEAGLE2
 source "boards/arm64/am62x/pocketbeagle2/Kconfig"
@@ -4394,6 +4512,9 @@ source "boards/arm/rp23xx/xiao-rp2350/Kconfig"
 endif
 if ARCH_BOARD_PIMORONI_PICO_2_PLUS
 source "boards/arm/rp23xx/pimoroni-pico-2-plus/Kconfig"
+endif
+if ARCH_BOARD_PIMORONI_PICO_PLUS_2_W
+source "boards/arm/rp23xx/pimoroni-pico-plus-2-w/Kconfig"
 endif
 if ARCH_BOARD_ARDUINO_DUE
 source "boards/arm/sam34/arduino-due/Kconfig"
@@ -4995,6 +5116,9 @@ endif
 if ARCH_BOARD_ESP32S3_DEVKIT
 source "boards/xtensa/esp32s3/esp32s3-devkit/Kconfig"
 endif
+if ARCH_BOARD_ESP32S3_M5_CARDPUTER
+source "boards/xtensa/esp32s3/esp32s3-m5-cardputer/Kconfig"
+endif
 if ARCH_BOARD_ESP32S3_8048S043
 source "boards/xtensa/esp32s3/esp32s3-8048S043/Kconfig"
 endif
@@ -5042,6 +5166,9 @@ source "boards/risc-v/esp32p4/esp32p4-function-ev-board/Kconfig"
 endif
 if ARCH_BOARD_ESP32P4_PICO_WIFI_WARESHARE
 source "boards/risc-v/esp32p4/esp32p4-pico-wifi-wareshare/Kconfig"
+endif
+if ARCH_BOARD_ESP32P4_TAB5
+source "boards/risc-v/esp32p4/esp32p4-tab5/Kconfig"
 endif
 if ARCH_BOARD_SIM
 source "boards/sim/sim/sim/Kconfig"
@@ -5133,6 +5260,9 @@ endif
 if ARCH_BOARD_BL602EVB
 source "boards/risc-v/bl602/bl602evb/Kconfig"
 endif
+if ARCH_BOARD_GD32VW553K_START
+source "boards/risc-v/gd32vw55x/gd32vw553k-start/Kconfig"
+endif
 if ARCH_BOARD_PHY6222
 source "boards/arm/phy62xx/phy6222/Kconfig"
 endif
@@ -5206,10 +5336,7 @@ endif
 if ARCH_CHIP_SAMV7
 source "boards/arm/samv7/common/Kconfig"
 endif
-if ARCH_CHIP_STM32F7
-source "boards/arm/stm32f7/common/Kconfig"
-endif
-if ARCH_CHIP_STM32C0 || ARCH_CHIP_STM32F0 || ARCH_CHIP_STM32F1 || ARCH_CHIP_STM32F2 || ARCH_CHIP_STM32F3 || ARCH_CHIP_STM32F4 || ARCH_CHIP_STM32G0 || ARCH_CHIP_STM32G4 || ARCH_CHIP_STM32L0 || ARCH_CHIP_STM32L1
+if ARCH_CHIP_STM32C0 || ARCH_CHIP_STM32F0 || ARCH_CHIP_STM32F1 || ARCH_CHIP_STM32F2 || ARCH_CHIP_STM32F3 || ARCH_CHIP_STM32F4 || ARCH_CHIP_STM32F7 || ARCH_CHIP_STM32G0 || ARCH_CHIP_STM32G4 || ARCH_CHIP_STM32L0 || ARCH_CHIP_STM32L1 || ARCH_CHIP_STM32H7 || ARCH_CHIP_STM32H5 || ARCH_CHIP_STM32L5 || ARCH_CHIP_STM32U5 || ARCH_CHIP_STM32WB || ARCH_CHIP_STM32WL5 || ARCH_CHIP_STM32N6
 source "boards/arm/common/stm32/Kconfig"
 endif
 if ARCH_CHIP_RP2040
@@ -5543,75 +5670,75 @@ config BOARD_ETC_ROMFS_PASSWD_ENABLE
 	bool "Auto-generate /etc/passwd at build time"
 	default n
 	depends on ETC_ROMFS
+	depends on FSUTILS_PASSWD
+	depends on CRYPTO_CRYPTODEV_SOFTWARE_CRYPTO || CRYPTO_CRYPTODEV_HARDWARE
 	---help---
-		Generate /etc/passwd at build time. The password is hashed with TEA
-		by tools/mkpasswd; the plaintext is not stored in the firmware.
+		Generate /etc/passwd at build time. The password is hashed with
+		PBKDF2-HMAC-SHA256 by tools/mkpasswd; the plaintext is not stored
+		in the firmware.
 
-		Before building, set:
-		  1. Admin password (below)
-		  2. TEA keys — enable random generation below, or set
-		     CONFIG_FSUTILS_PASSWD_KEY1..4 in Application Configuration ->
-		     File System Utilities -> Password file support
+		Requires CONFIG_FSUTILS_PASSWD (nuttx-apps) and a cryptodev
+		backend (CONFIG_CRYPTO_CRYPTODEV_SOFTWARE_CRYPTO on sim, or
+		CONFIG_CRYPTO_CRYPTODEV_HARDWARE on targets with hardware crypto).
 
-		Also enable NSH login with "Encrypted password file" verification.
+		The password is hashed at build time by the host tool
+		tools/mkpasswd (compiled from tools/mkpasswd.c) using
+		PBKDF2-HMAC-SHA256 — the same algorithm used at runtime in
+		apps/fsutils/passwd/passwd_encrypt.c.  The plaintext password is
+		never stored in the firmware image.
 
-		Password and keys are not saved in defconfig. Do not commit them.
+		The iteration count is taken from
+		CONFIG_FSUTILS_PASSWD_PBKDF2_ITERATIONS (default 10000).  Higher
+		values slow brute-force attacks but increase login latency on
+		low-MHz MCUs.
+
+		Before building, set the root password (below) or export
+		NUTTX_ROMFS_PASSWD_PASSWORD for CI and scripted builds (see
+		tools/update_romfs_password.sh).
+
+		When using CONFIG_NSH_CONSOLE_LOGIN with ETC_ROMFS, enable this
+		option so /etc/passwd is present at runtime.
+
+		Password is not saved in defconfig. Do not commit it.
+
+		See Documentation/components/tools/index.rst (mkpasswd section) for
+		details.
 
 if BOARD_ETC_ROMFS_PASSWD_ENABLE
 
-comment "--- Step 1: set the admin password below ---"
+comment "--- Set the root password below ---"
 
 config BOARD_ETC_ROMFS_PASSWD_USER
-	string "Admin username"
+	string "Root username"
 	default "root"
 	---help---
 		The username for the auto-generated /etc/passwd entry.
 
 config BOARD_ETC_ROMFS_PASSWD_PASSWORD
-	string "Admin password (required, no default)"
+	string "Root password (required, no default)"
 	---help---
-		The plaintext password for the /etc/passwd entry. No default is
-		provided. The build fails if this is empty or shorter than 8
-		characters.
+		The plaintext password for the auto-generated /etc/passwd entry.
+		This value is hashed with PBKDF2-HMAC-SHA256 at build time; the
+		plaintext is NOT stored in the firmware image.  There is no default;
+		set CONFIG_BOARD_ETC_ROMFS_PASSWD_PASSWORD in the board defconfig,
+		via menuconfig, or enter it when prompted during an interactive
+		build.  Password must be at least 8 characters and contain:
+		uppercase letter, lowercase letter, digit, and special character.
 
-		Not saved in defconfig.
-
-comment "--- Step 2: choose how to supply the TEA encryption keys ---"
-
-config BOARD_ETC_ROMFS_PASSWD_RANDOMIZE_KEYS
-	bool "Generate random TEA encryption keys automatically"
-	default n
-	---help---
-		Generate four random TEA keys from /dev/urandom and write them
-		to .config on the first build. The same keys are used for the
-		/etc/passwd hash and the firmware.
-
-		  make menuconfig   # set password, enable this option
-		  make
-
-		Key values are not printed in the build log. Search .config for
-		CONFIG_FSUTILS_PASSWD_KEY to view them.
-
-		Do not copy keys or the password into a defconfig or commit
-		them to version control.
-
-		If disabled, set CONFIG_FSUTILS_PASSWD_KEY1..4 manually under
-		Application Configuration -> File System Utilities ->
-		Password file support.
-
-comment "  If not randomizing: set KEY1..4 at App Config -> File System Utilities -> Password file support"
-	depends on !BOARD_ETC_ROMFS_PASSWD_RANDOMIZE_KEYS
+		Not saved in defconfig.  For CI or scripted builds, set the
+		environment variable NUTTX_ROMFS_PASSWD_PASSWORD instead (see
+		tools/update_romfs_password.sh).
 
 config BOARD_ETC_ROMFS_PASSWD_UID
-	int "Admin user ID"
+	int "Root user ID"
 	default 0
 
 config BOARD_ETC_ROMFS_PASSWD_GID
-	int "Admin group ID"
+	int "Root group ID"
 	default 0
 
 config BOARD_ETC_ROMFS_PASSWD_HOME
-	string "Admin home directory"
+	string "Root home directory"
 	default "/"
 
 endif # BOARD_ETC_ROMFS_PASSWD_ENABLE

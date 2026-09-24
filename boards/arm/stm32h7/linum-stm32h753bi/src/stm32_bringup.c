@@ -38,6 +38,14 @@
 
 #include "linum-stm32h753bi.h"
 
+#ifdef CONFIG_SENSORS_QENCODER
+#  include "board_qencoder.h"
+#endif
+
+#ifdef CONFIG_AUDIO_TONE
+#  include "stm32_tone.h"
+#endif
+
 #ifdef CONFIG_USERLED
 #include <nuttx/leds/userled.h>
 #endif
@@ -356,6 +364,18 @@ int stm32_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_tsc_setup failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_USBHOST
+  /* Initialize USB host to support an external HID keyboard (e.g. as the
+   * NXDoom game controller) plugged into the OTG FS service port.
+   */
+
+  ret = stm32_usbhost_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: stm32_usbhost_initialize() failed: %d\n", ret);
     }
 #endif
 

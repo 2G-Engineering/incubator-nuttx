@@ -94,6 +94,10 @@ if(CONFIG_INPUT)
     list(APPEND SRCS gt9xx.c)
   endif()
 
+  if(CONFIG_INPUT_ST7123)
+    list(APPEND SRCS st7123.c)
+  endif()
+
   if(CONFIG_INPUT_BUTTONS)
     list(APPEND SRCS button_upper.c)
 
@@ -104,6 +108,7 @@ if(CONFIG_INPUT)
 
   if(CONFIG_INPUT_KEYBOARD)
     list(APPEND SRCS keyboard_upper.c)
+    list(APPEND SRCS virtio_key_decode.c)
   endif()
 
   if(CONFIG_INPUT_KMATRIX)

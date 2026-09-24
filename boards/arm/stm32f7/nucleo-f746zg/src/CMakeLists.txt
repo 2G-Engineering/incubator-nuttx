@@ -68,6 +68,10 @@ if(CONFIG_USBDEV_COMPOSITE)
   list(APPEND SRCS stm32_composite.c)
 endif()
 
+if(CONFIG_LPWAN_SX1301)
+  list(APPEND SRCS stm32_sx1301.c)
+endif()
+
 target_sources(board PRIVATE ${SRCS})
 
 set_property(GLOBAL PROPERTY LD_SCRIPT "${NUTTX_BOARD_DIR}/scripts/flash.ld")

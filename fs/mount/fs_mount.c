@@ -61,7 +61,8 @@
 /* These file systems require MTD drivers */
 
 #if (defined(CONFIG_FS_SPIFFS) || defined(CONFIG_FS_LITTLEFS) || \
-    defined(CONFIG_FS_MNEMOFS)) && defined(CONFIG_MTD)
+    defined(CONFIG_FS_MNEMOFS) || defined(CONFIG_FS_XIPFS)) && \
+    defined(CONFIG_MTD)
 #  define MDFS_SUPPORT 1
 #endif
 
@@ -136,6 +137,9 @@ extern const struct mountpt_operations g_littlefs_operations;
 #ifdef CONFIG_FS_MNEMOFS
 extern const struct mountpt_operations g_mnemofs_operations;
 #endif
+#ifdef CONFIG_FS_XIPFS
+extern const struct mountpt_operations g_xipfs_operations;
+#endif
 
 static const struct fsmap_t g_mdfsmap[] =
 {
@@ -147,6 +151,9 @@ static const struct fsmap_t g_mdfsmap[] =
 #endif
 #ifdef CONFIG_FS_MNEMOFS
     { "mnemofs", &g_mnemofs_operations },
+#endif
+#ifdef CONFIG_FS_XIPFS
+    { "xipfs", &g_xipfs_operations },
 #endif
     { NULL,   NULL },
 };
@@ -393,6 +400,15 @@ int nx_mount(FAR const char *source, FAR const char *target,
         {
           ferr("ERROR: target %s exists and is a special node\n", target);
           ret = -ENOTDIR;
+          inode_release(mountpt_inode);
+          goto errout_with_lock;
+        }
+
+      /* Require search on ancestors and write on the mount target. */
+
+      ret = inode_checkpathperm(mountpt_inode, W_OK, INODE_CHECK_LOCKED);
+      if (ret < 0)
+        {
           inode_release(mountpt_inode);
           goto errout_with_lock;
         }

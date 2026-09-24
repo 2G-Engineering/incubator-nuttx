@@ -45,8 +45,21 @@
 #include "rp23xx_adc.h"
 #endif
 
+#ifdef CONFIG_RP23XX_TIMER
+#include "rp23xx_timer.h"
+#endif
+
 #ifdef CONFIG_WATCHDOG
 #  include "rp23xx_wdt.h"
+#endif
+
+#ifdef CONFIG_RP23XX_FLASH_MTD
+#  include <nuttx/mtd/mtd.h>
+#  include "rp23xx_flash_mtd.h"
+#endif
+
+#ifdef CONFIG_RP23XX_OTP
+#  include "rp23xx_otp.h"
 #endif
 
 #if defined(CONFIG_RP23XX_ROMFS_ROMDISK_DEVNAME)
@@ -405,6 +418,50 @@ int rp23xx_common_bringup(void)
     }
 #endif
 
+#ifdef CONFIG_RP23XX_FLASH_MTD
+  /* Expose the unused tail of the QSPI flash as an MTD device.  This one
+   * answers BIOC_XIPBASE, so a filesystem layered on it can serve
+   * execute-in-place mappings straight out of flash.
+   */
+
+    {
+      struct mtd_dev_s *mtd = rp23xx_flash_mtd_initialize();
+
+      if (mtd == NULL)
+        {
+          serr("ERROR: Failed to initialize the flash MTD device\n");
+        }
+      else
+        {
+          ret = register_mtddriver("/dev/rpflash", mtd, 0755, NULL);
+          if (ret < 0)
+            {
+              serr("ERROR: Failed to register /dev/rpflash: %d\n", ret);
+            }
+#ifdef CONFIG_FS_XIPFS
+          else
+            {
+              ret = nx_mount("/dev/rpflash", "/mnt/xipfs", "xipfs", 0,
+                             "autoformat");
+              if (ret < 0)
+                {
+                  serr("ERROR: Failed to mount xipfs at /mnt/xipfs: %d\n",
+                       ret);
+                }
+            }
+#endif
+        }
+    }
+#endif
+
+#ifdef CONFIG_RP23XX_OTP
+  ret = rp23xx_otp_initialize("/dev/efuse");
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize the OTP: %d\n", ret);
+    }
+#endif
+
 #ifdef CONFIG_RP23XX_I2S
   ret = board_i2sdev_initialize(0);
   if (ret < 0)
@@ -462,6 +519,27 @@ int rp23xx_common_bringup(void)
     }
 
 #endif /* defined(CONFIG_ADC) && defined(CONFIG_RP23XX_ADC) */
+
+  /* Initialize the system timer blocks as /dev/timerN.  Each enabled block
+   * is independent; a block claimed by the tickless oneshot is excluded in
+   * Kconfig, so the two features can be enabled together.
+   */
+
+#ifdef CONFIG_RP23XX_TIMER0
+  ret = rp23xx_timer_initialize("/dev/timer0", 0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize /dev/timer0: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_RP23XX_TIMER1
+  ret = rp23xx_timer_initialize("/dev/timer1", 1);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize /dev/timer1: %d\n", ret);
+    }
+#endif
 
   /* Initialize board neo-pixel */
 

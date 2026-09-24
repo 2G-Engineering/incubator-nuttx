@@ -221,6 +221,23 @@ This configuration boots directly into the :doc:`coremark
 </applications/benchmarks/coremark/index>` benchmark and displays the results of
 the test over the serial console.
 
+i2c1
+----
+
+This configuration enables the I2C1 bus on GPIO 2 and 3 (the standard I2C bus
+for the Raspberry Pi 4B). It includes the :doc:`i2ctool
+</applications/system/i2c/index>` application for playing with the bus. Note
+that you will want to pass the `-b 1` flag to the tool the first time you use
+it, as the default bus is 0.
+
+bmp280
+------
+
+This configuration is the same as the I2C1 configuration, but it registers the
+BMP280 device driver on I2C1. You can use the :doc:`bmp280
+</applications/examples/bmp280/index>` example program or the ``uorb_listener``
+program to interact with the sensor.
+
 ostest
 ------
 
@@ -276,6 +293,42 @@ colourful rectangles on the screen.
    ``CONFIG_BCM2711_FB_FORCE_RESOLUTION=y`` to force the request of your
    configured default resolution instead.
 
+nxdoom
+------
+
+This configuration combines features from the ``sd`` and ``fb`` configurations,
+and includes the NuttX port of DOOM, :doc:`/applications/games/nxdoom/index`.
+This configuration for DOOM also plays the DOOM theme song over the audio jack
+using an RTTL adaptation of the theme song. See
+:doc:`/applications/audioutils/rtttl-c/index`. Right now, other songs are
+ignored until better RTTL integration can be made.
+
+Place the WAD file you wish to play on the SD card partition with the NuttX
+kernel and other files. You can then play via
+
+.. code:: console
+
+   nsh> nxdoom -iwad /sd/doom1.wad
+
+.. warning::
+
+   There are currently no input devices on the Raspberry Pi 4B which make DOOM
+   playable, so you can only stare at the menu for now. Patches welcome!
+
+   The Pi's framebuffer rendering causes some small artifacts in the player
+   window. This would need DMA-based rendering or double-buffered rendering to
+   improve most likely. Patches also welcome!
+
+.. warning::
+
+   The RTTL audio over the headphone jack is quite loud. Be careful putting
+   earbuds in until you assess the volume level.
+
+.. note::
+
+   Due to the SD card support's current implementation, loading DOOM initially
+   is quite slow.
+
 lvgl
 ----
 
@@ -288,6 +341,15 @@ but could be modified to boot into your own LVGL application.
 This configuration has the same warnings and limitations as those in the ``fb``
 configuration, with the exception of the pixel gaps. This is because LVGL uses
 the dual-buffer approach to rendering.
+
+baromonitor
+-----------
+
+This configuration includes LVGL graphics over the HDMI frame buffer interface,
+and includes the :doc:`baromonitor </applications/examples/baromonitor/index>`
+example. It also includes the features from the ``bmp280`` configuration so that
+the ``baromonitor`` example can display values read from the connected BMP280
+barometer.
 
 cgol
 ----
@@ -305,3 +367,15 @@ This configuration leverages all four A72 cores of the BCM2711. It comes with
 the standard NSH shell, :doc:`/applications/testing/getprime/index`,
 :doc:`/applications/testing/ostest/index`, and
 :doc:`/applications/testing/smp/index` tests.
+
+audio_tone
+----------
+
+This configuration enables PWM0 and PWM1 interfaces and provides examples like
+:doc:`/applications/examples/pwm/index` for playing with sound. The audio jack
+right and left channels are channel 1 and 2 of ``/dev/pwm1``.
+
+.. warning::
+
+   Audio output over the jack is very loud. DO NOT plug in earbuds until first
+   assessing the sound level with them out of your ears.

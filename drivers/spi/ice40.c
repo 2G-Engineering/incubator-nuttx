@@ -269,7 +269,7 @@ ice40_endwrite(FAR struct ice40_dev_s *dev)
 
   dev->ops->select(dev, false);
 
-  for (size_t i = 0; i < ICE40_SPI_FINAL_CLK_CYCLES + 7 / 8; i++)
+  for (size_t i = 0; i < (ICE40_SPI_FINAL_CLK_CYCLES + 7) / 8; i++)
     {
       SPI_SEND(dev->spi, 0xff);
     }
@@ -405,7 +405,7 @@ int ice40_register(FAR const char *path, FAR struct ice40_dev_s *dev)
 
   /* Register the character driver */
 
-  ret = register_driver(path, &g_ice40_fops, 0666, dev);
+  ret = register_driver(path, &g_ice40_fops, 0600, dev);
   if (ret < 0)
     {
       snerr("ERROR: Failed to register driver: %d\n", ret);

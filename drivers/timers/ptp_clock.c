@@ -28,6 +28,7 @@
 #include <errno.h>
 #include <nuttx/debug.h>
 
+#include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
 #include <nuttx/timers/ptp_clock.h>
@@ -378,7 +379,7 @@ int ptp_clockid_to_filep(clockid_t clock_id, FAR struct file **filep)
   ret = clock_id >> CLOCK_SHIFT;
   if (ret >= 0)
     {
-      ret = fs_getfilep(ret, filep);
+      ret = file_get(ret, filep);
     }
 
   if (ret < 0)
@@ -389,7 +390,7 @@ int ptp_clockid_to_filep(clockid_t clock_id, FAR struct file **filep)
   ops = (*filep)->f_inode->u.i_ops;
   if (ops != &g_ptp_clock_file_ops)
     {
-      fs_putfilep(*filep);
+      file_put(*filep);
       return -EINVAL;
     }
 
@@ -442,7 +443,7 @@ int ptp_clock_register(FAR struct ptp_lowerhalf_s *lower, int32_t max_adj,
 
   snprintf(path, sizeof(path), "/dev/ptp%d", devno);
   ptpinfo("Registering %s\n", path);
-  ret = register_driver(path, &g_ptp_clock_file_ops, 0666, upper);
+  ret = register_driver(path, &g_ptp_clock_file_ops, 0600, upper);
   if (ret < 0)
     {
       nxmutex_destroy(&upper->lock);

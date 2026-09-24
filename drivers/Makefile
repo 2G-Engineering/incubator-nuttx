@@ -34,6 +34,7 @@ include bch/Make.defs
 include can/Make.defs
 include clk/Make.defs
 include crypto/Make.defs
+include devfreq/Make.defs
 include devicetree/Make.defs
 include dma/Make.defs
 include math/Make.defs
@@ -108,7 +109,7 @@ $(COBJS): %$(OBJEXT): %.c
 	$(call COMPILE, $<, $@)
 
 $(BIN): $(OBJS)
-	$(call ARCHIVE, $@, $(OBJS))
+	$(call ARCHIVE_REBUILD, $@, $(OBJS))
 
 context::
 

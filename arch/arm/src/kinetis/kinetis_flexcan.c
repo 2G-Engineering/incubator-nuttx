@@ -268,11 +268,11 @@ static const struct flexcan_config_s kinetis_flexcan2_config =
   .tx_pin    = PIN_CAN2_TX,
   .rx_pin    = PIN_CAN2_RX,
 #ifdef PIN_CAN2_ENABLE
-  .enable_pin = PIN_CAN2_ENABLE,
-  .rx_pin     = CAN2_ENABLE_HIGH,
+  .enable_pin  = PIN_CAN2_ENABLE,
+  .rx_pin      = CAN2_ENABLE_OUT,
 #else
-  .enable_pin = 0,
-  .rx_pin     = 0,
+  .enable_pin  = 0,
+  .enable_high = 0,
 #endif
   .bus_irq   = KINETIS_IRQ_CAN2_BUS,
   .error_irq = KINETIS_IRQ_CAN2_ERROR,
@@ -683,6 +683,7 @@ static int kinetis_transmit(struct kinetis_driver_s *priv)
     (peak_tx_mailbox_index_ > mbi ? peak_tx_mailbox_index_ : mbi);
 
   union cs_e cs;
+  cs.cs = 0;
   cs.code = CAN_TXMB_DATAORREMOTE;
   struct mb_s *mb = &priv->tx[mbi];
   mb->cs.code = CAN_TXMB_INACTIVE;
@@ -725,6 +726,7 @@ static int kinetis_transmit(struct kinetis_driver_s *priv)
         }
 
       cs.rtr = frame->can_id & FLAGRTR ? 1 : 0;
+      cs.brs = frame->flags & CANFD_BRS ? 1 : 0;
 
       cs.dlc = g_len_to_can_dlc[frame->len];
 

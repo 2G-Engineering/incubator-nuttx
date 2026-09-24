@@ -79,7 +79,12 @@
  *   portion of the build
  */
 
-#if defined(CONFIG_BUILD_FLAT) || defined(__KERNEL__)
+/* dlopen() needs a name too: it is the only way to tell that a library is
+ * already loaded.
+ */
+
+#if defined(CONFIG_BUILD_FLAT) || defined(__KERNEL__) || \
+    defined(CONFIG_LIBC_DLFCN)
 #  define HAVE_LIBC_ELF_NAMES
 #  define LIBC_ELF_NAMEMAX NAME_MAX
 #endif
@@ -173,6 +178,12 @@ struct module_s
   size_t textsize;                     /* Size of the kernel .text memory allocation */
   size_t datasize;                     /* Size of the kernel .bss/.data memory allocation */
 #endif
+
+  uint8_t nopen;                       /* Outstanding references: insmod()
+                                        * and dlopen() each take one, rmmod()
+                                        * and dlclose() give one back, and the
+                                        * module goes when the last does
+                                        */
 
 #if CONFIG_LIBC_ELF_MAXDEPEND > 0
   uint8_t dependents;                  /* Number of modules that depend on this module */
@@ -779,5 +790,25 @@ FAR void *libelf_gethandle(FAR const char *name);
 #else
 #  define libelf_gethandle(n) NULL
 #endif
+
+/****************************************************************************
+ * Name: libelf_findsymbol
+ *
+ * Description:
+ *   Locate a symbol in the ELF symbol table by its name.
+ *
+ * Input Parameters:
+ *   loadinfo - Load state information containing the symbol table
+ *   name     - The name of the symbol to search for
+ *   sym      - Pointer to store the located symbol's table entry
+ *
+ * Returned Value:
+ *   0 (OK) is returned on success and a negated errno is returned on
+ *   failure.
+ *
+ ****************************************************************************/
+
+int libelf_findsymbol(FAR struct mod_loadinfo_s *loadinfo,
+                      FAR const char *name, FAR Elf_Sym *sym);
 
 #endif /* __INCLUDE_NUTTX_LIB_LIBC_ELF_H */

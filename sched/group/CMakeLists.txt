@@ -52,7 +52,17 @@ if(CONFIG_SCHED_USER_IDENTITY)
     group_seteuid.c
     group_setegid.c
     group_geteuid.c
-    group_getegid.c)
+    group_getegid.c
+    group_setreuid.c
+    group_setregid.c
+    group_getresuid.c
+    group_getresgid.c
+    group_setresuid.c
+    group_setresgid.c
+    group_issetugid.c)
+  if(CONFIG_SCHED_NGROUPS)
+    list(APPEND SRCS group_setgroups.c group_getgroups.c)
+  endif()
 endif()
 
 if(CONFIG_SIG_SIGSTOP_ACTION)

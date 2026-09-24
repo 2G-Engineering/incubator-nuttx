@@ -232,10 +232,14 @@ static int cryptof_ioctl(FAR struct file *filep,
             case CRYPTO_AES_256_CBC:
             case CRYPTO_AES_CMAC:
             case CRYPTO_AES_CTR:
+            case CRYPTO_AES_CTR_SSH:
             case CRYPTO_AES_XTS:
             case CRYPTO_AES_OFB:
             case CRYPTO_AES_CFB_8:
             case CRYPTO_AES_CFB_128:
+            case CRYPTO_CHACHA20:
+            case CRYPTO_CHACHA20_DJB:
+            case CRYPTO_CHACHA20_POLY1305:
             case CRYPTO_NULL:
               txform = true;
               break;
@@ -250,11 +254,13 @@ static int cryptof_ioctl(FAR struct file *filep,
             case CRYPTO_MD5_HMAC:
             case CRYPTO_SHA1_HMAC:
             case CRYPTO_RIPEMD160_HMAC:
+            case CRYPTO_SHA2_224_HMAC:
             case CRYPTO_SHA2_256_HMAC:
             case CRYPTO_SHA2_384_HMAC:
             case CRYPTO_SHA2_512_HMAC:
             case CRYPTO_AES_128_GMAC:
             case CRYPTO_AES_128_CMAC:
+            case CRYPTO_CHACHA20_POLY1305_MAC:
             case CRYPTO_MD5:
             case CRYPTO_POLY1305:
             case CRYPTO_RIPEMD160:
@@ -460,6 +466,12 @@ static int cryptodev_op(FAR struct csession *cse,
     {
       crp.crp_iv = cop->iv;
       crp.crp_ivlen = cop->ivlen;
+    }
+
+  if (cop->aad)
+    {
+      crp.crp_aad = cop->aad;
+      crp.crp_aadlen = cop->aadlen;
     }
 
   if (cop->dst)
@@ -1163,7 +1175,7 @@ static int csefree(FAR struct csession *cse)
 
 void devcrypto_register(void)
 {
-  register_driver("/dev/crypto", &g_cryptoops, 0666, NULL);
+  register_driver("/dev/crypto", &g_cryptoops, 0660, NULL);
 
 #ifdef CONFIG_CRYPTO_CRYPTODEV_SOFTWARE_CRYPTO
   swcr_init();

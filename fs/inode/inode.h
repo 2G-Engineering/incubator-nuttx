@@ -374,6 +374,7 @@ void inode_root_reserve(void);
  *
  *   EINVAL - 'path' is invalid for this operation
  *   EEXIST - An inode already exists at 'path'
+ *   EACCES - Caller lacks permission on the parent directory
  *   ENOMEM - Failed to allocate in-memory resources for the operation
  *
  ****************************************************************************/
@@ -389,6 +390,10 @@ int inode_reserve(FAR const char *path,
  *   path refers to and free all resources related to the inode.  If the
  *   inode is in-use, then it will be unlinked, but will not be freed until
  *   the last reference to the inode is released.
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure, including
+ *   -EACCES if the caller lacks write permission on the parent directory.
  *
  * Assumptions/Limitations:
  *   The caller must hold the inode semaphore
@@ -418,31 +423,52 @@ void inode_addref(FAR struct inode *inode);
 
 void inode_release(FAR struct inode *inode);
 
+/* Caller already holds the inode tree lock (inode_lock/inode_rlock). */
+
+#define INODE_CHECK_LOCKED  (1 << 0)
+
 /****************************************************************************
  * Name: inode_checkperm
  *
  * Description:
- *   Check 'inode' for 'amode' access on pseudo-filesystem inodes.
- *   NULL 'inode' (root) and mountpoints are exempt.
- *
- * Input Parameters:
- *   inode - Inode to check, or NULL for a root-level path
- *   amode - Access mode bitmask (R_OK / W_OK / X_OK)
- *
- * Returned Value:
- *   Zero (OK) on success, or -EACCES if permission is denied.
+ *   Check 'inode' for 'amode' access against stored owner/group/mode
+ *   (pseudoFS nodes and mountpoint inodes used as traverse gates).
+ *   Empty macros when CONFIG_FS_PERMISSION is disabled (zero cost).
  *
  ****************************************************************************/
 
+/****************************************************************************
+ * Name: inode_checkpathperm
+ *
+ * Description:
+ *   Enforce directory search (X_OK) on the path leading to 'inode', and
+ *   optionally check 'amode' on 'inode' itself.  Requires X_OK on every
+ *   ancestor, and on 'inode' when it is a pseudo directory or mountpoint.
+ *   If 'amode' is non-zero, also requires that access on 'inode'.
+ *
+ *   Takes the inode tree read lock unless INODE_CHECK_LOCKED is set in
+ *   'flags' (caller already holds inode_lock/inode_rlock).
+ *   Empty macros when CONFIG_FS_PERMISSION is disabled (zero cost).
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_FS_PERMISSION
 int inode_checkperm(FAR struct inode *inode, int amode);
+int inode_checkpathperm(FAR struct inode *inode, int amode, int flags);
+#else
+#  define inode_checkperm(inode, amode)             0
+#  define inode_checkpathperm(inode, amode, flags)  0
+#  define fs_open_amode(oflags)                     0
+#endif
 
 /****************************************************************************
  * Name: inode_checkopenperm
  *
  * Description:
  *   Validate open access to 'inode' for 'oflags'.  Checks driver operation
- *   support, then pseudo-filesystem mode bits when enabled.  Mountpoints
- *   are exempt from mode checks.
+ *   support, then mode bits for non-mountpoint inodes.  Mountpoints skip
+ *   open-mode checks here; callers must use inode_checkpathperm() so
+ *   parent / mountgates still require X_OK to traverse.
  *
  * Input Parameters:
  *   inode  - The inode to check

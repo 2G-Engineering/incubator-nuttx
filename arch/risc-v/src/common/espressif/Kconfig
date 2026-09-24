@@ -1645,6 +1645,14 @@ config ESPRESSIF_TWAI1
 	select ARCH_HAVE_CAN_ERRORS
 	select CAN
 
+config ESPRESSIF_TWAI2
+	bool "TWAI2 (CAN)"
+	default n
+	depends on ARCH_CHIP_ESP32P4
+	select ESPRESSIF_TWAI
+	select ARCH_HAVE_CAN_ERRORS
+	select CAN
+
 config ESPRESSIF_USBSERIAL
 	bool "USB-Serial-JTAG Driver"
 	default n
@@ -1724,7 +1732,7 @@ config ESPRESSIF_ANA_COMPR1
 config ESPRESSIF_LP_MAILBOX
 	bool "LP Mailbox"
 	default n
-	depends on ARCH_CHIP_ESP32P4 && ESPRESSIF_USE_LP_CORE
+	depends on ESPRESSIF_USE_LP_CORE
 	---help---
 		Enable lp mailbox support for data passing between cores.
 
@@ -2078,6 +2086,55 @@ config ESPRESSIF_EMAC
 	select SCHED_LPWORK
 	---help---
 		Enable Ethernet MAC support.
+
+config ESPRESSIF_LDO
+	bool
+	default n
+
+menuconfig ESPRESSIF_MIPI_DSI
+	bool "MIPI DSI Host"
+	depends on ARCH_CHIP_ESP32P4
+	default n
+	select ESPRESSIF_LDO
+	select DRIVERS_VIDEO
+	select MIPI_DSI
+	---help---
+		Enable the Espressif MIPI-DSI host driver behind NuttX's
+		generic mipi_dsi_host_ops API.  Board- and panel-agnostic: LP
+		DCS/generic transfers, DPI timing configure, optional DW-GDMA
+		framebuffer bind (esp_mipi_dsi_bind_framebuffer), and video
+		start/stop.  Panel init sequences, reset/power, and /dev/fb0
+		registration belong in board or panel drivers.
+
+		Board code must power VDD_MIPI_DPHY (often on-chip LDO channel
+		3 @ 2500 mV) before calling esp_mipi_dsi_initialize().
+
+if ESPRESSIF_MIPI_DSI
+
+config ESPRESSIF_MIPI_DSI_BUS
+	int "DSI host bus number"
+	default 0
+	range 0 0
+	---help---
+		ESP32-P4 has a single MIPI-DSI controller (bus 0).
+
+config ESPRESSIF_MIPI_DSI_LANES
+	int "Default number of DSI data lanes"
+	default 2
+	range 1 2
+	---help---
+		Default lane count when esp_mipi_dsi_initialize(NULL) is
+		used.  Boards may override via esp_mipi_dsi_bus_config_s.
+
+config ESPRESSIF_MIPI_DSI_LANE_BITRATE_MBPS
+	int "Default DSI lane bit rate (Mbps)"
+	default 1000
+	range 80 1500
+	---help---
+		Default per-lane HS bit rate for initialize(NULL).  Override
+		per board/panel with esp_mipi_dsi_bus_config_s.
+
+endif # ESPRESSIF_MIPI_DSI
 
 config ESP_COEX_SW_COEXIST_ENABLE
 	bool "Software WiFi/Bluetooth/IEEE 802.15.4 coexistence"
@@ -3437,6 +3494,48 @@ config ESPRESSIF_TWAI1_SAM
 		to spikes on the bus-line).
 
 endif # ESPRESSIF_TWAI1
+
+if ESPRESSIF_TWAI2
+
+config ESPRESSIF_TWAI2_TXPIN
+	int "TWAI2 TX Pin"
+	default 6
+
+config ESPRESSIF_TWAI2_RXPIN
+	int "TWAI2 RX Pin"
+	default 7
+
+choice ESPRESSIF_TWAI2_TIMING
+	prompt "TWAI2 Timing config"
+	default TWAI2_TIMING_100KBITS
+	---help---
+		These options control timing of TWAI2.
+
+config TWAI2_TIMING_100KBITS
+	bool "100 KBits"
+
+config TWAI2_TIMING_125KBITS
+	bool "125 KBits"
+
+config TWAI2_TIMING_250KBITS
+	bool "250 KBits"
+
+config TWAI2_TIMING_500KBITS
+	bool "500 KBits"
+
+config TWAI2_TIMING_800KBITS
+	bool "800 KBits"
+
+endchoice # ESPRESSIF_TWAI2_TIMING
+
+config ESPRESSIF_TWAI2_SAM
+	bool "TWAI2 sampling"
+	default n
+	---help---
+		The bus is sampled 3 times (recommended for low to medium speed buses
+		to spikes on the bus-line).
+
+endif # ESPRESSIF_TWAI2
 
 config ESPRESSIF_TWAI_TEST_MODE
 	bool "TWAI character driver loopback test mode (for testing only)"

@@ -38,6 +38,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/spinlock.h>
 #include <nuttx/kmalloc.h>
+#include <arch/barriers.h>
 #include <nuttx/usb/usb.h>
 #include <nuttx/usb/usbdev.h>
 #include <nuttx/usb/usbdev_trace.h>
@@ -218,6 +219,7 @@ struct rp2040_req_s
 {
   struct usbdev_req_s req;        /* Standard USB request */
   struct rp2040_req_s *flink;     /* Supports a singly linked list */
+  bool armed;                     /* Hardware buffer armed for this request */
 };
 
 /* This is the internal representation of an endpoint */
@@ -317,9 +319,6 @@ static void rp2040_update_buffer_control(struct rp2040_ep_s *privep,
 static int rp2040_epwrite(struct rp2040_ep_s *privep, uint8_t *buf,
                           uint16_t nbytes);
 static int rp2040_epread(struct rp2040_ep_s *privep, uint16_t nbytes);
-static void rp2040_abortrequest(struct rp2040_ep_s *privep,
-                                struct rp2040_req_s *privreq,
-                                int16_t result);
 static void rp2040_reqcomplete(struct rp2040_ep_s *privep, int16_t result);
 static void rp2040_txcomplete(struct rp2040_ep_s *privep);
 static int rp2040_wrrequest(struct rp2040_ep_s *privep);
@@ -472,6 +471,7 @@ static void rp2040_update_buffer_control(struct rp2040_ep_s *privep,
                                          uint32_t or_mask)
 {
   uint32_t value = 0;
+  int i;
 
   if (and_mask)
     {
@@ -481,6 +481,36 @@ static void rp2040_update_buffer_control(struct rp2040_ep_s *privep,
   if (or_mask)
     {
       value |= or_mask;
+
+      if (or_mask & RP2040_USBCTRL_DPSRAM_EP_BUFF_CTRL_AVAIL)
+        {
+          /* Order the preceding BUFF_STATUS clear (in the USB controller
+           * register block) ahead of the AVAILABLE re-arm (in DPSRAM):
+           * these are two different peripheral regions whose stores the
+           * bus fabric may reorder.  Without the barrier the controller
+           * can observe the re-arm before the clear, transmit the next IN
+           * packet and latch its completion in BUFF_STATUS, then have that
+           * bit wiped by the late-landing clear -- the lost completion
+           * stops all further buffer interrupts and TX wedges.
+           */
+
+          UP_DMB();
+
+          /* RP2040 datasheet 4.1.2.5.1: the AVAILABLE bit must be set
+           * after the rest of the buffer control register has been
+           * written and had time to settle across the clock domain
+           * crossing, or the controller may act on a stale length/PID.
+           * 12 CPU cycles covers system clocks up to 12x clk_usb.
+           */
+
+          putreg32(value & ~RP2040_USBCTRL_DPSRAM_EP_BUFF_CTRL_AVAIL,
+                   privep->buf_ctrl);
+
+          for (i = 0; i < 12; i++)
+            {
+              __asm__ volatile("nop");
+            }
+        }
     }
 
   putreg32(value, privep->buf_ctrl);
@@ -536,6 +566,20 @@ static int rp2040_epread(struct rp2040_ep_s *privep, uint16_t nbytes)
   uint32_t val;
   irqstate_t flags;
 
+  /* The hardware receives a single USB packet into the buffer, and the
+   * buffer-control LEN field is only 10 bits wide.  Arm the buffer for at
+   * most one maximum-size packet; rp2040_rxcomplete accumulates the request
+   * across multiple packets and re-arms until it is satisfied or a short
+   * packet arrives.  Passing the full (possibly multi-kByte) request length
+   * would overflow LEN and corrupt the neighbouring control bits, making the
+   * transfer complete immediately with zero bytes.
+   */
+
+  if (nbytes > privep->ep.maxpacket)
+    {
+      nbytes = privep->ep.maxpacket;
+    }
+
   val = nbytes |
         RP2040_USBCTRL_DPSRAM_EP_BUFF_CTRL_AVAIL |
         (privep->next_pid ?
@@ -550,30 +594,6 @@ static int rp2040_epread(struct rp2040_ep_s *privep, uint16_t nbytes)
   spin_unlock_irqrestore(&priv->lock, flags);
 
   return OK;
-}
-
-/****************************************************************************
- * Name: rp2040_abortrequest
- *
- * Description:
- *   Discard a request
- *
- ****************************************************************************/
-
-static void rp2040_abortrequest(struct rp2040_ep_s *privep,
-                                struct rp2040_req_s *privreq,
-                                int16_t result)
-{
-  usbtrace(TRACE_DEVERROR(RP2040_TRACEERR_REQABORTED),
-          (uint16_t)privep->epphy);
-
-  /* Save the result in the request structure */
-
-  privreq->req.result = result;
-
-  /* Callback to the request completion handler */
-
-  privreq->req.callback(&privep->ep, &privreq->req);
 }
 
 /****************************************************************************
@@ -633,6 +653,7 @@ static void rp2040_reqcomplete(struct rp2040_ep_s *privep, int16_t result)
 static void rp2040_txcomplete(struct rp2040_ep_s *privep)
 {
   struct rp2040_req_s *privreq;
+  bool completed = false;
 
   privreq = rp2040_rqpeek(privep);
   if (!privreq)
@@ -649,10 +670,31 @@ static void rp2040_txcomplete(struct rp2040_ep_s *privep)
           usbtrace(TRACE_COMPLETE(privep->epphy), privreq->req.xfrd);
           privep->txnullpkt = 0;
           rp2040_reqcomplete(privep, OK);
+          completed = true;
         }
     }
 
-  rp2040_wrrequest(privep);
+  if (completed)
+    {
+      /* Start the next queued request -- unless it was already armed.  The
+       * completion callback above may have submitted a new request on the
+       * now idle endpoint; epsubmit then armed the hardware buffer itself,
+       * and arming it a second time here would toggle the data PID twice
+       * and make the host silently discard the packet as a retransmission.
+       */
+
+      privreq = rp2040_rqpeek(privep);
+      if (privreq && !privreq->armed)
+        {
+          rp2040_wrrequest(privep);
+        }
+    }
+  else if (privreq)
+    {
+      /* Continue with the next packet of the in-progress request */
+
+      rp2040_wrrequest(privep);
+    }
 }
 
 /****************************************************************************
@@ -685,6 +727,7 @@ static int rp2040_wrrequest(struct rp2040_ep_s *privep)
     {
       if (privep->epphy == 0)
         {
+          privreq->armed = true;
           rp2040_epwrite(privep, NULL, 0);
         }
       else
@@ -710,6 +753,7 @@ static int rp2040_wrrequest(struct rp2040_ep_s *privep)
        * bytes to send.
        */
 
+      privreq->armed = true;
       privep->txnullpkt = 0;
       if (bytesleft > privep->ep.maxpacket)
         {
@@ -765,6 +809,16 @@ static void rp2040_rxcomplete(struct rp2040_ep_s *privep)
     {
       usbtrace(TRACE_COMPLETE(privep->epphy), privreq->req.xfrd);
       rp2040_reqcomplete(privep, OK);
+
+      /* Re-arm only if the completion callback didn't already do it by
+       * resubmitting a request (see rp2040_txcomplete).
+       */
+
+      privreq = rp2040_rqpeek(privep);
+      if (privreq && privreq->armed)
+        {
+          return;
+        }
     }
 
   rp2040_rdrequest(privep);
@@ -795,6 +849,7 @@ static int rp2040_rdrequest(struct rp2040_ep_s *privep)
 
   usbtrace(TRACE_READ(privep->epphy), privreq->req.len);
 
+  privreq->armed = true;
   return rp2040_epread(privep, privreq->req.len);
 }
 
@@ -983,6 +1038,11 @@ static void rp2040_ep0setup(struct rp2040_usbdev_s *priv)
                 }
               else
                 {
+                  uint8_t response[2];
+
+                  response[0] = 0;
+                  response[1] = 0;
+
                   switch (priv->ctrl.type & USB_REQ_RECIPIENT_MASK)
                     {
                       case USB_REQ_RECIPIENT_ENDPOINT:
@@ -999,10 +1059,23 @@ static void rp2040_ep0setup(struct rp2040_usbdev_s *priv)
                                 priv->ctrl.type);
                               priv->stalled = true;
                             }
+                          else if (privep->stalled)
+                            {
+                              response[0] = 1; /* Endpoint HALTed */
+                            }
                         }
                         break;
 
                       case USB_REQ_RECIPIENT_DEVICE:
+                        usbtrace(TRACE_INTDECODE(
+                                 RP2040_TRACEINTID_GETIFDEV),
+                                 0);
+                        if (priv->selfpowered)
+                          {
+                            response[0] = 1 << USB_FEATURE_SELFPOWERED;
+                          }
+                        break;
+
                       case USB_REQ_RECIPIENT_INTERFACE:
                         usbtrace(TRACE_INTDECODE(
                                  RP2040_TRACEINTID_GETIFDEV),
@@ -1017,6 +1090,17 @@ static void rp2040_ep0setup(struct rp2040_usbdev_s *priv)
                           priv->stalled = true;
                         }
                         break;
+                    }
+
+                  /* Send the two-byte endpoint status.  Without a data
+                   * stage EP0 NAKs the host's IN forever; macOS queries
+                   * GET_STATUS on a halted bulk pipe during Bulk-Only reset
+                   * recovery, so this is required for MSC error recovery.
+                   */
+
+                  if (!priv->stalled)
+                    {
+                      rp2040_epwrite(ep0, response, 2);
                     }
                 }
             }
@@ -1325,7 +1409,15 @@ static bool rp2040_usbintr_buffstat(struct rp2040_usbdev_s *priv)
 
               if (privep->in)
                 {
-                  if (!rp2040_rqempty(privep))
+                  if (privep->epphy != 0 && privep->stalled)
+                    {
+                      /* Completion latched for a transfer the halt already
+                       * aborted (canceled by rp2040_epstall); don't
+                       * attribute the stale buffer event to post-halt
+                       * requests.
+                       */
+                    }
+                  else if (!rp2040_rqempty(privep))
                     {
                       rp2040_txcomplete(privep);
                     }
@@ -1621,27 +1713,26 @@ static int rp2040_epsubmit(struct usbdev_ep_s *ep,
 
   req->result = -EINPROGRESS;
   req->xfrd = 0;
+  privreq->armed = false;
 
   flags = enter_critical_section();
 
-  if (privep->stalled && privep->in)
-    {
-      rp2040_abortrequest(privep, privreq, -EBUSY);
-      ret = -EBUSY;
-    }
-
   /* Handle IN (device-to-host) requests */
 
-  else if (privep->in)
+  if (privep->in)
     {
-      /* Add the new request to the request queue for the IN endpoint */
+      /* Queue the request on the IN endpoint.  If halted, only queue it;
+       * it is armed when the halt clears (rp2040_epstall).  MSC relies on
+       * this: the CSW is submitted while the bulk IN is still halted
+       * (ARCH_USBDEV_STALLQUEUE).
+       */
 
       bool empty = rp2040_rqempty(privep);
 
       rp2040_rqenqueue(privep, privreq);
       usbtrace(TRACE_INREQQUEUED(privep->epphy), privreq->req.len);
 
-      if (empty)
+      if (empty && !privep->stalled)
         {
           rp2040_wrrequest(privep);
         }
@@ -1651,7 +1742,9 @@ static int rp2040_epsubmit(struct usbdev_ep_s *ep,
 
   else
     {
-      /* Add the new request to the request queue for the OUT endpoint */
+      /* Queue on the OUT endpoint.  As for IN, don't arm while halted:
+       * arming rewrites the buffer control word and clears the STALL bit.
+       */
 
       bool empty = rp2040_rqempty(privep);
 
@@ -1661,7 +1754,7 @@ static int rp2040_epsubmit(struct usbdev_ep_s *ep,
 
       /* This there a incoming data pending the availability of a request? */
 
-      if (empty)
+      if (empty && !privep->stalled)
         {
           ret = rp2040_rdrequest(privep);
         }
@@ -1759,14 +1852,17 @@ static int rp2040_epstall(struct usbdev_ep_s *ep, bool resume)
 {
   struct rp2040_ep_s *privep = (struct rp2040_ep_s *)ep;
   struct rp2040_usbdev_s *priv = privep->dev;
+  irqstate_t irqflags;
   irqstate_t flags;
 
+  irqflags = enter_critical_section();
   flags = spin_lock_irqsave(&priv->lock);
 
   if (resume)
     {
       usbtrace(TRACE_EPRESUME, privep->epphy);
       privep->stalled = false;
+      privep->pending_stall = false;
       if (privep->epphy == 0)
         {
           clrbits_reg32(privep->in ?
@@ -1779,8 +1875,29 @@ static int rp2040_epstall(struct usbdev_ep_s *ep, bool resume)
                         ~(RP2040_USBCTRL_DPSRAM_EP_BUFF_CTRL_STALL),
                         0);
 
+      /* Halt clearing resets the data toggle to DATA0 (USB 2.0 9.4.5) */
+
       privep->next_pid = 0;
       priv->zlp_stat = RP2040_ZLP_NONE;
+
+      spin_unlock_irqrestore(&priv->lock, flags);
+
+      /* Restart any requests that were queued (but not armed) while the
+       * endpoint was halted -- e.g. the mass storage CSW that concludes
+       * a failed command (ARCH_USBDEV_STALLQUEUE).
+       */
+
+      if (privep->epphy != 0 && !rp2040_rqempty(privep))
+        {
+          if (privep->in)
+            {
+              rp2040_wrrequest(privep);
+            }
+          else
+            {
+              rp2040_rdrequest(privep);
+            }
+        }
     }
   else
     {
@@ -1791,18 +1908,31 @@ static int rp2040_epstall(struct usbdev_ep_s *ep, bool resume)
           /* EP0 IN Transfer ongoing : postpone the stall until the end */
 
           privep->pending_stall = true;
+          priv->zlp_stat = RP2040_ZLP_NONE;
+          spin_unlock_irqrestore(&priv->lock, flags);
         }
       else
         {
           /* Stall immediately */
 
           rp2040_epstall_exec_nolock(ep);
-        }
+          priv->zlp_stat = RP2040_ZLP_NONE;
+          spin_unlock_irqrestore(&priv->lock, flags);
 
-      priv->zlp_stat = RP2040_ZLP_NONE;
+          /* Terminate the IN transfer the halt aborted: its buffer was
+           * disarmed by the STALL write above and would never complete.
+           * Anything the class resubmits stays queued until the halt
+           * clears.
+           */
+
+          if (privep->epphy != 0 && privep->in && !rp2040_rqempty(privep))
+            {
+              rp2040_cancelrequests(privep);
+            }
+        }
     }
 
-  spin_unlock_irqrestore(&priv->lock, flags);
+  leave_critical_section(irqflags);
 
   return OK;
 }
@@ -2114,8 +2244,17 @@ int usbdev_register(struct usbdevclass_driver_s *driver)
 
   /* Enable interrupt */
 
-  putreg32(RP2040_USBCTRL_REGS_SIE_CTRL_EP0_INT_1BUF,
-           RP2040_USBCTRL_REGS_SIE_CTRL);
+  /* Use setbits, NOT putreg32: CLASS_BIND above ends with DEV_CONNECT
+   * (composite_bind/cdcacm_bind), which sets SIE_CTRL.PULLUP_EN.  A
+   * wholesale write here clobbers that pull-up microseconds after it was
+   * asserted; enumeration then only succeeds if the host happened to
+   * latch the short pull-up blip and issues a bus reset (whose handler
+   * re-arms the pull-up).  A cold-plugged host port misses the blip and
+   * the device stays disconnected forever.
+   */
+
+  setbits_reg32(RP2040_USBCTRL_REGS_SIE_CTRL_EP0_INT_1BUF,
+                RP2040_USBCTRL_REGS_SIE_CTRL);
   putreg32(RP2040_USBCTRL_REGS_INTR_BUFF_STATUS |
            RP2040_USBCTRL_REGS_INTR_BUS_RESET |
            RP2040_USBCTRL_REGS_INTR_SETUP_REQ,

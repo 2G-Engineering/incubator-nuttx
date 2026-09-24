@@ -206,23 +206,23 @@
 
 /* Timers driven from APB1 will be twice PCLK1 */
 
-#define STM32_APB1_TIM2_CLKIN   (2*STM32_PCLK1_FREQUENCY)
-#define STM32_APB1_TIM3_CLKIN   (2*STM32_PCLK1_FREQUENCY)
-#define STM32_APB1_TIM4_CLKIN   (2*STM32_PCLK1_FREQUENCY)
-#define STM32_APB1_TIM5_CLKIN   (2*STM32_PCLK1_FREQUENCY)
-#define STM32_APB1_TIM6_CLKIN   (2*STM32_PCLK1_FREQUENCY)
-#define STM32_APB1_TIM7_CLKIN   (2*STM32_PCLK1_FREQUENCY)
-#define STM32_APB1_TIM12_CLKIN  (2*STM32_PCLK1_FREQUENCY)
-#define STM32_APB1_TIM13_CLKIN  (2*STM32_PCLK1_FREQUENCY)
-#define STM32_APB1_TIM14_CLKIN  (2*STM32_PCLK1_FREQUENCY)
+#define STM32_TIM2_CLKIN   (2*STM32_PCLK1_FREQUENCY)
+#define STM32_TIM3_CLKIN   (2*STM32_PCLK1_FREQUENCY)
+#define STM32_TIM4_CLKIN   (2*STM32_PCLK1_FREQUENCY)
+#define STM32_TIM5_CLKIN   (2*STM32_PCLK1_FREQUENCY)
+#define STM32_TIM6_CLKIN   (2*STM32_PCLK1_FREQUENCY)
+#define STM32_TIM7_CLKIN   (2*STM32_PCLK1_FREQUENCY)
+#define STM32_TIM12_CLKIN  (2*STM32_PCLK1_FREQUENCY)
+#define STM32_TIM13_CLKIN  (2*STM32_PCLK1_FREQUENCY)
+#define STM32_TIM14_CLKIN  (2*STM32_PCLK1_FREQUENCY)
 
 /* Timers driven from APB2 will be twice PCLK2 */
 
-#define STM32_APB2_TIM1_CLKIN   (2*STM32_PCLK2_FREQUENCY)
-#define STM32_APB2_TIM8_CLKIN   (2*STM32_PCLK2_FREQUENCY)
-#define STM32_APB2_TIM15_CLKIN  (2*STM32_PCLK2_FREQUENCY)
-#define STM32_APB2_TIM16_CLKIN  (2*STM32_PCLK2_FREQUENCY)
-#define STM32_APB2_TIM17_CLKIN  (2*STM32_PCLK2_FREQUENCY)
+#define STM32_TIM1_CLKIN   (2*STM32_PCLK2_FREQUENCY)
+#define STM32_TIM8_CLKIN   (2*STM32_PCLK2_FREQUENCY)
+#define STM32_TIM15_CLKIN  (2*STM32_PCLK2_FREQUENCY)
+#define STM32_TIM16_CLKIN  (2*STM32_PCLK2_FREQUENCY)
+#define STM32_TIM17_CLKIN  (2*STM32_PCLK2_FREQUENCY)
 
 /* Kernel Clock Configuration
  *
@@ -391,6 +391,15 @@
 #define GPIO_OTGFS_DM  (GPIO_OTGFS_DM_0|GPIO_SPEED_100MHz) /* PA11 */
 #define GPIO_OTGFS_DP  (GPIO_OTGFS_DP_0|GPIO_SPEED_100MHz) /* PA12 */
 
+/* The Linum board wires the USB connector for host/device use without an
+ * OTG_FS_ID pin (mode is forced by the driver), so PA10 is NOT used as
+ * OTG_FS_ID.  The OTG host driver still configures GPIO_OTGFS_ID
+ * unconditionally, so map it to a harmless floating input instead of the
+ * OTG_FS_ID alternate function to keep PA10 free.
+ */
+
+#define GPIO_OTGFS_ID  (GPIO_INPUT|GPIO_FLOAT|GPIO_PORTA|GPIO_PIN10)
+
 /* SDMMC1 - Used SD Card memory */
 
 /* Init 400 kHz, PLL1Q/(2*300) = 240 MHz / (2*300) = 400 Khz */
@@ -502,7 +511,10 @@
  * this value will need to be doubled.
  */
 
-#ifdef CONFIG_STM32_LTDC
+#if defined(CONFIG_STM32_LTDC) && defined(CONFIG_STM32_LTDC_L1_ARGB8888)
+/* A 32-bpp ARGB8888 framebuffer (1024x600x4 = 2.4M) needs the last 3M */
+#  define BOARD_SDRAM1_SIZE        (5*1024*1024)
+#elif defined(CONFIG_STM32_LTDC)
 #  define BOARD_SDRAM1_SIZE        (6*1024*1024)
 #else
 #  define BOARD_SDRAM1_SIZE        (8*1024*1024)
@@ -594,6 +606,13 @@
 
 #define GPIO_TIM5_CH1IN  GPIO_TIM5_CH1IN_1 /* PA0 */
 #define GPIO_TIM5_CH2IN  GPIO_TIM5_CH2IN_2 /* PH11 */
+
+/* Tone generator */
+
+#define BOARD_TONE_PWM_TIM         4   /* Timer 4 - PWM timer for tone generation  */
+#define BOARD_TONE_PWM_CHANNEL     2   /* Timer 4 - PWM channel for tone generation */
+#define BOARD_TONE_ONESHOT_TIM     17  /* Timer 17 - Oneshot timer for note timings */
+#define BOARD_TONE_ONESHOT_TIM_RES 10  /* Timer 17 - Oneshot timer resolution (us)  */
 
 /* LTDC */
 

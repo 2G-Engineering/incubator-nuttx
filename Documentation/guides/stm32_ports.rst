@@ -135,6 +135,24 @@ prefix replace is safe)::
     STM32WL5_  ->  STM32_
     STM32N6_   ->  STM32_
 
+Board timer input clock unified to ``STM32_TIMn_CLKIN``
+-------------------------------------------------------
+
+The board-provided timer input clock frequency macros were unified to a
+single convention: every board defines ``STM32_TIMn_CLKIN`` for the TIM
+peripherals, ``STM32_LPTIMn_CLKIN`` for the LPTIM peripherals and
+``STM32_HRTIM1_CLKIN`` for HRTIM.  The APB bus is no longer encoded in the
+macro name.  Update out-of-tree board headers and drivers (drop the bus
+from the name, keep the value)::
+
+    STM32_APBx_TIMn_CLKIN     ->  STM32_TIMn_CLKIN
+    BOARD_TIMn_FREQUENCY      ->  STM32_TIMn_CLKIN
+    STM32_APBx_LPTIMn_CLKIN   ->  STM32_LPTIMn_CLKIN
+    BOARD_LPTIMn_FREQUENCY    ->  STM32_LPTIMn_CLKIN
+    STM32_LPTIMn_FREQUENCY    ->  STM32_LPTIMn_CLKIN
+    STM32_APB1_THRTIM1_CLKIN  ->  STM32_HRTIM1_CLKIN
+    BOARD_HRTIM1_FREQUENCY    ->  STM32_HRTIM1_CLKIN
+
 Public API names unified to ``stm32_*``
 ---------------------------------------
 
@@ -400,9 +418,9 @@ WWDG          v1            arch/arm/src/common/stm32/stm32_wwdg_m3m4_v1.c
 STM32L4
 -------
 
-============  ============  =========================================
+============  ============  ============================================
 Peripheral    Core version  Driver                                   
-============  ============  =========================================
+============  ============  ============================================
 ADC           to be done    arch/arm/src/stm32l4/stm32l4_adc.c       
 CAN/FDCAN     bxCAN         arch/arm/src/stm32l4/stm32l4_can.c       
 COMP          to be done    arch/arm/src/stm32l4/stm32l4_comp.c      
@@ -426,18 +444,18 @@ SPI/I2S       to be done    arch/arm/src/stm32l4/stm32l4_spi.c
 TIM           to be done    arch/arm/src/stm32l4/stm32l4_tim.c       
 USART/LPUART  v3            arch/arm/src/stm32l4/stm32l4_serial.c    
 USB           OTG FS        arch/arm/src/stm32l4/stm32l4_otgfsdev.c  
-PULSECOUNT    n/a           arch/arm/src/stm32l4/stm32l4_pulsecount.c
+PULSECOUNT    n/a           arch/arm/src/common/stm32/stm32_pulsecount.c
 PWM           n/a           arch/arm/src/stm32l4/stm32l4_pwm.c       
 QENCODER      n/a           arch/arm/src/stm32l4/stm32l4_qencoder.c  
 USB host      n/a           arch/arm/src/stm32l4/stm32l4_otgfshost.c 
-============  ============  =========================================
+============  ============  ============================================
 
 STM32F7
 -------
 
-============  ============  =======================================
+============  ============  ============================================
 Peripheral    Core version  Driver                                 
-============  ============  =======================================
+============  ============  ============================================
 ADC           to be done    arch/arm/src/stm32f7/stm32_adc.c       
 CAN/FDCAN     bxCAN         arch/arm/src/stm32f7/stm32_can.c       
 DAC           to be done    not supported                          
@@ -465,12 +483,12 @@ WWDG          v1            not supported
 BBSRAM        n/a           arch/arm/src/stm32f7/stm32_bbsram.c    
 CAPTURE       n/a           arch/arm/src/stm32f7/stm32_capture.c   
 FOC           n/a           arch/arm/src/stm32f7/stm32_foc.c       
-PULSECOUNT    n/a           arch/arm/src/stm32f7/stm32_pulsecount.c
+PULSECOUNT    n/a           arch/arm/src/common/stm32/stm32_pulsecount.c
 PWM           n/a           arch/arm/src/stm32f7/stm32_pwm.c       
 QENCODER      n/a           arch/arm/src/stm32f7/stm32_qencoder.c  
 SAI           n/a           arch/arm/src/stm32f7/stm32_sai.c       
 USB host      n/a           arch/arm/src/stm32f7/stm32_otghost.c   
-============  ============  =======================================
+============  ============  ============================================
 
 STM32G0
 -------
@@ -504,9 +522,9 @@ WWDG          v1            arch/arm/src/common/stm32/stm32_wwdg_m0_v1.c
 STM32H5
 -------
 
-============  ============  =======================================
+============  ============  ============================================
 Peripheral    Core version  Driver                                 
-============  ============  =======================================
+============  ============  ============================================
 ADC           to be done    arch/arm/src/stm32h5/stm32_adc.c       
 AES/CRYP      to be done    not supported                          
 CAN/FDCAN     FDCAN         arch/arm/src/stm32h5/stm32_fdcan.c     
@@ -526,18 +544,18 @@ SPI/I2S       to be done    arch/arm/src/stm32h5/stm32_spi.c
 TIM           to be done    arch/arm/src/stm32h5/stm32_tim.c       
 USART/LPUART  v3            arch/arm/src/stm32h5/stm32_serial.c    
 USB           FS            arch/arm/src/stm32h5/stm32_usbfs.c     
-PULSECOUNT    n/a           arch/arm/src/stm32h5/stm32_pulsecount.c
+PULSECOUNT    n/a           arch/arm/src/common/stm32/stm32_pulsecount.c
 PWM           n/a           arch/arm/src/stm32h5/stm32_pwm.c       
 RNG           n/a           arch/arm/src/stm32h5/stm32_rng.c       
 USB host      n/a           arch/arm/src/stm32h5/stm32_usbdrdhost.c
-============  ============  =======================================
+============  ============  ============================================
 
 STM32H7
 -------
 
-============  ============  =======================================
+============  ============  ============================================
 Peripheral    Core version  Driver                                 
-============  ============  =======================================
+============  ============  ============================================
 ADC           to be done    arch/arm/src/stm32h7/stm32_adc.c       
 BDMA          to be done    arch/arm/src/stm32h7/stm32_dma.c       
 CAN/FDCAN     FDCAN         arch/arm/src/stm32h7/stm32_fdcan_sock.c
@@ -569,11 +587,11 @@ AES/CRYP      n/a           arch/arm/src/stm32h7/stm32_aes.c
 BBSRAM        n/a           arch/arm/src/stm32h7/stm32_bbsram.c    
 CAPTURE       n/a           arch/arm/src/stm32h7/stm32_capture.c   
 LPTIM         n/a           arch/arm/src/stm32h7/stm32_lptim.c     
-PULSECOUNT    n/a           arch/arm/src/stm32h7/stm32_pulsecount.c
+PULSECOUNT    n/a           arch/arm/src/common/stm32/stm32_pulsecount.c
 PWM           n/a           arch/arm/src/stm32h7/stm32_pwm.c       
 QENCODER      n/a           arch/arm/src/stm32h7/stm32_qencoder.c  
 USB host      n/a           arch/arm/src/stm32h7/stm32_otghost.c   
-============  ============  =======================================
+============  ============  ============================================
 
 STM32L0
 -------

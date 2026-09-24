@@ -347,13 +347,27 @@ extern "C"
 
 /* Task Control Interfaces */
 
+/* fork() is declared only where POSIX fork() semantics can be provided, so
+ * that calling it elsewhere is a build error rather than a silent change of
+ * meaning.
+ */
+
+#ifdef CONFIG_ARCH_HAVE_FORK
 pid_t   fork(void);
+#endif
+#ifdef CONFIG_ARCH_HAVE_VFORK
 pid_t   vfork(void);
+#endif
 pid_t   getpid(void);
 pid_t   getpgid(pid_t pid);
 pid_t   getpgrp(void);
 pid_t   gettid(void);
 pid_t   getppid(void);
+pid_t   getsid(pid_t pid);
+int     setpgid(pid_t pid, pid_t pgid);
+pid_t   setsid(void);
+pid_t   tcgetpgrp(int fd);
+int     tcsetpgrp(int fd, pid_t pgrp);
 void    _exit(int status) noreturn_function;
 unsigned int sleep(unsigned int seconds);
 int     usleep(useconds_t usec);
@@ -396,6 +410,15 @@ FAR void *sbrk(intptr_t incr);
 
 int     pipe(int pipefd[2]);
 int     pipe2(int pipefd[2], int flags);
+
+/* Pipe-based process I/O.  These are not actually implemented in the OS.
+ * See apps/system/popen for implementation.
+ */
+
+#ifndef __KERNEL__
+int     dpopen(FAR const char *, int, FAR pid_t *);
+int     dpclose(int, pid_t);
+#endif
 
 /* Schedule an alarm */
 
@@ -479,6 +502,15 @@ gid_t   getegid(void);
 
 int     setreuid(uid_t ruid, uid_t euid);
 int     setregid(gid_t rgid, gid_t egid);
+
+int     getresuid(FAR uid_t *ruid, FAR uid_t *euid, FAR uid_t *suid);
+int     getresgid(FAR gid_t *rgid, FAR gid_t *egid, FAR gid_t *sgid);
+
+int     setresuid(uid_t ruid, uid_t euid, uid_t suid);
+int     setresgid(gid_t rgid, gid_t egid, gid_t sgid);
+
+int     getgroups(int, FAR gid_t[]);
+int     setgroups(int, FAR const gid_t *);
 
 int     getentropy(FAR void *buffer, size_t length);
 

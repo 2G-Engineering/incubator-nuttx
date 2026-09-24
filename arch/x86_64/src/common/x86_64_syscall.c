@@ -40,6 +40,14 @@
 #include "x86_64_internal.h"
 
 /****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+/* Red zone the System V AMD64 ABI reserves below the user stack pointer */
+
+#define X86_64_ABI_RED_ZONE 128
+
+/****************************************************************************
  * Private Types
  ****************************************************************************/
 
@@ -151,6 +159,14 @@ uint64_t *x86_64_syscall(uint64_t *regs)
           regs[REG_RSI] = arg3;
           regs[REG_RCX] = arg1;
 
+          /* Align the user stack pointer: the entry point is entered as
+           * if it was called, so the stack must be 16 byte aligned with
+           * the return address slot accounted for. Otherwise the SSE
+           * accesses generated for variadic functions fault.
+           */
+
+          regs[REG_RSP] = (regs[REG_RSP] & ~0x0f) - 8;
+
           break;
         }
 
@@ -180,6 +196,10 @@ uint64_t *x86_64_syscall(uint64_t *regs)
           regs[REG_RDI] = arg2;
           regs[REG_RSI] = arg3;
           regs[REG_RCX] = arg1;
+
+          /* Align the user stack pointer, see SYS_task_start */
+
+          regs[REG_RSP] = (regs[REG_RSP] & ~0x0f) - 8;
 
           break;
         }
@@ -235,16 +255,24 @@ uint64_t *x86_64_syscall(uint64_t *regs)
             {
               uint64_t usp;
 
-              /* Copy "info" into user stack */
+              /* Save the kernel stack pointer to restore on handler
+               * return
+               */
 
-              usp = rtcb->xcp.saved_ursp - 8;
+              rtcb->xcp.kstkptr = (uintptr_t *)regs[REG_RSP];
 
-              /* Create a frame for info and copy the kernel info */
+              /* Create a 16 byte aligned frame for info below the red
+               * zone of the interrupted user code
+               */
 
-              usp = usp - sizeof(siginfo_t);
+              usp = (rtcb->xcp.saved_ursp - X86_64_ABI_RED_ZONE -
+                     sizeof(siginfo_t)) & ~0x0f;
               memcpy((void *)usp, (void *)regs[REG_RSI], sizeof(siginfo_t));
 
-              /* Now set the updated SP and user copy of "info" to RSI */
+              /* Set the new SP and the user copy of "info" to RSI.
+               * The naked trampoline is entered with SP 16 byte
+               * aligned; its call provides the return address slot.
+               */
 
               regs[REG_RSP] = usp;
               regs[REG_RSI] = usp;
@@ -278,12 +306,21 @@ uint64_t *x86_64_syscall(uint64_t *regs)
           DEBUGASSERT(rtcb->xcp.sigreturn != 0);
 
           regs[REG_RCX]       = rtcb->xcp.sigreturn;
-          regs[REG_RSP]       = rtcb->xcp.saved_rsp;
           rtcb->xcp.sigreturn = 0;
 
-          /* For kernel mode, we should be already on a correct kernel stack
-           * which was recovered in x86_64_syscall_entry.
-           */
+#ifdef CONFIG_ARCH_KERNEL_STACK
+          if (rtcb->xcp.kstack != NULL)
+            {
+              /* Return to the kernel stack saved at dispatch */
+
+              regs[REG_RSP]     = (uint64_t)rtcb->xcp.kstkptr;
+              rtcb->xcp.kstkptr = rtcb->xcp.ktopstk;
+            }
+          else
+#endif
+            {
+              regs[REG_RSP] = rtcb->xcp.saved_rsp;
+            }
 
           break;
         }
@@ -301,14 +338,41 @@ uint64_t *x86_64_syscall(uint64_t *regs)
 #ifdef CONFIG_LIB_SYSCALL
           int             nbr  = cmd - CONFIG_SYS_RESERVED;
           syscall_stub_t  stub = (syscall_stub_t)g_stublookup[nbr];
+          struct tcb_s   *rtcb = nxsched_self();
+          uint64_t       *sregs;
 
 #ifdef CONFIG_ARCH_KERNEL_STACK
-          struct tcb_s   *rtcb = nxsched_self();
-
           /* Store reference to user RSP for signals */
 
           rtcb->xcp.saved_ursp = regs[REG_RSP];
 #endif
+
+          /* Publish the caller's register context.  up_fork() has to clone
+           * the caller rather than the stub that is about to invoke it, and
+           * this frame is the only description of it -- see
+           * x86_64_fork_syscall(), which also takes a non-NULL xcp.sregs as
+           * its "reached here through a system call" discriminator.
+           *
+           * It is saved and restored rather than simply set and cleared:
+           * x86_64_syscall_entry() has an explicit path for a nested system
+           * call, and when the inner one returns the outer one must still be
+           * described by its own frame.
+           *
+           * Note what is deliberately *not* done here.  arm64 and RISC-V
+           * also raise TCB_FLAG_SYSCALL across the stub call, which defers
+           * any signal action until the system call returns.  x86_64 has
+           * never set it, and making it do so is not free:  the deferred
+           * action then has to be picked up by nxsig_unmask_pendingsignal()
+           * on the way out, and the signal dispatch path of an x86_64 kernel
+           * build does not survive that today -- it faults in
+           * x86_64_syscall_entry()'s return path with RSP == 0.  That is a
+           * pre-existing bug in a configuration nothing has exercised, and
+           * fixing it does not belong to the fork/vfork work; so this
+           * records the frame and changes nothing else.
+           */
+
+          sregs           = rtcb->xcp.sregs;
+          rtcb->xcp.sregs = regs;
 
           /* Re-enable interrupts if enabled before.
            * Current task RFLAGS are stored in R11.
@@ -322,6 +386,10 @@ uint64_t *x86_64_syscall(uint64_t *regs)
           /* Call syscall function and store return value in RAX register */
 
           regs[REG_RAX] = stub(nbr, arg1, arg2, arg3, arg4, arg5, arg6);
+
+          /* The system call is now done */
+
+          rtcb->xcp.sregs = sregs;
 #else
           svcerr("ERROR: Bad SYS call: %" PRId32 "\n", cmd);
 #endif

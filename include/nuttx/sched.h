@@ -118,7 +118,9 @@
 #define GROUP_FLAG_DELETED         (1 << 2)                      /* Bit 2: Group has been deleted but not yet freed */
 #define GROUP_FLAG_EXITING         (1 << 3)                      /* Bit 3: Group exit is in progress */
 #define GROUP_FLAG_FD_BACKTRACE    (1 << 4)                      /* Bit 4: Enable FD backtrace for the group */
-                                                                 /* Bits 5-7: Available */
+#define GROUP_FLAG_SECURE_EXEC     (1 << 5)                      /* Bit 5: Secure (setuid/setgid) executable */
+#define GROUP_FLAG_DUMPABLE        (1 << 6)                      /* Bit 6: Process may be traced / coredumped */
+                                                                 /* Bit 7: Available */
 
 /* Values for struct child_status_s ch_flags */
 
@@ -464,6 +466,10 @@ struct task_group_s
   gid_t   tg_egid;                  /* Effective group identity                 */
   uid_t   tg_suid;                  /* Saved set-user identity                  */
   gid_t   tg_sgid;                  /* Saved set-group identity                 */
+#  if CONFIG_SCHED_NGROUPS > 0
+  int     tg_ngroups;               /* Number of supplementary group IDs        */
+  gid_t   tg_groups[CONFIG_SCHED_NGROUPS];
+#  endif
 #endif
 
   /* Group membership *******************************************************/
@@ -649,6 +655,14 @@ struct tcb_s
   FAR void *stack_base_ptr;              /* Adjusted initial stack pointer  */
                                          /* after the frame has been        */
                                          /* removed from the stack.         */
+
+  /* vfork() Support ********************************************************/
+
+#ifdef CONFIG_ARCH_HAVE_VFORK
+  FAR sem_t *vfork_rel;                  /* Non-NULL in a vfork() child:    */
+                                         /* the suspended parent to release */
+                                         /* when this task is torn down.    */
+#endif
 
   /* External Module Support ************************************************/
 
@@ -850,6 +864,43 @@ EXTERN const struct tcbinfo_s g_tcbinfo;
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: nxsched_has_gid
+ *
+ * Description:
+ *   Return true if the task's group matches 'gid' via the effective GID or
+ *   any supplementary group ID.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_SCHED_USER_IDENTITY
+static inline_function bool nxsched_has_gid(FAR struct tcb_s *tcb,
+                                            gid_t gid)
+{
+  FAR struct task_group_s *group = tcb->group;
+#if CONFIG_SCHED_NGROUPS > 0
+  int i;
+#endif
+
+  if (group->tg_egid == gid)
+    {
+      return true;
+    }
+
+#if CONFIG_SCHED_NGROUPS > 0
+  for (i = 0; i < group->tg_ngroups; i++)
+    {
+      if (group->tg_groups[i] == gid)
+        {
+          return true;
+        }
+    }
+#endif
+
+  return false;
+}
+#endif
 
 /****************************************************************************
  * Name: nxsched_self
@@ -1134,23 +1185,35 @@ void nxtask_startup(main_t entrypt, int argc, FAR char *argv[]);
 #endif
 
 /****************************************************************************
- * Internal fork support.  The overall sequence is:
+ * Internal support for the two cloning primitives, vfork() and fork().  The
+ * sequence below is common to both, and `vfork' says which one was called:
  *
- * 1) User code calls fork().  fork() is provided in architecture-specific
- *    code.
- * 2) fork()and calls nxtask_setup_fork().
+ *   vfork()  the child shares the parent's memory and the parent is
+ *            suspended until the child _exit()s or exec()s.
+ *   fork()   the child gets its own copy of the parent's memory at the same
+ *            virtual addresses, and both run.
+ *
+ * 1) User code calls vfork() or fork().  Both are libc wrappers around
+ *    up_fork(), which is provided in architecture-specific code.
+ * 2) The architecture-specific code snapshots the caller's registers and
+ *    calls nxtask_setup_fork().
  * 3) nxtask_setup_fork() allocates and configures the child task's TCB.
  *    This consists of:
  *    - Allocation of the child task's TCB.
  *    - Initialization of file descriptors and streams
  *    - Configuration of environment variables
- *    - Allocate and initialize the stack
+ *    - Establishing the child's address environment:  joined to the parent's
+ *      for vfork(), duplicated from it for fork()
+ *    - Allocating the stack, or inheriting the parent's for fork()
  *    - Setup the input parameters for the task.
  *    - Initialization of the TCB (including call to up_initial_state())
- * 4) fork() provides any additional operating context. fork must:
+ * 4) The architecture-specific code provides any additional operating
+ *    context:
  *    - Initialize special values in any CPU registers that were not
  *      already configured by up_initial_state()
- * 5) fork() then calls nxtask_start_fork()
+ *    - Relocate the copied stack, unless the child shares the parent's
+ * 5) It then calls nxtask_start_fork(), which for vfork() additionally
+ *    suspends the caller.
  * 6) nxtask_start_fork() then executes the child thread.
  *
  * nxtask_abort_fork() may be called if an error occurs between
@@ -1158,8 +1221,8 @@ void nxtask_startup(main_t entrypt, int argc, FAR char *argv[]);
  *
  ****************************************************************************/
 
-FAR struct tcb_s *nxtask_setup_fork(start_t retaddr);
-pid_t nxtask_start_fork(FAR struct tcb_s *child);
+FAR struct tcb_s *nxtask_setup_fork(start_t retaddr, bool vfork);
+pid_t nxtask_start_fork(FAR struct tcb_s *child, bool vfork);
 void nxtask_abort_fork(FAR struct tcb_s *child, int errcode);
 
 /****************************************************************************

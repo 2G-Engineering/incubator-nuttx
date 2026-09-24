@@ -276,6 +276,12 @@ int sim_init_func_call_ipi(int irq);
 void sim_timer_update(void);
 #endif
 
+/* sim_rtc.c ****************************************************************/
+
+#ifdef CONFIG_RTC_DRIVER
+int sim_rtc_initialize(void);
+#endif
+
 /* sim_uart.c ***************************************************************/
 
 void sim_uartinit(void);
@@ -284,6 +290,7 @@ void sim_uartinit(void);
 
 void host_uart_start(void);
 int  host_uart_open(const char *pathname);
+int  host_uart_openpty(const char *name);
 void host_uart_close(int fd);
 int  host_uart_puts(int fd, const char *buf, size_t size);
 int  host_uart_gets(int fd, char *buf, size_t size);
@@ -322,6 +329,14 @@ int sim_tsc_initialize(int minor);
 int sim_tsc_uninitialize(void);
 #endif
 
+/* sim_mouse.c **************************************************************/
+
+#ifdef CONFIG_SIM_MOUSE
+int sim_mouse_initialize(int minor);
+int sim_mouse_uninitialize(void);
+void sim_mouseevent(int x, int y, int buttons, int wheel);
+#endif
+
 /* sim_keyboard.c ***********************************************************/
 
 #ifdef CONFIG_SIM_KEYBOARD
@@ -332,7 +347,8 @@ void sim_kbdevent(uint32_t key, bool is_press);
 /* sim_eventloop.c **********************************************************/
 
 #if defined(CONFIG_SIM_TOUCHSCREEN) || defined(CONFIG_SIM_AJOYSTICK) || \
-    defined(CONFIG_ARCH_BUTTONS) || defined(CONFING_SIM_KEYBOARD)
+    defined(CONFIG_ARCH_BUTTONS) || defined(CONFIG_SIM_KEYBOARD) || \
+    defined(CONFIG_SIM_MOUSE)
 void sim_x11events(void);
 void sim_buttonevent(int x, int y, int buttons);
 #endif

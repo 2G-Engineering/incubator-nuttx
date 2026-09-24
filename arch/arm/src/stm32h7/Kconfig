@@ -51,6 +51,7 @@ config STM32_H7_PERIPHERALS
 	select STM32_HAVE_USART_RXFIFO_THRESHOLD
 	select STM32_HAVE_FDCAN_H7
 	select STM32_HAVE_IP_WDG_M3M4_V1
+	select STM32_HAVE_DAC1
 
 choice
 	prompt "STM32 H7 Chip Selection"
@@ -280,9 +281,10 @@ config ARCH_CHIP_STM32H750VB
 	select STM32H7_IO_CONFIG_V
 	select STM32_HAVE_CRYP
 	select STM32_HAVE_IP_CRYPTO_H7
+	select STM32_HAVE_HASH
 	---help---
 		STM32 H7 Cortex M7+M4, 128 Kb FLASH, 1024K Kb SRAM,
-		with cryptographic accelerator, LQFP100
+		with cryptographic & hash accelerator, LQFP100
 
 config ARCH_CHIP_STM32H750ZB
 	bool "STM32H750ZB"
@@ -291,9 +293,10 @@ config ARCH_CHIP_STM32H750ZB
 	select STM32H7_IO_CONFIG_Z
 	select STM32_HAVE_CRYP
 	select STM32_HAVE_IP_CRYPTO_H7
+	select STM32_HAVE_HASH
 	---help---
 		STM32 H7 Cortex M7+M4, 128 Kb FLASH, 1024K Kb SRAM,
-		with cryptographic accelerator, LQFP144
+		with cryptographic & hash accelerator, LQFP144
 
 config ARCH_CHIP_STM32H750IB
 	bool "STM32H750IB"
@@ -302,9 +305,10 @@ config ARCH_CHIP_STM32H750IB
 	select STM32H7_IO_CONFIG_I
 	select STM32_HAVE_CRYP
 	select STM32_HAVE_IP_CRYPTO_H7
+	select STM32_HAVE_HASH
 	---help---
 		STM32 H7 Cortex M7+M4, 128 Kb FLASH, 1024K Kb SRAM,
-		with cryptographic accelerator, LQFP176 or UFBGA176+25
+		with cryptographic & hash accelerator, LQFP176 or UFBGA176+25
 
 config ARCH_CHIP_STM32H750XB
 	bool "STM32H750XB"
@@ -313,9 +317,10 @@ config ARCH_CHIP_STM32H750XB
 	select STM32H7_IO_CONFIG_X
 	select STM32_HAVE_CRYP
 	select STM32_HAVE_IP_CRYPTO_H7
+	select STM32_HAVE_HASH
 	---help---
 		STM32 H7 Cortex M7+M4, 128 Kb FLASH, 1024K Kb SRAM,
-		with cryptographic accelerator, TFBGA240+25
+		with cryptographic & hash accelerator, TFBGA240+25
 
 config ARCH_CHIP_STM32H753AI
 	bool "STM32H753AI"
@@ -324,9 +329,10 @@ config ARCH_CHIP_STM32H753AI
 	select STM32H7_IO_CONFIG_A
 	select STM32_HAVE_CRYP
 	select STM32_HAVE_IP_CRYPTO_H7
+	select STM32_HAVE_HASH
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
-		with cryptographic accelerator, UFBGA169
+		with cryptographic & hash accelerator, UFBGA169
 
 config ARCH_CHIP_STM32H753BI
 	bool "STM32H753BI"
@@ -335,9 +341,10 @@ config ARCH_CHIP_STM32H753BI
 	select STM32H7_IO_CONFIG_B
 	select STM32_HAVE_CRYP
 	select STM32_HAVE_IP_CRYPTO_H7
+	select STM32_HAVE_HASH
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
-		with cryptographic accelerator, LQFP208
+		with cryptographic & hash accelerator, LQFP208
 
 config ARCH_CHIP_STM32H753II
 	bool "STM32H753II"
@@ -346,9 +353,10 @@ config ARCH_CHIP_STM32H753II
 	select STM32H7_IO_CONFIG_I
 	select STM32_HAVE_CRYP
 	select STM32_HAVE_IP_CRYPTO_H7
+	select STM32_HAVE_HASH
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
-		with cryptographic accelerator, LQFP176/UFBGA176
+		with cryptographic & hash accelerator, LQFP176/UFBGA176
 
 config ARCH_CHIP_STM32H753VI
 	bool "STM32H753VI"
@@ -357,9 +365,10 @@ config ARCH_CHIP_STM32H753VI
 	select STM32H7_IO_CONFIG_V
 	select STM32_HAVE_CRYP
 	select STM32_HAVE_IP_CRYPTO_H7
+	select STM32_HAVE_HASH
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
-		with cryptographic accelerator, LQFP100/TFBGA100
+		with cryptographic & hash accelerator, LQFP100/TFBGA100
 
 config ARCH_CHIP_STM32H753XI
 	bool "STM32H753XI"
@@ -368,9 +377,10 @@ config ARCH_CHIP_STM32H753XI
 	select STM32H7_IO_CONFIG_X
 	select STM32_HAVE_CRYP
 	select STM32_HAVE_IP_CRYPTO_H7
+	select STM32_HAVE_HASH
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
-		with cryptographic accelerator, TFBGA240
+		with cryptographic & hash accelerator, TFBGA240
 
 config ARCH_CHIP_STM32H753ZI
 	bool "STM32H753ZI"
@@ -379,9 +389,10 @@ config ARCH_CHIP_STM32H753ZI
 	select STM32H7_IO_CONFIG_Z
 	select STM32_HAVE_CRYP
 	select STM32_HAVE_IP_CRYPTO_H7
+	select STM32_HAVE_HASH
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
-		with cryptographic accelerator, LQFP144
+		with cryptographic & hash accelerator, LQFP144
 
 config ARCH_CHIP_STM32H7B3LI
 	bool "STM32H7B3LI"
@@ -391,9 +402,10 @@ config ARCH_CHIP_STM32H7B3LI
 	select STM32_HAVE_SMPS
 	select STM32_HAVE_CRYP
 	select STM32_HAVE_IP_CRYPTO_H7
+	select STM32_HAVE_HASH
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1376 Kb SRAM,
-		with cryptographic accelerator, TFBGA225
+		with cryptographic & hash accelerator, TFBGA225
 
 config ARCH_CHIP_STM32H755II
 	bool "STM32H755II"
@@ -404,9 +416,10 @@ config ARCH_CHIP_STM32H755II
 	select STM32_HAVE_FDCAN2
 	select STM32_HAVE_CRYP
 	select STM32_HAVE_IP_CRYPTO_H7
+	select STM32_HAVE_HASH
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
-		with cryptographic accelerator, LQFP176/UFBGA176
+		with cryptographic & hash accelerator, LQFP176/UFBGA176
 
 config ARCH_CHIP_STM32H755XI
 	bool "STM32H755XI"
@@ -417,9 +430,10 @@ config ARCH_CHIP_STM32H755XI
 	select STM32_HAVE_FDCAN2
 	select STM32_HAVE_CRYP
 	select STM32_HAVE_IP_CRYPTO_H7
+	select STM32_HAVE_HASH
 	---help---
 		STM32 H7 Cortex M7, 2048 Kb FLASH, 1024K Kb SRAM,
-		with cryptographic accelerator, TFBGA240
+		with cryptographic & hash accelerator, TFBGA240
 
 endchoice # STM32 H7 Chip Selection
 

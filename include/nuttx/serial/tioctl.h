@@ -87,7 +87,7 @@
 
 /* Controlling TTY */
 
-#define TIOCSCTTY       _TIOC(0x0018)  /* Make controlling TTY: int */
+#define TIOCSCTTY       _TIOC(0x0018)  /* Make controlling TTY: int (0 == caller) */
 #define TIOCNOTTY       _TIOC(0x0019)  /* Give up controllinog TTY: void */
 
 /* Exclusive mode */
@@ -200,34 +200,11 @@
 
 #define SER_SWAP_ENABLED   (1 << 0) /* Enable/disable RX/TX swap */
 
-/* LIN Protocol Support */
+/* Process group / session (job control) */
 
-#define TIOCSLINID      _TIOC(0x0037) /* Master send one LIN header with specified LIN identifier: uint8_t */
-
-/* Synchronous Mode Support */
-
-#define TIOCSSYNCHRONOUS _TIOC(0x0038) /* Set synchronous mode */
-#define TIOCGSYNCHRONOUS _TIOC(0x0039) /* Get synchronous mode */
-
-#define SER_SYNCHRONOUS_CLKEN   (1 << 0) /* Synchronous mode clock is enabled */
-#define SER_SYNCHRONOUS_CPOL    (1 << 1) /* Clock idle high */
-#define SER_SYNCHRONOUS_CPHA    (1 << 2) /* Data is captured on second clock edge */
-#define SER_SYNCHRONOUS_LBCL    (1 << 3) /* Clock is output on last data bit */
-#define SER_SYNCHRONOUS_SLVEN   (1 << 4) /* Synchronous slave mode enabled */
-#define SER_SYNCHRONOUS_DISNSS  (1 << 5) /* Hardware slave select pin disabled */
-
-/* Bit Order Support */
-
-#define TIOCSBITORDER    _TIOC(0x0040) /* Set bit order */
-#define TIOCGBITORDER    _TIOC(0x0041) /* Get bit order */
-
-#define SER_LSB_FIRST           (0)
-#define SER_MSB_FIRST           (1)
-
-/* FIFO Control Support */
-
-#define TIOCSFIFOTHRESHOLD _TIOC(0x0042) /* Set FIFO RX threshold: int */
-#define TIOCGFIFOTHRESHOLD _TIOC(0x0043) /* Get FIFO RX threshold: FAR int* */
+#define TIOCGPGRP       _TIOC(0x0037) /* Get foreground process group: FAR pid_t* */
+#define TIOCSPGRP       _TIOC(0x0038) /* Set foreground process group: FAR const pid_t* */
+#define TIOCGSID        _TIOC(0x0039) /* Get session leader: FAR pid_t* */
 
 /****************************************************************************
  * Public Type Definitions

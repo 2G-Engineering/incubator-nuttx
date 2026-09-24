@@ -23,7 +23,6 @@
 
 import argparse
 import errno
-import os
 import re
 import sys
 
@@ -36,7 +35,7 @@ try:
 except ModuleNotFoundError:
     print("Please execute the following command to install dependencies:")
     print("pip install pyelftools cxxfilt")
-    os._exit(errno.EINVAL)
+    sys.exit(errno.EINVAL)
 
 
 class SymbolTables(object):
@@ -48,6 +47,7 @@ class SymbolTables(object):
             self.elffile = None
         self.output = output
         self.symbol_list = []
+        self.max_address = 0
 
     def symbol_filter(self, symbol):
         if symbol["st_info"]["type"] != "STT_FUNC":
@@ -79,7 +79,9 @@ class SymbolTables(object):
             self.emitline(
                 '  { "%s", (FAR %s void *)%s },' % (symbol[1], noconst, hex(symbol[0]))
             )
-        self.emitline('  { "Unknown", (FAR %s void *)0xffffffff }\n};' % (noconst))
+        self.emitline(
+            '  { "Unknown", (FAR %s void *)%s }\n};' % (noconst, hex(self.max_address))
+        )
 
     def get_symtable(self):
         symbol_tables = [
@@ -112,7 +114,12 @@ class SymbolTables(object):
                     func_name = re.sub(r"\(.*$", "", symbol_name)
                 except cxxfilt.InvalidName:
                     symbol_name = symbol.name
-                self.symbol_list.append((symbol["st_value"], func_name))
+                self.symbol_list.append(
+                    (symbol["st_value"], func_name, symbol["st_size"])
+                )
+                end = symbol["st_value"] + symbol["st_size"]
+                if end > self.max_address:
+                    self.max_address = end
         if orderbyname:
             self.symbol_list = sorted(self.symbol_list, key=lambda item: item[1])
         else:
@@ -126,7 +133,7 @@ def usage():
     print(
         "Usage: mkallsyms.py [noconst] <ELFBIN> [output file] [order symbols by name]"
     )
-    os._exit(errno.ENOENT)
+    sys.exit(errno.ENOENT)
 
 
 if __name__ == "__main__":

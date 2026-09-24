@@ -918,13 +918,25 @@ static void cdcncm_transmit_work(FAR void *arg)
   int ndpindex;
   int totallen;
 
-  /* Wait until the USB device request for Ethernet frame transmissions
-   * becomes available.
+  /* Serialise against cdcncm_send() and any other transmit_work: they share
+   * the single wrreq buffer and run under the recursive netdev_lock.
+   * Without it, delay-0 scheduling can submit the same wrreq twice and
+   * wedge TX.
    */
 
-  while (nxsem_wait(&self->wrreq_idle) != OK)
+  netdev_lock(&self->dev.netdev);
+
+  /* Empty batch: a previous flush already submitted it.  Don't resubmit. */
+
+  if (self->dgramcount == 0)
     {
+      netdev_unlock(&self->dev.netdev);
+      return;
     }
+
+  /* cdcncm_send() already holds the wrreq_idle token for this batch, so we
+   * must not wait for it again here (wrcomplete reposts it after EP_SUBMIT).
+   */
 
   ncblen   = opts->nthsize;
   ndpindex = NCM_ALIGN(ncblen, ndpalign);
@@ -950,6 +962,8 @@ static void cdcncm_transmit_work(FAR void *arg)
   self->wrreq->len = totallen;
 
   EP_SUBMIT(self->epbulkin, self->wrreq);
+
+  netdev_unlock(&self->dev.netdev);
 }
 
 /****************************************************************************
@@ -1291,6 +1305,21 @@ static int cdcncm_send(FAR struct netdev_lowerhalf_s *dev, FAR netpkt_t *pkt)
   FAR struct cdcncm_driver_s *self;
 
   self = container_of(dev, struct cdcncm_driver_s, dev);
+
+  /* At the start of a new NTB batch, wait for the previous transfer to
+   * finish before reusing wrreq->buf (the USB controller transmits straight
+   * out of it).  With TCP write buffers, cdcncm_send() drains many segments
+   * back-to-back, so batches overlap; waiting only just before EP_SUBMIT let
+   * the in-flight buffer be overwritten and wedged TX.
+   */
+
+  if (self->dgramcount == 0)
+    {
+      while (nxsem_wait(&self->wrreq_idle) != OK)
+        {
+        }
+    }
+
   cdcncm_transmit_format(self, pkt);
   netpkt_free(dev, pkt, NETPKT_TX);
 
@@ -1302,8 +1331,13 @@ static int cdcncm_send(FAR struct netdev_lowerhalf_s *dev, FAR netpkt_t *pkt)
     }
   else
     {
-      work_queue(ETHWORK, &self->delaywork, cdcncm_transmit_work, self,
-                 MSEC2TICK(CDCNCM_DGRAM_COMBINE_PERIOD));
+      /* Defer to the work thread with zero delay.  A non-zero delay is
+       * rounded up to a full tick (10ms at 100Hz), which dominated the
+       * USB-NIC round-trip; delay 0 wakes the worker immediately while
+       * still coalescing datagrams appended in the same TX burst.
+       */
+
+      work_queue(ETHWORK, &self->delaywork, cdcncm_transmit_work, self, 0);
     }
 
   return OK;
@@ -2868,6 +2902,17 @@ static void cdcncm_disconnect(FAR struct usbdevclass_driver_s *driver,
 
   cdcncm_resetconfig(self);
   uinfo("\n");
+
+  /* Perform the soft connect function so that we can be
+   * re-enumerated (unless we are part of a composite device).  The USB
+   * device controller calls CLASS_DISCONNECT() on every bus reset, which
+   * is the first step of any enumeration, so without this the device is
+   * left soft-disconnected and never enumerates on the host.
+   */
+
+#ifndef CONFIG_CDCNCM_COMPOSITE
+  DEV_CONNECT(dev);
+#endif
 }
 
 /****************************************************************************
@@ -3022,7 +3067,7 @@ static int cdcmbim_classobject(int minor,
       index = self->ncmdriver.dev.netdev.d_ifindex;
 #endif
       snprintf(devname, sizeof(devname), CDC_MBIM_DEVFORMAT, index);
-      ret = register_driver(devname, &g_usbdevfops, 0666, self);
+      ret = register_driver(devname, &g_usbdevfops, 0600, self);
       if (ret < 0)
         {
           nerr("register_driver failed. ret: %d\n", ret);

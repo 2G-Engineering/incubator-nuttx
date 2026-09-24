@@ -33,7 +33,7 @@
 
 #include <nuttx/input/keyboard.h>
 #include <nuttx/input/kbd_codec.h>
-#include <nuttx/input/virtio-input-event-codes.h>
+#include <nuttx/streams.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/list.h>
 #include <nuttx/circbuf.h>
@@ -42,6 +42,16 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+#ifdef CONFIG_INPUT_KEYBOARD_BYTESTREAM
+
+/* The longest sequence that one event can produce in the byte stream.  A
+ * normal key is a single byte; a special key is the four byte escape
+ * sequence emitted by kbd_specpress().
+ */
+
+#  define KEYBOARD_BYTESTREAM_MAX 4
+#endif
 
 /****************************************************************************
  * Private Types
@@ -347,7 +357,7 @@ int keyboard_register(FAR struct keyboard_lowerhalf_s *lower,
   list_initialize(&upper->head);
   nxmutex_init(&upper->lock);
 
-  ret = register_driver(path, &g_keyboard_fops, 0666, upper);
+  ret = register_driver(path, &g_keyboard_fops, 0600, upper);
   if (ret < 0)
     {
       nxmutex_destroy(&upper->lock);
@@ -386,6 +396,66 @@ int keyboard_unregister(FAR struct keyboard_lowerhalf_s *lower,
 }
 
 /****************************************************************************
+ * Name: keyboard_encode
+ *
+ * Description:
+ *   Render one keyboard event as the byte stream that the keyboard codec
+ *   defines, for applications that consume characters rather than events.
+ *
+ *   Only the press events are rendered.  A byte stream has no way to say
+ *   that a key came up:  a normal key contributes its character and nothing
+ *   more, which is what a keyboard reporting through a character device has
+ *   always delivered.  An application that needs key releases has to read
+ *   the events instead.
+ *
+ * Input Parameters:
+ *   stream  - Memory stream to render into
+ *   buf     - Buffer of KEYBOARD_BYTESTREAM_MAX bytes backing the stream
+ *   keycode - The key
+ *   type    - The event type
+ *
+ * Returned Value:
+ *   The number of bytes rendered, zero if this event has no representation
+ *   in the byte stream.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_INPUT_KEYBOARD_BYTESTREAM
+static size_t keyboard_encode(FAR struct lib_memoutstream_s *stream,
+                              FAR char *buf, uint32_t keycode, uint32_t type)
+{
+  lib_memoutstream(stream, buf, KEYBOARD_BYTESTREAM_MAX);
+
+  switch (type)
+    {
+      case KEYBOARD_PRESS:
+        kbd_press(keycode, &stream->common);
+        break;
+
+      case KEYBOARD_SPECPRESS:
+
+        /* Out of range keycodes would trip an assertion in the codec.  A
+         * lower half that reports something the codec does not know about
+         * simply does not appear in the byte stream.
+         */
+
+        if (keycode < FIRST_KEYCODE || keycode > LAST_KEYCODE)
+          {
+            return 0;
+          }
+
+        kbd_specpress(keycode, &stream->common);
+        break;
+
+      default:
+        return 0;
+    }
+
+  return stream->common.nput;
+}
+#endif
+
+/****************************************************************************
  * keyboard_event
  ****************************************************************************/
 
@@ -394,22 +464,42 @@ void keyboard_event(FAR struct keyboard_lowerhalf_s *lower, uint32_t keycode,
 {
   FAR struct keyboard_upperhalf_s *upper = lower->priv;
   FAR struct keyboard_opriv_s     *opriv;
-  struct keyboard_event_s          key;
   int semcount;
+
+#ifdef CONFIG_INPUT_KEYBOARD_BYTESTREAM
+  struct lib_memoutstream_s stream;
+  char buf[KEYBOARD_BYTESTREAM_MAX];
+  size_t buflen;
+
+  buflen = keyboard_encode(&stream, buf, keycode, type);
+  if (buflen == 0)
+    {
+      /* This event has no representation in the byte stream */
+
+      return;
+    }
+#else
+  struct keyboard_event_s key;
+
+  key.code = keycode;
+  key.type = type;
+#endif
 
   if (nxmutex_lock(&upper->lock) < 0)
     {
       return;
     }
 
-  key.code = keycode;
-  key.type = type;
   list_for_every_entry(&upper->head, opriv, struct keyboard_opriv_s, node)
     {
       if (nxmutex_lock(&opriv->lock) == 0)
         {
+#ifdef CONFIG_INPUT_KEYBOARD_BYTESTREAM
+          circbuf_overwrite(&opriv->circ, buf, buflen);
+#else
           circbuf_overwrite(&opriv->circ, &key,
                             sizeof(struct keyboard_event_s));
+#endif
           nxsem_get_value(&opriv->waitsem, &semcount);
           if (semcount < 1)
             {
@@ -422,95 +512,4 @@ void keyboard_event(FAR struct keyboard_lowerhalf_s *lower, uint32_t keycode,
     }
 
   nxmutex_unlock(&upper->lock);
-}
-
-/****************************************************************************
- * keyboard_translate_virtio_code
- ****************************************************************************/
-
-uint32_t keyboard_translate_virtio_code(uint16_t keycode)
-{
-  switch (keycode)
-    {
-      case KEY_DELETE:
-        return KEYCODE_FWDDEL;
-      case KEY_BACKSPACE:
-        return KEYCODE_BACKDEL;
-      case KEY_HOME:
-        return KEYCODE_HOME;
-      case KEY_END:
-        return KEYCODE_END;
-      case KEY_LEFT:
-        return KEYCODE_LEFT;
-      case KEY_RIGHT:
-        return KEYCODE_RIGHT;
-      case KEY_UP:
-        return KEYCODE_UP;
-      case KEY_DOWN:
-        return KEYCODE_DOWN;
-      case KEY_PAGEUP:
-        return KEYCODE_PAGEUP;
-      case KEY_PAGEDOWN:
-        return KEYCODE_PAGEDOWN;
-      case KEY_ENTER:
-        return KEYCODE_ENTER;
-      case KEY_CAPSLOCK:
-        return KEYCODE_CAPSLOCK;
-      case KEY_SCROLLLOCK:
-        return KEYCODE_SCROLLLOCK;
-      case KEY_NUMLOCK:
-        return KEYCODE_NUMLOCK;
-      case KEY_SYSRQ:
-        return KEYCODE_PRTSCRN;
-      case KEY_F1:
-        return KEYCODE_F1;
-      case KEY_F2:
-        return KEYCODE_F2;
-      case KEY_F3:
-        return KEYCODE_F3;
-      case KEY_F4:
-        return KEYCODE_F4;
-      case KEY_F5:
-        return KEYCODE_F5;
-      case KEY_F6:
-        return KEYCODE_F6;
-      case KEY_F7:
-        return KEYCODE_F7;
-      case KEY_F8:
-        return KEYCODE_F8;
-      case KEY_F9:
-        return KEYCODE_F9;
-      case KEY_F10:
-        return KEYCODE_F10;
-      case KEY_F11:
-        return KEYCODE_F11;
-      case KEY_F12:
-        return KEYCODE_F12;
-      case KEY_F13:
-        return KEYCODE_F13;
-      case KEY_F14:
-        return KEYCODE_F14;
-      case KEY_F15:
-        return KEYCODE_F15;
-      case KEY_F16:
-        return KEYCODE_F16;
-      case KEY_F17:
-        return KEYCODE_F17;
-      case KEY_F18:
-        return KEYCODE_F18;
-      case KEY_F19:
-        return KEYCODE_F19;
-      case KEY_F20:
-        return KEYCODE_F20;
-      case KEY_F21:
-        return KEYCODE_F21;
-      case KEY_F22:
-        return KEYCODE_F22;
-      case KEY_F23:
-        return KEYCODE_F23;
-      case KEY_F24:
-        return KEYCODE_F24;
-      default:
-        return keycode;
-    }
 }

@@ -286,6 +286,9 @@ tools/cnvwindeps$(HOSTEXEEXT):
 tools/mkpasswd$(HOSTEXEEXT):
 	$(Q) $(MAKE) -C tools -f Makefile.host mkpasswd$(HOSTEXEEXT)
 
+tools/mknxflat$(HOSTEXEEXT):
+	$(Q) $(MAKE) -C tools -f Makefile.host mknxflat$(HOSTEXEEXT)
+
 # .dirlinks, and helpers
 #
 # Directories links.  Most of establishing the NuttX configuration involves
@@ -670,12 +673,20 @@ ifeq ($(CONFIG_BOARD_ETC_ROMFS_PASSWD_ENABLE),y)
 PASSWD_TOOL_DEP += tools/mkpasswd$(HOSTEXEEXT)
 endif
 
-pass1dep: context tools/mkdeps$(HOSTEXEEXT) tools/cnvwindeps$(HOSTEXEEXT) $(PASSWD_TOOL_DEP)
+# mknxflat generates the import thunks for an NXFLAT module, so it is only
+# needed by a configuration that builds them.
+
+NXFLAT_TOOL_DEP =
+ifeq ($(CONFIG_NXFLAT),y)
+NXFLAT_TOOL_DEP += tools/mknxflat$(HOSTEXEEXT)
+endif
+
+pass1dep: context tools/mkdeps$(HOSTEXEEXT) tools/cnvwindeps$(HOSTEXEEXT) $(PASSWD_TOOL_DEP) $(NXFLAT_TOOL_DEP)
 	$(Q) for dir in $(USERDEPDIRS) ; do \
 		$(MAKE) -C $$dir depend || exit; \
 	done
 
-pass2dep: context tools/mkdeps$(HOSTEXEEXT) tools/cnvwindeps$(HOSTEXEEXT) $(PASSWD_TOOL_DEP)
+pass2dep: context tools/mkdeps$(HOSTEXEEXT) tools/cnvwindeps$(HOSTEXEEXT) $(PASSWD_TOOL_DEP) $(NXFLAT_TOOL_DEP)
 	$(Q) for dir in $(KERNDEPDIRS) ; do \
 		$(MAKE) -C $$dir EXTRAFLAGS="$(KDEFINE) $(EXTRAFLAGS)" depend || exit; \
 	done
@@ -780,7 +791,7 @@ savedefconfig: apps_preconfig
 	$(Q) ${KCONFIG_ENV} ${KCONFIG_SAVEDEFCONFIG}
 	$(Q) $(call kconfig_tweak_disable,defconfig.tmp,CONFIG_APPS_DIR)
 	$(Q) $(call kconfig_tweak_disable,defconfig.tmp,CONFIG_BASE_DEFCONFIG)
-	$(Q) sed -i.bak -e '/^CONFIG_FSUTILS_PASSWD_KEY[0-9]/d' defconfig.tmp
+	$(Q) sed -i.bak -e '/^CONFIG_FSUTILS_PASSWD_PBKDF2_ITERATIONS=/d' defconfig.tmp
 	$(Q) sed -i.bak -e '/^CONFIG_BOARD_ETC_ROMFS_PASSWD_PASSWORD=/d' defconfig.tmp
 	$(Q) grep "CONFIG_ARCH=" .config >> defconfig.tmp
 	$(Q) grep "^CONFIG_ARCH_CHIP_" .config >> defconfig.tmp; true
@@ -803,7 +814,7 @@ savedefconfig: apps_preconfig
 	$(Q) rm -f sortedconfig.tmp
 	$(Q) if grep -q '^CONFIG_BOARD_ETC_ROMFS_PASSWD_ENABLE=y' .config; then \
 		echo "WARNING: CONFIG_BOARD_ETC_ROMFS_PASSWD_PASSWORD was not saved in defconfig."; \
-		echo "WARNING: CONFIG_FSUTILS_PASSWD_KEY1-4 were not saved in defconfig."; \
+		echo "WARNING: CONFIG_FSUTILS_PASSWD_PBKDF2_ITERATIONS was not saved in defconfig."; \
 		echo "WARNING: This is intentional to avoid leaking credentials. Add them manually in local defconfig if needed."; \
 	fi
 

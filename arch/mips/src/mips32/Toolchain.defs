@@ -125,6 +125,8 @@ ifeq ($(CONFIG_ARCH_MIPS_M5150),y)
 else ifeq ($(CONFIG_ARCH_MIPS_MICROAPTIV),y)
   MIPS_MARCH = mips32r2
   MIPS_MPROCESSOR = elf32pic32mz
+else ifeq ($(CONFIG_ARCH_MIPS_XBURST1),y)
+  MIPS_MARCH = mips32r2
 else
   MIPS_MARCH = m4k
   MIPS_MPROCESSOR = elf32pic32mx
@@ -323,7 +325,7 @@ endif
 # Loadable module definitions
 
 CMODULEFLAGS = $(CFLAGS) -fvisibility=hidden
-LDMODULEFLAGS = -r -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/elf/gnu-elf.ld)
+LDMODULEFLAGS = -EL -r -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/elf/gnu-elf.ld)
 
 # ELF module definitions
 

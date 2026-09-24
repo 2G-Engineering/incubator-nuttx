@@ -92,10 +92,6 @@ if(CONFIG_PWM)
   list(APPEND SRCS stm32_pwm.c)
 endif()
 
-if(CONFIG_BOARDCTL_RESET)
-  list(APPEND SRCS stm32_reset.c)
-endif()
-
 if(CONFIG_ARCH_CUSTOM_PMINIT)
   list(APPEND SRCS stm32_pm.c)
 endif()
@@ -136,10 +132,6 @@ if(CONFIG_STM32_HCIUART)
   if(CONFIG_BLUETOOTH_UART)
     list(APPEND SRCS stm32_hciuart.c)
   endif()
-endif()
-
-if(CONFIG_STM32_ROMFS)
-  list(APPEND SRCS stm32_romfs_initialize.c)
 endif()
 
 if(CONFIG_BOARDCTL_UNIQUEID)
@@ -190,7 +182,7 @@ set_property(
 
 # TODO: see where to put pic flags set_property(TARGET nuttx APPEND PROPERTY
 # NUTTX_COMPILE_OPTIONS $<$<NOT:$<COMPILE_LANGUAGE:ASM>>:-fpic -msingle-pic-base
-# -mpic-register=r10>)
+# -mpic-register=r9>)
 
 # ifeq ($(CONFIG_ARMV7M_TOOLCHAIN_CLANGL),y) ARCHCFLAGS += -nostdlib
 # -ffreestanding ARCHCXXFLAGS += -nostdlib -ffreestanding else ARCHCFLAGS +=

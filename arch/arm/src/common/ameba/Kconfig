@@ -1,0 +1,88 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+# Shared Realtek Ameba peripheral drivers (arch/arm/src/common/ameba).  These
+# options are common to every Ameba ARM chip (RTL8721Dx, RTL8720F, ...) and
+# are sourced from each chip's own Kconfig.
+#
+
+menu "Ameba Peripheral Support"
+
+config AMEBA_GPIO
+	bool "GPIO"
+	default n
+	select DEV_GPIO
+	---help---
+		Expose Ameba GPIO pins through the NuttX GPIO (ioexpander) upper
+		half at /dev/gpioN. The board selects which pins are registered
+		and their type (input, output or interrupt) in its bring-up code.
+
+		The driver (arch/arm/src/common/ameba/ameba_gpio.c) sits on the SDK
+		fwlib register layer and dispatches pin interrupts through the ROM
+		GPIO interrupt handler.
+
+config AMEBA_UART
+	bool "UART"
+	default n
+	select SERIAL
+	select ARCH_HAVE_SERIAL_TERMIOS
+	---help---
+		Expose the Ameba high-speed UARTs (UART0/UART1) through the NuttX
+		serial upper half.  The LOG-UART owns the console and /dev/ttyS0, so
+		the board registers these general-purpose ports at /dev/ttyS1 and up
+		in its bring-up code, giving the TX/RX pads and baud for each.
+
+		The driver (arch/arm/src/common/ameba/ameba_uart.c) sits on the SDK
+		fwlib register layer and dispatches RX/TX through NuttX-native
+		interrupts.
+
+if AMEBA_UART
+
+config AMEBA_UART_RXBUFSIZE
+	int "UART receive buffer size"
+	default 256
+	---help---
+		Size, in bytes, of the receive buffer allocated for each registered
+		Ameba UART port.
+
+config AMEBA_UART_TXBUFSIZE
+	int "UART transmit buffer size"
+	default 256
+	---help---
+		Size, in bytes, of the transmit buffer allocated for each registered
+		Ameba UART port.
+
+endif # AMEBA_UART
+
+config AMEBA_I2C
+	bool "I2C"
+	default n
+	select I2C
+	select I2C_DRIVER
+	---help---
+		Expose the Ameba I2C controllers (I2C0/I2C1) as NuttX I2C master
+		buses at /dev/i2cN.  The board selects which controller is used and
+		its SCL/SDA pads in its bring-up code.
+
+		The driver (arch/arm/src/common/ameba/ameba_i2c.c) sits on the SDK
+		fwlib register layer and drives the DesignWare I2C block in polling
+		mode.
+
+config AMEBA_SPI
+	bool "SPI"
+	default n
+	select SPI
+	select SPI_DRIVER
+	select SPI_EXCHANGE
+	---help---
+		Expose the Ameba SPI controllers (SPI0/SPI1) as NuttX SPI master
+		buses at /dev/spiN.  The board selects which controller is used and
+		its CLK/MOSI/MISO/CS pads in its bring-up code; the chip select is
+		driven as a plain GPIO (software CS).
+
+		The driver (arch/arm/src/common/ameba/ameba_spi.c) sits on the SDK
+		fwlib register layer and drives the DesignWare SSI block in polling
+		mode.
+
+endmenu # Ameba Peripheral Support

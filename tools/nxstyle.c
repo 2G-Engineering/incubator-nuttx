@@ -257,6 +257,47 @@ static const char *g_white_prefix[] =
    */
 
   "uxrCustom",           /* uxrCustomTransport */
+
+  /* Ref:  arch/arm/src/common/ameba, arch/arm/src/rtl8721dx,
+   * arch/arm/src/rtl8720f, arch/arm/src/rtl8721f and the matching boards.
+   * Realtek Ameba SDK ROM/HAL symbols and ARM CMSE intrinsics referenced
+   * by the port; renaming them would break linkage against the vendor blob.
+   */
+
+  "ADC_",
+  "APBPeriph_",
+  "BOOT_",
+  "BOR_",
+  "Cache_",
+  "DCache_",
+  "ChipInfo_",
+  "EFUSE_",
+  "FLASH_",
+  "GPIO_",
+  "Get_OSC131_",      /* Get_OSC131_STATE — Ameba SDK RTC accessor */
+  "HPERI_",           /* HPERI_ClkGet — amebagreen2 SPI ip_clk query */
+  "I2C_",             /* I2C_Init, I2C_MasterWrite, I2C_InitTypeDef, etc. */
+  "IPC_",
+  "LOGUART_",
+  "OSC2M_",
+  "OSC4M_",
+  "OSC131K_",
+  "PAD_",
+  "PLL_",             /* PLL_ClkGet — amebadplus SPI ip_clk query */
+  "Pinmux_",
+  "RCC_",
+  "RTC_",             /* RTC_InitTypeDef, RTC_Enable, RTC_SetTime, etc. */
+  "RTCIO_",
+  "SDM32K_",          /* SDM32K_Enable */
+  "SSI_",             /* SSI_Init, SSI_SetRole, SSI_WriteData, etc. */
+  "Set_OSC131_",      /* Set_OSC131_STATE — Ameba SDK RTC accessor */
+  "SYSCFG_",
+  "SYSTIMER_",
+  "SYS_PLL_",         /* SYS_PLL_ClkGet — RTL8720F SPI ip_clk query */
+  "UART_",
+  "SystemCoreClock",  /* SystemCoreClock, SystemCoreClockUpdate */
+  "cmse_",            /* ARM CMSE TrustZone intrinsics (arm_cmse.h) */
+  "MQTTErrors",       /* apps/tools/netutils/mqttc/MQTT-C/include/mqtt.h */
   NULL
 };
 
@@ -290,6 +331,17 @@ static const char *g_white_content_list[] =
 
   "NativeSymbol",
   "RuntimeInitArgs",
+
+  /* Ref:  arch/arm/src/common/ameba, arch/arm/src/rtl8721dx,
+   * arch/arm/src/rtl8720f.  Standalone Realtek Ameba SDK ROM symbols.
+   */
+
+  "DelayUs",
+  "DiagPrintf",
+  "Img2EntryFun0",
+  "NewVectorTable",
+  "RomVectorTable",
+  "PutChar",
 
   /* Ref:  gnu_unwind_find_exidx.c */
 
@@ -808,6 +860,18 @@ static const char *g_white_files[] =
   "Ifx_Cfg_Ssw.c",
   "Ifx_Cfg_Ssw.h",
   "Ifx_Cfg.h",
+
+  /* Skip the GigaDevice GD32VW55x Wi-Fi/BLE SDK glue: the vendor config
+   * headers, the lwIP-compat shims and the OS-facade files reference vendor
+   * symbol names (mixed case) and vendor header layout that are not NuttX
+   * style.  Ref: arch/risc-v/src/gd32vw55x/gdwifi and gdble.
+   */
+
+  "gd32vw55x/gdwifi/config/",
+  "gd32vw55x/gdwifi/net_compat/",
+  "gd32vw55x/gdwifi/gdwifi_glue.c",
+  "gd32vw55x/gdwifi/gdwifi_newlib_compat.c",
+  "gd32vw55x/gdble/gd32_ble.c",
   NULL
 };
 

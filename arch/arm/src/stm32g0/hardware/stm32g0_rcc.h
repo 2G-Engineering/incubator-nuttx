@@ -286,7 +286,8 @@
 #define RCC_APB1ENR_TIM7EN          (1 << 5)  /* Bit 5:  Timer 7 enable */
                                               /* Bits 6-13: Reserved */
 #define RCC_APB1ENR_SPI2EN          (1 << 14) /* Bit 14: SPI 2 enable */
-                                              /* Bits 15-16: Reserved */
+                                              /* Bit 15: Reserved */
+#define RCC_APB1ENR_CRSEN           (1 << 16) /* Bit 16: Clock recovery system enable */
 #define RCC_APB1ENR_USART2EN        (1 << 17) /* Bit 17: USART 2 enable */
 #define RCC_APB1ENR_USART3EN        (1 << 18) /* Bit 18: USART 3 enable */
 #define RCC_APB1ENR_USART4EN        (1 << 19) /* Bit 19: USART 4 enable */

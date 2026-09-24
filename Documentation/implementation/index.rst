@@ -10,11 +10,13 @@ Implementation Details
    cancellation_points.rst
    chip_h.rst
    context_switches.rst
+   crc.rst
    critical_sections.rst
    device_drivers.rst
    device_nodes.rst
    drivers_design.rst
    file_descriptors.rst
+   file_permission.rst
    hardfaults.rst
    interrupt_controls.rst
    ioctl.rst

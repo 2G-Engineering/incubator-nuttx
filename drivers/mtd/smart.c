@@ -1074,7 +1074,7 @@ static int smart_geometry(FAR struct inode *inode,
 
       finfo("available: true mediachanged: false writeenabled: %s\n",
             geometry->geo_writeenabled ? "true" : "false");
-      finfo("nsectors: %" PRIuOFF " sectorsize: %" PRIi16 "\n",
+      finfo("nsectors: %" PRIuOFF " sectorsize: %" PRId32 "\n",
             geometry->geo_nsectors, geometry->geo_sectorsize);
 
       return OK;
@@ -6346,7 +6346,7 @@ errout:
 #ifdef CONFIG_SMART_DEV_LOOP
 int smart_loop_register_driver(void)
 {
-  return register_driver("/dev/smart", &g_fops, 0666, NULL);
+  return register_driver("/dev/smart", &g_fops, 0600, NULL);
 }
 #endif
 

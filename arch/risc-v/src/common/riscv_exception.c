@@ -83,33 +83,45 @@ static const char *g_reasons_str[RISCV_MAX_EXCEPTION + 1] =
  ****************************************************************************/
 
 /****************************************************************************
- * Name: riscv_exception
+ * Name: riscv_fault_handler
  *
  * Description:
- *   This is the exception handler.
+ *   Handle a fault caused by the running task. If the task is a user task
+ *   not currently in a syscall or interrupt context, kill it with SIGSEGV
+ *   instead of taking down the whole system. Otherwise (kernel thread, a
+ *   fault while already in kernel context on behalf of a syscall, or a
+ *   fault while handling an interrupt) there is no safe task to kill, so
+ *   panic.
+ *
+ * Input Parameters:
+ *   cause - The (masked) machine cause of the exception, used for the
+ *     panic message only.
+ *   regs  - A pointer to the register state at the time of the exception.
  *
  ****************************************************************************/
 
-int riscv_exception(int mcause, void *regs, void *args)
+static void riscv_fault_handler(uintreg_t cause, void *regs)
 {
 #ifdef CONFIG_ARCH_KERNEL_STACK
   struct tcb_s *tcb = this_task();
-#endif
-  uintreg_t cause = mcause & RISCV_IRQ_MASK;
 
-  _alert("EXCEPTION: %s. MCAUSE: %" PRIxREG ", EPC: %" PRIxREG
-         ", MTVAL: %" PRIxREG "\n",
-         mcause > RISCV_MAX_EXCEPTION ? "Unknown" : g_reasons_str[cause],
-         cause, READ_CSR(CSR_EPC), READ_CSR(CSR_TVAL));
+  /* The STATUS_PPP check alone is enough: any kernel-mode fault (kernel
+   * thread, syscall body, or interrupt) has STATUS_PPP != 0.  The other
+   * two checks are kept as defensive redundancy.
+   */
 
-#ifdef CONFIG_ARCH_KERNEL_STACK
   if (((tcb->flags & TCB_FLAG_TTYPE_MASK) != TCB_FLAG_TTYPE_KERNEL) &&
-      ((tcb->flags & TCB_FLAG_SYSCALL) == false))
+      ((tcb->flags & TCB_FLAG_SYSCALL) == false) &&
+      !(((uintreg_t *)regs)[REG_INT_CTX] & STATUS_PPP))
     {
       struct tcb_s *ptcb = nxsched_get_tcb(tcb->group->tg_pid);
 
       _alert("Segmentation fault in %s (PID %d: %s)\n", get_task_name(ptcb),
              tcb->pid, get_task_name(tcb));
+
+#ifdef CONFIG_SCHED_BACKTRACE
+      sched_dumpstack(tcb->pid);
+#endif
 
       tcb->flags |= TCB_FLAG_FORCED_CANCEL;
 
@@ -124,15 +136,34 @@ int riscv_exception(int mcause, void *regs, void *args)
        */
 
       running_regs()[REG_SP] = tcb->xcp.ktopstk;
+      return;
     }
-  else
 #endif
-    {
-      _alert("PANIC!!! Exception = %" PRIxREG "\n", cause);
-      up_irq_save();
-      up_set_interrupt_context(true);
-      PANIC_WITH_REGS("panic", regs);
-    }
+
+  _alert("PANIC!!! Exception = %" PRIxREG "\n", cause);
+  up_irq_save();
+  up_set_interrupt_context(true);
+  PANIC_WITH_REGS("panic", regs);
+}
+
+/****************************************************************************
+ * Name: riscv_exception
+ *
+ * Description:
+ *   This is the exception handler.
+ *
+ ****************************************************************************/
+
+int riscv_exception(int mcause, void *regs, void *args)
+{
+  uintreg_t cause = mcause & RISCV_IRQ_MASK;
+
+  _alert("EXCEPTION: %s. MCAUSE: %" PRIxREG ", EPC: %" PRIxREG
+         ", MTVAL: %" PRIxREG "\n",
+         mcause > RISCV_MAX_EXCEPTION ? "Unknown" : g_reasons_str[cause],
+         cause, READ_CSR(CSR_EPC), READ_CSR(CSR_TVAL));
+
+  riscv_fault_handler(cause, regs);
 
   return 0;
 }
@@ -200,10 +231,8 @@ int riscv_fillpage(int mcause, void *regs, void *args)
     }
   else
     {
-      _alert("PANIC!!! virtual address not mappable: %" PRIxPTR "\n", vaddr);
-      up_irq_save();
-      up_set_interrupt_context(true);
-      PANIC_WITH_REGS("panic", regs);
+      _alert("Virtual address not mappable: %" PRIxPTR "\n", vaddr);
+      goto access_fault;
     }
 
   satp    = READ_CSR(CSR_SATP);
@@ -234,6 +263,21 @@ int riscv_fillpage(int mcause, void *regs, void *args)
     }
 
   ptlast = riscv_pgvaddr(paddr);
+
+  /* LOADPF/STOREPF is also raised when the leaf PTE already exists but its
+   * permission bits don't satisfy the access (e.g. a store to a .text page
+   * whose write access was revoked).  That is not a fault this function
+   * should handle: allocating a fresh page here would silently discard the
+   * existing mapping's page.
+   */
+
+  if (mmu_ln_getentry(ARCH_PGT_MAX_LEVELS, ptlast, vaddr) & PTE_VALID)
+    {
+      _alert("Page already mapped, permission violation: %"
+             PRIxPTR "\n", vaddr);
+      goto access_fault;
+    }
+
   paddr = mm_pgalloc(1);
   if (!paddr)
     {
@@ -248,6 +292,10 @@ int riscv_fillpage(int mcause, void *regs, void *args)
 
   mmu_ln_setentry(ARCH_PGT_MAX_LEVELS, ptlast, paddr, vaddr, mmuflags);
 
+  return 0;
+
+access_fault:
+  riscv_fault_handler(cause, regs);
   return 0;
 }
 #endif /* CONFIG_PAGING */

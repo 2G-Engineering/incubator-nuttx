@@ -380,6 +380,20 @@ nsh
 Configures the NuttShell (nsh) located at apps/examples/nsh. This
 configuration enables a serial console on UART1.
 
+The procfs file system, CPU load measurement and stack coloration are
+enabled, so the system can be monitored live with the ``top`` command
+(press ``q`` to exit)::
+
+    nsh> top
+    top - up 00:00:19
+    Tasks: 2 total, 2 running, 0 sleeping
+    %Cpu(s):  8.1 busy, 91.9 idle
+    Mem :  1004876 total,     8140 used,   996736 free
+
+      TID   PID  PPID PRI POLICY   TYPE    NPX STATE    EVENT     SIGMASK            STACK    USED FILLED    CPU COMMAND
+        0     0     0   0 FIFO     Kthread   - Ready              0000000000000000 0002024 0000500  24.7%  91.8% Idle_Task
+        2     2     0 100 RR       Task      - Running            0000000000000000 0004048 0001952  48.2%   8.1% nsh_main
+
 usbnsh
 ------
 
@@ -400,6 +414,36 @@ After flashing and reboot your board you should see in your dmesg logs::
     [ 9717.504192] cdc_acm 3-1.1.2:1.0: ttyACM0: USB ACM device
 
 You may need to press ENTER 3 times before the NSH show up.
+
+rs485
+-----
+
+Configures the NuttShell (nsh) with the two on-board RS-485
+transceivers enabled (UART4 on ``/dev/ttyS1`` and USART6 on
+``/dev/ttyS2``, 115200 8N1). The RS-485 driver-enable pins (DE) are
+handled automatically by the serial driver on every transmission.
+
+The ``cu`` serial terminal is included, so the console can be bridged
+directly to one of the RS-485 buses, which is useful to talk to
+devices on the bus (sensors, drives, another board) without writing
+any code::
+
+    nsh> cu -l /dev/ttyS1 -s 115200
+
+Everything typed on the console is transmitted on the RS-485 bus and
+received data is printed back. Type ``~.`` at the beginning of a line
+to exit back to nsh.
+
+The two buses can also be bridged to each other in the background,
+leaving the console free, by binding the two ports with output
+redirection::
+
+    nsh> cat /dev/ttyS1 > /dev/ttyS2 &
+    nsh> cat /dev/ttyS2 > /dev/ttyS1 &
+
+Since the board has two transceivers, a loopback self-test is
+possible by wiring A-A and B-B between the two RS-485 terminals and
+running ``cu`` on one port while sending data on the other.
 
 modbus_slave
 ------------
@@ -758,6 +802,92 @@ This configuration is focused on network testing using the ethernet periferal::
       10 packets transmitted, 10 received, 0% packet loss, time 10100 ms
       rtt min/avg/max/mdev = 0.000/1.000/10.000/3.000 ms
 
+curl
+----
+
+Based on the ``netnsh`` configuration (ethernet + DHCP), this configuration adds
+the ``curl`` HTTP client command (``system/curl`` on top of
+``netutils/webclient``), SD card support (same as the ``sdcard`` configuration,
+mounted manually) and a larger console line buffer (``CONFIG_LINE_MAX=256``) so
+long URLs and JSON bodies are not truncated when typed at the NSH prompt.
+
+It implements a subset of the real ``curl`` options: ``-X`` (method), ``-H``
+(header), ``-d`` (request body, also ``-d @file``), ``-F name=@file``
+(multipart/form-data upload), ``-o`` (save the response to a file) and ``-v``
+(verbose). It is HTTP only (no HTTPS). For the full option semantics see the
+curl manual page: https://curl.se/docs/manpage.html
+
+Mount the SD card (destination for downloads) and bring up the network::
+
+    nsh> mount -t vfat /dev/mmcsd0 /mnt
+    nsh> ifconfig
+    eth0    Link encap:Ethernet HWaddr 00:e0:de:ad:be:ef at RUNNING mtu 1486
+            inet addr:192.168.15.3 DRaddr:192.168.15.1 Mask:255.255.255.0
+
+Download a file and save it on the SD card with ``-o`` (a public HTTP test
+service such as ``httpbin.org`` requires the gateway to have internet access)::
+
+    nsh> curl -o /mnt/dl.json http://httpbin.org/json
+    curl: HTTP 200
+    nsh> cat /mnt/dl.json
+    {
+      "slideshow": {
+        "author": "Yours Truly",
+        "title": "Sample Slide Show",
+        ...
+      }
+    }
+
+    nsh> curl -o /mnt/1kb.bin http://httpbin.org/bytes/1024
+    curl: HTTP 200
+    nsh> curl -o /mnt/img.png http://httpbin.org/image/png
+    curl: HTTP 200
+    nsh> ls -l /mnt/img.png
+     -rw-rw-rw-        8090 /mnt/img.png
+
+Send a JSON body with POST (``-d`` selects POST automatically; ``-H`` sets the
+content type). The ``httpbin.org/post`` endpoint echoes back what it received::
+
+    nsh> curl -H Content-Type:application/json -d '{"temp":25.3,"hum":60}' http://httpbin.org/post
+    {
+      "data": "{\"temp\":25.3,\"hum\":60}",
+      "headers": {
+        "Content-Type": "application/json",
+        "Host": "httpbin.org",
+        ...
+      },
+      "json": {
+        "hum": 60,
+        "temp": 25.3
+      },
+      "url": "http://httpbin.org/post"
+    }
+    curl: HTTP 200
+
+Select a different HTTP method with ``-X``::
+
+    nsh> curl -X PUT -d '{"x":1}' http://httpbin.org/put
+    curl: HTTP 200
+
+Upload a file with multipart/form-data (``-F name=@file``) and download it back
+with ``-o`` (this example targets a local server that stores the file and serves
+it again)::
+
+    nsh> curl -F file=@/mnt/nuttx_logo.png "http://192.168.15.12:8000/api/projects/default/ota/upload?version=logo1"
+    {"id":3,"version":"logo1","filename":"nuttx_logo.png","sha256":"ca278dcb...abed1ba","size_bytes":40343}curl: HTTP 201
+    nsh> curl -o /mnt/logo_back.png http://192.168.15.12:8000/api/api/ota/default/logo1/nuttx_logo.png
+    curl: HTTP 200
+    nsh> ls -l /mnt
+     -rw-rw-rw-       40343 nuttx_logo.png
+     -rw-rw-rw-       40343 logo_back.png
+
+.. note::
+
+   The webclient transfer buffer is small and the request has a ~10 s timeout,
+   so prefer small files (a few KB up to ~100 KB). HTTPS is not supported; use
+   plain ``http://`` URLs only. When there is no internet on the bench, point
+   ``curl`` at a server on the local network instead of a public test service.
+
 qencoder
 --------
 
@@ -894,6 +1024,254 @@ Once the **fd** command works, run the lvgl examples. ::
   nsh> lvgldemo benchmark
 
 **WARNING:** For this example, the total SDRAM size was reduced from 8M to 6M and the LTDC base address was moved to address 0xC0600000 to avoid video memory invasion since the SDRAM was mapped to use the nuttx heap. If using the example with 2 layers, the reserved value will need to be doubled.
+
+lvglterm
+--------
+
+Runs the ``lvglterm`` example: an interactive NuttShell (NSH) terminal on the
+display. This board uses the touch input variant -- an on-screen LVGL keyboard,
+driven by the FT5X06 touchscreen, feeds the commands while the NSH output is
+rendered in an LVGL text area.::
+
+  nsh> lvglterm
+
+Type a command on the on-screen keyboard and press Enter; the command line
+``nsh> <command>`` and its output appear in the terminal area above the
+keyboard.
+
+lvglterm_kbda
+-------------
+
+**Purpose:** runs the ``lvglterm`` example -- an interactive NuttShell (NSH)
+terminal rendered on the display -- driven by an external **USB HID keyboard**,
+demonstrating that the OTG FS USB host and the microSD card can be used at the
+same time on this board.
+
+The board's OTG FS port is enabled as a USB host (VBUS power switch on PI12),
+so a USB HID keyboard plugged into the service connector is enumerated as
+``/dev/kbda`` and its keys are streamed to NSH.  The microSD card is enabled as
+well and, because ``CONFIG_MMCSD_MMCSUPPORT`` is disabled, an SD card is probed
+correctly (not as an MMC device) and registered as ``/dev/mmcsd0``.
+
+**Build and flash:**
+
+.. code-block:: console
+
+   $ ./tools/configure.sh linum-stm32h753bi:lvglterm_kbda
+   $ make -j
+
+Flash the resulting ``nuttx.bin`` to the board.
+
+**How to test:** plug a USB HID keyboard and an SD card, reset the board and
+check that both devices are present::
+
+  nsh> ls /dev
+  /dev:
+   console
+   fb0
+   kbda
+   mmcsd0
+   null
+   rtc0
+   ttyS0
+   zero
+
+Start the terminal and type on the USB keyboard; the command line and its
+output appear on the display, and the Up/Down cursor keys scroll it::
+
+  nsh> lvglterm
+
+The SD card can be mounted and read while the keyboard is in use, confirming
+that the USB host and the SDMMC peripheral coexist::
+
+  nsh> mount -t vfat /dev/mmcsd0 /data
+  nsh> ls /data
+
+**Typing from the serial console instead.** The terminal reads a keyboard
+device, and it does not care which one, so it can be driven from the serial
+console with no keyboard plugged in at all. This configuration enables
+``UINPUT_KEYBOARD``, which registers a virtual keyboard on
+``/dev/ukeyboard``, and ``system/kbd``, which injects into it.
+
+Point the terminal at the virtual keyboard and bridge the console into it::
+
+  nsh> lvglterm /dev/ukeyboard &
+  nsh> kbd -i /dev/ukeyboard
+
+Everything typed on the serial console from that point on appears on the
+display. This is how to work on the terminal without the keyboard at hand,
+and how to reach the board over a serial link from another machine.
+
+To use both at once, forward the USB keyboard into the same virtual
+keyboard before starting the terminal::
+
+  nsh> kbd -i /dev/ukeyboard /dev/kbda &
+  nsh> lvglterm /dev/ukeyboard &
+  nsh> kbd -i /dev/ukeyboard
+
+The USB keyboard and the serial console now feed the same terminal, which
+an application cannot do on its own since it opens a single device.
+
+``UINPUT_KEYBOARD_BUFNUMBER`` is raised to 128 here. It counts events
+rather than keys, so the default of eight holds four keystrokes, and a
+console hands over a whole line at once. The keyboard upper half overwrites
+the oldest event when the buffer is full, so a line typed at the console
+would arrive with its beginning silently missing.
+
+nxdoom
+------
+
+**Purpose:** runs ``NXDoom``, the NuttX port of Chocolate DOOM, on the board's
+LCD, played with a USB HID keyboard and reading the game data from the microSD
+card. It brings together the LTDC framebuffer, the OTG FS USB host and the
+SDMMC peripheral, and uses the external SDRAM for the game's zone memory.
+
+.. figure:: linum-stm32h753bi-nxdoom.jpg
+   :figwidth: 60%
+   :align: center
+   :alt: DOOM running on the LINUM-STM32H753BI LCD
+
+   DOOM running on the board's 1024x600 LCD
+
+DOOM renders to a 320x200 8-bit paletted buffer. This configuration stretches
+that over the whole 1024x600 panel (``CONFIG_GAMES_NXDOOM_FILLSCREEN``) and
+runs the LTDC layer in L8 (``CONFIG_STM32_LTDC_L1_L8`` with
+``CONFIG_GAMES_NXDOOM_FB_CMAP``), so the palette indices are written to the
+framebuffer unconverted and the display applies the palette from its colour
+map as it scans out. That keeps the conversion off the CPU and
+halves the amount of data written per frame.
+
+Two further options matter on this board, both because the framebuffer and the
+heap are in external SDRAM:  ``CONFIG_GAMES_NXDOOM_ROWSTAGE`` builds each row
+in internal RAM so the SDRAM only sees burst copies, and
+``CONFIG_GAMES_NXDOOM_STATIC_SCRNBUF`` keeps the buffer DOOM renders into out
+of the SDRAM altogether. Between them they are worth 2.7 times the frame rate.
+
+The game needs about 4 MiB of contiguous memory for its zone. That comes from
+the SDRAM region, which is 6 MiB when the LTDC is enabled (the last 2 MiB of
+the 8 MiB SDRAM is reserved for the framebuffer).
+
+**Requirements:**
+
+* A microSD card, formatted as FAT, holding a DOOM IWAD. The shareware
+  ``doom1.wad`` and ``freedoom1.wad`` both work, as do the commercial IWADs.
+* A USB HID keyboard on the OTG FS service connector.
+
+**Build and flash:**
+
+.. code-block:: console
+
+   $ ./tools/configure.sh linum-stm32h753bi:nxdoom
+   $ make -j
+
+Flash the resulting ``nuttx.bin`` to the board.
+
+**How to test:** copy the IWAD to the SD card, plug the card and the keyboard,
+reset the board and check that all three devices came up::
+
+  nsh> ls /dev
+  /dev:
+   console
+   fb0
+   kbda
+   mmcsd0
+   null
+   rtc0
+   ttyS0
+   zero
+
+Mount the card and start the game. ``nxdoom`` looks for the IWAD in the
+current directory, so either ``cd`` to the mount point first or point it at
+the file with ``-iwad``::
+
+  nsh> mount -t vfat /dev/mmcsd0 /mnt
+  nsh> nxdoom -iwad /mnt/doom1.wad
+                               NXDoom v0.0.0
+  z_init: Init zone memory allocation daemon.
+  zone memory: Using native C allocator.
+  Using /mnt/ for configuration and saves
+  v_init: allocate screens.
+  m_load_defaults: Load system defaults.
+  saving config in /mnt/default.cfg
+  W_Init: Init WADfiles.
+   adding /mnt/doom1.wad
+  =========================================================================
+                              DOOM Shareware
+  =========================================================================
+   NXDoom is free software, covered by the GNU General Public
+   License.  There is NO warranty; not even for MERCHANTABILITY or FITNESS
+   FOR A PARTICULAR PURPOSE. You are welcome to change and distribute
+   copies under certain conditions. See the source for more information.
+  =========================================================================
+  i_init: Setting up machine state.
+  m_init: Init miscellaneous info.
+  r_init: Init DOOM refresh daemon - [...................]
+  p_init: Init Playloop state.
+  d_check_net_game: Checking network game status.
+  startskill 2  deathmatch: 0  startmap: 1  startepisode: 1
+  player 1 of 1 (1 nodes)
+  Emulating the behavior of the 'Doom 1.9' executable.
+  hu_init: Setting up heads up display.
+  st_init: Init status bar.
+
+**Copying the IWAD with zmodem:** the configuration also enables the ``rz``
+and ``sz`` commands, so the IWAD can be copied over the serial console
+instead of moving the SD card to a card reader.
+``CONFIG_SYSTEM_ZMODEM_MOUNTPOINT`` is set to ``/mnt``, so a received file
+lands on the SD card::
+
+  nsh> mount -t vfat /dev/mmcsd0 /mnt
+  nsh> rz
+
+and, from the host, with the console closed in any terminal program::
+
+  $ sz -b --zmodem -w 1024 doom1.wad < /dev/ttyACM0 > /dev/ttyACM0
+
+Note that USART1 has no RTS/CTS on this board, so there is no hardware flow
+control to throttle the sender. ``CONFIG_USART1_RXBUFSIZE`` is raised to 4096
+to compensate, and the ``-w`` window above makes the host wait for
+acknowledgements. Even so this runs at roughly 10 KiB/s, so a 4 MiB IWAD takes
+about seven minutes; a card reader is much faster if one is available.
+
+The game runs on the LCD and is played from the USB keyboard: arrow keys to
+move, Ctrl to fire, Shift to run, Alt to strafe, Space to open doors and Esc
+for the menu. Configuration and saved games are written to ``/mnt``, so the
+card must be mounted read/write.
+
+.. note::
+   The game needs key *release* events, without which a movement key would
+   never stop being held down. A keyboard device reports them by default,
+   so nothing has to be enabled for it.
+
+   Do not turn on ``CONFIG_INPUT_KEYBOARD_BYTESTREAM`` for this
+   configuration. That makes the device deliver the codec byte stream
+   instead of events, and the byte stream encodes presses only: every
+   release is dropped, and the player would keep walking after the key is
+   let go.
+
+.. note::
+   ``CONFIG_HIDKBD_NOGETREPORT`` (and the ``CONFIG_USBHOST_ASYNCH`` it needs)
+   is required. By default the HID keyboard driver asks the keyboard for its
+   input report over the control pipe with GET_REPORT. Many keyboards accept
+   that request but always answer with an empty report, and only ever deliver
+   key data on their interrupt IN endpoint. The symptom is a keyboard that
+   enumerates as ``/dev/kbda`` and reports no error at all, while no key is
+   ever seen. With this option the driver reads the interrupt endpoint
+   instead.
+
+.. note::
+   ``CONFIG_FAT_FORCE_INDIRECT`` is required. Without it the FAT layer reads
+   whole sectors straight into the caller's buffer, and the SDMMC IDMA cannot
+   reach the caller's buffer when it lives in external SDRAM. DOOM reads its
+   lumps into ``malloc()``\ ed memory, and once the internal SRAM regions fill
+   up those allocations come from SDRAM, so the failure appears part way
+   through startup rather than immediately::
+
+     r_init: Init DOOM refresh daemon - [                   ]w_read_lump: only read 0 of 5192 on lump 1070
+
+   Forcing indirect transfers routes every read through the DMA-capable
+   sector buffer that ``CONFIG_FAT_DMAMEMORY`` allocates, at the cost of one
+   extra copy per sector.
 
 tone
 ----

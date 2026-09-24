@@ -30,12 +30,12 @@ define_property(
 
 # Create a directories for the application binaries `bin` for stripped binaries
 # `bin_debug` for debug binaries
-if(NOT EXISTS ${CMAKE_BINARY_DIR}/bin)
-  file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+if(NOT EXISTS ${NUTTX_BINARY_DIR}/bin)
+  file(MAKE_DIRECTORY ${NUTTX_BINARY_DIR}/bin)
 endif()
 
-if(NOT EXISTS ${CMAKE_BINARY_DIR}/bin_debug)
-  file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/bin_debug)
+if(NOT EXISTS ${NUTTX_BINARY_DIR}/bin_debug)
+  file(MAKE_DIRECTORY ${NUTTX_BINARY_DIR}/bin_debug)
 endif()
 
 # ~~~
@@ -111,6 +111,8 @@ function(nuttx_add_application)
     return()
   endif()
 
+  string(REPLACE "-" "_" NAME_SYM "${NAME}")
+
   # check if SRCS exist
   if(SRCS)
     file(GLOB SRCS_EXIST ${SRCS})
@@ -147,18 +149,41 @@ function(nuttx_add_application)
         if(NOT "${CMAKE_LD}" MATCHES "gcc$")
           set(USE_LINKER True)
         endif()
+        if(STACKSIZE)
+          set(SYMBOL_STACKSIZE $<$<NOT:$<BOOL:${USE_LINKER}>>:-Wl,>--defsym
+                               nx_stacksize=${STACKSIZE})
+        endif()
+        if(PRIORITY AND NOT PRIORITY STREQUAL "SCHED_PRIORITY_DEFAULT")
+          set(SYMBOL_PRIORITY $<$<NOT:$<BOOL:${USE_LINKER}>>:-Wl,>--defsym
+                              nx_priority=${PRIORITY})
+        endif()
+        if(CONFIG_SCHED_USER_IDENTITY)
+          if(UID)
+            set(SYMBOL_UID $<$<NOT:$<BOOL:${USE_LINKER}>>:-Wl,>--defsym
+                           nx_uid=${UID})
+          endif()
+          if(GID)
+            set(SYMBOL_GID $<$<NOT:$<BOOL:${USE_LINKER}>>:-Wl,>--defsym
+                           nx_gid=${GID})
+          endif()
+          if(MODE)
+            set(SYMBOL_MODE $<$<NOT:$<BOOL:${USE_LINKER}>>:-Wl,>--defsym
+                            nx_mode=${MODE})
+          endif()
+        endif()
         add_custom_command(
           TARGET ${TARGET}
           POST_BUILD
           COMMAND
             # add default link option
-            ${CMAKE_LD} -T ${CMAKE_BINARY_DIR}/gnu-elf.ld
+            ${CMAKE_LD} -T ${NUTTX_BINARY_DIR}/gnu-elf.ld
             # add global MOD link option if dynlib link
             $<$<BOOL:${DYNLIB_ELF_MODE}>:$<TARGET_PROPERTY:nuttx_global,NUTTX_MOD_APP_LINK_OPTIONS>>
             # add global ELF link option if m&kernel link
             $<$<OR:$<BOOL:${KERNEL_ELF_MODE}>,$<BOOL:${LOADABLE_ELF_MODE}>>:$<TARGET_PROPERTY:nuttx_global,NUTTX_ELF_APP_LINK_OPTIONS>>
             # add local link option last
-            ${LINK_FLAGS}
+            ${LINK_FLAGS} ${SYMBOL_STACKSIZE} ${SYMBOL_PRIORITY} ${SYMBOL_UID}
+            ${SYMBOL_GID} ${SYMBOL_MODE}
             # link startup obj if m&kernel link
             $<$<AND:$<TARGET_EXISTS:STARTUP_OBJS>,$<NOT:$<BOOL:${DYNLIB_ELF_MODE}>>>:$<TARGET_OBJECTS:STARTUP_OBJS>>
             $<$<NOT:$<BOOL:${USE_LINKER}>>:-Wl,>--start-group
@@ -170,11 +195,19 @@ function(nuttx_add_application)
             $<TARGET_FILE:${TARGET}>
             $<$<NOT:$<BOOL:${USE_LINKER}>>:-Wl,>--no-whole-archive
             $<$<NOT:$<BOOL:${USE_LINKER}>>:-Wl,>--end-group -o
-            ${CMAKE_BINARY_DIR}/bin_debug/${ELF_NAME}
+            ${NUTTX_BINARY_DIR}/bin_debug/${ELF_NAME}
           COMMAND
-            ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/bin_debug/${ELF_NAME}
-            ${CMAKE_BINARY_DIR}/bin/${ELF_NAME}
-          COMMAND ${CMAKE_STRIP} ${CMAKE_BINARY_DIR}/bin/${ELF_NAME}
+            ${CMAKE_COMMAND} -E copy ${NUTTX_BINARY_DIR}/bin_debug/${ELF_NAME}
+            ${NUTTX_BINARY_DIR}/bin/${ELF_NAME}
+            # keep the application attribute symbols through strip so the binary
+            # loader can still read them, see NX_KEEP in Application.mk
+          COMMAND
+            ${CMAKE_STRIP} -K nx_stacksize -K nx_priority -K nx_uid -K nx_gid -K
+            nx_mode ${NUTTX_BINARY_DIR}/bin/${ELF_NAME}
+            # match the Application.mk install rule: ld -r output is not marked
+            # executable, but filesystem images built from bin/ must carry the
+            # execute permission
+          COMMAND chmod +x ${NUTTX_BINARY_DIR}/bin/${ELF_NAME}
           COMMENT "Building ELF:${ELF_NAME}"
           COMMAND_EXPAND_LISTS)
       else()
@@ -231,7 +264,7 @@ function(nuttx_add_application)
         set_property(
           SOURCE ${MAIN_SRC}
           APPEND
-          PROPERTY COMPILE_DEFINITIONS main=${NAME}_main)
+          PROPERTY COMPILE_DEFINITIONS main=${NAME_SYM}_main)
       endif()
     endif()
 
@@ -249,7 +282,7 @@ function(nuttx_add_application)
 
   # store parameters into properties (used during builtin list generation)
 
-  set_target_properties(${TARGET} PROPERTIES APP_MAIN ${NAME}_main)
+  set_target_properties(${TARGET} PROPERTIES APP_MAIN ${NAME_SYM}_main)
   set_target_properties(${TARGET} PROPERTIES APP_NAME ${NAME})
 
   if(PRIORITY)

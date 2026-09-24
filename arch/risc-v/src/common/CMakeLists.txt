@@ -86,7 +86,7 @@ if(CONFIG_STACK_COLORATION)
   list(APPEND SRCS riscv_checkstack.c)
 endif()
 
-if(CONFIG_ARCH_HAVE_FORK)
+if(CONFIG_ARCH_HAVE_VFORK OR CONFIG_ARCH_HAVE_FORK)
   list(APPEND SRCS fork.S riscv_fork.c)
 endif()
 
@@ -140,3 +140,10 @@ if(CONFIG_ARCH_USE_S_MODE)
 endif()
 
 target_sources(arch PRIVATE ${SRCS})
+
+nuttx_add_aux_library(STARTUP_OBJS crt0.c)
+
+target_compile_options(
+  STARTUP_OBJS
+  PRIVATE
+    $<GENEX_EVAL:$<TARGET_PROPERTY:nuttx_global,NUTTX_ELF_APP_COMPILE_OPTIONS>>)

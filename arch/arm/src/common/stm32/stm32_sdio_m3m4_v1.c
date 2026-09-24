@@ -165,6 +165,8 @@
                                   SDIO_CLKCR_WIDBUS_D1)
 #define SDIO_CLKCR_MMCXFR        (SDIO_MMCXFR_CLKDIV | SDIO_CLKCR_EDGE | \
                                   SDIO_CLKCR_WIDBUS_D1)
+#define SDIO_CLKCR_MMCXFR4       (SDIO_MMCXFR_CLKDIV | SDIO_CLKCR_EDGE | \
+                                  SDIO_CLKCR_WIDBUS_D4)
 #define SDIO_CLCKR_SDXFR         (SDIO_SDXFR_CLKDIV | SDIO_CLKCR_EDGE | \
                                   SDIO_CLKCR_WIDBUS_D1)
 #define SDIO_CLCKR_SDWIDEXFR     (SDIO_SDXFR_CLKDIV | SDIO_CLKCR_EDGE | \
@@ -172,8 +174,8 @@
 
 /* Timing */
 
-#define SDIO_CMDTIMEOUT          (100000)
-#define SDIO_LONGTIMEOUT         (0x7fffffff)
+#define SDIO_CMDTIMEOUT_MS       (10)
+#define SDIO_LONGTIMEOUT_MS      (250)
 
 /* DTIMER setting */
 
@@ -1734,7 +1736,11 @@ static sdio_statset_t stm32_status(struct sdio_dev_s *dev)
 static void stm32_widebus(struct sdio_dev_s *dev, bool wide)
 {
   struct stm32_dev_s *priv = (struct stm32_dev_s *)dev;
+  uint32_t widbus = wide ? SDIO_CLKCR_WIDBUS_D4 : SDIO_CLKCR_WIDBUS_D1;
+
   priv->widebus = wide;
+
+  modifyreg32(STM32_SDIO_CLKCR, SDIO_CLKCR_WIDBUS_MASK, widbus);
 }
 
 /****************************************************************************
@@ -1775,6 +1781,12 @@ static void stm32_clock(struct sdio_dev_s *dev, enum sdio_clock_e rate)
 
       case CLOCK_MMC_TRANSFER:
         clckr = (SDIO_CLKCR_MMCXFR | SDIO_CLKCR_CLKEN);
+        break;
+
+      /* Enable in MMC wide (4-bit) operation clocking */
+
+      case CLOCK_MMC_TRANSFER_4BIT:
+        clckr = (SDIO_CLKCR_MMCXFR4 | SDIO_CLKCR_CLKEN);
         break;
 
       /* SD normal operation clocking (wide 4-bit mode) */
@@ -2143,14 +2155,15 @@ static int stm32_cancel(struct sdio_dev_s *dev)
 
 static int stm32_waitresponse(struct sdio_dev_s *dev, uint32_t cmd)
 {
-  int32_t timeout;
+  clock_t timeout;
+  clock_t start;
   uint32_t events;
 
   switch (cmd & MMCSD_RESPONSE_MASK)
     {
     case MMCSD_NO_RESPONSE:
       events  = SDIO_CMDDONE_STA;
-      timeout = SDIO_CMDTIMEOUT;
+      timeout = MSEC2TICK(SDIO_CMDTIMEOUT_MS);
       break;
 
     case MMCSD_R1_RESPONSE:
@@ -2160,13 +2173,13 @@ static int stm32_waitresponse(struct sdio_dev_s *dev, uint32_t cmd)
     case MMCSD_R5_RESPONSE:
     case MMCSD_R6_RESPONSE:
       events  = SDIO_RESPDONE_STA;
-      timeout = SDIO_LONGTIMEOUT;
+      timeout = MSEC2TICK(SDIO_LONGTIMEOUT_MS);
       break;
 
     case MMCSD_R3_RESPONSE:
     case MMCSD_R7_RESPONSE:
       events  = SDIO_RESPDONE_STA;
-      timeout = SDIO_CMDTIMEOUT;
+      timeout = MSEC2TICK(SDIO_CMDTIMEOUT_MS);
       break;
 
     default:
@@ -2175,9 +2188,11 @@ static int stm32_waitresponse(struct sdio_dev_s *dev, uint32_t cmd)
 
   /* Then wait for the response (or timeout) */
 
+  start = clock_systime_ticks();
+
   while ((getreg32(STM32_SDIO_STA) & events) == 0)
     {
-      if (--timeout <= 0)
+      if (clock_systime_ticks() - start > timeout)
         {
           mcerr("ERROR: Timeout cmd: %08" PRIx32 " events: %08" PRIx32
                 " STA: %08" PRIx32 "\n",

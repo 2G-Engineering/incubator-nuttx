@@ -26,6 +26,7 @@ ifeq ($(CONFIG_LIBDSP),y)
 CSRCS += lib_avg.c
 CSRCS += lib_pid.c
 CSRCS += lib_svm.c
+CSRCS += lib_matrix.c
 CSRCS += lib_transform.c
 CSRCS += lib_observer.c
 CSRCS += lib_foc.c
@@ -61,7 +62,7 @@ $(COBJS): %$(OBJEXT): %.c
 	$(call COMPILE, $<, $@)
 
 $(BIN): $(OBJS)
-	$(call ARCHIVE, $@, $(OBJS))
+	$(call ARCHIVE_REBUILD, $@, $(OBJS))
 
 makedepfile: $(CSRCS:.c=.ddc) $(ASRCS:.S=.dds)
 	$(call CATFILE, Make.dep, $^)

@@ -380,6 +380,10 @@ if(CONFIG_SENSORS)
       endif()
     endif()
 
+    if(CONFIG_SENSORS_LIS3DSH_UORB)
+      list(APPEND SRCS lis3dsh_uorb.c)
+    endif()
+
     if(CONFIG_LIS3DSH)
       list(APPEND SRCS lis3dsh.c)
     endif()
@@ -434,6 +438,10 @@ if(CONFIG_SENSORS)
 
   if(CONFIG_SENSORS_MPU60X0)
     list(APPEND SRCS mpu60x0.c)
+  endif()
+
+  if(CONFIG_SENSORS_MPU6050)
+    list(APPEND SRCS mpu6050_uorb.c)
   endif()
 
   if(CONFIG_SENSORS_MPU9250)

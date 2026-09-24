@@ -1,0 +1,286 @@
+name: MemBrowse Memory Report
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - "releases/*"
+
+permissions:
+  contents: read
+
+# Per-PR group so superseded PR pushes cancel; per-SHA on push so master
+# commits never share a group. A shared refs/heads/master group lets a burst
+# of pushes evict each other while pending (GitHub keeps only one pending run
+# per group), leaving a commit with no report and breaking the MemBrowse
+# parent chain for every commit that bases on it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Detect whether any source files (i.e. non-doc/CODEOWNERS) changed.
+  # When only docs/CODEOWNERS change we skip the build and post an "identical"
+  # MemBrowse report instead.
+  changes-filter:
+    runs-on: ubuntu-latest
+    outputs:
+      source: ${{ steps.filter.outputs.source }}
+    steps:
+      # Shallow checkout; the base commit needed for the diff is fetched
+      # explicitly below instead of cloning the repo's full history.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      # Detect whether any non-doc/CODEOWNERS source files changed.
+      # Implemented with plain git instead of a third-party paths-filter
+      # action, since Apache's GitHub Actions allowlist forbids actions that
+      # aren't GitHub-created or explicitly permitted.
+      - id: filter
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # On the very first push to a branch, github.event.before is all-zeros.
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "source=true" >> "$GITHUB_OUTPUT"
+            echo "No usable base SHA; treating as source change."
+            exit 0
+          fi
+          # Diff from the merge-base (fork point) so only this PR/push's own
+          # commits count. For pull_request events BASE_SHA is the current base
+          # branch tip, which drifts ahead of the fork point as the base branch
+          # advances; diffing from the merge-base isolates the PR's real changes
+          # (e.g. keeps a docs-only PR classified as docs-only).
+          #
+          # GitHub's compare API uses 3-dot semantics, so .merge_base_commit.sha
+          # is the fork point. gh is pre-installed on the runner.
+          MERGE_BASE=$(gh api \
+            "repos/$GITHUB_REPOSITORY/compare/$BASE_SHA...$HEAD_SHA" \
+            --jq '.merge_base_commit.sha' 2>/dev/null || true)
+          if [ -z "$MERGE_BASE" ]; then
+            # API unavailable/unexpected: fail safe toward building.
+            echo "source=true" >> "$GITHUB_OUTPUT"
+            echo "Could not resolve merge-base via API; treating as source change."
+            exit 0
+          fi
+          echo "Merge-base: $MERGE_BASE"
+          # The shallow checkout has HEAD but may lack the merge-base commit;
+          # fetch just that one commit so the local diff can read its tree.
+          git cat-file -e "$MERGE_BASE^{commit}" 2>/dev/null \
+            || git fetch --depth=1 origin "$MERGE_BASE" 2>/dev/null || true
+          # MERGE_BASE is an ancestor of HEAD, so this diff yields the PR/push's
+          # own changes.
+          if ! changed=$(git diff --name-only "$MERGE_BASE" "$HEAD_SHA" 2>/dev/null); then
+            echo "source=true" >> "$GITHUB_OUTPUT"
+            echo "git diff against merge-base failed; treating as source change."
+            exit 0
+          fi
+          echo "Changed files:"
+          echo "$changed"
+          # Drop paths that should NOT count as source changes; if anything
+          # survives, real source changed.
+          source=$(echo "$changed" | grep -vE \
+            -e '^AUTHORS$' \
+            -e '^CONTRIBUTING\.md$' \
+            -e '(^|/)CODEOWNERS$' \
+            -e '^Documentation/' \
+            -e '^tools/ci/docker/linux/' \
+            -e '^tools/codeowners/[^/]+$' \
+            || true)
+          if [ -n "$source" ]; then
+            echo "source=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "source=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  load-targets:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: set-matrix
+        run: echo "matrix=$(jq -c '.' .github/membrowse-targets.json)" >> $GITHUB_OUTPUT
+
+  # Post an "identical" MemBrowse report when only docs/CODEOWNERS changed.
+  # Only runs on push events (master/releases/tags) to keep the baseline
+  # complete; PR events don't produce identical markers.
+  identical:
+    needs: [changes-filter, load-targets]
+    if: needs.changes-filter.outputs.source == 'false' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.load-targets.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Install membrowse
+        run: pip install --no-cache-dir membrowse
+      - name: Upload identical - ${{ matrix.target_name }}
+        env:
+          MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
+          MEMBROWSE_API_URL: ${{ vars.MEMBROWSE_API_URL }}
+          TARGET_NAME: ${{ matrix.target_name }}
+          # Base on the previous branch tip, not the (often unreported mid-PR)
+          # git parent.
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          ARGS=(--upload --github
+                --target-name "$TARGET_NAME"
+                --api-key "$MEMBROWSE_API_KEY"
+                --identical)
+          if [ -n "$MEMBROWSE_API_URL" ]; then
+            ARGS+=(--api-url "$MEMBROWSE_API_URL")
+          fi
+          # Override parent with previous tip; skip on branch creation (0s).
+          if [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            ARGS+=(--base-sha "$BEFORE_SHA")
+          fi
+          membrowse report "${ARGS[@]}"
+
+  # Build target with debug symbols + linker map, then upload MemBrowse report.
+  # Uses the NuttX CI Docker image so toolchains, kconfig-frontends, etc. are
+  # already installed.
+  analyze:
+    needs: [changes-filter, load-targets]
+    if: needs.changes-filter.outputs.source == 'true'
+    runs-on: ubuntu-latest
+    env:
+      DOCKER_BUILDKIT: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.load-targets.outputs.matrix) }}
+    steps:
+      - name: Checkout nuttx repo
+        uses: actions/checkout@v7
+        with:
+          path: sources/nuttx
+          fetch-depth: 2
+
+      - name: Checkout nuttx-apps repo
+        uses: actions/checkout@v7
+        with:
+          repository: apache/nuttx-apps
+          path: sources/apps
+          fetch-depth: 1
+
+      # Free space before pulling the large NuttX CI image; ubuntu-latest ships
+      # only ~14 GB free on / and the image otherwise fails to unpack with
+      # "no space left on device". Mirrors the cleanup in .github/workflows/build.yml.
+      - name: Show Disk Space
+        run: df -h
+
+      - name: Free Disk Space (Ubuntu)
+        run: |
+          sudo rm -rf /usr/local/lib/android
+
+      - name: After CLEAN-UP Disk Space
+        run: df -h
+
+      - name: Docker Login
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker Pull
+        run: docker pull ghcr.io/apache/nuttx/apache-nuttx-ci-linux
+
+      - name: Build ${{ matrix.target_name }}
+        uses: ./sources/nuttx/.github/actions/ci-container
+        with:
+          run: |
+            git config --global --add safe.directory /github/workspace/sources/nuttx
+            git config --global --add safe.directory /github/workspace/sources/apps
+            cd /github/workspace/sources/nuttx
+            ./tools/configure.sh -l ${{ matrix.board_config }}
+            echo CONFIG_DEBUG_SYMBOLS=y >> .config
+            echo CONFIG_DEBUG_LINK_MAP=y >> .config
+            if [ -n "${{ matrix.config_overrides }}" ]; then
+              kconfig-tweak ${{ matrix.config_overrides }}
+            fi
+            make olddefconfig
+            # Preserve preprocessed linker scripts (.ld.tmp) so MemBrowse can
+            # read them. Arch Makefiles delete these immediately after linking.
+            find arch -name Makefile -exec sed -i '/DELFILE, $(addsuffix .tmp,$(ARCHSCRIPT))/d' {} +
+            make -j$(nproc)
+
+      # MemBrowse action runs from $GITHUB_WORKSPACE and discovers git via CWD,
+      # but nuttx is checked out to sources/nuttx/ (so apps can sit beside it).
+      # Expose the repo's .git at the workspace root so git metadata resolves.
+      - name: Expose nuttx .git to workspace root
+        run: ln -sfn sources/nuttx/.git .git
+
+      - name: Prefix linker script paths
+        id: ld
+        run: |
+          prefixed=""
+          for p in ${{ matrix.ld }}; do
+            prefixed="$prefixed sources/nuttx/$p"
+          done
+          paths=$(echo $prefixed | xargs)
+          echo "paths=$paths" >> "$GITHUB_OUTPUT"
+          echo "Resolved ld paths: [$paths]"
+          for p in $paths; do
+            if [ -e "$p" ]; then
+              echo "  OK   $p ($(stat -c '%s bytes, owner=%U:%G' "$p" 2>/dev/null))"
+            else
+              echo "  MISS $p"
+              echo "  ls dir:"
+              ls -la "$(dirname "$p")" 2>&1 | head -30
+            fi
+          done
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Install membrowse
+        run: pip install --no-cache-dir membrowse
+      - name: MemBrowse analysis - ${{ matrix.target_name }}
+        env:
+          MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
+          MEMBROWSE_API_URL: ${{ vars.MEMBROWSE_API_URL }}
+          TARGET_NAME: ${{ matrix.target_name }}
+          ELF: sources/nuttx/${{ matrix.elf }}
+          LD_PATHS: ${{ steps.ld.outputs.paths }}
+          MAP_FILE: ${{ matrix.map_file != '' && format('sources/nuttx/{0}', matrix.map_file) || '' }}
+          LINKER_VARS: ${{ matrix.linker_vars }}
+          # Push only: base on the previous branch tip, not the (often
+          # unreported mid-PR) git parent. Empty on PRs (--github bases on the
+          # PR target tip).
+          BEFORE_SHA: ${{ github.event_name == 'push' && github.event.before || '' }}
+        run: |
+          set -o pipefail
+          ARGS=("$ELF" "$LD_PATHS"
+                --upload --github
+                --target-name "$TARGET_NAME"
+                --api-key "$MEMBROWSE_API_KEY")
+          if [ -n "$MEMBROWSE_API_URL" ]; then
+            ARGS+=(--api-url "$MEMBROWSE_API_URL")
+          fi
+          # Override parent with previous tip; skip on branch creation (0s).
+          if [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            ARGS+=(--base-sha "$BEFORE_SHA")
+          fi
+          if [ -n "$MAP_FILE" ]; then
+            ARGS+=(--map-file "$MAP_FILE")
+          fi
+          if [ -n "$LINKER_VARS" ]; then
+            set -f
+            for var in $LINKER_VARS; do
+              ARGS+=(--def "$var")
+            done
+            set +f
+          fi
+          membrowse --verbose INFO report "${ARGS[@]}"

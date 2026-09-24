@@ -82,7 +82,7 @@ if(CONFIG_SCHED_BACKTRACE)
   list(APPEND SRCS sim_backtrace.c)
 endif()
 
-if(CONFIG_ARCH_HAVE_FORK)
+if(CONFIG_ARCH_HAVE_VFORK OR CONFIG_ARCH_HAVE_FORK)
   list(APPEND SRCS sim_fork.c)
 endif()
 
@@ -137,6 +137,9 @@ if(CONFIG_SIM_SOUND_ALSA)
   list(APPEND SRCS posix/sim_alsa.c)
   list(APPEND SRCS sim_offload.c)
   list(APPEND STDLIBS asound)
+  target_include_directories(
+    arch PRIVATE ${NUTTX_APPS_DIR}/audioutils/lame/lame/include
+                 ${NUTTX_APPS_DIR}/audioutils/libmad/libmad)
 endif()
 
 # host sources ###############################################################
@@ -216,6 +219,9 @@ if(CONFIG_SIM_X11FB)
 
   if(CONFIG_SIM_TOUCHSCREEN)
     list(APPEND SRCS sim_touchscreen.c)
+    list(APPEND HOSTSRCS sim_x11eventloop.c)
+  elseif(CONFIG_SIM_MOUSE)
+    list(APPEND SRCS sim_mouse.c)
     list(APPEND HOSTSRCS sim_x11eventloop.c)
   elseif(CONFIG_SIM_AJOYSTICK)
     list(APPEND SRCS sim_ajoystick.c)
@@ -309,7 +315,7 @@ list(APPEND HOSTSRCS sim_errno.c)
 
 configure_file(${NUTTX_DIR}/include/nuttx/fs/hostfs.h
                ${CMAKE_CURRENT_BINARY_DIR}/hostfs.h COPYONLY)
-configure_file(${CMAKE_BINARY_DIR}/include/nuttx/config.h
+configure_file(${NUTTX_BINARY_DIR}/include/nuttx/config.h
                ${CMAKE_CURRENT_BINARY_DIR}/config.h COPYONLY)
 target_include_directories(nuttx PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 

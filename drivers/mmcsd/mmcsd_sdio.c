@@ -1024,9 +1024,9 @@ static void mmcsd_decode_cid(FAR struct mmcsd_state_s *priv, uint32_t cid[4])
   decoded.mdt    = (cid[3] >> 8) & 0xff;
   decoded.crc    = (cid[3] >> 1) & 0x7f;
 
-  finfo("mid: %02x cbx: %01x oid: %01x pnm: %s prv: %d psn: %08x mdt: %02x\
-         crc: %02x\n", decoded.mid, decoded.cbx, decoded.oid, decoded.pnm,
-         decoded.prv, (unsigned long)decoded.psn, decoded.mdt, decoded.crc);
+  finfo("mid: %02x cbx: %01x oid: %01x pnm: %s prv: %d psn: %08" PRIx32
+        " mdt: %02x crc: %02x\n", decoded.mid, decoded.cbx, decoded.oid,
+        decoded.pnm, decoded.prv, decoded.psn, decoded.mdt, decoded.crc);
 }
 #endif
 
@@ -2591,7 +2591,7 @@ static int mmcsd_geometry(FAR struct inode *inode, struct geometry *geometry)
           finfo("available: true mediachanged: %s writeenabled: %s\n",
                  geometry->geo_mediachanged ? "true" : "false",
                  geometry->geo_writeenabled ? "true" : "false");
-          finfo("nsectors: %" PRIuOFF " sectorsize: %" PRIi16 "\n",
+          finfo("nsectors: %" PRIuOFF " sectorsize: %" PRId32 "\n",
                  geometry->geo_nsectors,
                  geometry->geo_sectorsize);
 
@@ -2848,7 +2848,16 @@ static int mmcsd_widebus(FAR struct mmcsd_state_s *priv)
     {
       /* Configuring MMC - Use MMC_SWITCH access modes.
        * Select 8-bit if host supports it, otherwise 4-bit.
+       *
+       * Switch the host to wide bus operation before issuing the
+       * SWITCH command: on hosts that program the bus width in the
+       * widebus callback, switching the card first leaves the switch
+       * unfinished and all following transfers fail.
        */
+
+      SDIO_WIDEBUS(priv->dev, true);
+      priv->widebus = true;
+      MMCSD_USLEEP(MMCSD_CLK_DELAY);
 
       if (priv->caps & SDIO_CAPS_8BIT)
         {
@@ -2936,7 +2945,13 @@ static int mmcsd_widebus(FAR struct mmcsd_state_s *priv)
           priv->mode = EXT_CSD_HS_TIMING_HS;
         }
 
-      SDIO_CLOCK(priv->dev, CLOCK_MMC_TRANSFER);
+      /* Select the MMC transfer clocking according to the negotiated
+       * bus width, mirroring the SD card path above, so that a later
+       * clock selection cannot revert the host to 1-bit operation.
+       */
+
+      SDIO_CLOCK(priv->dev, priv->widebus ? CLOCK_MMC_TRANSFER_4BIT :
+                                            CLOCK_MMC_TRANSFER);
     }
 #endif /* #ifdef CONFIG_MMCSD_MMCSUPPORT */
 
@@ -3170,6 +3185,15 @@ static int mmcsd_mmcinitialize(FAR struct mmcsd_state_s *priv)
     }
 
   mmcsd_decode_csd(priv, priv->csd);
+
+  /* Select high speed MMC clocking (which may depend on the DSR setting)
+   * before switching the bus width: on hosts that program the bus width
+   * in the clock callback, the transfer clock must already be in place
+   * before the switch sequence starts.
+   */
+
+  SDIO_CLOCK(priv->dev, CLOCK_MMC_TRANSFER);
+  MMCSD_USLEEP(MMCSD_CLK_DELAY);
 
   /* It's up to the driver to act on the widebus request.  mmcsd_widebus()
    * enables the CLOCK_MMC_TRANSFER, so call it here always.
@@ -4407,7 +4431,7 @@ static int mmcsd_probe(FAR struct mmcsd_state_s *priv)
                 {
                   snprintf(devname, sizeof(devname), "/dev/mmcsd%d%s",
                            priv->minor, g_partname[i]);
-                  register_blockdriver(devname, &g_bops, 0666,
+                  register_blockdriver(devname, &g_bops, 0600,
                                        &priv->part[i]);
                 }
             }

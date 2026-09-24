@@ -170,14 +170,18 @@ static int pwd_foreach(pwd_foreach_match_t match, uintptr_t arg,
    *
    * The format of the password file is:
    *
-   *   user:x:uid:uid:geos:home
+   *   user:x:uid:gid:home
+   *
+   * Or the standard six-field form with an optional gecos field:
+   *
+   *   user:x:uid:gid:gecos:home
    *
    * Where:
    *   user:  User name
    *   x:     Encrypted password
    *   uid:   User ID
-   *   uid:   Group ID
-   *   geos:  User information
+   *   gid:   Group ID
+   *   gecos: User information (optional)
    *   home:  Login directory
    */
 
@@ -259,25 +263,44 @@ static int pwd_foreach(pwd_foreach_match_t match, uintptr_t arg,
       entry->pw_gid = (gid_t)atoi(save);
       save          = ptr;
 
-      /* Skip to the end of the user information and properly terminate it.
-       * The user information must be terminated with the field delimiter
-       * ':'.
+      /* NuttX passwd files use user:hash:uid:gid:home.  Standard passwd
+       * files may include an optional gecos field:
+       * user:hash:uid:gid:gecos:home
        */
 
-      for (; *ptr != '\n' && *ptr != '\0' && *ptr != ':'; ptr++)
+      if (*ptr == ':')
         {
-        }
+          /* Skip to the end of the user information and properly terminate
+           * it.  The user information must be terminated with the field
+           * delimiter ':'.
+           */
 
-      if (*ptr == '\n' || *ptr == '\0')
+          for (; *ptr != '\n' && *ptr != '\0' && *ptr != ':'; ptr++)
+            {
+            }
+
+          if (*ptr == '\n' || *ptr == '\0')
+            {
+              /* Bad line format? */
+
+              continue;
+            }
+
+          *ptr++          = '\0';
+          entry->pw_gecos = save;
+          entry->pw_dir   = ptr;
+        }
+      else if (*save != '\0' && *save != '\n')
+        {
+          entry->pw_gecos = "";
+          entry->pw_dir   = save;
+        }
+      else
         {
           /* Bad line format? */
 
           continue;
         }
-
-      *ptr++          = '\0';
-      entry->pw_gecos = save;
-      entry->pw_dir   = ptr;
 
       /* Skip to the end of the home directory and properly terminate it.
        * The home directory must be the last thing on the line.
@@ -359,16 +382,6 @@ int pwd_findby_name(FAR const char *uname, FAR struct passwd *entry,
 int pwd_findby_uid(uid_t uid, FAR struct passwd *entry, FAR char *buffer,
                    size_t buflen)
 {
-  /* Verify that the UID is in the valid range of 0 through INT16_MAX.
-   * OpenGroup.org does not specify a UID_MAX or UID_MIN.  Instead we use a
-   * priori knowledge that uid_t is type int16_t.
-   */
-
-  if ((uint16_t)uid > INT16_MAX)
-    {
-      return -EINVAL;
-    }
-
   return pwd_foreach(pwd_match_uid, (uintptr_t)uid, entry, buffer, buflen);
 }
 
