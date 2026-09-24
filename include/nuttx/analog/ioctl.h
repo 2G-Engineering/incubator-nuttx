@@ -151,9 +151,14 @@
 #define AN_ADS7046_FIRST  (AN_MCP47X6_FIRST + AN_MCP47X6_NCMDS)
 #define AN_ADS7046_NCMDS  3
 
+/* See include/nuttx/analog/ads111x.h */
+
+#define AN_ADS111X_FIRST  (AN_ADS7046_FIRST + AN_ADS7046_NCMDS)
+#define AN_ADS111X_NCMDS  3
+
 /* See include/nuttx/analog/pot.h */
 
-#define AN_POT_FIRST      (AN_ADS7046_FIRST + AN_ADS7046_NCMDS)
+#define AN_POT_FIRST      (AN_ADS111X_FIRST + AN_ADS111X_NCMDS)
 #define AN_POT_NCMDS      16
 
 /* See include/nuttx/analog/mcp445x.h */
