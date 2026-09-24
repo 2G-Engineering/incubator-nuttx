@@ -17,9 +17,9 @@ Supported MCUs
 ===========  ======= ================
 MCU          Support Note
 ===========  ======= ================
-STM32H503     No
+STM32H503     Yes
 STM32H523     No
-STM32H533     No
+STM32H533     Yes
 STM32H562     No
 STM32H563     Yes
 STM32H573     No
@@ -54,21 +54,21 @@ USB_FS      Yes      USB Device and Host Support.
 AES         No
 CEC         No
 CORDIC      No
-CRC         No
+CRC         Yes
 CRS         No
 DAC         No
 DBG         No
 DCACHE      No
 DCMI        No
 DLYB        No
-EXTI        No
+EXTI        Yes
 FMAC        No
 FSMC        No
 GTZC        No
 HASH        No
 I3C         No
-IWDG        No
-LPTIM       No
+IWDG        Yes
+LPTIM       Yes
 OTFDEC      No
 PKA         No
 PSSI        No
@@ -82,7 +82,8 @@ SAI         No
 TAMP        No
 UCPD        No
 VREFBUF     No
-WWDG        No
+WWDG        Yes
+OTP         Yes
 
 ==========  =======  =====
 
@@ -105,6 +106,54 @@ Options:
 - STM32H5_USBDRD_NCHANNELS - Number of host channels. Default 8
 
 - STM32H5_USBDRD_DESCSIZE - Maximum size of a descriptor.  Default: 128
+
+OTP
+---
+
+STM32H5 parts have a 2 KiB one-time programmable (OTP) area. It's organized
+into 32 blocks of 32 16-bit words. Each word can be successfully programmed once.
+Each block may be permanently locked at any point. Written words may be read.
+
+Writing the same word more than once is unsupported. Doing so may cause corruption.
+Reading an unwritten word raises an exception.
+To simplify the programming model, the OTP API
+locks blocks after any part is written. The user may check which blocks are locked.
+Blocks are tagged as "written" using this lock status
+without the need for out-of-band metadata. Some of the words within a locked
+block may be left unwritten, so the exception may still be raised if an unwritten word
+within a locked block is read.
+
+.. code:: c
+
+   int stm32_otp_write(const uint16_t *data, uint16_t len, uint32_t offset);
+   int stm32_otp_read(uint16_t *data, uint16_t len, uint32_t offset);
+   uint32_t stm32_otp_getlockstatus(void);
+
+The API allows cross-block reads/writes that don't necessarily start/end at block boundaries.
+Any block affected by ``stm32_otp_write`` will be locked. The user should be aware
+of the block size and count when partitioning the OTP area for their needs.
+``len`` is the number of bytes - not words. It has no alignment requirement. ``offset`` is
+the offset in bytes. It must be a multiple of 4.
+
+Clocks
+------
+
+``STM32_BOARD_HSIKERON_ENABLE`` can be defined in board.h to keep HSI running in
+STOP mode. This can be used to keep a peripheral clocked by HSI running in
+STOP mode.
+
+``STM32_RCC_CCIPR1_U[S]ARTxSEL`` (e.g. ``STM32_RCC_CCIPR1_USART3SEL``) can be defined as one of
+
+- ``RCC_CCIPR1_U[S]ARTxSEL_RCCPCLK1``
+- ``RCC_CCIPR1_U[S]ARTxSEL_PLL2QCK``
+- ``RCC_CCIPR1_U[S]ARTxSEL_PLL3QCK``
+- ``RCC_CCIPR1_U[S]ARTxSEL_HSIKERCK``
+- ``RCC_CCIPR1_U[S]ARTxSEL_CSIKERCK``
+- ``RCC_CCIPR1_U[S]ARTxSEL_LSECK``
+
+E.g. ``RCC_CCIPR1_USART3SEL_HSIKERCK`` in board.h to select the clock source for that USART.
+The clock source is set in RCC initialization. Only stm32_serial.c is aware of this setting.
+TODO: Make stm32_lowputc.c aware of this clock source setting too.
 
 References
 =================

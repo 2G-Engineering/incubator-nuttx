@@ -62,6 +62,26 @@ if(CONFIG_AMEBA_SPI)
   list(APPEND SRCS ${AMEBA_COMMON}/ameba_spi.c)
 endif()
 
+if(CONFIG_AMEBA_PWM)
+  list(APPEND SRCS ${AMEBA_COMMON}/ameba_pwm.c)
+endif()
+
+if(CONFIG_AMEBA_ADC)
+  list(APPEND SRCS ${AMEBA_COMMON}/ameba_adc.c)
+endif()
+
+if(CONFIG_AMEBA_RTC)
+  list(APPEND SRCS ${AMEBA_COMMON}/ameba_rtc.c)
+endif()
+
+if(CONFIG_AMEBA_WDG)
+  list(APPEND SRCS ${AMEBA_COMMON}/ameba_wdg.c)
+endif()
+
+if(CONFIG_AMEBA_TIMER)
+  list(APPEND SRCS ${AMEBA_COMMON}/ameba_timer.c)
+endif()
+
 target_include_directories(arch PRIVATE ${AMEBA_COMMON})
 target_sources(arch PRIVATE ${SRCS})
 
@@ -77,6 +97,20 @@ set(AMEBA_KM_PROJ project_km4tz)
 set(AMEBA_NP_TARGET km4ns)
 set(AMEBA_CFG_WIFI ${CONFIG_RTL8721F_WIFI})
 set(AMEBA_CFG_FLASHFS ${CONFIG_RTL8721F_FLASH_FS})
+
+# rtl8721f's combined image2 linker script must append four ROM symbol scripts
+# (secure + wifi + os + NS), in this order, to match
+# arch/arm/src/rtl8721f/ameba_board.mk.  ameba_board.cmake consumes this; the
+# other ICs leave it unset and default to the single script.
+set(AMEBA_ROM_LDS ameba_rom_symbol_bcut_s.ld ameba_rom_symbol_bcut_wifi.ld
+                  ameba_rom_symbol_bcut_os.ld ameba_rom_symbol_bcut.ld)
+
+# The SDK ships no bare RTL8721F.rdev flash profile (unlike RTL8721Dx /
+# RTL8720F); it splits by flash type into RTL8721F_NOR.rdev /
+# RTL8721F_NAND.rdev.  The EVB is NOR, so override the default (AMEBA_PY_SOC =
+# RTL8721F) accordingly -- matching
+# boards/arm/rtl8721f/rtl8721f_evb/scripts/Make.defs.
+set(AMEBA_FLASH_PROFILE RTL8721F_NOR)
 
 # Resolve AMEBA_SDK / asdk toolchain (provisioned by `. tools/ameba/env.sh`)
 # before the SDK-relative source lists below reference it.
@@ -130,6 +164,30 @@ endif()
 # (--gc-sections drops the unused DMA/interrupt helpers).
 if(CONFIG_AMEBA_SPI)
   list(APPEND AMEBA_FWLIB_SRCS ${AMEBA_SOC}/fwlib/ram_common/ameba_spi.c)
+endif()
+
+# PWM timer register layer.  The time-base entry points (RTIM_TimeBaseInit/
+# StructInit/Cmd) are in ROM, but the compare/period helpers the PWM driver
+# (arch/.../common/ameba/ameba_pwm.c) calls -- RTIM_CCStructInit/CCxInit/
+# CCRxSet/CCxCmd/ChangePeriod/PrescalerConfig -- are compiled from this RAM
+# source and linked in (--gc-sections drops the unused input-capture paths).
+if(CONFIG_AMEBA_PWM)
+  list(APPEND AMEBA_FWLIB_SRCS ${AMEBA_SOC}/fwlib/ram_common/ameba_tim.c)
+endif()
+
+# ADC (SAR) register layer.  The ADC driver (arch/.../common/ameba/ameba_adc.c)
+# calls the fwlib ADC API; the data tables and helpers it indexes live in this
+# RAM source and must be compiled in (--gc-sections drops the unused
+# interrupt/timer-trigger helpers).
+if(CONFIG_AMEBA_ADC)
+  list(APPEND AMEBA_FWLIB_SRCS ${AMEBA_SOC}/fwlib/ram_common/ameba_adc.c)
+endif()
+
+# RTC register layer.  The RTC driver (arch/.../common/ameba/ameba_rtc.c) calls
+# the fwlib RTC API; the data tables and helpers it indexes live in this RAM
+# source and must be compiled in (mirrors the make build's ameba_board.mk).
+if(CONFIG_AMEBA_RTC)
+  list(APPEND AMEBA_FWLIB_SRCS ${AMEBA_SOC}/fwlib/ram_common/ameba_rtc.c)
 endif()
 
 # Silence a couple of warnings the vendored SDK sources trip under NuttX's

@@ -223,6 +223,22 @@
 #define SO_TIMESTAMPNS  20 /* Generates a timestamp in ns for each incoming packet
                             * arg: integer value
                             */
+#define SO_TIMESTAMPING 21 /* Generates timestamp for each output packet
+                            */
+
+/* Protocol-level socket options may begin with this value */
+
+#define __SO_PROTOCOL   16
+
+/* Timestamp generation */
+
+#define SOF_TIMESTAMPING_TX_HARDWARE  (1 << SO_TIMESTAMPING)
+#define SOF_TIMESTAMPING_TX_SOFTWARE  SOF_TIMESTAMPING_TX_HARDWARE
+
+/* Timestamp reporting */
+
+#define SOF_TIMESTAMPING_SOFTWARE     SOF_TIMESTAMPING_TX_SOFTWARE
+#define SOF_TIMESTAMPING_RAW_HARDWARE SOF_TIMESTAMPING_TX_HARDWARE
 
 /* The options are unsupported but included for compatibility
  * and portability
@@ -258,10 +274,6 @@
 #define SOL_CAN_RAW     9 /* See options in include/netpacket/can.h */
 
 #define SOL_PACKET      19
-
-/* Protocol-level socket options may begin with this value */
-
-#define __SO_PROTOCOL  16
 
 /* Values for the 'how' argument of shutdown() */
 
@@ -307,10 +319,12 @@
 
 /* "Socket"-level control message types: */
 
-#define SCM_RIGHTS      0x01    /* rw: access rights (array of int) */
-#define SCM_CREDENTIALS 0x02    /* rw: struct ucred */
-#define SCM_SECURITY    0x03    /* rw: security label */
-#define SCM_TIMESTAMP   SO_TIMESTAMP
+#define SCM_RIGHTS       0x01    /* rw: access rights (array of int) */
+#define SCM_CREDENTIALS  0x02    /* rw: struct ucred */
+#define SCM_SECURITY     0x03    /* rw: security label */
+#define SCM_TIMESTAMP    SO_TIMESTAMP
+#define SCM_TIMESTAMPNS  SO_TIMESTAMPNS
+#define SCM_TIMESTAMPING SO_TIMESTAMPING
 
 /* Desired design of maximum size and alignment (see RFC2553) */
 

@@ -35,6 +35,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/cache.h>
 #include <nuttx/elf.h>
+#include <nuttx/symtab.h>
 #include <nuttx/lib/elf.h>
 
 #include "libc.h"
@@ -55,6 +56,25 @@
 #else
 #  define ARCH_ELFDATA_DEF
 #  define ARCH_ELFDATA_PARM NULL
+#endif
+
+/* Move loader state in and out of the arch_data block, and say which
+ * relocation table is being walked.  Nothing for an architecture whose
+ * relocations do not need any of it.
+ */
+
+#if defined(ARCH_ELFDATA) && defined(ARCH_ELFDATA_SET_PLTREL)
+#  define ARCH_ELFDATA_PLTREL(v) ARCH_ELFDATA_SET_PLTREL(&arch_data, v)
+#else
+#  define ARCH_ELFDATA_PLTREL(v)
+#endif
+
+#if defined(ARCH_ELFDATA) && defined(ARCH_ELFDATA_INIT)
+#  define ARCH_ELFDATA_SETUP(l)    ARCH_ELFDATA_INIT(&arch_data, l)
+#  define ARCH_ELFDATA_TEARDOWN(l) ARCH_ELFDATA_FINI(&arch_data, l)
+#else
+#  define ARCH_ELFDATA_SETUP(l)
+#  define ARCH_ELFDATA_TEARDOWN(l)
 #endif
 
 /****************************************************************************
@@ -336,7 +356,7 @@ static int libelf_relocate(FAR struct module_s *modp,
 
       /* Calculate the relocation address. */
 
-      if (loadinfo->gotindex >= 0)
+      if (loadinfo->gotsize != 0)
         {
           if (sym->st_shndx == SHN_UNDEF)
             {
@@ -344,8 +364,7 @@ static int libelf_relocate(FAR struct module_s *modp,
                * to the value of the symbol.
                */
 
-              FAR Elf_Shdr *gotsec = &loadinfo->shdr[loadinfo->gotindex];
-              FAR uintptr_t *gotaddr = (FAR uintptr_t *)(gotsec->sh_addr +
+              FAR uintptr_t *gotaddr = (FAR uintptr_t *)(loadinfo->gotbase +
                 *((FAR uintptr_t *)(dstsec->sh_addr + rel->r_offset)));
 
               *gotaddr = sym->st_value;
@@ -637,7 +656,9 @@ static int libelf_relocateadd(FAR struct module_s *modp,
 
 static int libelf_relocatedyn(FAR struct module_s *modp,
                               FAR struct mod_loadinfo_s *loadinfo,
-                              int relidx)
+                              int relidx,
+                              FAR const struct symtab_s *exports,
+                              int nexports)
 {
   FAR Elf_Shdr *shdr = &loadinfo->shdr[relidx];
   FAR Elf_Shdr *symhdr;
@@ -712,11 +733,61 @@ static int libelf_relocatedyn(FAR struct module_s *modp,
           case DT_PLTRELSZ:
             reldata.relsz[I_PLT] = dyn[i].d_un.d_val;
             break;
+          case DT_PLTGOT:
+
+            /* The object's data base.  Every function descriptor built
+             * for it names this base.
+             */
+
+            loadinfo->gotbase = libelf_addr(loadinfo,
+                                            dyn[i].d_un.d_ptr);
+            break;
+
+          /* The constructor and destructor tables.  Section headers are
+           * optional, so the dynamic tags are the authoritative copy.
+           */
+
+          case DT_INIT_ARRAY:
+            loadinfo->initarr = libelf_addr(loadinfo, dyn[i].d_un.d_ptr);
+            break;
+
+          case DT_INIT_ARRAYSZ:
+            loadinfo->ninit = dyn[i].d_un.d_val / sizeof(uintptr_t);
+            break;
+
+          case DT_FINI_ARRAY:
+            loadinfo->finiarr = libelf_addr(loadinfo, dyn[i].d_un.d_ptr);
+            break;
+
+          case DT_FINI_ARRAYSZ:
+            loadinfo->nfini = dyn[i].d_un.d_val / sizeof(uintptr_t);
+            break;
+
+          case DT_PREINIT_ARRAY:
+            loadinfo->preiarr = libelf_addr(loadinfo, dyn[i].d_un.d_ptr);
+            break;
+
+          case DT_PREINIT_ARRAYSZ:
+            loadinfo->nprei = dyn[i].d_un.d_val / sizeof(uintptr_t);
+            break;
+
           case DT_PLTREL:
             if (dyn[i].d_un.d_val == DT_REL)
               {
                 reldata.relentsz[I_PLT] = sizeof(Elf_Rel);
                 reldata.relrela[I_PLT] = 0;
+              }
+            else if (loadinfo->fdpic)
+              {
+                /* The ARM FDPIC ABI is REL throughout.  RELA entries are
+                 * longer, so walking them as REL reads the wrong place.
+                 */
+
+                berr("ERROR: FDPIC object claims RELA PLT relocations\n");
+                lib_free(sym);
+                lib_free(rels);
+                lib_free(dyn);
+                return -ENOEXEC;
               }
             else
               {
@@ -726,6 +797,13 @@ static int libelf_relocatedyn(FAR struct module_s *modp,
             break;
         }
     }
+
+  /* After the loop, because DT_PLTGOT is read there.  Both relocation
+   * tables are walked under this one arch_data, so the pool cursor
+   * survives from one to the next.
+   */
+
+  ARCH_ELFDATA_SETUP(loadinfo);
 
   symhdr = &loadinfo->shdr[loadinfo->dsymtabidx];
   sym = lib_malloc(symhdr->sh_size);
@@ -763,6 +841,10 @@ static int libelf_relocatedyn(FAR struct module_s *modp,
 
       ret = OK;
       lrelent = reldata.relsz[idx_rel] / reldata.relentsz[idx_rel];
+
+      /* Say which table this is, for an architecture that cares. */
+
+      ARCH_ELFDATA_PLTREL(idx_rel == I_PLT);
 
       for (i = 0; i < lrelent; i++)
         {
@@ -815,56 +897,122 @@ static int libelf_relocatedyn(FAR struct module_s *modp,
 
               if (sym[idx_sym].st_shndx == SHN_UNDEF)
                 {
-                    FAR void *ep;
+                  FAR void *ep;
 
-                    ep = libelf_findglobal(modp, loadinfo, symhdr,
-                                           &sym[idx_sym]);
-                    if ((ep == NULL) && (ELF_ST_BIND(sym[idx_sym].st_info)
-                        != STB_WEAK))
-                      {
-                        berr("ERROR: Unable to resolve addr of ext ref %s\n",
-                             loadinfo->iobuffer);
-                        ret = -EINVAL;
-                        lib_free(sym);
-                        lib_free(rels);
-                        lib_free(dyn);
-                        return ret;
-                      }
+                  ep = libelf_findglobal(modp, loadinfo, symhdr,
+                                         &sym[idx_sym]);
 
-                    addr = rel->r_offset + loadinfo->textalloc;
+                  /* libelf_findglobal() searches only the registered
+                   * symbols.  A module from exec() has its own export
+                   * table, and an FDPIC module imports its libc there.
+                   */
 
-                    if (reldata.relrela[idx_rel] == 1)
-                      {
-                        addr += rela->r_addend;
-                      }
+                  if (ep == NULL && exports != NULL)
+                    {
+                      FAR const struct symtab_s *sm;
 
-                    *(FAR uintptr_t *)addr = (uintptr_t)ep;
+                      sm = symtab_findbyname(exports,
+                                             (FAR char *)
+                                             loadinfo->iobuffer,
+                                             nexports);
+                      if (sm != NULL)
+                        {
+                          ep = (FAR void *)sm->sym_value;
+                        }
+                    }
+
+                  if ((ep == NULL) && (ELF_ST_BIND(sym[idx_sym].st_info)
+                      != STB_WEAK))
+                    {
+                      berr("ERROR: Unable to resolve addr of ext ref %s\n",
+                           loadinfo->iobuffer);
+                      ret = -EINVAL;
+                      lib_free(sym);
+                      lib_free(rels);
+                      lib_free(dyn);
+                      return ret;
+                    }
+
+                  addr = libelf_addr(loadinfo, rel->r_offset);
+
+                  if (reldata.relrela[idx_rel] == 1)
+                    {
+                      addr += rela->r_addend;
+                    }
+
+                  /* An import may be a descriptor under FDPIC, which is
+                   * built rather than assigned, so the relocation type
+                   * decides what to write.  Everything else stores the
+                   * resolved address, which R_ARM_JUMP_SLOT and
+                   * R_ARM_GLOB_DAT do, so one path serves both.
+                   */
+
+                  Elf_Sym extsym =
+                  {
+                    0
+                  };
+
+                  extsym.st_value = (uintptr_t)ep;
+
+                  ret = up_relocate(rel, &extsym, addr, ARCH_ELFDATA_PARM);
+                  if (ret < 0)
+                    {
+                      berr("ERROR: Section %d reloc %d: "
+                           "Relocation failed: %d\n", relidx, i, ret);
+                      lib_free(sym);
+                      lib_free(rels);
+                      lib_free(dyn);
+                      return ret;
+                    }
+                }
+              else if (loadinfo->fdpic)
+                {
+                  /* A relocation naming a symbol inside this object.  A
+                   * pointer to a static function is emitted against the
+                   * section symbol, so the offset, Thumb bit included, is
+                   * the addend and must not come from the patched word.
+                   */
+
+                  Elf_Sym defsym = sym[idx_sym];
+
+                  defsym.st_value = libelf_addr(loadinfo,
+                                                sym[idx_sym].st_value);
+
+                  addr = libelf_addr(loadinfo, rel->r_offset);
+
+                  if (reldata.relrela[idx_rel] == 1)
+                    {
+                      addr += rela->r_addend;
+                    }
+
+                  ret = up_relocate(rel, &defsym, addr, ARCH_ELFDATA_PARM);
+                  if (ret < 0)
+                    {
+                      berr("ERROR: Section %d reloc %d: "
+                           "Relocation failed: %d\n", relidx, i, ret);
+                      lib_free(sym);
+                      lib_free(rels);
+                      lib_free(dyn);
+                      return ret;
+                    }
                 }
             }
           else
             {
               Elf_Sym dynsym =
-                {
-                  0
-                };
+              {
+                0
+              };
 
-              addr = rel->r_offset - loadinfo->datasec + loadinfo->datastart;
+              addr = libelf_addr(loadinfo, rel->r_offset);
 
               if (reldata.relrela[idx_rel] == 1)
                 {
                   addr += rela->r_addend;
                 }
 
-              if ((*(FAR uint32_t *)addr) < loadinfo->datasec)
-                {
-                  dynsym.st_value = *(FAR uint32_t *)addr +
-                                    loadinfo->textalloc;
-                }
-              else
-                {
-                  dynsym.st_value = *(FAR uint32_t *)addr -
-                                    loadinfo->datasec + loadinfo->datastart;
-                }
+              dynsym.st_value = libelf_addr(loadinfo,
+                                            *(FAR uint32_t *)addr);
 
               ret = up_relocate(rel, &dynsym, addr, ARCH_ELFDATA_PARM);
             }
@@ -880,6 +1028,12 @@ static int libelf_relocatedyn(FAR struct module_s *modp,
             }
         }
     }
+
+  /* Hand back what the relocations consumed.  The error paths above do
+   * not bother: the load is being abandoned, so the cursor has no reader.
+   */
+
+  ARCH_ELFDATA_TEARDOWN(loadinfo);
 
   lib_free(sym);
   lib_free(rels);
@@ -951,6 +1105,7 @@ int libelf_bind(FAR struct module_s *modp,
       /* Get the index to the relocation section */
 
       int infosec = loadinfo->shdr[i].sh_info;
+
       if (infosec >= loadinfo->ehdr.e_shnum)
         {
           continue;
@@ -962,29 +1117,27 @@ int libelf_bind(FAR struct module_s *modp,
           switch (loadinfo->shdr[i].sh_type)
             {
               case SHT_DYNAMIC:
-                ret = libelf_relocatedyn(modp, loadinfo, i);
+                ret = libelf_relocatedyn(modp, loadinfo, i,
+                                         exports, nexports);
                 break;
               case SHT_DYNSYM:
                 loadinfo->dsymtabidx = i;
                 break;
               case SHT_INIT_ARRAY:
-                loadinfo->initarr = loadinfo->shdr[i].sh_addr -
-                                    loadinfo->datasec +
-                                    loadinfo->datastart;
+                loadinfo->initarr = libelf_addr(loadinfo,
+                                                loadinfo->shdr[i].sh_addr);
                 loadinfo->ninit = loadinfo->shdr[i].sh_size /
                                   sizeof(uintptr_t);
                 break;
               case SHT_FINI_ARRAY:
-                loadinfo->finiarr = loadinfo->shdr[i].sh_addr -
-                                    loadinfo->datasec +
-                                    loadinfo->datastart;
+                loadinfo->finiarr = libelf_addr(loadinfo,
+                                                loadinfo->shdr[i].sh_addr);
                 loadinfo->nfini = loadinfo->shdr[i].sh_size /
                                   sizeof(uintptr_t);
                 break;
               case SHT_PREINIT_ARRAY:
-                loadinfo->preiarr = loadinfo->shdr[i].sh_addr -
-                                    loadinfo->datasec +
-                                    loadinfo->datastart;
+                loadinfo->preiarr = libelf_addr(loadinfo,
+                                                loadinfo->shdr[i].sh_addr);
                 loadinfo->nprei = loadinfo->shdr[i].sh_size /
                                   sizeof(uintptr_t);
                 break;
@@ -1085,6 +1238,7 @@ errout_with_addrenv:
   if (loadinfo->addrenv != NULL)
     {
       int status = libelf_addrenv_restore(loadinfo);
+
       if (status < 0)
         {
           berr("ERROR: libelf_addrenv_restore() failed: %d\n", status);

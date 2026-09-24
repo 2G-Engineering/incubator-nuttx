@@ -134,6 +134,31 @@ endif
 HOSTSRCS  = sim_hostirq.c sim_hostmemory.c sim_hostmisc.c sim_hosttime.c sim_hostuart.c
 HOSTSRCS += sim_hostfs.c sim_errno.c
 
+ifeq ($(CONFIG_SIM_BSIM_TIME),y)
+  HOSTSRCS += sim_bsimtime.c
+  ifeq ($(BSIM_COMPONENTS_PATH),)
+    $(error CONFIG_SIM_BSIM_TIME requires BSIM_COMPONENTS_PATH to point to \
+      the BabbleSim components directory)
+  endif
+  ifeq ($(BSIM_LIBS_DIR),)
+    ifeq ($(BSIM_OUT_PATH),)
+      $(error CONFIG_SIM_BSIM_TIME requires BSIM_LIBS_DIR or BSIM_OUT_PATH \
+        to locate BabbleSim libraries)
+    endif
+    BSIM_LIBS_DIR := $(BSIM_OUT_PATH)/lib
+  endif
+  HOSTCFLAGS += ${INCDIR_PREFIX}$(BSIM_COMPONENTS_PATH)/libPhyComv1/src
+  HOSTCFLAGS += ${INCDIR_PREFIX}$(BSIM_COMPONENTS_PATH)/libUtilv1/src
+  STDLIBS += -Wl,-rpath,$(BSIM_LIBS_DIR)
+  ifeq ($(CONFIG_SIM_M32),y)
+    STDLIBS += $(BSIM_LIBS_DIR)/libPhyComv1.32.so
+    STDLIBS += $(BSIM_LIBS_DIR)/libUtilv1.32.so
+  else
+    STDLIBS += $(BSIM_LIBS_DIR)/libPhyComv1.so
+    STDLIBS += $(BSIM_LIBS_DIR)/libUtilv1.so
+  endif
+endif
+
 hostfs.h: $(TOPDIR)/include/nuttx/fs/hostfs.h
 	@echo "CP:  $<"
 	$(Q) cp $< $@
@@ -165,10 +190,6 @@ endif
 
 ifeq ($(CONFIG_STACK_COLORATION),y)
   CSRCS += sim_checkstack.c
-endif
-
-ifeq ($(CONFIG_SPINLOCK),y)
-  HOSTSRCS += sim_testset.c
 endif
 
 ifeq ($(CONFIG_SMP),y)
@@ -485,7 +506,7 @@ endef
 # stuff doesn't work there as we expect.
 # Note: _stext stuff is for CONFIG_CXX_INITIALIZE_SINIT, which in not
 # necessary for macOS.
-nuttx$(EXEEXT): libarch$(LIBEXT) board/libboard$(LIBEXT) $(HEADOBJ) $(LINKOBJS) $(HOSTOBJS) nuttx-names.dat $(EXTRA_LIB_DEPS)
+nuttx$(EXEEXT): libarch$(LIBEXT) board/libboard$(LIBEXT) $(HEADOBJ) $(LINKOBJS) $(HOSTOBJS) nuttx-names.dat $(EXTRA_LIB_DEPS) $(addprefix $(TOPDIR)$(DELIM)staging$(DELIM),$(LINKLIBS))
 	$(Q) echo "LD:  nuttx$(EXEEXT)"
 	$(Q) $(LD) -r $(LDLINKFLAGS) $(RELPATHS) $(EXTRA_LIBPATHS) $(EXTRALINKCMDS) \
 	     -o nuttx.rel $(REQUIREDOBJS) $(LDSTARTGROUP) $(RELLIBS) $(EXTRA_LIBS) $(LDENDGROUP)

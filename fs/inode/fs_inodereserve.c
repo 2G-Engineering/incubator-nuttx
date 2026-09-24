@@ -53,6 +53,7 @@ static ino_t g_ino;
 static int inode_namelen(FAR const char *name)
 {
   FAR const char *tmp = name;
+
   while (*tmp && *tmp != '/')
     {
       tmp++;
@@ -207,16 +208,24 @@ int inode_reserve(FAR const char *path,
 
   /* Find the location to insert the new subtree */
 
-  SETUP_SEARCH(&desc, path, false);
+  ret = inode_search_setup(&desc, path, false);
+  if (ret < 0)
+    {
+      return ret;
+    }
 
-  ret = inode_search(&desc);
-  if (ret >= 0)
+  ret = inode_search(&desc, NULL);
+  if (ret != -ENOENT)
     {
       /* It is an error if the node already exists in the tree (or if it
        * lies within a mountpoint, we don't distinguish here).
        */
 
-      ret = -EEXIST;
+      if (ret >= 0)
+        {
+          ret = -EEXIST;
+        }
+
       goto errout_with_search;
     }
 
@@ -249,6 +258,7 @@ int inode_reserve(FAR const char *path,
        */
 
       FAR const char *nextname = inode_nextname(name);
+
       if (*nextname != '\0')
         {
           /* Insert an operationless node */
@@ -285,6 +295,6 @@ int inode_reserve(FAR const char *path,
     }
 
 errout_with_search:
-  RELEASE_SEARCH(&desc);
+  inode_search_release(&desc);
   return ret;
 }

@@ -167,6 +167,33 @@ ifeq ($(CONFIG_AMEBA_SPI),y)
 AMEBA_FWLIB_SRCS += $(AMEBA_SOC)/fwlib/ram_common/ameba_spi.c
 endif
 
+# PWM/timer register layer.  The time-base entry points (RTIM_TimeBaseInit/
+# StructInit/Cmd/INTConfig/GetCount) are in ROM, but the compare/period and
+# interrupt-clear helpers the PWM driver (ameba_pwm.c: RTIM_CCStructInit/
+# CCxInit/CCRxSet/CCxCmd/ChangePeriod/PrescalerConfig) and the timer driver
+# (ameba_timer.c: RTIM_INTClear/ChangePeriod) call are compiled from this RAM
+# source and linked in (--gc-sections drops the unused input-capture paths).
+ifneq (,$(filter y,$(CONFIG_AMEBA_PWM) $(CONFIG_AMEBA_TIMER)))
+AMEBA_FWLIB_SRCS += $(AMEBA_SOC)/fwlib/ram_common/ameba_tim.c
+endif
+
+# ADC (SAR) register layer.  The ADC driver
+# (arch/.../common/ameba/ameba_adc.c) calls the fwlib ADC API; the data tables
+# and helpers it indexes live in this RAM source and must be compiled in
+# (--gc-sections drops the unused interrupt/timer-trigger helpers).
+ifeq ($(CONFIG_AMEBA_ADC),y)
+AMEBA_FWLIB_SRCS += $(AMEBA_SOC)/fwlib/ram_common/ameba_adc.c
+endif
+
+# RTC register layer.  The whole fwlib RTC API the RTC driver
+# (arch/.../common/ameba/ameba_rtc.c) calls -- RTC_Init/StructInit,
+# RTC_SetTime/GetTime and RTC_SetAlarm/GetAlarm/AlarmStructInit/AlarmCmd/
+# AlarmClear -- is compiled from this RAM source (the _LONG_CALL_ prototypes
+# resolve here, not to ROM) and must be linked in.
+ifeq ($(CONFIG_AMEBA_RTC),y)
+AMEBA_FWLIB_SRCS += $(AMEBA_SOC)/fwlib/ram_common/ameba_rtc.c
+endif
+
 # -Wno-int-conversion: the vendored SDK passes NULL to irq_register()'s u32
 # "Data" (interrupt context) argument in many places -- an intentional
 # NULL-as-context idiom.  Silence -Wint-conversion for the SDK fwlib sources

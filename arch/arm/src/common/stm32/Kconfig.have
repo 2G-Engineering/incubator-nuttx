@@ -33,6 +33,14 @@
 
 # ADC capabilities
 
+# Cortex-M33 GPIO and EXTI capabilities
+
+config STM32_HAVE_IP_GPIO_M33_V1
+	bool
+
+config STM32_HAVE_IP_EXTI_M33_V1
+	bool
+
 config STM32_HAVE_ADC_TIMTRIG_TRGO2
 	bool
 	default y if (STM32_HAVE_IP_ADC_M3M4_V1 || STM32_HAVE_IP_ADC_M3M4_V2) || STM32_HAVE_IP_ADC_M0_V1 || ARCH_CHIP_STM32F7 || ARCH_CHIP_STM32H5
@@ -64,7 +72,7 @@ config STM32_HAVE_ADC5
 
 config STM32_HAVE_ADC_OVERSAMPLE
 	bool
-	default STM32_STM32L0 || STM32_STM32G0 || STM32_STM32C0
+	default STM32_STM32L0 || STM32_STM32G0 || STM32_STM32C0 || STM32_STM32U0
 
 config STM32_HAVE_SDADC1
 	bool
@@ -484,6 +492,9 @@ config STM32_HAVE_LPUART1
 config STM32_HAVE_LPUART2
 	bool
 
+config STM32_HAVE_LPUART3
+	bool
+
 config STM32_HAVE_LPUART
 	bool
 
@@ -635,6 +646,22 @@ config STM32_HAVE_OCTOSPI2
 
 config STM32_HAVE_QSPI
 	bool
+
+config STM32_HAVE_XSPI
+	bool
+
+# SBS capabilities
+
+config STM32_HAVE_SBS
+	bool
+
+# EXTI capabilities
+
+config STM32_HAVE_EXTI_SHARED_IRQ
+	bool
+	---help---
+		EXTI lines 9:5 and 15:10 each share a single interrupt vector,
+		rather than every line having its own.
 
 # CRC capabilities
 
@@ -1042,6 +1069,9 @@ config STM32_HAVE_USART_H5
 config STM32_HAVE_USART_RXFIFO_THRESHOLD
 	bool
 
+config STM32_HAVE_USART_WUS
+	bool
+
 config STM32_HAVE_USART_UNCONFIG_ON_CLOSE
 	bool
 	default y if ARCH_CHIP_STM32H5
@@ -1070,6 +1100,10 @@ config STM32_HAVE_UART8
 
 config STM32_HAVE_IP_USART
 	bool
+
+config STM32_HAVE_IP_USART_M33_V3
+	bool
+	select STM32_HAVE_IP_USART
 
 config STM32_HAVE_IP_USART_V1
 	bool
@@ -1145,6 +1179,9 @@ config STM32_HAVE_USBDEV
 	bool
 
 config STM32_HAVE_IP_USBDEV_M0_V1
+	bool
+
+config STM32_HAVE_IP_USBDEV_M0_V2
 	bool
 
 config STM32_HAVE_IP_USBDEV_M3M4_V1

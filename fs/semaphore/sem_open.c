@@ -111,14 +111,16 @@ int nxsem_open(FAR sem_t **sem, FAR const char *name, int oflags, ...)
    * will have incremented the reference count on the inode.
    */
 
-  SETUP_SEARCH(&desc, fullpath, false);
+  ret = inode_search_setup(&desc, fullpath, false);
+  if (ret < 0)
+    {
+      return ret;
+    }
 
-  ret = inode_find(&desc);
+  ret = inode_find(&desc, &inode);
   if (ret >= 0)
     {
       /* Something exists at this path.  Get the search results */
-
-      inode = desc.node;
 
       /* Verify that the inode is a semaphore */
 
@@ -211,7 +213,7 @@ int nxsem_open(FAR sem_t **sem, FAR const char *name, int oflags, ...)
           /* Initialize the inode */
 
           INODE_SET_NAMEDSEM(inode);
-          atomic_fetch_add(&inode->i_crefs, 1);
+          atomic_add(&inode->i_crefs, 1);
 
           /* Initialize the semaphore */
 
@@ -231,7 +233,7 @@ int nxsem_open(FAR sem_t **sem, FAR const char *name, int oflags, ...)
       *sem = &nsem->ns_sem;
     }
 
-  RELEASE_SEARCH(&desc);
+  inode_search_release(&desc);
 #ifdef CONFIG_FS_NOTIFY
   notify_open(fullpath, oflags);
 #endif
@@ -241,7 +243,7 @@ errout_with_inode:
   inode_release(inode);
 
 errout_with_search:
-  RELEASE_SEARCH(&desc);
+  inode_search_release(&desc);
   return ret;
 }
 

@@ -60,4 +60,49 @@ CSRCS += rtl8721dx_spi.c
 CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)arm$(DELIM)src$(DELIM)common$(DELIM)ameba
 endif
 
+ifeq ($(CONFIG_AMEBA_PWM),y)
+CSRCS += rtl8721dx_pwm.c
+
+# The board PWM table pulls in the shared driver's public header from
+# arch/arm/src/common/ameba/, which is not on the default board include path.
+
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)arm$(DELIM)src$(DELIM)common$(DELIM)ameba
+endif
+
+ifeq ($(CONFIG_AMEBA_ADC),y)
+CSRCS += rtl8721dx_adc.c
+
+# The board ADC table pulls in the shared driver's public header from
+# arch/arm/src/common/ameba/, which is not on the default board include path.
+
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)arm$(DELIM)src$(DELIM)common$(DELIM)ameba
+endif
+
+ifeq ($(CONFIG_AMEBA_RTC),y)
+CSRCS += rtl8721dx_rtc.c
+
+# The board RTC bring-up pulls in the shared driver's public header from
+# arch/arm/src/common/ameba/, which is not on the default board include path.
+
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)arm$(DELIM)src$(DELIM)common$(DELIM)ameba
+endif
+
+ifeq ($(CONFIG_AMEBA_WDG),y)
+CSRCS += rtl8721dx_wdg.c
+
+# The board WDG bring-up pulls in the shared driver's public header from
+# arch/arm/src/common/ameba/, which is not on the default board include path.
+
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)arm$(DELIM)src$(DELIM)common$(DELIM)ameba
+endif
+
+ifeq ($(CONFIG_AMEBA_TIMER),y)
+CSRCS += rtl8721dx_timer.c
+
+# The board timer bring-up pulls in the shared driver's public header from
+# arch/arm/src/common/ameba/, which is not on the default board include path.
+
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)arm$(DELIM)src$(DELIM)common$(DELIM)ameba
+endif
+
 include $(TOPDIR)/boards/Board.mk

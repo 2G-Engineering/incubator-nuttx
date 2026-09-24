@@ -49,6 +49,14 @@
 #  define STM32_HSI48_REG STM32_RCC_CR
 #  define STM32_HSI48ON   RCC_CR_HSI48ON
 #  define STM32_HSI48RDY  RCC_CR_HSI48RDY
+#elif defined(CONFIG_ARCH_CHIP_STM32C0)
+#  define STM32_HSI48_REG STM32_RCC_CR
+#  define STM32_HSI48ON   RCC_CR_HSIUSB48ON
+#  define STM32_HSI48RDY  RCC_CR_HSIUSB48RDY
+#elif defined(CONFIG_ARCH_CHIP_STM32U0)
+#  define STM32_HSI48_REG STM32_RCC_CRRCR
+#  define STM32_HSI48ON   RCC_CRRCR_HSI48ON
+#  define STM32_HSI48RDY  RCC_CRRCR_HSI48RDY
 #else
 #  error "Unsupported STM32F0/L0 HSI48"
 #endif
@@ -141,13 +149,13 @@ void stm32_enable_hsi48(enum syncsrc_e syncsrc)
 
   putreg32(regval, STM32_CRS_CFGR);
 
-  /* Set the AUTOTRIMEN bit the CRS_CR register to enables the automatic
-   * hardware adjustment of TRIM bits according to the measured frequency
-   * error between the selected SYNC event.
+  /* Enable the frequency error counter and automatic trimming.  The counter
+   * measures the error against the selected SYNC event; automatic trimming
+   * adjusts the HSI48 TRIM bits from that measurement.
    */
 
   regval  = getreg32(STM32_CRS_CR);
-  regval |= CRS_CR_AUTOTRIMEN;
+  regval |= CRS_CR_CEN | CRS_CR_AUTOTRIMEN;
   putreg32(regval, STM32_CRS_CR);
 }
 

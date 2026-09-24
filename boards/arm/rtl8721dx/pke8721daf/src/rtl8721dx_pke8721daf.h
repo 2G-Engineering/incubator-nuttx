@@ -121,6 +121,71 @@ int rtl8721dx_i2c_initialize(void);
 int rtl8721dx_spi_initialize(void);
 #endif
 
+#ifdef CONFIG_AMEBA_PWM
+/****************************************************************************
+ * Name: rtl8721dx_pwm_initialize
+ *
+ * Description:
+ *   Register the board's PWM timer at /dev/pwm0
+ *   (boards/arm/rtl8721dx/pke8721daf/src/rtl8721dx_pwm.c).
+ *
+ ****************************************************************************/
+
+int rtl8721dx_pwm_initialize(void);
+#endif
+
+#ifdef CONFIG_AMEBA_ADC
+/****************************************************************************
+ * Name: rtl8721dx_adc_initialize
+ *
+ * Description:
+ *   Register the board's ADC channels at /dev/adc0
+ *   (boards/arm/rtl8721dx/pke8721daf/src/rtl8721dx_adc.c).
+ *
+ ****************************************************************************/
+
+int rtl8721dx_adc_initialize(void);
+#endif
+
+#ifdef CONFIG_AMEBA_RTC
+/****************************************************************************
+ * Name: rtl8721dx_rtc_initialize
+ *
+ * Description:
+ *   Register the board's RTC at /dev/rtc0
+ *   (boards/arm/rtl8721dx/pke8721daf/src/rtl8721dx_rtc.c).
+ *
+ ****************************************************************************/
+
+int rtl8721dx_rtc_initialize(void);
+#endif
+
+#ifdef CONFIG_AMEBA_WDG
+/****************************************************************************
+ * Name: rtl8721dx_wdg_initialize
+ *
+ * Description:
+ *   Register the board's watchdog at /dev/watchdog0
+ *   (boards/arm/rtl8721dx/pke8721daf/src/rtl8721dx_wdg.c).
+ *
+ ****************************************************************************/
+
+int rtl8721dx_wdg_initialize(void);
+#endif
+
+#ifdef CONFIG_AMEBA_TIMER
+/****************************************************************************
+ * Name: rtl8721dx_timer_initialize
+ *
+ * Description:
+ *   Register the board's timers at /dev/timer0 (TIM1) and /dev/timer1
+ *   (TIM2) (boards/arm/rtl8721dx/pke8721daf/src/rtl8721dx_timer.c).
+ *
+ ****************************************************************************/
+
+int rtl8721dx_timer_initialize(void);
+#endif
+
 #ifdef CONFIG_RTL8721DX_FLASH_FS
 /****************************************************************************
  * Name: ameba_flash_fs_initialize

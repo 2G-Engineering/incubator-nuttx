@@ -36,7 +36,7 @@
 
 #include "inode/inode.h"
 
-#ifdef CONFIG_PSEUDOFS_SOFTLINKS
+#ifdef CONFIG_FS_LINKS
 
 /****************************************************************************
  * Public Functions
@@ -71,7 +71,6 @@ ssize_t readlink(FAR const char *path, FAR char *buf, size_t bufsize)
 {
   struct inode_search_s desc;
   FAR struct inode *node;
-  int errcode;
   int ret;
 
   DEBUGASSERT(path != NULL && buf != NULL && bufsize > 0);
@@ -80,56 +79,82 @@ ssize_t readlink(FAR const char *path, FAR char *buf, size_t bufsize)
    * symbolic link node.
    */
 
-  SETUP_SEARCH(&desc, path, true);
-
-  ret = inode_find(&desc);
+  ret = inode_search_setup(&desc, path, true);
   if (ret < 0)
     {
-      errcode = -ret;
+      goto errout;
+    }
+
+  ret = inode_find(&desc, &node);
+  if (ret < 0)
+    {
       goto errout_with_search;
     }
 
-  /* Get the search results */
-
-  node = desc.node;
   DEBUGASSERT(node != NULL);
 
-  ret = inode_checkpathperm(node, 0, 0);
-  if (ret < 0)
-    {
-      errcode = -ret;
-      goto errout_with_inode;
-    }
-
-  /* An inode was found that includes this path and possibly refers to a
-   * symbolic link.
-   *
-   * Check if the inode is a valid symbolic link.
+#ifndef CONFIG_DISABLE_MOUNTPOINT
+  /* If the inode is a mountpoint, let the mountpoint's readlink
+   * method handle the request.
    */
 
-  if (!INODE_IS_SOFTLINK(node))
+  if (INODE_IS_MOUNTPT(node))
     {
-      errcode = EINVAL;
-      goto errout_with_inode;
+      if (node->u.i_mops && node->u.i_mops->readlink)
+        {
+          ret = node->u.i_mops->readlink(node, desc.relpath, buf, bufsize);
+          if (ret < 0)
+            {
+              goto errout_with_inode;
+            }
+        }
+      else
+        {
+          ret = -ENOSYS;
+          goto errout_with_inode;
+        }
     }
+  else
+#endif
+    {
+      ret = inode_checkpathperm(node, 0, 0);
+      if (ret < 0)
+        {
+          goto errout_with_inode;
+        }
 
-  /* Copy the link target pathto the user-provided buffer. */
+      /* An inode was found that includes this path and possibly refers to a
+       * symbolic link.
+       *
+       * Check if the inode is a valid symbolic link.
+       */
 
-  strlcpy(buf, node->u.i_link, bufsize);
+      if (!INODE_IS_SOFTLINK(node))
+        {
+          ret = -EINVAL;
+          goto errout_with_inode;
+        }
+
+      /* Copy the link target path to the user-provided buffer. */
+
+      strlcpy(buf, node->u.i_link, bufsize);
+    }
 
   /* Release our reference on the inode and return the length */
 
   inode_release(node);
-  RELEASE_SEARCH(&desc);
+  inode_search_release(&desc);
   return strlen(buf);
 
 errout_with_inode:
   inode_release(node);
 
 errout_with_search:
-  RELEASE_SEARCH(&desc);
-  set_errno(errcode);
+  inode_search_release(&desc);
+
+errout:
+  set_errno(-ret);
   return ERROR;
 }
 
-#endif /* CONFIG_PSEUDOFS_SOFTLINKS */
+#endif /* CONFIG_FS_LINKS */

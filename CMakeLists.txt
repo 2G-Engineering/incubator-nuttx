@@ -413,6 +413,15 @@ if(NOT EXISTS ${NUTTX_BINARY_DIR}/.config OR NOT "${NUTTX_DEFCONFIG}" STREQUAL
   message(STATUS "  Appdir: ${NUTTX_APPS_DIR}")
 endif()
 
+# config.h and CONFIG_* are generated at configure time. Watch .config so an
+# out-of-band edit (kconfig-tweak) reruns CMake instead of leaving a stale
+# header. .config is only rewritten when missing or the defconfig path changes,
+# so this does not loop.
+set_property(
+  DIRECTORY
+  APPEND
+  PROPERTY CMAKE_CONFIGURE_DEPENDS ${NUTTX_BINARY_DIR}/.config)
+
 # declare global custom targets at very beginning `nuttx_global` is used to hold
 # global target properties to solve that cmake GLOBAL property can not use
 # generator expression this is needed to make sure added before project() create
@@ -514,6 +523,20 @@ endif()
 # Support loadable and kernel options by specific arch
 if(EXISTS ${NUTTX_DIR}/arch/${CONFIG_ARCH}/src/cmake/elf.cmake)
   include(${NUTTX_DIR}/arch/${CONFIG_ARCH}/src/cmake/elf.cmake)
+endif()
+
+# The default registers each static object's destructor with __cxa_atexit(dtor,
+# obj, &__dso_handle), and __dso_handle comes from crtbegin, which a module does
+# not link.  Turning it off also puts the destructors in .fini_array, which is
+# where the loader looks for them when the module is unloaded.
+#
+# GCC and Clang alone take the option, which is why the architectures built by
+# another compiler do not carry it in their Toolchain.defs either.  ARMClang
+# reports ARMClang, so it keeps it.  The generator expression keeps the option
+# off the C compiles, which it is not valid for.
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  nuttx_elf_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fno-use-cxa-atexit>)
 endif()
 
 include(platform)
@@ -673,6 +696,13 @@ process_all_directory_romfs()
 
 # Get linker script to use
 get_property(ldscript GLOBAL PROPERTY LD_SCRIPT)
+
+# Iterable sections "zero-touch" mode: the central INSERT fragment must come
+# BEFORE the board script on the linker command line (GNU ld requirement for
+# INSERT AFTER), see include/nuttx/linker/common-insert.ld.
+if(CONFIG_ITERABLE_SECTIONS_LINKER_INSERT)
+  list(PREPEND ldscript ${NUTTX_DIR}/include/nuttx/linker/common-insert.ld)
+endif()
 
 # Pre-compile linker script(s)
 if(NOT CONFIG_ARCH_SIM)

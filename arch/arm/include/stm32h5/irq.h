@@ -52,7 +52,8 @@
 #define STM32_IRQ_MEMFAULT       (4) /* Vector  4: Memory management (MPU) */
 #define STM32_IRQ_BUSFAULT       (5) /* Vector  5: Bus fault */
 #define STM32_IRQ_USAGEFAULT     (6) /* Vector  6: Usage fault */
-                                     /* Vectors 7-10: Reserved */
+#define STM32_IRQ_SECUREFAULT    (7) /* Vector  7: Secure fault */
+                                     /* Vectors 8-10: Reserved */
 #define STM32_IRQ_SVCALL        (11) /* Vector 11: SVC call */
 #define STM32_IRQ_DBGMONITOR    (12) /* Vector 12: Debug Monitor */
                                      /* Vector 13: Reserved */
@@ -65,8 +66,11 @@
 
 #define STM32_IRQ_FIRST         (16) /* Vector number of the first external interrupt */
 
-#if defined(CONFIG_STM32H5_STM32H52XXX) || defined(CONFIG_STM32H5_STM32H53XXX) || \
-    defined(CONFIG_STM32_STM32H56XXX) || defined(CONFIG_STM32H5_STM32H57XXX)
+#if defined(CONFIG_STM32_STM32H50XXX) || \
+    defined(CONFIG_STM32_STM32H52XXX) || \
+    defined(CONFIG_STM32_STM32H53XXX) || \
+    defined(CONFIG_STM32_STM32H56XXX) || \
+    defined(CONFIG_STM32_STM32H57XXX)
 #  include <arch/stm32h5/stm32h5xx_irq.h>
 #else
 #  error "Unsupported STM32 H5 chip"

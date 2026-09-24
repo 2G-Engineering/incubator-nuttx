@@ -76,12 +76,19 @@ ifeq ($(CONFIG_ESP_PCNT),y)
   CSRCS += esp_board_pcnt.c
 endif
 
+ifeq ($(CONFIG_MMCSD_SPI),y)
+  CSRCS += esp_board_mmcsd.c
+endif
+
 ifeq ($(CONFIG_ESPRESSIF_ULP_USE_TEST_BIN),y)
   include $(TOPDIR)$(DELIM)arch$(DELIM)risc-v$(DELIM)src$(DELIM)common$(DELIM)espressif$(DELIM)ulp_makefile
 endif
 
 ifeq ($(CONFIG_ETC_ROMFS),y)
   RCSRCS  = etc/init.d/rc.sysinit etc/init.d/rcS
+ifeq ($(CONFIG_SYSTEM_NXINIT),y)
+  RCSRCS += etc/init.d/init.rc
+endif
 endif
 
 DEPPATH += --dep-path src

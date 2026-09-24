@@ -52,9 +52,45 @@ File path configured by ``CONFIG_SYSTEM_NXINIT_RC_FILE_PATH``.
   via the override option).
 - Options are modifiers for services, affecting their running mode and timing.
   Examples include class (specify service category for batch start/stop),
+  console (redirect the service's stdio to a console device; see below),
   override (override previously defined services), restart_period (interval
   for restarting exited services), and reboot_on_failure (critical services
   trigger device reboot on startup failure or abnormal exit).
+
+The ``console`` Option
+-----------------------
+
+.. code-block::
+
+    service <name> <pathname> [ <argument> ]*
+       console [ <device> ]
+
+A service does not open a console device on its own - it simply inherits
+whatever stdin/stdout/stderr NXInit itself has, which for many boards is
+never set up at all (there is no ``/dev/console`` unless
+``CONFIG_DEV_CONSOLE`` is enabled). ``console`` fixes this by opening
+``<device>`` (``CONFIG_SYSTEM_NXINIT_CONSOLE_DEV``, ``/dev/console`` by
+default, if omitted) and duplicating it onto the service's stdin, stdout
+and stderr before it is spawned.
+
+This is required for a plain shell service (e.g. ``service console sh``)
+to actually be usable as an interactive console. It is not needed for
+``nsh`` (the full NSH application, as opposed to plain ``sh``), which
+already does the equivalent internally via ``nsh_consolemain()``.
+
+For a USB gadget console (``CONFIG_CDCACM_CONSOLE``/``CONFIG_PL2303_CONSOLE``),
+the device does not exist until the gadget is actually registered with the
+USB stack - unlike a plain UART, this does not happen implicitly during
+early boot. The gadget must be brought up once, before any service using
+``console`` is started, e.g. via ``apps/system/cdcacm``'s ``sercon``:
+
+.. code-block::
+
+    on init
+        exec -- sercon
+
+    service console sh
+        console
 
 Triggers
 ========
@@ -67,9 +103,14 @@ triggers (also known as property triggers, e.g., property:a=b). Actions can
 include multiple action triggers but only one event trigger. Triggers can be
 combined with && to represent "AND" conditions.
 
-.. note:: Currently, only event triggers are supported.
+The value of a property trigger is matched with ``fnmatch``, so glob
+patterns are accepted. Use ``!=`` to trigger when the value does not match,
+e.g. ``property:a!=b``. An ``on <event>`` action fires only on the edge when
+its condition becomes satisfied, not on every subsequent property update.
 
-.. todo:: Implement action triggers.
+Property (action) trigger support requires the ``init_property_*()`` backend
+to be provided; ``property_simple.c`` offers a minimal implementation that
+forwards ``setprop`` to the action manager.
 
 1. Event Trigger Execution Order
 --------------------------------
@@ -83,6 +124,49 @@ combined with && to represent "AND" conditions.
 - All action triggers are automatically checked once at startup.
 - Property triggers are checked when the property is created or its value
   is updated (e.g., property:a=b is checked when a's value changes).
+
+Built-in Properties
+====================
+
+NXInit sets one built-in property on its own, before the ``boot`` event
+fires:
+
+- ``sys.boot.reason``: the cause of the last board reset. It is queried
+  once at startup via ``boardctl(BOARDIOC_RESET_CAUSE, ...)``; applications
+  do not need to set it themselves. This requires
+  ``CONFIG_BOARDCTL_RESET_CAUSE`` and a board-provided
+  ``board_reset_cause()`` implementation.
+
+  - If ``CONFIG_BOARDCTL_RESET_CAUSE`` is not enabled, ``sys.boot.reason``
+    is never set, so any trigger referencing it (e.g.
+    ``property:sys.boot.reason=...``) simply never matches; there is no
+    dedicated "unset" value to trigger on.
+  - If ``CONFIG_BOARDCTL_RESET_CAUSE`` is enabled but the ``boardctl()``
+    call itself fails (the board reports an error), NXInit aborts startup.
+
+  The value has one of two forms:
+
+  1. ``<cause>,<subreason>`` for hardware reset causes, where
+     ``<subreason>`` is a numeric flag (e.g. the watchdog timer index):
+     ``cold``, ``watchdog``, ``undervoltage``, ``warm``, ``powerkey``,
+     ``lowpower``, ``unknown``. For example, a watchdog reset from timer 4
+     sets the property to ``watchdog,4``.
+  2. A single soft-reset reason string, for software-triggered resets
+     (``BOARDIOC_RESETCAUSE_CPU_SOFT``): ``reboot``, ``assert``,
+     ``kernel_panic``, ``bootloader``, ``recovery``, ``factory_reset``,
+     ``factory_reset_inquiry``, ``thermal``.
+
+  Since the property is matched with ``fnmatch`` and alternatives can be
+  separated with ``|``, a trigger can match on the cause, the subreason, or
+  a set of soft-reset reasons:
+
+  .. code-block::
+
+      on init && property:sys.boot.reason=watchdog,4
+          ...
+
+      on init && property:sys.boot.reason=bootloader|recovery|thermal
+          ...
 
 Commands
 ========
@@ -100,6 +184,24 @@ The following is an explanation of some of NXInit's built-in commands.
   owner, and encryption settings), copy/write (copy files/write file content).
 - Others: trigger (trigger events).
 
+Compound Commands
+------------------
+
+A single line inside an action body may chain multiple commands with
+``&&`` and ``||``, using the familiar shell short-circuit semantics: the
+next command in an ``&&`` chain only runs if the previous one exited with
+status 0 (success), and the next command in an ``||`` chain only runs if
+the previous one exited non-zero (failure). A quoted argument
+(``"..."``) may contain ``&&``/``||`` without being treated as an
+operator.
+
+.. code-block::
+
+    on boot
+        echo "start" && hello && echo "done"
+        ls /missing || echo "not found"
+        echo "A" && echo "B" || echo "fallback"
+
 Examples
 ========
 This is an example of enabling the basic functions of the NXInit component,
@@ -111,10 +213,10 @@ defconfig:
 .. code-block:: diff
 
     +CONFIG_INIT_ENTRYPOINT="init_main"
-    +CONFIG_SYSTEM_INIT=y
-    +CONFIG_SYSTEM_INIT_DEBUG=y
-    +CONFIG_SYSTEM_INIT_INFO=y
-    +CONFIG_SYSTEM_INIT_WARN=y
+    +CONFIG_SYSTEM_NXINIT=y
+    +CONFIG_SYSTEM_NXINIT_DEBUG=y
+    +CONFIG_SYSTEM_NXINIT_INFO=y
+    +CONFIG_SYSTEM_NXINIT_WARN=y
 
 init.rc:
 
@@ -124,6 +226,9 @@ init.rc:
         start console        /* Start the service named "console" */
         sleep 1              /* Block for 1 second */
         exec_start mkdir_tmp /* Start the "mkdir_tmp" service and wait for exit */
+
+    on boot && property:sys.boot.reason=bootloader
+        echo "On boot, the reason is BL."
         start fastboot
 
     service console sh

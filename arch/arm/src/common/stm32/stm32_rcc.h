@@ -27,6 +27,12 @@
  * Included Files
  ****************************************************************************/
 
+#ifdef CONFIG_STM32_COMMON_M33
+
+#  include "stm32_rcc_m33.h"
+
+#else
+
 #include <nuttx/config.h>
 
 #include "arm_internal.h"
@@ -224,4 +230,5 @@ void stm32_rcc_disablelsi(void);
 #endif
 #endif /* __ASSEMBLY__ */
 
+#endif /* CONFIG_STM32_COMMON_M33 */
 #endif /* __ARCH_ARM_SRC_COMMON_STM32_STM32_RCC_H */

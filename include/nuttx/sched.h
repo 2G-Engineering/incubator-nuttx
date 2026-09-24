@@ -558,6 +558,12 @@ struct task_group_s
 
   struct fdlist tg_fdlist;          /* Maps file descriptor to file         */
 
+#ifdef CONFIG_FS_CHROOT
+  /* chroot() jail **********************************************************/
+
+  FAR char *tg_root;                /* Absolute jail path, NULL = no jail   */
+#endif
+
   /* Virtual memory mapping info ********************************************/
 
   struct mm_map_s tg_mm_map;        /* Task group virtual memory mappings   */
@@ -638,6 +644,10 @@ struct tcb_s
 #if CONFIG_RR_INTERVAL > 0 || defined(CONFIG_SCHED_SPORADIC)
   int32_t  timeslice;                    /* RR timeslice OR Sporadic budget */
                                          /* interval remaining              */
+#endif
+#if CONFIG_RR_INTERVAL > 0 && defined(CONFIG_SCHED_TICKLESS)
+  clock_t  rr_starttime;                 /* Time when RR task was last      */
+                                         /* accounted                       */
 #endif
 #ifdef CONFIG_SCHED_SPORADIC
   FAR struct sporadic_s *sporadic;       /* Sporadic scheduling parameters  */

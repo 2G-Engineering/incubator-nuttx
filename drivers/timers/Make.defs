@@ -70,6 +70,12 @@ ifeq ($(CONFIG_RTC_PCF85263),y)
   TMRVPATH = :timers
 endif
 
+ifeq ($(CONFIG_RTC_PCF8563),y)
+  CSRCS += pcf8563.c
+  TMRDEPPATH = --dep-path timers
+  TMRVPATH = :timers
+endif
+
 ifeq ($(CONFIG_RTC_PL031),y)
   CSRCS += pl031.c
   TMRDEPPATH = --dep-path timers
@@ -149,10 +155,14 @@ endif
 
 ifeq ($(CONFIG_PTP_CLOCK),y)
   CSRCS += ptp_clock.c
+  TMRDEPPATH = --dep-path timers
+  TMRVPATH = :timers
 endif
 
 ifeq ($(CONFIG_PTP_CLOCK_DUMMY),y)
   CSRCS += ptp_clock_dummy.c
+  TMRDEPPATH = --dep-path timers
+  TMRVPATH = :timers
 endif
 
 # Include timer build support (if any were selected)

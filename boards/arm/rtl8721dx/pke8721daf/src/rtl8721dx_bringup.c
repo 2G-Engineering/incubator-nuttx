@@ -148,6 +148,56 @@ int rtl8721dx_bringup(void)
     }
 #endif
 
+#ifdef CONFIG_AMEBA_PWM
+  /* Register the board's PWM timer at /dev/pwm0. */
+
+  ret = rtl8721dx_pwm_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: rtl8721dx_pwm_initialize failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_AMEBA_ADC
+  /* Register the board's ADC channels at /dev/adc0. */
+
+  ret = rtl8721dx_adc_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: rtl8721dx_adc_initialize failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_AMEBA_RTC
+  /* Register the board's RTC at /dev/rtc0. */
+
+  ret = rtl8721dx_rtc_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: rtl8721dx_rtc_initialize failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_AMEBA_WDG
+  /* Register the board's watchdog at /dev/watchdog0. */
+
+  ret = rtl8721dx_wdg_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: rtl8721dx_wdg_initialize failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_AMEBA_TIMER
+  /* Register the board's timers at /dev/timer0 and /dev/timer1. */
+
+  ret = rtl8721dx_timer_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: rtl8721dx_timer_initialize failed: %d\n", ret);
+    }
+#endif
+
   /* Install the inter-core HW IPC-semaphore RTOS hooks LAST -- after all the
    * flash / WHC bring-up above, and just before this (board_late_initialize)
    * path returns and nx_start() hands off to the init task.

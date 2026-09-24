@@ -35,7 +35,6 @@
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 
-#include "clock/clock.h"
 #include "sched/sched.h"
 
 /****************************************************************************
@@ -45,98 +44,59 @@
 #ifdef CONFIG_SCHED_SPORADIC
 static inline_function
 int set_sporadic_param(FAR const struct sched_param *param,
-                       FAR struct tcb_s *rtcb, FAR struct tcb_s *tcb)
+                       FAR struct tcb_s *tcb)
 {
+  FAR struct sporadic_s *sporadic;
+  clock_t repl_ticks;
+  clock_t budget_ticks;
   irqstate_t flags;
   int ret = OK;
 
   /* Update parameters associated with SCHED_SPORADIC */
 
-  if ((rtcb->flags & TCB_FLAG_POLICY_MASK) == TCB_FLAG_SCHED_SPORADIC)
+  if ((tcb->flags & TCB_FLAG_POLICY_MASK) == TCB_FLAG_SCHED_SPORADIC)
     {
-      FAR struct sporadic_s *sporadic;
-      clock_t repl_ticks;
-      clock_t budget_ticks;
-
-      if (param->sched_ss_max_repl >= 1 &&
-          param->sched_ss_max_repl <= CONFIG_SCHED_SPORADIC_MAXREPL)
+      ret = nxsched_validate_sporadic(param, &repl_ticks, &budget_ticks);
+      if (ret < 0)
         {
-          /* Convert timespec values to system clock ticks */
+          return ret;
+        }
 
-          repl_ticks = clock_time2ticks(&param->sched_ss_repl_period);
-          budget_ticks = clock_time2ticks(&param->sched_ss_init_budget);
+      /* Stop/reset current sporadic scheduling */
 
-          /* Avoid zero/negative times */
-
-          if (repl_ticks < 1)
-            {
-              repl_ticks = 1;
-            }
-
-          if (budget_ticks < 1)
-            {
-              budget_ticks = 1;
-            }
-
-          /* The replenishment period must be greater than or equal to the
-           * budget period.
+      flags = enter_critical_section();
+      ret = nxsched_reset_sporadic(tcb);
+      if (ret >= 0)
+        {
+          /* Save the sporadic scheduling parameters and reset to the
+           * beginning to the replenishment interval.
            */
 
-#if 1
-          /* REVISIT: In the current implementation, the budget cannot exceed
-           * half the duty.
-           */
+          tcb->timeslice         = budget_ticks;
 
-          if (repl_ticks < (2 * budget_ticks))
-#else
-          if (repl_ticks < budget_ticks)
-#endif
-            {
-              /* Stop/reset current sporadic scheduling */
+          sporadic = tcb->sporadic;
+          DEBUGASSERT(sporadic != NULL);
 
-              flags = enter_critical_section();
-              ret = nxsched_reset_sporadic(tcb);
-              if (ret >= 0)
-                {
-                  /* Save the sporadic scheduling parameters and reset to the
-                   * beginning to the replenishment interval.
-                   */
+          sporadic->hi_priority  = param->sched_priority;
+          sporadic->low_priority = param->sched_ss_low_priority;
+          sporadic->max_repl     = param->sched_ss_max_repl;
+          sporadic->repl_period  = repl_ticks;
+          sporadic->budget       = budget_ticks;
 
-                  tcb->timeslice         = budget_ticks;
+          /* And restart at the next replenishment interval */
 
-                  sporadic = rtcb->sporadic;
-                  DEBUGASSERT(sporadic != NULL);
-
-                  sporadic->hi_priority  = param->sched_priority;
-                  sporadic->low_priority = param->sched_ss_low_priority;
-                  sporadic->max_repl     = param->sched_ss_max_repl;
-                  sporadic->repl_period  = repl_ticks;
-                  sporadic->budget       = budget_ticks;
-
-                  /* And restart at the next replenishment interval */
-
-                  ret = nxsched_start_sporadic(tcb);
-                }
-
-              /* Restore interrupts and handle any pending work */
-
-              leave_critical_section(flags);
-            }
-          else
-            {
-              ret = -EINVAL;
-            }
+          ret = nxsched_start_sporadic(tcb);
         }
-      else
-        {
-          ret = -EINVAL;
-        }
+
+      /* Restore interrupts and handle any pending work */
+
+      leave_critical_section(flags);
     }
 
   return ret;
 }
 #else
-#  define set_sporadic_param(p, r, t) OK
+#  define set_sporadic_param(p, t) OK
 #endif
 
 /****************************************************************************
@@ -187,6 +147,12 @@ int nxsched_set_param(pid_t pid, FAR const struct sched_param *param)
 
   if (param != NULL)
     {
+      if (param->sched_priority < SCHED_PRIORITY_MIN ||
+          param->sched_priority > SCHED_PRIORITY_MAX)
+        {
+          return -EINVAL;
+        }
+
       /* Prohibit modifications to the head of the ready-to-run task
        * list while adjusting the priority
        */
@@ -216,7 +182,7 @@ int nxsched_set_param(pid_t pid, FAR const struct sched_param *param)
 
       if (ret >= 0)
         {
-          ret = set_sporadic_param(param, rtcb, tcb);
+          ret = set_sporadic_param(param, tcb);
         }
 
       /* Then perform the reprioritization */
@@ -271,6 +237,7 @@ int nxsched_set_param(pid_t pid, FAR const struct sched_param *param)
 int sched_setparam(pid_t pid, FAR const struct sched_param *param)
 {
   int ret = nxsched_set_param(pid, param);
+
   if (ret < 0)
     {
       set_errno(-ret);

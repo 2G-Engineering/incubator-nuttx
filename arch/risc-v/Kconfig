@@ -32,7 +32,6 @@ config ARCH_CHIP_K210
 	select ARCH_HAVE_FPU
 	select ARCH_HAVE_DPFPU
 	select ARCH_HAVE_MPU
-	select ARCH_HAVE_TESTSET
 	select ARCH_HAVE_MULTICPU
 	select ARCH_HAVE_MISALIGN_EXCEPTION
 	select ONESHOT
@@ -82,6 +81,7 @@ config ARCH_CHIP_BL602
 	select ONESHOT_COUNT
 	select ONESHOT_FAST_DIVISION
 	select ALARM_ARCH
+	select LIBC_ATOMIC_IRQ
 	---help---
 		BouffaloLab BL602(rv32imfc)
 
@@ -112,6 +112,7 @@ config ARCH_CHIP_ESP32C3_LEGACY
 	select ARCH_HAVE_RAMFUNCS
 	select ONESHOT_COUNT if ONESHOT
 	select ONESHOT_FAST_DIVISION if ONESHOT
+	select LIBC_ATOMIC_IRQ
 	---help---
 		Espressif ESP32-C3 (RV32IMC). Legacy implementation.
 
@@ -145,6 +146,7 @@ config ARCH_CHIP_ESP32C3
 	select ONESHOT_COUNT if ONESHOT
 	select ONESHOT_FAST_DIVISION if ONESHOT
 	select ARCH_MINIMAL_VECTORTABLE
+	select LIBC_ATOMIC_IRQ
 	---help---
 		ESP32-C3 chip with a single RISC-V IMC core, no embedded Flash memory
 
@@ -210,6 +212,7 @@ config ARCH_CHIP_ESP32H2
 	select ONESHOT_COUNT if ONESHOT
 	select ONESHOT_FAST_DIVISION if ONESHOT
 	select ARCH_MINIMAL_VECTORTABLE
+	select LIBC_ATOMIC_IRQ
 	---help---
 		Espressif ESP32-H2 (RV32IMC).
 
@@ -261,6 +264,23 @@ config ARCH_CHIP_C906
 	---help---
 		THEAD C906 processor (RISC-V 64bit core with GCVX extensions).
 
+config ARCH_CHIP_ERBIUM
+	bool "AIFoundry Erbium"
+	select ARCH_RV64
+	select ARCH_RV_ISA_M
+	select ARCH_RV_ISA_C
+	select ARCH_HAVE_FPU
+	select ONESHOT
+	select ONESHOT_COUNT
+	select ONESHOT_FAST_DIVISION
+	select ALARM_ARCH
+	select LIBC_ATOMIC_IRQ
+	select OTHER_UART_SERIALDRIVER
+	select UART0_SERIALDRIVER
+	---help---
+		AIFoundry Erbium minion hart: RV64IMFC, machine timer,
+		and SiFive-style PLIC.
+
 config ARCH_CHIP_MPFS
 	bool "MicroChip Polarfire (MPFS)"
 	select ARCH_RV64
@@ -296,6 +316,7 @@ config ARCH_CHIP_RV32M1
 	select ONESHOT_COUNT
 	select ONESHOT_FAST_DIVISION
 	select ALARM_ARCH
+	select LIBC_ATOMIC_IRQ
 	---help---
 		NXP RV32M1 processor (RISC-V Core with PULP extensions).
 
@@ -435,8 +456,22 @@ config ARCH_CHIP_SG2000
 	---help---
 		SOPHGO SG2000 SoC.
 
+config ARCH_CHIP_ALLWINNER_D1
+	bool "Allwinner D1"
+	select ARCH_RV64
+	select ARCH_RV_ISA_M
+	select ARCH_RV_ISA_A
+	select ARCH_RV_ISA_C
+	select ARCH_HAVE_FPU
+	select ARCH_HAVE_DPFPU
+	select ARCH_HAVE_S_MODE
+	---help---
+		Allwinner D1 / sun20i-d1 SoC with a T-Head C906 RV64 core.
+
 config ARCH_CHIP_EIC7700X
 	bool "ESWIN EIC7700X"
+	select ARCH_BOARD_COMMON
+	select ARCH_HAVE_ELF_EXECUTABLE
 	select ARCH_RV64
 	select ARCH_RV_ISA_M
 	select ARCH_RV_ISA_A
@@ -445,6 +480,7 @@ config ARCH_CHIP_EIC7700X
 	select ARCH_HAVE_DPFPU
 	select ARCH_HAVE_MULTICPU
 	select ARCH_HAVE_MPU
+	select ARCH_DCACHE
 	select ARCH_MMU_TYPE_SV39
 	select ARCH_HAVE_ADDRENV
 	select ARCH_NEED_ADDRENV_MAPPING
@@ -506,7 +542,6 @@ config ARCH_RV_ISA_M
 config ARCH_RV_ISA_A
 	bool
 	default n
-	select ARCH_HAVE_TESTSET
 
 config ARCH_RV_ISA_C
 	bool
@@ -654,6 +689,7 @@ config ARCH_CHIP
 	default "esp32h2"               if ARCH_CHIP_ESP32H2
 	default "esp32p4"               if ARCH_CHIP_ESP32P4
 	default "c906"                  if ARCH_CHIP_C906
+	default "erbium"                if ARCH_CHIP_ERBIUM
 	default "mpfs"                  if ARCH_CHIP_MPFS
 	default "rv32m1"                if ARCH_CHIP_RV32M1
 	default "qemu-rv"               if ARCH_CHIP_QEMU_RV
@@ -663,6 +699,7 @@ config ARCH_CHIP
 	default "bl808"                 if ARCH_CHIP_BL808
 	default "k230"                  if ARCH_CHIP_K230
 	default "sg2000"                if ARCH_CHIP_SG2000
+	default "allwinner-d1"          if ARCH_CHIP_ALLWINNER_D1
 	default "eic7700x"              if ARCH_CHIP_EIC7700X
 	default "rp23xx-rv"             if ARCH_CHIP_RP23XX_RV
 
@@ -756,6 +793,15 @@ config ARCH_RV_HAVE_APLIC
 		Instead of PLIC, RISC-V also defines Advanced Platform-Level Interrupt
 		Controller (APLIC) to provide flexible interrupt control. This device
 		is not backward compatible with PLIC.
+
+config ARCH_RV_HAVE_CLIC
+	bool
+	default n
+	---help---
+		RISC-V defines Core-Level Interrupt Controller (CLIC) to provide
+		flexible interrupt control. When enabled, CLIC uses interrupt
+		threshold (MINTTHRESH/SINTTHRESH) CSRs for interrupt control
+		instead of the standard IE bit in STATUS register.
 
 config ARCH_RV_EXT_AIA
 	bool "Enable RISC-V SxAIA support"
@@ -902,6 +948,9 @@ endif
 if ARCH_CHIP_C906
 source "arch/risc-v/src/c906/Kconfig"
 endif
+if ARCH_CHIP_ERBIUM
+source "arch/risc-v/src/erbium/Kconfig"
+endif
 if ARCH_CHIP_MPFS
 source "arch/risc-v/src/mpfs/Kconfig"
 endif
@@ -928,6 +977,9 @@ source "arch/risc-v/src/k230/Kconfig"
 endif
 if ARCH_CHIP_SG2000
 source "arch/risc-v/src/sg2000/Kconfig"
+endif
+if ARCH_CHIP_ALLWINNER_D1
+source "arch/risc-v/src/allwinner-d1/Kconfig"
 endif
 if ARCH_CHIP_EIC7700X
 source "arch/risc-v/src/eic7700x/Kconfig"

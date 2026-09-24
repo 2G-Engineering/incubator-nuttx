@@ -56,6 +56,26 @@ if(CONFIG_AMEBA_SPI)
   list(APPEND SRCS ${AMEBA_COMMON}/ameba_spi.c)
 endif()
 
+if(CONFIG_AMEBA_PWM)
+  list(APPEND SRCS ${AMEBA_COMMON}/ameba_pwm.c)
+endif()
+
+if(CONFIG_AMEBA_ADC)
+  list(APPEND SRCS ${AMEBA_COMMON}/ameba_adc.c)
+endif()
+
+if(CONFIG_AMEBA_RTC)
+  list(APPEND SRCS ${AMEBA_COMMON}/ameba_rtc.c)
+endif()
+
+if(CONFIG_AMEBA_WDG)
+  list(APPEND SRCS ${AMEBA_COMMON}/ameba_wdg.c)
+endif()
+
+if(CONFIG_AMEBA_TIMER)
+  list(APPEND SRCS ${AMEBA_COMMON}/ameba_timer.c)
+endif()
+
 target_include_directories(arch PRIVATE ${AMEBA_COMMON})
 target_sources(arch PRIVATE ${SRCS})
 
@@ -110,6 +130,13 @@ if(CONFIG_AMEBA_GPIO)
   # GPIO_INTStatusGet/ClearEdge are not in the ROM symbol table; compile them in
   # from the fwlib source (mirrors the make build's ameba_board.mk).
   list(APPEND AMEBA_FWLIB_SRCS ${AMEBA_SOC}/fwlib/ram_common/ameba_gpio.c)
+endif()
+
+# RTC register layer.  The RTC driver (arch/.../common/ameba/ameba_rtc.c) calls
+# the fwlib RTC API; the data tables and helpers it indexes live in this RAM
+# source and must be compiled in (mirrors the make build's ameba_board.mk).
+if(CONFIG_AMEBA_RTC)
+  list(APPEND AMEBA_FWLIB_SRCS ${AMEBA_SOC}/fwlib/ram_common/ameba_rtc.c)
 endif()
 
 # Silence a couple of warnings the vendored SDK sources trip under NuttX's

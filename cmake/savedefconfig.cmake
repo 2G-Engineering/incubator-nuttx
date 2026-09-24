@@ -42,7 +42,7 @@ foreach(NameAndValue ${ConfigContents})
      OR "${NameAndValue}" MATCHES "CONFIG_ARCH_BOARD_COMMON="
      OR "${NameAndValue}" MATCHES "^CONFIG_ARCH_CUSTOM"
      OR "${NameAndValue}" MATCHES "^CONFIG_ARCH_BOARD_CUSTOM")
-    decode_semicolon(Value)
+    decode_semicolon(NameAndValue)
     file(APPEND ${TARGET_FILE} "${NameAndValue}\n")
   endif()
 endforeach()
@@ -77,7 +77,8 @@ foreach(LINE IN LISTS LINES)
   decode_brackets(LINE)
   decode_semicolon(LINE)
   if(NOT "${LINE}" MATCHES "^CONFIG_FSUTILS_PASSWD_PBKDF2_ITERATIONS="
-     AND NOT "${LINE}" MATCHES "^CONFIG_BOARD_ETC_ROMFS_PASSWD_PASSWORD=")
+     AND NOT "${LINE}" MATCHES "^CONFIG_BOARD_ETC_ROMFS_PASSWD_PASSWORD="
+     AND NOT "${LINE}" MATCHES "^CONFIG_BOARD_ETC_ROMFS_PASSWD_EXTRA_PASSWORD=")
     file(APPEND ${OUTPUT_FILE} "${LINE}\n")
   endif()
 endforeach()

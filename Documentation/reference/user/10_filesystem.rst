@@ -219,6 +219,9 @@ UNIX Standard Operations (``unistd.h``)
   /* Working directory operations */
 
   int     chdir(FAR const char *path);
+  #ifdef CONFIG_FS_CHROOT
+  int     chroot(FAR const char *path);
+  #endif
   FAR char *getcwd(FAR char *buf, size_t size);
 
   /* File path operations */
@@ -227,7 +230,7 @@ UNIX Standard Operations (``unistd.h``)
   int     rmdir(FAR const char *pathname);
   int     unlink(FAR const char *pathname);
 
-  #ifdef CONFIG_PSEUDOFS_SOFTLINKS
+  #ifdef CONFIG_FS_LINKS
   int     link(FAR const char *path1, FAR const char *path2);
   ssize_t readlink(FAR const char *path, FAR char *buf, size_t bufsize);
   #endif

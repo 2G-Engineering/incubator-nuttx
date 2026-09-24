@@ -41,13 +41,28 @@
                       _24, _25, _26, _27, _28, _29, _30, _31, \
                       _32, name, ...) name
 
-/* Get the number of arguments (up to 32) */
+/* Get the number of arguments (up to 32)
+ *
+ * C++ strict mode drops the GNU ", ##__VA_ARGS__" comma elision, which
+ * would shift the selector off by one for the zero-argument case; use the
+ * standard __VA_OPT__ there instead.  This is the only place where the
+ * empty-argument case needs special handling: every higher-level macro
+ * (REVERSE_ARG, FOREACH_ARG, ...) dispatches on top of GET_ARG_COUNT.
+ */
 
-#define GET_ARG_COUNT(...) \
+#if defined(__cplusplus)
+#  define GET_ARG_COUNT(...) \
+        GET_ARG_VALUE(_0 __VA_OPT__(,) __VA_ARGS__, 32, 31, 30, \
+        29, 28, 27, 26, 25, 24, 23, 22, 21, 20, \
+        19, 18, 17, 16, 15, 14, 13, 12, 11, 10, \
+        9,  8,  7,  6,  5,  4,  3,  2,  1,  0)
+#else
+#  define GET_ARG_COUNT(...) \
         GET_ARG_VALUE(_0, ##__VA_ARGS__, 32, 31, 30, \
         29, 28, 27, 26, 25, 24, 23, 22, 21, 20, \
         19, 18, 17, 16, 15, 14, 13, 12, 11, 10, \
         9,  8,  7,  6,  5,  4,  3,  2,  1,  0)
+#endif
 
 /* Expand the arguments */
 
@@ -56,17 +71,17 @@
 
 /* Reverse the arguments */
 
-#define REVERSE_00()
-#define REVERSE_01(a)     a
-#define REVERSE_02(a,b)   b,a
-#define REVERSE_03(a,...) EXPAND(REVERSE_02(__VA_ARGS__)),a
-#define REVERSE_04(a,...) EXPAND(REVERSE_03(__VA_ARGS__)),a
-#define REVERSE_05(a,...) EXPAND(REVERSE_04(__VA_ARGS__)),a
-#define REVERSE_06(a,...) EXPAND(REVERSE_05(__VA_ARGS__)),a
-#define REVERSE_07(a,...) EXPAND(REVERSE_06(__VA_ARGS__)),a
-#define REVERSE_08(a,...) EXPAND(REVERSE_07(__VA_ARGS__)),a
-#define REVERSE_09(a,...) EXPAND(REVERSE_08(__VA_ARGS__)),a
-#define REVERSE_10(a,...) EXPAND(REVERSE_09(__VA_ARGS__)),a
+#define REVERSE_0()
+#define REVERSE_1(a)     a
+#define REVERSE_2(a,b)   b,a
+#define REVERSE_3(a,...) EXPAND(REVERSE_2(__VA_ARGS__)),a
+#define REVERSE_4(a,...) EXPAND(REVERSE_3(__VA_ARGS__)),a
+#define REVERSE_5(a,...) EXPAND(REVERSE_4(__VA_ARGS__)),a
+#define REVERSE_6(a,...) EXPAND(REVERSE_5(__VA_ARGS__)),a
+#define REVERSE_7(a,...) EXPAND(REVERSE_6(__VA_ARGS__)),a
+#define REVERSE_8(a,...) EXPAND(REVERSE_7(__VA_ARGS__)),a
+#define REVERSE_9(a,...) EXPAND(REVERSE_8(__VA_ARGS__)),a
+#define REVERSE_10(a,...) EXPAND(REVERSE_9(__VA_ARGS__)),a
 #define REVERSE_11(a,...) EXPAND(REVERSE_10(__VA_ARGS__)),a
 #define REVERSE_12(a,...) EXPAND(REVERSE_11(__VA_ARGS__)),a
 #define REVERSE_13(a,...) EXPAND(REVERSE_12(__VA_ARGS__)),a
@@ -90,63 +105,67 @@
 #define REVERSE_31(a,...) EXPAND(REVERSE_30(__VA_ARGS__)),a
 #define REVERSE_32(a,...) EXPAND(REVERSE_31(__VA_ARGS__)),a
 
-#define REVERSE_ARG_(...) \
-        GET_ARG_VALUE(0, ##__VA_ARGS__, \
-        REVERSE_32, REVERSE_31, REVERSE_30, REVERSE_29, REVERSE_28, REVERSE_27, \
-        REVERSE_26, REVERSE_25, REVERSE_24, REVERSE_23, REVERSE_22, REVERSE_21, \
-        REVERSE_20, REVERSE_19, REVERSE_18, REVERSE_17, REVERSE_16, REVERSE_15, \
-        REVERSE_14, REVERSE_13, REVERSE_12, REVERSE_11, REVERSE_10, REVERSE_09, \
-        REVERSE_08, REVERSE_07, REVERSE_06, REVERSE_05, REVERSE_04, REVERSE_03, \
-        REVERSE_02, REVERSE_01, REVERSE_00)(__VA_ARGS__)
+/* Select the worker through GET_ARG_COUNT so the zero-argument case
+ * expands correctly in both C and C++ (see GET_ARG_COUNT).
+ */
 
-#define REVERSE_ARG(...) REVERSE_ARG_(##__VA_ARGS__)
+#define REVERSE_ARG(...) \
+        CONCATENATE(REVERSE_, GET_ARG_COUNT(__VA_ARGS__))(__VA_ARGS__)
 
-/* Apply the macro to each argument */
+/* Apply the macro to each argument, passing the position of the argument
+ * as a literal (0, 1, 2, ...) rather than as an expression, so that the
+ * action can paste it into an identifier, for instance to build a symbol
+ * name the linker can sort.  The list is reversed before the expansion
+ * and each step emits the recursion before its own action, so both the
+ * indexes and the order of the actions follow the original list.
+ */
 
-#define FOREACH_00(action, count, param, ...)      0
-#define FOREACH_01(action, count, param, arg, ...) action(param, arg, count - 1 )
-#define FOREACH_02(action, count, param, arg, ...) action(param, arg, count - 2 ) FOREACH_01(action, count, param, __VA_ARGS__)
-#define FOREACH_03(action, count, param, arg, ...) action(param, arg, count - 3 ) FOREACH_02(action, count, param, __VA_ARGS__)
-#define FOREACH_04(action, count, param, arg, ...) action(param, arg, count - 4 ) FOREACH_03(action, count, param, __VA_ARGS__)
-#define FOREACH_05(action, count, param, arg, ...) action(param, arg, count - 5 ) FOREACH_04(action, count, param, __VA_ARGS__)
-#define FOREACH_06(action, count, param, arg, ...) action(param, arg, count - 6 ) FOREACH_05(action, count, param, __VA_ARGS__)
-#define FOREACH_07(action, count, param, arg, ...) action(param, arg, count - 7 ) FOREACH_06(action, count, param, __VA_ARGS__)
-#define FOREACH_08(action, count, param, arg, ...) action(param, arg, count - 8 ) FOREACH_07(action, count, param, __VA_ARGS__)
-#define FOREACH_09(action, count, param, arg, ...) action(param, arg, count - 9 ) FOREACH_08(action, count, param, __VA_ARGS__)
-#define FOREACH_10(action, count, param, arg, ...) action(param, arg, count - 10) FOREACH_09(action, count, param, __VA_ARGS__)
-#define FOREACH_11(action, count, param, arg, ...) action(param, arg, count - 11) FOREACH_10(action, count, param, __VA_ARGS__)
-#define FOREACH_12(action, count, param, arg, ...) action(param, arg, count - 12) FOREACH_11(action, count, param, __VA_ARGS__)
-#define FOREACH_13(action, count, param, arg, ...) action(param, arg, count - 13) FOREACH_12(action, count, param, __VA_ARGS__)
-#define FOREACH_14(action, count, param, arg, ...) action(param, arg, count - 14) FOREACH_13(action, count, param, __VA_ARGS__)
-#define FOREACH_15(action, count, param, arg, ...) action(param, arg, count - 15) FOREACH_14(action, count, param, __VA_ARGS__)
-#define FOREACH_16(action, count, param, arg, ...) action(param, arg, count - 16) FOREACH_15(action, count, param, __VA_ARGS__)
-#define FOREACH_17(action, count, param, arg, ...) action(param, arg, count - 17) FOREACH_16(action, count, param, __VA_ARGS__)
-#define FOREACH_18(action, count, param, arg, ...) action(param, arg, count - 18) FOREACH_17(action, count, param, __VA_ARGS__)
-#define FOREACH_19(action, count, param, arg, ...) action(param, arg, count - 19) FOREACH_18(action, count, param, __VA_ARGS__)
-#define FOREACH_20(action, count, param, arg, ...) action(param, arg, count - 20) FOREACH_19(action, count, param, __VA_ARGS__)
-#define FOREACH_21(action, count, param, arg, ...) action(param, arg, count - 21) FOREACH_20(action, count, param, __VA_ARGS__)
-#define FOREACH_22(action, count, param, arg, ...) action(param, arg, count - 22) FOREACH_21(action, count, param, __VA_ARGS__)
-#define FOREACH_23(action, count, param, arg, ...) action(param, arg, count - 23) FOREACH_22(action, count, param, __VA_ARGS__)
-#define FOREACH_24(action, count, param, arg, ...) action(param, arg, count - 24) FOREACH_23(action, count, param, __VA_ARGS__)
-#define FOREACH_25(action, count, param, arg, ...) action(param, arg, count - 25) FOREACH_24(action, count, param, __VA_ARGS__)
-#define FOREACH_26(action, count, param, arg, ...) action(param, arg, count - 26) FOREACH_25(action, count, param, __VA_ARGS__)
-#define FOREACH_27(action, count, param, arg, ...) action(param, arg, count - 27) FOREACH_26(action, count, param, __VA_ARGS__)
-#define FOREACH_28(action, count, param, arg, ...) action(param, arg, count - 28) FOREACH_27(action, count, param, __VA_ARGS__)
-#define FOREACH_29(action, count, param, arg, ...) action(param, arg, count - 29) FOREACH_28(action, count, param, __VA_ARGS__)
-#define FOREACH_30(action, count, param, arg, ...) action(param, arg, count - 30) FOREACH_29(action, count, param, __VA_ARGS__)
-#define FOREACH_31(action, count, param, arg, ...) action(param, arg, count - 31) FOREACH_30(action, count, param, __VA_ARGS__)
-#define FOREACH_32(action, count, param, arg, ...) action(param, arg, count - 32) FOREACH_31(action, count, param, __VA_ARGS__)
+#define FOREACH_0(action, param, ...)
+#define FOREACH_1(action, param, arg, ...) action(param, arg, 0)
+#define FOREACH_2(action, param, arg, ...) FOREACH_1(action, param, __VA_ARGS__) action(param, arg, 1)
+#define FOREACH_3(action, param, arg, ...) FOREACH_2(action, param, __VA_ARGS__) action(param, arg, 2)
+#define FOREACH_4(action, param, arg, ...) FOREACH_3(action, param, __VA_ARGS__) action(param, arg, 3)
+#define FOREACH_5(action, param, arg, ...) FOREACH_4(action, param, __VA_ARGS__) action(param, arg, 4)
+#define FOREACH_6(action, param, arg, ...) FOREACH_5(action, param, __VA_ARGS__) action(param, arg, 5)
+#define FOREACH_7(action, param, arg, ...) FOREACH_6(action, param, __VA_ARGS__) action(param, arg, 6)
+#define FOREACH_8(action, param, arg, ...) FOREACH_7(action, param, __VA_ARGS__) action(param, arg, 7)
+#define FOREACH_9(action, param, arg, ...) FOREACH_8(action, param, __VA_ARGS__) action(param, arg, 8)
+#define FOREACH_10(action, param, arg, ...) FOREACH_9(action, param, __VA_ARGS__) action(param, arg, 9)
+#define FOREACH_11(action, param, arg, ...) FOREACH_10(action, param, __VA_ARGS__) action(param, arg, 10)
+#define FOREACH_12(action, param, arg, ...) FOREACH_11(action, param, __VA_ARGS__) action(param, arg, 11)
+#define FOREACH_13(action, param, arg, ...) FOREACH_12(action, param, __VA_ARGS__) action(param, arg, 12)
+#define FOREACH_14(action, param, arg, ...) FOREACH_13(action, param, __VA_ARGS__) action(param, arg, 13)
+#define FOREACH_15(action, param, arg, ...) FOREACH_14(action, param, __VA_ARGS__) action(param, arg, 14)
+#define FOREACH_16(action, param, arg, ...) FOREACH_15(action, param, __VA_ARGS__) action(param, arg, 15)
+#define FOREACH_17(action, param, arg, ...) FOREACH_16(action, param, __VA_ARGS__) action(param, arg, 16)
+#define FOREACH_18(action, param, arg, ...) FOREACH_17(action, param, __VA_ARGS__) action(param, arg, 17)
+#define FOREACH_19(action, param, arg, ...) FOREACH_18(action, param, __VA_ARGS__) action(param, arg, 18)
+#define FOREACH_20(action, param, arg, ...) FOREACH_19(action, param, __VA_ARGS__) action(param, arg, 19)
+#define FOREACH_21(action, param, arg, ...) FOREACH_20(action, param, __VA_ARGS__) action(param, arg, 20)
+#define FOREACH_22(action, param, arg, ...) FOREACH_21(action, param, __VA_ARGS__) action(param, arg, 21)
+#define FOREACH_23(action, param, arg, ...) FOREACH_22(action, param, __VA_ARGS__) action(param, arg, 22)
+#define FOREACH_24(action, param, arg, ...) FOREACH_23(action, param, __VA_ARGS__) action(param, arg, 23)
+#define FOREACH_25(action, param, arg, ...) FOREACH_24(action, param, __VA_ARGS__) action(param, arg, 24)
+#define FOREACH_26(action, param, arg, ...) FOREACH_25(action, param, __VA_ARGS__) action(param, arg, 25)
+#define FOREACH_27(action, param, arg, ...) FOREACH_26(action, param, __VA_ARGS__) action(param, arg, 26)
+#define FOREACH_28(action, param, arg, ...) FOREACH_27(action, param, __VA_ARGS__) action(param, arg, 27)
+#define FOREACH_29(action, param, arg, ...) FOREACH_28(action, param, __VA_ARGS__) action(param, arg, 28)
+#define FOREACH_30(action, param, arg, ...) FOREACH_29(action, param, __VA_ARGS__) action(param, arg, 29)
+#define FOREACH_31(action, param, arg, ...) FOREACH_30(action, param, __VA_ARGS__) action(param, arg, 30)
+#define FOREACH_32(action, param, arg, ...) FOREACH_31(action, param, __VA_ARGS__) action(param, arg, 31)
 
-#define FOREACH_ARG_(action, count, param, ...) \
-        GET_ARG_VALUE(0, ##__VA_ARGS__, \
-        FOREACH_32, FOREACH_31, FOREACH_30, FOREACH_29, FOREACH_28, FOREACH_27, \
-        FOREACH_26, FOREACH_25, FOREACH_24, FOREACH_23, FOREACH_22, FOREACH_21, \
-        FOREACH_20, FOREACH_19, FOREACH_18, FOREACH_17, FOREACH_16, FOREACH_15, \
-        FOREACH_14, FOREACH_13, FOREACH_12, FOREACH_11, FOREACH_10, FOREACH_09, \
-        FOREACH_08, FOREACH_07, FOREACH_06, FOREACH_05, FOREACH_04, FOREACH_03, \
-        FOREACH_02, FOREACH_01, FOREACH_00)(action, count, param, ##__VA_ARGS__)
+/* The reversed list has to be expanded before the arguments are counted,
+ * hence the extra indirection:  a macro counts the tokens it receives, not
+ * what they expand to.
+ */
+
+#define FOREACH_ARG__(action, param, ...) \
+        CONCATENATE(FOREACH_, GET_ARG_COUNT(__VA_ARGS__)) \
+        (action, param, __VA_ARGS__)
+
+#define FOREACH_ARG_(...) FOREACH_ARG__(__VA_ARGS__)
 
 #define FOREACH_ARG(action, param, ...) \
-        FOREACH_ARG_(action, GET_ARG_COUNT(__VA_ARGS__), param, ##__VA_ARGS__)
+        FOREACH_ARG_(action, param, REVERSE_ARG(__VA_ARGS__))
 
 #endif /* __INCLUDE_NUTTX_MACRO_H */

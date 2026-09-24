@@ -34,6 +34,10 @@ ifeq ($(CONFIG_ARCH_BUTTONS),y)
 CSRCS += stm32_buttons.c
 endif
 
+ifeq ($(CONFIG_STM32_SPI),y)
+CSRCS += stm32_spi.c
+endif
+
 ifeq ($(CONFIG_ADC),y)
 CSRCS += stm32_adc.c
 endif
@@ -52,6 +56,10 @@ endif
 
 ifeq ($(CONFIG_STM32_USBFS_HOST),y)
 CSRCS += stm32_usb.c
+endif
+
+ifeq ($(CONFIG_ARM_MPU),y)
+CSRCS += stm32_mpu.c
 endif
 
 DEPPATH += --dep-path board

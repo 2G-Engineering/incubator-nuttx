@@ -25,7 +25,8 @@ MEMORY
   atcm         (rwx): ORIGIN = 0x00000000, LENGTH = 32K      /* Instruction TCM for vectors/boot code */
   btcm         (rwx): ORIGIN = 0x41010000, LENGTH = 32K      /* Data TCM, ideal for stack */
   ddr_rsctable (rwx): ORIGIN = 0xA2100000, LENGTH = 1K       /* Resource Table for RemoteProc/IPC */
-  ddr          (rwx): ORIGIN = 0xA2200000, LENGTH = 0xE00000 /* Main DDR RAM */
+  ddr_rsv      (rwx): ORIGIN = 0xA2200000, LENGTH = 256K     /* VRING + RPMsg (VDEV0_VRING_BASE) */
+  ddr          (rwx): ORIGIN = 0xA2240000, LENGTH = 0xDC0000 /* Main DDR RAM (~13.75 MB) */
 }
 
 EXTERN(_vector_start)
@@ -71,6 +72,12 @@ SECTIONS
         . = ALIGN(1024);
     } > ddr_rsctable
 
+    .ddr_rsv (NOLOAD) :
+    {
+        _vring_base = ABSOLUTE(.);
+        . = . + 256K;
+    } > ddr_rsv
+
     .text :
     {
         *(.text .text.*)
@@ -101,7 +108,6 @@ SECTIONS
     } > ddr
 
     _etext = ABSOLUTE(.); /* End of code/read-only sections */
-    _sidata = _etext;    /* Start of initial values for .data (LMA) */
 
     .init_section :
     {
@@ -111,7 +117,7 @@ SECTIONS
         _einit = ABSOLUTE(.);
     } > ddr
 
-    .data : AT ( _sidata )
+    .data :
     {
         _sdata = ABSOLUTE(.);
         *(.data .data.*)

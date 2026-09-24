@@ -70,12 +70,12 @@
 
 /* Configuration ************************************************************/
 
-#ifndef CONFIG_STM32H7_IWDG_DEFTIMOUT
-#  define CONFIG_STM32H7_IWDG_DEFTIMOUT IWDG_MAXTIMEOUT
+#ifndef CONFIG_STM32_IWDG_DEFTIMOUT
+#  define CONFIG_STM32_IWDG_DEFTIMOUT IWDG_MAXTIMEOUT
 #endif
 
 #ifndef CONFIG_DEBUG_WATCHDOG_INFO
-#  undef CONFIG_STM32H7_IWDG_REGDEBUG
+#  undef CONFIG_STM32_IWDG_REGDEBUG
 #endif
 
 /* REVISIT:  It appears that you can only setup the prescaler and reload
@@ -84,19 +84,19 @@
  * is started, then refuse any further attempts to change timeout.
  */
 
-#define CONFIG_STM32H7_IWDG_ONETIMESETUP 1
+#define CONFIG_STM32_IWDG_ONETIMESETUP 1
 
 /* REVISIT:  Another possibility is that we CAN change the prescaler and
  * reload values after starting the timer.  This option is untested but the
  * implementation place conditioned on the following:
  */
 
-#undef CONFIG_STM32H7_IWDG_DEFERREDSETUP
+#undef CONFIG_STM32_IWDG_DEFERREDSETUP
 
 /* But you can only try one at a time */
 
-#if defined(CONFIG_STM32H7_IWDG_ONETIMESETUP) && defined(CONFIG_STM32H7_IWDG_DEFERREDSETUP)
-#  error "Both CONFIG_STM32H7_IWDG_ONETIMESETUP and CONFIG_STM32H7_IWDG_DEFERREDSETUP are defined"
+#if defined(CONFIG_STM32_IWDG_ONETIMESETUP) && defined(CONFIG_STM32_IWDG_DEFERREDSETUP)
+#  error "Both CONFIG_STM32_IWDG_ONETIMESETUP and CONFIG_STM32_IWDG_DEFERREDSETUP are defined"
 #endif
 
 /****************************************************************************
@@ -125,7 +125,7 @@ struct stm32_lowerhalf_s
 
 /* Register operations ******************************************************/
 
-#ifdef CONFIG_STM32H7_IWDG_REGDEBUG
+#ifdef CONFIG_STM32_IWDG_REGDEBUG
 static uint16_t stm32_getreg(uint32_t addr);
 static void     stm32_putreg(uint16_t val, uint32_t addr);
 #else
@@ -178,7 +178,7 @@ static struct stm32_lowerhalf_s g_wdgdev;
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H7_IWDG_REGDEBUG
+#ifdef CONFIG_STM32_IWDG_REGDEBUG
 static uint16_t stm32_getreg(uint32_t addr)
 {
   static uint32_t prevaddr = 0;
@@ -241,7 +241,7 @@ static uint16_t stm32_getreg(uint32_t addr)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_STM32H7_IWDG_REGDEBUG
+#ifdef CONFIG_STM32_IWDG_REGDEBUG
 static void stm32_putreg(uint16_t val, uint32_t addr)
 {
   /* Show the register value being written */
@@ -281,7 +281,7 @@ static inline void stm32_setprescaler(struct stm32_lowerhalf_s *priv)
    * be necessary.
    */
 
-#ifndef CONFIG_STM32H7_IWDG_ONETIMESETUP
+#ifndef CONFIG_STM32_IWDG_ONETIMESETUP
   while ((stm32_getreg(STM32_IWDG_SR) & (IWDG_SR_PVU | IWDG_SR_RVU)) != 0);
 #endif
 
@@ -336,7 +336,7 @@ static int stm32_start(struct watchdog_lowerhalf_s *lower)
        * starting the watchdog timer.
        */
 
-#if defined(CONFIG_STM32H7_IWDG_ONETIMESETUP) || defined(CONFIG_STM32H7_IWDG_DEFERREDSETUP)
+#if defined(CONFIG_STM32_IWDG_ONETIMESETUP) || defined(CONFIG_STM32_IWDG_DEFERREDSETUP)
       stm32_setprescaler(priv);
 #endif
 
@@ -513,7 +513,7 @@ static int stm32_settimeout(struct watchdog_lowerhalf_s *lower,
    * to zero.
    */
 
-#ifdef CONFIG_STM32H7_IWDG_ONETIMESETUP
+#ifdef CONFIG_STM32_IWDG_ONETIMESETUP
   if (priv->started)
     {
       wdwarn("WARNING: Timer is already started\n");
@@ -598,12 +598,12 @@ static int stm32_settimeout(struct watchdog_lowerhalf_s *lower,
    * to zero.
    */
 
-#ifndef CONFIG_STM32H7_IWDG_ONETIMESETUP
-  /* If CONFIG_STM32H7_IWDG_DEFERREDSETUP is selected, then perform the
+#ifndef CONFIG_STM32_IWDG_ONETIMESETUP
+  /* If CONFIG_STM32_IWDG_DEFERREDSETUP is selected, then perform the
    * register configuration only if the timer has been started.
    */
 
-#ifdef CONFIG_STM32H7_IWDG_DEFERREDSETUP
+#ifdef CONFIG_STM32_IWDG_DEFERREDSETUP
   if (priv->started)
 #endif
     {
@@ -671,7 +671,7 @@ void stm32_iwdginitialize(const char *devpath, uint32_t lsifreq)
    */
 
   stm32_settimeout((struct watchdog_lowerhalf_s *)priv,
-                   CONFIG_STM32H7_IWDG_DEFTIMOUT);
+                   CONFIG_STM32_IWDG_DEFTIMOUT);
 
   /* Register the watchdog driver as /dev/watchdog0 */
 

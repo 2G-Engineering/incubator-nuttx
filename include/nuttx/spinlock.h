@@ -77,49 +77,6 @@ void nxsched_critmon_busywait(bool state, FAR void *caller);
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_testset
- *
- * Description:
- *   Perform an atomic test and set operation on the provided spinlock.
- *
- *   This function must be provided via the architecture-specific logic.
- *
- * Input Parameters:
- *   lock  - A reference to the spinlock object.
- *
- * Returned Value:
- *   The spinlock is always locked upon return.  The previous value of the
- *   spinlock variable is returned, either SP_LOCKED if the spinlock was
- *   previously locked (meaning that the test-and-set operation failed to
- *   obtain the lock) or SP_UNLOCKED if the spinlock was previously unlocked
- *   (meaning that we successfully obtained the lock).
- *
- ****************************************************************************/
-
-#if defined(CONFIG_ARCH_HAVE_TESTSET)
-spinlock_t up_testset(FAR volatile spinlock_t *lock);
-#else
-static inline spinlock_t up_testset(FAR volatile spinlock_t *lock)
-{
-  irqstate_t flags;
-  spinlock_t ret;
-
-  flags = up_irq_save();
-
-  ret = *lock;
-
-  if (ret == SP_UNLOCKED)
-    {
-      *lock = SP_LOCKED;
-    }
-
-  up_irq_restore(flags);
-
-  return ret;
-}
-#endif
-
-/****************************************************************************
  * Name: spin_lock_init
  *
  * Description:
@@ -183,17 +140,11 @@ static inline_function void rspin_lock_init(FAR rspinlock_t *lock)
 static inline_function void spin_lock_notrace(FAR volatile spinlock_t *lock)
 {
 #ifdef CONFIG_TICKET_SPINLOCK
-  int ticket = atomic_fetch_add(&lock->next, 1);
-  while (atomic_read(&lock->owner) != ticket)
+  int ticket = atomic_add_relaxed(&lock->next, 1);
+  while (atomic_read_acquire(&lock->owner) != ticket);
 #else /* CONFIG_TICKET_SPINLOCK */
-  while (up_testset(lock) == SP_LOCKED)
+  while (atomic_xchg_acquire((FAR atomic_t *)lock, SP_LOCKED) == SP_LOCKED);
 #endif
-    {
-      UP_DSB();
-      UP_WFE();
-    }
-
-  UP_DMB();
 }
 #else
 #  define spin_lock_notrace(lock)
@@ -276,18 +227,21 @@ static inline_function bool
 spin_trylock_notrace(FAR volatile spinlock_t *lock)
 {
 #ifdef CONFIG_TICKET_SPINLOCK
-  if (!atomic_cmpxchg(&lock->next, &lock->owner,
-                      atomic_read(&lock->next) + 1))
-#else /* CONFIG_TICKET_SPINLOCK */
-  if (up_testset(lock) == SP_LOCKED)
-#endif /* CONFIG_TICKET_SPINLOCK */
-    {
-      UP_DSB();
-      return false;
-    }
+  /* The expected value must live in a local.  A failed compare-exchange
+   * writes the current value of the target object back through the
+   * expected pointer, so passing &lock->owner here would clobber the
+   * owner counter and make a lock held by another CPU appear unlocked.
+   *
+   * The exchange succeeds only when next == owner, which is the unlocked
+   * state of a ticket lock.
+   */
 
-  UP_DMB();
-  return true;
+  uint32_t expected = atomic_read(&lock->owner);
+
+  return atomic_cmpxchg_acquire(&lock->next, &expected, expected + 1);
+#else /* CONFIG_TICKET_SPINLOCK */
+  return atomic_xchg_acquire((FAR atomic_t *)lock, SP_LOCKED) != SP_LOCKED;
+#endif /* CONFIG_TICKET_SPINLOCK */
 }
 #endif /* CONFIG_SPINLOCK */
 
@@ -363,14 +317,11 @@ static inline_function bool spin_trylock(FAR volatile spinlock_t *lock)
 static inline_function void
 spin_unlock_notrace(FAR volatile spinlock_t *lock)
 {
-  UP_DMB();
 #ifdef CONFIG_TICKET_SPINLOCK
-  atomic_fetch_add(&lock->owner, 1);
+  atomic_add_release(&lock->owner, 1);
 #else
-  *lock = SP_UNLOCKED;
+  atomic_set_release((FAR atomic_t *)lock, SP_UNLOCKED);
 #endif
-  UP_DSB();
-  UP_SEV();
 }
 #else
 #  define spin_unlock_notrace(lock)
@@ -394,7 +345,6 @@ spin_unlock_notrace(FAR volatile spinlock_t *lock)
  ****************************************************************************/
 
 #ifdef CONFIG_SPINLOCK
-#  ifdef __SP_UNLOCK_FUNCTION
 static inline_function void spin_unlock(FAR volatile spinlock_t *lock)
 {
   /* Unlock without trace note */
@@ -405,9 +355,6 @@ static inline_function void spin_unlock(FAR volatile spinlock_t *lock)
 
   sched_note_spinlock_unlock(lock);
 }
-#  else
-#    define spin_unlock(l)  do { *(l) = SP_UNLOCKED; } while (0)
-#  endif
 #else
 #  define spin_unlock(lock)
 #endif /* CONFIG_SPINLOCK */
@@ -1015,19 +962,13 @@ static inline_function void read_lock(FAR volatile rwlock_t *lock)
   while (true)
     {
       int old = atomic_read(lock);
-      if (old <= RW_SP_WRITE_LOCKED)
-        {
-          DEBUGASSERT(old == RW_SP_WRITE_LOCKED);
-          UP_DSB();
-          UP_WFE();
-        }
-      else if(atomic_cmpxchg(lock, &old, old + 1))
+
+      if (old > RW_SP_WRITE_LOCKED &&
+          atomic_cmpxchg_acquire(lock, &old, old + 1))
         {
           break;
         }
     }
-
-  UP_DMB();
 
   nxsched_critmon_busywait(false, return_address(0));
 }
@@ -1062,12 +1003,13 @@ static inline_function bool read_trylock(FAR volatile rwlock_t *lock)
   while (true)
     {
       int old = atomic_read(lock);
+
       if (old <= RW_SP_WRITE_LOCKED)
         {
           DEBUGASSERT(old == RW_SP_WRITE_LOCKED);
           return false;
         }
-      else if (atomic_cmpxchg(lock, &old, old + 1))
+      else if (atomic_cmpxchg_acquire(lock, &old, old + 1))
         {
           break;
         }
@@ -1098,10 +1040,7 @@ static inline_function void read_unlock(FAR volatile rwlock_t *lock)
 {
   DEBUGASSERT(atomic_read(lock) >= RW_SP_READ_LOCKED);
 
-  UP_DMB();
-  atomic_fetch_sub(lock, 1);
-  UP_DSB();
-  UP_SEV();
+  atomic_sub_release(lock, 1);
 }
 
 /****************************************************************************
@@ -1137,16 +1076,12 @@ static inline_function void write_lock(FAR volatile rwlock_t *lock)
   while (true)
     {
       int zero = RW_SP_UNLOCKED;
-      if (atomic_cmpxchg((FAR atomic_int *)lock, &zero, RW_SP_WRITE_LOCKED))
+      if (atomic_cmpxchg_acquire((FAR atomic_int *)lock, &zero,
+                                 RW_SP_WRITE_LOCKED))
         {
           break;
         }
-
-      UP_DSB();
-      UP_WFE();
     }
-
-  UP_DMB();
 
   nxsched_critmon_busywait(false, return_address(0));
 }
@@ -1181,14 +1116,7 @@ static inline_function bool write_trylock(FAR volatile rwlock_t *lock)
 {
   int zero = RW_SP_UNLOCKED;
 
-  if (atomic_cmpxchg(lock, &zero, RW_SP_WRITE_LOCKED))
-    {
-      UP_DMB();
-      return true;
-    }
-
-  UP_DSB();
-  return false;
+  return atomic_cmpxchg_acquire(lock, &zero, RW_SP_WRITE_LOCKED);
 }
 
 /****************************************************************************
@@ -1214,10 +1142,7 @@ static inline_function void write_unlock(FAR volatile rwlock_t *lock)
 
   DEBUGASSERT(atomic_read(lock) == RW_SP_WRITE_LOCKED);
 
-  UP_DMB();
-  atomic_set(lock, RW_SP_UNLOCKED);
-  UP_DSB();
-  UP_SEV();
+  atomic_set_release(lock, RW_SP_UNLOCKED);
 }
 
 /****************************************************************************

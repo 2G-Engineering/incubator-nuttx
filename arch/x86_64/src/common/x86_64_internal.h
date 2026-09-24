@@ -145,12 +145,11 @@ typedef void (*up_vector_t)(void);
 
 #ifndef __ASSEMBLY__
 
-/* This is the beginning of heap as provided from up_head.S. This is the
- * first address in DRAM after the loaded program+bss+idle stack.  The
- * end of the heap is CONFIG_RAM_END
+/* Top of the CPU0 idle stack.  The remaining CPU idle stacks are
+ * contiguous.
  */
 
-extern const uintptr_t g_idle_topstack[];
+extern const uintptr_t g_idle_topstack;
 
 /* Address of the saved user stack pointer */
 
@@ -179,6 +178,12 @@ extern uint8_t _etbss[];           /* End+1 of .tbss */
 /****************************************************************************
  * Inline Functions
  ****************************************************************************/
+
+static inline uintptr_t x86_64_idle_topstack(int cpu)
+{
+  return g_idle_topstack +
+         (uintptr_t)cpu * CONFIG_IDLETHREAD_STACKSIZE;
+}
 
 static inline void x86_64_cpuid(uint32_t leaf, uint32_t subleaf,
                                 uint32_t *eax, uint32_t *ebx,
@@ -302,6 +307,10 @@ void x86_64_stack_color(void *stackbase, size_t nbytes);
 
 int x86_64_tlb_handler(int irq, void *c, void *arg);
 void x86_64_tlb_shootdown(void);
+
+/* Defined in intel64_irq.c */
+
+void x86_64_icr_write(uint8_t cpu, uint32_t delivery);
 
 #endif /* __ASSEMBLY__ */
 

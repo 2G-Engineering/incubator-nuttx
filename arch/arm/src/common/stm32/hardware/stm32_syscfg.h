@@ -30,12 +30,18 @@
 #include <nuttx/config.h>
 #include "chip.h"
 
-#if defined(CONFIG_ARCH_CHIP_STM32F0)
+#if defined(CONFIG_ARCH_CHIP_STM32U3)
+#  include "hardware/stm32u3xx_syscfg.h"
+#elif defined(CONFIG_ARCH_CHIP_STM32U5)
+#  include "hardware/stm32_syscfg_m33_u5.h"
+#elif defined(CONFIG_ARCH_CHIP_STM32F0)
 #  include "hardware/stm32f0_syscfg.h"
 #elif defined(CONFIG_ARCH_CHIP_STM32L0)
 #  include "hardware/stm32l0_syscfg.h"
 #elif defined(CONFIG_ARCH_CHIP_STM32G0)
 #  include "hardware/stm32g0_syscfg.h"
+#elif defined(CONFIG_ARCH_CHIP_STM32U0)
+#  include "hardware/stm32u0_syscfg.h"
 #else
 #  error "Unsupported STM32 M0 SYSCFG"
 #endif

@@ -27,7 +27,9 @@
  * Included Files
  ****************************************************************************/
 
-#if defined(CONFIG_ARCH_ARMV6M)
+#if defined(CONFIG_STM32_HAVE_IP_USART_M33_V3)
+#  include "stm32_uart_m33_v3.h"
+#elif defined(CONFIG_ARCH_ARMV6M)
 #  if defined(CONFIG_STM32_HAVE_IP_USART_V3) || \
       defined(CONFIG_STM32_HAVE_IP_USART_V4)
 #    include "stm32_uart_m0_v1.h"

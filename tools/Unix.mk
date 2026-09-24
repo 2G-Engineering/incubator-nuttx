@@ -602,7 +602,7 @@ endif
 ifeq ($(CONFIG_RAW_DISASSEMBLY),y)
 	@echo "CP: nuttx.asm"
 	$(Q) $(OBJDUMP) -d $(BIN) > nuttx.asm
-	$(Q) echo nuttx.bin >> nuttx.asm
+	$(Q) echo nuttx.asm >> nuttx.manifest
 endif
 	$(call POSTBUILD, $(TOPDIR))
 
@@ -793,6 +793,7 @@ savedefconfig: apps_preconfig
 	$(Q) $(call kconfig_tweak_disable,defconfig.tmp,CONFIG_BASE_DEFCONFIG)
 	$(Q) sed -i.bak -e '/^CONFIG_FSUTILS_PASSWD_PBKDF2_ITERATIONS=/d' defconfig.tmp
 	$(Q) sed -i.bak -e '/^CONFIG_BOARD_ETC_ROMFS_PASSWD_PASSWORD=/d' defconfig.tmp
+	$(Q) sed -i.bak -e '/^CONFIG_BOARD_ETC_ROMFS_PASSWD_EXTRA_PASSWORD=/d' defconfig.tmp
 	$(Q) grep "CONFIG_ARCH=" .config >> defconfig.tmp
 	$(Q) grep "^CONFIG_ARCH_CHIP_" .config >> defconfig.tmp; true
 	$(Q) grep "CONFIG_ARCH_CHIP=" .config >> defconfig.tmp; true

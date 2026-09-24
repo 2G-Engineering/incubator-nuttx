@@ -71,12 +71,14 @@ static FAR struct inode *inode_unlink(FAR const char *path)
 
   /* Find the node to unlink */
 
-  SETUP_SEARCH(&desc, path, true);
+  if (inode_search_setup(&desc, path, true) < 0)
+    {
+      return NULL;
+    }
 
-  ret = inode_search(&desc);
+  ret = inode_search(&desc, &inode);
   if (ret >= 0)
     {
-      inode = desc.node;
       DEBUGASSERT(inode != NULL);
 
       if (desc.parent != NULL)
@@ -119,11 +121,25 @@ static FAR struct inode *inode_unlink(FAR const char *path)
 
       inode->i_peer   = NULL;
       inode->i_parent = NULL;
-      atomic_fetch_sub(&inode->i_crefs, 1);
+      atomic_sub(&inode->i_crefs, 1);
+#ifdef CONFIG_FS_LINKS
+      if (INODE_IS_HARDLINK(inode))
+        {
+          FAR struct inode *target;
+
+          DEBUGASSERT(inode->i_private != NULL);
+          target = inode->i_private;
+          atomic_sub(&target->i_crefs, INODE_NLINK_INC);
+          if (atomic_read(&target->i_crefs) == 0)
+            {
+              inode_free(target);
+            }
+        }
+#endif
     }
 
 errout:
-  RELEASE_SEARCH(&desc);
+  inode_search_release(&desc);
   return inode;
 }
 

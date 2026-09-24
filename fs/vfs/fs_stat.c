@@ -88,9 +88,13 @@ static int stat_recursive(FAR const char *path,
 
   /* Get an inode for this path */
 
-  SETUP_SEARCH(&desc, path, true);
+  ret = inode_search_setup(&desc, path, true);
+  if (ret < 0)
+    {
+      return ret;
+    }
 
-  ret = inode_find(&desc);
+  ret = inode_find(&desc, &inode);
   if (ret < 0)
     {
       /* This name does not refer to an inode in the pseudo file system and
@@ -102,7 +106,6 @@ static int stat_recursive(FAR const char *path,
 
   /* Get the search results */
 
-  inode = desc.node;
   DEBUGASSERT(inode != NULL);
 
   ret = inode_checkpathperm(inode, 0, 0);
@@ -123,10 +126,17 @@ static int stat_recursive(FAR const char *path,
        * supports the stat() method
        */
 
+#  ifdef CONFIG_FS_LINKS
+      /* use lstat() if available to avoid following symlinks */
+
+      if (!resolve && inode->u.i_mops && inode->u.i_mops->lstat)
+        {
+          ret = inode->u.i_mops->lstat(inode, desc.relpath, buf);
+        }
+      else
+#  endif
       if (inode->u.i_mops && inode->u.i_mops->stat)
         {
-          /* Perform the stat() operation */
-
           ret = inode->u.i_mops->stat(inode, desc.relpath, buf);
         }
       else
@@ -146,7 +156,7 @@ static int stat_recursive(FAR const char *path,
 
   inode_release(inode);
 errout_with_search:
-  RELEASE_SEARCH(&desc);
+  inode_search_release(&desc);
   return ret;
 }
 
@@ -267,6 +277,14 @@ int inode_stat(FAR struct inode *inode, FAR struct stat *buf, int resolve)
 
   RESET_BUF(buf);
 
+#ifdef CONFIG_FS_LINKS
+  if (INODE_IS_HARDLINK(inode))
+    {
+      DEBUGASSERT(inode->i_private != NULL);
+      inode = inode->i_private;
+    }
+#endif
+
   /* Handle "special" nodes */
 
 #if defined(CONFIG_FS_NAMED_SEMAPHORES)
@@ -318,7 +336,7 @@ int inode_stat(FAR struct inode *inode, FAR struct stat *buf, int resolve)
     }
   else
 #endif
-#ifdef CONFIG_PSEUDOFS_SOFTLINKS
+#ifdef CONFIG_FS_LINKS
   /* Handle softlinks differently.  Just call stat() recursively on the
    * target of the softlink.
    *
@@ -420,6 +438,7 @@ int inode_stat(FAR struct inode *inode, FAR struct stat *buf, int resolve)
               (inode->u.i_bops->geometry != NULL))
             {
               struct geometry geo;
+
               if (inode->u.i_bops->geometry(inode, &geo) >= 0 &&
                   geo.geo_available)
                 {
@@ -469,6 +488,9 @@ int inode_stat(FAR struct inode *inode, FAR struct stat *buf, int resolve)
   buf->st_ctim  = inode->i_ctime;
 #endif
   buf->st_ino   = inode->i_ino;
+#ifdef CONFIG_FS_LINKS
+  buf->st_nlink = INODE_GET_NLINK(inode);
+#endif
 
   return OK;
 }

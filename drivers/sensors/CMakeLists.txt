@@ -151,6 +151,10 @@ if(CONFIG_SENSORS)
       list(APPEND SRCS lsm6dso32_uorb.c)
     endif()
 
+    if(CONFIG_SENSORS_LSM6DS3TRC)
+      list(APPEND SRCS lsm6ds3trc_uorb.c)
+    endif()
+
     if(CONFIG_SENSORS_LSM9DS1)
       list(APPEND SRCS lsm9ds1_base.c)
       if(CONFIG_SENSORS_LSM9DS1_UORB)
@@ -349,7 +353,15 @@ if(CONFIG_SENSORS)
     endif()
 
     if(CONFIG_SENSORS_TMP112)
-      list(APPEND SRCS tmp112.c)
+      if(CONFIG_SENSORS_TMP112_UORB)
+        list(APPEND SRCS tmp112_uorb.c)
+      else()
+        list(APPEND SRCS tmp112.c)
+      endif()
+    endif()
+
+    if(CONFIG_SENSORS_TC74)
+      list(APPEND SRCS tc74.c)
     endif()
 
     # QMI8658 6-axis IMU

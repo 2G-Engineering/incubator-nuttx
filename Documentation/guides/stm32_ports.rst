@@ -14,7 +14,7 @@ Family status
 Family        CPU core          Status       NuttX source directory
 ============  ================  ===========  ===========================
 STM32C0       Cortex-M0+        supported    ``arch/arm/src/stm32c0``
-STM32C5       Cortex-M33        unsupported  none
+STM32C5       Cortex-M33        supported    ``arch/arm/src/stm32c5``
 STM32F0       Cortex-M0         supported    ``arch/arm/src/stm32f0``
 STM32F1       Cortex-M3         supported    ``arch/arm/src/stm32f1``
 STM32F2       Cortex-M3         supported    ``arch/arm/src/stm32f2``
@@ -34,8 +34,8 @@ STM32MP1      Cortex-M4         unsupported  none
 STM32MP2      Cortex-A35        unsupported  none
 STM32MP2      Cortex-M33        unsupported  none
 STM32N6       Cortex-M55        supported    ``arch/arm/src/stm32n6``
-STM32U0       Cortex-M0+        unsupported  none
-STM32U3       Cortex-M33        unsupported  none
+STM32U0       Cortex-M0+        supported    ``arch/arm/src/stm32u0``
+STM32U3       Cortex-M33        supported    ``arch/arm/src/stm32u3``
 STM32U5       Cortex-M33        supported    ``arch/arm/src/stm32u5``
 STM32WB       Cortex-M4         supported    ``arch/arm/src/stm32wb``
 STM32WB       Cortex-M0+        unsupported  none
@@ -46,7 +46,6 @@ STM32WL5      Cortex-M4         supported    ``arch/arm/src/stm32wl5``
 STM32WL5      Cortex-M0+        unsupported  none
 STM32WLE      Cortex-M4         unsupported  none
 ============  ================  ===========  ===========================
-
 
 Migration to NuttX 13.0
 =======================
@@ -229,9 +228,49 @@ SPI/I2S       v2            arch/arm/src/common/stm32/stm32_spi_m0_v1.c
 SYSCFG        to be done    not supported                                    
 TIM           v1            arch/arm/src/common/stm32/stm32_tim_m0_v1.c      
 USART/LPUART  v4            arch/arm/src/common/stm32/stm32_serial_m0_v4.c   
-USB           device        not supported                                    
+USB           device v2     arch/arm/src/common/stm32/stm32_usbdev_m0_v1.c
 WWDG          v1            arch/arm/src/common/stm32/stm32_wwdg_m0_v1.c     
 ============  ============  =================================================
+
+STM32C5
+-------
+
+============  ============  ==============================================================
+Peripheral    Core version  Driver
+============  ============  ==============================================================
+ADC           to be done    not supported
+AES           to be done    not supported
+COMP          to be done    not supported
+CORDIC        to be done    not supported
+CRC           to be done    not supported
+CRS           to be done    not supported
+DAC           to be done    not supported
+DBGMCU        to be done    not supported
+EXTI          M33 v1        arch/arm/src/common/stm32/stm32_exti_gpio_m33_v1.c
+FDCAN         FDCAN         not supported
+FLASH         to be done    not supported
+GPIO          M33 v1        arch/arm/src/common/stm32/stm32_gpio_m33_v1.c
+HASH          to be done    not supported
+I2C           to be done    not supported
+I3C           to be done    not supported
+ICACHE        to be done    not supported
+IWDG          to be done    not supported
+LPDMA         to be done    not supported
+LPTIM         to be done    not supported
+LPUART        M33 v3        arch/arm/src/common/stm32/stm32_serial_m33_v3.c
+PWR           to be done    not supported
+RAMCFG        to be done    not supported
+RCC           C5            arch/arm/src/stm32c5/stm32c5xx_rcc.c
+RNG           to be done    not supported
+RTC           to be done    not supported
+SBS           to be done    not supported
+SPI/I2S       to be done    not supported
+TAMP          to be done    not supported
+TIM           to be done    not supported
+USART/UART    M33 v3        arch/arm/src/common/stm32/stm32_serial_m33_v3.c
+USB_FS        FS            not supported
+WWDG          to be done    not supported
+============  ============  ==============================================================
 
 STM32F0
 -------
@@ -257,7 +296,7 @@ SPI/I2S       v2            arch/arm/src/common/stm32/stm32_spi_m0_v1.c
 SYSCFG        to be done    not supported                                    
 TIM           v1            arch/arm/src/common/stm32/stm32_tim_m0_v1.c      
 USART/LPUART  v3            arch/arm/src/common/stm32/stm32_serial_m0_v3.c   
-USB           device        arch/arm/src/common/stm32/stm32_usbdev_m0_v1.c   
+USB           device v1     arch/arm/src/common/stm32/stm32_usbdev_m0_v1.c
 WWDG          v1            arch/arm/src/common/stm32/stm32_wwdg_m0_v1.c     
 ============  ============  =================================================
 
@@ -515,7 +554,7 @@ SPI/I2S       v2            arch/arm/src/common/stm32/stm32_spi_m0_v1.c
 SYSCFG        to be done    not supported                                    
 TIM           v1            arch/arm/src/common/stm32/stm32_tim_m0_v1.c      
 USART/LPUART  v4            arch/arm/src/common/stm32/stm32_serial_m0_v4.c   
-USB           device        arch/arm/src/common/stm32/stm32_usbdev_m0_v1.c   
+USB           device v2     arch/arm/src/common/stm32/stm32_usbdev_m0_v1.c
 WWDG          v1            arch/arm/src/common/stm32/stm32_wwdg_m0_v1.c     
 ============  ============  =================================================
 
@@ -531,11 +570,12 @@ CAN/FDCAN     FDCAN         arch/arm/src/stm32h5/stm32_fdcan.c
 DAC           to be done    not supported                          
 DTS           to be done    arch/arm/src/stm32h5/stm32_dts.c       
 ETH           to be done    arch/arm/src/stm32h5/stm32_ethernet.c  
-EXTI          to be done    not supported                          
+EXTI          to be done    arch/arm/src/stm32h5/stm32_exti_gpio.c 
 FLASH         to be done    arch/arm/src/stm32h5/stm32_flash.c     
 GPIO          to be done    arch/arm/src/stm32h5/stm32_gpio.c      
 GPDMA         to be done    arch/arm/src/stm32h5/stm32_dma.c       
 I2C           to be done    arch/arm/src/stm32h5/stm32_i2c.c       
+IWDG          v1            arch/arm/src/stm32h5/stm32_iwdg.c      
 ICACHE        to be done    arch/arm/src/stm32h5/stm32_icache.c    
 OCTOSPI       to be done    arch/arm/src/stm32h5/stm32_qspi.c      
 PWR           to be done    arch/arm/src/stm32h5/stm32_pwr.c       
@@ -544,6 +584,8 @@ SPI/I2S       to be done    arch/arm/src/stm32h5/stm32_spi.c
 TIM           to be done    arch/arm/src/stm32h5/stm32_tim.c       
 USART/LPUART  v3            arch/arm/src/stm32h5/stm32_serial.c    
 USB           FS            arch/arm/src/stm32h5/stm32_usbfs.c     
+WWDG          v1            arch/arm/src/stm32h7/stm32_wwdg.c      
+LPTIM         n/a           arch/arm/src/stm32h5/stm32_lptim.c     
 PULSECOUNT    n/a           arch/arm/src/common/stm32/stm32_pulsecount.c
 PWM           n/a           arch/arm/src/stm32h5/stm32_pwm.c       
 RNG           n/a           arch/arm/src/stm32h5/stm32_rng.c       
@@ -615,7 +657,7 @@ RTC           RTCC M0       not supported
 SPI/I2S       v1            arch/arm/src/common/stm32/stm32_spi_m0_v1.c      
 TIM           v1            arch/arm/src/common/stm32/stm32_tim_m0_v1.c      
 USART/LPUART  v3            arch/arm/src/common/stm32/stm32_serial_m0_v3.c   
-USB           device        arch/arm/src/common/stm32/stm32_usbdev_m0_v1.c   
+USB           device v1     arch/arm/src/common/stm32/stm32_usbdev_m0_v1.c
 WWDG          v1            arch/arm/src/common/stm32/stm32_wwdg_m0_v1.c     
 ============  ============  =================================================
 
@@ -694,9 +736,93 @@ RCC           to be done    arch/arm/src/stm32n6/stm32_rcc.c
 SPI/I2S       to be done    not supported                      
 TIM           to be done    not supported                      
 USART/LPUART  v4            arch/arm/src/stm32n6/stm32_serial.c
-USB           device        not supported                      
-XSPI          to be done    not supported                      
+USB           device        not supported
+XSPI          to be done    not supported
 ============  ============  ===================================
+
+STM32U0
+-------
+
+============  ============  ======================================================
+Peripheral    Core version  Driver
+============  ============  ======================================================
+ADC           v1            arch/arm/src/common/stm32/stm32_adc_m0_v1.c
+AES           v1            arch/arm/src/common/stm32/stm32_aes_m0_v1.c
+COMP          v1            not supported
+DAC           v1            not supported
+DMA           v1            arch/arm/src/common/stm32/stm32_dma_m0_v1_7ch_dmamux.c
+DMAMUX        v1 12ch       arch/arm/src/common/stm32/stm32_dma_m0_v1_7ch_dmamux.c
+EXTI          v2            arch/arm/src/common/stm32/stm32_exti_gpio_m0_v1.c
+FLASH         U0            not supported
+GPIO          v1            arch/arm/src/common/stm32/stm32_gpio_m0_v1.c
+I2C           v1            arch/arm/src/common/stm32/stm32_i2c_m0_v1.c
+IWDG          v1            arch/arm/src/common/stm32/stm32_iwdg_m0_v1.c
+LCD           to be done    not supported
+LPTIM         to be done    not supported
+PWR           G0            arch/arm/src/common/stm32/stm32_pwr_m0_g0.c
+RCC           to be done    arch/arm/src/stm32u0/stm32_rcc.c
+RNG           v1            arch/arm/src/common/stm32/stm32_rng_m0_v1.c
+RTC           RTCC M0       not supported
+SPI/I2S       v2            arch/arm/src/common/stm32/stm32_spi_m0_v1.c
+SYSCFG        to be done    not supported
+TIM           v1            arch/arm/src/common/stm32/stm32_tim_m0_v1.c
+TSC           to be done    not supported
+USART/LPUART  v4            arch/arm/src/common/stm32/stm32_serial_m0_v4.c
+USB           device        not supported
+WWDG          v1            arch/arm/src/common/stm32/stm32_wwdg_m0_v1.c
+============  ============  ======================================================
+
+STM32U3
+-------
+
+============  ============  =============================================================
+Peripheral    Core version  Driver
+============  ============  =============================================================
+ADC           to be done    not supported
+ADF           to be done    not supported
+AES           to be done    not supported
+CCB           to be done    not supported
+COMP          to be done    not supported
+CRC           to be done    not supported
+CRS           to be done    not supported
+DAC           to be done    not supported
+DBGMCU        to be done    not supported
+DLYB          to be done    not supported
+EXTI          M33 v1        arch/arm/src/common/stm32/stm32_exti_gpio_m33_v1.c
+FDCAN         to be done    not supported
+FLASH         to be done    not supported
+GPDMA         to be done    not supported
+GPIO          M33 v1        arch/arm/src/common/stm32/stm32_gpio_m33_v1.c
+GTZC          to be done    not supported
+HASH          to be done    not supported
+HSP           to be done    not supported
+I2C           to be done    not supported
+I3C           to be done    not supported
+ICACHE        to be done    not supported
+IWDG          to be done    not supported
+LPTIM         to be done    not supported
+LPUART        M33 v3        arch/arm/src/common/stm32/stm32_serial_m33_v3.c
+OCTOSPI       to be done    not supported
+OPAMP         to be done    not supported
+PKA           to be done    not supported
+PWR           to be done    not supported
+RAMCFG        to be done    not supported
+RCC           U3            arch/arm/src/stm32u3/stm32u3xx_rcc.c
+RNG           to be done    not supported
+RTC           to be done    not supported
+SAES          to be done    not supported
+SAI           to be done    not supported
+SDMMC         to be done    not supported
+SPI/I2S       to be done    not supported
+SYSCFG        to be done    not supported
+TAMP          to be done    not supported
+TIM           to be done    not supported
+TSC           to be done    not supported
+USART/UART    M33 v3        arch/arm/src/common/stm32/stm32_serial_m33_v3.c
+USB_DRD_FS    to be done    not supported
+VREFBUF       to be done    not supported
+WWDG          to be done    not supported
+============  ============  =============================================================
 
 STM32U5
 -------
@@ -858,12 +984,15 @@ of a peripheral on a given core is ``V1``.
 - Facade headers: ``stm32_<periph>.h`` — dispatch on Kconfig IP symbols
 - M0-core variants: ``stm32_<periph>_m0_v1.h``
 - M3/M4-core variants: ``stm32_<periph>_m3m4_v1.h``, ``stm32_<periph>_m3m4_v2.h``
+- M33-core variants: ``stm32_<periph>_m33_v1.h``, ``stm32_<periph>_m33_v3.h``
 - Combined variants: ``stm32_<periph>_m3m4_v1v2.h``, ``stm32_<periph>_m3m4_v1v2v3.h``
 
 **Source file naming** (``.c`` files):
 
 - Follow the same convention as headers: ``stm32_gpio_m3m4_v1v2.c``,
-  ``stm32_adc_m0_v1.c``, ``stm32_tim_m0_v1.c``, ``stm32_pwm_m3m4_v1v2v3.c``
+  ``stm32_adc_m0_v1.c``, ``stm32_gpio_m33_v1.c``,
+  ``stm32_serial_m33_v3.c``, ``stm32_tim_m0_v1.c``, and
+  ``stm32_pwm_m3m4_v1v2v3.c``
 
 **Kconfig symbol naming** (``CONFIG_STM32_HAVE_IP_<PERIPH>_<CORE>_<VERSION>``):
 
@@ -872,6 +1001,9 @@ of a peripheral on a given core is ``V1``.
   ``CONFIG_STM32_HAVE_IP_ADC_M3M4_V1``, ``CONFIG_STM32_HAVE_IP_ADC_M3M4_V2``,
   ``CONFIG_STM32_HAVE_IP_TIMERS_M3M4_V1``, ``CONFIG_STM32_HAVE_IP_TIMERS_M3M4_V2``,
   ``CONFIG_STM32_HAVE_IP_TIMERS_M3M4_V3``
+- M33: ``CONFIG_STM32_HAVE_IP_GPIO_M33_V1``,
+  ``CONFIG_STM32_HAVE_IP_EXTI_M33_V1``, and
+  ``CONFIG_STM32_HAVE_IP_USART_M33_V3``
 
 Note that in the future the core prefix may be dropped and a single
 version number space used across all cores.  For now the core prefix is

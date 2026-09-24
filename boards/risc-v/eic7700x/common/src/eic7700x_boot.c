@@ -1,0 +1,184 @@
+/****************************************************************************
+ * boards/risc-v/eic7700x/common/src/eic7700x_boot.c
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ *
+ ****************************************************************************/
+
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
+#include <nuttx/config.h>
+
+#include <stdbool.h>
+#include <stdio.h>
+#include <syslog.h>
+#include <errno.h>
+
+#include <nuttx/board.h>
+#include <nuttx/drivers/ramdisk.h>
+#include <sys/mount.h>
+#include <sys/boardctl.h>
+#include <arch/board/board_memorymap.h>
+
+#include "eic7700x_clk.h"
+#ifdef CONFIG_EIC7700X_CPUCLK
+#  include "eic7700x_cpuclk.h"
+#endif
+#include "eic7700x_reset.h"
+
+#include "board_config.h"
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+/* RAM Disk Definition */
+
+#define SECTORSIZE   512
+#define NSECTORS(b)  (((b) + SECTORSIZE - 1) / SECTORSIZE)
+#define RAMDISK_DEVICE_MINOR 0
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+/****************************************************************************
+ * Name: mount_ramdisk
+ *
+ * Description:
+ *  Mount a RAM Disk defined in ld.script to /dev/ramX.  The RAM Disk
+ *  contains a ROMFS filesystem with applications that can be spawned at
+ *  runtime.
+ *
+ * Returned Value:
+ *   OK is returned on success.
+ *   -ERRORNO is returned on failure.
+ *
+ ****************************************************************************/
+
+static int mount_ramdisk(void)
+{
+  int ret;
+  struct boardioc_romdisk_s desc;
+
+  desc.minor    = RAMDISK_DEVICE_MINOR;
+  desc.nsectors = NSECTORS((ssize_t)__ramdisk_size);
+  desc.sectsize = SECTORSIZE;
+  desc.image    = __ramdisk_start;
+
+  ret = boardctl(BOARDIOC_ROMDISK, (uintptr_t)&desc);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Ramdisk register failed: %s\n", strerror(errno));
+      syslog(LOG_ERR, "Ramdisk mountpoint /dev/ram%d\n",
+             RAMDISK_DEVICE_MINOR);
+      syslog(LOG_ERR, "Ramdisk length %lu, origin %lx\n",
+             (ssize_t)__ramdisk_size, (uintptr_t)__ramdisk_start);
+    }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
+
+/****************************************************************************
+ * Name: report_clocks
+ *
+ * Description:
+ *   Report the clock tree the architecture registered before this board
+ *   ran.  Its own function so that nothing it needs stays on the stack for
+ *   the bring up that follows.
+ *
+ ****************************************************************************/
+
+static void report_clocks(void)
+{
+  unsigned int nfail;
+  unsigned int nclk = eic7700x_clk_count(&nfail);
+
+  syslog(LOG_INFO, "clk: registered %u clocks, %u failed\n", nclk, nfail);
+}
+
+/****************************************************************************
+ * Name: report_resets
+ *
+ * Description:
+ *   Report the reset lines the architecture registered before this board
+ *   ran, and how many the boot loader left held.  Its own function for the
+ *   same reason as report_clocks().
+ *
+ ****************************************************************************/
+
+static void report_resets(void)
+{
+  unsigned int held;
+  unsigned int nline = eic7700x_reset_count(&held);
+
+  syslog(LOG_INFO, "reset: %u lines, %u held\n", nline, held);
+}
+
+/****************************************************************************
+ * Name: board_late_initialize
+ *
+ * Description:
+ *   If CONFIG_BOARD_LATE_INITIALIZE is selected, then an additional
+ *   initialization call will be performed in the boot-up sequence to a
+ *   function called board_late_initialize().  board_late_initialize() will
+ *   be called after up_initialize() and board_early_initialize() and just
+ *   before the initial application is started.  This additional
+ *   initialization phase may be used, for example, to initialize board-
+ *   specific device drivers for which board_early_initialize() is not
+ *   suitable.
+ *
+ *   Waiting for events, use of I2C, SPI, etc are permissible in the context
+ *   of board_late_initialize().  That is because board_late_initialize()
+ *   will run on a temporary, internal kernel thread.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_BOARD_LATE_INITIALIZE
+void board_late_initialize(void)
+{
+#ifdef CONFIG_EIC7700X_CPUCLK
+  /* First, and worth a moment's spin: measure the cores against the
+   * crystal, say so, and move them to the configured speed if they are
+   * somewhere else.  The measurement is the referee in a place where the
+   * manual and the vendor's code disagree by a factor of two.
+   */
+
+  eic7700x_cpuclk_initialize();
+#endif
+
+  /* Mount the RAM Disk */
+
+  mount_ramdisk();
+
+  mount(NULL, "/proc", "procfs", 0, NULL);
+
+  report_clocks();
+  report_resets();
+
+  /* Devices whose presence or order is this board's business */
+
+  eic7700x_bringup();
+}
+#endif /* CONFIG_BOARD_LATE_INITIALIZE */

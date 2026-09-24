@@ -52,6 +52,27 @@ endif # !STM32_AUTONEG
 
 if STM32_AUTONEG
 
+config STM32_AUTONEG_10FD_ONLY
+	bool "Advertise only 10BASE-T full duplex"
+	default n
+	---help---
+		Restrict the autonegotiation advertisement to 10BASE-T full
+		duplex, so that both ends negotiate that and nothing else.
+
+		The reason to want this is electrical, not economic.  100BASE-TX
+		signalling sits at about 1 V with MLT-3 coding; 10BASE-T uses
+		2.5 V Manchester at a tenth of the frequency, and shrugs off
+		interference that corrupts 100BASE-TX outright.  On a board
+		where another subsystem couples noise into the PHY -- a parallel
+		RGB display sharing the board with the magnetics, say -- a
+		clean 10 Mbps link outperforms a 100 Mbps one that is losing
+		frames to bit errors.
+
+		Restricting the advertisement is not the same as disabling
+		autonegotiation:  a forced MCR leaves the partner to parallel
+		detection, which cannot detect duplex and will pick half --
+		a genuine mismatch that stalls bulk traffic completely.
+
 config STM32_PHYSR
 	int "PHY Status Register Address (decimal)"
 	---help---
@@ -148,7 +169,7 @@ config STM32_ETH_ENHANCEDDESC
 
 config STM32_ETH_PTP_GPIO
 	bool "PTP pulse-per-second output signal"
-	depends on STM32_COMMON_LEGACY && STM32_ETH_PTP
+	depends on (STM32_COMMON_LEGACY || STM32_COMMON_H7_H5) && STM32_ETH_PTP
 	default n
 	---help---
 		Enables pulse-per-second output on GPIO pin.
@@ -166,12 +187,19 @@ config STM32_ETH_PTP_RTC_HIRES
 
 config STM32_ETH_TIMESTAMP_RX
 	bool "Hardware timestamping of received packets"
-	depends on STM32_COMMON_LEGACY && STM32_ETH_PTP && NET_TIMESTAMP && STM32_ETH_ENHANCEDDESC
-	select ARCH_HAVE_NETDEV_TIMESTAMP
+	depends on STM32_ETH_PTP && NET_TIMESTAMP && (STM32_COMMON_H7_H5 || (STM32_COMMON_LEGACY && STM32_ETH_ENHANCEDDESC))
 	default n
 	---help---
 		Timestamp all received Ethernet packets.
 		Timestamp is available to application through SO_TIMESTAMP socket option.
+
+config STM32_ETH_TIMESTAMP_TX
+	bool "Hardware timestamping of transmitted packets"
+	depends on STM32_ETH_PTP && NET_TIMESTAMP && (STM32_COMMON_H7_H5 || (STM32_COMMON_LEGACY && STM32_ETH_ENHANCEDDESC))
+	default n
+	---help---
+		Enables hardware timestamp capture on transmitted Ethernet frames.
+		Timestamp is looped back to userspace via MSG_ERRQUEUE with SO_TIMESTAMPING.
 
 config STM32_RMII
 	bool
@@ -288,3 +316,11 @@ config STM32_ETH_NTXDESC
 	default 4
 	---help---
 		Number of TX DMA descriptors to use.
+
+config STM32_ETH_TXTIMEOUT
+	int "TX watchdog timeout (seconds)"
+	depends on STM32_ETHMAC
+	default 60
+	---help---
+		Seconds before the TX watchdog resets the MAC when a transmission
+		does not complete.

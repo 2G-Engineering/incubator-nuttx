@@ -71,7 +71,6 @@ static int pseudorename(FAR const char *oldpath, FAR struct inode *oldinode,
                         FAR const char *newpath)
 {
   struct inode_search_s newdesc;
-  struct inode_search_s olddesc;
   FAR struct inode *newinode;
   FAR char *subdir = NULL;
 #ifdef CONFIG_FS_NOTIFY
@@ -86,7 +85,11 @@ static int pseudorename(FAR const char *oldpath, FAR struct inode *oldinode,
 
   inode_lock();
 
-  SETUP_SEARCH(&newdesc, newpath, true);
+  ret = inode_search_setup(&newdesc, newpath, true);
+  if (ret < 0)
+    {
+      goto errout_with_lock;
+    }
 
   /* Ancestor X_OK was already checked by rename() via
    * inode_checkpathperm(oldinode, ...).  Still require parent W_OK here
@@ -96,19 +99,18 @@ static int pseudorename(FAR const char *oldpath, FAR struct inode *oldinode,
   ret = inode_checkperm(oldparent, W_OK);
   if (ret < 0)
     {
-      goto errout_with_lock;
+      goto errout_with_newsearch;
     }
 
   /* According to POSIX, any new inode at this path should be removed
    * first, provided that it is not a directory.
    */
 
-  ret = inode_search(&newdesc);
+  ret = inode_search(&newdesc, &newinode);
   if (ret >= 0)
     {
       /* We found it.  Get the search results */
 
-      newinode = newdesc.node;
       DEBUGASSERT(newinode != NULL);
 
       /* If the old and new inodes are the same, then this is an attempt to
@@ -118,7 +120,7 @@ static int pseudorename(FAR const char *oldpath, FAR struct inode *oldinode,
       if (oldinode == newinode)
         {
           ret = OK;
-          goto errout_with_lock;
+          goto errout_with_newsearch;
         }
 
 #ifndef CONFIG_DISABLE_MOUNTPOINT
@@ -127,7 +129,7 @@ static int pseudorename(FAR const char *oldpath, FAR struct inode *oldinode,
       if (INODE_IS_MOUNTPT(newinode))
         {
           ret = -EXDEV;
-          goto errout_with_lock;
+          goto errout_with_newsearch;
         }
 #endif
 
@@ -135,7 +137,11 @@ static int pseudorename(FAR const char *oldpath, FAR struct inode *oldinode,
        * directory (i.e, an operation-less inode or an inode with children)?
        */
 
-      if (newinode->u.i_ops == NULL || newinode->i_child != NULL)
+      if ((newinode->u.i_ops == NULL || newinode->i_child != NULL)
+#ifdef CONFIG_FS_LINKS
+          && !INODE_IS_HARDLINK(newinode)
+#endif
+         )
         {
           FAR char *subdirname;
 
@@ -150,7 +156,7 @@ static int pseudorename(FAR const char *oldpath, FAR struct inode *oldinode,
             {
               subdir = NULL;
               ret = -ENOMEM;
-              goto errout_with_lock;
+              goto errout_with_newsearch;
             }
 
           newpath = subdir;
@@ -170,7 +176,7 @@ static int pseudorename(FAR const char *oldpath, FAR struct inode *oldinode,
           ret = inode_remove(newpath);
           if (ret < 0 && ret != -EBUSY)
             {
-              goto errout_with_lock;
+              goto errout_with_newsearch;
             }
 
 #ifdef CONFIG_FS_NOTIFY
@@ -187,19 +193,7 @@ static int pseudorename(FAR const char *oldpath, FAR struct inode *oldinode,
   ret = inode_reserve(newpath, 0777, &newinode);
   if (ret < 0)
     {
-      goto errout_with_lock;
-    }
-
-  /* Re-resolve the source under the same lock before unlinking it. */
-
-  SETUP_SEARCH(&olddesc, oldpath, true);
-  ret = inode_search(&olddesc);
-  RELEASE_SEARCH(&olddesc);
-  if (ret < 0 || olddesc.node != oldinode)
-    {
-      inode_remove(newpath);
-      ret = -ENOENT;
-      goto errout_with_lock;
+      goto errout_with_newsearch;
     }
 
   /* Copy the inode state from the old inode to the newly allocated inode */
@@ -217,7 +211,7 @@ static int pseudorename(FAR const char *oldpath, FAR struct inode *oldinode,
 #endif
   newinode->i_private = oldinode->i_private; /* Per inode driver private data */
 
-#ifdef CONFIG_PSEUDOFS_SOFTLINKS
+#ifdef CONFIG_FS_LINKS
   /* Prevent the link target string from being deallocated.  The pointer to
    * the allocated link target path was copied above (under the guise of
    * u.i_ops).  Now we must nullify the u.i_link pointer so that it is not
@@ -244,7 +238,7 @@ static int pseudorename(FAR const char *oldpath, FAR struct inode *oldinode,
       /* Remove the new node we just recreated */
 
       inode_remove(newpath);
-      goto errout_with_lock;
+      goto errout_with_newsearch;
     }
 
   /* Remove all of the children from the unlinked inode */
@@ -253,8 +247,10 @@ static int pseudorename(FAR const char *oldpath, FAR struct inode *oldinode,
   oldinode->i_parent = NULL;
   ret = OK;
 
+errout_with_newsearch:
+  inode_search_release(&newdesc);
+
 errout_with_lock:
-  RELEASE_SEARCH(&newdesc);
   inode_unlock();
 
 #ifdef CONFIG_FS_NOTIFY
@@ -290,10 +286,8 @@ static int mountptrename(FAR const char *oldpath, FAR struct inode *oldinode,
   FAR struct inode *newinode;
   FAR const char *newrelpath;
   FAR char *subdir = NULL;
-#ifdef CONFIG_FS_NOTIFY
   bool newisdir = false;
   bool oldisdir = false;
-#endif
   int ret;
 
   DEBUGASSERT(oldinode->u.i_mops);
@@ -310,11 +304,16 @@ static int mountptrename(FAR const char *oldpath, FAR struct inode *oldinode,
     }
 
   /* Get an inode for the new relpath -- it should lie on the same
-   * mountpoint.  Path search on oldinode was already enforced by rename().
+   * mountpoint
    */
 
-  SETUP_SEARCH(&newdesc, newpath, true);
-  ret = inode_find(&newdesc);
+  ret = inode_search_setup(&newdesc, newpath, true);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = inode_find(&newdesc, &newinode);
   if (ret < 0)
     {
       /* There is no mountpoint that includes in this path */
@@ -324,7 +323,6 @@ static int mountptrename(FAR const char *oldpath, FAR struct inode *oldinode,
 
   /* Get the search results */
 
-  newinode   = newdesc.node;
   newrelpath = newdesc.relpath;
   DEBUGASSERT(newinode != NULL && newrelpath != NULL);
 
@@ -352,73 +350,129 @@ static int mountptrename(FAR const char *oldpath, FAR struct inode *oldinode,
    * If the directory entry at the newrelpath is a regular file, then that
    * file should be removed first.
    *
-   * If the directory entry at the target is a directory, then the source
-   * file should be moved "under" the directory, i.e., if newrelpath is a
-   * directory, then rename(b,a) should use move the oldrelpath should be
-   * moved as if rename(b,a/basename(b)) had been called.
+   * If the directory entry at the newrelpath is an empty directory, then it
+   * can be removed without issue.
+   *
+   * If the directory entry at the newrelpath is a non-empty directory,
+   * then the rename should fail with the error ENOTEMPTY.
    */
 
+#ifdef CONFIG_FS_LINKS
+  if (oldinode->u.i_mops->lstat != NULL || oldinode->u.i_mops->stat != NULL)
+#else
   if (oldinode->u.i_mops->stat != NULL)
+#endif
     {
-      struct stat buf;
+      struct stat oldbuf;
+      struct stat newbuf;
 
-      ret = oldinode->u.i_mops->stat(oldinode, newrelpath, &buf);
+#ifdef CONFIG_FS_LINKS
+      /* Use lstat if available to avoid dereferencing symlinks */
+
+      if (oldinode->u.i_mops->lstat)
+        {
+          ret = oldinode->u.i_mops->lstat(oldinode, oldrelpath, &oldbuf);
+        }
+      else
+#endif
+        {
+          ret = oldinode->u.i_mops->stat(oldinode, oldrelpath, &oldbuf);
+        }
+
+      if (ret < 0)
+        {
+          goto errout_with_newinode;
+        }
+
+      oldisdir = S_ISDIR(oldbuf.st_mode);
+
+#ifdef CONFIG_FS_LINKS
+      /* Use lstat if available to avoid dereferencing symlinks */
+
+      if (oldinode->u.i_mops->lstat)
+        {
+          ret = oldinode->u.i_mops->lstat(oldinode, newrelpath, &newbuf);
+        }
+      else
+#endif
+        {
+          ret = oldinode->u.i_mops->stat(oldinode, newrelpath, &newbuf);
+        }
+
       if (ret >= 0)
         {
-          /* Is the directory entry a directory? */
+          /* If old and new refer to the same file (same st_dev and
+           * st_ino), POSIX requires rename() to return success without
+           * doing anything.  Both names must remain intact.
+           *
+           * Guard: only trust st_ino when it is non-zero.  Several
+           * filesystems (tmpfs, littlefs, fat) do not populate st_ino,
+           * leaving it 0 for every file.  Without this guard, any two
+           * distinct files would be mistaken for hard links to the same
+           * inode, causing rename() to skip the actual operation.
+           */
 
-#ifdef CONFIG_FS_NOTIFY
-          newisdir = S_ISDIR(buf.st_mode);
-          if (newisdir)
-#else
-          if (S_ISDIR(buf.st_mode))
-#endif
+          if (oldbuf.st_ino != 0 &&
+              oldbuf.st_dev == newbuf.st_dev &&
+              oldbuf.st_ino == newbuf.st_ino)
             {
-              FAR char *subdirname;
+              ret = OK;
+              goto errout_with_newinode;
+            }
 
-              /* Yes.. In this case, the target of the rename must be a
-               * subdirectory of newinode, not the newinode itself.  For
-               * example: mv b a/ must move b to a/b.
+          newisdir = S_ISDIR(newbuf.st_mode);
+
+          /* Is the new path a directory? */
+
+          if (newisdir)
+            {
+              size_t oldlen;
+
+              /* It is an error to rename a file to a directory */
+
+              if (!oldisdir)
+                {
+                  ret = -EISDIR;
+                  goto errout_with_newinode;
+                }
+
+              /* It is an error to rename a directory into one of its
+               * own subdirectories (new is below old).
                */
 
-              subdirname = basename((FAR char *)oldrelpath);
-
-              /* Special case the root directory */
-
-              if (*newrelpath == '\0')
+              oldlen = strlen(oldrelpath);
+              if (strncmp(newrelpath, oldrelpath, oldlen) == 0 &&
+                  newrelpath[oldlen] == '/')
                 {
-                  newrelpath = subdirname;
+                  ret = -EINVAL;
+                  goto errout_with_newinode;
                 }
-              else
+
+              /* Remove the newrelpath which already exists.
+               * rmdir will handle the error cases.
+               */
+
+              if (oldinode->u.i_mops->rmdir)
                 {
-                  ret = fs_heap_asprintf(&subdir, "%s/%s", newrelpath,
-                                 subdirname);
+                  ret = oldinode->u.i_mops->rmdir(oldinode, newrelpath);
                   if (ret < 0)
                     {
-                      subdir = NULL;
-                      ret = -ENOMEM;
                       goto errout_with_newinode;
                     }
-
-                  newrelpath = subdir;
                 }
             }
           else
             {
-              /* No.. newrelpath must refer to a regular file.  Make sure
-               * that the file at the oldrelpath actually exists before
-               * performing any further actions with newrelpath
-               */
+              /* No.. newrelpath must refer to a regular file. */
 
-              ret = oldinode->u.i_mops->stat(oldinode, oldrelpath, &buf);
-              if (ret < 0)
+              if (oldisdir)
                 {
+                  /* It is an error to rename a directory to a file */
+
+                  ret = -ENOTDIR;
                   goto errout_with_newinode;
                 }
 
-#ifdef CONFIG_FS_NOTIFY
-              oldisdir = S_ISDIR(buf.st_mode);
-#endif
               if (oldinode->u.i_mops->unlink)
                 {
                   /* Attempt to remove the file before doing the rename.
@@ -428,25 +482,13 @@ static int mountptrename(FAR const char *oldpath, FAR struct inode *oldinode,
                    * method should check that.
                    */
 
-                   oldinode->u.i_mops->unlink(oldinode, newrelpath);
+                  oldinode->u.i_mops->unlink(oldinode, newrelpath);
 #ifdef CONFIG_FS_NOTIFY
-                   notify_unlink(newrelpath);
+                  notify_unlink(newrelpath);
 #endif
                 }
             }
         }
-#ifdef CONFIG_FS_NOTIFY
-      else
-        {
-          ret = oldinode->u.i_mops->stat(oldinode, oldrelpath, &buf);
-          if (ret < 0)
-            {
-              goto errout_with_newinode;
-            }
-
-          oldisdir = S_ISDIR(buf.st_mode);
-        }
-#endif
     }
 
   /* Perform the rename operation using the relative paths at the common
@@ -466,7 +508,7 @@ errout_with_newinode:
   inode_release(newinode);
 
 errout_with_newsearch:
-  RELEASE_SEARCH(&newdesc);
+  inode_search_release(&newdesc);
   if (subdir != NULL)
     {
       fs_heap_free(subdir);
@@ -507,8 +549,13 @@ int rename(FAR const char *oldpath, FAR const char *newpath)
 
   /* Get an inode that includes the oldpath */
 
-  SETUP_SEARCH(&olddesc, oldpath, true);
-  ret = inode_find(&olddesc);
+  ret = inode_search_setup(&olddesc, oldpath, true);
+  if (ret < 0)
+    {
+      goto errout;
+    }
+
+  ret = inode_find(&olddesc, &oldinode);
   if (ret < 0)
     {
       /* There is no inode that includes in this path */
@@ -516,9 +563,6 @@ int rename(FAR const char *oldpath, FAR const char *newpath)
       goto errout_with_oldsearch;
     }
 
-  /* Get the search results */
-
-  oldinode = olddesc.node;
   DEBUGASSERT(oldinode != NULL);
 
   ret = inode_checkpathperm(oldinode, 0, 0);
@@ -537,20 +581,18 @@ int rename(FAR const char *oldpath, FAR const char *newpath)
     }
   else
 #endif /* CONFIG_DISABLE_MOUNTPOINT */
+    {
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-    {
       ret = pseudorename(oldpath, oldinode, olddesc.parent, newpath);
-    }
 #else
-    {
       ret = -ENXIO;
-    }
 #endif
+    }
 
   inode_release(oldinode);
 
 errout_with_oldsearch:
-  RELEASE_SEARCH(&olddesc);
+  inode_search_release(&olddesc);
 
 errout:
   if (ret < 0)

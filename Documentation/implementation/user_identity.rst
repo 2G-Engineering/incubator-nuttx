@@ -40,7 +40,10 @@ When ``CONFIG_SCHED_NGROUPS`` is greater than zero:
   with ``setgroups()``.
 * ``NGROUPS_MAX`` equals ``CONFIG_SCHED_NGROUPS``.
 
-Filesystem DAC (``fs_checkmode()``) grants the group-class mode bits when the
+Filesystem DAC (Discretionary Access Control -- ownership- and
+mode-bit-based permission checks, as opposed to a mandatory policy
+enforced independently of the file owner) is implemented by
+``fs_checkmode()``, which grants the group-class mode bits when the
 file's group matches ``tg_egid`` **or** any entry in ``tg_groups``.
 
 Inheritance
@@ -120,6 +123,18 @@ Hard drop (clear saved-root)::
 ``setresgid()`` requires effective UID zero to assign arbitrary GIDs.
 Change group IDs before dropping the effective UID.
 
+Setuid-on-exec
+================
+
+When ``binfmt`` loads an executable with the set-user-ID bit set
+(``S_ISUID`` in ``nx_mode``), the new task group's effective and saved
+UIDs become the file owner's UID while the real UID remains the caller's.
+This is the mechanism used by the setuid-root ``sudo`` helper
+(``CONFIG_SYSTEM_SUDO``); see :ref:`cmdsudo`.  A valid test logs in as
+root, drops to an unprivileged sudoers account (``su user``), confirms
+that account cannot exec a root-only binary, then runs that binary
+through ``sudo``.
+
 Configuration
 =============
 
@@ -139,6 +154,23 @@ Configuration
   ``CONFIG_SCHED_USER_IDENTITY`` and ``CONFIG_PSEUDOFS_ATTRIBUTES``.
   See :ref:`file-permission` for the VFS helpers, mount-crossing
   traverse rules, and testing notes.
+
+Flat Build Trust Boundary
+=========================
+
+This credential model is a DAC (Discretionary Access Control) layer for
+cooperating tasks, not a process-isolation boundary.  DAC here means
+permission checks based on ownership and mode bits that the owner can
+change (``chmod()``/``chown()``), rather than a mandatory policy
+enforced independently of the object owner.  On ``CONFIG_BUILD_FLAT``,
+kernel and
+application share one address space, so other code can write
+``tg_euid`` / ``tg_egid`` (and other fields in ``task_group_s``)
+directly and bypass the syscall checks.  Protected and kernel builds
+enforce the boundary via the syscall interface.
+
+The same caveat applies to ``chroot()``'s ``euid == 0`` gate and
+``tg_root``; see :ref:`chroot`.
 
 Pseudo-Filesystem Ownership
 ===========================

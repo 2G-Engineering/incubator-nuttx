@@ -85,4 +85,85 @@ config AMEBA_SPI
 		fwlib register layer and drives the DesignWare SSI block in polling
 		mode.
 
+config AMEBA_PWM
+	bool "PWM"
+	default n
+	select PWM
+	---help---
+		Expose the Ameba PWM timer as a NuttX PWM output at /dev/pwm0.  The
+		chip has a single PWM-capable timer whose one time base feeds several
+		compare channels, so every channel shares one frequency and each
+		carries its own duty cycle (set CONFIG_PWM_NCHANNELS to the number of
+		channels used).  The board selects which channel is routed to which
+		pad in its bring-up code.
+
+		The driver (arch/arm/src/common/ameba/ameba_pwm.c) sits on the SDK
+		fwlib RTIM register layer and runs in polling task context.
+
+config AMEBA_ADC
+	bool "ADC"
+	default n
+	select ANALOG
+	select ADC
+	---help---
+		Expose the Ameba SAR ADC as a NuttX ADC input at /dev/adc0.  The
+		converter has one channel-switch list; the board selects which
+		channels are sampled and which analog pad each external channel is
+		wired to in its bring-up code.  Every channel is sampled, in list
+		order, on each ANIOC_TRIGGER.
+
+		The driver (arch/arm/src/common/ameba/ameba_adc.c) sits on the SDK
+		fwlib register layer and reads the auto channel-switch FIFO by
+		polling in task context (the chip does not enable a hardware
+		software-trigger path).
+
+config AMEBA_RTC
+	bool "RTC"
+	default n
+	select RTC
+	select RTC_DRIVER
+	select RTC_DATETIME
+	---help---
+		Expose the Ameba on-chip real-time clock as a NuttX date/time RTC
+		at /dev/rtc0 (rdtime/settime).  Enable RTC_ALARM as well to get a
+		single one-shot alarm whose expiry fires the RTC interrupt and the
+		registered upper-half callback.
+
+		The driver (arch/arm/src/common/ameba/ameba_rtc.c) sits on the SDK
+		fwlib RTC register layer.  The hardware keeps a year plus a
+		day-of-year (no month/day register); the driver bridges that to the
+		NuttX month/day calendar with the libc UTC calendar routines.
+
+config AMEBA_WDG
+	bool "Watchdog"
+	default n
+	select WATCHDOG
+	---help---
+		Expose the Ameba system watchdog as a NuttX watchdog at
+		/dev/watchdog0 (start/stop/keepalive/settimeout, plus a capture
+		pre-timeout callback).  The timeout is programmed directly in
+		milliseconds.
+
+		The driver (arch/arm/src/common/ameba/ameba_wdg.c) sits on the SDK
+		fwlib WDG register layer.  The hardware cannot be halted once
+		enabled, so stop() arms the WDG early interrupt and refreshes the
+		counter from its handler to inhibit the reset.
+
+config AMEBA_TIMER
+	bool "Timer"
+	default n
+	select TIMER
+	---help---
+		Expose the Ameba general-purpose timers as NuttX timer devices at
+		/dev/timerN (start/stop/settimeout/getstatus, plus a periodic
+		expiration callback).  The timeout is programmed directly in
+		microseconds.
+
+		The driver (arch/arm/src/common/ameba/ameba_timer.c) is a
+		parameterised lower half sitting on the SDK fwlib RTIM register
+		layer; the board picks which of the twelve on-chip timers to expose
+		via the per-chip instance table.  On the pke8721daf /dev/timer0 is
+		TIM1 and /dev/timer1 is TIM2, both 32.768 kHz basic timers.  TIM0
+		is reserved by the ROM as the system timer and is not exposed.
+
 endmenu # Ameba Peripheral Support

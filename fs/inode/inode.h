@@ -39,37 +39,10 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/sched.h>
 #include <nuttx/fs/fs.h>
-#include <nuttx/lib/lib.h>
-
-#include "fs_heap.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-#define SETUP_SEARCH(d,p,n) \
-  do \
-    { \
-      (d)->path     = (p); \
-      (d)->node     = NULL; \
-      (d)->peer     = NULL; \
-      (d)->parent   = NULL; \
-      (d)->relpath  = NULL; \
-      (d)->buffer   = NULL; \
-      (d)->nofollow = (n); \
-    } \
-  while (0)
-
-#define RELEASE_SEARCH(d) \
-  do \
-    { \
-      if ((d)->buffer != NULL) \
-        { \
-          fs_heap_free((d)->buffer); \
-          (d)->buffer  = NULL; \
-        } \
-    } \
-  while (0)
 
 #if CONFIG_FS_BACKTRACE > 0
 #  define FS_ADD_BACKTRACE(fd) \
@@ -98,6 +71,12 @@
 #  define FS_ADD_BACKTRACE(fd)
 #endif
 
+#define INODE_NLINK_INC  (1u << 16) /* Increment link count */
+#define INODE_CREF_INC   (1u << 0)  /* Increment reference count */
+#define INODE_NLINK_SHIFT 16        /* Shift to get link count */
+#define INODE_GET_NLINK(i) \
+  ((atomic_read(&(i)->i_crefs) >> INODE_NLINK_SHIFT) + 1)
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/
@@ -106,8 +85,6 @@
  *
  *  path     - INPUT:  Path of inode to find
  *             OUTPUT: Residual part of path not traversed
- *  node     - INPUT:  (not used)
- *             OUTPUT: On success, holds the pointer to the inode found.
  *  peer     - INPUT:  (not used)
  *             OUTPUT: The inode to the "left" of the inode found.
  *  parent   - INPUT:  (not used)
@@ -134,7 +111,6 @@
 struct inode_search_s
 {
   FAR const char *path;      /* Path of inode to find */
-  FAR struct inode *node;    /* Pointer to the inode found */
   FAR struct inode *peer;    /* Node to the "left" for the found inode */
   FAR struct inode *parent;  /* Node "above" the found inode */
   FAR const char *relpath;   /* Relative path into the mountpoint */
@@ -239,12 +215,41 @@ void inode_runlock(void);
  *   If a soft link is encountered that is not the terminal node in the path,
  *   that link WILL be deferenced unconditionally.
  *
+ * Input Parameters:
+ *   desc  - Search descriptor initialized with inode_search_setup()
+ *   inode - OUTPUT: The found inode.  May be NULL if the caller only
+ *           cares about existence (e.g. inode_reserve).
+ *
  * Assumptions:
  *   The caller holds the g_inode_sem semaphore
+ *   The descriptor was initialized with inode_search_setup()
  *
  ****************************************************************************/
 
-int inode_search(FAR struct inode_search_s *desc);
+int inode_search(FAR struct inode_search_s *desc, FAR struct inode **inode);
+
+/****************************************************************************
+ * Name: inode_search_setup
+ *
+ * Description:
+ *   Initialize a search descriptor and make 'path' host-absolute: join
+ *   $PWD if it is relative, prepend the chroot jail if one is installed,
+ *   and canonicalize "." / "..".
+ *
+ ****************************************************************************/
+
+int inode_search_setup(FAR struct inode_search_s *desc,
+                       FAR const char *path, bool nofollow);
+
+/****************************************************************************
+ * Name: inode_search_release
+ *
+ * Description:
+ *   Release any buffer allocated by inode_search_setup().
+ *
+ ****************************************************************************/
+
+void inode_search_release(FAR struct inode_search_s *desc);
 
 /****************************************************************************
  * Name: inode_find
@@ -256,9 +261,13 @@ int inode_search(FAR struct inode_search_s *desc);
  *   difference between inode_find() and inode_search is that inode_find()
  *   will lock the inode tree and increment the reference count on the inode.
  *
+ * Input Parameters:
+ *   desc  - Search descriptor initialized with inode_search_setup()
+ *   inode - OUTPUT: The found inode.  Must not be NULL.
+ *
  ****************************************************************************/
 
-int inode_find(FAR struct inode_search_s *desc);
+int inode_find(FAR struct inode_search_s *desc, FAR struct inode **inode);
 
 /****************************************************************************
  * Name: inode_stat

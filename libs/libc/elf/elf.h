@@ -238,6 +238,34 @@ int libelf_reallocbuffer(FAR struct mod_loadinfo_s *loadinfo,
 
 int libelf_freebuffers(FAR struct mod_loadinfo_s *loadinfo);
 
+/****************************************************************************
+ * Name: libelf_addr
+ *
+ * Description:
+ *   Translate a link-time address in a loaded object to the address it
+ *   occupies now.  An address below the data segment's link-time base
+ *   belongs to text, anything at or above it to data.
+ *
+ * Input Parameters:
+ *   loadinfo - Load state information
+ *   vaddr    - The link-time address to translate
+ *
+ * Returned Value:
+ *   The run-time address.
+ *
+ ****************************************************************************/
+
+static inline uintptr_t libelf_addr(FAR struct mod_loadinfo_s *loadinfo,
+                                    uintptr_t vaddr)
+{
+  if (loadinfo->datasec != 0 && vaddr >= loadinfo->datasec)
+    {
+      return loadinfo->datastart + (vaddr - loadinfo->datasec);
+    }
+
+  return loadinfo->textalloc + vaddr;
+}
+
 #ifdef CONFIG_ARCH_ADDRENV
 
 /****************************************************************************
@@ -321,4 +349,26 @@ int libelf_addrenv_restore(FAR struct mod_loadinfo_s *loadinfo);
 void libelf_addrenv_free(FAR struct mod_loadinfo_s *loadinfo);
 
 #endif /* CONFIG_ARCH_ADDRENV */
+
+#ifdef HAVE_LIBC_ELF_PIN
+
+/****************************************************************************
+ * Name: libelf_pinrelease
+ *
+ * Description:
+ *   Give back an XIP pin that the loader took, and the file that holds it.
+ *   Does nothing if the loader took no pin.
+ *
+ * Input Parameters:
+ *   pinfile - The held file.  Cleared on return.
+ *
+ * Returned Value:
+ *   None.
+ *
+ ****************************************************************************/
+
+void libelf_pinrelease(FAR struct file **pinfile);
+
+#endif
+
 #endif /* __LIBS_LIBC_LIBC_ELF_LIBC_ELF_H */

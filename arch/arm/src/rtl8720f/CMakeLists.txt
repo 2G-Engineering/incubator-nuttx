@@ -62,6 +62,26 @@ if(CONFIG_AMEBA_SPI)
   list(APPEND SRCS ${AMEBA_COMMON}/ameba_spi.c)
 endif()
 
+if(CONFIG_AMEBA_PWM)
+  list(APPEND SRCS ${AMEBA_COMMON}/ameba_pwm.c)
+endif()
+
+if(CONFIG_AMEBA_ADC)
+  list(APPEND SRCS ${AMEBA_COMMON}/ameba_adc.c)
+endif()
+
+if(CONFIG_AMEBA_RTC)
+  list(APPEND SRCS ${AMEBA_COMMON}/ameba_rtc.c)
+endif()
+
+if(CONFIG_AMEBA_WDG)
+  list(APPEND SRCS ${AMEBA_COMMON}/ameba_wdg.c)
+endif()
+
+if(CONFIG_AMEBA_TIMER)
+  list(APPEND SRCS ${AMEBA_COMMON}/ameba_timer.c)
+endif()
+
 target_include_directories(arch PRIVATE ${AMEBA_COMMON})
 target_sources(arch PRIVATE ${SRCS})
 
@@ -129,6 +149,30 @@ endif()
 # (--gc-sections drops the unused DMA/interrupt helpers).
 if(CONFIG_AMEBA_SPI)
   list(APPEND AMEBA_FWLIB_SRCS ${AMEBA_SOC}/fwlib/ram_common/ameba_spi.c)
+endif()
+
+# PWM timer register layer.  The time-base entry points (RTIM_TimeBaseInit/
+# StructInit/Cmd) are in ROM, but the compare/period helpers the PWM driver
+# (arch/.../common/ameba/ameba_pwm.c) calls -- RTIM_CCStructInit/CCxInit/
+# CCRxSet/CCxCmd/ChangePeriod/PrescalerConfig -- are compiled from this RAM
+# source and linked in (--gc-sections drops the unused input-capture paths).
+if(CONFIG_AMEBA_PWM)
+  list(APPEND AMEBA_FWLIB_SRCS ${AMEBA_SOC}/fwlib/ram_common/ameba_tim.c)
+endif()
+
+# ADC (SAR) register layer.  The ADC driver (arch/.../common/ameba/ameba_adc.c)
+# calls the fwlib ADC API; the data tables and helpers it indexes live in this
+# RAM source and must be compiled in (--gc-sections drops the unused
+# interrupt/timer-trigger helpers).
+if(CONFIG_AMEBA_ADC)
+  list(APPEND AMEBA_FWLIB_SRCS ${AMEBA_SOC}/fwlib/ram_common/ameba_adc.c)
+endif()
+
+# RTC register layer.  The RTC driver (arch/.../common/ameba/ameba_rtc.c) calls
+# the fwlib RTC API; the data tables and helpers it indexes live in this RAM
+# source and must be compiled in (mirrors the make build's ameba_board.mk).
+if(CONFIG_AMEBA_RTC)
+  list(APPEND AMEBA_FWLIB_SRCS ${AMEBA_SOC}/fwlib/ram_common/ameba_rtc.c)
 endif()
 
 # Silence a couple of warnings the vendored SDK sources trip under NuttX's

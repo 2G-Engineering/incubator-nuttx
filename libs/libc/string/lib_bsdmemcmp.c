@@ -33,19 +33,6 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Nonzero if either x or y is not aligned on a "long" boundary. */
-
-#define UNALIGNED(x, y) \
-  (((long)(uintptr_t)(x) & (sizeof(long) - 1)) | ((long)(uintptr_t)(y) & (sizeof(long) - 1)))
-
-/* How many bytes are copied each iteration of the word copy loop. */
-
-#define LBLOCKSIZE (sizeof(long))
-
-/* Threshold for punting to the byte copier. */
-
-#define TOO_SMALL(len) ((len) < LBLOCKSIZE)
-
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -57,8 +44,28 @@ int memcmp(FAR const void *s1, FAR const void *s2, size_t n)
 {
   FAR unsigned char *p1 = (FAR unsigned char *)s1;
   FAR unsigned char *p2 = (FAR unsigned char *)s2;
-  FAR unsigned long *a1;
-  FAR unsigned long *a2;
+
+  /* Walk a pair that agrees about where a boundary falls up to it, so that
+   * the word path below is reached even when the caller aligned neither
+   * pointer.  A difference found on the way stops the walk and is reported
+   * by the byte loop.  Fewer than LITTLEBLOCKSIZE bytes are compared and
+   * the size was tested against that first, so this cannot run past the
+   * end.
+   */
+
+  if (!TOO_SMALL(n) && !MISALIGNED(p1, p2) && UNALIGNED_X(p1))
+    {
+      while (*p1 == *p2)
+        {
+          p1++;
+          p2++;
+          n--;
+          if (!UNALIGNED_X(p1))
+            {
+              break;
+            }
+        }
+    }
 
   /* If the size is too small, or either pointer is unaligned,
    * then we punt to the byte compare loop.  Hopefully this will
@@ -67,13 +74,10 @@ int memcmp(FAR const void *s1, FAR const void *s2, size_t n)
 
   if (!TOO_SMALL(n) && !UNALIGNED(p1, p2))
     {
-      /* Otherwise, load and compare the blocks of memory one
-       * word at a time.
-       */
+      FAR libc_data_t *a1 = (FAR libc_data_t *)p1;
+      FAR libc_data_t *a2 = (FAR libc_data_t *)p2;
 
-      a1 = (FAR unsigned long *)p1;
-      a2 = (FAR unsigned long *)p2;
-      while (n >= LBLOCKSIZE)
+      while (n >= LITTLEBLOCKSIZE)
         {
           if (*a1 != *a2)
             {
@@ -82,10 +86,28 @@ int memcmp(FAR const void *s1, FAR const void *s2, size_t n)
 
           a1++;
           a2++;
-          n -= LBLOCKSIZE;
+          n -= LITTLEBLOCKSIZE;
         }
 
-      /* check s mod LBLOCKSIZE remaining characters */
+      p1 = (FAR unsigned char *)a1;
+      p2 = (FAR unsigned char *)a2;
+    }
+  else if (!TOO_SMALL4(n) && !UNALIGNED4(p1, p2))
+    {
+      FAR uint32_t *a1 = (FAR uint32_t *)p1;
+      FAR uint32_t *a2 = (FAR uint32_t *)p2;
+
+      while (n >= LITTLEBLOCKSIZE4)
+        {
+          if (*a1 != *a2)
+            {
+              break;
+            }
+
+          a1++;
+          a2++;
+          n -= LITTLEBLOCKSIZE4;
+        }
 
       p1 = (FAR unsigned char *)a1;
       p2 = (FAR unsigned char *)a2;

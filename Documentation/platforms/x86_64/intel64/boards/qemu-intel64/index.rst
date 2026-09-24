@@ -169,6 +169,23 @@ ostest
 The "standard" NuttX examples/ostest configuration with
 the default console on legacy UART0 port (base=0x3f8)
 
+python
+------
+
+This configuration runs the CPython interpreter (``apps/interpreters/python``)
+with SMP and networking (e1000) enabled.  It works only with the Make-based
+build system.
+
+Command to run the image with user-mode networking::
+
+  qemu-system-x86_64 -m 2G -smp 4 -cpu host -enable-kvm \
+  -kernel nuttx -nographic -serial mon:stdio \
+  -device e1000,netdev=u0 -netdev user,id=u0
+
+Then start the interpreter from NSH::
+
+  nsh> python
+
 jumbo
 -----
 
@@ -246,3 +263,20 @@ fb
 ---
 
 Configuration that enables NuttX framebuffer examples.
+
+nxterm
+------
+
+This configuration starts NSH in a full-screen NXTerm and selects the first
+supported PCI 16550 device, allowing the same image to use QEMU's PCI serial
+device or a supported PCI serial card on real hardware.  A serial NSH is used
+as a fallback if the framebuffer console cannot start.
+
+Create a Multiboot2 ISO and run it with a PCI serial device, xHCI controller,
+and USB keyboard::
+
+  qemu-system-x86_64 -cpu host -enable-kvm -m 2G -smp 4 \
+      -cdrom boot.iso -vga std -display gtk -no-reboot \
+      -chardev stdio,id=pciser,signal=off \
+      -device pci-serial,chardev=pciser \
+      -device qemu-xhci,id=xhci -device usb-kbd,bus=xhci.0

@@ -45,7 +45,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#ifdef CONFIG_PSEUDOFS_SOFTLINKS
+#ifdef CONFIG_FS_LINKS
 
 /****************************************************************************
  * Public Functions
@@ -81,12 +81,11 @@ int symlink(FAR const char *path1, FAR const char *path2)
 {
   struct inode_search_s desc;
   FAR struct inode *inode = NULL;
-  int errcode;
   int ret;
 
   if (path1 == NULL)
     {
-      errcode = EINVAL;
+      ret = -EINVAL;
       goto errout;
     }
 
@@ -94,9 +93,13 @@ int symlink(FAR const char *path1, FAR const char *path2)
    * 'path2' does not lie on a mounted volume.
    */
 
-  SETUP_SEARCH(&desc, path2, false);
+  ret = inode_search_setup(&desc, path2, false);
+  if (ret < 0)
+    {
+      goto errout;
+    }
 
-  ret = inode_find(&desc);
+  ret = inode_find(&desc, &inode);
   if (ret >= 0)
     {
       /* Something exists at the path2 where we are trying to create the
@@ -106,22 +109,34 @@ int symlink(FAR const char *path1, FAR const char *path2)
 #ifndef CONFIG_DISABLE_MOUNTPOINT
       /* Check if the inode is a mountpoint. */
 
-      DEBUGASSERT(desc.node != NULL);
-      if (INODE_IS_MOUNTPT(desc.node))
+      DEBUGASSERT(inode != NULL);
+      if (INODE_IS_MOUNTPT(inode))
         {
-          /* Symbolic links within the mounted volume are not supported */
+          if (inode->u.i_mops && inode->u.i_mops->symlink)
+            {
+              ret = inode->u.i_mops->symlink(inode, path1,
+                                             desc.relpath);
+              if (ret < 0)
+                {
+                  goto errout_with_inode;
+                }
+            }
+          else
+            {
+              /* Symbolic links within this type of fs are not supported */
 
-          errcode = ENOSYS;
+              ret = -ENOSYS;
+              goto errout_with_inode;
+            }
         }
       else
 #endif
         {
           /* A node already exists in the pseudofs at 'path1' */
 
-          errcode = EEXIST;
+          ret = -EEXIST;
+          goto errout_with_inode;
         }
-
-      goto errout_with_inode;
     }
 
   /* No inode exists that contains this path.  Create a new inode in the
@@ -133,9 +148,10 @@ int symlink(FAR const char *path1, FAR const char *path2)
       /* Copy path1 */
 
       FAR char *newpath2 = fs_heap_strdup(path1);
+
       if (newpath2 == NULL)
         {
-          errcode = ENOMEM;
+          ret = -ENOMEM;
           goto errout_with_search;
         }
 
@@ -159,14 +175,13 @@ int symlink(FAR const char *path1, FAR const char *path2)
       if (ret < 0)
         {
           fs_heap_free(newpath2);
-          errcode = -ret;
           goto errout_with_search;
         }
     }
 
   /* Symbolic link successfully created */
 
-  RELEASE_SEARCH(&desc);
+  inode_search_release(&desc);
 #ifdef CONFIG_FS_NOTIFY
   notify_create(path2);
 #endif
@@ -176,11 +191,11 @@ errout_with_inode:
   inode_release(inode);
 
 errout_with_search:
-  RELEASE_SEARCH(&desc);
+  inode_search_release(&desc);
 
 errout:
-  set_errno(errcode);
+  set_errno(-ret);
   return ERROR;
 }
 
-#endif /* CONFIG_PSEUDOFS_SOFTLINKS */
+#endif /* CONFIG_FS_LINKS */

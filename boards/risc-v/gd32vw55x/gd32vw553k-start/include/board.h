@@ -54,12 +54,12 @@
 #define BOARD_UART1_RX_PIN      8
 #define BOARD_UART1_RX_AF       3
 
-#define BOARD_USART0_TX_GPIO    GD32VW55X_GPIOA_BASE
-#define BOARD_USART0_TX_PIN     0
-#define BOARD_USART0_TX_AF      0
+#define BOARD_USART0_TX_GPIO    GD32VW55X_GPIOB_BASE
+#define BOARD_USART0_TX_PIN     15
+#define BOARD_USART0_TX_AF      8
 #define BOARD_USART0_RX_GPIO    GD32VW55X_GPIOA_BASE
-#define BOARD_USART0_RX_PIN     1
-#define BOARD_USART0_RX_AF      0
+#define BOARD_USART0_RX_PIN     8
+#define BOARD_USART0_RX_AF      2
 
 /* Peripheral pin selection *************************************************/
 
