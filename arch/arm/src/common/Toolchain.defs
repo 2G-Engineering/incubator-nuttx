@@ -585,18 +585,28 @@ ARCHPICFLAGS ?= -fpic -msingle-pic-base -mpic-register=r9
 # out of CONFIG_ARM_THUMB rather than having to say anything.
 
 ifeq ($(CONFIG_NXFLAT),y)
+  # A module's D-Space is separate from its I-Space, so its read-only data is
+  # not at a fixed offset from its text.  gnu-nxflat-gotoff.ld reaches that
+  # data through the GOT; this makes the compiler do the same.  lm3s6965-ek
+  # carried the flag in its own Make.defs, and the CMake build gives it to
+  # every PIC configuration.  See issue #3737.  Clang has no such option.
+
+  ifeq ($(CONFIG_ARCH_TOOLCHAIN_CLANG),)
+    ARCHPICFLAGS += -mno-pic-data-is-text-relative
+  endif
+
   ifeq ($(CONFIG_ARM_THUMB),y)
     MKNXFLAT ?= $(TOPDIR)$(DELIM)tools$(DELIM)mknxflat$(HOSTEXEEXT) -a thumb2
   else
     MKNXFLAT ?= $(TOPDIR)$(DELIM)tools$(DELIM)mknxflat$(HOSTEXEEXT) -a arm
   endif
 
-  # ldnxflat is still an out-of-tree tool, so this is a PATH lookup.  It is
-  # named here only so that a board which never assigned it -- lm3s6965-ek
-  # is one -- does not expand it to nothing and hand make a recipe starting
-  # with '-e', whose leading dash make then eats as "ignore errors".
+  # Both tools are in the tree.  Naming ldnxflat here also keeps a board that
+  # never assigned it -- lm3s6965-ek is one -- from expanding it to nothing
+  # and handing make a recipe that starts with '-e', whose leading dash make
+  # then eats as "ignore errors".
 
-  LDNXFLAT ?= ldnxflat
+  LDNXFLAT ?= $(TOPDIR)$(DELIM)tools$(DELIM)ldnxflat$(HOSTEXEEXT)
 endif
 
 # --fixed-r9 reserves r9 across the base firmware so a callback into module
@@ -619,7 +629,10 @@ endif
 
 # Loadable module definitions
 
+# CXXMODULEFLAGS is what apps/Library.mk compiles a C++ shared library with.
+
 CMODULEFLAGS = $(CFLAGS) -fvisibility=hidden -mlong-calls # --target1-abs
+CXXMODULEFLAGS = $(CXXFLAGS) -fvisibility=hidden -mlong-calls
 LDMODULEFLAGS = -r -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/elf/gnu-elf.ld)
 
 # ELF module definitions
@@ -633,9 +646,11 @@ CELFFLAGS = $(filter-out --fixed-r9,$(CFLAGS)) -fvisibility=hidden \
 CXXELFFLAGS = $(filter-out --fixed-r9,$(CXXFLAGS)) -fvisibility=hidden \
               -mlong-calls
 
-# __dso_handle comes from crtbegin, which a module does not link
+# __dso_handle comes from crtbegin, which neither a module nor a shared
+# library links
 
 CXXELFFLAGS += -fno-use-cxa-atexit
+CXXMODULEFLAGS += -fno-use-cxa-atexit
 
 ifeq ($(CONFIG_PIC),y)
   # ARCHCFLAGS, not CFLAGS: board Make.defs reassign CFLAGS with ':='
@@ -673,6 +688,20 @@ ifeq ($(CONFIG_FDPIC),y)
   CXXELFFLAGS += -mfdpic -fPIC -Wa,--noexecstack
 
   LDELFFLAGS += -m armelf_linux_fdpiceabi -shared -z now
+
+  # A loadable module and a shared library are the same kind of object here,
+  # so they are built the same way.  The partial link the module path uses
+  # elsewhere leaves no dynamic section, and the loader has nothing to bind
+  # an import to.
+  #
+  # The entry point is left to the caller:  a module is entered at _start,
+  # a library is only called into.
+
+  CMODULEFLAGS += -mfdpic -fPIC -Wa,--noexecstack
+  CXXMODULEFLAGS += -mfdpic -fPIC -Wa,--noexecstack
+
+  LDMODULEFLAGS = -m armelf_linux_fdpiceabi -shared -z now \
+                  -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/elf/gnu-elf.ld)
 else
   CELFFLAGS += $(PICFLAGS) -mpic-register=r9
   CXXELFFLAGS += $(PICFLAGS) -mpic-register=r9
