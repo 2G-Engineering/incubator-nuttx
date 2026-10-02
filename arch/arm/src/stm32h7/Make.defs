@@ -175,3 +175,7 @@ endif
 ifeq ($(CONFIG_STM32H7_FOC),y)
 CHIP_CSRCS += stm32_foc.c
 endif
+
+ifeq ($(CONFIG_SENSORS_HALL3PHASE),y)
+CHIP_CSRCS += stm32_hall3ph.c
+endif
