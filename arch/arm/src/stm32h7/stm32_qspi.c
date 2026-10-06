@@ -1139,6 +1139,24 @@ static void qspi_ccrconfig(struct stm32h7_qspidev_s *priv,
 }
 
 #if defined(CONFIG_STM32H7_QSPI_INTERRUPTS)
+/* QUADSPI FIFO size in bytes */
+
+#define QSPI_FIFO_DEPTH 32
+
+/****************************************************************************
+ * Name: qspi_fifo_level
+ *
+ * Description:
+ *   Number of bytes currently held in the FIFO
+ *
+ ****************************************************************************/
+
+static inline uint32_t qspi_fifo_level(struct stm32h7_qspidev_s *priv)
+{
+  return (qspi_getreg(priv, STM32_QUADSPI_SR_OFFSET) & QSPI_SR_FLEVEL_MASK) >>
+         QSPI_SR_FLEVEL_SHIFT;
+}
+
 /****************************************************************************
  * Name: qspi0_interrupt
  *
@@ -1173,47 +1191,63 @@ static int qspi0_interrupt(int irq, void *context, void *arg)
       volatile uint32_t *datareg =
         (volatile uint32_t *)(g_qspi0dev.base + STM32_QUADSPI_DR_OFFSET);
 
+      /* Note: FTF only indicates that the FIFO level is past the threshold.
+       * Servicing the FIFO only until FTF clears leaves it hovering at the
+       * threshold, which then produces one interrupt per byte transferred
+       * (regardless of the threshold setting).  Instead, completely fill
+       * (write) or empty (read) the FIFO, so that there is one interrupt per
+       * FIFO threshold's worth of data.
+       */
+
       if (g_qspi0dev.xctn->function == CCR_FMODE_INDWR)
         {
-          /* Write data until we have no more or have no place to put it */
+          /* Write data until we have no more or the FIFO is full */
 
-          while (((regval = qspi_getreg(
-                 &g_qspi0dev, STM32_QUADSPI_SR_OFFSET)) & QSPI_SR_FTF) != 0)
+          uint32_t level = qspi_fifo_level(&g_qspi0dev);
+
+          while (g_qspi0dev.xctn->idxnow < g_qspi0dev.xctn->datasize)
             {
-              if (g_qspi0dev.xctn->idxnow < g_qspi0dev.xctn->datasize)
+              if (level >= QSPI_FIFO_DEPTH)
                 {
-                  *(volatile uint8_t *)datareg =
-                    ((uint8_t *)g_qspi0dev.xctn->buffer)
-                    [g_qspi0dev.xctn->idxnow];
-                  ++g_qspi0dev.xctn->idxnow;
-                }
-              else
-                {
-                  /* Fresh out of data to write */
+                  /* Space may have opened up since the level was read */
 
-                  break;
+                  level = qspi_fifo_level(&g_qspi0dev);
+                  if (level >= QSPI_FIFO_DEPTH)
+                    {
+                      break;
+                    }
                 }
+
+              *(volatile uint8_t *)datareg =
+                ((uint8_t *)g_qspi0dev.xctn->buffer)
+                [g_qspi0dev.xctn->idxnow];
+              ++g_qspi0dev.xctn->idxnow;
+              ++level;
             }
         }
       else if (g_qspi0dev.xctn->function == CCR_FMODE_INDRD)
         {
-          /* Read data until we have no more or have no place to put it */
+          /* Read data until we have no more or the FIFO is empty */
 
-          while (((regval = qspi_getreg(
-                 &g_qspi0dev, STM32_QUADSPI_SR_OFFSET)) & QSPI_SR_FTF) != 0)
+          uint32_t level = qspi_fifo_level(&g_qspi0dev);
+
+          while (g_qspi0dev.xctn->idxnow < g_qspi0dev.xctn->datasize)
             {
-              if (g_qspi0dev.xctn->idxnow < g_qspi0dev.xctn->datasize)
+              if (level == 0)
                 {
-                  ((uint8_t *)g_qspi0dev.xctn->buffer)
-                    [g_qspi0dev.xctn->idxnow] = *(volatile uint8_t *)datareg;
-                  ++g_qspi0dev.xctn->idxnow;
-                }
-              else
-                {
-                  /* no room at the inn */
+                  /* More data may have arrived since the level was read */
 
-                  break;
+                  level = qspi_fifo_level(&g_qspi0dev);
+                  if (level == 0)
+                    {
+                      break;
+                    }
                 }
+
+              ((uint8_t *)g_qspi0dev.xctn->buffer)
+                [g_qspi0dev.xctn->idxnow] = *(volatile uint8_t *)datareg;
+              ++g_qspi0dev.xctn->idxnow;
+              --level;
             }
         }
     }

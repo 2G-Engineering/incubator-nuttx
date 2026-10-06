@@ -81,8 +81,8 @@
 #define QSPI_CR_SSHIFT             (1 << 4)   /* Bit 4:  Sample shift */
 #define QSPI_CR_DFM                (1 << 6)   /* Bit 6:  DFM: Dual-flash mode */
 #define QSPI_CR_FSEL               (1 << 7)   /* Bit 7:  FSEL: Flash memory selection */
-#define QSPI_CR_FTHRES_SHIFT       (8)        /* Bits 8-11: FIFO threshold level */
-#define QSPI_CR_FTHRES_MASK        (0x0f << QSPI_CR_FTHRES_SHIFT)
+#define QSPI_CR_FTHRES_SHIFT       (8)        /* Bits 8-12: FIFO threshold level */
+#define QSPI_CR_FTHRES_MASK        (0x1f << QSPI_CR_FTHRES_SHIFT)
 #define QSPI_CR_TEIE               (1 << 16)  /* Bit 16:  Transfer error interrupt enable */
 #define QSPI_CR_TCIE               (1 << 17)  /* Bit 17:  Transfer complete interrupt enable */
 #define QSPI_CR_FTIE               (1 << 18)  /* Bit 18:  FIFO threshold interrupt enable */
@@ -109,8 +109,8 @@
 #define QSPI_SR_SMF                (1 << 3)   /* Bit 3:  Status match flag */
 #define QSPI_SR_TOF                (1 << 4)   /* Bit 4:  Timeout flag */
 #define QSPI_SR_BUSY               (1 << 5)   /* Bit 5:  Busy */
-#define QSPI_SR_FLEVEL_SHIFT       (8)        /* Bits 8-12: FIFO threshold level */
-#define QSPI_SR_FLEVEL_MASK        (0x1f << QSPI_SR_FLEVEL_SHIFT)
+#define QSPI_SR_FLEVEL_SHIFT       (8)        /* Bits 8-13: FIFO level (0-32 bytes) */
+#define QSPI_SR_FLEVEL_MASK        (0x3f << QSPI_SR_FLEVEL_SHIFT)
 
 /* Flag Clear Register */
 
