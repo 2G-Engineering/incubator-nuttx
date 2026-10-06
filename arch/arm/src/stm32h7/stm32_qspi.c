@@ -1126,8 +1126,8 @@ static void qspi_ccrconfig(struct stm32h7_qspidev_s *priv,
             QSPI_CCR_DCYC(xctn->dummycycles) |
             QSPI_CCR_DMODE(xctn->datamode) |
             QSPI_CCR_FMODE(fctn) |
-            (xctn->isddr ? QSPI_CCR_SIOO : 0) |
-            (xctn->issioo ? QSPI_CCR_DDRM : 0);
+            (xctn->isddr ? QSPI_CCR_DDRM : 0) |
+            (xctn->issioo ? QSPI_CCR_SIOO : 0);
   qspi_putreg(priv, regval, STM32_QUADSPI_CCR_OFFSET);
 
   /* If we have and need and address, set that now, too */
