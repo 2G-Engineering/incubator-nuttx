@@ -24,8 +24,12 @@ set(SRCS)
 
 # Common ARM and Cortex-M33 files
 
-if(CONFIG_STM32_PROGMEM)
+if(CONFIG_STM32_PROGMEM OR CONFIG_STM32_EDATA)
   list(APPEND SRCS stm32_flash.c)
+endif()
+
+if(CONFIG_STM32_EDATA)
+  list(APPEND SRCS stm32_edata.c)
 endif()
 
 # Required STM32H5 files
@@ -42,7 +46,8 @@ list(
   stm32_timerisr.c
   stm32_lse.c
   stm32_lsi.c
-  stm32_exti_gpio.c)
+  stm32_exti_gpio.c
+  stm32_sdmmc.c)
 
 if(CONFIG_STM32_USART)
   list(APPEND SRCS stm32_serial.c)
@@ -74,6 +79,10 @@ endif()
 
 if(CONFIG_STM32_ICACHE)
   list(APPEND SRCS stm32_icache.c)
+endif()
+
+if(CONFIG_STM32H5_EFUSE)
+  list(APPEND SRCS stm32_efuse.c)
 endif()
 
 if(CONFIG_STM32_SPI)

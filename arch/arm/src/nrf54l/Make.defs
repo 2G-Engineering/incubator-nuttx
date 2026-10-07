@@ -26,12 +26,51 @@ CHIP_CSRCS += nrf54l_start.c nrf54l_clockconfig.c nrf54l_oscconfig.c nrf54l_irq.
 CHIP_CSRCS += nrf54l_allocateheap.c nrf54l_gpio.c nrf54l_lowputc.c
 CHIP_CSRCS += nrf54l_uid.c
 
+ifeq ($(CONFIG_NRF54L_PROGMEM),y)
+CHIP_CSRCS += nrf54l_flash.c
+endif
+
 ifeq ($(CONFIG_NRF54L_SYSTIMER_SYSTICK),y)
 CHIP_CSRCS += nrf54l_systick.c
 endif
 
+ifeq ($(CONFIG_NRF54L_GRTC),y)
+CHIP_CSRCS += nrf54l_grtc.c
+endif
+
+ifeq ($(CONFIG_NRF54L_SYSTIMER_GRTC),y)
+CHIP_CSRCS += nrf54l_tickless_grtc.c
+endif
+
 ifeq ($(CONFIG_NRF54L_UART),y)
 CHIP_CSRCS += nrf54l_serial.c
+endif
+
+ifeq ($(CONFIG_NRF54L_I2C_MASTER),y)
+CHIP_CSRCS += nrf54l_i2c.c
+endif
+
+ifeq ($(CONFIG_NRF54L_SPI_MASTER),y)
+CHIP_CSRCS += nrf54l_spi.c
+endif
+
+ifeq ($(CONFIG_NRF54L_SAADC),y)
+CHIP_CSRCS += nrf54l_adc.c
+endif
+
+ifeq ($(CONFIG_NRF54L_GPIOTE),y)
+CHIP_CSRCS += nrf54l_gpiote.c
+endif
+
+ifeq ($(CONFIG_NRF54L_PWM),y)
+CHIP_CSRCS += nrf54l_pwm.c
+endif
+
+ifeq ($(CONFIG_NRF54L_TIMER),y)
+CHIP_CSRCS += nrf54l_tim.c
+ifeq ($(CONFIG_TIMER),y)
+CHIP_CSRCS += nrf54l_tim_lowerhalf.c
+endif
 endif
 
 ifneq ($(CONFIG_ARCH_IDLE_CUSTOM),y)
@@ -40,4 +79,61 @@ endif
 
 ifeq ($(CONFIG_PM),y)
 CHIP_CSRCS += nrf54l_pminitialize.c
+endif
+
+ifeq ($(CONFIG_NRF54L_SOFTDEVICE_CONTROLLER),y)
+
+NRFXLIB_UNPACK := sdk-nrfxlib
+NRFXLIB_VER    := 3.4.1
+NRFXLIB_REF    := v$(NRFXLIB_VER)
+NRFXLIB_TGZ    := $(NRFXLIB_REF).tar.gz
+NRFXLIB_URL    := https://github.com/nrfconnect/sdk-nrfxlib/archive
+
+$(NRFXLIB_TGZ):
+	$(call DOWNLOAD,$(NRFXLIB_URL),$(NRFXLIB_TGZ),chip/$(NRFXLIB_TGZ))
+
+chip/$(NRFXLIB_UNPACK): $(NRFXLIB_TGZ)
+	$(Q) cd chip && tar zxf $(NRFXLIB_TGZ)
+	$(Q) mv chip/$(NRFXLIB_UNPACK)-$(NRFXLIB_VER) chip/$(NRFXLIB_UNPACK)
+	$(Q) touch chip/$(NRFXLIB_UNPACK)
+
+ifeq ($(wildcard chip/$(NRFXLIB_UNPACK)/.git),)
+context:: chip/$(NRFXLIB_UNPACK)
+
+distclean::
+	$(call DELFILE, chip/$(NRFXLIB_TGZ))
+	$(call DELDIR, chip/$(NRFXLIB_UNPACK))
+endif
+
+CHIP_CSRCS += nrf54l_sdc.c nrf54l_sdc_hci.c
+
+NRFXLIB_DIR = $(ARCH_SRCDIR)$(DELIM)chip$(DELIM)sdk-nrfxlib
+
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)sdc
+INCLUDES += ${INCDIR_PREFIX}$(NRFXLIB_DIR)$(DELIM)mpsl$(DELIM)include
+INCLUDES += ${INCDIR_PREFIX}$(NRFXLIB_DIR)$(DELIM)softdevice_controller$(DELIM)include
+
+ifeq ($(CONFIG_ARCH_CHIP_NRF54L15),y)
+CFLAGS += -DNRF54L15_XXAA
+NRFXLIB_SOC = nrf54l
+else
+NRFXLIB_SOC = nrf54lm
+ifeq ($(CONFIG_ARCH_CHIP_NRF54LM20A),y)
+CFLAGS += -DNRF54LM20A_XXAA
+else
+CFLAGS += -DNRF54LM20B_XXAA
+endif
+endif
+
+ifeq ($(CONFIG_ARCH_FPU),y)
+NRFXLIB_ABI = hard-float
+else
+NRFXLIB_ABI = soft-float
+endif
+
+EXTRA_LIBPATHS += -L $(NRFXLIB_DIR)/mpsl/lib/$(NRFXLIB_SOC)/$(NRFXLIB_ABI)
+EXTRA_LIBPATHS += -L $(NRFXLIB_DIR)/softdevice_controller/lib/$(NRFXLIB_SOC)/$(NRFXLIB_ABI)
+EXTRA_LIBPATHS += -L $(NRFXLIB_DIR)/mpsl/fem/common/lib/$(NRFXLIB_SOC)/$(NRFXLIB_ABI)
+EXTRA_LIBS += -lsoftdevice_controller_multirole -lmpsl -lmpsl_fem_common
+
 endif
