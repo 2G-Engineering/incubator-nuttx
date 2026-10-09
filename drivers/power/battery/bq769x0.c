@@ -368,8 +368,8 @@ static int bq769x0_getreg8(FAR struct bq769x0_dev_s *priv, uint8_t regaddr,
   if (priv->crc)
     {
       sl_addr = RD_ADDR(priv->addr);
-      crc = crc8ccittpart(&sl_addr, 1, 0);
-      crc = crc8ccittpart(val, 1, crc);
+      crc = crc8smbuspart(&sl_addr, 1, 0);
+      crc = crc8smbuspart(val, 1, crc);
       if (crc != val[1])
         {
           baterr("ERROR: CRC mismatch: Got %02x, Expected %02x\n", val[1],
@@ -422,8 +422,8 @@ static int bq769x0_putreg8(FAR struct bq769x0_dev_s *priv, uint8_t regaddr,
     {
       datalen = 3;
       sl_addr = WR_ADDR(priv->addr);
-      crc = crc8ccittpart(&sl_addr, 1, 0);
-      crc = crc8ccittpart(buffer, 2, crc);
+      crc = crc8smbuspart(&sl_addr, 1, 0);
+      crc = crc8smbuspart(buffer, 2, crc);
       buffer[2] = crc;
       batinfo("write crc: %02x\n", crc);
     }
@@ -545,10 +545,10 @@ static int bq769x0_getnreg16(FAR struct bq769x0_dev_s *priv, uint8_t regaddr,
   if (priv->crc)
     {
       sl_addr = RD_ADDR(priv->addr);
-      crc = crc8ccittpart(&sl_addr, 1, 0);
+      crc = crc8smbuspart(&sl_addr, 1, 0);
       for (i = 0; i < byte_count; i += 2)
         {
-          crc = crc8ccittpart(&tmp_val[i], 1, crc);
+          crc = crc8smbuspart(&tmp_val[i], 1, crc);
           if (crc != tmp_val[i + 1])
             {
               baterr("ERROR: CRC mismatch: Got %02x, Expected %02x\n",
