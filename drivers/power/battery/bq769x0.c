@@ -178,7 +178,7 @@ static const uint8_t bq76940_15cell_mapping[] =
 
     {
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
-      };
+    };
 static const uint8_t *bq76940_cell_mapping[] =
     {
         bq76940_9cell_mapping,
@@ -1349,7 +1349,7 @@ static int bq769x0_health(struct battery_monitor_dev_s *dev, int *health)
     }
   else
     {
-     *health = BATTERY_HEALTH_GOOD;
+      *health = BATTERY_HEALTH_GOOD;
     }
 
   return OK;
@@ -1485,16 +1485,16 @@ static int bq769x0_gettemperature(FAR struct bq769x0_dev_s *priv,
 
   switch (priv->chip)
     {
-    case CHIP_BQ76920:
-      chip_sensors = BQ76920_TEMP_COUNT;
-      break;
-    case CHIP_BQ76930:
-      chip_sensors = BQ76930_TEMP_COUNT;
-      break;
-    default:
-    case CHIP_BQ76940:
-      chip_sensors = BQ76940_TEMP_COUNT;
-      break;
+      case CHIP_BQ76920:
+        chip_sensors = BQ76920_TEMP_COUNT;
+        break;
+      case CHIP_BQ76930:
+        chip_sensors = BQ76930_TEMP_COUNT;
+        break;
+      default:
+      case CHIP_BQ76940:
+        chip_sensors = BQ76940_TEMP_COUNT;
+        break;
     }
 
   /* Read the number of sensors requested or available, whichever is smaller
@@ -1533,18 +1533,18 @@ static int bq769x0_chip_cellcount(FAR struct bq769x0_dev_s *priv)
 {
   switch (priv->chip)
     {
-    case CHIP_BQ76920:
-      return BQ76920_MAX_CELL_COUNT;
-      break;
+      case CHIP_BQ76920:
+        return BQ76920_MAX_CELL_COUNT;
+        break;
 
-    case CHIP_BQ76930:
-      return BQ76930_MAX_CELL_COUNT;
-      break;
+      case CHIP_BQ76930:
+        return BQ76930_MAX_CELL_COUNT;
+        break;
 
-    default:
-    case CHIP_BQ76940:
-      return BQ76940_MAX_CELL_COUNT;
-      break;
+      default:
+      case CHIP_BQ76940:
+        return BQ76940_MAX_CELL_COUNT;
+        break;
     }
 }
 
@@ -2103,59 +2103,59 @@ FAR struct battery_monitor_dev_s *
 
       switch (chip)
         {
-        case CHIP_BQ76920:
-          if (cellcount < BQ76920_MIN_CELL_COUNT ||
+          case CHIP_BQ76920:
+            if (cellcount < BQ76920_MIN_CELL_COUNT ||
               cellcount > BQ76920_MAX_CELL_COUNT)
-            {
-              berr("ERROR: Invalid number of cells (%d) for BQ76920\n",
+              {
+                berr("ERROR: Invalid number of cells (%d) for BQ76920\n",
                    cellcount);
-              kmm_free(priv);
-              return NULL;
-            }
-          else
-            {
-              priv->mapping = bq76920_cell_mapping[cellcount -
+                kmm_free(priv);
+                return NULL;
+              }
+            else
+              {
+                priv->mapping = bq76920_cell_mapping[cellcount -
                                                    BQ76920_MIN_CELL_COUNT];
-            }
-          break;
+              }
+            break;
 
-        case CHIP_BQ76930:
-          if (cellcount < BQ76930_MIN_CELL_COUNT ||
+          case CHIP_BQ76930:
+            if (cellcount < BQ76930_MIN_CELL_COUNT ||
               cellcount > BQ76930_MAX_CELL_COUNT)
-            {
-              berr("ERROR: Invalid number of cells (%d) for BQ76930\n",
+              {
+                berr("ERROR: Invalid number of cells (%d) for BQ76930\n",
                    cellcount);
-              kmm_free(priv);
-              return NULL;
-            }
-          else
-            {
-              priv->mapping = bq76930_cell_mapping[cellcount -
+                kmm_free(priv);
+                return NULL;
+              }
+            else
+              {
+                priv->mapping = bq76930_cell_mapping[cellcount -
                                                    BQ76930_MIN_CELL_COUNT];
-            }
-          break;
+              }
+            break;
 
-        case CHIP_BQ76940:
-          if (cellcount < BQ76940_MIN_CELL_COUNT ||
+          case CHIP_BQ76940:
+            if (cellcount < BQ76940_MIN_CELL_COUNT ||
               cellcount > BQ76940_MAX_CELL_COUNT)
-            {
-              berr("ERROR: Invalid number of cells (%d) for BQ76940\n",
+              {
+                berr("ERROR: Invalid number of cells (%d) for BQ76940\n",
                    cellcount);
-              kmm_free(priv);
-              return NULL;
-            }
-          else
-            {
-              priv->mapping = bq76940_cell_mapping[cellcount -
+                kmm_free(priv);
+                return NULL;
+              }
+            else
+              {
+                priv->mapping = bq76940_cell_mapping[cellcount -
                                                    BQ76940_MIN_CELL_COUNT];
-            }
-          break;
+              }
+            break;
 
-        default:
-          berr("ERROR: Unrecognized chip type: %d\n", chip);
-          kmm_free(priv);
-          return NULL;
-          break;
+          default:
+            berr("ERROR: Unrecognized chip type: %d\n", chip);
+            kmm_free(priv);
+            return NULL;
+            break;
         }
 
       /* Configure the BQ769x0
