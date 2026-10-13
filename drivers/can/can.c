@@ -1098,19 +1098,6 @@ static int can_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         }
         break;
 
-        /* CANIOC_OFLUSH: Flush data written but not transmitted. No argument */
-
-        case CANIOC_OFLUSH:
-          {
-            /* Mark the FIFOs empty */
-
-            dev->cd_xmit.tx_head  = 0;
-            dev->cd_xmit.tx_queue = 0;
-            dev->cd_xmit.tx_tail  = 0;
-            ret = OK;
-          }
-          break;
-
       /* Set message alignment for read and write operations */
 
       case CANIOC_SET_MSGALIGN:
