@@ -161,9 +161,9 @@
  *       supported capture/compare.
  */
 
-#if defined(CONFIG_STM32H7_TIM1_PWM) || defined(CONFIG_STM32H7_TIM8_PWM) || \
-  defined(CONFIG_STM32H7_TIM15_PWM) || defined(CONFIG_STM32H7_TIM16_PWM) || \
-  defined(CONFIG_STM32H7_TIM17_PWM)
+#if defined(CONFIG_STM32_TIM1_PWM) || defined(CONFIG_STM32_TIM8_PWM) || \
+  defined(CONFIG_STM32_TIM15_PWM) || defined(CONFIG_STM32_TIM16_PWM) || \
+  defined(CONFIG_STM32_TIM17_PWM)
 #  define HAVE_ADVTIM
 #else
 #  undef HAVE_ADVTIM
