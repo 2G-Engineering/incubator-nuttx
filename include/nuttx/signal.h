@@ -31,10 +31,14 @@
 
 #include <sys/types.h>
 #include <stdbool.h>
+#include <errno.h>
 #include <signal.h>
 
 #include <nuttx/wqueue.h>
 #include <nuttx/sched.h>
+#ifdef CONFIG_FDPIC
+#  include <nuttx/fdpic.h>
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -67,7 +71,14 @@ struct sigwork_s
 {
   struct work_s work;           /* Work queue structure */
   union sigval value;           /* Data passed with notification */
+#ifdef CONFIG_FDPIC
+  struct fdpic_desc_s func;     /* Notification function, and the data base
+                                 * of a module callback or zero.  The base is
+                                 * captured at registration and installed
+                                 * around the call on the worker thread. */
+#else
   sigev_notify_function_t func; /* Notification function */
+#endif
 };
 
 #ifdef __cplusplus
@@ -128,10 +139,8 @@ extern "C"
 #endif
 
 /****************************************************************************
- * Public Function Prototypes
+ * Inline Functions
  ****************************************************************************/
-
-struct timespec;  /* Forward reference */
 
 /****************************************************************************
  * Name: nxsig_ismember
@@ -156,7 +165,15 @@ struct timespec;  /* Forward reference */
  *
  ****************************************************************************/
 
-int nxsig_ismember(FAR const sigset_t *set, int signo);
+static inline int nxsig_ismember(FAR const sigset_t *set, int signo)
+{
+  if (!GOOD_SIGNO(signo))
+    {
+      return -EINVAL;
+    }
+
+  return (set->_elem[_SIGSET_NDX(signo)] & _SIGNO2SET(signo)) ? 1 : 0;
+}
 
 /****************************************************************************
  * Name: nxsig_addset
@@ -180,7 +197,16 @@ int nxsig_ismember(FAR const sigset_t *set, int signo);
  *
  ****************************************************************************/
 
-int nxsig_addset(FAR sigset_t *set, int signo);
+static inline int nxsig_addset(FAR sigset_t *set, int signo)
+{
+  if (!GOOD_SIGNO(signo))
+    {
+      return -EINVAL;
+    }
+
+  set->_elem[_SIGSET_NDX(signo)] |= _SIGNO2SET(signo);
+  return OK;
+}
 
 /****************************************************************************
  * Name: nxsig_delset
@@ -204,7 +230,22 @@ int nxsig_addset(FAR sigset_t *set, int signo);
  *
  ****************************************************************************/
 
-int nxsig_delset(FAR sigset_t *set, int signo);
+static inline int nxsig_delset(FAR sigset_t *set, int signo)
+{
+  if (!GOOD_SIGNO(signo))
+    {
+      return -EINVAL;
+    }
+
+  set->_elem[_SIGSET_NDX(signo)] &= ~_SIGNO2SET(signo);
+  return OK;
+}
+
+/****************************************************************************
+ * Public Function Prototypes
+ ****************************************************************************/
+
+struct timespec;  /* Forward reference */
 
 /****************************************************************************
  * Name: nxsig_nandset
@@ -649,6 +690,24 @@ unsigned int nxsig_sleep(unsigned int seconds);
  ****************************************************************************/
 
 int nxsig_usleep(useconds_t usec);
+
+/****************************************************************************
+ * Name: nxsig_event_valid
+ *
+ * Description:
+ *   Check a sigevent handed in by the calling task before it is stored:
+ *   its signal must exist and a SIGEV_THREAD_ID target must be one of the
+ *   caller's own threads.
+ *
+ * Input Parameters:
+ *   event - The instance of struct sigevent to check.
+ *
+ * Returned Value:
+ *   Zero (OK) if the event may be stored; -EINVAL if not.
+ *
+ ****************************************************************************/
+
+int nxsig_event_valid(FAR const struct sigevent *event);
 
 /****************************************************************************
  * Name: nxsig_notification

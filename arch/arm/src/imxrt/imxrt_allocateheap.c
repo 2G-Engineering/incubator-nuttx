@@ -129,7 +129,8 @@
  * The pieces of the OCRAM used for DTCM and ITCM DTCM and ITCM memory spaces
  */
 
-#if defined(CONFIG_ARCH_FAMILY_IMXRT117x)
+#if defined(CONFIG_ARCH_FAMILY_IMXRT117x) || \
+    defined(CONFIG_ARCH_FAMILY_IMXRT118x)
 # define _IMXRT_OCRAM_BASE IMXRT_OCRAM_BASE
 #elif defined(IMXRT_OCRAM2_BASE)
 # define _IMXRT_OCRAM_BASE IMXRT_OCRAM2_BASE
@@ -177,7 +178,12 @@ extern const uint32_t _ram_size[];    /* See linker script */
 #  define PRIMARY_RAM_SIZE     ((uint32_t)_ram_size)
 #elif defined(CONFIG_IMXRT_OCRAM_PRIMARY)
 #  define PRIMARY_RAM_START    _IMXRT_OCRAM_BASE
-#  define PRIMARY_RAM_SIZE     IMXRT_OCRAM_SIZE - (CONFIG_ITCM_USED + CONFIG_DTCM_USED)
+#  if defined(CONFIG_ARCH_FAMILY_IMXRT118x)
+#    define PRIMARY_RAM_SIZE   IMXRT_OCRAM_SIZE
+#  else
+#    define PRIMARY_RAM_SIZE   IMXRT_OCRAM_SIZE - \
+                               (CONFIG_ITCM_USED + CONFIG_DTCM_USED)
+#  endif
 #  define IMXRT_OCRAM_ASSIGNED 1
 #elif defined(CONFIG_IMXRT_SDRAM_PRIMARY)
 #  define PRIMARY_RAM_START    CONFIG_IMXRT_SDRAM_START /* CONFIG_RAM_START */
@@ -204,7 +210,19 @@ extern const uint32_t _ram_size[];    /* See linker script */
  * already been assigned as the primary RAM.
  */
 
-#if defined(CONFIG_IMXRT_OCRAM_HEAP) && !defined(IMXRT_OCRAM_ASSIGNED)
+#if defined(CONFIG_IMXRT_TCM_PRIMARY) && \
+    defined(CONFIG_IMXRT_OCRAM_HEAP)
+/* With TCM as primary RAM, the linker defines the usable OCRAM range so
+ * that board-reserved and DMA-only storage is excluded.
+ */
+
+extern const uint8_t _socramheap[];
+extern const uint8_t _eocramheap[];
+#  define REGION1_RAM_START    ((uintptr_t)_socramheap)
+#  define REGION1_RAM_SIZE     ((uintptr_t)_eocramheap - \
+                               (uintptr_t)_socramheap)
+#  define IMXRT_OCRAM_ASSIGNED 1
+#elif defined(CONFIG_IMXRT_OCRAM_HEAP) && !defined(IMXRT_OCRAM_ASSIGNED)
 #  define REGION1_RAM_START    IMXRT_OCRAM_START
 #  define REGION1_RAM_SIZE     IMXRT_OCRAM_SIZE
 #  define IMXRT_OCRAM_ASSIGNED 1

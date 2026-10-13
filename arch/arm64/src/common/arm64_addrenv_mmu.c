@@ -267,14 +267,13 @@ static int create_region(arch_addrenv_t *addrenv, uintptr_t vaddr,
   uintptr_t ptlast;
   uintptr_t ptprev;
   uintptr_t paddr;
+  uintptr_t vend;
+  uintptr_t tend;
   uint32_t  ptlevel;
   int       npages;
-  int       nmapped;
-  int       i;
-  int       j;
 
-  nmapped   = 0;
   npages    = MM_NPAGES(size);
+  vend      = vaddr + ((uintptr_t)npages << MM_PGSHIFT);
   ptlevel   = MMU_PGT_LEVEL_MAX - 1;
   ptprev    = arm64_pgvaddr(addrenv->spgtables[ptlevel]);
 
@@ -284,8 +283,19 @@ static int create_region(arch_addrenv_t *addrenv, uintptr_t vaddr,
 
   /* Begin allocating memory for the page tables */
 
-  for (i = 0; i < npages; i += ENTRIES_PER_PGT)
+  while (vaddr < vend)
     {
+      /* One final level table maps ENTRIES_PER_PGT pages.  The region need
+       * not start at the beginning of a table, so stop at the end of this
+       * one and look up the next.
+       */
+
+      tend = (vaddr | ((ENTRIES_PER_PGT << MM_PGSHIFT) - 1)) + 1;
+      if (tend > vend || tend == 0)
+        {
+          tend = vend;
+        }
+
       /* Get the current final level entry corresponding to this vaddr */
 
       paddr = mmu_pte_to_paddr(mmu_ln_getentry(ptlevel, ptprev, vaddr));
@@ -313,13 +323,7 @@ static int create_region(arch_addrenv_t *addrenv, uintptr_t vaddr,
 
       /* Then allocate memory for the region data */
 
-      for (j = 0;
-#ifdef CONFIG_PAGING
-           j < 1;
-#else
-           j < ENTRIES_PER_PGT && nmapped < size;
-#endif
-           j++)
+      do
         {
           paddr = mm_pgalloc(1);
           if (!paddr)
@@ -334,9 +338,17 @@ static int create_region(arch_addrenv_t *addrenv, uintptr_t vaddr,
           /* Then map the virtual address to the physical address */
 
           mmu_ln_setentry(ptlevel + 1, ptlast, paddr, vaddr, mmuflags);
-          nmapped += MM_PGSIZE;
-          vaddr   += MM_PGSIZE;
+          vaddr += MM_PGSIZE;
         }
+#ifdef CONFIG_PAGING
+      while (0);
+
+      /* Only the first page of each table; the rest come on demand */
+
+      vaddr = tend;
+#else
+      while (vaddr < tend);
+#endif
     }
 
   /* Synchronize data and instruction pipelines */
@@ -369,6 +381,33 @@ static inline bool vaddr_is_shm(uintptr_t vaddr)
   return false;
 #endif
 }
+
+#ifdef CONFIG_ARCH_HAVE_FORK
+/****************************************************************************
+ * Name: vaddr_is_text
+ *
+ * Description:
+ *   Check if a vaddr is part of the .text area, which is mapped read/execute
+ *   while everything else is mapped read/write.  The two arms mirror exactly
+ *   the two layouts up_addrenv_create() builds.
+ *
+ ****************************************************************************/
+
+static inline bool vaddr_is_text(const arch_addrenv_t *addrenv,
+                                 uintptr_t vaddr)
+{
+#if (CONFIG_ARCH_TEXT_VBASE != 0x0) && (CONFIG_ARCH_HEAP_VBASE != 0x0)
+  UNUSED(addrenv);
+  return vaddr >= CONFIG_ARCH_TEXT_VBASE && vaddr < ARCH_TEXT_VEND;
+#else
+  /* Contiguous layout:  the reserve sits below .text, and .data begins where
+   * .text ends.
+   */
+
+  return vaddr >= addrenv->textvbase && vaddr < addrenv->datavbase;
+#endif
+}
+#endif /* CONFIG_ARCH_HAVE_FORK */
 
 /****************************************************************************
  * Public Functions
@@ -525,6 +564,165 @@ errout:
   up_addrenv_destroy(addrenv);
   return ret;
 }
+
+#ifdef CONFIG_ARCH_HAVE_FORK
+/****************************************************************************
+ * Name: up_addrenv_fork
+ *
+ * Description:
+ *   Duplicate an address environment for POSIX fork().  The destination gets
+ *   its own page tables and its own physical pages, holding a copy of the
+ *   source's contents and mapped at the same virtual addresses.
+ *
+ *   The walk mirrors up_addrenv_destroy():  every final level page table the
+ *   source has under its static tables is visited, and every page it maps is
+ *   duplicated.  The copy is eager -- there is no copy-on-write -- so this
+ *   needs as much free page memory as the parent occupies.
+ *
+ * Input Parameters:
+ *   src  - The address environment to be duplicated.
+ *   dest - The location to receive the duplicate.
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+int up_addrenv_fork(const arch_addrenv_t *src, arch_addrenv_t *dest)
+{
+  uintptr_t *sptprev;
+  uintptr_t *sptlast;
+  uintptr_t  dptprev;
+  uintptr_t *dptlast;
+  uintptr_t  paddr;
+  uintptr_t  vaddr;
+  uintptr_t  pgvaddr;
+  uintptr_t  l0;
+  size_t     pgsize;
+  int        i;
+  int        j;
+  int        ret;
+
+  DEBUGASSERT(src && dest);
+
+  memset(dest, 0, sizeof(arch_addrenv_t));
+
+  /* Give the child its own static page tables and kernel mappings */
+
+  ret = create_spgtables(dest);
+  if (ret < 0)
+    {
+      berr("ERROR: Failed to create static page tables\n");
+      goto errout;
+    }
+
+  ret = copy_kernel_mappings(dest);
+  if (ret < 0)
+    {
+      berr("ERROR: Failed to copy kernel mappings to new environment\n");
+      goto errout;
+    }
+
+  /* The duplicate lives at the same virtual addresses as the original */
+
+  dest->textvbase = src->textvbase;
+  dest->datavbase = src->datavbase;
+  dest->heapvbase = src->heapvbase;
+  dest->heapsize  = src->heapsize;
+
+  l0 = mmu_get_base_pgt_level();
+  dest->ttbr0 = mmu_ttbr_reg(dest->spgtables[l0], 0);
+
+  /* Make sure the source's page tables are visible before walking them */
+
+  UP_MB();
+
+  vaddr   = ARCH_ADDRENV_VBASE;
+  pgsize  = mmu_get_region_size(MMU_PGT_LEVEL_MAX - 1);
+  sptprev = (uintptr_t *)arm64_pgvaddr(src->spgtables[ARCH_SPGTS - 1]);
+  dptprev = arm64_pgvaddr(dest->spgtables[ARCH_SPGTS - 1]);
+
+  if (sptprev == NULL || dptprev == 0)
+    {
+      ret = -EINVAL;
+      goto errout;
+    }
+
+  for (i = 0; i < ENTRIES_PER_PGT; i++, vaddr += pgsize)
+    {
+      sptlast = (uintptr_t *)arm64_pgvaddr(mmu_pte_to_paddr(sptprev[i]));
+      if (sptlast == NULL)
+        {
+          continue;
+        }
+
+      /* Hook the static tables up for this address, then give the child its
+       * own final level page table here.
+       */
+
+      map_spgtables(dest, vaddr);
+
+      paddr = mm_pgalloc(1);
+      if (!paddr)
+        {
+          ret = -ENOMEM;
+          goto errout;
+        }
+
+      arm64_pgwipe(paddr);
+      mmu_ln_setentry(MMU_PGT_LEVEL_MAX - 1, dptprev, paddr, vaddr,
+                      MMU_UPGT_FLAGS);
+      dptlast = (uintptr_t *)arm64_pgvaddr(paddr);
+
+      for (j = 0; j < ENTRIES_PER_PGT; j++)
+        {
+          uintptr_t srcpage;
+          uintptr_t destpage;
+
+          srcpage = mmu_pte_to_paddr(sptlast[j]);
+          if (!srcpage)
+            {
+              continue;
+            }
+
+          pgvaddr = vaddr + ((uintptr_t)j << MM_PGSHIFT);
+
+          if (vaddr_is_shm(pgvaddr))
+            {
+              /* Shared memory stays shared across fork().  Map the very same
+               * page; up_addrenv_destroy() knows not to free SHM pages.
+               */
+
+              dptlast[j] = sptlast[j];
+              continue;
+            }
+
+          destpage = mm_pgalloc(1);
+          if (!destpage)
+            {
+              ret = -ENOMEM;
+              goto errout;
+            }
+
+          memcpy((void *)arm64_pgvaddr(destpage),
+                 (const void *)arm64_pgvaddr(srcpage), MM_PGSIZE);
+
+          mmu_ln_setentry(MMU_PGT_LEVEL_MAX, (uintptr_t)dptlast, destpage,
+                          pgvaddr,
+                          vaddr_is_text(src, pgvaddr) ? MMU_UTEXT_FLAGS
+                                                      : MMU_UDATA_FLAGS);
+        }
+    }
+
+  UP_MB();
+
+  return OK;
+
+errout:
+  up_addrenv_destroy(dest);
+  return ret;
+}
+#endif /* CONFIG_ARCH_HAVE_FORK */
 
 /****************************************************************************
  * Name: up_addrenv_destroy

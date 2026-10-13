@@ -194,6 +194,7 @@ static int     mmcsd_switch(FAR struct mmcsd_state_s *priv, uint32_t arg);
 /* Transfer helpers *********************************************************/
 
 static bool    mmcsd_wrprotected(FAR struct mmcsd_state_s *priv);
+static size_t  mmcsd_blocklimit(FAR struct mmcsd_state_s *priv);
 static int     mmcsd_eventwait(FAR struct mmcsd_state_s *priv,
                                sdio_eventset_t failevents);
 static int     mmcsd_transferready(FAR struct mmcsd_state_s *priv);
@@ -1281,6 +1282,36 @@ static int mmcsd_verifystate(FAR struct mmcsd_state_s *priv, uint32_t state)
  ****************************************************************************/
 
 /****************************************************************************
+ * Name: mmcsd_blocklimit
+ *
+ * Description:
+ *   Return the maximum number of blocks for one transfer.  Combine the
+ *   generic MMC/SD configuration limit with a limit advertised by the host
+ *   controller.
+ *
+ ****************************************************************************/
+
+static size_t mmcsd_blocklimit(FAR struct mmcsd_state_s *priv)
+{
+  size_t maxrequest = SDIO_MAXREQUEST(priv->dev);
+  size_t blocklimit = MMCSD_MULTIBLOCK_LIMIT;
+
+  DEBUGASSERT(priv->blocksize > 0);
+
+  if (maxrequest > 0)
+    {
+      size_t hostlimit = maxrequest / priv->blocksize;
+
+      if (blocklimit > hostlimit)
+        {
+          blocklimit = hostlimit;
+        }
+    }
+
+  return blocklimit;
+}
+
+/****************************************************************************
  * Name: mmcsd_wrprotected
  *
  * Description:
@@ -1662,7 +1693,13 @@ static ssize_t mmcsd_readsingle(FAR struct mmcsd_part_s *part,
   else
 #endif
     {
-      SDIO_RECVSETUP(priv->dev, buffer, priv->blocksize);
+      ret = SDIO_RECVSETUP(priv->dev, buffer, priv->blocksize);
+      if (ret != OK)
+        {
+          finfo("SDIO_RECVSETUP: error %d\n", ret);
+          SDIO_CANCEL(priv->dev);
+          return ret;
+        }
     }
 
   /* Send CMD17, READ_SINGLE_BLOCK: Read a block of the size selected
@@ -1709,6 +1746,7 @@ static ssize_t mmcsd_readmultiple(FAR struct mmcsd_part_s *part,
 {
   FAR struct mmcsd_state_s *priv = part->priv;
   size_t nbytes = nblocks << priv->blockshift;
+  size_t maxrequest = SDIO_MAXREQUEST(priv->dev);
 #ifdef CONFIG_MMCSD_MMCSUPPORT
   uint32_t partnum = part - priv->part;
 #endif
@@ -1717,6 +1755,11 @@ static ssize_t mmcsd_readmultiple(FAR struct mmcsd_part_s *part,
 
   finfo("startblock=%jd nblocks=%zu\n", (intmax_t)startblock, nblocks);
   DEBUGASSERT(priv != NULL && buffer != NULL);
+
+  if (maxrequest > 0 && nbytes > maxrequest)
+    {
+      return -E2BIG;
+    }
 
   /* Check if the card is locked */
 
@@ -1818,7 +1861,13 @@ static ssize_t mmcsd_readmultiple(FAR struct mmcsd_part_s *part,
   else
 #endif
     {
-      SDIO_RECVSETUP(priv->dev, buffer, nbytes);
+      ret = SDIO_RECVSETUP(priv->dev, buffer, nbytes);
+      if (ret != OK)
+        {
+          finfo("SDIO_RECVSETUP: error %d\n", ret);
+          SDIO_CANCEL(priv->dev);
+          return ret;
+        }
     }
 
 #ifdef CONFIG_MMCSD_MMCSUPPORT
@@ -1830,6 +1879,7 @@ static ssize_t mmcsd_readmultiple(FAR struct mmcsd_part_s *part,
       ret = mmcsd_setblockcount(priv, nblocks);
       if (ret != OK)
         {
+          SDIO_CANCEL(priv->dev);
           return ret;
         }
     }
@@ -1853,6 +1903,11 @@ static ssize_t mmcsd_readmultiple(FAR struct mmcsd_part_s *part,
   if (ret != OK)
     {
       ferr("ERROR: CMD18 transfer failed: %d\n", ret);
+      if (IS_SD(priv->type) && !priv->cmd23support)
+        {
+          mmcsd_stoptransmission(priv);
+        }
+
       return ret;
     }
 
@@ -1865,6 +1920,7 @@ static ssize_t mmcsd_readmultiple(FAR struct mmcsd_part_s *part,
       if (ret != OK)
         {
           ferr("ERROR: mmcsd_stoptransmission failed: %d\n", ret);
+          return ret;
         }
     }
 
@@ -2013,7 +2069,13 @@ static ssize_t mmcsd_writesingle(FAR struct mmcsd_part_s *part,
   else
 #endif
     {
-      SDIO_SENDSETUP(priv->dev, buffer, priv->blocksize);
+      ret = SDIO_SENDSETUP(priv->dev, buffer, priv->blocksize);
+      if (ret != OK)
+        {
+          finfo("SDIO_SENDSETUP: error %d\n", ret);
+          SDIO_CANCEL(priv->dev);
+          return ret;
+        }
     }
 
   /* If Controller needs DMA setup before write then only send CMD24 now. */
@@ -2076,6 +2138,7 @@ static ssize_t mmcsd_writemultiple(FAR struct mmcsd_part_s *part,
 {
   FAR struct mmcsd_state_s *priv = part->priv;
   size_t nbytes = nblocks << priv->blockshift;
+  size_t maxrequest = SDIO_MAXREQUEST(priv->dev);
 #ifdef CONFIG_MMCSD_MMCSUPPORT
   uint32_t partnum = part - priv->part;
 #endif
@@ -2085,6 +2148,11 @@ static ssize_t mmcsd_writemultiple(FAR struct mmcsd_part_s *part,
 
   finfo("startblock=%jd nblocks=%zu\n", (intmax_t)startblock, nblocks);
   DEBUGASSERT(priv != NULL && buffer != NULL);
+
+  if (maxrequest > 0 && nbytes > maxrequest)
+    {
+      return -E2BIG;
+    }
 
   /* Check if the card is locked or write protected (either via software or
    * via the mechanical write protect on the card)
@@ -2265,7 +2333,13 @@ static ssize_t mmcsd_writemultiple(FAR struct mmcsd_part_s *part,
   else
 #endif
     {
-      SDIO_SENDSETUP(priv->dev, buffer, nbytes);
+      ret = SDIO_SENDSETUP(priv->dev, buffer, nbytes);
+      if (ret != OK)
+        {
+          ferr("SDIO_SENDSETUP: error %d\n", ret);
+          SDIO_CANCEL(priv->dev);
+          return ret;
+        }
     }
 
   /* If Controller needs DMA setup before write then only send CMD25 now. */
@@ -2424,6 +2498,7 @@ static ssize_t mmcsd_read(FAR struct inode *inode, unsigned char *buffer,
   FAR struct mmcsd_part_s *part;
   size_t sector;
   size_t endsector;
+  size_t blocklimit;
   ssize_t nread;
   ssize_t ret = nsectors;
 
@@ -2444,6 +2519,13 @@ static ssize_t mmcsd_read(FAR struct inode *inode, unsigned char *buffer,
 
       ret = nsectors;
       endsector = startsector + nsectors;
+      blocklimit = mmcsd_blocklimit(priv);
+      if (blocklimit == 0)
+        {
+          mmcsd_unlock(priv);
+          return -E2BIG;
+        }
+
       for (sector = startsector; sector < endsector; sector += nread)
         {
           /* Read this sector into the user buffer */
@@ -2454,9 +2536,9 @@ static ssize_t mmcsd_read(FAR struct inode *inode, unsigned char *buffer,
           nread = mmcsd_readsingle(part, buffer, sector);
 #else
           nread = endsector - sector;
-          if (nread > MMCSD_MULTIBLOCK_LIMIT)
+          if (nread > blocklimit)
             {
-              nread = MMCSD_MULTIBLOCK_LIMIT;
+              nread = blocklimit;
             }
 
           if (nread == 1)
@@ -2505,6 +2587,7 @@ static ssize_t mmcsd_write(FAR struct inode *inode,
   FAR struct mmcsd_part_s *part;
   size_t sector;
   size_t endsector;
+  size_t blocklimit;
   ssize_t nwrite;
   ssize_t ret = nsectors;
 
@@ -2525,6 +2608,13 @@ static ssize_t mmcsd_write(FAR struct inode *inode,
 
       ret = nsectors;
       endsector = startsector + nsectors;
+      blocklimit = mmcsd_blocklimit(priv);
+      if (blocklimit == 0)
+        {
+          mmcsd_unlock(priv);
+          return -E2BIG;
+        }
+
       for (sector = startsector; sector < endsector; sector += nwrite)
         {
           /* Write this sector into the user buffer */
@@ -2535,9 +2625,9 @@ static ssize_t mmcsd_write(FAR struct inode *inode,
           nwrite = mmcsd_writesingle(part, buffer, sector);
 #else
           nwrite = endsector - sector;
-          if (nwrite > MMCSD_MULTIBLOCK_LIMIT)
+          if (nwrite > blocklimit)
             {
-              nwrite = MMCSD_MULTIBLOCK_LIMIT;
+              nwrite = blocklimit;
             }
 
           if (nwrite == 1)
@@ -2662,65 +2752,65 @@ static int mmcsd_ioctl(FAR struct inode *inode, int cmd, unsigned long arg)
 
   switch (cmd)
     {
-    case BIOC_PROBE: /* Check for media in the slot */
-      {
-        finfo("BIOC_PROBE\n");
+      case BIOC_PROBE: /* Check for media in the slot */
+        {
+          finfo("BIOC_PROBE\n");
 
-        /* Probe the MMC/SD slot for media */
+          /* Probe the MMC/SD slot for media */
 
-        ret = mmcsd_probe(priv);
-        if (ret != OK)
-          {
-            ferr("ERROR: mmcsd_probe failed: %d\n", ret);
-          }
-      }
-      break;
+          ret = mmcsd_probe(priv);
+          if (ret != OK)
+            {
+              ferr("ERROR: mmcsd_probe failed: %d\n", ret);
+            }
+        }
+        break;
 
-    case BIOC_EJECT: /* Media has been removed from the slot */
-      {
-        finfo("BIOC_EJECT\n");
+      case BIOC_EJECT: /* Media has been removed from the slot */
+        {
+          finfo("BIOC_EJECT\n");
 
-        /* Process the removal of the card */
+          /* Process the removal of the card */
 
-        ret = mmcsd_removed(priv);
-        if (ret != OK)
-          {
-            ferr("ERROR: mmcsd_removed failed: %d\n", ret);
-          }
+          ret = mmcsd_removed(priv);
+          if (ret != OK)
+            {
+              ferr("ERROR: mmcsd_removed failed: %d\n", ret);
+            }
 
-        /* Enable logic to detect if a card is re-inserted */
+          /* Enable logic to detect if a card is re-inserted */
 
-        SDIO_CALLBACKENABLE(priv->dev, SDIOMEDIA_INSERTED);
-      }
-      break;
+          SDIO_CALLBACKENABLE(priv->dev, SDIOMEDIA_INSERTED);
+        }
+        break;
 
 #ifdef CONFIG_MMCSD_IOCSUPPORT
-    case MMC_IOC_CMD: /* MMCSD device ioctl commands */
-      {
-        finfo("MMC_IOC_CMD\n");
-        ret = mmcsd_iocmd(part, (FAR struct mmc_ioc_cmd *)arg);
-        if (ret != OK)
-          {
-            ferr("ERROR: mmcsd_iocmd failed: %d\n", ret);
-          }
-      }
-      break;
+      case MMC_IOC_CMD: /* MMCSD device ioctl commands */
+        {
+          finfo("MMC_IOC_CMD\n");
+          ret = mmcsd_iocmd(part, (FAR struct mmc_ioc_cmd *)arg);
+          if (ret != OK)
+            {
+              ferr("ERROR: mmcsd_iocmd failed: %d\n", ret);
+            }
+        }
+        break;
 
-    case MMC_IOC_MULTI_CMD: /* MMCSD device ioctl multi commands */
-      {
-        finfo("MMC_IOC_MULTI_CMD\n");
-        ret = mmcsd_multi_iocmd(part, (FAR struct mmc_ioc_multi_cmd *)arg);
-        if (ret != OK)
-          {
-            ferr("ERROR: mmcsd_iocmd failed: %d\n", ret);
-          }
-      }
-      break;
+      case MMC_IOC_MULTI_CMD: /* MMCSD device ioctl multi commands */
+        {
+          finfo("MMC_IOC_MULTI_CMD\n");
+          ret = mmcsd_multi_iocmd(part, (FAR struct mmc_ioc_multi_cmd *)arg);
+          if (ret != OK)
+            {
+              ferr("ERROR: mmcsd_iocmd failed: %d\n", ret);
+            }
+        }
+        break;
 #endif
 
-    default:
-      ret = -ENOTTY;
-      break;
+      default:
+        ret = -ENOTTY;
+        break;
     }
 
   mmcsd_unlock(priv);
@@ -3428,7 +3518,13 @@ static int mmcsd_read_extcsd(FAR struct mmcsd_state_s *priv,
   else
 #endif
     {
-      SDIO_RECVSETUP(priv->dev, extcsd, 512);
+      ret = SDIO_RECVSETUP(priv->dev, extcsd, 512);
+      if (ret != OK)
+        {
+          ferr("SDIO_RECVSETUP: error %d\n", ret);
+          SDIO_CANCEL(priv->dev);
+          return ret;
+        }
     }
 
   /* Send CMD8 in data-transfer mode to obtain the
@@ -3565,7 +3661,13 @@ static int mmcsd_general_cmd_write(FAR struct mmcsd_state_s *priv,
   else
 #endif
     {
-      SDIO_SENDSETUP(priv->dev, buffer, priv->blocksize);
+      ret = SDIO_SENDSETUP(priv->dev, buffer, priv->blocksize);
+      if (ret != OK)
+        {
+          finfo("SDIO_SENDSETUP: error %d\n", ret);
+          SDIO_CANCEL(priv->dev);
+          return ret;
+        }
     }
 
   /* If Controller needs DMA setup before write then only send CMD24 now. */
@@ -3693,7 +3795,13 @@ static int mmcsd_general_cmd_read(FAR struct mmcsd_state_s *priv,
   else
 #endif
     {
-      SDIO_RECVSETUP(priv->dev, buffer, priv->blocksize);
+      ret = SDIO_RECVSETUP(priv->dev, buffer, priv->blocksize);
+      if (ret != OK)
+        {
+          finfo("SDIO_RECVSETUP: error %d\n", ret);
+          SDIO_CANCEL(priv->dev);
+          return ret;
+        }
     }
 
   /* Send CMD56: Read a sector size data and verify that good R1
@@ -3743,122 +3851,128 @@ static int mmcsd_iocmd(FAR struct mmcsd_part_s *part,
   opcode = ic_ptr->opcode & MMCSD_CMDIDX_MASK;
   switch (opcode)
     {
-    case MMCSD_CMDIDX0: /* Reset card to idle state */
-      {
-        mmcsd_sendcmdpoll(priv, MMCSD_CMD0, ic_ptr->arg);
-        MMCSD_USLEEP(MMCSD_IDLE_DELAY);
-      }
-      break;
-    case MMCSD_CMDIDX2: /* Get cid reg data */
-      {
-        memcpy((FAR void *)(uintptr_t)ic_ptr->data_ptr,
-               priv->cid, sizeof(priv->cid));
-      }
-      break;
+      case MMCSD_CMDIDX0: /* Reset card to idle state */
+        {
+          mmcsd_sendcmdpoll(priv, MMCSD_CMD0, ic_ptr->arg);
+          MMCSD_USLEEP(MMCSD_IDLE_DELAY);
+        }
+        break;
+      case MMCSD_CMDIDX2: /* Get cid reg data */
+        {
+          memcpy((FAR void *)(uintptr_t)ic_ptr->data_ptr,
+                 priv->cid, sizeof(priv->cid));
+        }
+        break;
 #ifdef CONFIG_MMCSD_MMCSUPPORT
-    case MMCSD_CMDIDX6: /* Switch commands */
-      {
-        ret = mmcsd_switch(priv, ic_ptr->arg);
-        if (ret != OK)
-          {
-            ferr("ERROR: mmcsd_switch failed: %d\n", ret);
-          }
-      }
-      break;
-    case MMC_CMDIDX8: /* Get extended csd reg data */
-      {
-        ret = mmcsd_read_extcsd(priv,
-                                (FAR uint8_t *)(uintptr_t)ic_ptr->data_ptr);
-      }
-      break;
+      case MMCSD_CMDIDX6: /* Switch commands */
+        {
+          ret = mmcsd_switch(priv, ic_ptr->arg);
+          if (ret != OK)
+            {
+              ferr("ERROR: mmcsd_switch failed: %d\n", ret);
+            }
+        }
+        break;
+      case MMC_CMDIDX8: /* Get extended csd reg data */
+        {
+          FAR uint8_t *buf = (FAR uint8_t *)(uintptr_t)ic_ptr->data_ptr;
+
+          ret = mmcsd_read_extcsd(priv, buf);
+        }
+        break;
 #endif
-    case MMCSD_CMDIDX13: /* Send status commands */
-      {
-        ret = mmcsd_get_r1(priv, ic_ptr->response);
-        if (ret != OK)
-          {
-            ferr("ERROR: mmcsd_get_r1 failed: %d\n", ret);
-          }
-      }
-      break;
+      case MMCSD_CMDIDX13: /* Send status commands */
+        {
+          ret = mmcsd_get_r1(priv, ic_ptr->response);
+          if (ret != OK)
+            {
+              ferr("ERROR: mmcsd_get_r1 failed: %d\n", ret);
+            }
+        }
+        break;
 #if MMCSD_MULTIBLOCK_LIMIT != 1
-    case MMCSD_CMDIDX18: /* Read multi blocks commands */
-      {
-        if (ic_ptr->blocks > 0)
-          {
-            /* Address argument in CMD18, 25 will be ignored in rpmb case */
+      case MMCSD_CMDIDX18: /* Read multi blocks commands */
+        {
+          if (ic_ptr->blocks > 0)
+            {
+              FAR uint8_t *buf =
+                (FAR uint8_t *)(uintptr_t)ic_ptr->data_ptr;
 
-            ret = mmcsd_readmultiple(part,
-                                  (FAR uint8_t *)(uintptr_t)ic_ptr->data_ptr,
-                                   ic_ptr->arg, ic_ptr->blocks);
-            if (ret != ic_ptr->blocks)
-              {
-                ferr("ERROR: mmcsd_readmultiple failed: %d\n", ret);
-              }
-            else
-              {
-                ret = OK;
-              }
-          }
-      }
-      break;
-    case MMCSD_CMDIDX23: /* Set transfer block counts */
-      {
-        ret = mmcsd_setblockcount(priv,
-                              ic_ptr->blocks ? ic_ptr->blocks : ic_ptr->arg);
-      }
-      break;
-    case MMCSD_CMDIDX25: /* Write multi blocks commands */
-      {
-        if (ic_ptr->blocks > 0)
-          {
-            /* Address argument in CMD18, 25 will be ignored in rpmb case */
+              /* Address argument in CMD18, 25 will be ignored in rpmb case */
 
-            ret = mmcsd_writemultiple(part,
-                            (const FAR uint8_t *)(uintptr_t)ic_ptr->data_ptr,
-                             ic_ptr->arg, ic_ptr->blocks);
-            if (ret != ic_ptr->blocks)
-              {
-                ferr("ERROR: mmcsd_writemultiple failed: %d\n", ret);
-              }
-            else
-              {
-                ret = OK;
-              }
-          }
-      }
-      break;
+              ret = mmcsd_readmultiple(part, buf, ic_ptr->arg,
+                                       ic_ptr->blocks);
+              if (ret != ic_ptr->blocks)
+                {
+                  ferr("ERROR: mmcsd_readmultiple failed: %d\n", ret);
+                }
+              else
+                {
+                  ret = OK;
+                }
+            }
+        }
+        break;
+      case MMCSD_CMDIDX23: /* Set transfer block counts */
+        {
+          ret = mmcsd_setblockcount(priv,
+                                    ic_ptr->blocks ? ic_ptr->blocks :
+                                    ic_ptr->arg);
+        }
+        break;
+      case MMCSD_CMDIDX25: /* Write multi blocks commands */
+        {
+          if (ic_ptr->blocks > 0)
+            {
+              const FAR uint8_t *buf =
+                (const FAR uint8_t *)(uintptr_t)ic_ptr->data_ptr;
+
+              /* Address argument in CMD18, 25 will be ignored in rpmb case */
+
+              ret = mmcsd_writemultiple(part, buf, ic_ptr->arg,
+                                        ic_ptr->blocks);
+              if (ret != ic_ptr->blocks)
+                {
+                  ferr("ERROR: mmcsd_writemultiple failed: %d\n", ret);
+                }
+              else
+                {
+                  ret = OK;
+                }
+            }
+        }
+        break;
 #endif
-    case MMCSD_CMDIDX56: /* General commands */
-      {
-        if (ic_ptr->write_flag)
-          {
-            ret = mmcsd_general_cmd_write(priv,
-                    (FAR uint8_t *)(uintptr_t)(ic_ptr->data_ptr),
-                    ic_ptr->arg);
-            if (ret != OK)
-              {
-                ferr("mmcsd_iocmd MMCSD_CMDIDX56 write failed.\n");
-              }
-          }
-        else
-          {
-            ret = mmcsd_general_cmd_read(priv,
-                    (FAR uint8_t *)(uintptr_t)(ic_ptr->data_ptr),
-                    ic_ptr->arg);
-            if (ret != OK)
-              {
-                ferr("mmcsd_iocmd MMCSD_CMDIDX56 read failed.\n");
-              }
-          }
-      }
-      break;
-    default:
-      {
-        ferr("mmcsd_iocmd opcode unsupported.\n");
-        ret = -EINVAL;
-      }
-      break;
+      case MMCSD_CMDIDX56: /* General commands */
+        {
+          if (ic_ptr->write_flag)
+            {
+              ret = mmcsd_general_cmd_write(priv,
+                      (FAR uint8_t *)(uintptr_t)(ic_ptr->data_ptr),
+                      ic_ptr->arg);
+              if (ret != OK)
+                {
+                  ferr("mmcsd_iocmd MMCSD_CMDIDX56 write failed.\n");
+                }
+            }
+          else
+            {
+              ret = mmcsd_general_cmd_read(priv,
+                      (FAR uint8_t *)(uintptr_t)(ic_ptr->data_ptr),
+                      ic_ptr->arg);
+              if (ret != OK)
+                {
+                  ferr("mmcsd_iocmd MMCSD_CMDIDX56 read failed.\n");
+                }
+            }
+        }
+        break;
+      default:
+        {
+          ferr("mmcsd_iocmd opcode unsupported.\n");
+          ret = -EINVAL;
+        }
+        break;
     }
 
   return ret;

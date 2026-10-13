@@ -110,6 +110,21 @@ endif()
 
 if(CONFIG_RP23XX_RTC)
   list(APPEND SRCS rp23xx_rtc.c)
+  if(CONFIG_RTC_DRIVER)
+    list(APPEND SRCS rp23xx_rtc_lowerhalf.c)
+  endif()
+endif()
+
+if(CONFIG_PM)
+  list(APPEND SRCS rp23xx_pminitialize.c)
+endif()
+
+if(CONFIG_RP23XX_PM)
+  list(APPEND SRCS rp23xx_pm.c)
+endif()
+
+if(CONFIG_RP23XX_PM_SUSPEND)
+  list(APPEND SRCS rp23xx_pm_suspend.c)
 endif()
 
 if(CONFIG_RP23XX_OTP)

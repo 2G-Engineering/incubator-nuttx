@@ -46,6 +46,10 @@
 #include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 
+#if defined(CONFIG_NETDEV_PHY_IOCTL) && defined(CONFIG_ARCH_PHY_INTERRUPT)
+#  include <nuttx/net/phy.h>
+#endif
+
 #ifdef CONFIG_NET_PKT
 #  include <nuttx/net/pkt.h>
 #endif
@@ -142,6 +146,10 @@
 #define DESC_SIZE      20
 #define DESC_PADSIZE   DMA_ALIGN_UP(DESC_SIZE)
 
+/* The RX DMA also stores the 4-byte frame check sequence in the buffer */
+
+#define PIC32MZ_FCS_SIZE 4
+
 /* Make sure that the size of each buffer is a multiple of 4 bytes.  This
  * will force alignment of all buffers to 4-byte boundaries (this is needed
  * by the queuing logic which will cast each buffer address to a pointer
@@ -154,7 +162,8 @@
  * above by aligning the buffer to D-Cache size.
  */
 
-#define PIC32MZ_ALIGNED_BUFSIZE DMA_ALIGN_UP(CONFIG_NET_ETH_PKTSIZE)
+#define PIC32MZ_ALIGNED_BUFSIZE DMA_ALIGN_UP(CONFIG_NET_ETH_PKTSIZE + \
+                                             PIC32MZ_FCS_SIZE)
 
 /* The number of buffers will, then, be one for each descriptor plus one
  * extra
@@ -198,6 +207,10 @@
 /* PHY read/write delays in loop counts */
 
 #define PIC32MZ_MIITIMEOUT     (666666)
+
+/* Busy flag polls after an MII management command */
+
+#define PIC32MZ_MIIBUSY_POLLS  (1000)
 
 /* Ethernet MII clocking.
  *
@@ -284,6 +297,16 @@
 #  undef PIC32MZ_HAVE_PHY
 #endif
 
+/* PHY interrupt source/mask registers and the link up/down events */
+
+#if defined(CONFIG_ETH0_PHY_LAN8720) || defined(CONFIG_ETH0_PHY_LAN8740) || \
+    defined(CONFIG_ETH0_PHY_LAN8740A)
+#  define PIC32MZ_PHY_ISR      MII_LAN8720_ISR
+#  define PIC32MZ_PHY_IMR      MII_LAN8720_IMR
+#  define PIC32MZ_PHY_INTEN    (MII_LAN8720_INT_LINKDOWN | \
+                                MII_LAN8720_INT_ANCOMPLETE)
+#endif
+
 /* These definitions are used to remember the speed/duplex settings */
 
 #define PIC32MZ_SPEED_MASK     0x01
@@ -316,7 +339,11 @@
 /* Misc Helper Macros *******************************************************/
 
 #define PHYS_ADDR(va) ((uint32_t)(va) & 0x1fffffff)
-#define VIRT_ADDR(pa) (KSEG1_BASE | (uint32_t)(pa))
+/* Buffers are always accessed through the segment g_buffers is linked in
+ * (KSEG0 or KSEG1), so that no buffer is ever reached through two aliases.
+ */
+
+#define VIRT_ADDR(pa) (((uint32_t)g_buffers & 0xe0000000) | (uint32_t)(pa))
 
 /****************************************************************************
  * Private Types
@@ -362,6 +389,7 @@ struct pic32mz_driver_s
   uint8_t    pd_phyaddr;        /* PHY device address */
 #endif
   uint8_t    pd_txnext;         /* Index to the next Tx descriptor */
+  uint8_t    pd_rxnext;         /* Index to the next Rx descriptor */
   uint32_t   pd_inten;          /* Shadow copy of INTEN register */
   struct wdog_s pd_txtimeout;   /* TX timeout timer */
   struct work_s pd_irqwork;     /* For deferring interrupt work to the work queue */
@@ -393,6 +421,10 @@ uint8_t g_buffers[PIC32MZ_NBUFFERS * PIC32MZ_ALIGNED_BUFSIZE]
 
 static struct pic32mz_driver_s g_ethdrvr[CONFIG_PIC32MZ_NINTERFACES];
 
+/* All-zero MAC address: no address assigned to the device */
+
+static const uint8_t g_zeromac[IFHWADDRLEN];
+
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
@@ -423,6 +455,7 @@ static void pic32mz_dumprxdesc(struct pic32mz_rxdesc_s *rxdesc,
 
 static inline void pic32mz_bufferinit(struct pic32mz_driver_s *priv);
 static uint8_t *pic32mz_allocbuffer(struct pic32mz_driver_s *priv);
+static uint8_t *pic32mz_rxbuffer(struct pic32mz_driver_s *priv);
 static void pic32mz_freebuffer(struct pic32mz_driver_s *priv,
                                uint8_t *buffer);
 
@@ -431,7 +464,8 @@ static inline void pic32mz_rxdescinit(struct pic32mz_driver_s *priv);
 static inline struct pic32mz_txdesc_s *pic32mz_txdesc(
   struct pic32mz_driver_s *priv);
 static inline void pic32mz_txnext(struct pic32mz_driver_s *priv);
-static inline void pic32mz_rxreturn(struct pic32mz_rxdesc_s *rxdesc);
+static void pic32mz_rxreturn(struct pic32mz_driver_s *priv,
+                             struct pic32mz_rxdesc_s *rxdesc);
 static struct pic32mz_rxdesc_s *pic32mz_rxdesc(
   struct pic32mz_driver_s *priv);
 
@@ -467,6 +501,10 @@ static int pic32mz_txavail(struct net_driver_s *dev);
 static int pic32mz_addmac(struct net_driver_s *dev, const uint8_t *mac);
 static int pic32mz_rmmac(struct net_driver_s *dev, const uint8_t *mac);
 #endif
+#if defined(CONFIG_NETDEV_IOCTL) && defined(PIC32MZ_HAVE_PHY)
+static int pic32mz_ioctl(struct net_driver_s *dev, int cmd,
+                         unsigned long arg);
+#endif
 
 /* PHY initialization functions */
 
@@ -484,9 +522,13 @@ static uint16_t pic32mz_phyread(uint8_t phyaddr, uint8_t regaddr);
 static inline int pic32mz_phyreset(uint8_t phyaddr);
 #  ifdef CONFIG_PIC32MZ_PHY_AUTONEG
 static inline int pic32mz_phyautoneg(uint8_t phyaddr);
-#  endif
+#  else
 static int pic32mz_phymode(uint8_t phyaddr, uint8_t mode);
+#  endif
 static inline int pic32mz_phyinit(struct pic32mz_driver_s *priv);
+#  if defined(CONFIG_NETDEV_PHY_IOCTL) && defined(CONFIG_ARCH_PHY_INTERRUPT)
+static int pic32mz_phyintenable(struct pic32mz_driver_s *priv);
+#  endif
 #else
 #  define pic32mz_phyinit(priv)
 #endif
@@ -686,7 +728,9 @@ static void pic32mz_dumprxdesc(struct pic32mz_rxdesc_s *rxdesc,
  * Function: pic32mz_bufferinit
  *
  * Description:
- *   Initialize the buffers by placing them all in a free list
+ *   Initialize the buffers by placing them all in an empty free list.  The
+ *   list is re-initialized on every ifup, when it may still hold the
+ *   buffers that were free when the interface was taken down.
  *
  * Input Parameters:
  *   priv - Pointer to EMAC device driver structure
@@ -700,6 +744,8 @@ static inline void pic32mz_bufferinit(struct pic32mz_driver_s *priv)
 {
   uint8_t *buffer;
   int i;
+
+  sq_init(&priv->pd_freebuffers);
 
   for (i = 0, buffer = g_buffers; i < PIC32MZ_NBUFFERS; i++)
     {
@@ -732,6 +778,36 @@ static uint8_t *pic32mz_allocbuffer(struct pic32mz_driver_s *priv)
   /* Return the next free buffer from the head of the free buffer list */
 
   return (uint8_t *)sq_remfirst(&priv->pd_freebuffers);
+}
+
+/****************************************************************************
+ * Function: pic32mz_rxbuffer
+ *
+ * Description:
+ *   Allocate one buffer for an RX descriptor.  The free list link and any
+ *   data left by the network stack may still sit in dirty D-Cache lines;
+ *   they are discarded so that a later eviction cannot overwrite the frame
+ *   written by the DMA.
+ *
+ * Input Parameters:
+ *   priv - Pointer to EMAC device driver structure
+ *
+ * Returned Value:
+ *   Pointer to the allocated buffer (or NULL on failure)
+ *
+ ****************************************************************************/
+
+static uint8_t *pic32mz_rxbuffer(struct pic32mz_driver_s *priv)
+{
+  uint8_t *buffer = pic32mz_allocbuffer(priv);
+
+  if (buffer != NULL)
+    {
+      up_invalidate_dcache((uintptr_t)buffer,
+                           (uintptr_t)buffer + PIC32MZ_ALIGNED_BUFSIZE);
+    }
+
+  return buffer;
 }
 
 /****************************************************************************
@@ -801,7 +877,7 @@ static inline void pic32mz_txdescinit(struct pic32mz_driver_s *priv)
        * creating a ring.
        */
 
-      if (i == (CONFIG_PIC32MZ_ETH_NRXDESC - 1))
+      if (i == (CONFIG_PIC32MZ_ETH_NTXDESC - 1))
         {
           txdesc->nexted = PHYS_ADDR(g_txdesc);
         }
@@ -871,7 +947,7 @@ static inline void pic32mz_rxdescinit(struct pic32mz_driver_s *priv)
 
       rxdesc->rsv1    = 0;
       rxdesc->rsv2    = 0;
-      rxdesc->address = PHYS_ADDR(pic32mz_allocbuffer(priv));
+      rxdesc->address = PHYS_ADDR(pic32mz_rxbuffer(priv));
       rxdesc->status  = RXDESC_STATUS_EOWN | RXDESC_STATUS_NPV;
 
       /* Set the NEXTED pointer.  If this is the last descriptor in the
@@ -897,6 +973,10 @@ static inline void pic32mz_rxdescinit(struct pic32mz_driver_s *priv)
                   (uintptr_t)g_rxdesc +
                   CONFIG_PIC32MZ_ETH_NRXDESC *
                   sizeof(union pic32mz_rxdesc_u));
+
+  /* Position the Rx index to the first descriptor in the ring */
+
+  priv->pd_rxnext = 0;
 
   /* Update the ETHRXST register with the physical address of the head of the
    * RX descriptors list.
@@ -1001,9 +1081,11 @@ static inline void pic32mz_txnext(struct pic32mz_driver_s *priv)
  * Function: pic32mz_rxreturn
  *
  * Description:
- *   Return an RX descriptor to the hardware.
+ *   Return the RX descriptor at the head of the ring to the hardware and
+ *   advance the ring index to the next descriptor.
  *
  * Input Parameters:
+ *   priv   - Reference to the driver state structure
  *   rxdesc - Reference to the RX descriptor to be returned
  *
  * Returned Value:
@@ -1013,24 +1095,48 @@ static inline void pic32mz_txnext(struct pic32mz_driver_s *priv)
  *
  ****************************************************************************/
 
-static inline void pic32mz_rxreturn(struct pic32mz_rxdesc_s *rxdesc)
+static void pic32mz_rxreturn(struct pic32mz_driver_s *priv,
+                             struct pic32mz_rxdesc_s *rxdesc)
 {
+  int rxnext;
+
   rxdesc->rsv1   = 0;
   rxdesc->rsv2   = 0;
   rxdesc->status = RXDESC_STATUS_EOWN | RXDESC_STATUS_NPV;
   pic32mz_dumprxdesc(rxdesc, "Returned to hardware");
 
-  /* Flush the content of the modified TX descriptor into physical memory. */
+  /* Flush the content of the modified RX descriptor into physical memory. */
 
   up_flush_dcache((uintptr_t)rxdesc,
                   (uintptr_t)rxdesc + sizeof(union pic32mz_rxdesc_u));
+
+  /* The hardware increments ETHSTAT.BUFCNT for each descriptor that it
+   * fills; software decrements it once for each descriptor that it
+   * processes.  The decrement must come after the descriptor is owned by
+   * the hardware again: if the RX DMA has stopped on this descriptor (no
+   * descriptor available), the decrement makes it fetch the descriptor
+   * again, and a descriptor still owned by software would leave the
+   * reception stalled.
+   */
+
+  pic32mz_putreg(ETH_CON1_BUFCDEC, PIC32MZ_ETH_CON1SET);
+
+  /* Advance to the next descriptor in the ring */
+
+  rxnext = priv->pd_rxnext + 1;
+  if (rxnext >= CONFIG_PIC32MZ_ETH_NRXDESC)
+    {
+      rxnext = 0;
+    }
+
+  priv->pd_rxnext = rxnext;
 }
 
 /****************************************************************************
  * Function: pic32mz_rxdesc
  *
  * Description:
- *   Check if a RX descriptor is owned by the software.
+ *   Check if the next RX descriptor in the ring is owned by the software.
  *
  * Input Parameters:
  *   priv - Reference to the driver state structure
@@ -1048,35 +1154,30 @@ static inline void pic32mz_rxreturn(struct pic32mz_rxdesc_s *rxdesc)
 static struct pic32mz_rxdesc_s *pic32mz_rxdesc(struct pic32mz_driver_s *priv)
 {
   struct pic32mz_rxdesc_s *rxdesc;
-  int i;
 
-  /* Inspect the list of RX descriptors to see if the EOWN bit is cleared.
-   * If it is, this descriptor is now under software control and a message
-   * was received. Use SOP and EOP to extract the message, use BYTE_COUNT,
-   * RXF_RSV, RSV and PKT_CHECKSUM to get the message characteristics.
+  /* The hardware fills the descriptors in ring order, so the received
+   * frames must be taken in the same order, starting from the descriptor
+   * after the last one processed.  If the EOWN bit of that descriptor is
+   * cleared, it is now under software control and a message was received.
+   * Use SOP and EOP to extract the message, use BYTE_COUNT, RXF_RSV, RSV
+   * and PKT_CHECKSUM to get the message characteristics.
    */
 
-  for (i = 0; i < CONFIG_PIC32MZ_ETH_NRXDESC; i++)
+  rxdesc = &g_rxdesc[priv->pd_rxnext].rxdesc;
+
+  /* Force the RX descriptor to be re-read from physical memory */
+
+  up_invalidate_dcache((uintptr_t)rxdesc,
+                       (uintptr_t)rxdesc + sizeof(union pic32mz_rxdesc_u));
+
+  if ((rxdesc->status & RXDESC_STATUS_EOWN) == 0)
     {
-      /* Check if software owns this descriptor */
+      /* Yes.. return a pointer to the descriptor */
 
-      rxdesc = &g_rxdesc[i].rxdesc;
-
-      /* Forces the first RX descriptor to be re-read from physical memory */
-
-      up_invalidate_dcache((uintptr_t)rxdesc,
-                           (uintptr_t)rxdesc +
-                            sizeof(union pic32mz_rxdesc_u));
-
-      if ((rxdesc->status & RXDESC_STATUS_EOWN) == 0)
-        {
-          /* Yes.. return a pointer to the descriptor */
-
-          return rxdesc;
-        }
+      return rxdesc;
     }
 
-  /* All descriptors are owned by the Ethernet controller.. return NULL */
+  /* The descriptor is owned by the Ethernet controller.. return NULL */
 
   return NULL;
 }
@@ -1384,11 +1485,16 @@ static void pic32mz_rxdone(struct pic32mz_driver_s *priv)
    * the producer index is not equal to the consumer index.
    */
 
-  for (; ; )
+  /* While a response is pending (no TX descriptor was available), the
+   * packet buffer is still holding it: no more packets can be received
+   * until it is sent by pic32mz_txdone().
+   */
+
+  while (!priv->pd_txpending)
     {
-      /* Check if any RX descriptor has the EOWN bit cleared meaning that the
-       * this descriptor is now under software control and a message was
-       * received.
+      /* Check if the next RX descriptor has the EOWN bit cleared meaning
+       * that the this descriptor is now under software control and a
+       * message was received.
        */
 
       rxdesc = pic32mz_rxdesc(priv);
@@ -1403,10 +1509,16 @@ static void pic32mz_rxdone(struct pic32mz_driver_s *priv)
 
       pic32mz_dumprxdesc(rxdesc, "RX Complete");
 
-      /* Get the packet length */
+      /* Get the packet length, without the FCS included in the byte
+       * count.
+       */
 
       priv->pd_dev.d_len = (rxdesc->rsv2 & RXDESC_RSV2_BYTECOUNT_MASK) >>
                             RXDESC_RSV2_BYTECOUNT_SHIFT;
+      if (priv->pd_dev.d_len >= PIC32MZ_FCS_SIZE)
+        {
+          priv->pd_dev.d_len -= PIC32MZ_FCS_SIZE;
+        }
 
       /* Update statistics */
 
@@ -1419,7 +1531,7 @@ static void pic32mz_rxdone(struct pic32mz_driver_s *priv)
           nwarn("WARNING. rsv1: %08" PRIx32 " rsv2: %08" PRIx32 "\n",
                 rxdesc->rsv1, rxdesc->rsv2);
           NETDEV_RXERRORS(&priv->pd_dev);
-          pic32mz_rxreturn(rxdesc);
+          pic32mz_rxreturn(priv, rxdesc);
         }
 
       /* If the packet length is greater then the buffer, then we cannot
@@ -1434,7 +1546,7 @@ static void pic32mz_rxdone(struct pic32mz_driver_s *priv)
                 "rxdesc: %08" PRIx32 "\n",
                 priv->pd_dev.d_len, rxdesc->status);
           NETDEV_RXERRORS(&priv->pd_dev);
-          pic32mz_rxreturn(rxdesc);
+          pic32mz_rxreturn(priv, rxdesc);
         }
 
       /* We don't have any logic here for reassembling packets from
@@ -1448,7 +1560,7 @@ static void pic32mz_rxdone(struct pic32mz_driver_s *priv)
                 "rxdesc: %08" PRIx32 "\n",
                 priv->pd_dev.d_len, rxdesc->status);
           NETDEV_RXFRAGMENTS(&priv->pd_dev);
-          pic32mz_rxreturn(rxdesc);
+          pic32mz_rxreturn(priv, rxdesc);
         }
       else
         {
@@ -1468,15 +1580,27 @@ static void pic32mz_rxdone(struct pic32mz_driver_s *priv)
 
           DEBUGASSERT(priv->pd_dev.d_buf != NULL);
 
-          /* Replace the buffer in the RX descriptor with a new one */
+          /* Replace the buffer in the RX descriptor with a new one.  If
+           * there is no free buffer, drop the packet and give the
+           * descriptor back to the hardware with its current buffer.
+           */
 
-          rxbuffer = pic32mz_allocbuffer(priv);
-          DEBUGASSERT(rxbuffer != NULL);
+          rxbuffer = pic32mz_rxbuffer(priv);
+          if (rxbuffer == NULL)
+            {
+              nwarn("WARNING: No free buffer, packet dropped\n");
+              NETDEV_RXDROPPED(&priv->pd_dev);
+              priv->pd_dev.d_buf = NULL;
+              priv->pd_dev.d_len = 0;
+              pic32mz_rxreturn(priv, rxdesc);
+              continue;
+            }
+
           rxdesc->address = PHYS_ADDR(rxbuffer);
 
           /* And give the RX descriptor back to the hardware */
 
-          pic32mz_rxreturn(rxdesc);
+          pic32mz_rxreturn(priv, rxdesc);
           pic32mz_dumppacket("Received packet",
                              priv->pd_dev.d_buf, priv->pd_dev.d_len);
 
@@ -1568,7 +1692,14 @@ static void pic32mz_rxdone(struct pic32mz_driver_s *priv)
               NETDEV_RXDROPPED(&priv->pd_dev);
             }
 
-          /* Discard any buffers still attached to the device structure */
+          /* Keep the buffer if it holds a pending response.  Otherwise,
+           * discard any buffers still attached to the device structure.
+           */
+
+          if (priv->pd_txpending)
+            {
+              break;
+            }
 
           priv->pd_dev.d_len = 0;
           if (priv->pd_dev.d_buf)
@@ -1612,12 +1743,6 @@ static void pic32mz_txdone(struct pic32mz_driver_s *priv)
 
   priv->pd_inten &= ~ETH_TXINTS;
   pic32mz_putreg(priv->pd_inten, PIC32MZ_ETH_IEN);
-
-  /* Verify that the hardware is ready to send another packet.  Since a Tx
-   * just completed, this must be the case.
-   */
-
-  DEBUGASSERT(pic32mz_txdesc(priv) != NULL);
 
   /* Inspect the list of TX descriptors to see if the EOWN bit is cleared.
    * If it is, this descriptor is now under software control and the message
@@ -1670,6 +1795,12 @@ static void pic32mz_txdone(struct pic32mz_driver_s *priv)
         }
     }
 
+  /* Verify that the hardware is ready to send another packet.  Since a Tx
+   * just completed and its buffer was freed, this must be the case.
+   */
+
+  DEBUGASSERT(pic32mz_txdesc(priv) != NULL);
+
   /* Check if there is a pending Tx transfer that was deferred by Rx handling
    * because there were no available Tx descriptors.  If so, process that
    * pending Tx now.
@@ -1687,6 +1818,12 @@ static void pic32mz_txdone(struct pic32mz_driver_s *priv)
 
       priv->pd_inten    |= ETH_RXINTS;
       pic32mz_putreg(priv->pd_inten, PIC32MZ_ETH_IEN);
+
+      /* The RX done events were cleared while RX was halted: process the
+       * packets received in the meantime.
+       */
+
+      pic32mz_rxdone(priv);
     }
 
   /* Otherwise poll the network for new XMIT data */
@@ -1790,9 +1927,13 @@ static void pic32mz_interrupt_work(void *arg)
        * or CPU write of a '1' to the CLR register.
        */
 
-      if ((status & ETH_INT_RXDONE) != 0)
+      if ((status & (ETH_INT_RXDONE | ETH_INT_RXBUFNA |
+                     ETH_INT_RXOVFLW)) != 0)
         {
-          /* We have received at least one new incoming packet. */
+          /* We have received at least one new incoming packet.  After an
+           * overflow or when no descriptor was available, process the
+           * received packets to give the descriptors back to the hardware.
+           */
 
           pic32mz_rxdone(priv);
         }
@@ -1931,7 +2072,7 @@ static int pic32mz_interrupt(int irq, void *context, void *arg)
        * expiration and the deferred interrupt processing.
        */
 
-       wd_cancel(&priv->pd_txtimeout);
+      wd_cancel(&priv->pd_txtimeout);
     }
 
   /* Schedule to perform the interrupt processing on the worker thread. */
@@ -2187,42 +2328,48 @@ static int pic32mz_ifup(struct net_driver_s *dev)
    * untagged maximum size Ethernet frame is 1518 octets. A tagged frame adds
    * four octets for a total of 1522 octets. If a shorter/longer maximum
    * length restriction is desired, program this 16-bit field.
+   * The maximum includes the FCS.
    */
 
-  pic32mz_putreg(CONFIG_NET_ETH_PKTSIZE, PIC32MZ_EMAC1_MAXF);
+  pic32mz_putreg(CONFIG_NET_ETH_PKTSIZE + PIC32MZ_FCS_SIZE,
+                 PIC32MZ_EMAC1_MAXF);
 
   /* Configure the MAC station address in the EMAC1SA0, EMAC1SA1 and
-   * EMAC1SA2 registers (these registers are loaded at reset from the
-   * factory preprogrammed station address).
+   * EMAC1SA2 registers.  On PIC32MZ EC/EF these registers are loaded at
+   * reset from the factory preprogrammed station address; on PIC32MZ-W1
+   * they reset to zero.  Use the address assigned to the device (e.g. with
+   * SIOCSIFHWADDR) if there is one, otherwise keep the factory address.
    */
 
-#if 0
-  regval = (uint32_t)priv->pd_dev.d_mac.ether.ether_addr_octet[5] << 8 |
-           (uint32_t)priv->pd_dev.d_mac.ether.ether_addr_octet[4];
-  pic32mz_putreg(regval, PIC32MZ_EMAC1_SA0);
+  if (memcmp(priv->pd_dev.d_mac.ether.ether_addr_octet, g_zeromac,
+             sizeof(g_zeromac)) != 0)
+    {
+      regval = (uint32_t)priv->pd_dev.d_mac.ether.ether_addr_octet[5] << 8 |
+               (uint32_t)priv->pd_dev.d_mac.ether.ether_addr_octet[4];
+      pic32mz_putreg(regval, PIC32MZ_EMAC1_SA0);
 
-  regval = (uint32_t)priv->pd_dev.d_mac.ether.ether_addr_octet[3] << 8 |
-           (uint32_t)priv->pd_dev.d_mac.ether.ether_addr_octet[2];
-  pic32mz_putreg(regval, PIC32MZ_EMAC1_SA1);
+      regval = (uint32_t)priv->pd_dev.d_mac.ether.ether_addr_octet[3] << 8 |
+               (uint32_t)priv->pd_dev.d_mac.ether.ether_addr_octet[2];
+      pic32mz_putreg(regval, PIC32MZ_EMAC1_SA1);
 
-  regval = (uint32_t)priv->pd_dev.d_mac.ether.ether_addr_octet[1] << 8 |
-           (uint32_t)priv->pd_dev.d_mac.ether.ether_addr_octet[0];
-  pic32mz_putreg(regval, PIC32MZ_EMAC1_SA2);
-#else
-  regval = pic32mz_getreg(PIC32MZ_EMAC1_SA0);
-  priv->pd_dev.d_mac.ether.ether_addr_octet[4] = (uint32_t)(regval & 0xff);
-  priv->pd_dev.d_mac.ether.ether_addr_octet[5] = (uint32_t)((regval >> 8) &
-                                                             0xff);
+      regval = (uint32_t)priv->pd_dev.d_mac.ether.ether_addr_octet[1] << 8 |
+               (uint32_t)priv->pd_dev.d_mac.ether.ether_addr_octet[0];
+      pic32mz_putreg(regval, PIC32MZ_EMAC1_SA2);
+    }
+  else
+    {
+      regval = pic32mz_getreg(PIC32MZ_EMAC1_SA0);
+      priv->pd_dev.d_mac.ether.ether_addr_octet[4] = regval & 0xff;
+      priv->pd_dev.d_mac.ether.ether_addr_octet[5] = (regval >> 8) & 0xff;
 
-  regval = pic32mz_getreg(PIC32MZ_EMAC1_SA1);
-  priv->pd_dev.d_mac.ether.ether_addr_octet[2] = (uint32_t)(regval & 0xff);
-  priv->pd_dev.d_mac.ether.ether_addr_octet[3] = (uint32_t)((regval >> 8) &
-                                                             0xff);
+      regval = pic32mz_getreg(PIC32MZ_EMAC1_SA1);
+      priv->pd_dev.d_mac.ether.ether_addr_octet[2] = regval & 0xff;
+      priv->pd_dev.d_mac.ether.ether_addr_octet[3] = (regval >> 8) & 0xff;
 
-  regval = pic32mz_getreg(PIC32MZ_EMAC1_SA2);
-  priv->pd_dev.d_mac.ether.ether_addr_octet[0] = (uint32_t)(regval & 0xff);
-  priv->pd_dev.d_mac.ether.ether_addr_octet[1] = (uint32_t)((regval >> 8) &
-                                                             0xff);
+      regval = pic32mz_getreg(PIC32MZ_EMAC1_SA2);
+      priv->pd_dev.d_mac.ether.ether_addr_octet[0] = regval & 0xff;
+      priv->pd_dev.d_mac.ether.ether_addr_octet[1] = (regval >> 8) & 0xff;
+    }
 
   ninfo("MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
         dev->d_mac.ether.ether_addr_octet[0],
@@ -2231,7 +2378,6 @@ static int pic32mz_ifup(struct net_driver_s *dev)
         dev->d_mac.ether.ether_addr_octet[3],
         dev->d_mac.ether.ether_addr_octet[4],
         dev->d_mac.ether.ether_addr_octet[5]);
-#endif
 
   /* Continue Ethernet Controller Initialization ****************************/
 
@@ -2252,26 +2398,37 @@ static int pic32mz_ifup(struct net_driver_s *dev)
    * multicast addresses (if so configured).  NOTE: There is a selection
    * CONFIG_NET_BROADCAST, but this enables receipt of UDP broadcast packets
    * inside of the stack.
+   *
+   * In promiscuous mode, also accept multicast frames and unicast frames
+   * sent to other stations (NOTMEEN).
    */
 
   regval  = ETH_RXFC_BCEN | ETH_RXFC_UCEN | ETH_RXFC_PMMODE_DISABLED;
-#ifdef CONFIG_PIC32MZ_MULTICAST
+#if defined(CONFIG_PIC32MZ_MULTICAST) || defined(CONFIG_NET_PROMISCUOUS)
   regval |= ETH_RXFC_MCEN;
+#endif
+#ifdef CONFIG_NET_PROMISCUOUS
+  regval |= ETH_RXFC_NOTMEEN;
 #endif
   pic32mz_putreg(regval, PIC32MZ_ETH_RXFC);
 
   /* Set the size of the RX buffers in the RXBUFSZ bit (ETHCON2:4-10) (all
    * receive descriptors use the same buffer size). Keep in mind that using
    * packets that are too small leads to packet fragmentation and has a
-   * noticeable impact on the performance.
+   * noticeable impact on the performance.  RXBUFSZ is in units of 16
+   * bytes: use the aligned buffer size, which has room for the FCS, so
+   * that a full size frame is not truncated into two fragments.
    */
 
-  pic32mz_putreg(ETH_CON2_RXBUFSZ(CONFIG_NET_ETH_PKTSIZE), PIC32MZ_ETH_CON2);
+  pic32mz_putreg(ETH_CON2_RXBUFSZ(PIC32MZ_ALIGNED_BUFSIZE),
+                 PIC32MZ_ETH_CON2);
 
   /* Reset state variables */
 
   priv->pd_polling   = false;
   priv->pd_txpending = false;
+  priv->pd_dev.d_buf = NULL;
+  priv->pd_dev.d_len = 0;
 
   /* Initialize the buffer list */
 
@@ -2416,9 +2573,11 @@ static void pic32mz_txavail_work(void *arg)
   net_lock();
   if (priv->pd_ifup)
     {
-      /* Check if the next Tx descriptor is available. */
+      /* Check if the next Tx descriptor is available and that the packet
+       * buffer is not holding a pending response.
+       */
 
-      if (pic32mz_txdesc(priv) != NULL)
+      if (!priv->pd_txpending && pic32mz_txdesc(priv) != NULL)
         {
           /* If so, then poll the network for new XMIT data.
            * First allocate a buffer to perform the poll
@@ -2530,6 +2689,94 @@ static int pic32mz_rmmac(struct net_driver_s *dev, const uint8_t *mac)
 #endif
 
 /****************************************************************************
+ * Function: pic32mz_ioctl
+ *
+ * Description:
+ *   Handle network IOCTL commands directed to this device.
+ *
+ * Input Parameters:
+ *   dev - Reference to the NuttX driver state structure
+ *   cmd - The IOCTL command
+ *   arg - The argument for the IOCTL command
+ *
+ * Returned Value:
+ *   OK on success; Negated errno on failure.
+ *
+ * Assumptions:
+ *   The network device is locked.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_NETDEV_IOCTL) && defined(PIC32MZ_HAVE_PHY)
+static int pic32mz_ioctl(struct net_driver_s *dev, int cmd,
+                         unsigned long arg)
+{
+#ifdef CONFIG_NETDEV_PHY_IOCTL
+  struct pic32mz_driver_s *priv = (struct pic32mz_driver_s *)dev->d_private;
+#endif
+  int ret;
+
+  switch (cmd)
+    {
+#ifdef CONFIG_NETDEV_PHY_IOCTL
+#ifdef CONFIG_ARCH_PHY_INTERRUPT
+      case SIOCMIINOTIFY: /* Set up for PHY event notifications */
+        {
+          struct mii_ioctl_notify_s *req =
+            (struct mii_ioctl_notify_s *)((uintptr_t)arg);
+
+          ret = phy_notify_subscribe(dev->d_ifname, req->pid, &req->event);
+          if (ret == OK)
+            {
+              /* Enable PHY link up/down interrupts */
+
+              ret = pic32mz_phyintenable(priv);
+            }
+        }
+        break;
+#endif
+
+      case SIOCGMIIPHY: /* Get MII PHY address */
+        {
+          struct mii_ioctl_data_s *req =
+            (struct mii_ioctl_data_s *)((uintptr_t)arg);
+
+          req->phy_id = priv->pd_phyaddr;
+          ret = OK;
+        }
+        break;
+
+      case SIOCGMIIREG: /* Get register from MII PHY */
+        {
+          struct mii_ioctl_data_s *req =
+            (struct mii_ioctl_data_s *)((uintptr_t)arg);
+
+          req->val_out = pic32mz_phyread(req->phy_id, req->reg_num);
+          ret = OK;
+        }
+        break;
+
+      case SIOCSMIIREG: /* Set register in MII PHY */
+        {
+          struct mii_ioctl_data_s *req =
+            (struct mii_ioctl_data_s *)((uintptr_t)arg);
+
+          pic32mz_phywrite(req->phy_id, req->reg_num, req->val_in);
+          ret = OK;
+        }
+        break;
+#endif /* CONFIG_NETDEV_PHY_IOCTL */
+
+      default:
+        ret = -ENOTTY;
+        break;
+    }
+
+  return ret;
+}
+#endif
+
+/****************************************************************************
  * Name: pic32mz_showmii
  *
  * Description:
@@ -2561,6 +2808,36 @@ static void pic32mz_showmii(uint8_t phyaddr, const char *msg)
 #endif
 
 /****************************************************************************
+ * Function: pic32mz_phyintenable
+ *
+ * Description:
+ *   Enable the PHY link up/down interrupts.  Reading the interrupt source
+ *   register clears any pending event, so the PHY interrupt output is
+ *   released before the new events are enabled.
+ *
+ * Input Parameters:
+ *   priv - A reference to the private driver state structure
+ *
+ * Returned Value:
+ *   OK on success; -ENOSYS if the PHY interrupts are not supported.
+ *
+ ****************************************************************************/
+
+#if defined(PIC32MZ_HAVE_PHY) && defined(CONFIG_NETDEV_PHY_IOCTL) && \
+    defined(CONFIG_ARCH_PHY_INTERRUPT)
+static int pic32mz_phyintenable(struct pic32mz_driver_s *priv)
+{
+#ifdef PIC32MZ_PHY_INTEN
+  pic32mz_phyread(priv->pd_phyaddr, PIC32MZ_PHY_ISR);
+  pic32mz_phywrite(priv->pd_phyaddr, PIC32MZ_PHY_IMR, PIC32MZ_PHY_INTEN);
+  return OK;
+#else
+  return -ENOSYS;
+#endif
+}
+#endif
+
+/****************************************************************************
  * Function: pic32mz_phybusywait
  *
  * Description:
@@ -2580,6 +2857,42 @@ static void pic32mz_phybusywait(void)
 {
   while ((pic32mz_getreg(PIC32MZ_EMAC1_MIND) & EMAC1_MIND_MIIMBUSY) != 0);
 }
+
+/****************************************************************************
+ * Function: pic32mz_phystartwait
+ *
+ * Description:
+ *   Wait until the MII management command just issued sets the busy flag.
+ *   The flag is set a few clock cycles after the command; a fixed number of
+ *   NOPs is not enough when the code runs from the I-Cache, and the
+ *   following busy wait would then return before the command has even
+ *   started.  A management frame lasts 64 MDC cycles, so the flag cannot
+ *   be missed.  The wait is bounded in case the command already finished.
+ *
+ * Input Parameters:
+ *  None
+ *
+ * Returned Value:
+ *   None
+ *
+ * Assumptions:
+ *
+ ****************************************************************************/
+
+#ifdef PIC32MZ_HAVE_PHY
+static void pic32mz_phystartwait(void)
+{
+  int i;
+
+  for (i = 0; i < PIC32MZ_MIIBUSY_POLLS; i++)
+    {
+      if ((pic32mz_getreg(PIC32MZ_EMAC1_MIND) & EMAC1_MIND_MIIMBUSY) != 0)
+        {
+          break;
+        }
+    }
+}
+#endif
 
 /****************************************************************************
  * Function: pic32mz_phywrite
@@ -2619,15 +2932,9 @@ static void pic32mz_phywrite(uint8_t phyaddr, uint8_t regaddr,
 
   pic32mz_putreg((uint32_t)phydata, PIC32MZ_EMAC1_MWTD);
 
-  /* Sixteen clock cycles until busy is set from the write operation */
+  /* Wait until the command has started */
 
-  __asm__ __volatile__
-    (
-      "nop; nop; nop; nop;"
-      "nop; nop; nop; nop;"
-      "nop; nop; nop; nop;"
-      "nop; nop; nop; nop;"
-    );
+  pic32mz_phystartwait();
 }
 #endif
 
@@ -2667,15 +2974,9 @@ static uint16_t pic32mz_phyread(uint8_t phyaddr, uint8_t regaddr)
 
   pic32mz_putreg(EMAC1_MCMD_READ, PIC32MZ_EMAC1_MCMDSET);
 
-  /* Sixteen clock cycles until busy is set from the write operation */
+  /* Wait until the command has started */
 
-  __asm__ __volatile__
-    (
-      "nop; nop; nop; nop;"
-      "nop; nop; nop; nop;"
-      "nop; nop; nop; nop;"
-      "nop; nop; nop; nop;"
-    );
+  pic32mz_phystartwait();
 
   /* Wait for the PHY command to complete */
 
@@ -2803,7 +3104,7 @@ static inline int pic32mz_phyautoneg(uint8_t phyaddr)
  *
  ****************************************************************************/
 
-#ifdef PIC32MZ_HAVE_PHY
+#if defined(PIC32MZ_HAVE_PHY) && !defined(CONFIG_PIC32MZ_PHY_AUTONEG)
 static int pic32mz_phymode(uint8_t phyaddr, uint8_t mode)
 {
   int32_t timeout;
@@ -2888,7 +3189,7 @@ static inline int pic32mz_phyinit(struct pic32mz_driver_s *priv)
   unsigned int phyaddr;
   uint16_t phyreg;
   uint32_t regval;
-  int ret;
+  int ret = OK;
 
 #if CONFIG_PIC32MZ_FMIIEN == 0
   /* Set the RMII operation mode. This usually requires access to a vendor
@@ -3155,11 +3456,16 @@ static inline int pic32mz_phyinit(struct pic32mz_driver_s *priv)
         (priv->pd_mode & PIC32MZ_DUPLEX_MASK) ==
           PIC32MZ_DUPLEX_FULL ?"full" : "half");
 
-  /* Disable auto-configuration.  Set the fixed speed/duplex mode.
-   * (probably more than little redundant).
+#ifndef CONFIG_PIC32MZ_PHY_AUTONEG
+  /* Set the fixed speed/duplex mode (again).  With auto-negotiation, the
+   * negotiated mode is not forced: auto-negotiation stays enabled so that
+   * the PHY negotiates again when the cable is reconnected.  Forcing the
+   * mode would leave the link down against an auto-negotiating partner.
    */
 
   ret = pic32mz_phymode(phyaddr, priv->pd_mode);
+#endif
+
   pic32mz_showmii(phyaddr, "After final configuration");
   return ret;
 }
@@ -3273,7 +3579,8 @@ static void pic32mz_ethreset(struct pic32mz_driver_s *priv)
   /* Wait activity abort by polling the ETHBUSY bit */
 
   while ((pic32mz_getreg(PIC32MZ_ETH_STAT) & ETH_STAT_ETHBUSY) != 0)
-    continue;
+    {
+    }
 
   /* Turn the Ethernet controller on. */
 
@@ -3362,6 +3669,9 @@ static inline int pic32mz_ethinitialize(int intf)
 #ifdef CONFIG_NET_MCASTGROUP
   priv->pd_dev.d_addmac  = pic32mz_addmac;  /* Add multicast MAC address */
   priv->pd_dev.d_rmmac   = pic32mz_rmmac;   /* Remove multicast MAC address */
+#endif
+#if defined(CONFIG_NETDEV_IOCTL) && defined(PIC32MZ_HAVE_PHY)
+  priv->pd_dev.d_ioctl   = pic32mz_ioctl;   /* Support PHY ioctl() calls */
 #endif
   priv->pd_dev.d_private = priv;            /* Used to recover private state from dev */
 

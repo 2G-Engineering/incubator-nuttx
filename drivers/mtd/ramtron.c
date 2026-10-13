@@ -444,10 +444,8 @@ static ssize_t ramtron_read(FAR struct mtd_dev_s *dev,
                             size_t nbytes,
                             FAR uint8_t *buffer);
 #ifdef CONFIG_MTD_BYTE_WRITE
-static ssize_t ramtron_write(FAR struct mtd_dev_s *dev,
-                            off_t offset,
-                            size_t nbytes,
-                            FAR const uint8_t *buffer);
+static ssize_t ramtron_write(FAR struct mtd_dev_s *dev, off_t offset,
+                             size_t nbytes, FAR const uint8_t *buffer);
 #endif
 static int ramtron_ioctl(FAR struct mtd_dev_s *dev,
                          int cmd,
@@ -905,21 +903,63 @@ static ssize_t ramtron_read(FAR struct mtd_dev_s *dev,
 /****************************************************************************
  * Name: ramtron_write
  ****************************************************************************/
+
 #ifdef CONFIG_MTD_BYTE_WRITE
-static ssize_t ramtron_write(FAR struct mtd_dev_s *dev,
-                              off_t offset,
-                              size_t nbytes,
-                              FAR const uint8_t *buffer)
+static ssize_t ramtron_write(FAR struct mtd_dev_s *dev, off_t offset,
+                             size_t nbytes, FAR const uint8_t *buffer)
 {
   FAR struct ramtron_dev_s *priv = (FAR struct ramtron_dev_s *)dev;
+  size_t remaining = nbytes;
+  size_t count;
+#ifdef CONFIG_RAMTRON_CHUNKING
+  size_t available;
+#endif
 
-  finfo("offset: %08lx nbytes: %d\n", (long)offset, (int)nbytes);
-  DEBUGASSERT(priv != NULL && buffer != NULL);
+  /* Reject requests that could wrap around the physical device. */
 
-  /* Lock the SPI bus and write */
+  if (offset < 0 || offset > priv->part->size ||
+      nbytes > priv->part->size - (uint32_t)offset)
+    {
+      return -EINVAL;
+    }
 
+  if (nbytes == 0)
+    {
+      return 0;
+    }
+
+  DEBUGASSERT(buffer != NULL);
   ramtron_lock(priv);
-  ramtron_bytewrite(priv, buffer, offset, nbytes);
+
+  while (remaining > 0)
+    {
+      count = remaining;
+#ifdef CONFIG_RAMTRON_CHUNKING
+      if (priv->part->chunked)
+        {
+          /* Do not cross a write-buffer boundary on chunk-limited parts. */
+
+          available = priv->part->chunksize -
+                      offset % priv->part->chunksize;
+          if (count > available)
+            {
+              count = available;
+            }
+        }
+#endif
+
+      ramtron_writeenable(priv);
+      SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->devid), true);
+      SPI_SEND(priv->dev, RAMTRON_WRITE);
+      ramtron_sendaddr(priv, offset);
+      SPI_SNDBLOCK(priv->dev, buffer, count);
+      SPI_SELECT(priv->dev, SPIDEV_FLASH(priv->devid), false);
+
+      offset    += count;
+      buffer    += count;
+      remaining -= count;
+    }
+
   ramtron_unlock(priv->dev);
   return nbytes;
 }
@@ -944,6 +984,7 @@ static int ramtron_ioctl(FAR struct mtd_dev_s *dev,
         {
           FAR struct mtd_geometry_s *geo =
                     (FAR struct mtd_geometry_s *)((uintptr_t)arg);
+
           if (geo)
             {
               memset(geo, 0, sizeof(*geo));
@@ -973,6 +1014,7 @@ static int ramtron_ioctl(FAR struct mtd_dev_s *dev,
         {
           FAR struct partition_info_s *info =
             (FAR struct partition_info_s *)arg;
+
           if (info != NULL)
             {
               info->numsectors  = priv->nsectors *
@@ -1056,6 +1098,9 @@ FAR struct mtd_dev_s *ramtron_initialize(FAR struct spi_dev_s *dev,
       priv->mtd.bread  = ramtron_bread;
       priv->mtd.bwrite = ramtron_bwrite;
       priv->mtd.read   = ramtron_read;
+#ifdef CONFIG_MTD_BYTE_WRITE
+      priv->mtd.write  = ramtron_write;
+#endif
       priv->mtd.ioctl  = ramtron_ioctl;
 #ifdef CONFIG_MTD_BYTE_WRITE
       priv->mtd.write  = ramtron_write;

@@ -92,12 +92,12 @@
  *   portion of the build
  */
 
-/* dlopen() needs a name too: it is the only way to tell that a library is
- * already loaded.
+/* A name is also the only way to tell that a library is already loaded, so
+ * dlopen() and DT_NEEDED need one.
  */
 
 #if defined(CONFIG_BUILD_FLAT) || defined(__KERNEL__) || \
-    defined(CONFIG_LIBC_DLFCN)
+    defined(CONFIG_LIBC_DLFCN) || CONFIG_LIBC_ELF_MAXDEPEND > 0
 #  define HAVE_LIBC_ELF_NAMES
 #  define LIBC_ELF_NAMEMAX NAME_MAX
 #endif
@@ -190,6 +190,19 @@ struct module_s
   uint16_t nsect;                      /* Number of entries in sectalloc array */
 #endif
   int dynamic;                         /* Module is a dynamic shared object */
+  uintptr_t gotbase;                   /* An FDPIC object's data base, to
+                                        * enter its destructors with.  Zero
+                                        * for anything else, so it also says
+                                        * which kind of object this is: an
+                                        * FDPIC one placed its two segments
+                                        * separately and its text may be
+                                        * media rather than an allocation
+                                        */
+#ifdef HAVE_LIBC_ELF_PIN
+  FAR struct file *pinfile;            /* Holds the XIP pin on the text until
+                                        * the module is unloaded
+                                        */
+#endif
 #if defined(CONFIG_FS_PROCFS) && !defined(CONFIG_FS_PROCFS_EXCLUDE_MODULE)
   size_t textsize;                     /* Size of the kernel .text memory allocation */
   size_t datasize;                     /* Size of the kernel .bss/.data memory allocation */
@@ -785,7 +798,9 @@ FAR const void *libelf_getsymbol(FAR void *handle, FAR const char *name);
  * Name: libelf_uninit
  *
  * Description:
- *   Uninitialize module resources.
+ *   Uninitialize module resources.  Gives up everything the module holds,
+ *   the DT_NEEDED libraries included, so the caller must hold the last
+ *   reference.
  *
  ****************************************************************************/
 

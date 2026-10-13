@@ -2,7 +2,7 @@
 Pimoroni Pico Plus 2
 ===============================
 
-.. tags:: chip:rp2350
+.. tags:: arch:arm, chip:rp23xx, part:rp2350, vendor:raspberry-pi
 
 The `Pimoroni Pico Plus 2 <https://shop.pimoroni.com/products/pimoroni-pico-plus-2>`_
 is an RP2350B based board in the Raspberry Pi Pico form factor, with a
@@ -66,10 +66,9 @@ heap, separate heap, or user heap) is selectable.  See the
 
    The PSRAM is considerably slower than the internal SRAM.  The QMI is
    shared with the flash: writing to the flash goes through the bootrom,
-   which reconfigures the QMI for chip select 0 and disturbs the PSRAM
-   configuration on chip select 1.  ``rp23xx_psram_restore()`` re-applies it
-   and is intended to be called from the flash write path after each erase or
-   program.
+   which resets the PSRAM configuration on chip select 1.  The flash MTD
+   driver (``RP23XX_FLASH_MTD``) saves that configuration before each erase
+   or program and restores it afterwards.
 
 Supported Capabilities
 ======================
@@ -151,6 +150,15 @@ smp
 Basic NuttShell configuration (console enabled on UART0, at 115200 bps) with
 both Arm cores enabled.
 
+pm
+--
+
+Power management (console on UART0, at 115200 bps).  The idle governor
+uses the standby state, and the dormant state 30 seconds after boot; a
+character on the console receive pin (GPIO 1) wakes the board.  Suspend to
+RAM is available through the ``BOARDIOC_RP23XX_SUSPEND`` boardctl()
+command, and ``/dev/rtc0`` has an alarm.
+
 audiopack
 ---------
 
@@ -177,9 +185,23 @@ xipfs
 XIPFS mounted on the on-board flash, with the ``xipfs`` command and the
 XIPFS test suite.
 
+xipfs-fdpic
+-----------
+
+Same as ``xipfs``, plus the FDPIC module loader and the
+``fdpicxip`` demo, so the ``fdpic`` and ``reject`` sections of the XIPFS
+test suite have something to run.  The build makes the modules that both
+load, so it needs ``arm-uclinuxfdpiceabi`` binutils.  See
+:doc:`/os/binfmt/fdpic`.
+
+``CONFIG_DEFAULT_TASK_STACKSIZE``, and with it ``CONFIG_ELF_STACKSIZE``, is
+4096 here rather than the 2048 of the rest of the board.  A module that calls into the firmware's printf
+family overflows 2048, and with no MPU that is a lockup rather than a
+diagnostic.
+
 xipfs-nxflat
 ------------
 
 Same as ``xipfs``, plus the NXFLAT execute-in-place demo.  Building this
 configuration requires ``ldnxflat``, which is not part of a standard
-toolchain installation; see :doc:`/components/nxflat`.
+toolchain installation; see :doc:`/os/binfmt/nxflat`.

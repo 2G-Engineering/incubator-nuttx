@@ -137,7 +137,11 @@ static int sim_can_txavail(struct net_driver_s *dev)
   netdev_lock(dev);
   if (IFF_IS_UP(priv->dev.d_flags))
     {
-      devif_poll(&priv->dev, sim_can_txpoll);
+      /* Drain all pending TX frames */
+
+      while (devif_poll(&priv->dev, sim_can_txpoll) > 0)
+        {
+        }
     }
 
   netdev_unlock(dev);
@@ -174,7 +178,11 @@ static void sim_can_work(void *arg)
   struct canfd_frame    hframe;
   int                   ret;
 
-  if (host_can_avail(&priv->host))
+  /* Drain all frames queued on the host socket, otherwise only one frame
+   * is delivered per work period and the RX path lags behind the bus.
+   */
+
+  while (host_can_avail(&priv->host))
     {
       /* Wait for data from host stack */
 
@@ -198,6 +206,11 @@ static void sim_can_work(void *arg)
       NETDEV_RXPACKETS(&priv->dev);
 
       can_input(&priv->dev);
+
+      /* d_buf pointed at the stack local 'hframe', clear it before return */
+
+      priv->dev.d_buf = NULL;
+      priv->dev.d_len = 0;
       netdev_unlock(&priv->dev);
     }
 

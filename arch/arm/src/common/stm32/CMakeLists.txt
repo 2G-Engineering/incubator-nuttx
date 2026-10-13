@@ -33,6 +33,7 @@ set(SRCS)
 
 list(APPEND SRCS stm32_waste.c)
 list(APPEND SRCS stm32_uid.c)
+list(APPEND SRCS stm32_lsi.c)
 
 if(NOT CONFIG_ARCH_CUSTOM_PMINIT AND (CONFIG_STM32_COMMON_LEGACY
                                       OR CONFIG_ARCH_CORTEXM33))
@@ -58,6 +59,10 @@ if(CONFIG_STM32_COMMON_M33)
   if(NOT CONFIG_ARCH_IDLE_CUSTOM)
     list(APPEND SRCS stm32_idle_m33_v1.c)
   endif()
+
+  if(CONFIG_ARM_MPU AND NOT CONFIG_BUILD_PROTECTED)
+    list(APPEND SRCS stm32_mpuinit_m33_v1.c)
+  endif()
 endif()
 
 if(CONFIG_STM32_PULSECOUNT)
@@ -71,7 +76,6 @@ if(CONFIG_STM32_COMMON_LEGACY)
     stm32_allocateheap_m3m4_v1.c
     stm32_start_m3m4_v1.c
     stm32_lse_m3m4_v1.c
-    stm32_lsi_m3m4_v1.c
     stm32_irq_m3m4_v1.c
     stm32_capture_m3m4_v1.c)
 
@@ -378,7 +382,7 @@ if(CONFIG_STM32_COMMON_LEGACY)
 endif()
 
 if(CONFIG_ARCH_CORTEXM0)
-  list(APPEND SRCS stm32_irq_m0_v1.c stm32_start_m0_v1.c stm32_lsi_m0_v1.c)
+  list(APPEND SRCS stm32_irq_m0_v1.c stm32_start_m0_v1.c)
 
   if(CONFIG_STM32_HAVE_IP_GPIO_M0_V1)
     list(APPEND SRCS stm32_gpio_m0_v1.c)

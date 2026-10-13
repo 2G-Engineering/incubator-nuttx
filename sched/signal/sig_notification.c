@@ -34,6 +34,10 @@
 
 #include <nuttx/signal.h>
 
+#ifdef CONFIG_FDPIC
+#  include <nuttx/fdpic.h>
+#endif
+
 #include "sched/sched.h"
 #include "signal/signal.h"
 
@@ -70,7 +74,16 @@ static void nxsig_notification_worker(FAR void *arg)
 
   /* Perform the callback */
 
+#ifdef CONFIG_FDPIC
+  /* The worker does not carry the module's data base.  fdpic_invoke()
+   * installs the one recorded at registration, or branches straight to a
+   * callback that is not a module's.
+   */
+
+  fdpic_invoke((uintptr_t)work->value.sival_ptr, &work->func);
+#else
   work->func(work->value);
+#endif
 }
 
 #endif /* CONFIG_SIG_EVTHREAD */
@@ -78,6 +91,50 @@ static void nxsig_notification_worker(FAR void *arg)
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: nxsig_event_valid
+ *
+ * Description:
+ *   Check a sigevent handed in by the calling task before it is stored:
+ *   its signal must exist and a SIGEV_THREAD_ID target must be one of the
+ *   caller's own threads.
+ *
+ * Input Parameters:
+ *   event - The instance of struct sigevent to check.
+ *
+ * Returned Value:
+ *   Zero (OK) if the event may be stored; -EINVAL if not.
+ *
+ ****************************************************************************/
+
+int nxsig_event_valid(FAR const struct sigevent *event)
+{
+  FAR struct tcb_s *target;
+
+  if ((event->sigev_notify & SIGEV_SIGNAL) == 0)
+    {
+      return OK;
+    }
+
+  if (!GOOD_SIGNO(event->sigev_signo))
+    {
+      return -EINVAL;
+    }
+
+  if ((event->sigev_notify & SIGEV_THREAD_ID) == 0)
+    {
+      return OK;
+    }
+
+  target = nxsched_get_tcb(event->sigev_notify_thread_id);
+  if (target == NULL || target->group != nxsched_self()->group)
+    {
+      return -EINVAL;
+    }
+
+  return OK;
+}
 
 /****************************************************************************
  * Name: nxsig_notification
@@ -155,7 +212,11 @@ int nxsig_notification(pid_t pid, FAR struct sigevent *event,
       /* Initialize the work information */
 
       work->value = event->sigev_value;
+#ifdef CONFIG_FDPIC
+      work->func.entry = (uintptr_t)event->sigev_notify_function;
+#else
       work->func  = event->sigev_notify_function;
+#endif
 
       /* Then queue the work */
 

@@ -26,6 +26,7 @@
 
 #include <nuttx/config.h>
 
+#include <sys/param.h>
 #include <sys/types.h>
 #include <syslog.h>
 #include <errno.h>
@@ -68,6 +69,10 @@
 
 #ifdef CONFIG_RNDIS
 #  include <nuttx/usb/rndis.h>
+#endif
+
+#ifdef CONFIG_CDCACM
+#  include <nuttx/usb/cdcacm.h>
 #endif
 
 #include "stm32_gpio.h"
@@ -135,7 +140,7 @@ static int stm32_capture_setup(void)
       /* TODO: LPTIMy_CAP */
     };
 
-  size_t count = sizeof(lower) / sizeof(lower[0]);
+  size_t count = nitems(lower);
 
   /* Nothing to do if no timers enabled */
 
@@ -437,6 +442,7 @@ int stm32_bringup(void)
 
 #if defined(CONFIG_RNDIS) && !defined(CONFIG_RNDIS_COMPOSITE)
   uint8_t mac[6];
+
   mac[0] = 0xa0; /* TODO */
   mac[1] = (CONFIG_NETINIT_MACADDR_2 >> (8 * 0)) & 0xff;
   mac[2] = (CONFIG_NETINIT_MACADDR_1 >> (8 * 3)) & 0xff;

@@ -172,6 +172,10 @@ if(CONFIG_SENSORS)
       list(APPEND SRCS lps25h.c)
     endif()
 
+    if(CONFIG_SENSORS_CCS811)
+      list(APPEND SRCS ccs811_uorb.c)
+    endif()
+
     if(CONFIG_ADXL345_I2C)
       list(APPEND SRCS adxl345_i2c.c)
     endif()
@@ -293,7 +297,11 @@ if(CONFIG_SENSORS)
     endif()
 
     if(CONFIG_SENSORS_INA226)
-      list(APPEND SRCS ina226.c)
+      if(CONFIG_SENSORS_INA226_UORB)
+        list(APPEND SRCS ina226_uorb.c)
+      else()
+        list(APPEND SRCS ina226.c)
+      endif()
     endif()
 
     if(CONFIG_SENSORS_INA3221)
@@ -384,6 +392,10 @@ if(CONFIG_SENSORS)
       list(APPEND SRCS adxl362_uorb.c)
     endif()
 
+    if(CONFIG_SENSORS_ADXL367)
+      list(APPEND SRCS adxl367.c)
+    endif()
+
     if(CONFIG_SENSORS_ADXL372)
       if(CONFIG_SENSORS_ADXL372_UORB)
         list(APPEND SRCS adxl372_uorb.c)
@@ -434,6 +446,10 @@ if(CONFIG_SENSORS)
 
     if(CONFIG_SENSORS_AS5048A)
       list(APPEND SRCS as5048a.c)
+    endif()
+
+    if(CONFIG_SENSORS_SCL3300)
+      list(APPEND SRCS scl3300_uorb.c)
     endif()
 
   endif() # CONFIG_SPI

@@ -393,6 +393,7 @@ static int pwm_select_func_clock(struct imx9_pwmtimer_s *priv, int freq)
 static int pwm_update_frequency(struct imx9_pwmtimer_s *priv, int freq)
 {
   int ret = pwm_select_func_clock(priv, freq);
+
   if (ret < 0)
     {
       return ret;
@@ -450,7 +451,7 @@ static int pwm_update_duty(struct imx9_pwmtimer_s *priv, int pwm_ch,
   int timer = pwm_ch - 1; /* map pwm ch 1 to timer 0 etc.. */
   uint32_t regval;
 
-  if (pwm_ch == 0 || pwm_ch > priv->nchannels)
+  if (pwm_ch < 1 || pwm_ch > priv->nchannels)
     {
       pwmerr("ERROR: PWM%d has no such channel: %u\n", priv->id, pwm_ch);
       return -EINVAL;
@@ -599,6 +600,11 @@ static int pwm_start(struct pwm_lowerhalf_s *dev,
       if (ret != OK || info->channels[i].channel == -1)
         {
           break;
+        }
+
+      if (info->channels[i].channel == 0)
+        {
+          continue;
         }
 
       ret = pwm_update_duty(priv, info->channels[i].channel,

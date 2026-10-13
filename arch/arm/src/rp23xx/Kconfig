@@ -878,6 +878,88 @@ config RP23XX_RTC
 		timer is a 64-bit millisecond counter clocked from the low-power
 		oscillator, so it keeps running across warm resets.
 
+		The always-on timer also has one alarm comparator.  Select
+		RTC_ALARM to expose it through /dev/rtc0.
+
+#####################################################################
+#  Power Management
+#####################################################################
+
+menuconfig RP23XX_PM
+	bool "Power management (SLEEP and DORMANT states)"
+	default n
+	depends on PM
+	---help---
+		Map the NuttX power management states onto the RP2350 low-power
+		modes.  PM_STANDBY gates the clocks of the blocks that have no
+		driver in the configuration during a WFI.  PM_SLEEP is the dormant
+		state: the PLLs and the crystal oscillator stop, and only a GPIO
+		can wake the chip.
+
+if RP23XX_PM
+
+config RP23XX_PM_WAKEUP_GPIO
+	int "Wake-up GPIO for the dormant state (-1 to disable)"
+	default -1
+	range -1 47
+	---help---
+		GPIO that ends the dormant state.  With -1 the dormant state is
+		never entered, and PM_SLEEP gives the standby state.
+
+		The pin keeps its function, so the console UART receive pin can
+		be used: a keypress then wakes the board, but its first
+		character is lost.
+
+config RP23XX_PM_WAKEUP_GPIO_HIGH
+	bool "Wake on a high level or rising edge"
+	default n
+	depends on RP23XX_PM_WAKEUP_GPIO >= 0
+	---help---
+		The default is a low level or falling edge, which suits a button
+		to ground and a UART receive line.
+
+config RP23XX_PM_WAKEUP_GPIO_EDGE
+	bool "Wake on an edge rather than a level"
+	default y
+	depends on RP23XX_PM_WAKEUP_GPIO >= 0
+	---help---
+		A level that stays active keeps the chip out of the dormant state.
+
+config RP23XX_PM_WAKE_HOLD_MS
+	int "Stay out of the dormant state after a wake or UART input (ms)"
+	default 3000
+	---help---
+		The dormant state stops the UARTs, so the characters that arrive
+		then, and in the few milliseconds the wake takes, are lost.  After
+		a dormant wake, and after each character a UART receives, a
+		PM_STANDBY wakelock (pm_staytimeout()) is held for this time.
+
+		A dormant chip does not answer SWD.  To keep a debugger able to
+		attach after boot, set PM_GOVERNOR_EXPLICIT_RELAX.
+
+config RP23XX_PM_QUIESCE_PADS
+	bool "Isolate unused pads and reset unused blocks"
+	default y
+	---help---
+		At start-up, isolate every GPIO pad that nothing uses and hold the
+		blocks that have no driver in reset.  A floating input settles
+		near 2.2V (erratum RP2350-E9) and its input buffer then draws a
+		static current in every state.
+
+config RP23XX_PM_SUSPEND
+	bool "Suspend to RAM (POWMAN P1.0)"
+	default n
+	select ARCH_SETJMP_H
+	---help---
+		Power the switched core off, and keep the XIP cache and SRAM.  Every
+		peripheral loses its registers, and the chip comes back through
+		the boot path, so the idle governor never selects this state.  An
+		application asks for it with the BOARDIOC_RP23XX_SUSPEND boardctl()
+		command (arch/chip/pm.h, needs BOARDCTL_IOCTL).  The wake is a GPIO
+		(RP23XX_PM_WAKEUP_GPIO) or the always-on timer alarm.
+
+endif # RP23XX_PM
+
 config RP23XX_ADC
 	bool "Enable ADC Support"
 	default n
@@ -1217,8 +1299,9 @@ config RP23XX_FLASH_MTD
 
 		Note that erasing or programming this flash stalls all instruction
 		fetches from it.  The driver therefore runs those operations from
-		SRAM with interrupts disabled and the other core parked, which will
-		visibly affect interrupt latency for the duration.
+		SRAM with interrupts disabled and the other core parked, one 64K
+		block erase or one 256 byte page program at a time.  This will
+		visibly affect interrupt latency.
 
 if RP23XX_FLASH_MTD
 
@@ -1237,21 +1320,22 @@ config RP23XX_FLASH_MTD_SIZE
 	---help---
 		Size of the MTD region in bytes.  Must be a multiple of the 4096
 		byte erase sector, and must fit within the flash fitted to the
-		board.
+		board.  The driver reads the flash size from its JEDEC ID, and
+		refuses to initialize if the region does not fit.
 
 config RP23XX_FLASH_MTD_SAFE_XIP
 	bool "Always restore XIP with the bootrom command mode"
 	default n
 	---help---
 		After each erase or program the QSPI interface must be put back
-		into execute-in-place mode.  By default the driver restores the
-		fast read mode the bootrom configured at boot, which is what code
-		executing in place from this flash needs.
+		into execute-in-place mode.  By default the driver runs a copy of
+		the XIP setup function that the bootrom leaves in boot RAM, as the
+		Pico SDK does.  It restores the read mode and clock divisor that
+		the bootrom found at boot.
 
 		Enable this to always use the bootrom flash_enter_cmd_xip routine
-		instead.  That is slower to execute from, but depends on nothing
-		beyond the documented bootrom entry point, so it is the safe
-		choice when bringing up a new board.
+		instead.  That gives a slow 03h serial read mode, but depends on
+		nothing beyond the documented bootrom entry point.
 
 endif # RP23XX_FLASH_MTD
 

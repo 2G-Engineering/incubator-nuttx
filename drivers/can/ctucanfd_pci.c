@@ -26,6 +26,7 @@
 
 #include <nuttx/config.h>
 
+#include <sys/param.h>
 #include <assert.h>
 #include <nuttx/debug.h>
 #include <errno.h>
@@ -263,6 +264,7 @@ static uint32_t ctucanfd_getreg(FAR struct ctucanfd_can_s *priv,
                                 unsigned int offset)
 {
   uintptr_t addr = priv->base + offset;
+
   return *((FAR volatile uint32_t *)addr);
 }
 
@@ -275,6 +277,7 @@ static void ctucanfd_putreg(FAR struct ctucanfd_can_s *priv,
                             uint32_t value)
 {
   uintptr_t addr = priv->base + offset;
+
   *((FAR volatile uint32_t *)addr) = value;
 }
 
@@ -762,7 +765,7 @@ static void ctucanfd_chardev_receive(FAR struct ctucanfd_can_s *priv)
 
       /* buff[0] populated the frame->fmt.rwcnt. Check before use. */
 
-      if (frame->fmt.rwcnt > sizeof(buff) / sizeof(buff[0]) - 1)
+      if (frame->fmt.rwcnt > nitems(buff) - 1)
         {
           canerr("ERROR: CAN read/write count is too large.  Dropped\n");
           return;
@@ -1259,9 +1262,10 @@ static FAR netpkt_t *ctucanfd_sock_recv(FAR struct netdev_lowerhalf_s *dev)
 
   /* buff[0] populated the frame->fmt.rwcnt. Check before use. */
 
-  if (frame->fmt.rwcnt > sizeof(buff) / sizeof(buff[0]) - 1)
+  if (rxframe->fmt.rwcnt > nitems(buff) - 1)
     {
       canerr("ERROR: CAN read/write count is too large.  Dropped\n");
+      netpkt_free(dev, pkt, NETPKT_RX);
       return NULL;
     }
 
@@ -1303,7 +1307,8 @@ static FAR netpkt_t *ctucanfd_sock_recv(FAR struct netdev_lowerhalf_s *dev)
         {
           canerr("ERROR: Received message with extended"
                  " identifier.  Dropped\n");
-          continue;
+          netpkt_free(dev, pkt, NETPKT_RX);
+          return NULL;
         }
 
       frame->can_id = rxframe->id.id;
@@ -1367,7 +1372,8 @@ static FAR netpkt_t *ctucanfd_sock_recv(FAR struct netdev_lowerhalf_s *dev)
         {
           canerr("ERROR: Received message with extended"
                  " identifier.  Dropped\n");
-          continue;
+          netpkt_free(dev, pkt, NETPKT_RX);
+          return NULL;
         }
 
       frame->can_id = rxframe->id.id;

@@ -25,11 +25,112 @@ endchoice # nRF54L Chip Selection
 
 # Peripheral Selection
 
+config NRF54L_I2C_MASTER
+	bool
+	default n
+	select I2C
+
+config NRF54L_SPI_MASTER
+	bool
+	default n
+	select SPI
+	select ARCH_HAVE_SPI_BITORDER
+
 config NRF54L_UART
 	bool
 	default n
 
+config NRF54L_TIMER
+	bool
+	default n
+
+config NRF54L_PWM
+	bool
+	default n
+
 menu "nRF54L Peripheral Selection"
+
+config NRF54L_GPIOTE
+	bool "GPIOTE (GPIO interrupts)"
+	default n
+
+config NRF54L_I2C0_MASTER
+	bool "I2C0 Master (TWIM20)"
+	default n
+	depends on !NRF54L_UART0
+	select NRF54L_I2C_MASTER
+
+config NRF54L_I2C1_MASTER
+	bool "I2C1 Master (TWIM21)"
+	default n
+	depends on !NRF54L_UART1
+	select NRF54L_I2C_MASTER
+
+config NRF54L_I2C2_MASTER
+	bool "I2C2 Master (TWIM22)"
+	default n
+	depends on !NRF54L_UART2
+	select NRF54L_I2C_MASTER
+
+config NRF54L_I2C3_MASTER
+	bool "I2C3 Master (TWIM30)"
+	default n
+	depends on !NRF54L_UART3
+	select NRF54L_I2C_MASTER
+
+config NRF54L_I2C4_MASTER
+	bool "I2C4 Master (TWIM23)"
+	default n
+	depends on !ARCH_CHIP_NRF54L15 && !NRF54L_UART5
+	select NRF54L_I2C_MASTER
+
+config NRF54L_I2C5_MASTER
+	bool "I2C5 Master (TWIM24)"
+	default n
+	depends on !ARCH_CHIP_NRF54L15 && !NRF54L_UART6
+	select NRF54L_I2C_MASTER
+
+config NRF54L_SPI0_MASTER
+	bool "SPI0 Master (SPIM20)"
+	default n
+	depends on !NRF54L_UART0 && !NRF54L_I2C0_MASTER
+	select NRF54L_SPI_MASTER
+
+config NRF54L_SPI1_MASTER
+	bool "SPI1 Master (SPIM21)"
+	default n
+	depends on !NRF54L_UART1 && !NRF54L_I2C1_MASTER
+	select NRF54L_SPI_MASTER
+
+config NRF54L_SPI2_MASTER
+	bool "SPI2 Master (SPIM22)"
+	default n
+	depends on !NRF54L_UART2 && !NRF54L_I2C2_MASTER
+	select NRF54L_SPI_MASTER
+
+config NRF54L_SPI3_MASTER
+	bool "SPI3 Master (SPIM30)"
+	default n
+	depends on !NRF54L_UART3 && !NRF54L_I2C3_MASTER
+	select NRF54L_SPI_MASTER
+
+config NRF54L_SPI4_MASTER
+	bool "SPI4 Master (SPIM00)"
+	default n
+	depends on !NRF54L_UART4
+	select NRF54L_SPI_MASTER
+
+config NRF54L_SPI5_MASTER
+	bool "SPI5 Master (SPIM23)"
+	default n
+	depends on !ARCH_CHIP_NRF54L15 && !NRF54L_UART5 && !NRF54L_I2C4_MASTER
+	select NRF54L_SPI_MASTER
+
+config NRF54L_SPI6_MASTER
+	bool "SPI6 Master (SPIM24)"
+	default n
+	depends on !ARCH_CHIP_NRF54L15 && !NRF54L_UART6 && !NRF54L_I2C5_MASTER
+	select NRF54L_SPI_MASTER
 
 config NRF54L_UART0
 	bool "UART0"
@@ -96,7 +197,102 @@ config NRF54L_UART6
 		Enable UART6 (UARTE24). The board must provide
 		BOARD_UART6_TX_PIN and BOARD_UART6_RX_PIN.
 
+config NRF54L_TIMER0
+	bool "TIMER0 (TIMER20)"
+	select NRF54L_TIMER
+	depends on !NRF54L_SOFTDEVICE_CONTROLLER
+	default n
+
+config NRF54L_TIMER1
+	bool "TIMER1 (TIMER21)"
+	select NRF54L_TIMER
+	default n
+
+config NRF54L_TIMER2
+	bool "TIMER2 (TIMER22)"
+	select NRF54L_TIMER
+	default n
+
+config NRF54L_TIMER3
+	bool "TIMER3 (TIMER23)"
+	select NRF54L_TIMER
+	default n
+
+config NRF54L_TIMER4
+	bool "TIMER4 (TIMER24)"
+	select NRF54L_TIMER
+	default n
+
+config NRF54L_TIMER5
+	bool "TIMER5 (TIMER00)"
+	select NRF54L_TIMER
+	default n
+
+config NRF54L_TIMER6
+	bool "TIMER6 (TIMER10)"
+	select NRF54L_TIMER
+	depends on !NRF54L_SOFTDEVICE_CONTROLLER
+	default n
+
+config NRF54L_PWM0
+	bool "PWM0 (PWM20)"
+	select NRF54L_PWM
+	depends on PWM
+	default n
+
+config NRF54L_PWM1
+	bool "PWM1 (PWM21)"
+	select NRF54L_PWM
+	depends on PWM
+	default n
+
+config NRF54L_PWM2
+	bool "PWM2 (PWM22)"
+	select NRF54L_PWM
+	depends on PWM
+	default n
+
+config NRF54L_SAADC
+	bool "SAADC"
+	default n
+
+config NRF54L_GRTC
+	bool "GRTC"
+	default n
+
+config NRF54L_USBDEV
+	bool "USB Device"
+	default n
+	depends on ARCH_CHIP_NRF54LM20A || ARCH_CHIP_NRF54LM20B
+	select USBDEV
+	select SCHED_LPWORK
+
 endmenu # nRF54L Peripheral Selection
+
+config NRF54L_USE_LFCLK
+	bool "Enable LFCLK"
+	default n
+	---help---
+		Enable low-frequency clock.
+
+if NRF54L_USE_LFCLK
+
+choice
+	prompt "LFCLK source"
+	default NRF54L_LFCLK_XTAL
+
+config NRF54L_LFCLK_XTAL
+	bool "External 32.768Khz crystal"
+
+config NRF54L_LFCLK_RC
+	bool "Internal RC oscillator"
+
+config NRF54L_LFCLK_SYNTH
+	bool "Synthesized from HFCLK"
+
+endchoice # LFCLK source
+
+endif # NRF54L_USE_LFCLK
 
 menu "System Timer"
 
@@ -110,9 +306,28 @@ config NRF54L_SYSTIMER_SYSTICK
 	select TIMER_ARCH
 	select ARMV8M_SYSTICK
 
+config NRF54L_SYSTIMER_GRTC
+	bool "GRTC"
+	select NRF54L_GRTC
+	select ARCH_HAVE_TICKLESS
+	select SCHED_TICKLESS
+	select SCHED_TICKLESS_ALARM
+	select NRF54L_USE_LFCLK
+	---help---
+		Use GRTC timer in tickless mode.
+
 endchoice # System Timer Source
 
 endmenu # System Timer
+
+config NRF54L_PROGMEM
+	bool "RRAM program memory"
+	default n
+	depends on !NRF54L_SOFTDEVICE_CONTROLLER
+	select ARCH_HAVE_PROGMEM
+	---help---
+		Enable the program memory interfaces in nuttx/progmem.h.
+		RRAM erase blocks are emulated as 4 KiB regions filled with 0xff.
 
 config NRF54L_DEBUG_ACCESS
 	bool "Keep firmware-controlled debug access open"
@@ -120,3 +335,333 @@ config NRF54L_DEBUG_ACCESS
 	---help---
 		Open unlocked TAMPC debug signals for SWD/RTT development.
 		Signals locked by an earlier boot stage are left unchanged.
+
+menu "GPIO Interrupt Configuration"
+
+config NRF54L_PER_PIN_INTERRUPTS
+	bool "Per-pin interrupt callbacks"
+	default n
+	depends on NRF54L_GPIOTE
+	---help---
+		Dispatch PORT events to separate callbacks for each pin.
+
+endmenu # GPIO Interrupt Configuration
+
+menu "PWM configuration"
+
+if NRF54L_PWM
+
+config NRF54L_PWM_MULTICHAN
+	bool "PWM Multiple Output Channels"
+	default n
+
+if NRF54L_PWM_MULTICHAN
+
+if NRF54L_PWM0
+
+config NRF54L_PWM0_CH0
+	bool "PWM0 Channel 0 Output"
+	default n
+	---help---
+		Enables channel 0 output.
+
+config NRF54L_PWM0_CH1
+	bool "PWM0 Channel 1 Output"
+	default n
+	---help---
+		Enables channel 1 output.
+
+config NRF54L_PWM0_CH2
+	bool "PWM0 Channel 2 Output"
+	default n
+	---help---
+		Enables channel 2 output.
+
+config NRF54L_PWM0_CH3
+	bool "PWM0 Channel 3 Output"
+	default n
+	---help---
+		Enables channel 3 output.
+
+endif # NRF54L_PWM0
+
+if NRF54L_PWM1
+
+config NRF54L_PWM1_CH0
+	bool "PWM1 Channel 0 Output"
+	default n
+	---help---
+		Enables channel 0 output.
+
+config NRF54L_PWM1_CH1
+	bool "PWM1 Channel 1 Output"
+	default n
+	---help---
+		Enables channel 1 output.
+
+config NRF54L_PWM1_CH2
+	bool "PWM1 Channel 2 Output"
+	default n
+	---help---
+		Enables channel 2 output.
+
+config NRF54L_PWM1_CH3
+	bool "PWM1 Channel 3 Output"
+	default n
+	---help---
+		Enables channel 3 output.
+
+endif # NRF54L_PWM1
+
+if NRF54L_PWM2
+
+config NRF54L_PWM2_CH0
+	bool "PWM2 Channel 0 Output"
+	default n
+	---help---
+		Enables channel 0 output.
+
+config NRF54L_PWM2_CH1
+	bool "PWM2 Channel 1 Output"
+	default n
+	---help---
+		Enables channel 1 output.
+
+config NRF54L_PWM2_CH2
+	bool "PWM2 Channel 2 Output"
+	default n
+	---help---
+		Enables channel 2 output.
+
+config NRF54L_PWM2_CH3
+	bool "PWM2 Channel 3 Output"
+	default n
+	---help---
+		Enables channel 3 output.
+
+endif # NRF54L_PWM2
+
+endif # NRF54L_PWM_MULTICHAN
+
+if !NRF54L_PWM_MULTICHAN
+
+config NRF54L_PWM0_CHANNEL
+	int "PWM0 Output Channel"
+	depends on NRF54L_PWM0
+	default 0
+	range 0 3
+
+config NRF54L_PWM1_CHANNEL
+	int "PWM1 Output Channel"
+	depends on NRF54L_PWM1
+	default 0
+	range 0 3
+
+config NRF54L_PWM2_CHANNEL
+	int "PWM2 Output Channel"
+	depends on NRF54L_PWM2
+	default 0
+	range 0 3
+
+endif # !NRF54L_PWM_MULTICHAN
+
+endif # NRF54L_PWM
+
+endmenu # PWM configuration
+
+menu "SAADC Configuration"
+
+if NRF54L_SAADC
+
+choice
+	prompt "SAADC trigger selection"
+	default NRF54L_SAADC_TASK
+
+config NRF54L_SAADC_TASK
+	bool "SAADC Task trigger"
+
+config NRF54L_SAADC_TIMER
+	bool "SAADC Timer trigger"
+	---help---
+		Use the local timer for a single channel. Each ANIOC_TRIGGER
+		collects one result and then stops the timer.
+
+endchoice # SAADC trigger selection
+
+if NRF54L_SAADC_TIMER
+
+config NRF54L_SAADC_TIMER_CC
+	int "SAADC Timer CC"
+	default 192
+	range 8 2047
+	---help---
+		Sample rate is 16 MHz / CC. The period must accommodate the
+		channel acquisition time plus 2 us conversion time, multiplied
+		by the oversampling factor when burst is enabled.
+
+endif # NRF54L_SAADC_TIMER
+
+config NRF54L_SAADC_OVERSAMPLE
+	int "SAADC oversample"
+	default 0
+	range 0 8
+	---help---
+		Zero disables oversampling; values 1 through 8 select 2 through
+		256 samples per result. Scanning multiple channels requires
+		burst mode on every channel when oversampling is enabled.
+
+config NRF54L_SAADC_RESOLUTION
+	int "SAADC resolution"
+	default 0
+	range 0 3
+	---help---
+		SAADC resolution: 0 - 8 bits, 1 - 10 bits, 2 - 12 bits, 3 - 14 bits.
+
+config NRF54L_SAADC_CHANNELS
+	int "SAADC channels"
+	default 8
+	range 1 8
+
+config NRF54L_SAADC_LIMITS
+	bool "SAADC limits enable"
+	default n
+	---help---
+		Configure the high and low limit events for each channel.
+
+endif # NRF54L_SAADC
+
+endmenu # SAADC Configuration
+
+menu "SPI Configuration"
+
+if NRF54L_SPI_MASTER
+
+config NRF54L_SPI_MASTER_INTERRUPTS
+	bool "SPI Master interrupts support"
+	default n
+
+endif # NRF54L_SPI_MASTER
+
+endmenu # SPI Configuration
+
+menu "I2C Master Configuration"
+
+if NRF54L_I2C_MASTER
+
+config NRF54L_I2C_MASTER_DISABLE_NOSTART
+	bool "Disable the I2C Master NOSTART flag support"
+	default n
+	---help---
+		Disable combining two write messages into one DMA buffer.
+
+config NRF54L_I2C_MASTER_COPY_BUF_SIZE
+	int "Static buffer size for NOSTART flag support"
+	depends on !NRF54L_I2C_MASTER_DISABLE_NOSTART
+	default 4
+	range 1 65535
+	---help---
+		Size of the per-bus buffer used to combine two continued write
+		messages. Their combined length must fit in this buffer; larger
+		transfers return E2BIG before starting the transaction.
+
+config NRF54L_I2C_MASTER_TIMEOUT
+	int "I2C transfer timeout (milliseconds)"
+	default 1000
+	range 1 60000
+	---help---
+		Send STOP if the transfer does not finish within this interval.
+		Completion still waits for STOPPED before releasing DMA buffers;
+		a device holding the bus can delay this cleanup.
+
+endif # NRF54L_I2C_MASTER
+
+endmenu # I2C Master Configuration
+
+menuconfig NRF54L_SOFTDEVICE_CONTROLLER
+	bool "SoftDevice Controller"
+	depends on ALLOW_BSDNORDIC_COMPONENTS
+	depends on NET_BLUETOOTH || UART_BTH4
+	select ARCH_RAMVECTORS
+	select ARCH_IRQPRIO
+	select ARCH_HIPRI_INTERRUPT
+	select CRYPTO
+	select CRYPTO_RANDOM_POOL
+	select SCHED_LPWORK
+	select NRF54L_GRTC
+	select NRF54L_USE_LFCLK
+	---help---
+		Enable Nordic's Bluetooth LE SoftDevice Controller and MPSL.
+		MPSL reserves GRTC channels 7-11, TIMER10, TIMER20, ECB00,
+		RADIO, CLOCK and TEMP. SDC also reserves AAR00, CCM00 and
+		RRAMC. Their DPPI and PPIB channels must not be used by the
+		application. HFXO remains running at 32 MHz.
+		Use an interrupt stack and allow sufficient stack space for
+		controller initialization and the low-priority work queue.
+
+if NRF54L_SOFTDEVICE_CONTROLLER
+
+config NRF54L_SDC_CLOCK_ACCURACY
+	int "Clock Accuracy [PPM]"
+	default 50
+	range 20 500
+	---help---
+		Accuracy of the board's HFXO, which supplies synthesized LFCLK.
+
+config NRF54L_SDC_PERIPHERAL_COUNT
+	int "Number of peripheral connections"
+	default 1
+	range 0 20
+
+config NRF54L_SDC_MAX_COUNT
+	int "Maximum number of connections"
+	default 2
+	range 1 20
+	depends on !NET_BLUETOOTH
+	---help---
+		The remaining connections are central roles. With the native
+		Bluetooth host, BLUETOOTH_MAX_CONN provides this total instead.
+
+config NRF54L_SDC_ADVERTISING
+	bool "Support advertising"
+	default y
+
+config NRF54L_SDC_SCANNING
+	bool "Support scanning"
+	default y
+
+if NRF54L_SDC_SCANNING
+
+config NRF54L_SDC_SCAN_BUFFER_COUNT
+	int "Scanning buffer count"
+	default 3
+	range 2 255
+
+endif # NRF54L_SDC_SCANNING
+
+config NRF54L_SDC_LE_2M_PHY
+	bool "Support LE 2M PHY"
+	default y
+
+config NRF54L_SDC_LE_CODED_PHY
+	bool "Support LE Coded PHY"
+	default y
+
+config NRF54L_SDC_DLE
+	bool "Support Data Length Extension (DLE)"
+	default y
+
+config NRF54L_SDC_FICR_STATIC_ADDR
+	bool "Configure factory generated static random address"
+	default y
+
+config NRF54L_SDC_PUB_ADDR
+	hex "Configure Bluetooth public address"
+	default 0x000000000000
+	---help---
+		Public address, most significant byte first.
+		For example, 0x010203040506 configures 06:05:04:03:02:01.
+		Zero leaves the controller public address unset. The native
+		NuttX Bluetooth host requires a public address; hosts using a
+		static random address configure it through HCI instead.
+
+endif # NRF54L_SOFTDEVICE_CONTROLLER

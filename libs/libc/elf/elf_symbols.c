@@ -78,6 +78,119 @@ extern int nglobals;
  ****************************************************************************/
 
 /****************************************************************************
+ * Name: libelf_symcallback
+ *
+ * Description:
+ *   libelf_registry_foreach() callback function.  Test if the provided
+ *   module, modp, exports the symbol of interest.  If so, return that symbol
+ *   value and setup the module dependency relationship.
+ *
+ * Returned Value:
+ *   0 (OK) is returned on success and a negated errno is returned on
+ *   failure.
+ *
+ ****************************************************************************/
+
+static int libelf_symcallback(FAR struct module_s *modp, FAR void *arg)
+{
+  FAR struct mod_exportinfo_s *exportinfo = (FAR struct mod_exportinfo_s *)
+                                            arg;
+
+  /* Check if this module exports a symbol of that name */
+
+  exportinfo->symbol = symtab_findbyname(modp->modinfo.exports,
+                                         exportinfo->name,
+                                         modp->modinfo.nexports);
+
+  if (exportinfo->symbol != NULL)
+    {
+      /* Yes.. save the dependency relationship and return SYM_FOUND to
+       * stop the traversal.
+       */
+
+#if CONFIG_LIBC_ELF_MAXDEPEND > 0
+      int ret = libelf_depend(exportinfo->modp, modp);
+
+      if (ret < 0)
+        {
+          berr("ERROR: libelf_depend failed: %d\n", ret);
+          return ret;
+        }
+#endif
+
+      return SYM_FOUND;
+    }
+
+  return SYM_NOT_FOUND;
+}
+
+/****************************************************************************
+ * Name: libelf_findsymbol_bulk
+ *
+ * Description:
+ *   Locate a symbol by its name with the symbol table and the string table
+ *   read into memory at once.
+ *
+ * Returned Value:
+ *   0 (OK) if the symbol was found, -ENOENT if it was not, -ENOMEM if there
+ *   is no memory for the tables, or another negated errno on failure.
+ *
+ ****************************************************************************/
+
+static int libelf_findsymbol_bulk(FAR struct mod_loadinfo_s *loadinfo,
+                                  FAR const char *name, FAR Elf_Sym *sym,
+                                  size_t num)
+{
+  FAR const Elf_Shdr *symtab = &loadinfo->shdr[loadinfo->symtabidx];
+  FAR const Elf_Shdr *strtab = &loadinfo->shdr[loadinfo->strtabidx];
+  FAR Elf_Sym *syms;
+  FAR char *strs;
+  size_t symsize = num * sizeof(Elf_Sym);
+  size_t i;
+  int ret;
+
+  syms = lib_malloc(symsize + strtab->sh_size + 1);
+  if (syms == NULL)
+    {
+      return -ENOMEM;
+    }
+
+  strs = (FAR char *)syms + symsize;
+
+  ret = libelf_read(loadinfo, (FAR uint8_t *)syms, symsize,
+                    symtab->sh_offset);
+  if (ret >= 0)
+    {
+      ret = libelf_read(loadinfo, (FAR uint8_t *)strs, strtab->sh_size,
+                        strtab->sh_offset);
+    }
+
+  if (ret >= 0)
+    {
+      strs[strtab->sh_size] = '\0';
+      ret = -ENOENT;
+
+      for (i = 0; i < num; i++)
+        {
+          if (syms[i].st_name < strtab->sh_size &&
+              strcmp(&strs[syms[i].st_name], name) == 0)
+            {
+              *sym = syms[i];
+              ret = OK;
+              break;
+            }
+        }
+    }
+
+  lib_free(syms);
+  return ret;
+}
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
+
+/****************************************************************************
  * Name: libelf_symname
  *
  * Description:
@@ -93,8 +206,8 @@ extern int nglobals;
  *
  ****************************************************************************/
 
-static int libelf_symname(FAR struct mod_loadinfo_s *loadinfo,
-                          FAR const Elf_Sym *sym, Elf_Off sh_offset)
+int libelf_symname(FAR struct mod_loadinfo_s *loadinfo,
+                   FAR const Elf_Sym *sym, Elf_Off sh_offset)
 {
   FAR uint8_t *buffer;
   off_t  offset;
@@ -188,57 +301,6 @@ static int libelf_symname(FAR struct mod_loadinfo_s *loadinfo,
 }
 
 /****************************************************************************
- * Name: libelf_symcallback
- *
- * Description:
- *   libelf_registry_foreach() callback function.  Test if the provided
- *   module, modp, exports the symbol of interest.  If so, return that symbol
- *   value and setup the module dependency relationship.
- *
- * Returned Value:
- *   0 (OK) is returned on success and a negated errno is returned on
- *   failure.
- *
- ****************************************************************************/
-
-static int libelf_symcallback(FAR struct module_s *modp, FAR void *arg)
-{
-  FAR struct mod_exportinfo_s *exportinfo = (FAR struct mod_exportinfo_s *)
-                                            arg;
-
-  /* Check if this module exports a symbol of that name */
-
-  exportinfo->symbol = symtab_findbyname(modp->modinfo.exports,
-                                         exportinfo->name,
-                                         modp->modinfo.nexports);
-
-  if (exportinfo->symbol != NULL)
-    {
-      /* Yes.. save the dependency relationship and return SYM_FOUND to
-       * stop the traversal.
-       */
-
-#if CONFIG_LIBC_ELF_MAXDEPEND > 0
-      int ret = libelf_depend(exportinfo->modp, modp);
-
-      if (ret < 0)
-        {
-          berr("ERROR: libelf_depend failed: %d\n", ret);
-          return ret;
-        }
-#endif
-
-      return SYM_FOUND;
-    }
-
-  return SYM_NOT_FOUND;
-}
-
-/****************************************************************************
- * Public Functions
- ****************************************************************************/
-
-/****************************************************************************
  * Name: libelf_findsymtab
  *
  * Description:
@@ -254,7 +316,10 @@ int libelf_findsymtab(FAR struct mod_loadinfo_s *loadinfo)
 {
   int i;
 
-  /* Find the symbol table section header and its associated string table */
+  /* Find the symbol table section header and its associated string table.
+   * A stripped shared object keeps only its dynamic symbol table, which
+   * holds every symbol that it imports or exports.
+   */
 
   for (i = 1; i < loadinfo->ehdr.e_shnum; i++)
     {
@@ -263,6 +328,13 @@ int libelf_findsymtab(FAR struct mod_loadinfo_s *loadinfo)
           loadinfo->symtabidx = i;
           loadinfo->strtabidx = loadinfo->shdr[i].sh_link;
           break;
+        }
+
+      if (loadinfo->shdr[i].sh_type == SHT_DYNSYM &&
+          loadinfo->ehdr.e_type == ET_DYN)
+        {
+          loadinfo->symtabidx = i;
+          loadinfo->strtabidx = loadinfo->shdr[i].sh_link;
         }
     }
 
@@ -418,10 +490,20 @@ int libelf_symvalue(FAR struct module_s *modp,
                                          nexports);
             }
 
-          /* Was the symbol found from any exporter? */
+          /* Was the symbol found from any exporter?  A weak reference may
+           * stay undefined; its value is then 0, as in a static link.
+           */
 
           if (symbol == NULL)
             {
+              if (ELF_ST_BIND(sym->st_info) == STB_WEAK)
+                {
+                  binfo("SHN_UNDEF: weak \"%s\" stays 0\n",
+                        loadinfo->iobuffer);
+                  sym->st_value = 0;
+                  break;
+                }
+
               berr("ERROR: SHN_UNDEF: Exported symbol \"%s\" not found\n",
                    loadinfo->iobuffer);
               return -ENOENT;
@@ -706,9 +788,21 @@ int libelf_findsymbol(FAR struct mod_loadinfo_s *loadinfo,
         }
     }
 
+  num = loadinfo->shdr[loadinfo->symtabidx].sh_size / sizeof(Elf_Sym);
+
+  /* Reading each symbol and then its name costs two file reads per
+   * symbol, which is slow for a large program on a slow file system.  If
+   * there is memory for it, read both tables at once.
+   */
+
+  ret = libelf_findsymbol_bulk(loadinfo, name, sym, num);
+  if (ret != -ENOMEM)
+    {
+      return ret;
+    }
+
   /* Loop through all symbols in the symbol table */
 
-  num = loadinfo->shdr[loadinfo->symtabidx].sh_size / sizeof(Elf_Sym);
   for (i = 0; i < num; i++)
     {
       /* Read the symbol entry */

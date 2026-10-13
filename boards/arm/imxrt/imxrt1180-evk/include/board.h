@@ -33,6 +33,25 @@
 #include "hardware/rt118x/imxrt118x_pinmux.h"
 #include "imxrt_iomuxc.h"
 
+/* FlexSPI1 Port A is connected to the EVK's 16 MiB W25Q128JW NOR.  These
+ * assignments match the MCUXpresso SDK evkmimxrt1180 XIP example.
+ */
+
+#define GPIO_FLEXSPI_DQS IOMUX_PIN( \
+  IOMUXC_PAD_GPIO_B2_07_FLEXSPI1_BUS2BIT_A_DQS, 0, 0)
+#define GPIO_FLEXSPI_SCK IOMUX_PIN( \
+  IOMUXC_PAD_GPIO_B2_08_FLEXSPI1_BUS2BIT_A_SCLK, 0, 0)
+#define GPIO_FLEXSPI_CS IOMUX_PIN( \
+  IOMUXC_PAD_GPIO_B2_09_FLEXSPI1_BUS2BIT_A_SS0_B, 0, 0)
+#define GPIO_FLEXSPI_IO0 IOMUX_PIN( \
+  IOMUXC_PAD_GPIO_B2_10_FLEXSPI1_BUS2BIT_A_DATA00, 0, 0)
+#define GPIO_FLEXSPI_IO1 IOMUX_PIN( \
+  IOMUXC_PAD_GPIO_B2_11_FLEXSPI1_BUS2BIT_A_DATA01, 0, 0)
+#define GPIO_FLEXSPI_IO2 IOMUX_PIN( \
+  IOMUXC_PAD_GPIO_B2_12_FLEXSPI1_BUS2BIT_A_DATA02, 0, 0)
+#define GPIO_FLEXSPI_IO3 IOMUX_PIN( \
+  IOMUXC_PAD_GPIO_B2_13_FLEXSPI1_BUS2BIT_A_DATA03, 0, 0)
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -74,7 +93,7 @@
  * LPUART: no pull, high drive strength.
  */
 
-#define IOMUX_LPUART_DEFAULT (IOMUXC_PAD_PDRV_HIGH | IOMUXC_PAD_PULL_NONE)
+#define IOMUX_LPUART_DEFAULT (IOMUXC_PAD_DSE)
 
 #define GPIO_LPUART1_TX  IOMUX_PIN(IOMUXC_PAD_GPIO_AON_08_LPUART1_TX, \
                                    IOMUX_LPUART_DEFAULT, 0)
@@ -85,7 +104,7 @@
  *            D7 (red)   on GPIO_AD_26 = RGPIO4.26.
  */
 
-#define IOMUX_LED_DEFAULT   (IOMUXC_PAD_PDRV_HIGH | IOMUXC_PAD_PULL_NONE)
+#define IOMUX_LED_DEFAULT   (IOMUXC_PAD_DSE)
 
 #define GPIO_LED1           IOMUX_GPIO(IOMUXC_PAD_GPIO_AD_27_GPIO4_IO27,  \
                                        IOMUX_LED_DEFAULT,                \
@@ -101,8 +120,8 @@
  *   GPIO_AON_16 -> LPI2C2_SCL
  */
 
-#define IOMUX_LPI2C_DEFAULT (IOMUXC_PAD_PDRV_HIGH | IOMUXC_PAD_PULL_UP | \
-                             IOMUXC_PAD_ODE_ON)
+#define IOMUX_LPI2C_DEFAULT (IOMUXC_PAD_DSE | IOMUXC_PAD_PUE | \
+                             IOMUXC_PAD_PUS | IOMUXC_PAD_ODE)
 
 #define GPIO_LPI2C2_SDA  IOMUX_PIN(IOMUXC_PAD_GPIO_AON_15_LPI2C2_SDA,   \
                                    IOMUX_LPI2C_DEFAULT, IOMUXC_MUX_SION_ON)
@@ -116,7 +135,7 @@
  *   GPIO_AON_07 -> LPSPI1_SDI
  */
 
-#define IOMUX_LPSPI_DEFAULT (IOMUXC_PAD_PDRV_HIGH | IOMUXC_PAD_PULL_NONE)
+#define IOMUX_LPSPI_DEFAULT (IOMUXC_PAD_DSE)
 
 #define GPIO_LPSPI1_SCK  IOMUX_PIN(IOMUXC_PAD_GPIO_AON_04_LPSPI1_SCK,   \
                                    IOMUX_LPSPI_DEFAULT, 0)
@@ -126,5 +145,95 @@
                                    IOMUX_LPSPI_DEFAULT, 0)
 #define GPIO_LPSPI1_MISO IOMUX_PIN(IOMUXC_PAD_GPIO_AON_07_LPSPI1_SDI,   \
                                    IOMUX_LPSPI_DEFAULT, IOMUXC_MUX_SION_ON)
+
+/* USDHC1: microSD card slot.
+ *   GPIO_SD_B1_00 -> USDHC1_CMD
+ *   GPIO_SD_B1_01 -> USDHC1_CLK
+ *   GPIO_SD_B1_02 -> USDHC1_DATA0
+ *   GPIO_SD_B1_03 -> USDHC1_DATA1
+ *   GPIO_SD_B1_04 -> USDHC1_DATA2
+ *   GPIO_SD_B1_05 -> USDHC1_DATA3
+ *   GPIO_AD_15    -> card detect (plain GPIO, active low)
+ *   GPIO_AD_14    -> card power enable (active low)
+ *   GPIO_AD_34    -> I/O voltage select (low keeps 3.3 V signalling)
+ */
+
+#define IOMUX_USDHC1_CLK_DEFAULT  (IOMUXC_PAD_PDRV_HIGH | IOMUXC_PAD_PULL_NONE)
+#define IOMUX_USDHC1_CMD_DEFAULT  (IOMUXC_PAD_PDRV_HIGH | IOMUXC_PAD_PULL_UP)
+#define IOMUX_USDHC1_DATA_DEFAULT (IOMUXC_PAD_PDRV_HIGH | IOMUXC_PAD_PULL_UP)
+#define IOMUX_USDHC1_CD_DEFAULT (IOMUXC_PAD_DSE | IOMUXC_PAD_PUE | \
+                                 IOMUXC_PAD_PUS)
+
+#define PIN_USDHC1_CMD   IOMUX_PIN(IOMUXC_PAD_GPIO_SD_B1_00_USDHC1_CMD,   \
+                                   IOMUX_USDHC1_CMD_DEFAULT, 0)
+#define PIN_USDHC1_DCLK  IOMUX_PIN(IOMUXC_PAD_GPIO_SD_B1_01_USDHC1_CLK,   \
+                                   IOMUX_USDHC1_CLK_DEFAULT, 0)
+#define PIN_USDHC1_D0    IOMUX_PIN(IOMUXC_PAD_GPIO_SD_B1_02_USDHC1_DATA0, \
+                                   IOMUX_USDHC1_DATA_DEFAULT, 0)
+#define PIN_USDHC1_D1    IOMUX_PIN(IOMUXC_PAD_GPIO_SD_B1_03_USDHC1_DATA1, \
+                                   IOMUX_USDHC1_DATA_DEFAULT, 0)
+#define PIN_USDHC1_D2    IOMUX_PIN(IOMUXC_PAD_GPIO_SD_B1_04_USDHC1_DATA2, \
+                                   IOMUX_USDHC1_DATA_DEFAULT, 0)
+#define PIN_USDHC1_D3    IOMUX_PIN(IOMUXC_PAD_GPIO_SD_B1_05_USDHC1_DATA3, \
+                                   IOMUX_USDHC1_DATA_DEFAULT, 0)
+
+#define PIN_USDHC1_CD_GPIO IOMUX_GPIO(IOMUXC_PAD_GPIO_AD_15_GPIO4_IO15, \
+                                      IOMUX_USDHC1_CD_DEFAULT,         \
+                                      GPIO_INPUT | GPIO_PORT4 | GPIO_PIN15)
+
+#define IOMUX_SDCARD_DEFAULT (IOMUXC_PAD_DSE)
+
+#define GPIO_SD_PWREN    IOMUX_GPIO(IOMUXC_PAD_GPIO_AD_14_GPIO4_IO14, \
+                                    IOMUX_SDCARD_DEFAULT,            \
+                                    GPIO_OUTPUT | GPIO_OUTPUT_ZERO | \
+                                    GPIO_PORT4  | GPIO_PIN14)
+
+#define GPIO_SD1_VSELECT IOMUX_GPIO(IOMUXC_PAD_GPIO_AD_34_GPIO5_IO02, \
+                                    IOMUX_SDCARD_DEFAULT,            \
+                                    GPIO_OUTPUT | GPIO_OUTPUT_ZERO | \
+                                    GPIO_PORT5  | GPIO_PIN2)
+
+/* USDHC clock dividers used by arch/arm/src/imxrt/imxrt_usdhc.c. The
+ * uSDHC1 root clock is configured to 198 MHz (SYS_PLL2_PFD2 / 2); see
+ * the usdhc1_clk_root entry in imxrt_clockconfig_m7.c.
+ */
+
+#define BOARD_USDHC_IDMODE_PRESCALER    USDHC_SYSCTL_SDCLKFS_DIV256
+#define BOARD_USDHC_IDMODE_DIVISOR      USDHC_SYSCTL_DVS_DIV(2)
+
+#define BOARD_USDHC_MMCMODE_PRESCALER   USDHC_SYSCTL_SDCLKFS_DIV8
+#define BOARD_USDHC_MMCMODE_DIVISOR     USDHC_SYSCTL_DVS_DIV(1)
+
+#define BOARD_USDHC_SD1MODE_PRESCALER   USDHC_SYSCTL_SDCLKFS_DIV8
+#define BOARD_USDHC_SD1MODE_DIVISOR     USDHC_SYSCTL_DVS_DIV(1)
+
+#define BOARD_USDHC_SD4MODE_PRESCALER   USDHC_SYSCTL_SDCLKFS_DIV8
+#define BOARD_USDHC_SD4MODE_DIVISOR     USDHC_SYSCTL_DVS_DIV(1)
+
+/* SD high speed mode (wide 4-bit, up to 50 MHz): 198 MHz / 4 = 49.5 MHz. */
+
+#define BOARD_USDHC_SD4MODE_HS_PRESCALER USDHC_SYSCTL_SDCLKFS_DIV4
+#define BOARD_USDHC_SD4MODE_HS_DIVISOR   USDHC_SYSCTL_DVS_DIV(1)
+
+/* Buttons ******************************************************************/
+
+/* The MIMXRT1180-EVK has one general purpose user button, SW8 ("GPIO INT
+ * BUTTON"), on GPIO_AON_04 = RGPIO1.4.  The button shorts the pin to GND
+ * when pressed.  The external pull-up (R2154) is not fitted, so the
+ * internal pull-up is used.
+ */
+
+#define BUTTON_SW8        0
+#define NUM_BUTTONS       1
+
+#define BUTTON_SW8_BIT    (1 << BUTTON_SW8)
+
+#define IOMUX_SW_DEFAULT  (IOMUXC_PAD_PUE | IOMUXC_PAD_PUS)
+
+#define GPIO_SW8          (IOMUX_GPIO(IOMUXC_PAD_GPIO_AON_04_GPIO1_IO04, \
+                                      IOMUX_SW_DEFAULT,                 \
+                                      GPIO_INTERRUPT |                  \
+                                      GPIO_PORT1 | GPIO_PIN4) |         \
+                           GPIO_INTBOTH_EDGES)
 
 #endif /* __BOARDS_ARM_IMXRT_IMXRT1180_EVK_INCLUDE_BOARD_H */

@@ -28,8 +28,11 @@
 #include <errno.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/fdpic.h>
 #include <nuttx/lib/lib.h>
 #include <nuttx/lib/elf.h>
+
+#include "elf/elf.h"
 
 /****************************************************************************
  * Public Functions
@@ -39,7 +42,9 @@
  * Name: libelf_uninit
  *
  * Description:
- *   Uninitialize module resources.
+ *   Uninitialize module resources.  Gives up everything the module holds,
+ *   the DT_NEEDED libraries included, so the caller must hold the last
+ *   reference.
  *
  ****************************************************************************/
 
@@ -59,12 +64,15 @@ int libelf_uninit(FAR struct module_s *modp)
     }
 #endif
 
-  /* Is there an uninitializer? */
+  /* Is there an uninitializer?  Like the constructors, an FDPIC object's
+   * destructors reach its globals through its own data base, which the
+   * unloading thread does not carry.
+   */
 
   array = (FAR void (**)(void))modp->finiarr;
   for (i = 0; i < modp->nfini; i++)
     {
-      array[i]();
+      fdpic_call(0, array[i], modp->gotbase);
     }
 
   if (modp->modinfo.uninitializer != NULL)
@@ -94,6 +102,14 @@ int libelf_uninit(FAR struct module_s *modp)
   libelf_freesymtab(modp);
   modp->modinfo.exports  = NULL;
   modp->modinfo.nexports = 0;
+
+#ifdef HAVE_LIBC_ELF_PIN
+  /* Give the pin back before the text goes out of use.  This does nothing if
+   * the loader took no pin.
+   */
+
+  libelf_pinrelease(&modp->pinfile);
+#endif
 
   /* Release resources held by the module */
 
@@ -148,6 +164,28 @@ int libelf_uninit(FAR struct module_s *modp)
 #  else
           lib_free((FAR void *)modp->dataalloc);
 #  endif
+#endif
+        }
+      else if (modp->gotbase != 0)
+        {
+          /* An FDPIC object, which placed its two segments separately.  Free
+           * each one.  If the text stayed on the media, it was never
+           * allocated, thus leave it.
+           */
+
+          if (modp->xipbase == 0)
+            {
+#ifdef CONFIG_ARCH_USE_TEXT_HEAP
+              up_textheap_free((FAR void *)modp->textalloc);
+#else
+              lib_free((FAR void *)modp->textalloc);
+#endif
+            }
+
+#ifdef CONFIG_ARCH_USE_DATA_HEAP
+          up_dataheap_free((FAR void *)modp->dataalloc);
+#else
+          lib_free((FAR void *)modp->dataalloc);
 #endif
         }
       else
@@ -208,8 +246,8 @@ int libelf_remove(FAR void *handle)
     }
 
   /* Give back a reference.  The module goes only when the last one does,
-   * so an rmmod() cannot pull a module out from under a dlopen() that is
-   * still holding it.
+   * so an rmmod() cannot pull a module out from under a dlopen(), or from
+   * under a module that names it in DT_NEEDED.
    */
 
   if (modp->nopen > 1)

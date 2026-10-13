@@ -193,6 +193,7 @@ static const char *g_white_prefix[] =
   "ASCII_",  /* Ref:  include/nuttx/ascii.h */
   "Dl_info", /* Ref:  include/dlfcn.h */
   "Elf",     /* Ref:  include/elf.h, include/elf32.h, include/elf64.h */
+  "GL",      /* Ref:  apps/graphics/tinygl/tinygl/include/GL/gl.h */
   "Ifx",     /* Ref:  arch/tricore/src */
   "PRId",    /* Ref:  inttypes.h */
   "PRIi",    /* Ref:  inttypes.h */
@@ -213,6 +214,8 @@ static const char *g_white_prefix[] =
   "b16",     /* Ref:  include/fixedmath.h */
   "b32",     /* Ref:  include/fixedmath.h */
   "cJSON",   /* Ref:  apps/wireless/wapi/src */
+  "gl",      /* Ref:  apps/graphics/tinygl/tinygl/include/GL/gl.h */
+  "ZB",      /* Ref:  apps/graphics/tinygl/tinygl/include/zbuffer.h */
   "ub8",     /* Ref:  include/fixedmath.h */
   "ub16",    /* Ref:  include/fixedmath.h */
   "ub32",    /* Ref:  include/fixedmath.h */
@@ -325,6 +328,20 @@ static const char *g_white_prefix[] =
 
   "SOPC_",
   "OpcUa_",
+
+  /* Ref:  drivers/crypto/pnt, NXP Plug&Trust middleware */
+
+  "Se05x",
+  "SE05x_",
+  "kSE05x_",
+  "smStatus_t",
+  "pScp03_",
+
+  /* Ref:  arch/mips/src/pic32mz/pic32mz_w1_wlan.c, callbacks of Microchip's
+   * PIC32MZ-W1 WLAN library
+   */
+
+  "DRV_PIC32MZW_",
   NULL
 };
 
@@ -890,6 +907,14 @@ static const char *g_white_files[] =
   "phy62xx/phyplus_tim.c",
   "phy62xx/start.c",
   "lpc4370-link2/src/lpc43_spifilib_init.c",
+
+  /* Skip Mixed case in the NXP LPC43xx SPIFI family command set
+   * (vendor SDK code).
+   * Ref:
+   * arch/arm/src/lpc43xx/spifi/src/spifilib_fam_standard_cmd.c
+   */
+
+  "lpc43xx/spifi/src/spifilib_fam_standard_cmd.c",
 
   /* Skip infineon illd files
    * Ref:
@@ -2231,7 +2256,11 @@ int main(int argc, char **argv, char **envp)
 
                   else if (strncmp(&line[ii], "include", 7) == 0)
                     {
-                      if (g_section != INCLUDED_FILES)
+                      /* A file included in an initializer provides the
+                       * data of the initializer.
+                       */
+
+                      if (g_section != INCLUDED_FILES && dnest == 0)
                         {
                           /* Only a warning because there is some usage of
                            * include outside the Included Files section

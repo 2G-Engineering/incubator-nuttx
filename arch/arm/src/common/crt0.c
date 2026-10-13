@@ -31,6 +31,7 @@
 
 #include <nuttx/addrenv.h>
 #include <nuttx/arch.h>
+#include <nuttx/fdpic.h>
 
 #include <arch/syscall.h>
 
@@ -49,7 +50,7 @@ extern initializer_t _edtors[];
  * Public Function Prototypes
  ****************************************************************************/
 
-int main(int argc, char *argv[]);
+int main(int argc, char *argv[], char *envp[]);
 
 /****************************************************************************
  * Private Functions
@@ -114,7 +115,9 @@ static void exec_ctors(void)
 {
   for (initializer_t *ctor = _sctors; ctor != _ectors; ctor++)
     {
-      (*ctor)();
+      /* Under FDPIC the entry is a code address, not a descriptor */
+
+      fdpic_call(0, *ctor, fdpic_base());
     }
 }
 
@@ -130,7 +133,9 @@ static void exec_dtors(void)
 {
   for (initializer_t *dtor = _sdtors; dtor != _edtors; dtor++)
     {
-      (*dtor)();
+      /* Under FDPIC the entry is a code address, not a descriptor */
+
+      fdpic_call(0, *dtor, fdpic_base());
     }
 }
 
@@ -184,9 +189,16 @@ void _start(int argc, char *argv[])
 #  endif
 #endif
 
-  /* Call the main() entry point passing argc and argv. */
+  /* Call the main() entry point passing argc, argv and the environment.
+   * The third argument is a common Unix extension; a two-argument main()
+   * ignores it.
+   */
 
-  ret = main(argc, argv);
+#ifdef CONFIG_DISABLE_ENVIRON
+  ret = main(argc, argv, NULL);
+#else
+  ret = main(argc, argv, environ);
+#endif
 
 #if defined(CONFIG_HAVE_CXXINITIALIZE) && CONFIG_LIBC_MAX_EXITFUNS <= 0
   exec_dtors();

@@ -670,7 +670,6 @@ static void IRAM_ATTR esp_task_yield_from_isr(void)
 
 static void *esp_semphr_create(uint32_t max, uint32_t init)
 {
-  int ret;
   sem_t *sem;
   int tmp;
 
@@ -682,13 +681,7 @@ static void *esp_semphr_create(uint32_t max, uint32_t init)
       return NULL;
     }
 
-  ret = nxsem_init(sem, 0, init);
-  if (ret)
-    {
-      wlerr("Failed to initialize sem error=%d\n", ret);
-      kmm_free(sem);
-      return NULL;
-    }
+  nxsem_init(sem, 0, init);
 
   return sem;
 }
@@ -1772,6 +1765,7 @@ static void set_intr_wrapper(int32_t cpu_no, uint32_t intr_source,
                           uint32_t intr_num, int32_t intr_prio)
 {
   intr_handle_t handle;
+  vector_desc_t *desc;
   int irq = ESP_SOURCE2IRQ(intr_source);
   esp_err_t err;
 
@@ -1781,27 +1775,39 @@ static void set_intr_wrapper(int32_t cpu_no, uint32_t intr_source,
 
   esp_rom_route_intr_matrix(cpu_no, intr_source, intr_num);
 
-  handle = kmm_calloc(1, sizeof(intr_handle_data_t));
-  if (handle == NULL)
-    {
-      wlerr("Failed to kmm_calloc\n");
-      return;
-    }
-
-  handle->vector_desc = get_desc_for_int(intr_num, cpu_no);
-  if (handle->vector_desc == NULL)
+  desc = get_desc_for_int(intr_num, cpu_no);
+  if (desc == NULL)
     {
       wlerr("get_desc_for_int failed\n");
-      kmm_free(handle);
       return;
     }
 
+  /* The Wi-Fi driver calls this on every esp_wifi_start(), not only on
+   * the first one, and nothing clears the handle in between (see
+   * clear_intr_wrapper()).  Reuse the registered handle: a new one would
+   * be refused by esp_set_handle() and leaked.
+   */
+
+  handle = esp_get_handle(cpu_no, irq);
+  if (handle == IRQ_UNMAPPED)
+    {
+      handle = kmm_calloc(1, sizeof(intr_handle_data_t));
+      if (handle == NULL)
+        {
+          wlerr("Failed to kmm_calloc\n");
+          return;
+        }
+
+      /* Register the handle - it contains all needed information
+       * (cpuint, cpu)
+       */
+
+      esp_set_handle(cpu_no, irq, handle);
+    }
+
+  handle->vector_desc = desc;
   handle->vector_desc->source = intr_source;
   handle->shared_vector_desc = NULL;
-
-  /* Register the handle - it contains all needed information (cpuint, cpu) */
-
-  esp_set_handle(cpu_no, irq, handle);
 
   err = esp_intr_set_in_iram(handle, false);
   if (err != OK)
@@ -2697,6 +2703,7 @@ static void esp_log_write_wrapper(unsigned int level,
   if (level <= max_level)
     {
       va_list list;
+
       va_start(list, format);
       esp_log_writev(level, tag, format, list);
       va_end(list);
@@ -2764,6 +2771,7 @@ static void *esp_realloc_internal(void *ptr, size_t size)
   void *old_ptr = ptr;
   void *new_ptr = NULL;
   size_t old_size = 0;
+
   if (size == 0)
     {
       kmm_free(ptr);
@@ -2813,6 +2821,7 @@ static void *esp_calloc_internal(size_t n, size_t size)
   return xtensa_imm_calloc(n, size);
 #else
   void *ptr = kmm_calloc(n, size);
+
   if (ptr != NULL)
     {
       if (esp32_ptr_extram(ptr))
@@ -2848,6 +2857,7 @@ static void *esp_zalloc_internal(size_t size)
   return xtensa_imm_zalloc(size);
 #else
   void *ptr = kmm_zalloc(size);
+
   if (ptr != NULL)
     {
       if (esp32_ptr_extram(ptr))

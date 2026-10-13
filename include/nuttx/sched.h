@@ -33,6 +33,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <sched.h>
+#include <sys/prctl.h>
 #include <signal.h>
 #include <pthread.h>
 #include <time.h>
@@ -456,6 +457,7 @@ struct task_group_s
   pid_t tg_pid;                     /* The ID of the task within the group      */
   pid_t tg_ppid;                    /* This is the ID of the parent thread      */
   uint8_t tg_flags;                 /* See GROUP_FLAG_* definitions             */
+  uint8_t tg_caps;                  /* See PR_CAP_* definitions                 */
 
   /* User identity (POSIX real, effective, and saved-set IDs) ***************/
 
@@ -923,6 +925,12 @@ static inline_function bool nxsched_has_gid(FAR struct tcb_s *tcb,
  ****************************************************************************/
 
 FAR struct tcb_s *nxsched_self(void);
+
+#ifdef CONFIG_SCHED_CAPABILITIES
+#  define nxsched_capable(c) ((nxsched_self()->group->tg_caps & (c)) == (c))
+#else
+#  define nxsched_capable(c) true
+#endif
 
 /****************************************************************************
  * Name: nxsched_foreach
@@ -1611,14 +1619,15 @@ pid_t nxsched_getppid(void);
  * Name: nxsched_collect_deadlock
  *
  * Description:
- *   Check if there is a deadlock and get the thread pid of the deadlock.
+ *   Find mutex deadlocks and collect the IDs of participating threads.
  *
  * Input parameters:
- *   pid   - The array to store the thread pid of the deadlock.
- *   count - The size of the pid array.
+ *   pid   - The array to store deadlocked thread IDs.
+ *   count - The maximum number of thread IDs to store.
  *
  * Returned Value:
- *   The number of thread deadlocks.
+ *   The number of thread IDs stored in pid.  A return value equal to count
+ *   may indicate that the result was truncated.
  *
  ****************************************************************************/
 

@@ -30,7 +30,9 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
+#include <inttypes.h>
 #include <nuttx/debug.h>
+#include <nuttx/envpath.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/cache.h>
@@ -44,6 +46,14 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+/* With an address environment the program lives in its own address space,
+ * which a library loaded by libelf_insert() cannot reach.
+ */
+
+#if CONFIG_LIBC_ELF_MAXDEPEND > 0 && !defined(CONFIG_ARCH_ADDRENV)
+#  define LIBELF_NEEDED
+#endif
 
 #define I_REL   0    /* Index into relxxx[] arrays for relocations */
 #define I_PLT   1    /* ... for PLTs */
@@ -66,7 +76,13 @@
 #if defined(ARCH_ELFDATA) && defined(ARCH_ELFDATA_SET_PLTREL)
 #  define ARCH_ELFDATA_PLTREL(v) ARCH_ELFDATA_SET_PLTREL(&arch_data, v)
 #else
-#  define ARCH_ELFDATA_PLTREL(v)
+#  define ARCH_ELFDATA_PLTREL(v) ((void)(v))
+#endif
+
+#if defined(ARCH_ELFDATA) && defined(ARCH_ELFDATA_SET_SYMISDESC)
+#  define ARCH_ELFDATA_SYMISDESC(v) ARCH_ELFDATA_SET_SYMISDESC(&arch_data, v)
+#else
+#  define ARCH_ELFDATA_SYMISDESC(v) ((void)(v))
 #endif
 
 #if defined(ARCH_ELFDATA) && defined(ARCH_ELFDATA_INIT)
@@ -92,7 +108,12 @@ typedef struct
   int        idx;
 } Elf_SymCache;
 
-struct
+/* Where a dynamic object's relocation tables live.  Per load, not per file:
+ * loading a DT_NEEDED library re-enters this function, and a shared
+ * instance would be overwritten by the nested load.
+ */
+
+struct reldata_s
 {
   int stroff;           /* offset to string table */
   int symoff;           /* offset to symbol table */
@@ -101,11 +122,65 @@ struct
   int reloff[2];        /* offset to the relocation section */
   int relsz[2];         /* size of relocation table */
   int relrela[2];       /* type of relocation type - 0: DT_REL / 1: DT_RELA */
-} reldata;
+};
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+#ifdef LIBELF_NEEDED
+/****************************************************************************
+ * Name: libelf_insertneeded
+ *
+ * Description:
+ *   Load a library a module names in DT_NEEDED.  A bare name is looked for
+ *   along LD_LIBRARY_PATH, as dlopen() looks for it, and the module is
+ *   registered under its base name, so a library two modules name is loaded
+ *   once and reference counted.
+ *
+ * Returned Value:
+ *   The handle of the loaded library, or NULL.
+ *
+ ****************************************************************************/
+
+static FAR void *libelf_insertneeded(FAR const char *name)
+{
+  FAR const char *modname;
+
+  modname = strrchr(name, '/');
+  modname = modname != NULL ? modname + 1 : name;
+
+#ifdef CONFIG_LIBC_ENVPATH
+  if (name[0] != '/')
+    {
+      FAR void *handle = NULL;
+      FAR char *fullpath;
+      ENVPATH_HANDLE env;
+
+      env = envpath_init("LD_LIBRARY_PATH");
+      if (env != NULL)
+        {
+          while ((fullpath = envpath_next(env, name)) != NULL)
+            {
+              handle = libelf_insert(fullpath, modname);
+              lib_free(fullpath);
+
+              if (handle != NULL)
+                {
+                  break;
+                }
+            }
+
+          envpath_release(env);
+        }
+
+      return handle;
+    }
+#endif
+
+  return libelf_insert(name, modname);
+}
+#endif
 
 /****************************************************************************
  * Name: libelf_readrels
@@ -454,13 +529,17 @@ static int libelf_relocateadd(FAR struct module_s *modp,
 {
   FAR Elf_Shdr     *relsec = &loadinfo->shdr[relidx];
   FAR Elf_Shdr     *dstsec = &loadinfo->shdr[relsec->sh_info];
+  FAR Elf_Shdr     *symsec = &loadinfo->shdr[loadinfo->symtabidx];
   FAR Elf_Rela     *relas;
   FAR Elf_Rela     *rela;
   FAR Elf_SymCache *cache;
+  FAR Elf_Sym      *syms;
   FAR Elf_Sym      *sym;
+  FAR uint8_t      *done;
   FAR dq_entry_t   *e;
   dq_queue_t        q;
   uintptr_t         addr;
+  size_t            nsyms;
   int               symidx;
   int               ret = OK;
   int               i;
@@ -479,6 +558,27 @@ static int libelf_relocateadd(FAR struct module_s *modp,
     }
 
   dq_init(&q);
+
+  /* A large module has many more relocations than symbols, and reading
+   * the symbols one at a time through the cache below is then very slow.
+   * If there is memory for it, read the whole symbol table at once and
+   * resolve each symbol only once.  Otherwise use the cache.
+   */
+
+  nsyms = symsec->sh_size / sizeof(Elf_Sym);
+  syms  = lib_malloc(nsyms * sizeof(Elf_Sym) + nsyms);
+  done  = NULL;
+  if (syms != NULL)
+    {
+      done = (FAR uint8_t *)&syms[nsyms];
+      memset(done, 0, nsyms);
+      if (libelf_read(loadinfo, (FAR uint8_t *)syms,
+                      nsyms * sizeof(Elf_Sym), symsec->sh_offset) < 0)
+        {
+          lib_free(syms);
+          syms = NULL;
+        }
+    }
 
   /* Examine each relocation in the section.  'relsec' is the section
    * containing the relations.  'dstsec' is the section containing the data
@@ -510,94 +610,126 @@ static int libelf_relocateadd(FAR struct module_s *modp,
 
       symidx = ELF_R_SYM(rela->r_info);
 
-      /* First try the cache */
-
-      sym = NULL;
-      for (e = dq_peek(&q); e; e = dq_next(e))
+      if (syms != NULL)
         {
-          cache = (FAR Elf_SymCache *)e;
-          if (cache->idx == symidx)
+          if (symidx < 0 || (size_t)symidx >= nsyms)
             {
-              dq_rem(&cache->entry, &q);
-              dq_addfirst(&cache->entry, &q);
-              sym = &cache->sym;
-              break;
-            }
-        }
-
-      /* If the symbol was not found in the cache, we will need to read the
-       * symbol from the file.
-       */
-
-      if (sym == NULL)
-        {
-          if (j < CONFIG_LIBC_ELF_SYMBOL_CACHECOUNT)
-            {
-              cache = lib_malloc(sizeof(Elf_SymCache));
-              if (!cache)
-                {
-                  berr("Failed to allocate memory for elf symbols\n");
-                  ret = -ENOMEM;
-                  break;
-                }
-
-              j++;
-            }
-          else
-            {
-              cache = (FAR Elf_SymCache *)dq_remlast(&q);
-            }
-
-          sym = &cache->sym;
-
-          /* Read the symbol table entry into memory */
-
-          ret = libelf_readsym(loadinfo, symidx, sym,
-                               &loadinfo->shdr[loadinfo->symtabidx]);
-          if (ret < 0)
-            {
-              berr("ERROR: Section %d reloc %d: "
-                   "Failed to read symbol[%d]: %d\n",
-                   relidx, i, symidx, ret);
-              lib_free(cache);
+              berr("ERROR: Section %d reloc %d: bad symbol index %d\n",
+                   relidx, i, symidx);
+              ret = -EINVAL;
               break;
             }
 
-          /* Get the value of the symbol (in sym.st_value) */
-
-          ret = libelf_symvalue(modp, loadinfo, sym,
-                           loadinfo->shdr[loadinfo->strtabidx].sh_offset,
-                           exports, nexports);
-          if (ret < 0)
+          sym = &syms[symidx];
+          if (!done[symidx])
             {
-              /* The special error -ESRCH is returned only in one condition:
-               * The symbol has no name.
-               *
-               * There are a few relocations for a few architectures that do
-               * no depend upon a named symbol.  We don't know if that is the
-               * case here, but we will use a NULL symbol pointer to indicate
-               * that case to up_relocate().  That function can then do what
-               * is best.
-               */
+              /* Get the value of the symbol (in sym.st_value) */
 
-              if (ret == -ESRCH)
-                {
-                  berr("ERROR: Section %d reloc %d: "
-                       "Undefined symbol[%d] has no name: %d\n",
-                       relidx, i, symidx, ret);
-                }
-              else
+              ret = libelf_symvalue(modp, loadinfo, sym,
+                          loadinfo->shdr[loadinfo->strtabidx].sh_offset,
+                          exports, nexports);
+              if (ret < 0 && ret != -ESRCH)
                 {
                   berr("ERROR: Section %d reloc %d: "
                        "Failed to get value of symbol[%d]: %d\n",
                        relidx, i, symidx, ret);
-                  lib_free(cache);
+                  break;
+                }
+
+              done[symidx] = 1;
+            }
+        }
+      else
+        {
+          /* First try the cache */
+
+          sym = NULL;
+          for (e = dq_peek(&q); e; e = dq_next(e))
+            {
+              cache = (FAR Elf_SymCache *)e;
+              if (cache->idx == symidx)
+                {
+                  dq_rem(&cache->entry, &q);
+                  dq_addfirst(&cache->entry, &q);
+                  sym = &cache->sym;
                   break;
                 }
             }
 
-          cache->idx = symidx;
-          dq_addfirst(&cache->entry, &q);
+          /* If the symbol was not found in the cache, we will need to read
+           * the symbol from the file.
+           */
+
+          if (sym == NULL)
+            {
+              if (j < CONFIG_LIBC_ELF_SYMBOL_CACHECOUNT)
+                {
+                  cache = lib_malloc(sizeof(Elf_SymCache));
+                  if (!cache)
+                    {
+                      berr("Failed to allocate memory for elf symbols\n");
+                      ret = -ENOMEM;
+                      break;
+                    }
+
+                  j++;
+                }
+              else
+                {
+                  cache = (FAR Elf_SymCache *)dq_remlast(&q);
+                }
+
+              sym = &cache->sym;
+
+              /* Read the symbol table entry into memory */
+
+              ret = libelf_readsym(loadinfo, symidx, sym,
+                                   &loadinfo->shdr[loadinfo->symtabidx]);
+              if (ret < 0)
+                {
+                  berr("ERROR: Section %d reloc %d: "
+                       "Failed to read symbol[%d]: %d\n",
+                       relidx, i, symidx, ret);
+                  lib_free(cache);
+                  break;
+                }
+
+              /* Get the value of the symbol (in sym.st_value) */
+
+              ret = libelf_symvalue(modp, loadinfo, sym,
+                               loadinfo->shdr[loadinfo->strtabidx].sh_offset,
+                               exports, nexports);
+              if (ret < 0)
+                {
+                  /* The special error -ESRCH is returned only in one
+                   * condition: The symbol has no name.
+                   *
+                   * There are a few relocations for a few architectures that
+                   * do no depend upon a named symbol.  We don't know if that
+                   * is the case here, but we will use a NULL symbol pointer
+                   * to indicate that case to up_relocate().  That function
+                   * can then do what is best.
+                   */
+
+                  if (ret == -ESRCH)
+                    {
+                      berr("ERROR: Section %d reloc %d: "
+                           "Undefined symbol[%d] has no name: %d\n",
+                           relidx, i, symidx, ret);
+                    }
+                  else
+                    {
+                      berr("ERROR: Section %d reloc %d: "
+                           "Failed to get value of symbol[%d]: %d\n",
+                           relidx, i, symidx, ret);
+                      lib_free(cache);
+                      break;
+                    }
+                }
+
+              cache->idx = symidx;
+              dq_addfirst(&cache->entry, &q);
+            }
         }
 
       if (sym->st_shndx == SHN_UNDEF && sym->st_name == 0)
@@ -633,6 +765,7 @@ static int libelf_relocateadd(FAR struct module_s *modp,
     }
 
   lib_free(relas);
+  lib_free(syms);
   while ((e = dq_peek(&q)) != NULL)
     {
       dq_rem(e, &q);
@@ -640,6 +773,34 @@ static int libelf_relocateadd(FAR struct module_s *modp,
     }
 
   return ret;
+}
+
+/****************************************************************************
+ * Name: libelf_fileoff
+ *
+ * Description:
+ *   Translate a link-time address named by a dynamic tag into its offset in
+ *   the file.  They are the same only when its segment starts at offset 0.
+ *
+ ****************************************************************************/
+
+static off_t libelf_fileoff(FAR struct mod_loadinfo_s *loadinfo,
+                            uintptr_t vaddr)
+{
+  int i;
+
+  for (i = 0; loadinfo->phdr != NULL && i < loadinfo->ehdr.e_phnum; i++)
+    {
+      FAR Elf_Phdr *phdr = &loadinfo->phdr[i];
+
+      if (phdr->p_type == PT_LOAD && vaddr >= phdr->p_vaddr &&
+          vaddr - phdr->p_vaddr < phdr->p_filesz)
+        {
+          return phdr->p_offset + (vaddr - phdr->p_vaddr);
+        }
+    }
+
+  return vaddr;
 }
 
 /****************************************************************************
@@ -673,6 +834,13 @@ static int libelf_relocatedyn(FAR struct module_s *modp,
   int           i;
   int           idx_rel;
   int           idx_sym;
+#ifdef LIBELF_NEEDED
+  int           j;
+  uintptr_t     libs[CONFIG_LIBC_ELF_MAXDEPEND];
+  int           nlibs = 0;
+#endif
+  struct reldata_s reldata;
+  bool          symfromlib;
 
   /* Define potential architecture specific elf data container */
 
@@ -713,7 +881,8 @@ static int libelf_relocatedyn(FAR struct module_s *modp,
       switch (dyn[i].d_tag)
         {
           case DT_REL:
-            reldata.reloff[I_REL] = dyn[i].d_un.d_val;
+            reldata.reloff[I_REL] = libelf_fileoff(loadinfo,
+                                                   dyn[i].d_un.d_ptr);
             break;
           case DT_RELSZ:
             reldata.relsz[I_REL] = dyn[i].d_un.d_val;
@@ -728,11 +897,39 @@ static int libelf_relocatedyn(FAR struct module_s *modp,
             reldata.stroff = dyn[i].d_un.d_val;
             break;
           case DT_JMPREL:
-            reldata.reloff[I_PLT] = dyn[i].d_un.d_val;
+            reldata.reloff[I_PLT] = libelf_fileoff(loadinfo,
+                                                   dyn[i].d_un.d_ptr);
             break;
           case DT_PLTRELSZ:
             reldata.relsz[I_PLT] = dyn[i].d_un.d_val;
             break;
+          case DT_NEEDED:
+#ifdef LIBELF_NEEDED
+
+            /* Remember it; the name lives in the string table, which is
+             * not located until the loop has seen DT_STRTAB.
+             */
+
+            if (nlibs >= CONFIG_LIBC_ELF_MAXDEPEND)
+              {
+                berr("ERROR: More than %d DT_NEEDED entries\n",
+                     CONFIG_LIBC_ELF_MAXDEPEND);
+                lib_free(sym);
+                lib_free(rels);
+                lib_free(dyn);
+                return -ENOEXEC;
+              }
+
+            libs[nlibs++] = dyn[i].d_un.d_val;
+            break;
+#else
+            berr("ERROR: Cannot load a DT_NEEDED library\n");
+            lib_free(sym);
+            lib_free(rels);
+            lib_free(dyn);
+            return -ENOSYS;
+#endif
+
           case DT_PLTGOT:
 
             /* The object's data base.  Every function descriptor built
@@ -798,9 +995,94 @@ static int libelf_relocatedyn(FAR struct module_s *modp,
         }
     }
 
-  /* After the loop, because DT_PLTGOT is read there.  Both relocation
-   * tables are walked under this one arch_data, so the pool cursor
-   * survives from one to the next.
+  /* An object with no imports has no PLT and so no DT_PLTGOT, but it still
+   * has a GOT and still has to be entered with it: the linker puts it
+   * immediately after the dynamic section.
+   */
+
+  if (loadinfo->fdpic && loadinfo->gotbase == 0)
+    {
+      loadinfo->gotbase = libelf_addr(loadinfo,
+                                      shdr->sh_addr + shdr->sh_size);
+      binfo("No DT_PLTGOT; taking the GOT at %08" PRIxPTR "\n",
+            loadinfo->gotbase);
+    }
+
+  /* Load whatever the object names in DT_NEEDED.  This is what dlopen()
+   * does, through the same libelf_insert(), but the loader is also the
+   * kernel's module loader, which has no dlfcn.
+   */
+
+#ifdef LIBELF_NEEDED
+
+  symhdr = &loadinfo->shdr[loadinfo->dsymtabidx];
+
+  for (i = 0; i < nlibs; i++)
+    {
+      Elf_Sym namesym;
+      FAR void *handle;
+
+      /* The name is a string table offset, which is what st_name is, so
+       * the existing reader can fetch it.
+       */
+
+      memset(&namesym, 0, sizeof(namesym));
+      namesym.st_name = libs[i];
+
+      ret = libelf_symname(loadinfo, &namesym,
+                           loadinfo->shdr[symhdr->sh_link].sh_offset);
+      if (ret < 0)
+        {
+          berr("ERROR: DT_NEEDED %d has no name\n", i);
+          lib_free(sym);
+          lib_free(rels);
+          lib_free(dyn);
+          return ret;
+        }
+
+      handle = libelf_insertneeded((FAR const char *)loadinfo->iobuffer);
+      if (handle == NULL)
+        {
+          berr("ERROR: Cannot open needed library %s\n",
+               (FAR char *)loadinfo->iobuffer);
+          lib_free(sym);
+          lib_free(rels);
+          lib_free(dyn);
+          return -ELIBACC;
+        }
+
+      binfo("Opened needed library %s\n", (FAR char *)loadinfo->iobuffer);
+
+      /* The dependency holds the library from now on, in place of the
+       * reference libelf_insert() took, so libelf_undepend() lets it go.
+       */
+
+      libelf_registry_lock();
+      ret = libelf_depend(modp, handle);
+      if (ret >= 0)
+        {
+          ((FAR struct module_s *)handle)->nopen--;
+        }
+
+      libelf_registry_unlock();
+
+      if (ret < 0)
+        {
+          berr("ERROR: Cannot depend on %s: %d\n",
+               (FAR char *)loadinfo->iobuffer, ret);
+          libelf_remove(handle);
+          lib_free(sym);
+          lib_free(rels);
+          lib_free(dyn);
+          return ret;
+        }
+    }
+
+#endif
+
+  /* Must follow the tag loop, which is where DT_PLTGOT is read.  Both
+   * relocation tables are walked under this one arch_data, so a cursor in
+   * it spans the object.
    */
 
   ARCH_ELFDATA_SETUP(loadinfo);
@@ -899,13 +1181,35 @@ static int libelf_relocatedyn(FAR struct module_s *modp,
                 {
                   FAR void *ep;
 
+                  symfromlib = false;
                   ep = libelf_findglobal(modp, loadinfo, symhdr,
                                          &sym[idx_sym]);
 
-                  /* libelf_findglobal() searches only the registered
-                   * symbols.  A module from exec() has its own export
-                   * table, and an FDPIC module imports its libc there.
+                  /* libelf_findglobal() searches only the globally
+                   * registered symbols, and has left the name in the
+                   * I/O buffer.  Try the modules this one depends on,
+                   * its DT_NEEDED libraries among them, then the table
+                   * exec() supplied.
                    */
+
+#ifdef LIBELF_NEEDED
+                  for (j = 0; ep == NULL && j < CONFIG_LIBC_ELF_MAXDEPEND;
+                       j++)
+                    {
+                      FAR struct module_s *dep = modp->dependencies[j];
+
+                      if (dep != NULL)
+                        {
+                          ep = (FAR void *)
+                            libelf_getsymbol(dep,
+                                             (FAR char *)loadinfo->iobuffer);
+
+                          /* An FDPIC object exports descriptors */
+
+                          symfromlib = ep != NULL && dep->gotbase != 0;
+                        }
+                    }
+#endif
 
                   if (ep == NULL && exports != NULL)
                     {
@@ -954,6 +1258,12 @@ static int libelf_relocatedyn(FAR struct module_s *modp,
 
                   extsym.st_value = (uintptr_t)ep;
 
+                  /* Whether the resolved value is itself a descriptor,
+                   * which it is when the symbol came from a library.
+                   */
+
+                  ARCH_ELFDATA_SYMISDESC(symfromlib);
+
                   ret = up_relocate(rel, &extsym, addr, ARCH_ELFDATA_PARM);
                   if (ret < 0)
                     {
@@ -967,16 +1277,17 @@ static int libelf_relocatedyn(FAR struct module_s *modp,
                 }
               else if (loadinfo->fdpic)
                 {
-                  /* A relocation naming a symbol inside this object.  A
-                   * pointer to a static function is emitted against the
-                   * section symbol, so the offset, Thumb bit included, is
-                   * the addend and must not come from the patched word.
+                  /* A symbol defined inside this object.  Its value is
+                   * the symbol's own, translated; the addend stays where
+                   * the relocation type expects it.
                    */
 
                   Elf_Sym defsym = sym[idx_sym];
 
                   defsym.st_value = libelf_addr(loadinfo,
                                                 sym[idx_sym].st_value);
+
+                  ARCH_ELFDATA_SYMISDESC(false);
 
                   addr = libelf_addr(loadinfo, rel->r_offset);
 
@@ -1014,6 +1325,8 @@ static int libelf_relocatedyn(FAR struct module_s *modp,
               dynsym.st_value = libelf_addr(loadinfo,
                                             *(FAR uint32_t *)addr);
 
+              ARCH_ELFDATA_SYMISDESC(false);
+
               ret = up_relocate(rel, &dynsym, addr, ARCH_ELFDATA_PARM);
             }
 
@@ -1029,9 +1342,7 @@ static int libelf_relocatedyn(FAR struct module_s *modp,
         }
     }
 
-  /* Hand back what the relocations consumed.  The error paths above do
-   * not bother: the load is being abandoned, so the cursor has no reader.
-   */
+  /* Hand back what the relocations consumed. */
 
   ARCH_ELFDATA_TEARDOWN(loadinfo);
 

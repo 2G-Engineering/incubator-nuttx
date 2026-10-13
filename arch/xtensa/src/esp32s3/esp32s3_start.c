@@ -51,6 +51,9 @@
 #ifdef CONFIG_BUILD_PROTECTED
 #  include "esp32s3_userspace.h"
 #endif
+#ifdef CONFIG_BUILD_KERNEL
+#  include "esp32s3_isolation.h"
+#endif
 #include "esp32s3_spi_timing.h"
 #include "hardware/esp32s3_cache_memory.h"
 #include "hardware/esp32s3_system.h"
@@ -443,7 +446,16 @@ noinstrument_function void noreturn_function IRAM_ATTR __esp32s3_start(void)
   showprogress('C');
 #endif
 
-  SYS_STARTUP_FN();
+#ifdef CONFIG_BUILD_KERNEL
+  /* A kernel build has no user image to load, but the unprivileged world
+   * still needs its vector table and its permissions before the first user
+   * process runs.
+   */
+
+  esp32s3_isolation_worlds();
+  esp32s3_isolation_permissions();
+  showprogress('C');
+#endif
 
   /* Bring up NuttX */
 
